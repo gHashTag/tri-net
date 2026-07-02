@@ -1,0 +1,11 @@
+{
+  "gen_hash_c": "sha256:b0d132e66cd44776c4418a0475177f268dac3abdc3a7980f29a9acd254a2a5cb",
+  "gen_hash_rust": "sha256:4bb1f3d77dc453a16fa4f737604bc32cea3130000b621c790a0c4577cacfbf99",
+  "gen_hash_verilog": "sha256:dd36f70dce10bc93f46ca2c471de8e093cda95478e58cae93a3252b998bcafb8",
+  "gen_hash_zig": "sha256:6256455f737dd01d67d9abe4e51a51392cfde09c4ebf6cabdf4e6dc2bc99d978",
+  "module": "MeshWire",
+  "ring": 12,
+  "sealed_at": "2026-07-02T13:38:35Z",
+  "spec_hash": "sha256:78b28f38bca810c196c06cd765fa22434b387dd43610531ff703e0e8008d7dae",
+  "spec_path": "specs/wire.t27"
+}
