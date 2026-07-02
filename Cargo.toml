@@ -1,0 +1,39 @@
+[package]
+name = "trios-mesh"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "TRI-NET drone-mesh daemon: ETX routing + X25519 + ChaCha20-Poly1305 encrypted IP-over-radio for the Zynq Mini node."
+repository = "https://github.com/gHashTag/trios-mesh"
+readme = "README.md"
+keywords = ["mesh", "drone", "sdr", "crypto", "routing"]
+categories = ["network-programming", "cryptography"]
+
+[dependencies]
+x25519-dalek = { version = "2.0", features = ["static_secrets", "zeroize"] }
+chacha20poly1305 = "0.10"
+hkdf = "0.12"
+sha2 = "0.10"
+rand_core = { version = "0.6", features = ["getrandom"] }
+zeroize = { version = "1", features = ["derive"] }
+num-complex = "0.4"
+
+[dev-dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[features]
+# Off-by-default: swap the pure-Rust GF16 scalar backend for the goldenfloat-sys
+# C ABI (gf16_add/mul/fma/from_f32/to_f32). The unsafe FFI is isolated behind a
+# safe adapter; `trios-mesh` itself stays `#![forbid(unsafe_code)]`. CI runs the
+# default (pure-Rust) path. See src/gf16.rs and tests/gf16_conformance.rs.
+default = []
+goldenfloat-ffi = []
+
+[[bin]]
+name = "smoke-m1"
+path = "src/bin/smoke_m1.rs"
+
+[profile.release]
+opt-level = "z"
+lto = true
