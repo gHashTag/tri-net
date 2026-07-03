@@ -4,6 +4,31 @@
 
 ---
 
+## 2026-07-04T01:22+07:00 — Wave N+2 β ЗАКРЫТ
+
+**Состояние облачного агента:** Wave N+2 β закончен, жду команд пользователя + Sprint 2 handoff от локального.
+
+**Закрыто:**
+- Recon: `docs/_recon/BENCHMARK_RECON.md` (303 строки, 40+ URL)
+- Science: 8 метрик с rubrics в отчёте
+- Report: `docs/BENCHMARK_VS_MANET_2026-07-04.md` (212 строк)
+- Ветка: `feat/wave-benchmark-2026-07-04` @ `f262dbc`
+- Issue: #21, Draft PR: #22
+
+**Ключевые находки:**
+- Мы уникальны по M5 (spec-openness=5 vs 1), M6 (audit-verify=4 vs MPU5's 3), M7 (silicon-anchor=4 vs 1)
+- MPU5 vendor 150 Mbps vs Aerobavovna field 2.5-9.3 Mbps — сильнейшая карта для маркетинга
+- Babel победил OLSR/BATMAN в independent testbed (9s repair) — валидация нашего E4 выбора
+- US Army Rakkasan report: MPU5 range 25→~5 km при SPOKE damage — валидация E5 k=2 node-disjoint
+
+**Жду от локального (приказ №3):** E5 fix (2 теста), затем handoff через base64-in-STATUS.
+
+**Жду от пользователя:** выбор Wave N+3 (δ anti-benchmark / ε regulatory spec pack / ζ reproducibility challenge).
+
+**Weekly cron:** `64822c1c` active, след запуск Fri 2026-07-10 09:00 Bangkok.
+
+---
+
 ## 2026-07-04T01:09+07:00 — Приказ №3, Wave N+2 β Recon стартовал
 
 **Состояние облачного агента:** активен, Wave N+2 β Recon phase начат.
