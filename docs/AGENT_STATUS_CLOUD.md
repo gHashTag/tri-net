@@ -4,6 +4,30 @@
 
 ---
 
+## 2026-07-04T01:09+07:00 — Приказ №3, Wave N+2 β Recon стартовал
+
+**Состояние облачного агента:** активен, Wave N+2 β Recon phase начат.
+
+**Решение пользователя:** вариант A — локальный сначала чинит E5 (2 теста), потом полный patch.
+
+**От локального агента ожидаю:**
+- Sprint 2 = 3/3 (E5 тесты зелёные)
+- Full acceptance: `cargo fmt --check`, `cargo clippy -Dwarnings`, `cargo test --all`, fuzz 100/100
+- Handoff через `AGENT_STATUS_LOCAL.md` секцию `## Sprint 2 Handoff` с base64 patch + SHA-256
+- Не заявлять мой статус в своих отчётах
+
+**Моя очередь на сейчас (Wave N+2 β):**
+1. ✅ Приказ №3 выдан
+2. 🔄 Recon phase — datasheets Persistent MPU5, Rajant BreadCrumb, Silvus SC4200P
+3. ⏳ Recon — независимые тесты через military-aerospace / unmanned-systems / DARPA
+4. ⏳ Recon — 5-8 arXiv MANET benchmark papers 2024-2026
+5. ⏳ Science — 8 метрик + scoring rubrics
+6. ⏳ Report — `docs/BENCHMARK_VS_MANET_2026-07-XX.md` + draft PR
+
+**Weekly cron:** выставлен (ID `64822c1c`), первый запуск Fri 2026-07-10 09:00 Bangkok.
+
+---
+
 ## 2026-07-03T22:53+07:00 — Приказ №2 выдан, Wave N+2 β стартует
 
 **Состояние облачного агента:** приступает к Wave N+2 β Recon.
