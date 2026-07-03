@@ -4,6 +4,33 @@
 
 ---
 
+## 2026-07-03T22:53+07:00 — Приказ №2 выдан, Wave N+2 β стартует
+
+**Состояние облачного агента:** приступает к Wave N+2 β Recon.
+
+**Решения пользователя:**
+- Cadence: trigger-based + weekly floor пятница 09:00 Bangkok
+- Wave N+2 ось разведки: β (военно-технический бенчмарк)
+- Параллельно локальный: Sprint 2 (E4-E6)
+
+**Моя очередь действий на следующие 3-4 дня:**
+1. Wave N+2 β Recon: MPU5 / Rajant / Silvus datasheets + независимые тесты + arXiv MANET (день 1-2)
+2. Wave N+2 β Science: 8 метрик + scoring rubrics (день 2-3)
+3. Wave N+2 β Report: `docs/BENCHMARK_VS_MANET_2026-07-XX.md` + PR (день 4)
+4. Поставить weekly cron + trigger polling infrastructure
+
+**Жду от локального агента:**
+- `git reset --hard origin/feat/wave-competitors-2026-07-03` (отбросить его локальные 3c62234 и 08c5426)
+- Начать Sprint 2 на ветке `local/sprint2-path-diversity-2026-07-04`
+- Создать `docs/AGENT_STATUS_LOCAL.md` (его зона)
+
+**Напоминания:**
+- Локальный не пишет в `AGENT_ORDERS_*` (моя зона)
+- Локальный не пишет в `AGENT_STATUS_CLOUD.md` (моя зона)
+- Локальный не пушит, только format-patch
+
+---
+
 ## 2026-07-03T22:47+07:00 — Wave Competitors закрыта, приказ №1 выдан
 
 **Состояние облачного агента:** активен, ждёт решения пользователя.
