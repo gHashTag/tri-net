@@ -4,6 +4,43 @@
 
 ---
 
+## 2026-07-04T03:10+07:00 — Sprint 2 COMPLETE, оба merge запушены, жду mbox
+
+**Состояние облачного агента:** реконсил после двух дампов, оба doc-merge выполнены и запушены, жду `sprint2-full.mbox` для применения через `git am`.
+
+**Sprint 2 результат (по данным локального агента, дамп 63e9b00):**
+- E4 done (Babel-lite, ETX+link-quality), E5 done (path diversity k=2 node-disjoint, оба теста зелёные), E6 done (hot-swap)
+- `cargo test --all`: **176/0** на локальной ветке `local/sprint2-path-diversity-2026-07-04` @ `58bf246`
+- E5 fix локального: Bug A (`hot_swap_on_force_dead` — dead-filter читал stale `ranked_candidates`) + Bug B (`ranked_hops_ignores_dead_links` — пул только из `ranked_candidates`, без feasibility routes из `learn_route`). Fix коммит `d640423`, doctest cleanup `58bf246`.
+- Handoff artifact: `sprint2-full.mbox` (8 патчей, 8233 строк, 293 KB, sha256 `d958aeb`)
+- **STALE**: старый `sprint2.patch` (5305 строк, коммит 9717163) — НЕ применять, pre-fix state, вернёт 2 failing tests
+
+**Merge doc-версий выполнен (обе ветки запушены):**
+- **Onboarding v2.0** → `feat/wave-competitors-2026-07-03` @ `4da6e85` (286 строк, было 158 +211/-84). Русский голос облака + 12-секционная структура локального + Emergency Procedures + правило работы с противоречивыми дампами. Эмодзи вычищены (нарушают user style).
+- **Benchmark merge** → `feat/wave-benchmark-2026-07-04` @ `31aafc2` (269 строк, было 212 +72/-14). Компактный single-line rubric из облака + 5 URL первоисточников из локального (CMVP list, Silvus SC4400 + 559-node demo, Doodle Labs PDF, Persistent MPU5). M3 self-heal обновлён: Sprint 2 done, `d640423`.
+
+**Открытые PR:**
+- [#18](https://github.com/gHashTag/tri-net/pull/18) draft — WAVE_REPORT первая волна
+- [#20](https://github.com/gHashTag/tri-net/pull/20) draft — competitors + приказы + onboarding v2.0
+- [#22](https://github.com/gHashTag/tri-net/pull/22) draft — benchmark v2 (merged)
+- Sprint 2 PR — открою после `git am sprint2-full.mbox`, новая ветка `feat/sprint2-path-diversity-2026-07-04`
+
+**Дивергенция vs локальный:**
+- Локальный коммит `8c6fcc7` (reconcil AGENT_STATUS_CLOUD «Day 2 starting» → COMPLETE) в облако не пришёл (ветка `local/*` не пушится). Этот блок = ручной реконсил, содержательно эквивалентный.
+- Локальный `SITUATION_REPORT` файла у меня нет — если нужен канон в PR, локальный присылает его отдельным mbox.
+
+**Иммедиэйт next:**
+1. Пользователь прикладывает `sprint2-full.mbox` (лежит у него в `~/Desktop/sprint2-full.mbox`)
+2. Я: `git checkout feat/wave-competitors-2026-07-03` (уже на ней)
+3. `git am /path/to/sprint2-full.mbox` (или сначала перевести на новую ветку `feat/sprint2-path-diversity-2026-07-04`)
+4. `cargo test --all` — ожидаю 176/0
+5. Push, draft PR со ссылками на исходные коммиты
+6. Пре-existing debt (`cargo fmt` на ~20 файлов, 32 clippy warnings) — отдельный `chore(fmt+clippy)` коммит, НЕ смешивать с Sprint 2
+
+φ² + φ⁻² = 3
+
+---
+
 ## 2026-07-04T01:52+07:00 — Приказ №4, координация пересобрана
 
 **Состояние облачного агента:** ждёт handoff от локального.
