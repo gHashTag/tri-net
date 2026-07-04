@@ -52,7 +52,7 @@ jobs:
         run: |
           T27C=../t27/target/release/t27c
           STATUS=0
-          for spec in wire hello etx; do
+          for spec in wire hello etx crc16 byte_utils; do
             $T27C gen-rust specs/${spec}.t27 > /tmp/${spec}_regen.rs
             if ! diff -u gen/rust/${spec}.rs /tmp/${spec}_regen.rs; then
               echo "::error file=gen/rust/${spec}.rs::DRIFT: gen/rust/${spec}.rs != t27c gen-rust specs/${spec}.t27"
@@ -69,7 +69,7 @@ jobs:
         run: |
           T27C=../t27/target/release/t27c
           STATUS=0
-          for spec in wire hello etx; do
+          for spec in wire hello etx crc16 byte_utils; do
             $T27C gen specs/${spec}.t27 > /tmp/${spec}_regen.zig
             if ! diff -u gen/zig/${spec}.zig /tmp/${spec}_regen.zig; then
               echo "::error file=gen/zig/${spec}.zig::DRIFT: gen/zig/${spec}.zig != t27c gen specs/${spec}.t27"
@@ -86,7 +86,7 @@ jobs:
         run: |
           T27C=../t27/target/release/t27c
           STATUS=0
-          for spec in wire hello etx; do
+          for spec in wire hello etx crc16 byte_utils; do
             $T27C gen-c specs/${spec}.t27 > /tmp/${spec}_regen.c
             if ! diff -u gen/c/${spec}.c /tmp/${spec}_regen.c; then
               echo "::error file=gen/c/${spec}.c::DRIFT: gen/c/${spec}.c != t27c gen-c specs/${spec}.t27"
