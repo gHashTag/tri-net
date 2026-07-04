@@ -33,6 +33,89 @@ Anchor: φ² + φ⁻² = 3
 
 Если хоть один пункт «нет» — стоп, не начинаем. Прошивка на неукомплектованном стенде даёт хрупкие результаты и потом их сложно повторить.
 
+## 0.5. IP / MAC / hostname policy (обязательно до первой параллельной загрузки)
+
+Shipped-образ Puzhi для P201/P203 Mini одинаковый на всех трёх платах: одинаковый hostname `pzp201mini`, одинаковый static IP `192.168.1.10`, одинаковый (или отсутствующий) MAC-суффикс. Если включить две платы в один свитч без предварительной правки — ARP-таблица Mac/свитча начинает флипать, ssh/scp повисает, `smoke-m1` вроде запускается, а обратно данные не забрать. Это блокер именно для параллельной работы; **одну плату можно катать штатно и на shipped-образе**.
+
+**Политика на стенд из трёх плат:**
+
+| Плата | IP | Hostname | MAC (locally-administered) |
+|---|---|---|---|
+| board-1 | `192.168.1.10` | `tri-mini-1` | `02:00:00:00:00:01` |
+| board-2 | `192.168.1.12` | `tri-mini-2` | `02:00:00:00:00:02` |
+| board-3 | `192.168.1.13` | `tri-mini-3` | `02:00:00:00:00:03` |
+
+Почему `.10 / .12 / .13`, а не `.10 / .11 / .12`: macOS ARP-кэш висит на shipped-адрес `192.168.1.10` ~600 с; соседний `.11` часто попадает в ту же запись из-за агрессивного NDP на некоторых прошивках свитча. Разрыв через один октет (`.10 → .12`) избавляет от «фантомного» ARP-соседа при переключении между платами.
+
+MAC-адреса из диапазона `02:00:00:00:00:00/40` — [locally-administered unicast](https://en.wikipedia.org/wiki/MAC_address#Universal_vs._local_(U/L_bit)) (bit 1 второго нибла = 1), никаких OUI-конфликтов.
+
+**Application — вариант A, `/etc/network/interfaces`** (Debian/Buildroot ifupdown):
+
+```
+# /etc/network/interfaces — board-N (N ∈ {1,2,3})
+auto lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet static
+    address 192.168.1.1N        # .10, .12, .13 — см. таблицу выше
+    netmask 255.255.255.0
+    gateway 192.168.1.1
+    hwaddress ether 02:00:00:00:00:0N
+```
+
+И параллельно:
+
+```bash
+echo tri-mini-N > /etc/hostname
+hostnamectl set-hostname tri-mini-N   # если systemd
+sync
+```
+
+**Application — вариант B, systemd-networkd** (некоторые PetaLinux):
+
+```
+# /etc/systemd/network/10-eth0.network — board-N
+[Match]
+Name=eth0
+
+[Link]
+MACAddress=02:00:00:00:00:0N
+
+[Network]
+Address=192.168.1.1N/24
+Gateway=192.168.1.1
+```
+
+**После правки — на каждой плате:**
+
+```bash
+sync
+reboot
+```
+
+**На Mac (rig-side) — DNS-хелпер в `/etc/hosts`:**
+
+```
+192.168.1.10  tri-mini-1
+192.168.1.12  tri-mini-2
+192.168.1.13  tri-mini-3
+```
+
+После этого все ssh/scp примеры ниже используют `tri-mini-{1,2,3}` вместо голых IP.
+
+**Как проверить, что политика применилась:**
+
+```bash
+# с Mac
+sudo arp -d 192.168.1.10 2>/dev/null    # снести старый кэш
+for h in tri-mini-1 tri-mini-2 tri-mini-3; do
+  ssh root@$h 'hostname; ip -4 addr show eth0 | grep inet; ip link show eth0 | grep ether'
+done
+```
+
+Ожидание: три разных hostname, три разных IP (`.10 / .12 / .13`), три разных MAC (`02:00:00:00:00:0{1,2,3}`). Если хоть один параметр совпал — не идём дальше, возвращаемся в serial-консоль (см. §1.4 и [`SERIAL_NET_FIX.md`](SERIAL_NET_FIX.md)).
+
 ## 1. Первая загрузка ARM-Linux (per board)
 
 Каждую из трёх плат прогоняем по одному и тому же протоколу. Не параллельно первый раз — так проще ловить проблемы.
@@ -98,6 +181,36 @@ ad9361-phy
 
 Фиксируем на бумаге / в файле `smoke/BOARD_<N>_BOOT.md` три вещи: uname -a, hostname, iio:device0 name. Три раза.
 
+### 1.4. Troubleshooting: IP-коллизия и ARP-флукс (identical-image trap)
+
+**Симптом:** три платы физически включены, все три отвечают на login по одному и тому же `192.168.1.10`, `hostname` возвращает одинаковый `pzp201mini`. Иногда ssh проходит, иногда виснет; `scp` большого файла падает на середине; после `arp -d` на Mac плата на пару секунд «оживает», потом снова теряется.
+
+**Первопричина:** shipped-образ Puzhi одинаковый — одинаковый IP, одинаковый (или сгенерированный из одного и того же серийника) MAC. При двух и более активных портах в одном L2-domain свитч видит один и тот же IP на двух MAC (или один и тот же MAC на двух портах) и начинает флипать forwarding entry. Mac видит ту же самую картину со стороны ARP: связка `192.168.1.10 → MAC` меняется несколько раз в секунду, TCP-сессии рвутся.
+
+**Почему это не лечится по сети:**
+
+1. Чтобы поменять IP по ssh — надо стабильно держать ssh-сессию, а именно её ARP-флукс и рвёт.
+2. Base64-заливка нового `/etc/network/interfaces` через serial-tty работает, но чанк > 4 KB переполняет tty line-buffer (шелл начинает видеть `> ` continuation prompt и портит base64). Максимум чанка — 3 KB с `sleep 0.05` между строками, лучше — 2 KB.
+3. `nmcli` / `NetworkManager` на shipped-образе может отсутствовать вовсе (Buildroot minimal).
+
+**Единственный надёжный путь — serial-console + local edit**:
+
+1. Отключить все платы, кроме одной, от свитча (физически).
+2. Подсоединить USB-UART к оставшейся плате: `screen -L /dev/tty.usbserial-* 115200` (флаг `-L` включает логирование в `screenlog.0` — потом видно, что именно ты набирал и как отвечала плата).
+3. Логин `root` / `analog`, применить §0.5 (правильные значения для этой конкретной платы: N=1, 2 или 3).
+4. `sync && reboot`.
+5. Проверить с Mac: `arp -d 192.168.1.1{0,2,3} 2>/dev/null; ping tri-mini-N`.
+6. Повторить для второй и третьей платы, по одной за раз.
+7. Только после того, как все три платы получили свои уникальные IP/hostname/MAC и это проверено, — вернуть все три в свитч и попробовать `ssh root@tri-mini-1 hostname && ssh root@tri-mini-2 hostname && ssh root@tri-mini-3 hostname` подряд. Все три ответа должны быть разными.
+
+Полный протокол шаг-за-шагом (какой сервис управляет сетью на конкретном образе, где именно править) — в [`SERIAL_NET_FIX.md`](SERIAL_NET_FIX.md). Этот раздел — только про признак и общую стратегию.
+
+**Что делать НЕ надо:**
+
+- Не пытаться обойти проблему через `arp -s` на Mac. Статический ARP держится только до перезагрузки Mac и не решает L2-конфликт на свитче.
+- Не пытаться поднять две платы одновременно на одном IP, «положись на TCP RST». TCP-сессии рвутся посреди `scp`, файлы приходят битые, sha256 не сходится.
+- Не пытаться сжать base64-нагрузку `gzip | base64` и залить одним куском — это увеличит размер чанка, tty упадёт ещё быстрее.
+
 ## 2. AD9361 5.8 GHz digital loopback (per board)
 
 `radio/ad9361_loopback.sh` уже проверен на первой плате (см. `radio/README.md`, 2026-07-01, +0.999 MHz, 108.6 dB). Повторяем на второй и третьей.
@@ -127,14 +240,20 @@ cd tri-net
 rustup target add armv7-unknown-linux-musleabihf
 cargo build --release --target armv7-unknown-linux-musleabihf --bin smoke-m1
 BIN=target/armv7-unknown-linux-musleabihf/release/smoke-m1
-sha256sum "$BIN"       # ожидаемо: 534604 B, sha256 e5abc335…7290a (см. smoke/M1_RESULTS.md)
+sha256sum "$BIN"       # ожидаемо: 534604 B, sha256 e5abc335…7290a (2026-07-01 build)
+                       # или  a17e88e6… (2026-07-04 build, rustup-stable + rust-lld)
+                       # оба sha256 должны быть в smoke/M1_RESULTS.md
 ```
 
-Для каждой платы:
+Для каждой платы (после применения политики §0.5 hostname/IP/MAC разные):
 ```bash
-scp "$BIN" root@<mini-N>:/root/smoke-m1
-ssh root@<mini-N> 'chmod +x /root/smoke-m1 && /root/smoke-m1; echo RC=$?'
+for h in tri-mini-1 tri-mini-2 tri-mini-3; do
+  scp "$BIN" root@$h:/root/smoke-m1
+  ssh root@$h 'chmod +x /root/smoke-m1 && /root/smoke-m1; echo RC=$?'
+done
 ```
+
+Пароль на всех трёх P201/P203 Mini — `analog` (PlutoSDR default, shipped из коробки). Если пароль другой — образ был кастомизирован, обновить рецепт под свой стенд.
 
 Ожидаемый вывод (без изменений):
 ```
