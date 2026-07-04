@@ -14,11 +14,11 @@
 //!
 //! Anchor: phi^2 + phi^-2 = 3.
 
-use trios_mesh::routing::{EtxTable, NodeId};
-use trios_mesh::router::{mesh_ip, node_of, DEFAULT_TTL};
-use trios_mesh::wire::{FrameKind, Header};
-use trios_mesh::discovery::Hello;
 use std::net::Ipv4Addr;
+use trios_mesh::discovery::Hello;
+use trios_mesh::router::{mesh_ip, node_of, DEFAULT_TTL};
+use trios_mesh::routing::{EtxTable, NodeId};
+use trios_mesh::wire::{FrameKind, Header};
 
 // ---------------------------------------------------------------------------
 // TUN allocation math: mesh_ip / node_of over the 10.42.0.0/24 subnet.
