@@ -25,7 +25,7 @@ on:
 
 jobs:
   regenerate-and-diff:
-    name: drift check (3 specs × 3 backends)
+    name: drift check (27 specs × 3 backends)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout tri-net
