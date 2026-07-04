@@ -22,26 +22,29 @@ Currently auto-generated (from `specs/wire.t27` via `t27c gen-rust`):
 | `header_byte(kind, src, dst, ttl, idx) -> u8` | pure indexed layout |
 | `parse_accepts(b0: u8, b1: u8) -> bool` | pure predicate |
 
+Additionally auto-generated after t27#1320 (ExprCast Rust emitter):
+
+- `be_byte(w: u32, i: usize) -> u8` — emits real `((w >> 24) & 255) as u8` cast chain.
+- `u32_be(b0..b3: u8) -> u32` — emits real `(b0 as u32) << 24 | ...` recombination.
+
 Still hand-written in `src/wire.rs`:
 
 - `Header` struct, `FrameKind` enum, `Header::to_bytes`, `Header::parse`.
-- These now delegate all constants and layout decisions to the auto-gen module — they do not re-declare `VERSION`, `HEADER_LEN`, or the byte layout.
+- These delegate ALL constants, predicates, AND byte-layout to the auto-gen module — they do not re-declare `VERSION`, `HEADER_LEN`, or any per-byte computation.
 
-## Bootstrap limitation (why not full flip yet)
+## Bootstrap history — ExprCast gap (resolved)
 
-`t27c-0.1.0` bootstrap has a missing lowering for `ExprCast` (the `expr as Type` form) in the Rust, Zig, and C text emitters. Only `gen-verilog` implements the cast. On the other three backends the AST node falls through the default arm of `expr_to_rust` / `expr_to_zig` / the C printer and produces the unit value `"()"`, which then miscompiles: `return ();` in a `-> u8` Rust function is a type error, `return ;` in Zig is a parse error, and `gen-c` prints an honest `/* unsupported: ExprCast */`.
+The initial partial flip (PR #33 first commit `a6bb0b0`) shipped hand-written `be_byte` / `u32_be` stubs because `t27c-0.1.0` had no `ExprCast` lowering in the Rust, Zig, or C text emitters. Only `gen-verilog` implemented the cast. On the other three backends the AST node fell through the default arm and produced `"()"` — a type error in Rust, a parse error in Zig, and an honest `/* unsupported: ExprCast */` in C.
 
-Initial triage in this session guessed the bug was in bit-shift parsing, because the first `wire.t27` line that failed was `((w >> 24) & 255) as u8`. Isolation showed the shift is a red herring — the cast is what breaks. Repro table and root-cause pointer live in the upstream issue: `gHashTag/t27#1314`.
+Initial triage guessed the bug was in bit-shift parsing, because the first `wire.t27` line that failed was `((w >> 24) & 255) as u8`. Isolation showed the shift is a red herring — the cast is what breaks. Repro table and root-cause pointer live in the upstream issue.
 
-Because `be_byte` and `u32_be` both need `as u8` / `as u32` casts, neither can come from the compiler in its current form. Workaround in this PR: `gen/rust/wire.rs` carries hand-written `be_byte` / `u32_be` stubs beneath a banner that documents the limitation. When `t27c` gains an `ExprCast` arm in the Rust emitter, delete the stubs and let `gen-rust` emit them.
-
-Tracked upstream: [gHashTag/t27#1314](https://github.com/gHashTag/t27/issues/1314).
+**Status**: gen-rust half fixed by [gHashTag/t27#1320](https://github.com/gHashTag/t27/pull/1320) (closes [t27#1314](https://github.com/gHashTag/t27/issues/1314)) — the Rust arm now lives at `bootstrap/src/compiler.rs:8172`. `gen (Zig)` and `gen-c` emitters still fall through their default arms and are tracked separately upstream. `tri-net` only consumes `gen-rust`, so this repo is fully flipped.
 
 ## Build story
 
 - `gen/rust/wire.rs` is committed. Contributors do not need `t27c` installed to build tri-net.
 - `build.rs` will optionally invoke `t27c gen-rust` when `T27C_REGENERATE=1` is set and `t27c` is on `$PATH` (or `T27C=/path/to/t27c`). It prints a warning if the invocation fails and does not fail the build — CI without `t27c` still passes.
-- `build.rs` intentionally does not overwrite `gen/rust/wire.rs` today, because that would clobber the hand-written stubs. Once the `ExprCast` lowering lands in `t27c` (t27#1314, fixed by t27#1320), switch it to a direct overwrite.
+- `build.rs` deliberately does not overwrite `gen/rust/wire.rs` automatically — the CI drift-guard (`.github/workflows/spec-drift-guard.yml`) rebuilds t27c from t27 master and diffs the regenerated output against the committed file on every PR, so drift is caught at PR time rather than silently masked by a per-machine local regeneration. Contributors who want a local check can set `T27C=/path/to/t27c T27C_REGENERATE=1 cargo build` and compare stdout manually.
 
 ## Test story
 
@@ -58,9 +61,9 @@ Green as of this commit:
 - `cargo test --test m2_routing_pure_logic` — 25/0.
 - `cargo fmt --all -- --check` — clean.
 
-## Next flips (out of scope for this PR)
+## Next flips (future loops)
 
-- Full flip once the `ExprCast` lowering lands in `t27c` (t27#1314 → fixed by t27#1320) — `be_byte` / `u32_be` become auto-gen too.
+- ~~Full flip once `ExprCast` lowering lands~~ — done (t27#1320 merged into master `c4dc8ee`; tri-net#33 promoted `gen/rust/wire.rs` to raw t27c output).
 - `src/discovery.rs` HELLO framing → `specs/discovery.t27` counter/timer skeleton.
 - `src/daemon.rs` framing FSM → `specs/daemon.t27` for the state transitions.
 - ETX and GF16 stay blocked on t27#1258 (array/RAM support in the bootstrap parser).

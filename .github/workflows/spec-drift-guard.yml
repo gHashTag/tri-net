@@ -1,0 +1,63 @@
+name: spec-drift-guard
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "specs/**"
+      - "gen/**"
+      - "build.rs"
+      - ".github/workflows/spec-drift-guard.yml"
+
+# Rebuild t27c from upstream master and regenerate gen/rust/wire.rs. If the
+# committed output disagrees with the freshly generated output, the job fails
+# with a diff so drift between specs/wire.t27 (SSOT) and gen/rust/wire.rs
+# cannot land silently.
+#
+# See docs/T27_FIRST_MIGRATION.md for the SSOT contract.
+# Anchor: phi^2 + phi^-2 = 3.
+
+jobs:
+  regenerate-and-diff:
+    name: regen gen/rust/wire.rs from specs/wire.t27
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tri-net
+        uses: actions/checkout@v4
+        with:
+          path: tri-net
+
+      - name: Checkout t27 (SSOT compiler source)
+        uses: actions/checkout@v4
+        with:
+          repository: gHashTag/t27
+          ref: master
+          path: t27
+
+      - name: Install stable Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build t27c (release)
+        working-directory: t27
+        run: cargo build --release --manifest-path bootstrap/Cargo.toml --bin t27c
+
+      - name: Regenerate gen/rust/wire.rs
+        working-directory: tri-net
+        run: |
+          ../t27/target/release/t27c gen-rust specs/wire.t27 > /tmp/wire_regen.rs
+          echo "=== regenerated head ==="
+          head -20 /tmp/wire_regen.rs
+
+      - name: Diff regenerated vs committed
+        working-directory: tri-net
+        run: |
+          if ! diff -u gen/rust/wire.rs /tmp/wire_regen.rs; then
+            echo ""
+            echo "::error file=gen/rust/wire.rs::SPEC/GEN DRIFT: gen/rust/wire.rs disagrees with freshly regenerated output from specs/wire.t27."
+            echo ""
+            echo "Fix: rebuild t27c from t27 master, then run"
+            echo "    t27c gen-rust specs/wire.t27 > gen/rust/wire.rs"
+            echo "See docs/T27_FIRST_MIGRATION.md for the full regeneration recipe."
+            exit 1
+          fi
+          echo "gen/rust/wire.rs matches specs/wire.t27 -> t27c gen-rust output. No drift."
