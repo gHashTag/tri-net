@@ -26,7 +26,8 @@ pub mod gen {
 }
 
 pub use gen::{
-    frame_kind_valid, header_byte, parse_accepts, HEADER_LEN, KIND_DATA, KIND_HELLO, VERSION,
+    be_byte, frame_kind_valid, header_byte, parse_accepts, u32_be, HEADER_LEN, KIND_DATA,
+    KIND_HELLO, VERSION,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -87,8 +88,12 @@ impl Header {
         }
         Some(Self {
             kind: FrameKind::from_u8(b[1])?,
-            src: u32::from_be_bytes(b[2..6].try_into().ok()?),
-            dst: u32::from_be_bytes(b[6..10].try_into().ok()?),
+            // SSOT: reassemble big-endian u32 via the auto-generated u32_be from
+            // specs/wire.t27 (byte-order equivalent to u32::from_be_bytes; see
+            // docs/T27_FIRST_MIGRATION.md). Keeps the parse-path arithmetic under
+            // the spec-drift-guard CI umbrella.
+            src: u32_be(b[2], b[3], b[4], b[5]),
+            dst: u32_be(b[6], b[7], b[8], b[9]),
             ttl: b[10],
         })
     }
