@@ -14,7 +14,7 @@ on:
 # output disagrees with the freshly generated output, the job fails with a
 # diff so drift between the SSOT and generated code cannot land silently.
 #
-# Covered specs (3) × backends (3) = 9 drift checks:
+# Covered specs (27) × backends (3) = 81 drift checks:
 #   wire.t27  → gen/{rust,wire.rs}  gen/{zig,wire.zig}  gen/{c,wire.c}
 #   hello.t27 → gen/{rust,hello.rs} gen/{zig,hello.zig} gen/{c,hello.c}
 #   etx.t27   → gen/{rust,etx.rs}   gen/{zig,etx.zig}   gen/{c,etx.c}
