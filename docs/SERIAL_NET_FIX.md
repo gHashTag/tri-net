@@ -1,5 +1,35 @@
 # Serial-console recipe: unique IP / hostname / MAC on three Puzhi P201/P203 Mini
 
+## 0. ⚠ Persistence caveat — read first
+
+> **The `/etc/network/interfaces` edit + reboot recipe below does NOT
+> persist on the stock P201Mini image.** The stock image runs an initramfs
+> rootfs (`root=/dev/ram0`, `rootfstype=ramfs`) — `/etc` lives entirely in
+> RAM and is wiped on every power-cycle. Verified 2026-07-04 on all three
+> P201Mini units: MAC/IP/hostname edits reverted to `pzp201mini` /
+> `192.168.1.10` / `00:0a:35:00:01:22` after cold power-cycle. Warm
+> `reboot` also hangs the Zynq PS — a physical cold power-cycle is
+> required.
+>
+> This file is **retained as the reference procedure for a
+> persistent-ext4-rootfs image only** — e.g. after building a custom
+> PetaLinux image with `rootfs.tar.gz` on the second SD partition instead
+> of the initramfs. It also documents the diagnostic sequence, which is
+> useful on any image to identify which subsystem owns the network.
+>
+> On the stock image, do **not** follow §2–§5 below expecting persistence.
+> Use instead the paths in [`LOCAL_FLASH.md`](LOCAL_FLASH.md) §1.4:
+>
+> - **Path (A)** — persistent SSH keys via jffs2 (no reflash, restores
+>   access only).
+> - **Path (B)** — rebuild the initramfs to restore network config from
+>   jffs2 at boot (real network uniqueness, requires image work).
+> - **Path (C)** — use each board's `usb0` gadget (`192.168.2.1` via
+>   USB-CDC-Ethernet) for M1×3 without touching eth0 identity. No
+>   reflash, no shared L2, no GEM offload path.
+
+---
+
 **Когда читать**: три (или две) идентичные Puzhi Mini на shipped-образе,
 одинаковый `pzp201mini` hostname, одинаковый `192.168.1.10`, ssh/scp
 нестабильны, `arp` фликтует. Полное описание симптома —
