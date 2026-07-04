@@ -41,7 +41,7 @@ Tracked upstream: [gHashTag/t27#1314](https://github.com/gHashTag/t27/issues/131
 
 - `gen/rust/wire.rs` is committed. Contributors do not need `t27c` installed to build tri-net.
 - `build.rs` will optionally invoke `t27c gen-rust` when `T27C_REGENERATE=1` is set and `t27c` is on `$PATH` (or `T27C=/path/to/t27c`). It prints a warning if the invocation fails and does not fail the build — CI without `t27c` still passes.
-- `build.rs` intentionally does not overwrite `gen/rust/wire.rs` today, because that would clobber the hand-written stubs. Once the bit-shift bug is fixed, switch it to a direct overwrite.
+- `build.rs` intentionally does not overwrite `gen/rust/wire.rs` today, because that would clobber the hand-written stubs. Once the `ExprCast` lowering lands in `t27c` (t27#1314, fixed by t27#1320), switch it to a direct overwrite.
 
 ## Test story
 
@@ -60,7 +60,7 @@ Green as of this commit:
 
 ## Next flips (out of scope for this PR)
 
-- Full flip once t27c bit-shift is fixed — `be_byte` / `u32_be` become auto-gen too.
+- Full flip once the `ExprCast` lowering lands in `t27c` (t27#1314 → fixed by t27#1320) — `be_byte` / `u32_be` become auto-gen too.
 - `src/discovery.rs` HELLO framing → `specs/discovery.t27` counter/timer skeleton.
 - `src/daemon.rs` framing FSM → `specs/daemon.t27` for the state transitions.
 - ETX and GF16 stay blocked on t27#1258 (array/RAM support in the bootstrap parser).
@@ -70,17 +70,37 @@ Green as of this commit:
 ## Regeneration recipe
 
 ```
-# On a machine with t27c on $PATH:
+# On a machine with t27c on $PATH (after t27#1320 merges into t27c):
 cd tri-net
 t27c gen-rust specs/wire.t27 > gen/rust/wire.rs.new
 
-# Diff against committed output:
+# Diff against the committed output:
 diff gen/rust/wire.rs gen/rust/wire.rs.new
 
-# If the diff is only inside the auto-gen band (above the "Hand-written stubs"
-# banner), promote it:
+# Promote (see the rule below — regen overwrites the whole file by design):
 mv gen/rust/wire.rs.new gen/rust/wire.rs
-cargo test --lib
+cargo test --lib && cargo test --test m2_routing_pure_logic
 ```
 
-Never edit `gen/rust/wire.rs` by hand outside the stubs band. The banner in the file makes this explicit.
+Pre-validated 2026-07-04 against the post-t27#1320 t27c: regen overwrites the
+whole file (~49 lines removed / ~40 added vs the hand-touched committed
+version), NOT just the stub band. Tests stay 101/0 + 25/0. The bigger diff is
+expected and correct: it removes the now-obsolete `ExprCast` banner and the
+hand-stubs, and normalises cosmetic rendering to raw t27c output.
+
+## Rule: `gen/` is untouchable raw output
+
+`gen/rust/*` (and `gen/<lang>/*` generally) is the deterministic output of
+`t27c`. It is never hand-edited — no banners, no comments, no cosmetic cleanups,
+no stub bands. Anything explanatory (migration notes, caveats, status banners)
+belongs in the **consumer** (`src/wire.rs` module doc) or in this migration
+doc, never in the generated file.
+
+If `t27c` emits something wrong, the fix is upstream in `t27c` itself
+(e.g. t27#1320 for `ExprCast`), never a patch to `gen/`. Once the upstream fix
+lands, regenerate and the whole `gen/` file becomes canonical raw output.
+
+Diff-shape lesson from this PR: a "stub-only" regen diff is only possible when
+`gen/` was never hand-touched. The moment any hand-edit (even a documentation
+banner) lands in `gen/`, every later regen rewrites it — which is correct
+behaviour, not a surprise. Keep `gen/` pure.
