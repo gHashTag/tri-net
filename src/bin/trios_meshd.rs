@@ -291,7 +291,10 @@ fn main() {
                 }
             }
         }
-        let hello = Hello::new(me, seq, heard);
+        // E2.2 — Use authenticated HELLO with MAC
+        // TODO: derive mac_key from session keys (E2.2 complete implementation)
+        let mac_key = None; // Will be derived from per-peer session keys
+        let hello = Hello::authenticated(me, seq, heard, &mac_key);
         let mut pay = vec![HELLO_TYPE];
         pay.extend_from_slice(&hello.to_bytes());
         for pid in &peer_ids {
