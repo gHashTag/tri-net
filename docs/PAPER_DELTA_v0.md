@@ -90,9 +90,109 @@ C4. **Delta (δ) between our thesis and the field:**
    - vs. MAREF / SLD-Spec: they ship spec-level verification, we ship spec-to-artifact byte-identity, no theorem prover required for the SSOT claim itself.
    - vs. Chisel/Chipyard/SpinalHDL/Amaranth/Clash: they generate HDL from higher-level DSLs; we plan to generate wire logic + HDL from the same T27 spec (future work, Section 7).
 
+## 4.5. Empirical bench matrix (27 specs × 3 backends)
+
+Contribution C1 (CI-enforced spec/impl equality) is only as strong as its coverage. A drift-guard that watches one spec proves an existence claim; a drift-guard that watches a full protocol stack demonstrates that the mechanism scales with the codebase rather than collapsing under it. This section reports the current empirical footprint of the drift-guard, together with the methodology used to declare a cell "clean" and an honest note on what the matrix does not (yet) prove.
+
+### 4.5.1 Methodology
+
+**Cell definition.** One cell in the matrix is one (spec, backend) pair, e.g. `(wire.t27, gen-c)`. There are 27 specs and 3 backends currently under drift-guard, giving 81 cells.
+
+**Clean predicate.** A cell is "clean" iff, at the tuple `(tri-net@feat/strategic-audit-2026-07-04, t27@3c912d9)`:
+
+1. `t27c <backend> specs/<spec>.t27` produces output without emitting the literal `return ()` placeholder (used inside the compiler to mark unsupported constructs) and without emitting any `// unsupported: ...` marker.
+2. The generated file byte-matches the file committed under `gen/<backend>/<spec>.<ext>` (the diff-based enforcement that Contribution C1 rests on).
+3. The parent workspace still passes its host-side sanity gate: `cargo test --all` on tri-net = 141 passed, 0 failed at the same tuple.
+
+**Drift event.** Any single cell violating (1) or (2) after a merge is a drift event and fails the `spec-drift-guard` CI job, blocking merge. This is the operational definition of "drift" used throughout the paper: **byte-level divergence between spec-driven regeneration and committed artifact.** No semantic equivalence, no behavioural equivalence, no theorem — a byte diff.
+
+**What this predicate is not.** It is not a proof that the generated Rust/Zig/C are semantically equivalent to each other, nor that any of them is semantically equivalent to the spec. It only proves that a fresh compilation from the pinned spec, using the pinned compiler, reproduces the committed artifact byte-for-byte. Semantic equivalence between backends is future work (Section 7).
+
+### 4.5.2 Matrix (current snapshot)
+
+At tri-net [`feat/strategic-audit-2026-07-04@afdff07`](https://github.com/gHashTag/tri-net/tree/feat/strategic-audit-2026-07-04) and t27 [`master@3c912d9`](https://github.com/gHashTag/t27/commit/3c912d9), 27 specs × 3 backends = 81 cells, **all clean.** Per-spec line counts for the generated artifact are the ground-truth measurement that a third party can reproduce via `wc -l gen/<backend>/<spec>.<ext>` after cloning at the pinned tuple.
+
+| # | Spec | Layer | rust (L) | zig (L) | c (L) |
+|---|---|---|---:|---:|---:|
+| 1 | wire | framing | 63 | 73 | 128 |
+| 2 | hello | discovery | 67 | 108 | 154 |
+| 3 | etx | routing | 68 | 101 | 145 |
+| 4 | crc16 | utility | 27 | 55 | 95 |
+| 5 | byte_utils | utility | 51 | 63 | 100 |
+| 6 | mesh_routing | routing | 34 | 123 | 175 |
+| 7 | key_management | crypto | 179 | 204 | 271 |
+| 8 | frame_buffer | transport | 27 | 66 | 109 |
+| 9 | packet_queue | transport | 45 | 94 | 145 |
+| 10 | congestion_control | transport | 183 | 154 | 214 |
+| 11 | flow_control | transport | 186 | 151 | 225 |
+| 12 | self_healing | resilience | 114 | 200 | 292 |
+| 13 | trust_manager | trust | 80 | 66 | 112 |
+| 14 | timer | timing | 33 | 78 | 118 |
+| 15 | transport_tx_fsm | transport | 147 | 185 | 238 |
+| 16 | redundancy_management | resilience | 186 | 223 | 297 |
+| 17 | fault_detection | resilience | 133 | 193 | 272 |
+| 18 | lite_crypto | crypto | 27 | 86 | 135 |
+| 19 | network_metrics | network | 38 | 63 | 106 |
+| 20 | m3_multihop | network | 49 | 43 | 87 |
+| 21 | link_statistics | network | 23 | 46 | 81 |
+| 22 | access_control | optimization | 109 | 162 | 240 |
+| 23 | bandwidth_allocator | optimization | 186 | 245 | 325 |
+| 24 | cache_management | optimization | 219 | 191 | 267 |
+| 25 | compression_engine | optimization | 242 | 200 | 260 |
+| 26 | cross_layer_optimizer | optimization | 111 | 189 | 265 |
+| 27 | energy_aware_routing | optimization | 177 | 217 | 294 |
+
+**Row totals per backend:** 2,804 lines (rust), 3,579 lines (zig), 5,150 lines (c). **Grand total:** 11,533 lines of generated code under continuous byte-identity enforcement, all traceable back to their T27 spec via the pinned compiler.
+
+The full machine-readable manifest — with SHAs, exact loop steps, and deferred-spec root-causes — is committed at [`docs/BENCH_MATRIX_MANIFEST_2026-07-04.md`](https://github.com/gHashTag/tri-net/blob/feat/strategic-audit-2026-07-04/docs/BENCH_MATRIX_MANIFEST_2026-07-04.md) on the same branch.
+
+### 4.5.3 Layer coverage
+
+The 27 flipped specs cover 11 distinct protocol layers of the Tri-Net stack:
+
+| Layer | # specs | Specs |
+|---|---:|---|
+| framing | 1 | wire |
+| discovery | 1 | hello |
+| routing | 2 | etx, mesh_routing |
+| crypto | 2 | key_management, lite_crypto |
+| utility | 2 | crc16, byte_utils |
+| transport | 5 | frame_buffer, packet_queue, congestion_control, flow_control, transport_tx_fsm |
+| resilience | 3 | self_healing, redundancy_management, fault_detection |
+| trust | 1 | trust_manager |
+| timing | 1 | timer |
+| network | 3 | network_metrics, m3_multihop, link_statistics |
+| optimization | 6 | access_control, bandwidth_allocator, cache_management, compression_engine, cross_layer_optimizer, energy_aware_routing |
+
+This is not "a header parser and three format helpers." It spans the transport-layer FSM, the crypto surface (both full and lite variants), resilience/redundancy primitives, and the optimization layer — every layer that appears in the Tri-Net stack diagram except the ones that are hardware-blocked (M2 image-bake) or still under active authorship. The claim of Contribution C1 is therefore evaluated against a **multi-layer** artifact, not a single-spec proof-of-concept.
+
+### 4.5.4 Language-level constraint (pure-functional-only, empirically observed)
+
+A finding worth reporting explicitly, because it is both a limitation and a load-bearing property of the auditability argument: **T27 does not admit mutable local bindings.** The token `mut` is not in the grammar. All 27 flipped specs use `let` (immutable single-assignment) exclusively; not a single spec, once flipped clean, uses a mutable accumulator or a mutation-based loop.
+
+Four additional specs from the current corpus did **not** flip and are recorded honestly in the deferred manifest:
+
+| Spec | Root cause | Path forward |
+|---|---|---|
+| adaptive_retry | `let mut` (imperative accumulator) | Rewrite to pure-function recursion |
+| link_quality_monitor | `let mut` + `::` module-path calls | Rewrite to top-level functions |
+| multipath_router | `let mut best_idx` (imperative search) | Rewrite to expression form |
+| auto_config | Spec-level compile error (syntax) | Investigate + fix authorship |
+
+Three of the four failures share the same root cause: the spec was authored in an imperative Rust-style dialect (accumulate into a mutable variable, mutate inside a loop). The compiler rejects them at parse. This is not a t27c limitation — it is the language enforcing single-assignment as a grammar-level invariant. The fourth (`auto_config`) is a spec-authorship error unrelated to `mut`.
+
+Why this matters for the auditability primitive: **an audit-trail argument is cleaner when each name in the source has exactly one origin and exactly one derivation.** Immutability is what lets the trace from spec to artifact form a tree rather than a data-flow graph with hidden reassignments. The 4 deferred specs need to be rewritten before they enter the matrix; they will not be smuggled in via a language extension.
+
+### 4.5.5 What the matrix does not show
+
+- **Not runtime performance.** Line counts are surface measurements. No throughput, latency, or memory numbers are claimed here; those depend on downstream compilation and target hardware (Section 6, Trinity rule).
+- **Not semantic cross-backend equivalence.** The matrix proves each cell reproduces byte-for-byte from the spec; it does not prove that `gen/rust/wire.rs` and `gen/c/wire.c` are behaviourally equivalent under all inputs. That is future work.
+- **Not a proof of correctness of the spec itself.** The primitive proves spec-to-artifact fidelity, not spec-to-real-world fidelity. If `specs/wire.t27` encodes the wrong wire format, the drift-guard will happily enforce a wrong-but-consistent artifact. Correctness of the spec is a separate, human-review question.
+- **Not a claim about the deferred specs.** Four specs are not in the matrix; the paper does not report them as flipped and does not report their generated line counts.
+
 ## 5. Reference implementation (empirical realization of the audit-trail primitive)
 
-Sections 1–4 describe the auditability primitive in the abstract: one spec, N generated artifacts, a diff-based enforcement mechanism, and a fixed tuple of commits a third party can fetch to re-derive every artifact. This section reports the concrete artifact that instantiates the primitive, so the paper is not "we propose X" but "we propose X and here is a working reference that anyone can rerun today."
+Sections 1–4 describe the auditability primitive in the abstract: one spec, N generated artifacts, a diff-based enforcement mechanism, and a fixed tuple of commits a third party can fetch to re-derive every artifact. Section 4.5 reports the current bench matrix (27 specs × 3 backends, all clean). This section zooms in on a single spec — `wire.t27` — to show, at the level of concrete file paths and SHAs, what one row of the matrix looks like end-to-end, from spec through generated backends through consumer path. The intent is the same as before: the paper is not "we propose X" but "we propose X and here is a working reference that anyone can rerun today." The choice of `wire.t27` is deliberate — it was the first spec flipped, the merge chain that produced it (PRs #35 → #37 → #38) is what unlocked the remaining 26.
 
 ### 5.1 What is materialized
 
