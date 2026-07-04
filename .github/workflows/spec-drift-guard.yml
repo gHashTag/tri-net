@@ -10,22 +10,22 @@ on:
       - ".github/workflows/spec-drift-guard.yml"
 
 # Rebuild t27c from upstream master and regenerate every committed backend
-# under gen/<target>/wire.<ext> from specs/wire.t27. If any committed output
-# disagrees with the freshly generated output, the job fails with a diff so
-# drift between the SSOT and generated code cannot land silently.
+# under gen/<target>/<spec>.<ext> from specs/<spec>.t27. If any committed
+# output disagrees with the freshly generated output, the job fails with a
+# diff so drift between the SSOT and generated code cannot land silently.
 #
-# Covered backends:
-#   - Rust  (t27c gen-rust) -> gen/rust/wire.rs
-#   - Zig   (t27c gen)      -> gen/zig/wire.zig
-#   - C     (t27c gen-c)    -> gen/c/wire.c
+# Covered specs (3) × backends (3) = 9 drift checks:
+#   wire.t27  → gen/{rust,wire.rs}  gen/{zig,wire.zig}  gen/{c,wire.c}
+#   hello.t27 → gen/{rust,hello.rs} gen/{zig,hello.zig} gen/{c,hello.c}
+#   etx.t27   → gen/{rust,etx.rs}   gen/{zig,etx.zig}   gen/{c,etx.c}
 #
-# ExprCast is lowered in all three via t27#1320 (Rust) and t27#1337 (Zig+C).
+# ExprCast is lowered in all three backends via t27#1320 (Rust) + t27#1337 (Zig+C).
 # See docs/T27_FIRST_MIGRATION.md for the SSOT contract.
 # Anchor: phi^2 + phi^-2 = 3.
 
 jobs:
   regenerate-and-diff:
-    name: regen gen/<target>/wire.* from specs/wire.t27
+    name: drift check (3 specs × 3 backends)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout tri-net
@@ -47,65 +47,53 @@ jobs:
         working-directory: t27
         run: cargo build --release --manifest-path bootstrap/Cargo.toml --bin t27c
 
-      - name: Regenerate gen/rust/wire.rs
+      - name: Drift check — Rust (all specs)
         working-directory: tri-net
         run: |
-          ../t27/target/release/t27c gen-rust specs/wire.t27 > /tmp/wire_regen.rs
-          echo "=== regenerated Rust head ==="
-          head -20 /tmp/wire_regen.rs
+          T27C=../t27/target/release/t27c
+          STATUS=0
+          for spec in wire hello etx; do
+            $T27C gen-rust specs/${spec}.t27 > /tmp/${spec}_regen.rs
+            if ! diff -u gen/rust/${spec}.rs /tmp/${spec}_regen.rs; then
+              echo "::error file=gen/rust/${spec}.rs::DRIFT: gen/rust/${spec}.rs != t27c gen-rust specs/${spec}.t27"
+              echo "Fix: t27c gen-rust specs/${spec}.t27 > gen/rust/${spec}.rs"
+              STATUS=1
+            else
+              echo "gen/rust/${spec}.rs matches specs/${spec}.t27"
+            fi
+          done
+          exit $STATUS
 
-      - name: Diff regenerated Rust vs committed
+      - name: Drift check — Zig (all specs)
         working-directory: tri-net
         run: |
-          if ! diff -u gen/rust/wire.rs /tmp/wire_regen.rs; then
-            echo ""
-            echo "::error file=gen/rust/wire.rs::SPEC/GEN DRIFT (Rust): gen/rust/wire.rs disagrees with freshly regenerated output from specs/wire.t27."
-            echo ""
-            echo "Fix: rebuild t27c from t27 master, then run"
-            echo "    t27c gen-rust specs/wire.t27 > gen/rust/wire.rs"
-            echo "See docs/T27_FIRST_MIGRATION.md for the full regeneration recipe."
-            exit 1
-          fi
-          echo "gen/rust/wire.rs matches specs/wire.t27 -> t27c gen-rust output. No drift."
+          T27C=../t27/target/release/t27c
+          STATUS=0
+          for spec in wire hello etx; do
+            $T27C gen specs/${spec}.t27 > /tmp/${spec}_regen.zig
+            if ! diff -u gen/zig/${spec}.zig /tmp/${spec}_regen.zig; then
+              echo "::error file=gen/zig/${spec}.zig::DRIFT: gen/zig/${spec}.zig != t27c gen specs/${spec}.t27"
+              echo "Fix: t27c gen specs/${spec}.t27 > gen/zig/${spec}.zig"
+              STATUS=1
+            else
+              echo "gen/zig/${spec}.zig matches specs/${spec}.t27"
+            fi
+          done
+          exit $STATUS
 
-      - name: Regenerate gen/zig/wire.zig
+      - name: Drift check — C (all specs)
         working-directory: tri-net
         run: |
-          ../t27/target/release/t27c gen specs/wire.t27 > /tmp/wire_regen.zig
-          echo "=== regenerated Zig head ==="
-          head -20 /tmp/wire_regen.zig
-
-      - name: Diff regenerated Zig vs committed
-        working-directory: tri-net
-        run: |
-          if ! diff -u gen/zig/wire.zig /tmp/wire_regen.zig; then
-            echo ""
-            echo "::error file=gen/zig/wire.zig::SPEC/GEN DRIFT (Zig): gen/zig/wire.zig disagrees with freshly regenerated output from specs/wire.t27."
-            echo ""
-            echo "Fix: rebuild t27c from t27 master, then run"
-            echo "    t27c gen specs/wire.t27 > gen/zig/wire.zig"
-            echo "See docs/T27_FIRST_MIGRATION.md for the full regeneration recipe."
-            exit 1
-          fi
-          echo "gen/zig/wire.zig matches specs/wire.t27 -> t27c gen output. No drift."
-
-      - name: Regenerate gen/c/wire.c
-        working-directory: tri-net
-        run: |
-          ../t27/target/release/t27c gen-c specs/wire.t27 > /tmp/wire_regen.c
-          echo "=== regenerated C head ==="
-          head -20 /tmp/wire_regen.c
-
-      - name: Diff regenerated C vs committed
-        working-directory: tri-net
-        run: |
-          if ! diff -u gen/c/wire.c /tmp/wire_regen.c; then
-            echo ""
-            echo "::error file=gen/c/wire.c::SPEC/GEN DRIFT (C): gen/c/wire.c disagrees with freshly regenerated output from specs/wire.t27."
-            echo ""
-            echo "Fix: rebuild t27c from t27 master, then run"
-            echo "    t27c gen-c specs/wire.t27 > gen/c/wire.c"
-            echo "See docs/T27_FIRST_MIGRATION.md for the full regeneration recipe."
-            exit 1
-          fi
-          echo "gen/c/wire.c matches specs/wire.t27 -> t27c gen-c output. No drift."
+          T27C=../t27/target/release/t27c
+          STATUS=0
+          for spec in wire hello etx; do
+            $T27C gen-c specs/${spec}.t27 > /tmp/${spec}_regen.c
+            if ! diff -u gen/c/${spec}.c /tmp/${spec}_regen.c; then
+              echo "::error file=gen/c/${spec}.c::DRIFT: gen/c/${spec}.c != t27c gen-c specs/${spec}.t27"
+              echo "Fix: t27c gen-c specs/${spec}.t27 > gen/c/${spec}.c"
+              STATUS=1
+            else
+              echo "gen/c/${spec}.c matches specs/${spec}.t27"
+            fi
+          done
+          exit $STATUS
