@@ -14,6 +14,13 @@
 use crate::routing::NodeId;
 
 // Auto-generated from specs/wire.t27 by t27c gen-rust.
+// The t27c-0.1.0 emitter produces literal `return` statements and extra
+// parentheses around every expression. This is idiomatic for the T27 language
+// but not for Rust, so we scope clippy/rustc lints down here rather than
+// hand-editing the generated file (gen/ is untouchable; see
+// docs/T27_FIRST_MIGRATION.md). Cleaner Rust rendering is upstream work on
+// gHashTag/t27 (needless_return / unnecessary_parens in expr_to_rust).
+#[allow(clippy::needless_return, unused_parens)]
 pub mod gen {
     include!("../gen/rust/wire.rs");
 }
