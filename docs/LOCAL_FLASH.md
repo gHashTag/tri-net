@@ -33,6 +33,99 @@ Anchor: φ² + φ⁻² = 3
 
 Если хоть один пункт «нет» — стоп, не начинаем. Прошивка на неукомплектованном стенде даёт хрупкие результаты и потом их сложно повторить.
 
+## 0.5. IP / MAC / hostname policy (обязательно до первой параллельной загрузки)
+
+> ⚠ **NOT PERSISTENT ON THE STOCK IMAGE.** The Puzhi P201Mini ships with an
+> initramfs rootfs: `/proc/cmdline` reads `root=/dev/ram0 rootfstype=ramfs`,
+> `mount` shows `none on / type rootfs (rw)`. The entire `/etc` lives in RAM.
+> Editing `/etc/network/interfaces` + rebooting is **wiped on every boot**
+> (verified 2026-07-04: MAC/IP/hostname edits returned to `pzp201mini` /
+> `192.168.1.10` / `00:0a:35:00:01:22` after cold power-cycle). Warm `reboot`
+> also hangs the Zynq PS — a physical cold power-cycle is required. The table
+> below is the *target policy*; the mechanism to make it persist is §1.4
+> paths B/C, not an `/etc` edit.
+
+Shipped-образ Puzhi для P201/P203 Mini одинаковый на всех трёх платах: одинаковый hostname `pzp201mini`, одинаковый static IP `192.168.1.10`, и — верифицировано 2026-07-04 — идентичный MAC `00:0a:35:00:01:22` на всех трёх платах (Xilinx OUI). Если включить две платы в один свитч без предварительной правки — ARP-таблица Mac/свитча начинает флипать, ssh/scp повисает, `smoke-m1` вроде запускается, а обратно данные не забрать. Это блокер именно для параллельной работы; **одну плату можно катать штатно и на shipped-образе**.
+
+**Политика на стенд из трёх плат (target policy — mechanism see §1.4):**
+
+| Плата | IP | Hostname | MAC (locally-administered) |
+|---|---|---|---|
+| board-1 | `192.168.1.10` | `tri-mini-1` | `02:00:00:00:00:01` |
+| board-2 | `192.168.1.12` | `tri-mini-2` | `02:00:00:00:00:02` |
+| board-3 | `192.168.1.13` | `tri-mini-3` | `02:00:00:00:00:03` |
+
+Почему `.10 / .12 / .13`, а не `.10 / .11 / .12`: macOS ARP-кэш висит на shipped-адрес `192.168.1.10` ~600 с; соседний `.11` часто попадает в ту же запись из-за агрессивного NDP на некоторых прошивках свитча. Разрыв через один октет (`.10 → .12`) избавляет от «фантомного» ARP-соседа при переключении между платами.
+
+MAC-адреса из диапазона `02:00:00:00:00:00/40` — [locally-administered unicast](https://en.wikipedia.org/wiki/MAC_address#Universal_vs._local_(U/L_bit)) (bit 1 второго нибла = 1), никаких OUI-конфликтов.
+
+**Application — вариант A, `/etc/network/interfaces`** (Debian/Buildroot ifupdown):
+
+```
+# /etc/network/interfaces — board-N (N ∈ {1,2,3})
+auto lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet static
+    address 192.168.1.1N        # .10, .12, .13 — см. таблицу выше
+    netmask 255.255.255.0
+    gateway 192.168.1.1
+    hwaddress ether 02:00:00:00:00:0N
+```
+
+И параллельно:
+
+```bash
+echo tri-mini-N > /etc/hostname
+hostnamectl set-hostname tri-mini-N   # если systemd
+sync
+```
+
+**Application — вариант B, systemd-networkd** (некоторые PetaLinux):
+
+```
+# /etc/systemd/network/10-eth0.network — board-N
+[Match]
+Name=eth0
+
+[Link]
+MACAddress=02:00:00:00:00:0N
+
+[Network]
+Address=192.168.1.1N/24
+Gateway=192.168.1.1
+```
+
+**После правки — на каждой плате:**
+
+```bash
+sync
+reboot
+```
+
+**На Mac (rig-side) — DNS-хелпер в `/etc/hosts`:**
+
+```
+192.168.1.10  tri-mini-1
+192.168.1.12  tri-mini-2
+192.168.1.13  tri-mini-3
+```
+
+После этого все ssh/scp примеры ниже используют `tri-mini-{1,2,3}` вместо голых IP.
+
+**Как проверить, что политика применилась:**
+
+```bash
+# с Mac
+sudo arp -d 192.168.1.10 2>/dev/null    # снести старый кэш
+for h in tri-mini-1 tri-mini-2 tri-mini-3; do
+  ssh root@$h 'hostname; ip -4 addr show eth0 | grep inet; ip link show eth0 | grep ether'
+done
+```
+
+Ожидание: три разных hostname, три разных IP (`.10 / .12 / .13`), три разных MAC (`02:00:00:00:00:0{1,2,3}`). Если хоть один параметр совпал — не идём дальше, возвращаемся в serial-консоль (см. §1.4 и [`SERIAL_NET_FIX.md`](SERIAL_NET_FIX.md)).
+
 ## 1. Первая загрузка ARM-Linux (per board)
 
 Каждую из трёх плат прогоняем по одному и тому же протоколу. Не параллельно первый раз — так проще ловить проблемы.
@@ -98,6 +191,101 @@ ad9361-phy
 
 Фиксируем на бумаге / в файле `smoke/BOARD_<N>_BOOT.md` три вещи: uname -a, hostname, iio:device0 name. Три раза.
 
+### 1.4. Identical-image trap — root cause + real fixes
+
+**Symptom:** three boards on the LAN → ssh/scp flaky, ARP table unstable,
+`scp` of the 537 KB `smoke-m1` binary produces size-0 files, `ssh echo`
+works intermittently.
+
+**Root cause (verified 2026-07-04, all three P201Mini units):**
+
+1. The stock image runs `root=/dev/ram0 rootfstype=ramfs` — `/etc` is
+   RAM-only. Runtime edits to `/etc/network/interfaces`,
+   `/etc/hostname`, `/etc/hosts`, `/etc/systemd/network/*` **do not
+   survive reboot**. Warm `reboot` also hangs the Zynq PS on this image
+   — a physical cold power-cycle is required to reboot.
+2. All three boards ship with **identical MAC `00:0a:35:00:01:22`** +
+   identical hostname `pzp201mini` + identical IP `192.168.1.10`. Three
+   identical MACs on one L2-domain means the switch and the host ARP
+   table cannot tell them apart → forwarding entry flips several times
+   per second → TCP sessions break mid-transfer.
+3. Runtime MAC override (`ifconfig eth0 hw ether 02:00:00:00:00:0N`)
+   fixes L2 identity for small packets but **breaks bulk TX**: the Zynq
+   GEM (`macb` driver) computes the TX checksum in hardware and mangles
+   large frames under a spoofed MAC. `scp` of the 537 KB `smoke-m1`
+   binary fails **10 out of 10** attempts (destination size = 0), while
+   tiny `ssh echo` traffic works intermittently. `ethtool` is **not
+   installed** on the stock image, so `tx-checksumming off` cannot be
+   disabled from userspace.
+
+**Why the obvious shortcuts fail:**
+
+- `ip addr add …` / edit `/etc/network/interfaces` + reboot → wiped
+  (ramfs).
+- Base64-over-serial → command chunks larger than ~2 KB overflow the tty
+  line buffer (shell starts reading a `> ` continuation prompt and
+  corrupts the encoded payload).
+- `nmcli` / `NetworkManager` are absent on the stock image (Buildroot
+  minimal).
+- MAC spoof alone → GEM TX checksum offload breaks `scp` (see above); no
+  `ethtool` to disable it.
+
+**Real fixes:**
+
+- **(A) Persistent SSH-key access — NO reflash.** The stock image's
+  `/etc/init.d/S21misc` already restores `/root/.ssh/authorized_keys`
+  from `/mnt/jffs2/root/.ssh/` on every boot (jffs2 lives on mtd2 and
+  **is** persistent). Drop the host public key there together with a
+  matching `keys.md5` → permanent key-based SSH that survives every
+  power-cycle. **This restores access only** — it does NOT fix
+  IP/MAC/hostname uniqueness.
+
+- **(B) Persistent network uniqueness — needs image work.** `S21misc`
+  restores passwd / dropbear host keys / SSH authorized_keys but **not**
+  the network config. Two options, both require rebuilding the
+  initramfs:
+  - **(B1)** Extend `S21misc` (or add a new `S22net`) in the initramfs
+    to `cp /mnt/jffs2/etc/network/interfaces /etc/` +
+    `cp /mnt/jffs2/etc/hostname /etc/` at boot. Per-board differences
+    live in the persistent jffs2 partition.
+  - **(B2)** Bake the unique IP / MAC / hostname into a per-board image
+    at build time — one image per physical board. Cleaner, but requires
+    three separate SD-card flashes.
+
+- **(C) M1×3 without network uniqueness — usb0 gadget.** Each Puzhi
+  P201Mini exposes a **USB-CDC-Ethernet gadget `usb0` at `192.168.2.1`**.
+  Each board's USB cable is a separate point-to-point link to the host
+  → **no shared L2, no ARP conflict, no GEM offload path** (usb0 has
+  its own MAC and does not go through the eth0 macb driver). Assign each
+  host-side `enX` interface a distinct `192.168.2.x` address and reach
+  each board via its own USB cable. This bypasses the eth0 identity
+  problem entirely and lets M1 run in parallel on all three boards
+  **on the stock image, without reflash**.
+
+**Recommended order:**
+
+1. Path (A) first — permanent key SSH, no reflash. Costs ~5 minutes,
+   removes password-echo friction forever.
+2. Path (C) for M1×3 — gets all three boards to `smoke-m1 RC=0` today,
+   still on the stock image. Every M1 datapoint is real hw.
+3. Path (B) only when we need M2/M3/M4 on real ethernet (multi-hop
+   routing over usb0 is not representative of the target radio topology).
+   That is a scheduled image-build task, not an emergency.
+
+For the paste-ready serial recipe (previous approach — kept as reference
+for a persistent-ext4-rootfs image) see [`SERIAL_NET_FIX.md`](SERIAL_NET_FIX.md).
+
+**What NOT to do:**
+
+- Do not apply the §0.5 policy via `/etc/network/interfaces` + reboot on
+  the stock image — it is silently wiped.
+- Do not spoof only the MAC via `ifconfig hw ether` and expect `scp` to
+  work — the GEM offload will mangle every frame > MTU. Verified 10/10.
+- Do not try `arp -s` on the Mac. Static ARP only lives until the Mac
+  reboots and does not solve the L2 conflict on the switch.
+- Do not try to `gzip | base64` and paste in one chunk — that increases
+  the chunk size; the tty line-buffer falls over even faster.
+
 ## 2. AD9361 5.8 GHz digital loopback (per board)
 
 `radio/ad9361_loopback.sh` уже проверен на первой плате (см. `radio/README.md`, 2026-07-01, +0.999 MHz, 108.6 dB). Повторяем на второй и третьей.
@@ -127,14 +315,20 @@ cd tri-net
 rustup target add armv7-unknown-linux-musleabihf
 cargo build --release --target armv7-unknown-linux-musleabihf --bin smoke-m1
 BIN=target/armv7-unknown-linux-musleabihf/release/smoke-m1
-sha256sum "$BIN"       # ожидаемо: 534604 B, sha256 e5abc335…7290a (см. smoke/M1_RESULTS.md)
+sha256sum "$BIN"       # ожидаемо: 534604 B, sha256 e5abc335…7290a (2026-07-01 build)
+                       # или  a17e88e6… (2026-07-04 build, rustup-stable + rust-lld)
+                       # оба sha256 должны быть в smoke/M1_RESULTS.md
 ```
 
-Для каждой платы:
+Для каждой платы (после применения политики §0.5 hostname/IP/MAC разные):
 ```bash
-scp "$BIN" root@<mini-N>:/root/smoke-m1
-ssh root@<mini-N> 'chmod +x /root/smoke-m1 && /root/smoke-m1; echo RC=$?'
+for h in tri-mini-1 tri-mini-2 tri-mini-3; do
+  scp "$BIN" root@$h:/root/smoke-m1
+  ssh root@$h 'chmod +x /root/smoke-m1 && /root/smoke-m1; echo RC=$?'
+done
 ```
+
+Пароль на всех трёх P201/P203 Mini — `analog` (PlutoSDR default, shipped из коробки). Если пароль другой — образ был кастомизирован, обновить рецепт под свой стенд.
 
 Ожидаемый вывод (без изменений):
 ```
