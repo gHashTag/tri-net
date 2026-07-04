@@ -29,11 +29,13 @@ Still hand-written in `src/wire.rs`:
 
 ## Bootstrap limitation (why not full flip yet)
 
-`t27c-0.1.0` bootstrap has a parser bug on bit-shift expressions. Both `gen-rust` and `gen` (Zig) drop expressions of the form `((w >> N) & 255) as u8` and emit `return ();` instead. This means `be_byte` and `u32_be` cannot come from the compiler in its current form. Reproduction: run `t27c gen-rust specs/wire.t27` and observe lines 16-34 of the output.
+`t27c-0.1.0` bootstrap has a missing lowering for `ExprCast` (the `expr as Type` form) in the Rust, Zig, and C text emitters. Only `gen-verilog` implements the cast. On the other three backends the AST node falls through the default arm of `expr_to_rust` / `expr_to_zig` / the C printer and produces the unit value `"()"`, which then miscompiles: `return ();` in a `-> u8` Rust function is a type error, `return ;` in Zig is a parse error, and `gen-c` prints an honest `/* unsupported: ExprCast */`.
 
-Workaround in this PR: `gen/rust/wire.rs` carries hand-written `be_byte` / `u32_be` stubs beneath a banner that documents the limitation. When `t27c` is fixed upstream, delete the stubs and let `gen-rust` emit them.
+Initial triage in this session guessed the bug was in bit-shift parsing, because the first `wire.t27` line that failed was `((w >> 24) & 255) as u8`. Isolation showed the shift is a red herring — the cast is what breaks. Repro table and root-cause pointer live in the upstream issue: `gHashTag/t27#1314`.
 
-Tracked upstream against `gHashTag/t27` (issue to be filed with a minimal repro on the same branch).
+Because `be_byte` and `u32_be` both need `as u8` / `as u32` casts, neither can come from the compiler in its current form. Workaround in this PR: `gen/rust/wire.rs` carries hand-written `be_byte` / `u32_be` stubs beneath a banner that documents the limitation. When `t27c` gains an `ExprCast` arm in the Rust emitter, delete the stubs and let `gen-rust` emit them.
+
+Tracked upstream: [gHashTag/t27#1314](https://github.com/gHashTag/t27/issues/1314).
 
 ## Build story
 

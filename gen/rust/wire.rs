@@ -9,9 +9,12 @@
 // here MUST come from re-running t27c against the .t27 spec, never by hand.
 //
 // Partial-flip note (see docs/T27_FIRST_MIGRATION.md):
-// t27c-0.1.0 bootstrap has a bit-shift parser bug — `be_byte` and `u32_be`
-// emit as `return ();` and are omitted below. Byte-layout stays hand-written
-// in src/wire.rs and imports the auto-generated symbols from here.
+// t27c-0.1.0 bootstrap has no `ExprCast` lowering in the Rust/Zig/C emitters
+// (only gen-verilog implements it). Any function that contains an `as Type`
+// cast — including `be_byte` and `u32_be` — emits as `return ();` and would
+// miscompile. Tracked upstream at gHashTag/t27#1314. Byte-layout stays
+// hand-written in src/wire.rs and imports the auto-generated symbols from
+// here.
 
 pub const VERSION: u8 = 1;
 
@@ -49,8 +52,10 @@ pub fn parse_accepts(b0: u8, b1: u8) -> bool {
 
 // -----------------------------------------------------------------------------
 // Hand-written stubs for functions t27c-0.1.0 cannot emit correctly.
-// Tracked as t27c bit-shift bug — see docs/T27_FIRST_MIGRATION.md.
-// When t27c is fixed, delete this block and let gen-rust emit these.
+// Tracked as missing ExprCast lowering — see gHashTag/t27#1314 and
+// docs/T27_FIRST_MIGRATION.md.
+// When t27c ships an ExprCast arm in expr_to_rust, delete this block and let
+// gen-rust emit these.
 // -----------------------------------------------------------------------------
 
 pub fn be_byte(w: u32, i: usize) -> u8 {
