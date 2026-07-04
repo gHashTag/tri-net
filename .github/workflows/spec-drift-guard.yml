@@ -9,17 +9,23 @@ on:
       - "build.rs"
       - ".github/workflows/spec-drift-guard.yml"
 
-# Rebuild t27c from upstream master and regenerate gen/rust/wire.rs. If the
-# committed output disagrees with the freshly generated output, the job fails
-# with a diff so drift between specs/wire.t27 (SSOT) and gen/rust/wire.rs
-# cannot land silently.
+# Rebuild t27c from upstream master and regenerate every committed backend
+# under gen/<target>/wire.<ext> from specs/wire.t27. If any committed output
+# disagrees with the freshly generated output, the job fails with a diff so
+# drift between the SSOT and generated code cannot land silently.
 #
+# Covered backends:
+#   - Rust  (t27c gen-rust) -> gen/rust/wire.rs
+#   - Zig   (t27c gen)      -> gen/zig/wire.zig
+#   - C     (t27c gen-c)    -> gen/c/wire.c
+#
+# ExprCast is lowered in all three via t27#1320 (Rust) and t27#1337 (Zig+C).
 # See docs/T27_FIRST_MIGRATION.md for the SSOT contract.
 # Anchor: phi^2 + phi^-2 = 3.
 
 jobs:
   regenerate-and-diff:
-    name: regen gen/rust/wire.rs from specs/wire.t27
+    name: regen gen/<target>/wire.* from specs/wire.t27
     runs-on: ubuntu-latest
     steps:
       - name: Checkout tri-net
@@ -45,15 +51,15 @@ jobs:
         working-directory: tri-net
         run: |
           ../t27/target/release/t27c gen-rust specs/wire.t27 > /tmp/wire_regen.rs
-          echo "=== regenerated head ==="
+          echo "=== regenerated Rust head ==="
           head -20 /tmp/wire_regen.rs
 
-      - name: Diff regenerated vs committed
+      - name: Diff regenerated Rust vs committed
         working-directory: tri-net
         run: |
           if ! diff -u gen/rust/wire.rs /tmp/wire_regen.rs; then
             echo ""
-            echo "::error file=gen/rust/wire.rs::SPEC/GEN DRIFT: gen/rust/wire.rs disagrees with freshly regenerated output from specs/wire.t27."
+            echo "::error file=gen/rust/wire.rs::SPEC/GEN DRIFT (Rust): gen/rust/wire.rs disagrees with freshly regenerated output from specs/wire.t27."
             echo ""
             echo "Fix: rebuild t27c from t27 master, then run"
             echo "    t27c gen-rust specs/wire.t27 > gen/rust/wire.rs"
@@ -61,3 +67,45 @@ jobs:
             exit 1
           fi
           echo "gen/rust/wire.rs matches specs/wire.t27 -> t27c gen-rust output. No drift."
+
+      - name: Regenerate gen/zig/wire.zig
+        working-directory: tri-net
+        run: |
+          ../t27/target/release/t27c gen specs/wire.t27 > /tmp/wire_regen.zig
+          echo "=== regenerated Zig head ==="
+          head -20 /tmp/wire_regen.zig
+
+      - name: Diff regenerated Zig vs committed
+        working-directory: tri-net
+        run: |
+          if ! diff -u gen/zig/wire.zig /tmp/wire_regen.zig; then
+            echo ""
+            echo "::error file=gen/zig/wire.zig::SPEC/GEN DRIFT (Zig): gen/zig/wire.zig disagrees with freshly regenerated output from specs/wire.t27."
+            echo ""
+            echo "Fix: rebuild t27c from t27 master, then run"
+            echo "    t27c gen specs/wire.t27 > gen/zig/wire.zig"
+            echo "See docs/T27_FIRST_MIGRATION.md for the full regeneration recipe."
+            exit 1
+          fi
+          echo "gen/zig/wire.zig matches specs/wire.t27 -> t27c gen output. No drift."
+
+      - name: Regenerate gen/c/wire.c
+        working-directory: tri-net
+        run: |
+          ../t27/target/release/t27c gen-c specs/wire.t27 > /tmp/wire_regen.c
+          echo "=== regenerated C head ==="
+          head -20 /tmp/wire_regen.c
+
+      - name: Diff regenerated C vs committed
+        working-directory: tri-net
+        run: |
+          if ! diff -u gen/c/wire.c /tmp/wire_regen.c; then
+            echo ""
+            echo "::error file=gen/c/wire.c::SPEC/GEN DRIFT (C): gen/c/wire.c disagrees with freshly regenerated output from specs/wire.t27."
+            echo ""
+            echo "Fix: rebuild t27c from t27 master, then run"
+            echo "    t27c gen-c specs/wire.t27 > gen/c/wire.c"
+            echo "See docs/T27_FIRST_MIGRATION.md for the full regeneration recipe."
+            exit 1
+          fi
+          echo "gen/c/wire.c matches specs/wire.t27 -> t27c gen-c output. No drift."

@@ -32,19 +32,26 @@ Still hand-written in `src/wire.rs`:
 - `Header` struct, `FrameKind` enum, `Header::to_bytes`, `Header::parse`.
 - These delegate ALL constants, predicates, AND byte-layout to the auto-gen module — they do not re-declare `VERSION`, `HEADER_LEN`, or any per-byte computation.
 
-## Bootstrap history — ExprCast gap (resolved)
+## Bootstrap history — ExprCast gap (resolved on all four backends)
 
 The initial partial flip (PR #33 first commit `a6bb0b0`) shipped hand-written `be_byte` / `u32_be` stubs because `t27c-0.1.0` had no `ExprCast` lowering in the Rust, Zig, or C text emitters. Only `gen-verilog` implemented the cast. On the other three backends the AST node fell through the default arm and produced `"()"` — a type error in Rust, a parse error in Zig, and an honest `/* unsupported: ExprCast */` in C.
 
 Initial triage guessed the bug was in bit-shift parsing, because the first `wire.t27` line that failed was `((w >> 24) & 255) as u8`. Isolation showed the shift is a red herring — the cast is what breaks. Repro table and root-cause pointer live in the upstream issue.
 
-**Status**: gen-rust half fixed by [gHashTag/t27#1320](https://github.com/gHashTag/t27/pull/1320) (closes [t27#1314](https://github.com/gHashTag/t27/issues/1314)) — the Rust arm now lives at `bootstrap/src/compiler.rs:8172`. `gen (Zig)` and `gen-c` emitters still fall through their default arms and are tracked separately upstream. `tri-net` only consumes `gen-rust`, so this repo is fully flipped.
+**Status**: fully resolved on all four backends.
+
+- Rust arm — [gHashTag/t27#1320](https://github.com/gHashTag/t27/pull/1320) (closes [t27#1314](https://github.com/gHashTag/t27/issues/1314)); lives at `bootstrap/src/compiler.rs:8172`, emits `({operand} as {target})`.
+- Zig arm — [gHashTag/t27#1337](https://github.com/gHashTag/t27/pull/1337) (closes [t27#1333](https://github.com/gHashTag/t27/issues/1333)); emits `@as(<T>, @intCast(<operand>))` — narrows and widens, stronger than the `@as`-only suggestion.
+- C arm — [gHashTag/t27#1337](https://github.com/gHashTag/t27/pull/1337); emits `((<uintN_t>)(<operand>))` via `Self::type_to_c`.
+- Verilog arm — already lowered ExprCast pre-#1320.
+
+`tri-net` now consumes three text backends (`gen-rust`, `gen`, `gen-c`) all under drift-guard.
 
 ## Build story
 
 - `gen/rust/wire.rs` is committed. Contributors do not need `t27c` installed to build tri-net.
 - `build.rs` will optionally invoke `t27c gen-rust` when `T27C_REGENERATE=1` is set and `t27c` is on `$PATH` (or `T27C=/path/to/t27c`). It prints a warning if the invocation fails and does not fail the build — CI without `t27c` still passes.
-- `build.rs` deliberately does not overwrite `gen/rust/wire.rs` automatically — the CI drift-guard (`.github/workflows/spec-drift-guard.yml`) rebuilds t27c from t27 master and diffs the regenerated output against the committed file on every PR, so drift is caught at PR time rather than silently masked by a per-machine local regeneration. Contributors who want a local check can set `T27C=/path/to/t27c T27C_REGENERATE=1 cargo build` and compare stdout manually.
+- `build.rs` deliberately does not overwrite `gen/rust/wire.rs` automatically — the CI drift-guard (`.github/workflows/spec-drift-guard.yml`) rebuilds t27c from t27 master and diffs the regenerated output against every committed file under `gen/<target>/wire.*` on every PR, so drift is caught at PR time rather than silently masked by a per-machine local regeneration. The guard covers three backends today: `gen/rust/wire.rs` (via `t27c gen-rust`), `gen/zig/wire.zig` (via `t27c gen`), and `gen/c/wire.c` (via `t27c gen-c`). Contributors who want a local check can set `T27C=/path/to/t27c T27C_REGENERATE=1 cargo build` and compare stdout manually.
 
 ## Test story
 
