@@ -1,21 +1,48 @@
 //! Mesh datagram header. Serialized bytes double as the AEAD associated data,
 //! so a tampered header fails authentication in [`crate::crypto::Session::open`].
+//!
+//! Anchor: phi^2 + phi^-2 = 3.
+//!
+//! # T27-first partial flip
+//!
+//! Constants (`VERSION`, `KIND_HELLO`, `KIND_DATA`, `HEADER_LEN`) and pure
+//! predicates (`frame_kind_valid`, `header_byte`, `parse_accepts`) live in
+//! `specs/wire.t27` and are auto-generated into `gen/rust/wire.rs` via the
+//! t27c bootstrap compiler. This module re-exports them and wraps them in
+//! ergonomic Rust types. See `docs/T27_FIRST_MIGRATION.md`.
 
 use crate::routing::NodeId;
 
-pub const VERSION: u8 = 1;
+// Auto-generated from specs/wire.t27 by t27c gen-rust.
+// The t27c-0.1.0 emitter produces literal `return` statements and extra
+// parentheses around every expression. This is idiomatic for the T27 language
+// but not for Rust, so we scope clippy/rustc lints down here rather than
+// hand-editing the generated file (gen/ is untouchable; see
+// docs/T27_FIRST_MIGRATION.md). Cleaner Rust rendering is upstream work on
+// gHashTag/t27 (needless_return / unnecessary_parens in expr_to_rust).
+#[allow(clippy::needless_return, unused_parens)]
+pub mod gen {
+    include!("../gen/rust/wire.rs");
+}
+
+pub use gen::{
+    frame_kind_valid, header_byte, parse_accepts, HEADER_LEN, KIND_DATA, KIND_HELLO, VERSION,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FrameKind {
-    Hello = 0,
-    Data = 1,
+    Hello = KIND_HELLO as isize,
+    Data = KIND_DATA as isize,
 }
 
 impl FrameKind {
     fn from_u8(b: u8) -> Option<Self> {
+        if !frame_kind_valid(b) {
+            return None;
+        }
         match b {
-            0 => Some(FrameKind::Hello),
-            1 => Some(FrameKind::Data),
+            x if x == KIND_HELLO => Some(FrameKind::Hello),
+            x if x == KIND_DATA => Some(FrameKind::Data),
             _ => None,
         }
     }
@@ -31,7 +58,7 @@ pub struct Header {
 }
 
 impl Header {
-    pub const LEN: usize = 11;
+    pub const LEN: usize = HEADER_LEN;
 
     pub fn new(kind: FrameKind, src: NodeId, dst: NodeId, ttl: u8) -> Self {
         Self {
@@ -44,16 +71,18 @@ impl Header {
 
     pub fn to_bytes(&self) -> [u8; Self::LEN] {
         let mut b = [0u8; Self::LEN];
-        b[0] = VERSION;
-        b[1] = self.kind as u8;
-        b[2..6].copy_from_slice(&self.src.to_be_bytes());
-        b[6..10].copy_from_slice(&self.dst.to_be_bytes());
-        b[10] = self.ttl;
+        let kind = self.kind as u8;
+        for (i, slot) in b.iter_mut().enumerate() {
+            *slot = header_byte(kind, self.src, self.dst, self.ttl, i);
+        }
         b
     }
 
     pub fn parse(b: &[u8]) -> Option<Self> {
-        if b.len() < Self::LEN || b[0] != VERSION {
+        if b.len() < Self::LEN {
+            return None;
+        }
+        if !parse_accepts(b[0], b[1]) {
             return None;
         }
         Some(Self {
@@ -80,5 +109,22 @@ mod tests {
         let mut b = Header::new(FrameKind::Hello, 1, 2, 4).to_bytes();
         b[0] = 99;
         assert!(Header::parse(&b).is_none());
+    }
+
+    #[test]
+    fn t27_gen_constants_match_hand_written() {
+        assert_eq!(VERSION, 1);
+        assert_eq!(KIND_HELLO, 0);
+        assert_eq!(KIND_DATA, 1);
+        assert_eq!(HEADER_LEN, 11);
+    }
+
+    #[test]
+    fn t27_gen_predicates_match_semantics() {
+        assert!(frame_kind_valid(KIND_HELLO));
+        assert!(frame_kind_valid(KIND_DATA));
+        assert!(!frame_kind_valid(2));
+        assert!(parse_accepts(VERSION, KIND_HELLO));
+        assert!(!parse_accepts(99, KIND_HELLO));
     }
 }
