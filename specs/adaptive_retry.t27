@@ -3,36 +3,28 @@
 
 module AdaptiveRetry {
     // Retry configuration constants
-    const BASE_DELAY_MS: u8 = 10
-    const MAX_RETRIES: u8 = 5
-    const BACKOFF_MULTIPLIER: u8 = 2
+    const BASE_DELAY_MS: u8 = 10;
+    const MAX_RETRIES: u8 = 5;
+    const BACKOFF_MULTIPLIER: u8 = 2;
     
     // Quality thresholds (fixed-point Q8)
-    const QUALITY_HIGH: u8 = 0xCC    // 0.8 in Q8
-    const QUALITY_MEDIUM: u8 = 0x80   // 0.5 in Q8
+    const QUALITY_HIGH: u8 = 0xCC;    // 0.8 in Q8
+    const QUALITY_MEDIUM: u8 = 0x80;   // 0.5 in Q8
     
     // Calculate exponential backoff delay
     fn backoff_delay_ms(attempt: u8) -> u16 {
-        // delay = base * (multiplier ^ attempt)
-        // Prevent overflow for large attempt values
-        
-        let mut delay: u16 = BASE_DELAY_MS as u16;
-        
         if attempt == 0 {
-            delay
+            BASE_DELAY_MS as u16
         } else if attempt <= 5 {
-            // Calculate 2^attempt for attempts 1-5
-            let multiplier: u16 = 1u16 << attempt;  // 2^attempt
-            delay = delay * multiplier;
-            
-            // Cap at reasonable maximum (5000ms)
+            let multiplier: u16 = 1u16 << attempt;
+            let delay: u16 = (BASE_DELAY_MS as u16) * multiplier;
             if delay > 5000 {
                 5000
             } else {
                 delay
             }
         } else {
-            5000  // Maximum cap
+            5000
         }
     }
     
@@ -53,38 +45,34 @@ module AdaptiveRetry {
         current_attempt < max_retries
     }
     
-    // Calculate retry success probability
-    fn retry_success_probability(attempt: u8, quality_q8: u8) -> u8 {
-        // Success probability decreases with each attempt
-        // Base probability depends on link quality
-        
-        let base_prob: u8 = if quality_q8 >= QUALITY_HIGH {
-            200  // 78% in Q8 (0.78)
+    fn base_probability(quality_q8: u8) -> u8 {
+        if quality_q8 >= QUALITY_HIGH {
+            200
         } else if quality_q8 >= QUALITY_MEDIUM {
-            150  // 59% in Q8 (0.59)
+            150
         } else {
-            100  // 39% in Q8 (0.39)
-        };
-        
-        // Decrease by 25% per attempt
+            100
+        }
+    }
+
+    fn retry_success_probability(attempt: u8, quality_q8: u8) -> u8 {
+        let base_prob: u8 = base_probability(quality_q8);
         let decay: u8 = (base_prob / 4) * attempt;
-        
+
         if base_prob > decay {
             base_prob - decay
         } else {
-            10  // Minimum 10% success probability
+            10
         }
     }
     
-    // Estimate total retry time for all attempts
+    // Estimate total retry time for all attempts (recursive, no mutable state)
     fn total_retry_time(max_retries: u8) -> u16 {
-        let mut total: u16 = 0;
-        
-        for i in 0..max_retries {
-            total = total + backoff_delay_ms(i);
+        if max_retries == 0 {
+            0
+        } else {
+            backoff_delay_ms(max_retries - 1) + total_retry_time(max_retries - 1)
         }
-        
-        total
     }
 }
 

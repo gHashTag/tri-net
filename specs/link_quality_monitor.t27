@@ -3,17 +3,17 @@
 
 module LinkQualityMonitor {
     // EWMA configuration constants
-    const ALPHA_Q8: u8 = 0x20  // 0.125 in Q8 (1/8) - research-backed optimal
-    const ONE_MINUS_ALPHA_Q8: u8 = 0xE0  // 0.875 in Q8
+    const ALPHA_Q8: u8 = 0x20;  // 0.125 in Q8 (1/8) - research-backed optimal
+    const ONE_MINUS_ALPHA_Q8: u8 = 0xE0;  // 0.875 in Q8
     
     // History configuration
-    const MAX_HISTORY: u8 = 8
-    const MIN_HISTORY: u8 = 4
+    const MAX_HISTORY: u8 = 8;
+    const MIN_HISTORY: u8 = 4;
     
     // Thresholds for quality assessment
-    const QUALITY_GOOD: u8 = 0x30    // 3.0 in Q8
-    const QUALITY_POOR: u8 = 0x60    // 6.0 in Q8
-    const TREND_THRESHOLD: u8 = 0x05  // Small positive trend
+    const QUALITY_GOOD: u8 = 0x30;    // 3.0 in Q8
+    const QUALITY_POOR: u8 = 0x60;    // 6.0 in Q8
+    const TREND_THRESHOLD: u8 = 0x05;  // Small positive trend
     
     // Calculate EWMA (Exponentially Weighted Moving Average)
     // Formula: est = α·sample + (1-α)·est

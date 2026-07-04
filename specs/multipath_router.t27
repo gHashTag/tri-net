@@ -3,11 +3,11 @@
 
 module MultiPathRouter {
     // Maximum number of backup paths
-    const MAX_PATHS: u8 = 3
+    const MAX_PATHS: u8 = 3;
     
     // Path quality thresholds (fixed-point Q8)
-    const ETX_THRESHOLD_GOOD: u8 = 0x30   // 3.0 in Q8 (good quality)
-    const ETX_THRESHOLD_POOR: u8 = 0x60   // 6.0 in Q8 (poor quality)
+    const ETX_THRESHOLD_GOOD: u8 = 0x30;   // 3.0 in Q8 (good quality)
+    const ETX_THRESHOLD_POOR: u8 = 0x60;   // 6.0 in Q8 (poor quality)
     
     // Select best path index based on ETX values
     fn select_path_index(etx_values: [u8; 3]) -> u8 {

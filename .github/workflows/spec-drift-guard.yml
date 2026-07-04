@@ -52,7 +52,7 @@ jobs:
         run: |
           T27C=../t27/target/release/t27c
           STATUS=0
-          for spec in wire hello etx crc16 byte_utils mesh_routing key_management frame_buffer packet_queue congestion_control flow_control self_healing trust_manager timer transport_tx_fsm redundancy_management fault_detection lite_crypto network_metrics m3_multihop link_statistics access_control bandwidth_allocator cache_management compression_engine cross_layer_optimizer energy_aware_routing; do
+          for spec in wire hello etx crc16 byte_utils mesh_routing key_management frame_buffer packet_queue congestion_control flow_control self_healing trust_manager timer transport_tx_fsm redundancy_management fault_detection lite_crypto network_metrics m3_multihop link_statistics access_control bandwidth_allocator cache_management compression_engine cross_layer_optimizer energy_aware_routing adaptive_retry link_quality_monitor multipath_router auto_config; do
             $T27C gen-rust specs/${spec}.t27 > /tmp/${spec}_regen.rs
             if ! diff -u gen/rust/${spec}.rs /tmp/${spec}_regen.rs; then
               echo "::error file=gen/rust/${spec}.rs::DRIFT: gen/rust/${spec}.rs != t27c gen-rust specs/${spec}.t27"
@@ -69,7 +69,7 @@ jobs:
         run: |
           T27C=../t27/target/release/t27c
           STATUS=0
-          for spec in wire hello etx crc16 byte_utils mesh_routing key_management frame_buffer packet_queue congestion_control flow_control self_healing trust_manager timer transport_tx_fsm redundancy_management fault_detection lite_crypto network_metrics m3_multihop link_statistics access_control bandwidth_allocator cache_management compression_engine cross_layer_optimizer energy_aware_routing; do
+          for spec in wire hello etx crc16 byte_utils mesh_routing key_management frame_buffer packet_queue congestion_control flow_control self_healing trust_manager timer transport_tx_fsm redundancy_management fault_detection lite_crypto network_metrics m3_multihop link_statistics access_control bandwidth_allocator cache_management compression_engine cross_layer_optimizer energy_aware_routing adaptive_retry link_quality_monitor multipath_router auto_config; do
             $T27C gen specs/${spec}.t27 > /tmp/${spec}_regen.zig
             if ! diff -u gen/zig/${spec}.zig /tmp/${spec}_regen.zig; then
               echo "::error file=gen/zig/${spec}.zig::DRIFT: gen/zig/${spec}.zig != t27c gen specs/${spec}.t27"
@@ -86,7 +86,7 @@ jobs:
         run: |
           T27C=../t27/target/release/t27c
           STATUS=0
-          for spec in wire hello etx crc16 byte_utils mesh_routing key_management frame_buffer packet_queue congestion_control flow_control self_healing trust_manager timer transport_tx_fsm redundancy_management fault_detection lite_crypto network_metrics m3_multihop link_statistics access_control bandwidth_allocator cache_management compression_engine cross_layer_optimizer energy_aware_routing; do
+          for spec in wire hello etx crc16 byte_utils mesh_routing key_management frame_buffer packet_queue congestion_control flow_control self_healing trust_manager timer transport_tx_fsm redundancy_management fault_detection lite_crypto network_metrics m3_multihop link_statistics access_control bandwidth_allocator cache_management compression_engine cross_layer_optimizer energy_aware_routing adaptive_retry link_quality_monitor multipath_router auto_config; do
             $T27C gen-c specs/${spec}.t27 > /tmp/${spec}_regen.c
             if ! diff -u gen/c/${spec}.c /tmp/${spec}_regen.c; then
               echo "::error file=gen/c/${spec}.c::DRIFT: gen/c/${spec}.c != t27c gen-c specs/${spec}.t27"
