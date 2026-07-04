@@ -313,3 +313,4 @@ module trust_manager {
         assert(get_trust_score_value(rewarded) > 70, "trust increased");
     }
 }
+}
