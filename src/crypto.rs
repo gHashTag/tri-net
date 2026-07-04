@@ -95,7 +95,9 @@ pub struct NoiseXX {
     /// Our ephemeral key for this handshake
     ephemeral: EphemeralSecret,
     ephemeral_public: PublicKey,
-    /// True if we're the initiator (first to send)
+    /// True if we're the initiator (first to send). Retained for future
+    /// role-aware rekey/anti-replay logic; not yet read by current handlers.
+    #[allow(dead_code)]
     initiator: bool,
 }
 
@@ -174,9 +176,6 @@ fn combine_dh_shares(ee_bytes: &[u8; 32], es_bytes: &[u8; 32], se_bytes: &[u8; 3
     output
 }
 
-/// Type alias for X25519 shared secret (from Dalek crate)
-type SharedSecret = x25519_dalek::SharedSecret;
-
 /// Allow-list of trusted NodeId → PublicKey mappings. Used to authenticate
 /// peers in Noise-XX handshakes (E1.2). Only peers with static keys in this
 /// list are allowed to establish sessions.
@@ -224,7 +223,9 @@ impl AllowList {
     /// Returns `Some(false)` if the public key doesn't match.
     /// Returns `Some(true)` if the public key matches.
     pub fn verify(&self, node_id: u64, public_key: &PublicKey) -> Option<bool> {
-        self.trusted.get(&node_id).map(|trusted| trusted.as_bytes() == public_key.as_bytes())
+        self.trusted
+            .get(&node_id)
+            .map(|trusted| trusted.as_bytes() == public_key.as_bytes())
     }
 }
 
@@ -699,7 +700,10 @@ mod tests {
 
         // They should derive the same session key
         let frame = alice_sess.seal(b"xx-test", b"authenticated mesh").unwrap();
-        assert_eq!(bob_sess.open(b"xx-test", &frame).unwrap(), b"authenticated mesh");
+        assert_eq!(
+            bob_sess.open(b"xx-test", &frame).unwrap(),
+            b"authenticated mesh"
+        );
     }
 
     #[test]
@@ -716,7 +720,7 @@ mod tests {
         let a_static_pub = alice.static_public();
 
         let b_ephem = bob.ephemeral_public();
-        let b_static_pub = bob.static_public();
+        let _b_static_pub = bob.static_public();
         let mallory_pub = PublicKey::from(&mallory_static);
 
         // This should derive a different session key (authentication fails)
@@ -752,12 +756,16 @@ mod tests {
         let mallory_bob = NoiseXX::new(mallory_static, true);
 
         // Alice ↔ Mallory handshake (Alice thinks it's Bob, but it's Mallory)
-        let mut alice_sess = alice.complete_initiator(mallory_alice.ephemeral_public(), mallory_alice.static_public());
+        let mut alice_sess = alice.complete_initiator(
+            mallory_alice.ephemeral_public(),
+            mallory_alice.static_public(),
+        );
         let mut mal_sess_alice = mallory_alice.complete_responder(a_ephem, a_static_pub);
 
         // Bob ↔ Mallory handshake
-        let mut bob_sess = bob.complete_responder(mallory_bob.ephemeral_public(), mallory_bob.static_public());
-        let mut mal_sess_bob = mallory_bob.complete_initiator(b_ephem, b_static_pub);
+        let mut bob_sess =
+            bob.complete_responder(mallory_bob.ephemeral_public(), mallory_bob.static_public());
+        let _mal_sess_bob = mallory_bob.complete_initiator(b_ephem, b_static_pub);
 
         // Alice sends message intended for Bob
         let frame = alice_sess.seal(b"", b"secret for bob").unwrap();

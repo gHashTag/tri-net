@@ -10,7 +10,7 @@ use crate::crypto::{MeshError, Session};
 use crate::routing::{EtxTable, NodeId};
 use crate::wire::{FrameKind, Header};
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 /// A byte-pipe to one neighbor. Real impls: a UDP socket (bench, over
 /// attenuators), a TUN-backed radio netdev (M2), or an in-process pipe (tests).
@@ -50,13 +50,19 @@ impl ConvergenceMetrics {
     pub fn check_ci_gates(&self) -> Result<(), String> {
         if let Some(link_ms) = self.link_loss_to_reroute_ms {
             if link_ms >= 5000.0 {
-                return Err(format!("Link convergence too slow: {}ms (CI gate: <5000ms)", link_ms));
+                return Err(format!(
+                    "Link convergence too slow: {}ms (CI gate: <5000ms)",
+                    link_ms
+                ));
             }
         }
 
         if let Some(node_ms) = self.node_off_to_reroute_ms {
             if node_ms >= 10000.0 {
-                return Err(format!("Node convergence too slow: {}ms (CI gate: <10000ms)", node_ms));
+                return Err(format!(
+                    "Node convergence too slow: {}ms (CI gate: <10000ms)",
+                    node_ms
+                ));
             }
         }
 
@@ -127,7 +133,8 @@ impl Node {
         // Record link loss convergence
         if let Some(detected) = self.link_loss_detected {
             let elapsed = detected.elapsed();
-            self.metrics.record_link_loss(elapsed.as_secs_f32() * 1000.0);
+            self.metrics
+                .record_link_loss(elapsed.as_secs_f32() * 1000.0);
             self.link_loss_detected = None;
         }
 

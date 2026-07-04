@@ -11,10 +11,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 /// E2.2 — MAC key for HELLO beacons (derived from session key)
 const HELLO_MAC_KEY: [u8; 32] = [
-    0x74, 0x72, 0x69, 0x6f, 0x73, 0x2d, 0x6d, 0x65,
-    0x73, 0x68, 0x2d, 0x68, 0x65, 0x6c, 0x6c, 0x6f,
-    0x2d, 0x6d, 0x61, 0x63, 0x2d, 0x6b, 0x65, 0x79,
-    0x2d, 0x76, 0x31, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x74, 0x72, 0x69, 0x6f, 0x73, 0x2d, 0x6d, 0x65, 0x73, 0x68, 0x2d, 0x68, 0x65, 0x6c, 0x6c, 0x6f,
+    0x2d, 0x6d, 0x61, 0x63, 0x2d, 0x6b, 0x65, 0x79, 0x2d, 0x76, 0x31, 0x00, 0x00, 0x00, 0x00, 0x00,
 ]; // "trios-mesh-hello-mac-key-v1" null-padded to 32 bytes
 
 /// E2.3 — Freshness threshold: reject beacons older than 2×HELLO_MS
@@ -55,7 +53,12 @@ impl Hello {
 
     /// Create a beacon with automatic timestamp and MAC calculation (E2.2)
     /// Uses a symmetric key for MAC (in production, derive from session key)
-    pub fn authenticated(src: NodeId, seq: u32, heard: Vec<NodeId>, mac_key: &Option<[u8; 32]>) -> Self {
+    pub fn authenticated(
+        src: NodeId,
+        seq: u32,
+        heard: Vec<NodeId>,
+        mac_key: &Option<[u8; 32]>,
+    ) -> Self {
         let ts = Self::now_ms();
         let mac = Self::compute_mac(src, seq, ts, &heard, mac_key);
         Self {
@@ -69,7 +72,13 @@ impl Hello {
 
     /// E2.2 — Compute MAC over (src, seq, ts, heard[]) using ChaCha20-Poly1305
     /// The MAC key is typically derived from the session key with a context label
-    fn compute_mac(src: NodeId, seq: u32, ts: u64, heard: &[NodeId], mac_key: &Option<[u8; 32]>) -> [u8; 16] {
+    fn compute_mac(
+        src: NodeId,
+        seq: u32,
+        ts: u64,
+        heard: &[NodeId],
+        mac_key: &Option<[u8; 32]>,
+    ) -> [u8; 16] {
         let key_bytes = mac_key.unwrap_or(HELLO_MAC_KEY);
         let cipher = ChaCha20Poly1305::new(Key::from_slice(&key_bytes));
 
@@ -86,7 +95,13 @@ impl Hello {
         // Use empty plaintext, MAC is in the tag
         let nonce = Nonce::from_slice(&[0u8; 12]); // fixed nonce for MAC-only mode
         let ct = cipher
-            .encrypt(nonce, Payload { msg: &[], aad: &aad })
+            .encrypt(
+                nonce,
+                Payload {
+                    msg: &[],
+                    aad: &aad,
+                },
+            )
             .expect("ChaCha20-Poly1305 MAC computation is infallible");
 
         // Extract 16-byte tag (MAC)
@@ -138,7 +153,8 @@ impl Hello {
 
     pub fn parse(b: &[u8]) -> Option<Self> {
         // New format: [src:4][seq:4][ts:8][n:1][heard:n×4][mac:16]
-        if b.len() < 17 { // 4+4+8+1 minimum (no heard) +16 mac
+        if b.len() < 17 {
+            // 4+4+8+1 minimum (no heard) +16 mac
             return None;
         }
         let src = u32::from_be_bytes(b[0..4].try_into().ok()?);
@@ -251,7 +267,7 @@ mod tests {
             seq: 1,
             ts: legitimate.ts,
             heard: vec![1, 2, 3, 4, 5, 6, 7, 8, 9], // inflated!
-            mac: legitimate.mac, // copied from legitimate
+            mac: legitimate.mac,                    // copied from legitimate
         };
 
         // Fake beacon fails MAC verification
@@ -275,7 +291,7 @@ mod tests {
 
     #[test]
     fn old_beacon_rejected() {
-        let key = Some([6u8; 32]);
+        let _key = Some([6u8; 32]);
 
         // Create beacon with old timestamp
         let now = Hello::now_ms();

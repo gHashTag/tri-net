@@ -386,7 +386,12 @@ mod tests {
         // Verify the learned route has cumulative ETX
         let route = t.path_route(100).unwrap();
         let expected = link_etx + adv_etx;
-        assert!((route.path_etx - expected).abs() < 0.1, "Expected path_etx ~{}, got {}", expected, route.path_etx);
+        assert!(
+            (route.path_etx - expected).abs() < 0.1,
+            "Expected path_etx ~{}, got {}",
+            expected,
+            route.path_etx
+        );
     }
 
     #[test]
@@ -434,7 +439,7 @@ mod tests {
         // E4 requirement: 100 random topology fuzz → 0 loops
         use std::collections::HashSet;
 
-        for seed in 0..100 {
+        for _seed in 0..100 {
             let mut t = EtxTable::new(10);
             let mut learned = HashSet::new();
 
@@ -461,7 +466,11 @@ mod tests {
 
             // Verify no loops: for any learned route, the next_hop is not the destination
             for (dst, next_hop) in learned {
-                assert_ne!(dst, next_hop, "Loop detected: route to {} via {}", dst, next_hop);
+                assert_ne!(
+                    dst, next_hop,
+                    "Loop detected: route to {} via {}",
+                    dst, next_hop
+                );
             }
         }
     }

@@ -79,17 +79,18 @@ pub struct RankedNextHops {
     pub backup: Option<NodeId>,
 }
 
+impl Default for RankedNextHops {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RankedNextHops {
     pub fn new() -> Self {
         Self {
             primary: None,
             backup: None,
         }
-    }
-
-    /// Check if a next-hop is alive (not dead).
-    fn is_alive(&self, peer: NodeId, etx_table: &EtxTable) -> bool {
-        etx_table.etx(peer).map_or(false, |e| e.is_finite())
     }
 }
 
@@ -228,7 +229,7 @@ impl MeshRouter {
         let path_etx = self.etx.compute_path_etx(next_hop, adv_etx);
 
         // Add to ranked candidates (allows multiple routes to same dst)
-        let candidates = self.ranked_candidates.entry(dst).or_insert_with(Vec::new);
+        let candidates = self.ranked_candidates.entry(dst).or_default();
 
         // Check if this next-hop already exists, update if so
         if let Some(entry) = candidates.iter_mut().find(|(nh, _)| *nh == next_hop) {
@@ -275,7 +276,7 @@ impl MeshRouter {
         // Dead filter by LIVE etx: force_dead()/observed death flips the link to
         // infinity in self.etx but leaves the cached candidate metric untouched,
         // so the kill is only visible through the live table here.
-        by_nh.retain(|nh, _| self.etx.etx(*nh).map_or(true, |e| e.is_finite()));
+        by_nh.retain(|nh, _| self.etx.etx(*nh).is_none_or(|e| e.is_finite()));
 
         let mut candidates: Vec<(NodeId, f32)> = by_nh.into_iter().collect();
         candidates.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
@@ -325,7 +326,7 @@ impl MeshRouter {
         // E4: Check learned path routes first, but only if next-hop is alive
         if let Some(route) = self.etx.path_route(dst) {
             // Check if the path route's next-hop is still alive
-            if self.etx.etx(route.next_hop).map_or(false, |e| e.is_finite()) {
+            if self.etx.etx(route.next_hop).is_some_and(|e| e.is_finite()) {
                 return Some(route.next_hop);
             }
             // Path route's next-hop is dead, fall through to ranked_hops
@@ -334,12 +335,12 @@ impl MeshRouter {
         let ranked = self.ranked_hops(dst);
         if let Some(primary) = ranked.primary {
             // Check if primary is alive
-            if self.etx.etx(primary).map_or(false, |e| e.is_finite()) {
+            if self.etx.etx(primary).is_some_and(|e| e.is_finite()) {
                 return Some(primary);
             }
             // Hot-swap: primary dead, try backup
             if let Some(backup) = ranked.backup {
-                if self.etx.etx(backup).map_or(false, |e| e.is_finite()) {
+                if self.etx.etx(backup).is_some_and(|e| e.is_finite()) {
                     return Some(backup);
                 }
             }
@@ -625,7 +626,7 @@ mod tests {
     #[test]
     fn hello_src_spoof_from_neighbor_is_rejected() {
         // A receives HELLO from C, but header claims src=B (spoof attempt)
-        let (s_a_c, s_c_a) = sessions();
+        let (s_a_c, _s_c_a) = sessions();
 
         let mut a = MeshRouter::new(1, 16);
         a.add_link(3, s_a_c, Box::new(VecTransport::default()));
@@ -651,8 +652,8 @@ mod tests {
         // Will fail MAC check first (not a valid encrypted frame),
         // but src check is defense-in-depth
         match result {
-            Delivery::Dropped(DropReason::SrcSpoof) => {}, // Expected
-            Delivery::Dropped(DropReason::Unopened(_)) => {}, // Also OK (MAC failed)
+            Delivery::Dropped(DropReason::SrcSpoof) => {} // Expected
+            Delivery::Dropped(DropReason::Unopened(_)) => {} // Also OK (MAC failed)
             other => panic!("Expected drop, got {:?}", other),
         }
     }
@@ -689,11 +690,8 @@ mod tests {
         let result = a.handle_frame(3, &hello_frame);
 
         // Should NOT be SrcSpoof (src==from)
-        match result {
-            Delivery::Dropped(DropReason::SrcSpoof) => {
-                panic!("Legitimate HELLO should not be rejected as SrcSpoof")
-            },
-            _ => {}, // OK (likely MAC fail, but not SrcSpoof)
+        if let Delivery::Dropped(DropReason::SrcSpoof) = result {
+            panic!("Legitimate HELLO should not be rejected as SrcSpoof");
         }
     }
 
@@ -712,7 +710,7 @@ mod tests {
 
         // A sends frame
         assert_eq!(a.send_ip(3, b"hello from A"), Delivery::Forwarded(3));
-        let mut frame = t.take();
+        let frame = t.take();
 
         // This is a DATA frame (kind=1) from A to C
         // We'll modify it to simulate relay: src=1, but received from a peer
@@ -726,7 +724,7 @@ mod tests {
         // Additional test: craft a data frame with src != from (simulating relay)
         // In real multi-hop, C would receive from A (src=1, from=1) and relay to B
         // B would receive from C (src=1, from=3) → this should NOT be SrcSpoof
-        let mut relayed_frame = frame.clone();
+        let _relayed_frame = frame.clone();
         // Change dst to simulate B (not actually routing, just testing src check)
         // relayed_frame[6..10] = 2.to_be_bytes(); // Would need to re-encrypt
 
@@ -765,13 +763,17 @@ mod tests {
         // Check ranked next-hops
         let ranked = router.ranked_hops(100);
         assert_eq!(ranked.primary, Some(2), "Primary should be best (node 2)");
-        assert_eq!(ranked.backup, Some(3), "Backup should be second best (node 3)");
+        assert_eq!(
+            ranked.backup,
+            Some(3),
+            "Backup should be second best (node 3)"
+        );
     }
 
     #[test]
     fn hot_swap_on_force_dead() {
         let (s1, s2) = sessions();
-        let (s3, _s3_peer) = sessions();
+        let (_s3, _s3_peer) = sessions();
 
         let mut router = MeshRouter::new(1, 16);
         router.add_link(2, s1, Box::new(VecTransport::default()));
@@ -788,8 +790,16 @@ mod tests {
         router.learn_route_for_ranked(100, 3, 2.0);
 
         let ranked = router.ranked_hops(100);
-        assert_eq!(ranked.primary, Some(2), "Primary should be node 2 (best ETX)");
-        assert_eq!(ranked.backup, Some(3), "Backup should be node 3 (second best)");
+        assert_eq!(
+            ranked.primary,
+            Some(2),
+            "Primary should be node 2 (best ETX)"
+        );
+        assert_eq!(
+            ranked.backup,
+            Some(3),
+            "Backup should be node 3 (second best)"
+        );
 
         // Hot-swap: kill primary
         router.force_dead(2);
@@ -797,7 +807,11 @@ mod tests {
         // After force_dead, node 2 is dead, so recompute_ranked_hops should exclude it
         // Only node 3 remains as alive candidate
         let ranked_after = router.ranked_hops(100);
-        assert_eq!(ranked_after.primary, Some(3), "Node 3 should be primary (only alive)");
+        assert_eq!(
+            ranked_after.primary,
+            Some(3),
+            "Node 3 should be primary (only alive)"
+        );
         assert_eq!(ranked_after.backup, None, "No backup (only one alive link)");
         assert_eq!(ranked_after.backup, None, "No backup left");
     }
@@ -830,7 +844,11 @@ mod tests {
         router.force_dead(2);
 
         // next_hop should now use node 3 (new primary after recompute)
-        assert_eq!(router.next_hop(100), Some(3), "Should use new primary after failover");
+        assert_eq!(
+            router.next_hop(100),
+            Some(3),
+            "Should use new primary after failover"
+        );
     }
 
     #[test]
@@ -886,8 +904,16 @@ mod tests {
         // Don't learn via node 4 (it's dead, and would fail feasibility anyway)
 
         let ranked = router.ranked_hops(100);
-        assert_eq!(ranked.primary, Some(2), "Primary should be best alive link (node 2)");
-        assert_eq!(ranked.backup, Some(3), "Backup should be second best alive link (node 3)");
+        assert_eq!(
+            ranked.primary,
+            Some(2),
+            "Primary should be best alive link (node 2)"
+        );
+        assert_eq!(
+            ranked.backup,
+            Some(3),
+            "Backup should be second best alive link (node 3)"
+        );
 
         // Verify node 4 is not in ranked hops
         assert_ne!(ranked.primary, Some(4), "Dead node 4 should not be primary");
