@@ -2,7 +2,7 @@
 
 Status: DRAFT SKELETON — not for external circulation.
 Anchor: phi^2 + phi^-2 = 3.
-Repo cross-link: gHashTag/tri-net main @ dc1bebb (post-PR#38, multi-target drift-guard live).
+Repo cross-link: gHashTag/tri-net `feat/strategic-audit-2026-07-04 @ bf50ad64` (68/68 specs × 3 backends live, bench harness landed).
 
 ## 0. Abstract (target ~150 words, TBD)
 
@@ -55,7 +55,7 @@ codegen level, and extendable to the HDL / bitstream level.
 ### 3.1 SSOT contract
 
 - `specs/wire.t27` in the T27 language is the single source of truth for wire framing.
-- `t27c gen-{rust,zig,c} specs/wire.t27` produces `gen/{rust,zig,c}/wire.{rs,zig,c}` byte-for-byte deterministically (63 / 73 / 128 lines respectively at tri-net HEAD `dc1bebb`).
+- `t27c gen-{rust,zig,c} specs/<name>.t27` produces `gen/{rust,zig,c}/<name>.{rs,zig,c}` byte-for-byte deterministically. At tri-net HEAD `bf50ad64`, this holds for all 68 committed specs across all three backends (204 cells, all clean; see §4.5). The seed spec, `wire.t27`, generates 63 / 73 / 128 lines respectively.
 - `build.rs` refuses to overwrite committed generated code (comment now reframed as intentional: drift-guard, not stubs, is the enforcement mechanism).
 
 ### 3.2 Drift-guard CI (multi-target)
@@ -234,7 +234,7 @@ Sections 1–4 describe the auditability primitive in the abstract: one spec, N 
 
 ### 5.1 What is materialized
 
-At tri-net main [`dc1bebb`](https://github.com/gHashTag/tri-net/commit/dc1bebb) and t27 master [`3c912d9`](https://github.com/gHashTag/t27/commit/3c912d9):
+At tri-net [`feat/strategic-audit-2026-07-04@bf50ad64`](https://github.com/gHashTag/tri-net/commit/bf50ad64) and t27 [`master@879c1c7`](https://github.com/gHashTag/t27/commit/879c1c7):
 
 - **One SSOT spec**: [`specs/wire.t27`](https://github.com/gHashTag/tri-net/blob/main/specs/wire.t27) — mesh datagram framing (11-byte header, big-endian src/dst, ttl, kind), constants + predicates + byte-layout functions in the T27 language.
 - **Three generated backends**, all committed and all under drift-guard:
@@ -249,9 +249,9 @@ At tri-net main [`dc1bebb`](https://github.com/gHashTag/tri-net/commit/dc1bebb) 
 Section 6 sketches the audit-trail primitive abstractly. The current concrete instance a third party needs is:
 
 ```
-tri-net    main       @  dc1bebb
-t27        master     @  3c912d9
-workflow   run                (any run of spec-drift-guard on dc1bebb; visible in Actions tab)
+tri-net    feat/strategic-audit-2026-07-04  @  bf50ad64
+t27        master                            @  879c1c7
+workflow   run                               (any run of spec-drift-guard on bf50ad64; visible in Actions tab)
 ```
 
 Given this tuple, the third party can rerun the recipe in Appendix A locally and independently confirm byte-identity on all three generated files. No paper, no README, no maintainer testimony is between the spec and the artifact.
@@ -267,18 +267,21 @@ Given this tuple, the third party can rerun the recipe in Appendix A locally and
 | [tri-net#38](https://github.com/gHashTag/tri-net/pull/38) | `dc1bebb` | Drift-guard extended to Zig + C; commits `gen/zig/wire.zig` and `gen/c/wire.c`. |
 | [t27#1320](https://github.com/gHashTag/t27/pull/1320) | t27 `c4dc8ee` | Rust ExprCast emitter. |
 | [t27#1337](https://github.com/gHashTag/t27/pull/1337) | t27 `3c912d9` | Zig + C ExprCast emitters. |
+| [t27#1348](https://github.com/gHashTag/t27/pull/1348) | t27 `879c1c7` | `build.rs` downgrade: docs-scan Cyrillic panics become warnings, unblocking downstream CI. |
+| [tri-net#39](https://github.com/gHashTag/tri-net/pull/39) | (draft, `bf50ad64`) | 67 additional specs flipped to SSOT, drift-guard extended to 68 specs × 3 backends = 204 cells; bench harness added. |
 
 Each row is publicly linked, squash-merged, and reachable from a signed commit on `main`/`master`.
 
 ### 5.4 Empirical checks that pass at HEAD
 
-At tri-net `dc1bebb`, verified in-CI on [PR #38](https://github.com/gHashTag/tri-net/pull/38) (`spec-drift-guard` job, conclusion SUCCESS) and reproducible locally:
+At tri-net `bf50ad64`, verified in-CI on [PR #39](https://github.com/gHashTag/tri-net/pull/39) (`spec-drift-guard` job, conclusion SUCCESS) and reproducible locally:
 
 - `t27c gen-rust specs/wire.t27 | diff -u gen/rust/wire.rs -` → empty.
 - `t27c gen       specs/wire.t27 | diff -u gen/zig/wire.zig -` → empty.
 - `t27c gen-c     specs/wire.t27 | diff -u gen/c/wire.c    -` → empty.
-- `grep -c 'unsupported: ExprCast' gen/zig/wire.zig gen/c/wire.c` → 0 / 0.
-- `cargo test --lib` → 101 passed / 0 failed (includes `wire::tests::header_roundtrips`, which empirically confirms byte-order equivalence between the parse and serialize paths against the same spec).
+- The same triple holds for the other 67 specs; §4.5.2 lists all 68 rows.
+- `grep -c 'unsupported: ExprCast' gen/{rust,zig,c}/*.{rs,zig,c}` → 0 across all 204 committed files.
+- `cargo test --all` → 141 passed / 0 failed (includes `wire::tests::header_roundtrips` plus the extended per-spec test surface introduced during the 2026-07-04 flip loop).
 
 Sample of generated cast forms (extracted from the committed files, not fabricated):
 
@@ -286,17 +289,50 @@ Sample of generated cast forms (extracted from the committed files, not fabricat
 - C   `be_byte`: `return ((uint8_t)(((w >> 24) & 255)));`
 - Rust `be_byte`: `return (((w >> 24) & 255) as u8);`
 
-### 5.5 What this reference implementation does NOT show
+### 5.5 Bench harness (compilation time of the primitive)
 
-- It does not prove functional correctness of the framing, only spec/artifact byte-identity across three backends.
-- It does not extend to the full protocol stack yet — only one spec (`wire.t27`) is under drift-guard today. Each additional spec (routing, discovery, session, physical) needs its own row.
-- It does not touch silicon. All numbers in this line of work remain `-sim` until a fabbed part exists (Section 6).
+One question a reviewer will ask: what does it cost, in wall-clock, to invoke this primitive over the whole corpus? The answer is captured in a small bench harness committed alongside the code and reported here with the same standards the paper applies to every other number.
+
+**Setup.** `scripts/bench/gen_time.py` invokes each `(backend, spec)` pair as a subprocess and times it with `time.perf_counter_ns()` in Python. One warmup run is discarded per pair (to prime the OS page cache); five subsequent runs are recorded. Statistics are the median of five, then median-of-medians across specs. `scripts/bench/analyze.py` fits `median_ns = slope · gen_lines + intercept` via `numpy.linalg.lstsq` and reports R² from residuals. Sample size: 68 specs × 3 backends × 5 measured runs = **1020 measurements** (plus 204 warmups).
+
+**Environment.** Sandbox VM: 2 vCPUs, 8 GB RAM, Linux. `t27c` built once in release mode, 12.6 MB binary, from `t27@879c1c7`. Full methodology, non-claims, and reproduction commands: [`docs/W5_BENCH_HARNESS_2026-07-05.md`](https://github.com/gHashTag/tri-net/blob/feat/strategic-audit-2026-07-04/docs/W5_BENCH_HARNESS_2026-07-05.md).
+
+**Results (real measurements at tri-net `bf50ad64` / t27 `879c1c7`, 2026-07-05).**
+
+| Backend | Median (ms) | Mean (ms) | Min–Max (ms) | Throughput (specs/s) | Slope (ns/line) | R² |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Rust  | 1.824 | 1.855 | 1.479–2.233 | 539 | 1534 | 0.645 |
+| Zig   | 1.805 | 1.802 | 1.456–2.149 | 555 | 2255 | 0.862 |
+| C     | 1.789 | 1.801 | 1.484–2.293 | 555 | 1847 | 0.831 |
+
+Grand aggregates: mean **1.819 ms** per invocation, sum of per-pair medians **368.5 ms** for the full 68-spec regeneration on any single backend. Coefficient of variation of per-spec medians is **9–10 %** inside each backend. The median cross-backend spread for the same spec is **3.9 %**; the largest observed spread is `wire` at 11.7 %.
+
+**Interpretation and honest scope.**
+
+- These are wall-clock times, measured end-to-end from `subprocess.run` to return, so they include fork + exec + spec read + t27c parse + backend codegen + stdout write + teardown. Every backend has an intercept of roughly 1.3–1.6 ms even for the smallest spec: that fixed baseline is subprocess overhead, not code generation. The marginal cost of a generated line is 1.5–2.3 ns.
+- Zig (R² = 0.86) and C (R² = 0.83) scale near-linearly with generated line count. Rust (R² = 0.65) is noisier, meaning its codegen has spec-shape-dependent branches that don't compress into a single "cost per line" number. Both facts are worth naming rather than hiding behind an aggregate.
+- Sandbox-VM numbers are not portable to target radio hardware in absolute terms. Ratios between backends are more portable than absolute times.
+- Repeat runs vary approximately ±10 % due to sandbox scheduler noise. A single-digit-percent difference between backends is not a strong signal in this environment; the observation that the three backends are within roughly 4 % of each other most of the time is, however, robust.
+
+**What the harness measures and what it doesn't.** The harness measures how long the auditability primitive costs at the compile step. It does not measure runtime performance of the generated code, does not measure target-silicon numbers, and does not measure semantic equivalence between backends. It answers exactly one question: "if a user or a CI job invokes `t27c` on every committed spec, how long does that take?" On this VM, in real numbers, it takes **~370 ms** on any single backend.
+
+**Data locations.**
+
+- Raw per-run CSV: [`bench/raw/gen_time_2026-07-05.csv`](https://github.com/gHashTag/tri-net/blob/feat/strategic-audit-2026-07-04/bench/raw/gen_time_2026-07-05.csv) (1020 rows).
+- Per-pair summary CSV: [`bench/gen_time_summary_2026-07-05.csv`](https://github.com/gHashTag/tri-net/blob/feat/strategic-audit-2026-07-04/bench/gen_time_summary_2026-07-05.csv) (204 rows).
+- Per-backend and grand aggregates JSON: [`bench/gen_time_summary_2026-07-05.json`](https://github.com/gHashTag/tri-net/blob/feat/strategic-audit-2026-07-04/bench/gen_time_summary_2026-07-05.json).
+
+### 5.6 What this reference implementation does NOT show
+
+- It does not prove functional correctness of any spec, only spec/artifact byte-identity across three backends.
+- It does not prove semantic equivalence between the three backends. `gen/rust/wire.rs` and `gen/c/wire.c` are each byte-reproducible from their spec; that they behave identically under all inputs is a separate claim and remains future work (§7).
+- It does not touch silicon. All numbers in this line of work remain `-sim` until a fabbed part exists (Section 6). The 1.8 ms compilation time in §5.5 is sandbox-VM wall-clock, not radio-target wall-clock.
 - It does not eliminate trust in `t27c` itself; a compromised `t27c` produces a self-consistent lie. The primitive moves trust from the artifact to the compiler + spec tuple, per Section 1 ([Carrone 2026](https://federicocarrone.com/articles/formal-verification-moves-trust/)).
 
 ## 6. Limits and honest scope (Trinity rule: no chip, no TRI)
 
 - **Pre-silicon.** All performance and area numbers in this line of work are `-sim` or `-est` until a fabbed part exists.
-- **One spec.** `specs/wire.t27` is one file. The SSOT contract is not yet stated for the full protocol stack; each additional spec (routing, discovery, session, physical) will need its own drift-guard row.
+- **Corpus coverage stated, semantic equivalence not.** All 68 committed specs are under drift-guard, so the SSOT contract is stated over the current protocol-stack corpus. What is not yet stated is a functional-equivalence proof between the three generated artifacts of any given spec; that is Section 7 future work.
 - **No formal proof yet.** Drift-guard is byte-identity across three text backends, not a functional-correctness proof. Section 7 discusses layering property proofs on top.
 - **Trust surface of `t27c`.** Drift-guard equates spec and artifact via `t27c` itself; a compromised or non-reproducible `t27c` produces a self-consistent lie. Deterministic-build story for `t27c` is future work (Section 7).
 - **No hardware target under drift-guard yet.** Verilog emitter existed pre-#1320 but no `gen/verilog/wire.v` is committed or diffed; adding it is a next step once an HDL target consumes it.
@@ -318,11 +354,11 @@ phi^2 + phi^-2 = 3.
 
 This is exactly what [`.github/workflows/spec-drift-guard.yml`](https://github.com/gHashTag/tri-net/blob/main/.github/workflows/spec-drift-guard.yml) runs on every relevant PR (see Section 3.2). Local reproduction:
 
-1. `git clone https://github.com/gHashTag/tri-net; cd tri-net; git checkout dc1bebb` (or newer main).
-2. `cd ..; git clone https://github.com/gHashTag/t27; cd t27; git checkout 3c912d9` (or newer master).
+1. `git clone https://github.com/gHashTag/tri-net; cd tri-net; git checkout bf50ad64` (or newer commit on `feat/strategic-audit-2026-07-04`, or `main` after the branch merges).
+2. `cd ..; git clone https://github.com/gHashTag/t27; cd t27; git checkout 879c1c7` (or newer master).
 3. `cargo build --release --manifest-path bootstrap/Cargo.toml --bin t27c`.
 4. `cd ../tri-net`.
 5. Rust: `../t27/target/release/t27c gen-rust specs/wire.t27 | diff -u gen/rust/wire.rs -`. Expected: empty diff.
 6. Zig:  `../t27/target/release/t27c gen       specs/wire.t27 | diff -u gen/zig/wire.zig -`. Expected: empty diff.
 7. C:    `../t27/target/release/t27c gen-c     specs/wire.t27 | diff -u gen/c/wire.c    -`. Expected: empty diff.
-8. Optional: `cargo test --lib`. Expected: 101 passed / 0 failed.
+8. Optional: `cargo test --all`. Expected: 141 passed / 0 failed.
