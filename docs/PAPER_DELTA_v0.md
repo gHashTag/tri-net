@@ -227,6 +227,32 @@ Why this matters for the auditability primitive: **an audit-trail argument is cl
 - **Not runtime performance.** Line counts are surface measurements. No throughput, latency, or memory numbers are claimed here; those depend on downstream compilation and target hardware (Section 6, Trinity rule).
 - **Not semantic cross-backend equivalence.** The matrix proves each cell reproduces byte-for-byte from the spec; it does not prove that `gen/rust/wire.rs` and `gen/c/wire.c` are behaviourally equivalent under all inputs. That is future work.
 - **Not a proof of correctness of the spec itself.** The primitive proves spec-to-artifact fidelity, not spec-to-real-world fidelity. If `specs/wire.t27` encodes the wrong wire format, the drift-guard will happily enforce a wrong-but-consistent artifact. Correctness of the spec is a separate, human-review question.
+- **Not a claim of downstream compilability.** The clean-predicate in §4.5.1 is byte-determinism of generation only; it does not require that the generated Rust/Zig/C compiles under `rustc`, `cc`, or `zig`. Downstream compilability is measured separately in §4.5.6 and is a much weaker property today than byte-determinism.
+
+### 4.5.6 Downstream compilability (companion to §4.5.2)
+
+The 204-cells-clean result of §4.5.2 is a claim about generation determinism, not about the code being accepted by standard compilers. A separate audit, reported in [`docs/W6_CODEGEN_AUDIT_2026-07-05.md`](https://github.com/gHashTag/tri-net/blob/main/docs/W6_CODEGEN_AUDIT_2026-07-05.md) (merged via [PR #42](https://github.com/gHashTag/tri-net/pull/42) at commit `1890349`), ran each backend's standard toolchain against every generated artifact at the same pinned tuple.
+
+Per-backend compile matrix (68 modules from `feat/strategic-audit-2026-07-04` at [`bf50ad64`](https://github.com/gHashTag/tri-net/pull/39)):
+
+| Backend | Toolchain | OK | FAIL | Dominant defect |
+|---|---|---:|---:|---|
+| Rust | `rustc 1.93.1 --emit=metadata` | 19 / 68 (28%) | 49 / 68 | undeclared identifier in function bodies (E0425 = 2609 sites) |
+| C | `cc -c -std=c11 -Wall -Wextra` | 2 / 68 (2.9%) | 66 / 68 | undeclared identifier (1957) + `assert(cond, msg)` 2-arg misuse (867) |
+| Zig | static verdict, methodology in audit §2.3 | 0 / 68 (0%) | 68 / 68 | missing `types.zig` (64 importers) + `@compileError` stubs (4) |
+
+**Cross-backend compile intersection: ∅ (empty).** Rust-OK ∩ C-OK ∩ Zig-OK = {}. No module in the corpus compiles cleanly across all three backends simultaneously; the single module that compiles in both Rust and C (`wire`) fails in Zig because it imports the missing `types.zig`.
+
+This is not a contradiction of §4.5.2. The two rows measure orthogonal properties:
+
+- §4.5.2 asks: given the pinned spec and pinned t27c, does re-running the generator produce byte-identical output? Answer: 204/204 yes.
+- §4.5.6 asks: given that generated output, does the target toolchain accept it as compilable source? Answer: 21/204 yes, cross-backend 0/68.
+
+The first property is what the drift-guard CI enforces on every PR touching `specs/`. It is a strong property about the generator's determinism and the pipeline's reproducibility. The second property is what a downstream user of the generated code would care about, and it is currently weak. The gap is a known finding, not a bug in the drift-guard mechanism: t27c's emitters have codegen-quality defects (missing let-statement lowering, unqualified identifiers, backend-specific stubs) that the byte-determinism check is not designed to catch.
+
+**Scope statement.** Section 4.5 as a whole is a statement about generation-time determinism. Any downstream inference (runtime differential, cross-backend equivalence, functional correctness) requires either a corrected scope limited to the audit-verified compile-OK subset (currently `wire` in Rust+C) or an explicit deferral until the codegen defects in [`docs/W6_CODEGEN_AUDIT_2026-07-05.md`](https://github.com/gHashTag/tri-net/blob/main/docs/W6_CODEGEN_AUDIT_2026-07-05.md) §5 are addressed.
+
+**Methodology asymmetry disclosure.** The Rust sweep used library-only compilation (`--emit=metadata`, no test build); the C sweep compiled both library and test translation units. The audit ran Rust in library-only mode intentionally, to isolate spec-derived defects from harness-derived ones; the C toolchain's stricter default surface picked up additional test-side issues. This asymmetry does not affect the empty-intersection finding (Zig 0/68 alone makes cross-backend OK impossible), but it is disclosed for reviewers who compare the per-backend numbers directly. Full methodology is in the audit document, §2.
 
 ## 5. Reference implementation (empirical realization of the audit-trail primitive)
 
