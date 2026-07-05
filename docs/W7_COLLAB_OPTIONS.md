@@ -58,6 +58,12 @@ Cloud: ~40 tool-часов на всю W7.1-8 minus W7.2/4. Local: ~15 час н
 
 Каждый layer имеет **свою ветку префиксом**: `w7/compiler/*`, `w7/testing/*`, `w7/docs/*`. Cross-layer PR обязательно линкует parent через `Base:` в description. Human commits только в `w7/docs/*` напрямую или через approve в PR review.
 
+**No-paste-review rule (mandatory для doc-layer, preferred для всех слоёв).** Урок W6.2 weak-point 1.8: draft жил в sandbox, review шёл по paste в chat вместо committed text — это дало почву для anchor'а (agent interpretation слышался как ground-truth). W7 разводит эту связку явно:
+
+- **Doc-layer (`w7/docs/*`) — обязательно**: review производится только против committed text в ветке. Approve возможен только после `git fetch origin <branch> && git show <branch>:<path>` (или эквивалентного `gh api ... /contents/`). Paste в chat допустим как контекст для навигации, но не как объект approve'а.
+- **Compiler-layer и testing-layer — preferred**: те же правила, exception возможен для быстрых clarification-циклов (≤10 строк diff), но final approve — против committed text.
+- **Enforcement**: reviewer в PR-комментарии явно ссылается на SHA (`Reviewed against <sha>` или `Approved at <sha>`), чтобы approve был воспроизводимо привязан к точному состоянию файла, а не к транзиентному paste'у.
+
 ### Плюсы
 
 - Concern-separation даёт естественный CI разбиение — compiler layer прошёл rustc/cc/zig CI до testing layer'а.
