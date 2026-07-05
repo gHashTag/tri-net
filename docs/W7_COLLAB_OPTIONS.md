@@ -64,6 +64,15 @@ Cloud: ~40 tool-часов на всю W7.1-8 minus W7.2/4. Local: ~15 час н
 - **Compiler-layer и testing-layer — preferred**: те же правила, exception возможен для быстрых clarification-циклов (≤10 строк diff), но final approve — против committed text.
 - **Enforcement**: reviewer в PR-комментарии явно ссылается на SHA (`Reviewed against <sha>` или `Approved at <sha>`), чтобы approve был воспроизводимо привязан к точному состоянию файла, а не к транзиентному paste'у.
 
+**SHA-advance re-review rule (sibling к no-paste-review).** Урок W7.1 (PR #44 @ 3f1d98a после approve @ 60d2e04): approve привязывается к cited SHA. Если ветка advance'нула между approve и merge — reviewer обязан re-confirm против нового SHA (`Re-reviewed at <new_sha>: delta <bullet-list>`). Delta должна быть эксплицитно перечислена; silent SHA-swap не разрешён. Применимо ко всем слоям — cloud или human ownership не важен.
+
+**External-dep timer rule (sibling к SHA-advance).** Урок W7.1 (t27#1401 upstream tracking): PR, блокированный внешней зависимостью, не может жить draft'ом бесконечно. Все такие PR обязаны иметь в теле:
+
+- **Terminal event triggers**: список конкретных событий на upstream (won't-fix label, closing PR merged/closed, explicit reject) — при любом из них PR немедленно конвертируется в findings-only merge или закрывается.
+- **Backstop timer**: absolute deadline (обычно 14 дней от публикации upstream issue) — покрывает silent-neglect кейс, который event-list не ловит. Whichever comes first: terminal event OR backstop timer.
+
+Без timer'а PR превращается в perpetual-draft; без event-override — timer тратит время на явно rejected upstream. Оба нужны.
+
 ### Плюсы
 
 - Concern-separation даёт естественный CI разбиение — compiler layer прошёл rustc/cc/zig CI до testing layer'а.
