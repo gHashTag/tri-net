@@ -8,23 +8,40 @@
 // analysis. This binary only generates; parsing / round-tripping lives in E2.
 //
 // Grammar coverage (initial subset + collection-params expansion):
-//   Module     ::= UseDecl* ConstDecl* FnDecl+
+//   Module     ::= "module" ident "{" ConstDecl* FnDecl+ "}"
+//   ConstDecl  ::= "const" IDENT ":" "u32" "=" IntLiteral ";"
 //   FnDecl     ::= "fn" ident "(" Params? ")" ("->" Type)? "{" Stmt+ Return "}"
 //   Params     ::= Param ("," Param)*
 //   Param      ::= ident ":" (Type | CollType)
-//   CollType   ::= "[]const" IntType | "[]" IntType | "[" Int "]" IntType
+//   CollType   ::= "[" "u32" ";" IDENT "]"          // [u32; NAMED_CONST]
 //   Stmt       ::= LetStmt | IfStmt | ExprStmt
 //   LetStmt    ::= "let" ident ":" Type "=" Expr ";"
-//   IfStmt     ::= "if" "(" Expr ")" "{" Stmt* Return "}" ("else" "{" Stmt* Return "}")?
 //   Expr       ::= Literal | Ident | BinOp | Cast
 //   Type       ::= u8 | u16 | u32 | u64 | usize | bool
 //   IntType    ::= u8 | u16 | u32 | u64 | usize
 //
-// Isolation constraint (W7.3 collection-params increment):
+// Collection-params grammar (W7.3 target #1) — CORRECTED per PR #47 GLM
+// re-review @ 247427d + ground-truth verification against tri-net/specs
+// on PR #39 branch (feat/strategic-audit-2026-07-04):
+//
+//   - Corpus of interest: tri-net/specs/*.t27 (68 modules, W6.2 audit corpus)
+//   - Only collection form observed there: [u32; NAMED_CONST] (159 occurrences)
+//   - Element type always u32
+//   - Named-const size always resolves via a module-scope `const NAME: u32 = ...`
+//   - This is the exact syntactic path that t27c lowers to `Vec<>` in gen/rust
+//     (see specs/anomaly_detector.t27:68 -> gen/rust/anomaly_detector.rs
+//     calculate_baseline(history: Vec<>, count: u32)).
+//
+//   Zig-style forms ([]const T / []T / [N]T literal) previously emitted by
+//   this generator were dropped: they exist in the parallel ../t27/ Zig
+//   backend tree but NOT in tri-net/specs, and they exercise different
+//   parser/lowering paths than the Vec<>-defect surface the audit targets.
+//
+// Isolation constraint (unchanged from initial expansion):
 //   Collection-typed params are declared in the signature (parser-exercise
 //   of param-position for the Vec<>-defect class W6.2 Class 2 surface),
 //   but are NOT pushed into the scalar ident pool used by gen_expr. This
-//   prevents ill-typed expressions (e.g., vec + 1u8) that t27c would
+//   prevents ill-typed expressions (e.g. vec + 1u32) that t27c would
 //   reject and would confound the whitespace-invariance signal. Body-use
 //   of collections (Index expressions) is deferred to a separate commit.
 //
@@ -41,10 +58,26 @@ use std::path::PathBuf;
 
 const TYPES: &[&str] = &["u8", "u16", "u32", "u64", "usize", "bool"];
 const INT_TYPES: &[&str] = &["u8", "u16", "u32", "u64", "usize"];
-const COLL_ELEM_TYPES: &[&str] = &["u8", "u16", "u32", "u64", "usize"];
-const FIXED_ARR_SIZES: &[u32] = &[8, 16, 20, 32, 64, 128];
 const BIN_OPS: &[&str] = &["+", "-", "*", "&", "|", "^", "<<", ">>"];
 const CMP_OPS: &[&str] = &["==", "!=", "<", "<=", ">", ">="];
+
+// Named-const pool for [u32; NAMED_CONST] collection params. Names match
+// tri-net/specs vocabulary (top-10 by occurrence: MAX_NODES 29, MAX_PARAMS 18,
+// MAX_METRICS 12, MAX_FLOWS 11, MAX_ENTRIES 11, MAX_MODULES 10, MAX_TASKS 7,
+// MAX_FUNCTIONS 7, MAX_SAMPLES 6, MAX_RESULTS 6). Values match the range
+// observed in real const-decls (2..32).
+const NAMED_CONST_POOL: &[&str] = &[
+    "MAX_NODES",
+    "MAX_PARAMS",
+    "MAX_METRICS",
+    "MAX_FLOWS",
+    "MAX_ENTRIES",
+    "MAX_MODULES",
+    "MAX_TASKS",
+    "MAX_FUNCTIONS",
+    "MAX_SAMPLES",
+    "MAX_RESULTS",
+];
 
 struct Ctx {
     rng: ChaCha20Rng,
@@ -52,10 +85,14 @@ struct Ctx {
     // let-stmts and by scalar-typed params. Collection-typed params live in
     // `coll_params` instead — see isolation constraint at top of file.
     idents: Vec<(String, String)>, // (name, type)
-    // Collection-typed params: name + rendered type string (e.g. "[]const u8",
-    // "[]u32", "[32]u8"). Recorded for signature emission only. Not exposed to
-    // gen_expr — they are dead in the body pending Index-expression support.
+    // Collection-typed params: name + rendered type string (only "[u32; NAME]"
+    // form is emitted). Recorded for signature emission only. Not exposed to
+    // gen_expr — collection idents are dead in the body pending Index support.
     coll_params: Vec<(String, String)>,
+    // Module-scope const-decls emitted for this module. Any [u32; NAME] used
+    // in a param signature must reference a NAME that is declared here.
+    // Populated by gen_module before any fn is generated.
+    declared_consts: Vec<(String, u32)>, // (NAME, value)
     max_depth: u32,
     max_stmts_per_fn: u32,
     max_params_per_fn: u32,
@@ -68,6 +105,7 @@ impl Ctx {
             rng: ChaCha20Rng::seed_from_u64(seed),
             idents: Vec::new(),
             coll_params: Vec::new(),
+            declared_consts: Vec::new(),
             max_depth: 6,
             max_stmts_per_fn: 20,
             max_params_per_fn: 4,
@@ -88,23 +126,11 @@ impl Ctx {
         INT_TYPES[self.rng.gen_range(0..INT_TYPES.len())].to_string()
     }
 
-    /// Generate a collection type string. Three forms, matching real T27:
-    ///   []const T   (const slice, most common in t27 codebase)
-    ///   []T         (mutable slice)
-    ///   [N]T        (fixed-size array)
-    /// Element type is always an integer type (u8/u16/u32/u64/usize) — bool
-    /// slices/arrays are not idiomatic in T27 and would risk unusual paths.
-    fn pick_coll_type(&mut self) -> String {
-        let elem = COLL_ELEM_TYPES[self.rng.gen_range(0..COLL_ELEM_TYPES.len())];
-        let form = self.rng.gen_range(0u32..3);
-        match form {
-            0 => format!("[]const {}", elem),
-            1 => format!("[]{}", elem),
-            _ => {
-                let n = FIXED_ARR_SIZES[self.rng.gen_range(0..FIXED_ARR_SIZES.len())];
-                format!("[{}]{}", n, elem)
-            }
-        }
+    /// Pick a random module-scope named const to reference. Assumes
+    /// `declared_consts` is non-empty (guarded by caller).
+    fn pick_const_name(&mut self) -> String {
+        let idx = self.rng.gen_range(0..self.declared_consts.len());
+        self.declared_consts[idx].0.clone()
     }
 }
 
@@ -178,11 +204,15 @@ fn gen_return(ctx: &mut Ctx, ret_ty: &str) -> String {
 /// Emit the parameter list. Mixes scalar and collection params.
 ///
 /// Scalar params are pushed into `ctx.idents` so `gen_expr` can reference
-/// them in BinOp / Cast / return. Collection params are pushed into
-/// `ctx.coll_params` only — they appear in the signature but are dead in
-/// the body. This is the isolation constraint that lets whitespace-
-/// invariance signal reflect param-position parser behavior without ill-
-/// typed body noise.
+/// them in BinOp / Cast / return. Collection params ([u32; NAMED_CONST])
+/// are pushed into `ctx.coll_params` only — they appear in the signature
+/// but are dead in the body. This is the isolation constraint that lets
+/// whitespace-invariance signal reflect param-position parser behavior
+/// without ill-typed body noise.
+///
+/// A collection param can only be emitted if `ctx.declared_consts` is
+/// non-empty (which it will be after `gen_module` initializes it). If
+/// somehow empty, we fall back to a scalar param for that slot.
 fn gen_params(ctx: &mut Ctx) -> String {
     let n_params = ctx.rng.gen_range(0u32..=ctx.max_params_per_fn);
     if n_params == 0 {
@@ -192,9 +222,11 @@ fn gen_params(ctx: &mut Ctx) -> String {
     let mut parts: Vec<String> = Vec::with_capacity(n_params as usize);
     for _ in 0..n_params {
         let name = ctx.fresh_ident("p");
-        let is_coll = ctx.rng.gen_range(0u32..100) < ctx.coll_param_prob;
-        if is_coll {
-            let ty = ctx.pick_coll_type();
+        let want_coll = ctx.rng.gen_range(0u32..100) < ctx.coll_param_prob;
+        let can_coll = !ctx.declared_consts.is_empty();
+        if want_coll && can_coll {
+            let const_name = ctx.pick_const_name();
+            let ty = format!("[u32; {}]", const_name);
             parts.push(format!("{}: {}", name, ty));
             ctx.coll_params.push((name, ty));
         } else {
@@ -226,8 +258,40 @@ fn gen_fn(ctx: &mut Ctx, name: &str) -> String {
     )
 }
 
+/// Emit module-scope const-decls. Samples 1-4 names from `NAMED_CONST_POOL`
+/// (no repeats within a module) and assigns each a literal u32 value in
+/// [2, 32] — the range observed in tri-net/specs const-decls. Populates
+/// `ctx.declared_consts` so subsequent `pick_const_name` calls only
+/// reference names that were actually declared.
+fn gen_const_decls(ctx: &mut Ctx) -> String {
+    ctx.declared_consts.clear();
+    let n_consts = ctx.rng.gen_range(1u32..=4) as usize;
+    let n_consts = n_consts.min(NAMED_CONST_POOL.len());
+
+    // Sample without replacement via index shuffle.
+    let mut indices: Vec<usize> = (0..NAMED_CONST_POOL.len()).collect();
+    for i in (1..indices.len()).rev() {
+        let j = ctx.rng.gen_range(0..=i);
+        indices.swap(i, j);
+    }
+    let picked: Vec<&str> = indices.iter().take(n_consts).map(|&i| NAMED_CONST_POOL[i]).collect();
+
+    let mut lines = Vec::with_capacity(n_consts);
+    for name in picked {
+        let value = ctx.rng.gen_range(2u32..=32);
+        ctx.declared_consts.push((name.to_string(), value));
+        lines.push(format!("    const {}: u32 = {};", name, value));
+    }
+    lines.join("\n")
+}
+
 fn gen_module(ctx: &mut Ctx, mod_idx: u32) -> String {
     let mod_name = format!("W73Fuzz{}", mod_idx);
+    // Emit const-decls FIRST so gen_params can reference them via
+    // ctx.declared_consts. This ordering matters — collection params depend
+    // on the const pool being populated.
+    let const_decls = gen_const_decls(ctx);
+
     let n_fns = ctx.rng.gen_range(1u32..=3);
     let mut fns = Vec::new();
     for i in 0..n_fns {
@@ -240,9 +304,12 @@ fn gen_module(ctx: &mut Ctx, mod_idx: u32) -> String {
          \n\
          module {} {{\n\
          {}\n\
+         \n\
+         {}\n\
          }}\n",
         mod_idx,
         mod_name,
+        const_decls,
         fns.join("\n\n")
     )
 }
