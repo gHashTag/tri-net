@@ -1,3 +1,9 @@
 /target
 **/*.rs.bk
 *.pdb
+
+# W7.3 fuzz workspace — build artifacts and generated modules stay local
+tests/fuzz/grammar_v2/target/
+tests/fuzz/grammar_v2/Cargo.lock
+tests/fuzz/grammar_v2/out/
+
