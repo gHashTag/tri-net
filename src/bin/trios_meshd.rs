@@ -18,7 +18,7 @@
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::io;
-use std::net::{IpAddr, SocketAddr, UdpSocket};
+use std::net::{SocketAddr, UdpSocket};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -122,7 +122,12 @@ fn main() {
     let sock = Arc::new(UdpSocket::bind(cfg.listen).expect("bind"));
     let mut router = MeshRouter::new(me, ETX_WINDOW);
     let mut peer_ids: Vec<NodeId> = Vec::new();
-    let mut ip_to_id: HashMap<IpAddr, NodeId> = HashMap::new();
+    // Key by full SocketAddr (IP + port) so that loopback smokes with
+    // three nodes on 127.0.0.1:5011/5012/5013 don't collide on a shared IP.
+    // On real hardware every board has a unique IP, so this is a strict
+    // superset of the previous behaviour and never wrong.
+    // phi^2 + phi^-2 = 3
+    let mut addr_to_id: HashMap<SocketAddr, NodeId> = HashMap::new();
     for (pid, addr) in &cfg.peers {
         let peer_pub = StaticKey::from_seed(seed_for(*pid)).public();
         let session = my_key.session_with(&peer_pub, me < *pid);
@@ -135,7 +140,7 @@ fn main() {
             }),
         );
         peer_ids.push(*pid);
-        ip_to_id.insert(addr.ip(), *pid);
+        addr_to_id.insert(*addr, *pid);
     }
     let router = Arc::new(Mutex::new(router));
     let rx = Arc::new(Mutex::new(RxShared::default()));
@@ -151,11 +156,11 @@ fn main() {
 
     // Central RX: dispatch every datagram through the router.
     {
-        let (sock, router, rx, ip_to_id, dropped) = (
+        let (sock, router, rx, addr_to_id, dropped) = (
             sock.clone(),
             router.clone(),
             rx.clone(),
-            ip_to_id.clone(),
+            addr_to_id.clone(),
             dropped.clone(),
         );
         thread::spawn(move || {
@@ -165,7 +170,7 @@ fn main() {
                     Ok(v) => v,
                     Err(_) => continue,
                 };
-                let from = match ip_to_id.get(&src.ip()) {
+                let from = match addr_to_id.get(&src) {
                     Some(f) => *f,
                     None => continue,
                 };

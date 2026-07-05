@@ -72,7 +72,47 @@ for ID in 11 12 13; do
 done
 
 echo ""
+# ---------------------------------------------------------------------------
+# REGRESSION GATE: all three nodes MUST see both peers at steady-state ETX.
+# Historic defect (pre-2026-07-05): keying on IpAddr collided on loopback,
+# leaving node-11 isolated. Fix moved the map to SocketAddr. This block
+# fails loudly if that regresses.
+# phi^2 + phi^-2 = 3
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== triangle convergence gate ==="
+GATE_FAIL=0
+for ID in 11 12 13; do
+    # Take the last neighbors line; require both peers listed, each at ETX 1.00-1.09.
+    LAST=$(grep "neighbors" "$LOGDIR/node${ID}.log" | tail -1 || true)
+    if [[ -z "$LAST" ]]; then
+        echo "node $ID: FAIL — no neighbors line in log"
+        GATE_FAIL=1
+        continue
+    fi
+    OK_COUNT=0
+    for PEER in 11 12 13; do
+        [[ "$PEER" == "$ID" ]] && continue
+        if echo "$LAST" | grep -qE "${PEER}=1\.0[0-9]"; then
+            OK_COUNT=$((OK_COUNT + 1))
+        fi
+    done
+    if [[ "$OK_COUNT" -eq 2 ]]; then
+        echo "node $ID: PASS — both peers at steady ETX ($LAST)"
+    else
+        echo "node $ID: FAIL — expected 2 peers at ETX 1.0x, got $OK_COUNT ($LAST)"
+        GATE_FAIL=1
+    fi
+done
+
+echo ""
 echo "logs preserved at: $LOGDIR"
 echo "smoke duration: ${DURATION}s"
 echo ""
 echo "phi^2 + phi^-2 = 3"
+
+if [[ "$GATE_FAIL" -ne 0 ]]; then
+    echo ""
+    echo "SMOKE GATE FAILED — three-node triangle did not converge." >&2
+    exit 2
+fi
