@@ -1,0 +1,30 @@
+{
+  "n_specs": 1000,
+  "n_all_accept": 930,
+  "n_all_reject": 70,
+  "n_disagree": 0,
+  "agreement_pct": 100.0,
+  "reject_class_agree": 70,
+  "reject_class_disagree": 0,
+  "per_bucket": {
+    "valid": {
+      "total": 397,
+      "all_accept": 397,
+      "all_reject": 0,
+      "disagree": 0
+    },
+    "semi-valid": {
+      "total": 203,
+      "all_accept": 203,
+      "all_reject": 0,
+      "disagree": 0
+    },
+    "malformed": {
+      "total": 400,
+      "all_accept": 330,
+      "all_reject": 70,
+      "disagree": 0
+    }
+  },
+  "disagreements": []
+}
