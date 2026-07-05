@@ -269,7 +269,7 @@ with different failure modes:
 - **C:** `/* TODO: implement */` with no return statement — undefined
   behavior on fall-off from a non-void function.
 
-Eight modules each carry 24 stub sites in this pattern:
+The 24 stub sites are distributed across eight modules:
 `lite_crypto` (1), `m3_multihop` (6), `pattern_predictor` (1),
 `olsr_routing` (2), `production_deployment` (1),
 `link_quality_monitor` (5), `adaptive_retry` (5),
