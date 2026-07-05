@@ -58,6 +58,15 @@ The `let min_role = get_min_role(policy);` line is absent from the generated bod
 
 Every module whose spec uses `let` emits zero `let` statements in Rust. Modules whose spec has zero `let`s are unaffected by this specific defect (they may still fail for other reasons, per the audit taxonomy).
 
+### Systemic scope — full corpus
+
+The 10-module table above is a spot-check. Running the same reproducer command across the full 68-module corpus confirms the defect is universal:
+
+- **specs/*.t27**: at least 12 modules carry 40–66 `let` statements each. Top-6 by count: `topology_visualizer` (66), `integration_framework` (62), `traffic_animator` (57), `auto_config` (54), `api_documenter` (50), `cache_management` (49).
+- **gen/rust/*.rs**: all 68 files have exactly **zero** `let` statements.
+
+The grep `grep -rcw 'let' gen/rust/*.rs | grep -v ':0$'` returns empty across the entire generated Rust tree. The defect is not cherry-picked; it is systemic across every module the Rust emitter processes.
+
 Command to reproduce (from tri-net checkout, on branch `feat/strategic-audit-2026-07-04`):
 
 ```
@@ -97,7 +106,7 @@ Recommended upstream investigation:
 After the upstream fix, tri-net regenerates `gen/rust/` and reruns `scripts/audit/rust_compile_sweep.sh`. Both conditions must hold:
 
 1. Rust fail count drops from 49 / 68 to well below 20 / 68.
-2. The **error-code histogram** post-fix does not introduce new error classes that were previously masked by E0425. If some E0308 (cross-width comparison), E0308 (mismatched types), or other classes were being hidden behind earlier E0425 blocks in the same file, that must be documented, not silently accepted.
+2. The **error-code histogram** post-fix does not introduce new error classes that were previously masked by E0425. If E0308 (mismatched types, including cross-width comparison) or other classes were being hidden behind earlier E0425 blocks in the same file, that must be documented, not silently accepted.
 
 Point 2 is the check user recommended in the W7.1 kickoff note. It matters because a naive «49 → ≪20» pass-count criterion could hide a regression where E0425 was upstream of E0308 in translation order; fixing E0425 lets E0308 finally surface. That is progress, not regression, but it must be explicitly reported.
 
