@@ -73,34 +73,69 @@ done
 
 echo ""
 # ---------------------------------------------------------------------------
-# REGRESSION GATE: all three nodes MUST see both peers at steady-state ETX.
+# REGRESSION GATE (v2): visibility with finite ETX in the last N samples.
+#
+# What the SocketAddr fix guarantees deterministically:
+#   1. Every node learns BOTH peers (no IpAddr collision suppressing one).
+#   2. Both link-ETX values are FINITE (WMEWMA est > DEAD_EPS = 0.15 both
+#      directions).
+#
+# What the fix does NOT guarantee (and the ETX algorithm does not promise):
+#   - Steady ETX = 1.00. WMEWMA with alpha=0.5, HELLO period 300 ms,
+#     ETX_WINDOW = 3 will bounce for 3-4 ticks after ANY single dropped
+#     HELLO on any real channel (loopback, radio, tunnel). A single-sample
+#     "tail -1 == 1.0x" gate is non-deterministic by construction.
+#
+# Reference: WMEWMA rationale (Woo, Tong & Culler, SenSys 2003;
+# Rosati et al., arXiv:1307.6350). Confirmed empirically: reviewer saw
+# node-11 report {13=2.03} on run #1 and {13=1.00} on run #2, same binary,
+# same host, back-to-back.
+#
+# This gate accepts the last N=5 neighbors-samples per node and requires
+# that in EVERY sample both peers are present with a finite numeric ETX.
+# Any missing peer, ANY infinite ETX ("inf"), or fewer than N samples =>
+# gate fails with exit 2.
+#
 # Historic defect (pre-2026-07-05): keying on IpAddr collided on loopback,
-# leaving node-11 isolated. Fix moved the map to SocketAddr. This block
-# fails loudly if that regresses.
+# leaving node-11 isolated. Fix moved the map to SocketAddr. This gate is
+# the tripwire against that regression.
+#
 # phi^2 + phi^-2 = 3
 # ---------------------------------------------------------------------------
 echo ""
-echo "=== triangle convergence gate ==="
+echo "=== triangle visibility gate (v2: last N=5 samples, finite ETX) ==="
+SAMPLES_REQUIRED=5
 GATE_FAIL=0
 for ID in 11 12 13; do
-    # Take the last neighbors line; require both peers listed, each at ETX 1.00-1.09.
-    LAST=$(grep "neighbors" "$LOGDIR/node${ID}.log" | tail -1 || true)
-    if [[ -z "$LAST" ]]; then
-        echo "node $ID: FAIL — no neighbors line in log"
+    # All neighbors lines for this node, take the last N.
+    LAST_N=$(grep "neighbors" "$LOGDIR/node${ID}.log" | tail -${SAMPLES_REQUIRED})
+    NLINES=$(echo -n "$LAST_N" | grep -c "neighbors" || true)
+    if [[ "$NLINES" -lt "$SAMPLES_REQUIRED" ]]; then
+        echo "node $ID: FAIL — only $NLINES neighbors samples (need $SAMPLES_REQUIRED)"
         GATE_FAIL=1
         continue
     fi
-    OK_COUNT=0
-    for PEER in 11 12 13; do
-        [[ "$PEER" == "$ID" ]] && continue
-        if echo "$LAST" | grep -qE "${PEER}=1\.0[0-9]"; then
-            OK_COUNT=$((OK_COUNT + 1))
-        fi
-    done
-    if [[ "$OK_COUNT" -eq 2 ]]; then
-        echo "node $ID: PASS — both peers at steady ETX ($LAST)"
+    NODE_FAIL=0
+    SAMPLE_IDX=0
+    while IFS= read -r LINE; do
+        SAMPLE_IDX=$((SAMPLE_IDX + 1))
+        # For each peer, require: PEER=<finite-float>. Reject "inf" and missing.
+        for PEER in 11 12 13; do
+            [[ "$PEER" == "$ID" ]] && continue
+            # Match PEER=<digits>.<digits> (finite decimal). Reject inf/INF/NaN.
+            if ! echo "$LINE" | grep -qE "${PEER}=[0-9]+\.[0-9]+"; then
+                echo "node $ID: FAIL sample #${SAMPLE_IDX} — peer $PEER missing or non-finite ($LINE)"
+                NODE_FAIL=1
+            elif echo "$LINE" | grep -qiE "${PEER}=(inf|nan)"; then
+                echo "node $ID: FAIL sample #${SAMPLE_IDX} — peer $PEER has non-finite ETX ($LINE)"
+                NODE_FAIL=1
+            fi
+        done
+    done <<< "$LAST_N"
+    if [[ "$NODE_FAIL" -eq 0 ]]; then
+        LAST_ONE=$(echo "$LAST_N" | tail -1)
+        echo "node $ID: PASS — both peers visible with finite ETX across last $SAMPLES_REQUIRED samples (last: $LAST_ONE)"
     else
-        echo "node $ID: FAIL — expected 2 peers at ETX 1.0x, got $OK_COUNT ($LAST)"
         GATE_FAIL=1
     fi
 done
