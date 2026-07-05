@@ -85,8 +85,10 @@ each verifiable by filesystem inspection and `grep`:
 The remaining 4 files (`adaptive_retry`, `link_quality_monitor`,
 `m3_multihop`, `multipath_router`) do not import `types.zig`. Each
 contains 3–6 `@compileError("not yet implemented")` calls in stub
-function bodies. Under `zig test` these are triggered by test-block
-analysis. Under a lenient `zig build-obj`, Zig's lazy analysis may
+function bodies, which is sufficient to prevent compilation under
+`zig test`; these files may additionally exhibit test-block defects
+not individually characterized here. Under a lenient `zig build-obj`,
+Zig's lazy analysis may
 skip `@compileError` in an unreferenced private function; the 4-file
 result therefore depends on function reachability and mode. We did
 not empirically test `zig build-obj` lenient mode in this audit; the
@@ -298,13 +300,14 @@ is not supported when the code is passed to `rustc`, `cc`, or `zig`.
 
 > t27c emits output for 68 of 68 tri-net protocol modules across three
 > text backends (Rust, C, Zig) with byte-identical determinism enforced
-> by `spec-drift-guard` CI. The generated output stream is reproducible,
-> but downstream compilability is a separate property: as documented in
-> the codegen-quality audit ([this document]), the current generator
-> emits 0 of 68 modules that compile across all three backends
-> simultaneously, and per-backend compile rates range from 28% (Rust)
-> to 0% (Zig) under the audit's methodology. Section 4.5's byte-identity
-> claim is a statement about output-stream determinism only.
+> by `spec-drift-guard` CI. The generated output stream is reproducible;
+> however, downstream compilability is a separate property. As documented
+> in the codegen-quality audit ([this document]), 0 of 68 modules compile
+> across all three backends simultaneously — a finding that is
+> independent of the audit's per-backend methodology. Per-backend compile
+> rates and the methodology governing their cross-backend comparability
+> are reported in the audit. Section 4.5's byte-identity claim is a
+> statement about output-stream determinism only.
 
 Sections that build downstream inference on §4.5 (specifically any
 runtime differential or cross-backend equivalence claim) require
