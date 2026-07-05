@@ -102,7 +102,9 @@ Contribution C1 (CI-enforced spec/impl equality) is only as strong as its covera
 
 1. `t27c <backend> specs/<spec>.t27` produces output without emitting the literal `return ()` placeholder (used inside the compiler to mark unsupported constructs) and without emitting any `// unsupported: ...` marker.
 2. The generated file byte-matches the file committed under `gen/<backend>/<spec>.<ext>` (the diff-based enforcement that Contribution C1 rests on).
-3. The parent workspace still passes its host-side sanity gate: `cargo test --all` on tri-net = 141 passed, 0 failed at the same tuple.
+3. The parent workspace still passes its host-side sanity gate: `cargo test --release` on tri-net = 137 passed, 0 failed (measured on main @ `13e4692`, 2026-07-05).
+
+> **Errata 2026-07-05**: earlier drafts of this document listed `141 passed` for the same command. Investigation across seven SHAs in the 2026-06-29→2026-07-05 window showed the real number has always been 137 (135 before PR #32). The 141 figure was an anchor-class error; corrected in three places (this §4.5 gate, §4.5 reproduction, §4.5 checklist). See `docs/W8_WEAK_POINTS_AUDIT.md` A1.
 
 **Drift event.** Any single cell violating (1) or (2) after a merge is a drift event and fails the `spec-drift-guard` CI job, blocking merge. This is the operational definition of "drift" used throughout the paper: **byte-level divergence between spec-driven regeneration and committed artifact.** No semantic equivalence, no behavioural equivalence, no theorem — a byte diff.
 
@@ -307,7 +309,7 @@ At tri-net `bf50ad64`, verified in-CI on [PR #39](https://github.com/gHashTag/tr
 - `t27c gen-c     specs/wire.t27 | diff -u gen/c/wire.c    -` → empty.
 - The same triple holds for the other 67 specs; §4.5.2 lists all 68 rows.
 - `grep -c 'unsupported: ExprCast' gen/{rust,zig,c}/*.{rs,zig,c}` → 0 across all 204 committed files.
-- `cargo test --all` → 141 passed / 0 failed (includes `wire::tests::header_roundtrips` plus the extended per-spec test surface introduced during the 2026-07-04 flip loop).
+- `cargo test --all` → 137 passed / 0 failed (includes `wire::tests::header_roundtrips` plus the extended per-spec test surface introduced during the 2026-07-04 flip loop).
 
 Sample of generated cast forms (extracted from the committed files, not fabricated):
 
@@ -387,4 +389,4 @@ This is exactly what [`.github/workflows/spec-drift-guard.yml`](https://github.c
 5. Rust: `../t27/target/release/t27c gen-rust specs/wire.t27 | diff -u gen/rust/wire.rs -`. Expected: empty diff.
 6. Zig:  `../t27/target/release/t27c gen       specs/wire.t27 | diff -u gen/zig/wire.zig -`. Expected: empty diff.
 7. C:    `../t27/target/release/t27c gen-c     specs/wire.t27 | diff -u gen/c/wire.c    -`. Expected: empty diff.
-8. Optional: `cargo test --all`. Expected: 141 passed / 0 failed.
+8. Optional: `cargo test --all`. Expected: 137 passed / 0 failed.

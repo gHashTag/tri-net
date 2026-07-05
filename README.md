@@ -89,7 +89,7 @@ BitNet-ternary benchmark on returned silicon, publish the raw log.
 | Rust source lines | 4 463 | `find src -name '*.rs' \| xargs wc -l` |
 | AD9361 tune target | LO 5.8 GHz | `radio/README.md` |
 | AD9361 FFT peak (1 MHz tone, digital loopback) | +0.999 MHz | `radio/README.md` |
-| AD9361 SNR over noise floor | 108.6 dB | `radio/README.md` |
+| AD9361 SNR over noise floor | 108.6 dB (digital loopback only, not over-the-air) | `radio/README.md`; see [W7 finding #5](docs/W7_WEAK_POINTS_STRUCTURAL.md#находка-5) and [REGULATORY_STATUS](docs/REGULATORY_STATUS.md) |
 | AD9361 tuning range | 70 MHz … 6 GHz | `radio/README.md` |
 | Sample rate | 30.72 MHz | `radio/README.md` |
 | Capture length | 65 536 samples | `radio/README.md` |
