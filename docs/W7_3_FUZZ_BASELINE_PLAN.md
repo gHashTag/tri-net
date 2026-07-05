@@ -25,19 +25,23 @@ Parent: W6.1 lexical fuzzer (`tests/fuzz/` — token-level, tautological на sh
   - `Stmt ::= Let | Return | If | ExprStmt`
   - `Expr ::= Literal | Ident | BinOp | Cast | Call | Index`
   - Types: `u8 | u16 | u32 | u64 | usize | bool`
-- Depth-bounded generation: max depth 6, max stmt count 20.
+- Depth-bounded generation: max depth 6, max stmt count per fn 20.
 - Seed-reproducible через `StdRng::seed_from_u64`.
 - Output: N=1000 генераций в `target/fuzz/w7_3/*.t27`.
 
-### E2 — Round-trip harness (второй коммит)
+### E2 — Parse-invariance harness (второй коммит, **LANDED**)
 
-- `tests/fuzz/grammar_v2/roundtrip.rs`:
-  1. Gen spec → parse через `t27c` → AST.
-  2. Pretty-print AST → source.
-  3. Re-parse pretty-printed → AST'.
-  4. Structural equality AST == AST' (модулю span'ов).
-- Metric: `parse_fail_rate`, `roundtrip_fail_rate`, `panic_rate`.
-- Failure classification: parse-error / ast-mismatch / panic / timeout.
+Оригинальный план требовал full round-trip через pretty-printer, но t27c в current release не экспозит public pretty-printer. Parse-invariance — strict subset intended round-trip и ловит тот же класс багов (parser non-determinism, whitespace-sensitivity, panics):
+
+- `tests/fuzz/grammar_v2/roundtrip.py`:
+  1. Gen spec → `t27c parse` → baseline AST (Debug-format).
+  2. Determinism: parse тот же input второй раз → identical normalized AST.
+  3. Whitespace-invariance: 3 non-semantic мутации (extra_spaces / extra_newlines / trailing_ws) → parse → identical normalized AST.
+- Normalization strips `line: N,` метаданные (source-position, не structural). Остальное collapse whitespace.
+- Metric: `parse_ok_rate`, `invariance_ok_rate`, failure classes (parse_error / non_determinism / mutation_changed_ast:<mode>).
+- Full round-trip через pretty-printer — TODO когда t27c экспозит pretty-printer.
+
+**Baseline result**: N=1000, 100.0% parse_ok / 100.0% invariance_ok / 0 panics / 9.9 sec. См. `docs/W7_3_FUZZ_BASELINE.md`.
 
 ### E3 — Backend differential (третий коммит, зависит от W7.1 upstream fix)
 
@@ -67,6 +71,18 @@ E1+E2 baseline считается **зелёным**, если:
 - **Codegen-only vs parser-side ambiguity**: baseline валиден пока upstream Stmt::Let fix остаётся codegen-only. Если maintainer t27 определит проблему как parser-side (маловероятно — spec содержит `let`, значит parser их видит), baseline придётся пересобрать: parser может уже сейчас терять information, которую мы предположительно проверяем round-trip'ом.
 - **Not a differential test** до E3. E1+E2 только проверяют parser self-consistency. Реальная differential мощь — E3, blocked на upstream.
 - **Grammar в этом плане — approximate**. Ground truth grammar сидит в `t27c/src/parser.rs` upstream. Первый E1 коммит перекроет subset, но не 100% grammar; расширение — итеративно.
+
+## Tracked TODOs before E3 unblock
+
+GLM-5.2 peer-review PR #46 @ 6c0c93d выявил coverage-gap: текущий E1 эмитит zero-param functions. Но W6.2 audit нашёл Vec<>-defect (E0107 Class 2) в **param-position** — E3 backend-differential будет слепым к этому дефекту, если grammar не расширить. Backstop таймер t27#1401 = 2026-07-19 12:24 UTC (14 дней). За это окно:
+
+- [ ] Extend `gen_fn` to emit **function parameters** (от 0 до 4, mixed primitives + хотя бы один collection type).
+- [ ] Add `Call` expression to `gen_expr` с recursion на другие генерируемые функции.
+- [ ] Add `Index` expression если grammar поддерживает (верифицировать через `parse` на minimal specs).
+- [ ] Add `If` statement branching (grammar уже в plan’e, но в code нет).
+- [ ] Reduce dead-let частоту (вес ident-branch в `gen_expr` → 40%+).
+
+Статус обновлять в этом файле по мере выполнения.
 
 ## Отношение к W6.1
 

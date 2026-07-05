@@ -45,7 +45,7 @@ impl Ctx {
             rng: ChaCha20Rng::seed_from_u64(seed),
             idents: Vec::new(),
             max_depth: 6,
-            max_stmts_per_fn: 8,
+            max_stmts_per_fn: 20,
         }
     }
 
