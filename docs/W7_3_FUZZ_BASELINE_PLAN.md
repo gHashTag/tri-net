@@ -76,10 +76,10 @@ E1+E2 baseline считается **зелёным**, если:
 
 GLM-5.2 peer-review PR #46 @ 6c0c93d выявил coverage-gap: текущий E1 эмитит zero-param functions. Но W6.2 audit нашёл Vec<>-defect (E0107 Class 2) в **param-position** — E3 backend-differential будет слепым к этому дефекту, если grammar не расширить. Backstop таймер t27#1401 = 2026-07-19 12:24 UTC (14 дней). За это окно:
 
-- [ ] Extend `gen_fn` to emit **function parameters** (от 0 до 4, mixed primitives + хотя бы один collection type).
-- [ ] Add `Call` expression to `gen_expr` с recursion на другие генерируемые функции.
-- [ ] Add `Index` expression если grammar поддерживает (верифицировать через `parse` на minimal specs).
-- [ ] Add `If` statement branching (grammar уже в plan’e, но в code нет).
+- [x] Extend `gen_fn` to emit **function parameters** (0–4, mixed scalar + collection types). **LANDED** this commit — collection-params in signature-position with isolation constraint (scalar-eligible pool untouched to prevent ill-typed body expressions). Expanded baseline N=1000 = 100/100/0. See `W7_3_FUZZ_BASELINE.md` §Expanded baseline.
+- [ ] Add `Index` expression (`arr[i]`) to make collection-params live in body — the actual W6.2 Class 2 defect-surface exercise. Isolate-variables: land alone in a separate commit, re-baseline, then next.
+- [ ] Add `Call` expression to `gen_expr` с recursion на другие генерируемые функции. Requires fn-signature registry in `Ctx` (arg-type matching to param-types).
+- [ ] Add `If` statement branching (grammar уже в plan’e, но в code нет). Terminal-Return invariant must extend to both branches.
 - [ ] Reduce dead-let частоту (вес ident-branch в `gen_expr` → 40%+).
 
 Статус обновлять в этом файле по мере выполнения.

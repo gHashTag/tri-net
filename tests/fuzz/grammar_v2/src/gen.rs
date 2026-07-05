@@ -7,14 +7,26 @@
 // round-trip (E2) and backend-differential (E3, blocked on upstream Stmt::Let)
 // analysis. This binary only generates; parsing / round-tripping lives in E2.
 //
-// Grammar coverage (initial subset):
-//   Module   ::= UseDecl* ConstDecl* FnDecl+
-//   FnDecl   ::= "fn" ident "(" params? ")" ("->" Type)? "{" Stmt+ Return "}"
-//   Stmt     ::= LetStmt | IfStmt | ExprStmt
-//   LetStmt  ::= "let" ident ":" Type "=" Expr ";"
-//   IfStmt   ::= "if" "(" Expr ")" "{" Stmt* Return "}" ("else" "{" Stmt* Return "}")?
-//   Expr     ::= Literal | Ident | BinOp | Cast
-//   Type     ::= u8 | u16 | u32 | u64 | usize | bool
+// Grammar coverage (initial subset + collection-params expansion):
+//   Module     ::= UseDecl* ConstDecl* FnDecl+
+//   FnDecl     ::= "fn" ident "(" Params? ")" ("->" Type)? "{" Stmt+ Return "}"
+//   Params     ::= Param ("," Param)*
+//   Param      ::= ident ":" (Type | CollType)
+//   CollType   ::= "[]const" IntType | "[]" IntType | "[" Int "]" IntType
+//   Stmt       ::= LetStmt | IfStmt | ExprStmt
+//   LetStmt    ::= "let" ident ":" Type "=" Expr ";"
+//   IfStmt     ::= "if" "(" Expr ")" "{" Stmt* Return "}" ("else" "{" Stmt* Return "}")?
+//   Expr       ::= Literal | Ident | BinOp | Cast
+//   Type       ::= u8 | u16 | u32 | u64 | usize | bool
+//   IntType    ::= u8 | u16 | u32 | u64 | usize
+//
+// Isolation constraint (W7.3 collection-params increment):
+//   Collection-typed params are declared in the signature (parser-exercise
+//   of param-position for the Vec<>-defect class W6.2 Class 2 surface),
+//   but are NOT pushed into the scalar ident pool used by gen_expr. This
+//   prevents ill-typed expressions (e.g., vec + 1u8) that t27c would
+//   reject and would confound the whitespace-invariance signal. Body-use
+//   of collections (Index expressions) is deferred to a separate commit.
 //
 // Depth-bounded (max_depth = 6). Seed-reproducible via ChaCha20 RNG.
 // See docs/W7_3_FUZZ_BASELINE_PLAN.md.
@@ -29,14 +41,25 @@ use std::path::PathBuf;
 
 const TYPES: &[&str] = &["u8", "u16", "u32", "u64", "usize", "bool"];
 const INT_TYPES: &[&str] = &["u8", "u16", "u32", "u64", "usize"];
+const COLL_ELEM_TYPES: &[&str] = &["u8", "u16", "u32", "u64", "usize"];
+const FIXED_ARR_SIZES: &[u32] = &[8, 16, 20, 32, 64, 128];
 const BIN_OPS: &[&str] = &["+", "-", "*", "&", "|", "^", "<<", ">>"];
 const CMP_OPS: &[&str] = &["==", "!=", "<", "<=", ">", ">="];
 
 struct Ctx {
     rng: ChaCha20Rng,
+    // Scalar idents visible to gen_expr (BinOp/Cast eligible). Populated by
+    // let-stmts and by scalar-typed params. Collection-typed params live in
+    // `coll_params` instead — see isolation constraint at top of file.
     idents: Vec<(String, String)>, // (name, type)
+    // Collection-typed params: name + rendered type string (e.g. "[]const u8",
+    // "[]u32", "[32]u8"). Recorded for signature emission only. Not exposed to
+    // gen_expr — they are dead in the body pending Index-expression support.
+    coll_params: Vec<(String, String)>,
     max_depth: u32,
     max_stmts_per_fn: u32,
+    max_params_per_fn: u32,
+    coll_param_prob: u32, // percent chance a param is a collection (else scalar)
 }
 
 impl Ctx {
@@ -44,8 +67,11 @@ impl Ctx {
         Self {
             rng: ChaCha20Rng::seed_from_u64(seed),
             idents: Vec::new(),
+            coll_params: Vec::new(),
             max_depth: 6,
             max_stmts_per_fn: 20,
+            max_params_per_fn: 4,
+            coll_param_prob: 50,
         }
     }
 
@@ -60,6 +86,25 @@ impl Ctx {
 
     fn pick_int_type(&mut self) -> String {
         INT_TYPES[self.rng.gen_range(0..INT_TYPES.len())].to_string()
+    }
+
+    /// Generate a collection type string. Three forms, matching real T27:
+    ///   []const T   (const slice, most common in t27 codebase)
+    ///   []T         (mutable slice)
+    ///   [N]T        (fixed-size array)
+    /// Element type is always an integer type (u8/u16/u32/u64/usize) — bool
+    /// slices/arrays are not idiomatic in T27 and would risk unusual paths.
+    fn pick_coll_type(&mut self) -> String {
+        let elem = COLL_ELEM_TYPES[self.rng.gen_range(0..COLL_ELEM_TYPES.len())];
+        let form = self.rng.gen_range(0u32..3);
+        match form {
+            0 => format!("[]const {}", elem),
+            1 => format!("[]{}", elem),
+            _ => {
+                let n = FIXED_ARR_SIZES[self.rng.gen_range(0..FIXED_ARR_SIZES.len())];
+                format!("[{}]{}", n, elem)
+            }
+        }
     }
 }
 
@@ -130,8 +175,41 @@ fn gen_return(ctx: &mut Ctx, ret_ty: &str) -> String {
     format!("        return {};", expr)
 }
 
+/// Emit the parameter list. Mixes scalar and collection params.
+///
+/// Scalar params are pushed into `ctx.idents` so `gen_expr` can reference
+/// them in BinOp / Cast / return. Collection params are pushed into
+/// `ctx.coll_params` only — they appear in the signature but are dead in
+/// the body. This is the isolation constraint that lets whitespace-
+/// invariance signal reflect param-position parser behavior without ill-
+/// typed body noise.
+fn gen_params(ctx: &mut Ctx) -> String {
+    let n_params = ctx.rng.gen_range(0u32..=ctx.max_params_per_fn);
+    if n_params == 0 {
+        return String::new();
+    }
+
+    let mut parts: Vec<String> = Vec::with_capacity(n_params as usize);
+    for _ in 0..n_params {
+        let name = ctx.fresh_ident("p");
+        let is_coll = ctx.rng.gen_range(0u32..100) < ctx.coll_param_prob;
+        if is_coll {
+            let ty = ctx.pick_coll_type();
+            parts.push(format!("{}: {}", name, ty));
+            ctx.coll_params.push((name, ty));
+        } else {
+            let ty = ctx.pick_type();
+            parts.push(format!("{}: {}", name, ty));
+            ctx.idents.push((name, ty));
+        }
+    }
+    parts.join(", ")
+}
+
 fn gen_fn(ctx: &mut Ctx, name: &str) -> String {
     ctx.idents.clear();
+    ctx.coll_params.clear();
+    let params = gen_params(ctx);
     let ret_ty = ctx.pick_type();
     let n_stmts = ctx.rng.gen_range(1u32..=ctx.max_stmts_per_fn);
 
@@ -143,8 +221,8 @@ fn gen_fn(ctx: &mut Ctx, name: &str) -> String {
     body.push_str(&gen_return(ctx, &ret_ty));
 
     format!(
-        "    fn {}() -> {} {{\n{}\n    }}",
-        name, ret_ty, body
+        "    fn {}({}) -> {} {{\n{}\n    }}",
+        name, params, ret_ty, body
     )
 }
 

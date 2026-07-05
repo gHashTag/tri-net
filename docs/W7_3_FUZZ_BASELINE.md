@@ -1,8 +1,10 @@
 # W7.3 E1+E2 baseline — parse-invariance run
 
-Status: **BASELINE LANDED** (2026-07-05).
-Branch: `w7/testing/fuzz-baseline` (PR #46).
-Provenance: `tests/fuzz/grammar_v2/{Cargo.toml,src/gen.rs,roundtrip.py}` @ this commit.
+Status: **FROZEN SUBSET BASELINE LANDED** (2026-07-05, via PR #46 @ `3272583`) + **EXPANDED BASELINE (collection-params)** landed 2026-07-05 (this commit).
+Frozen-subset provenance: `tests/fuzz/grammar_v2/{Cargo.toml,src/gen.rs,roundtrip.py}` @ `3272583`.
+Expanded provenance: same paths @ this commit (base `main` @ `3272583` + `\b`-fix + collection-params).
+
+Two baselines are reported side-by-side. The frozen subset remains the reference citation-point; the expanded run adds coverage of collection-typed parameter positions (isolate-variables: only collection-params, not yet Call/If/Index).
 
 ## Setup
 
@@ -70,18 +72,61 @@ The E1 grammar subset does not exercise function parameters. The W6.2 audit foun
 
 Between now and that deadline, E1 grammar expansion is the primary open workstream on this branch.
 
+## Expanded baseline — collection-params increment (N=1000, seed range `0xC0FFEE..0xC0FFEE+999`)
+
+**Scope of change vs frozen subset**: function parameter lists (0–4 per fn) with mixed scalar and collection-typed params. Three collection forms: `[]const T`, `[]T`, `[N]T` where T ∈ {u8, u16, u32, u64, usize}. Isolation constraint applied — collection-typed idents are recorded in `Ctx.coll_params` (signature only) and NOT pushed into `Ctx.idents` (which feeds `gen_expr`'s scalar pool). This prevents ill-typed body expressions (e.g. `vec + 1u8`) that t27c would reject and would confound the whitespace-invariance signal.
+
+Call / Index / If are deferred to separate commits per isolate-variables discipline.
+
+### Results
+
+| Metric | Frozen subset (PR #46 @ `3272583`) | Expanded (collection-params) |
+|---|---|---|
+| Parse-success | 1000 / 1000 (100.0%) | **1000 / 1000 (100.0%)** |
+| Determinism | 1000 / 1000 (100.0%) | **1000 / 1000 (100.0%)** |
+| Whitespace-invariance | 1000 / 1000 (100.0%) | **1000 / 1000 (100.0%)** |
+| Parse errors | 0 | **0** |
+| Panics | 0 | **0** |
+| Non-determinism | 0 | **0** |
+| Elapsed | 9.9 sec | **10.77 sec** |
+| Corpus size | ~3.6 MB | 4.0 MB |
+| Fns emitted | ~1900 (0-params only) | 2014 (mix 0-4 params) |
+| Fns with ≥1 collection-param | 0 | 1201 (59.6%) |
+| Fns with 0 params | ~1900 | 422 (20.9%) |
+
+### Coverage delta
+
+- 1988 collection-param occurrences across the corpus (avg ~1 per fn).
+- Approximate breakdown by form: `[]const T` ~33%, `[]T` (mutable slice) ~34%, `[N]T` (fixed-size array with N ∈ {8, 16, 20, 32, 64, 128}) ~35%.
+- Body of every fn still exercises only scalar operations (isolation constraint holds by construction — `gen_expr` never sees a collection-typed ident).
+
+### Interpretation
+
+**What this expanded claim IS**: t27c's parser accepts collection-typed parameters in all three T27-idiomatic forms (`[]const T`, `[]T`, `[N]T`) with the same 100% parse / determinism / whitespace-invariance behavior as the scalar-only subset. Adding param-position variety did not introduce any new invariance failures. The parser's param-list handling is whitespace-robust for the tested forms.
+
+**What this expanded claim IS NOT**:
+- Not a claim that collection *values* are handled correctly — bodies still only touch scalar idents. Index / Call / If are the next increments.
+- Not a differential test — still parser self-consistency only. E3 still timer-blocked (backstop 2026-07-19 12:24 UTC per PR #44).
+- Not coverage of the W6.2 Class 2 defect surface *in operation* — that requires Index expressions to actually reference collection-typed params. The current increment establishes param-position parser-exercise; Index will drive body-exercise.
+
+### Frozen citation-point preserved
+
+The frozen subset baseline (PR #46 @ `3272583`, N=1000, 100/100/0 on the pre-params grammar) remains the reference point. Any future expansion whose invariance signal drops from 100% can be cited against both this expanded number and the frozen subset — the pair localizes whether the drop came from the newly-added grammar region or from the pre-existing subset.
+
 ## Reproducibility
 
 ```bash
 # From tri-net workspace root.
 cd tests/fuzz/grammar_v2
 cargo build --release
-W73_OUT=/tmp/w73_baseline_1000 ./target/release/gen 1000 0xC0FFEE
+W73_OUT=/tmp/w73_expanded_1000 ./target/release/gen 1000 0xC0FFEE
 cd ../../..
-python3 tests/fuzz/grammar_v2/roundtrip.py /tmp/w73_baseline_1000 --out /tmp/w73_baseline_1000_report.json
+python3 tests/fuzz/grammar_v2/roundtrip.py /tmp/w73_expanded_1000 --out /tmp/w73_expanded_1000_report.json
 ```
 
-Expected: `ok=1000  parse_err=0  mut_fail=0  non_det=0`, elapsed <15 sec on a modern x86_64 sandbox.
+Expected on the expanded generator (this commit): `ok=1000  parse_err=0  mut_fail=0  non_det=0`, elapsed ~11 sec on a modern x86_64 sandbox.
+
+To reproduce the frozen subset baseline (PR #46 @ `3272583`), check out that commit and run the same command against `/tmp/w73_baseline_1000`: `ok=1000  parse_err=0  mut_fail=0  non_det=0`, ~10 sec.
 
 ## Anchor
 
