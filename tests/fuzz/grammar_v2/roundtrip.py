@@ -49,7 +49,7 @@ def normalize_ast(ast_text: str) -> str:
     If a whitespace mutation changes the AST after this normalization,
     it is a real structural change, not a metadata artifact.
     """
-    stripped = re.sub(r"line:\s*\d+,?", "", ast_text)
+    stripped = re.sub(r"\bline:\s*\d+,?", "", ast_text)
     return re.sub(r"\s+", " ", stripped).strip()
 
 
