@@ -75,9 +75,14 @@ exit=0
 - SHA-advance rule: any approval of this fix binds to the commit SHA that
   the reviewer explicitly cites. Advancing the branch requires
   `Re-reviewed at <new_sha>: delta <bullet-list>`.
-- Skill update: `tri-net-m2-m4-workflow` v1.1 removes the "known defect"
-  section and adds a "closed defect + regression gate" entry so future
-  loops don't re-discover this hole.
+- Results-without-repro-check: the reviewer's insistence on running the
+  smoke a second time surfaced non-determinism that no single run could
+  have exposed. New rule captured in `tri-net-m2-m4-workflow` v1.3:
+  smoke-gate outcomes require N-run confirmation (default N=5) before they
+  are trusted as regression tripwires.
+- Skill update: `tri-net-m2-m4-workflow` v1.3 records both the sandbox-
+  testability defect closure and the gate-design lesson (WMEWMA
+  non-determinism, aspiration-vs-property confusion).
 
 ## Full test suite
 
