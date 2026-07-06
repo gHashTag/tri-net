@@ -25,9 +25,15 @@ step 4 (three boards + TUN + iperf3).
 
 ## Files
 
-- `target/armv7-unknown-linux-gnueabihf/release/trios_meshd` — cross-built
-  daemon, ELF 32-bit ARM EABI5, dynamically linked (uses
-  `/lib/ld-linux-armhf.so.3` present on Zynq Mini rootfs)
+Two pre-built armv7 binaries are shipped in `w10-bringup-package.tar.gz` so
+the run works regardless of the Mini's libc / distro:
+
+- **`trios_meshd.armv7-musl`** — **preferred** — statically linked, runs on
+  any linux/armv7 (glibc, musl, alpine, armbian, Debian). No `ld-linux*`
+  interpreter needed. Should be tried first.
+- `trios_meshd.armv7-glibc` — fallback — dynamically linked against
+  `/lib/ld-linux-armhf.so.3` (glibc/gnueabihf). Smaller, but requires the
+  Mini's glibc version to be compatible.
 - `smoke/m2_onboard_bringup.sh` — single run, POSIX sh, prints one JSON line
 - `smoke/m2_onboard_bringup_n_runs.sh` — N=5 wrapper
 
@@ -36,9 +42,11 @@ step 4 (three boards + TUN + iperf3).
 On host (build already done in sandbox, sha256 recorded below):
 
 ```
-scp target/armv7-unknown-linux-gnueabihf/release/trios_meshd  root@<mini>:/tmp/trios_meshd
-scp smoke/m2_onboard_bringup.sh                                root@<mini>:/tmp/
-scp smoke/m2_onboard_bringup_n_runs.sh                         root@<mini>:/tmp/
+tar xzf w10-bringup-package.tar.gz
+# musl first (portable):
+scp trios_meshd.armv7-musl               root@<mini>:/tmp/trios_meshd
+scp m2_onboard_bringup.sh                root@<mini>:/tmp/
+scp m2_onboard_bringup_n_runs.sh         root@<mini>:/tmp/
 ```
 
 On the Mini:
@@ -78,6 +86,11 @@ Return the JSON as-is; each `fail_reason` maps to one exact issue:
   `ip -4 -o addr`
 - `iface_lookup` / `err: loopback rejected` → you passed `lo`, don't
 - `binary_check` → binary not scp'd or not chmod +x
+- **exec fails with `cannot execute binary file` / `GLIBC_2.x not found` /
+  `ld-linux-armhf.so.3 not found`** → you used the glibc-dynamic variant
+  and the Mini's libc is not compatible. Swap to
+  `trios_meshd.armv7-musl` (statically linked) and re-scp. No repo change
+  needed.
 - `no_log_output` → daemon didn't write anything; capture `strace -f` or
   `ldd /tmp/trios_meshd` to find missing lib
 - `no_bind_evidence` → daemon started but couldn't bind; typically port in
@@ -89,21 +102,31 @@ Return the JSON as-is; each `fail_reason` maps to one exact issue:
 
 ## Cross-build reproducibility
 
-Build performed in sandbox (2026-07-06):
+Both builds performed in sandbox (2026-07-06), rustc 1.96.1:
 
-- toolchain: `stable-x86_64-unknown-linux-gnu` (rustc 1.96.1)
-- target: `armv7-unknown-linux-gnueabihf` via `rustup target add`
-- linker: `arm-linux-gnueabihf-gcc` (15.2.0)
-- command: `cargo build --bin trios_meshd --release --target armv7-unknown-linux-gnueabihf`
-- output: `target/armv7-unknown-linux-gnueabihf/release/trios_meshd`
-- size: 703356 bytes
+**musl static (preferred):**
+
+- target: `armv7-unknown-linux-musleabihf` via `rustup target add`
+- linker: `armv7l-linux-musleabihf-gcc` 11.2.1 (musl.cc toolchain)
+- rustflags: `-C target-feature=+crt-static`
+- command: `cargo build --bin trios_meshd --release --target armv7-unknown-linux-musleabihf`
+- output size: 731888 bytes
+- sha256: `a0c03c91bd0102528d5caf208be620647f92b9755aa404882c74f4344a6bc064`
+- `file`: `ELF 32-bit LSB executable, ARM, EABI5 version 1 (SYSV), statically linked, not stripped`
+- matches M1 build scheme (musl static) from `smoke/M1_RESULTS.md`
+
+**glibc dynamic (fallback):**
+
+- target: `armv7-unknown-linux-gnueabihf`
+- linker: `arm-linux-gnueabihf-gcc` 15.2.0
+- output size: 703356 bytes
 - sha256: `24cfbdc9e7c811cfbc381fc84660afc281d382826ffe2b0a3429ab60eadfa4a2`
 - `file`: `ELF 32-bit LSB pie executable, ARM, EABI5 version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-armhf.so.3, for GNU/Linux 3.2.0, not stripped`
 
-Verify locally after `scp`:
+Verify locally after `scp` (musl variant):
 
 ```
-sha256sum /tmp/trios_meshd   # must equal 24cfbdc9e7c811cfbc381fc84660afc281d382826ffe2b0a3429ab60eadfa4a2
+sha256sum /tmp/trios_meshd   # a0c03c91bd0102528d5caf208be620647f92b9755aa404882c74f4344a6bc064
 ```
 
 Sandbox host-sanity result (x86_64 binary against real eth0, `169.254.0.21`,
