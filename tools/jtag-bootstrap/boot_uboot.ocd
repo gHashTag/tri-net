@@ -1,0 +1,14 @@
+init
+halt
+wait_halt
+source /tmp/ocd_helpers.tcl
+source /tmp/ps7_init_clean.tcl
+ps7_init
+ps7_post_config
+mww 0xF8000008 0x0000DF0D
+set a [lindex [read_memory 0xF800012C 32 1] 0]
+mww 0xF800012C [expr {$a | (1 << 20)}]
+load_image /tmp/pluto-jtag/u-boot.elf
+reg pc 0x04000000
+resume
+sleep 1
