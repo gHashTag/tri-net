@@ -1,0 +1,36 @@
+{
+  "session": "W12-board-recovery",
+  "date": "2026-07-07",
+  "anchor": "phi^2 + phi^-2 = 3",
+  "outcome": "SUCCESS - 3/3 boards alive via SD boot",
+  "duration_hours": 20,
+  "key_findings": {
+    "pll_register": "0xF800010C (NOT 0xF800011C)",
+    "ddr3_chip": "Micron MT41K256M16TW-107IT:P (1GB, 2x512MB)",
+    "qspi_chip": "Winbond W25Q256 (kernel expects N25Q256A)",
+    "ethernet": "PL-side RGMII, PHY addr=010, requires FPGA bitstream",
+    "sd_boot_bypasses_por": true,
+    "uboot_clears_por": "clear_reset_cause writes 0x00400000 to RESET_REASON"
+  },
+  "working_recipe": {
+    "sd_files": ["BOOT.BIN (Kuiper 4.7MB)", "uImage (4.3MB)", "devicetree.dtb (19KB)", "uramdisk.image.gz (5.6MB)", "uEnv.txt (7KB)"],
+    "boot_switch": "QSPI/SD",
+    "ssh": "sshpass -p analog ssh -o PubkeyAuthentication=no root@192.168.1.10",
+    "ssh_password": "analog"
+  },
+  "mistakes": [
+    "Read wrong PLL register (0x11C instead of 0x10C) for 15+ attempts",
+    "Ran QSPI spidev/devmem experiments on working board → bus hang → POR cleared",
+    "Tried to modify network config on boards → ARP instability",
+    "Connected JTAG to working boards → U-Boot clear_reset_cause cleared POR",
+    "Used PlutoSDR ps7_init for P201Mini → DDR3 abort at 3MB (wrong DDR3 chips)",
+    "Tried macOS dd on /dev/rdisk4 → Operation not permitted (SIP blocks raw writes)"
+  ],
+  "assets": {
+    "ps7_init_tcl": "/tmp/ps7_p201mini.tcl",
+    "sd_boot_files": "/tmp/sd_boot/",
+    "recovery_log": "/tmp/W12_RECOVERY_LOG.md",
+    "session_report": "docs/W12_SESSION_REPORT.md",
+    "vendor_zips": "Downloads/P201Mini_P203Mini*.zip"
+  }
+}
