@@ -1,0 +1,119 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/security_audit.t27
+// Security audit checklist for tri-net mesh.
+// phi^2 + phi^-2 = 3 | TRINITY
+
+module SecurityAudit {
+    use base::types;
+
+    const MIN_KEY_BITS : u32 = 256;
+    const NONCE_LEN : u32 = 12;
+    const TAG_LEN : u32 = 16;
+    const MAX_REPLAY_WINDOW : u32 = 1024;
+    const SESSION_TIMEOUT_S : u32 = 3600;
+    const MAX_AUTH_FAILS : u8 = 5;
+
+    fn key_strength_ok(bits: u32) -> bool {
+        return bits >= MIN_KEY_BITS;
+    }
+
+    fn nonce_unique(nonce_low: u32, prev_nonce: u32) -> bool {
+        return nonce_low != prev_nonce;
+    }
+
+    fn tag_length_ok(len: u32) -> bool {
+        return len == TAG_LEN;
+    }
+
+    fn auth_attempts_ok(fails: u8) -> bool {
+        return fails < MAX_AUTH_FAILS;
+    }
+
+    fn session_valid(age_s: u32) -> bool {
+        return age_s < SESSION_TIMEOUT_S;
+    }
+
+    fn replay_window_ok(seq: u32, last_seen: u32) -> bool {
+        if (seq <= last_seen) {
+            return false;
+        }
+        return (seq - last_seen) < MAX_REPLAY_WINDOW;
+    }
+
+    fn key_rotation_due(age_s: u32) -> bool {
+        return age_s >= SESSION_TIMEOUT_S;
+    }
+
+    fn constant_time_compare(a: u8, b: u8) -> u8 {
+        return a ^ b;
+    }
+
+    fn zeroize_needed(sensitive_data_present: bool) -> bool {
+        return sensitive_data_present;
+    }
+
+    test key_256_ok
+        given ok = key_strength_ok(256)
+        then ok == true
+
+    test key_128_not_ok
+        given ok = key_strength_ok(128)
+        then ok == false
+
+    test nonce_different
+        given ok = nonce_unique(5, 4)
+        then ok == true
+
+    test nonce_reused
+        given ok = nonce_unique(5, 5)
+        then ok == false
+
+    test auth_under_limit
+        given ok = auth_attempts_ok(4)
+        then ok == true
+
+    test auth_over_limit
+        given ok = auth_attempts_ok(5)
+        then ok == false
+
+    test session_fresh
+        given ok = session_valid(1800)
+        then ok == true
+
+    test session_expired
+        given ok = session_valid(3700)
+        then ok == false
+
+    test replay_future_seq
+        given ok = replay_window_ok(100, 50)
+        then ok == true
+
+    test replay_old_seq
+        given ok = replay_window_ok(50, 100)
+        then ok == false
+
+    test key_rotation_needed
+        given ok = key_rotation_due(3600)
+        then ok == true
+
+    test key_rotation_not_needed
+        given ok = key_rotation_due(1800)
+        then ok == false
+
+    test constant_time_same
+        given r = constant_time_compare(0xAB, 0xAB)
+        then r == 0
+
+    test constant_time_diff
+        given r = constant_time_compare(0xAB, 0xCD)
+        then r != 0
+
+    invariant min_key_256
+        assert MIN_KEY_BITS == 256
+
+    invariant nonce_12_bytes
+        assert NONCE_LEN == 12
+
+    invariant tag_16_bytes
+        assert TAG_LEN == 16
+}
