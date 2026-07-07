@@ -1,0 +1,179 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/chat_protocol.t27
+// Application-layer chat message protocol over mesh.
+// phi^2 + phi^-2 = 3 | TRINITY
+
+module ChatProtocol {
+    use base::types;
+
+    const MSG_TEXT    : u8 = 0;
+    const MSG_PHOTO   : u8 = 1;
+    const MSG_VIDEO   : u8 = 2;
+    const MSG_VOICE   : u8 = 3;
+    const MSG_STATUS  : u8 = 4;
+    const MSG_ACK     : u8 = 5;
+
+    const HEADER_LEN  : usize = 12;
+    const MAX_TEXT    : u32 = 200;
+    const MAX_CHUNK   : u32 = 1024;
+    const TS_EPOCH    : u32 = 1700000000;
+
+    fn msg_type_valid(t: u8) -> bool {
+        return t <= 5;
+    }
+
+    fn is_media(t: u8) -> bool {
+        if (t == MSG_PHOTO) { return true; }
+        if (t == MSG_VIDEO) { return true; }
+        if (t == MSG_VOICE) { return true; }
+        return false;
+    }
+
+    fn is_text(t: u8) -> bool {
+        return t == MSG_TEXT;
+    }
+
+    fn is_control(t: u8) -> bool {
+        if (t == MSG_STATUS) { return true; }
+        if (t == MSG_ACK) { return true; }
+        return false;
+    }
+
+    fn fits_text_channel(len: u32) -> bool {
+        return len <= MAX_TEXT;
+    }
+
+    fn needs_photo_channel(t: u8) -> bool {
+        return t == MSG_PHOTO;
+    }
+
+    fn needs_video_channel(t: u8) -> bool {
+        return t == MSG_VIDEO;
+    }
+
+    fn chunk_count(total_bytes: u32) -> u32 {
+        return (total_bytes + MAX_CHUNK - 1) / MAX_CHUNK;
+    }
+
+    fn is_chunk_last(chunk_idx: u32, total_chunks: u32) -> bool {
+        return chunk_idx >= total_chunks - 1;
+    }
+
+    fn timestamp_valid(ts: u32) -> bool {
+        return ts >= TS_EPOCH;
+    }
+
+    fn timestamp_recent(ts: u32, now: u32) -> bool {
+        if (ts > now) { return false; }
+        return (now - ts) < 86400;
+    }
+
+    fn select_channel_for_msg(msg_type: u8, body_len: u32, snr_db_x10: u32) -> u8 {
+        if (msg_type == MSG_TEXT && fits_text_channel(body_len)) {
+            return 0;  // Channel T
+        }
+        if (msg_type == MSG_PHOTO && snr_db_x10 >= 100) {
+            return 1;  // Channel P
+        }
+        if (msg_type == MSG_VIDEO && snr_db_x10 >= 200) {
+            return 2;  // Channel V
+        }
+        if (msg_type == MSG_VOICE && snr_db_x10 >= 0) {
+            return 0;  // Channel T (Codec2 700 bps)
+        }
+        return 0;  // Fallback to T
+    }
+
+    test text_type_valid
+        given ok = msg_type_valid(0)
+        then ok == true
+
+    test invalid_type
+        given ok = msg_type_valid(6)
+        then ok == false
+
+    test photo_is_media
+        given ok = is_media(1)
+        then ok == true
+
+    test text_not_media
+        given ok = is_media(0)
+        then ok == false
+
+    test ack_is_control
+        given ok = is_control(5)
+        then ok == true
+
+    test text_not_control
+        given ok = is_control(0)
+        then ok == false
+
+    test fits_200_bytes
+        given ok = fits_text_channel(200)
+        then ok == true
+
+    test exceeds_text
+        given ok = fits_text_channel(201)
+        then ok == false
+
+    test chunk_single
+        given n = chunk_count(500)
+        then n == 1
+
+    test chunk_multiple
+        given n = chunk_count(2048)
+        then n == 2
+
+    test last_chunk
+        given ok = is_chunk_last(1, 2)
+        then ok == true
+
+    test not_last_chunk
+        given ok = is_chunk_last(0, 3)
+        then ok == false
+
+    test ts_valid
+        given ok = timestamp_valid(1700000001)
+        then ok == true
+
+    test ts_invalid_old
+        given ok = timestamp_valid(1000)
+        then ok == false
+
+    test ts_recent
+        given ok = timestamp_recent(1700000000, 1700001000)
+        then ok == true
+
+    test ts_future_rejected
+        given ok = timestamp_recent(1700002000, 1700001000)
+        then ok == false
+
+    test channel_text_msg
+        given ch = select_channel_for_msg(0, 50, 50)
+        then ch == 0
+
+    test channel_photo_good_snr
+        given ch = select_channel_for_msg(1, 100000, 250)
+        then ch == 1
+
+    test channel_video_excellent
+        given ch = select_channel_for_msg(2, 500000, 300)
+        then ch == 2
+
+    test channel_photo_low_snr_fallback
+        given ch = select_channel_for_msg(1, 100000, 50)
+        then ch == 0
+
+    test channel_voice_on_t
+        given ch = select_channel_for_msg(3, 88, 50)
+        then ch == 0
+
+    invariant header_size
+        assert HEADER_LEN == 12
+
+    invariant max_text_fits_channel_t
+        assert MAX_TEXT == 200
+
+    invariant max_chunk_1kb
+        assert MAX_CHUNK == 1024
+}

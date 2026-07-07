@@ -1,0 +1,173 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/aes256_gcm.t27
+// AES-256-GCM hardware crypto engine controller.
+// phi^2 + phi^-2 = 3 | TRINITY
+
+module Aes256Gcm {
+    use base::types;
+
+    const KEY_LEN     : usize = 32;
+    const IV_LEN      : usize = 12;
+    const TAG_LEN     : usize = 16;
+    const BLOCK_SIZE  : usize = 16;
+    const ROUNDS      : usize = 14;
+
+    const AES_SBOX_0  : u8 = 0x63;
+
+    fn key_len_ok(klen: u32) -> bool {
+        return klen == 32;
+    }
+
+    fn iv_len_ok(ilen: u32) -> bool {
+        return ilen == 12;
+    }
+
+    fn tag_len_ok(tlen: u32) -> bool {
+        return tlen == 16;
+    }
+
+    fn block_aligned(len: u32) -> bool {
+        return (len % 16) == 0;
+    }
+
+    fn num_blocks(len: u32) -> u32 {
+        return (len + 15) / 16;
+    }
+
+    fn ghash_pad_len(len: u32) -> u32 {
+        return 16 - (len % 16);
+    }
+
+    fn ghash_block_count(aad_len: u32, ct_len: u32) -> u32 {
+        var a_blocks : u32 = num_blocks(aad_len);
+        var c_blocks : u32 = num_blocks(ct_len);
+        return a_blocks + c_blocks + 1;
+    }
+
+    fn round_constant(round: usize) -> u8 {
+        if (round == 1) {
+            return 1;
+        }
+        if (round == 2) {
+            return 2;
+        }
+        if (round == 3) {
+            return 4;
+        }
+        if (round == 4) {
+            return 8;
+        }
+        if (round == 5) {
+            return 16;
+        }
+        if (round == 6) {
+            return 32;
+        }
+        if (round == 7) {
+            return 64;
+        }
+        if (round == 8) {
+            return 128;
+        }
+        return 0;
+    }
+
+    fn nonce_counter(iv11: u8, block_num: u32) -> u32 {
+        return (iv11 as u32) + block_num;
+    }
+
+    fn xor_byte(a: u8, b: u8) -> u8 {
+        return a ^ b;
+    }
+
+    fn gcm_tag_split(tag_high: u32, tag_low: u32) -> bool {
+        return tag_high != 0 || tag_low != 0;
+    }
+
+    test key_256_ok
+        given ok = key_len_ok(32)
+        then ok == true
+
+    test key_128_not_ok
+        given ok = key_len_ok(16)
+        then ok == false
+
+    test iv_12_ok
+        given ok = iv_len_ok(12)
+        then ok == true
+
+    test iv_16_not_ok
+        given ok = iv_len_ok(16)
+        then ok == false
+
+    test block_aligned_ok
+        given ok = block_aligned(32)
+        then ok == true
+
+    test block_not_aligned
+        given ok = block_aligned(17)
+        then ok == false
+
+    test num_blocks_exact
+        given n = num_blocks(32)
+        then n == 2
+
+    test num_blocks_rounded
+        given n = num_blocks(17)
+        then n == 2
+
+    test num_blocks_zero
+        given n = num_blocks(0)
+        then n == 0
+
+    test ghash_pad_full_block
+        given p = ghash_pad_len(16)
+        then p == 16
+
+    test ghash_pad_partial
+        given p = ghash_pad_len(10)
+        then p == 6
+
+    test ghash_count_simple
+        given n = ghash_block_count(0, 16)
+        then n == 2
+
+    test round_constant_1
+        given r = round_constant(1)
+        then r == 1
+
+    test round_constant_8
+        given r = round_constant(8)
+        then r == 128
+
+    test xor_identity
+        given x = xor_byte(0xAA, 0x00)
+        then x == 170
+
+    test xor_self
+        given x = xor_byte(0xFF, 0xFF)
+        then x == 0
+
+    test nonce_counter_wrap
+        given c = nonce_counter(255, 1)
+        then c == 256
+
+    test tag_nonzero
+        given ok = gcm_tag_split(1, 0)
+        then ok == true
+
+    invariant aes256_key_is_32_bytes
+        assert KEY_LEN == 32
+
+    invariant iv_is_12_bytes
+        assert IV_LEN == 12
+
+    invariant tag_is_16_bytes
+        assert TAG_LEN == 16
+
+    invariant aes256_has_14_rounds
+        assert ROUNDS == 14
+
+    invariant block_is_16_bytes
+        assert BLOCK_SIZE == 16
+}

@@ -1,0 +1,151 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/channel_v_modem.t27
+// 16-QAM modem for Channel V (video, 2 Mbps, 1 km range).
+// phi^2 + phi^-2 = 3 | TRINITY
+
+module ChannelVModem {
+    use base::types;
+
+    const BIT_RATE      : u32 = 2000000;     // 2 Mbps
+    const SYMBOL_RATE   : u32 = 500000;      // 4 bits/symbol
+    const SUBCARRIERS   : u32 = 256;         // OFDM FFT size
+    const CP_LEN        : u32 = 64;          // Cyclic prefix
+    const OFDM_BLOCK    : u32 = 320;         // 256 + 64 CP
+    const MAX_PAYLOAD   : u32 = 65536;       // 64 KB per video frame chunk
+    const CRC32_POLY    : u32 = 0x04C11DB7;
+
+    const LVL_3         : i16 = 9830;        // 32767 * 0.3
+    const LVL_1         : i16 = 3277;        // 32767 * 0.1
+    const LVL_NEG1      : i16 = -3277;
+    const LVL_NEG3      : i16 = -9830;
+
+    fn qam16_symbol_i(bits: u8) -> i16 {
+        var b : u8 = (bits >> 2) & 3;
+        if (b == 0) {
+            return LVL_3;
+        } else if (b == 1) {
+            return LVL_1;
+        } else if (b == 2) {
+            return LVL_NEG1;
+        } else {
+            return LVL_NEG3;
+        }
+    }
+
+    fn qam16_symbol_q(bits: u8) -> i16 {
+        var b : u8 = bits & 3;
+        if (b == 0) {
+            return LVL_3;
+        } else if (b == 1) {
+            return LVL_1;
+        } else if (b == 2) {
+            return LVL_NEG1;
+        } else {
+            return LVL_NEG3;
+        }
+    }
+
+    fn qam16_demod_i(sample: i16) -> u8 {
+        if (sample > 6553) {
+            return 0;
+        } else if (sample > 0) {
+            return 1;
+        } else if (sample > -6554) {
+            return 2;
+        } else {
+            return 3;
+        }
+    }
+
+    fn qam16_demod_q(sample: i16) -> u8 {
+        if (sample > 6553) {
+            return 0;
+        } else if (sample > 0) {
+            return 1;
+        } else if (sample > -6554) {
+            return 2;
+        } else {
+            return 3;
+        }
+    }
+
+    fn qam16_demod_symbol(i_bits: u8, q_bits: u8) -> u8 {
+        return i_bits * 4 + q_bits;
+    }
+
+    fn ofdm_symbol_duration_us() -> u32 {
+        return OFDM_BLOCK * 1000 / 4;
+    }
+
+    fn video_chunk_time_ms(chunk_kb: u32) -> u32 {
+        return chunk_kb * 8 * 1000 / BIT_RATE;
+    }
+
+    fn ofdm_block_rate() -> u32 {
+        return SYMBOL_RATE;
+    }
+
+    fn bits_per_ofdm_symbol() -> u32 {
+        return SUBCARRIERS * 4;
+    }
+
+    fn video_720p_bitrate_kbps() -> u32 {
+        return 500;
+    }
+
+    test qam16_mod_i_level3
+        given i = qam16_symbol_i(0)
+        then i == LVL_3
+
+    test qam16_mod_i_level1
+        given i = qam16_symbol_i(4)
+        then i == LVL_1
+
+    test qam16_mod_i_neg1
+        given i = qam16_symbol_i(8)
+        then i == LVL_NEG1
+
+    test qam16_mod_i_neg3
+        given i = qam16_symbol_i(12)
+        then i == LVL_NEG3
+
+    test qam16_demod_high
+        given b = qam16_demod_i(20000)
+        then b == 0
+
+    test qam16_demod_low
+        given b = qam16_demod_i(-20000)
+        then b == 3
+
+    test qam16_demod_symbol_max
+        given sym = qam16_demod_symbol(3, 3)
+        then sym == 15
+
+    test ofdm_duration
+        given us = ofdm_symbol_duration_us()
+        then us > 0
+
+    test video_chunk_64kb_time
+        given ms = video_chunk_time_ms(64)
+        then ms == 256
+
+    test bits_per_symbol
+        given bits = bits_per_ofdm_symbol()
+        then bits == 1024
+
+    test video_720p_bitrate
+        given kbps = video_720p_bitrate_kbps()
+        then kbps == 500
+
+    invariant fft_size_256
+        assert SUBCARRIERS == 256
+
+    invariant cp_is_quarter
+        assert CP_LEN == 64
+
+    invariant ofdm_block_is_fft_plus_cp
+        assert OFDM_BLOCK == 320
+
+    invariant qam16_4_bits_per_symbol
+        assert bits_per_ofdm_symbol() == 1024
+}

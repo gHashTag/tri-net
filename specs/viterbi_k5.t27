@@ -1,0 +1,172 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/viterbi_k5.t27
+// Viterbi decoder K=5, R=1/2 for Channel V FEC.
+// phi^2 + phi^-2 = 3 | TRINITY
+
+module ViterbiK5 {
+    use base::types;
+
+    const K           : usize = 5;
+    const NUM_STATES  : usize = 16;
+    const RATE        : usize = 2;
+    const TRELLIS_DEPTH : usize = 64;
+
+    const G1 : u8 = 0b11001;   // Generator polynomial 1 (35 octal)
+    const G2 : u8 = 0b10111;   // Generator polynomial 2 (23 octal)
+
+    fn num_states() -> usize {
+        return NUM_STATES;
+    }
+
+    fn next_state(state: u8, input_bit: u8) -> u8 {
+        return ((state << 1) | input_bit) & 0x0F;
+    }
+
+    fn prev_state_lo(state: u8) -> u8 {
+        return state >> 1;
+    }
+
+    fn prev_state_hi(state: u8) -> u8 {
+        return (state >> 1) | 8;
+    }
+
+    fn branch_metric(received_i: i8, expected_i: i8, received_q: i8, expected_q: i8) -> u32 {
+        var di : i32 = (received_i as i32) - (expected_i as i32);
+        var dq : i32 = (received_q as i32) - (expected_q as i32);
+        if (di < 0) {
+            di = -di;
+        }
+        if (dq < 0) {
+            dq = -dq;
+        }
+        return (di as u32) + (dq as u32);
+    }
+
+    fn path_metric_min(pm0: u32, pm1: u32) -> u32 {
+        if (pm0 < pm1) {
+            return pm0;
+        } else {
+            return pm1;
+        }
+    }
+
+    fn path_metric_survivor(pm0: u32, pm1: u32) -> u8 {
+        if (pm0 < pm1) {
+            return 0;
+        } else {
+            return 1;
+        }
+    }
+
+    fn encode_bit(state: u8, input_bit: u8) -> u8 {
+        var s : u8 = ((state << 1) | input_bit) & 0x1F;
+        var o1 : u8 = 0;
+        var o2 : u8 = 0;
+        if ((s & G1) != 0) {
+            o1 = popcount5(s & G1) % 2;
+        }
+        if ((s & G2) != 0) {
+            o2 = popcount5(s & G2) % 2;
+        }
+        return o1 * 2 + o2;
+    }
+
+    fn popcount5(v: u8) -> u8 {
+        var x : u8 = v;
+        var count : u8 = 0;
+        if ((x & 1) != 0) { count = count + 1; }
+        if ((x & 2) != 0) { count = count + 1; }
+        if ((x & 4) != 0) { count = count + 1; }
+        if ((x & 8) != 0) { count = count + 1; }
+        if ((x & 16) != 0) { count = count + 1; }
+        return count;
+    }
+
+    fn traceback_depth() -> usize {
+        return TRELLIS_DEPTH;
+    }
+
+    fn k_constraint() -> usize {
+        return K;
+    }
+
+    test next_state_0_input_0
+        given s = next_state(0, 0)
+        then s == 0
+
+    test next_state_0_input_1
+        given s = next_state(0, 1)
+        then s == 1
+
+    test next_state_15_input_0
+        given s = next_state(15, 0)
+        then s == 14
+
+    test next_state_15_input_1
+        given s = next_state(15, 1)
+        then s == 15
+
+    test prev_lo_15
+        given s = prev_state_lo(15)
+        then s == 7
+
+    test prev_hi_15
+        given s = prev_state_hi(15)
+        then s == 15
+
+    test branch_metric_zero
+        given bm = branch_metric(1, 1, 1, 1)
+        then bm == 0
+
+    test branch_metric_max
+        given bm = branch_metric(1, -1, 1, -1)
+        then bm == 4
+
+    test path_metric_min_picks_0
+        given m = path_metric_min(5, 10)
+        then m == 5
+
+    test path_metric_min_picks_1
+        given m = path_metric_min(20, 3)
+        then m == 3
+
+    test survivor_picks_0
+        given s = path_metric_survivor(5, 10)
+        then s == 0
+
+    test survivor_picks_1
+        given s = path_metric_survivor(20, 3)
+        then s == 1
+
+    test popcount_5_bits
+        given c = popcount5(31)
+        then c == 5
+
+    test popcount_0_bits
+        given c = popcount5(0)
+        then c == 0
+
+    test popcount_3_bits
+        given c = popcount5(7)
+        then c == 3
+
+    test num_states_is_16
+        given n = num_states()
+        then n == 16
+
+    test traceback_depth_64
+        given d = traceback_depth()
+        then d == 64
+
+    invariant k_constraint_is_5
+        assert K == 5
+
+    invariant num_states_2_power_k_minus_1
+        assert NUM_STATES == 16
+
+    invariant rate_is_half
+        assert RATE == 2
+
+    invariant trellis_depth_sufficient
+        assert TRELLIS_DEPTH >= 5 * K
+}
