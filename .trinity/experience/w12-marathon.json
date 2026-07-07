@@ -42,3 +42,20 @@
 - uEnv.txt boardargs/uenvcmd modification — infinite recursion in U-Boot
 - uEnv.txt ethaddr + ipaddr without bootargs ip= — MAC changes but IP stays .10
 - Boot switch position changes — irrelevant for SD boot
+
+### FINAL WORKING RECIPE (PROVEN 2026-07-08 00:30 UTC)
+
+1. SD card: vendor BOOT.BIN (2.9MB) + uImage + DTB + ORIGINAL ramdisk + uEnv.txt
+2. uEnv.txt: ONLY change ethaddr line (unique MAC per board)
+3. Boot switch: JTAG position works! Switch DOES NOT MATTER for SD boot.
+4. Do NOT modify ramdisk (mkimage CRC issues)
+5. Do NOT use boardargs/uenvcmd (infinite recursion)
+6. sshpass needs -o PreferredAuthentications=password
+7. Vendor BOOT.BIN = correct PL Ethernet. Kuiper BOOT.BIN = NO Ethernet.
+8. SD cards wear out after 10+ cycles. Use FRESH cards.
+9. Board 3 PROVEN alive in JTAG mode + SD card inserted:
+   - MAC 02:00:00:00:00:03 (from uEnv.txt ethaddr)
+   - Linux 5.10.0 booted from SD
+   - AD9361 detected
+   - SSH works
+   - ip addr add .13 works

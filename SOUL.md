@@ -4,152 +4,74 @@ Immutable Document. Amendments require unanimous architectural consent.
 
 ## Article I: Language Policy
 
-### Source files MUST be ASCII-only, English identifiers.
-- `.t27` specs, `.rs` source, `.v` Verilog — ASCII only
-- No Cyrillic, no non-Latin scripts in source files
-- Comments and identifiers MUST be English
-
-### Documentation MUST be English.
-- All `docs/*.md`, `README.md`, root-level Markdown — English only
+Source files MUST be ASCII-only, English identifiers.
+Documentation MUST be English.
 
 ## Article II: Golden Pipeline Mandate
 
-### The Iron Law
-All business logic MUST be defined in `.t27` specs and generated to Rust via `t27c gen-rust`.
-
-**No hand-written Rust for business logic.**
-
-### Pipeline
-```
-specs/*.t27 -> t27c gen-rust -> gen/rust/*.rs -> src/ -> cargo build
-specs/*.t27 -> t27c gen-verilog -> gen/verilog/*.v -> FPGA
-```
-
-### Forbidden
-- Editing `gen/` output by hand (L2 violation)
-- Writing new `.rs` with business logic without `.t27` spec (L6)
-- Committing specs without `test` or `invariant` blocks (L4)
-- Writing `.sh` or `.py` files (L7 — use Rust only)
+All business logic in .t27 specs → t27c gen-rust → gen/rust/ → src/
+No hand-written Rust for business logic. No .sh/.py files.
 
 ## Article III: TDD Mandate
 
-Every `.t27` spec MUST contain at least one of:
-- A `test` block with test cases
-- An `invariant` block with assertions
-
-No exceptions.
+Every .t27 spec MUST contain test or invariant blocks.
 
 ## Article IV: Hardware Safety
 
-1. NEVER run QSPI register experiments via Linux user-space
-2. NEVER connect JTAG to working boards unnecessarily
-3. NEVER delete primary IP (.10) via SSH — kills your own session
-4. NEVER change MAC via `ip link set` — board loses network
+1. NEVER run QSPI experiments via Linux user-space (bus hang, POR cleared)
+2. NEVER connect JTAG to working boards unnecessarily (clear_reset_cause)
+3. NEVER delete primary IP via SSH (kills session)
+4. NEVER change MAC via ip link set (board loses network)
 5. Cold power-cycle only (warm reboot hangs Zynq PS)
-6. SD boot is the safe path — bypasses QSPI POR issues
+6. SD boot is the safe path
 
-## Article V: Multi-Board Boot Procedure (PROVEN 2026-07-07)
+## Article V: Multi-Board Boot Procedure (PROVEN)
 
-### The Problem
-All 3 P201Mini ship with IDENTICAL MAC (00:0a:35:00:01:22) and IP (192.168.1.10).
-Switch cannot route between same-MAC ports. ARP collision.
-
-### SD Card Contents (5 files, FAT32)
+### SD Card Recipe (5 files, FAT32)
 ```
-1. BOOT.BIN        — Kuiper 4.7MB (from PZ_P201_3_MINI_Openwifi-005.img)
-2. uImage          — kernel 4.3MB (from vendor ZIP 001)
-3. devicetree.dtb  — 19KB (from vendor ZIP 002)
-4. uramdisk.image.gz — rootfs 5.6MB (from vendor ZIP 002)
-5. uEnv.txt        — 58 lines (from vendor ZIP 001, MODIFIED per board)
+1. BOOT.BIN        — Vendor 2.9MB (ZIP 001 SD-BOOT/BOOT.bin) NOT Kuiper 4.7MB
+2. uImage          — 4.3MB (ZIP 001 SD-BOOT/)
+3. devicetree.dtb  — 19KB (ZIP 002 SD-BOOT/)
+4. uramdisk.image.gz — 5.6MB (ZIP 002 SD-BOOT/) — ORIGINAL unmodified
+5. uEnv.txt        — 55 lines (ZIP 001 SD-BOOT/) — ONLY ethaddr changed
 ```
 
-### Per-Board uEnv.txt Modification (CRITICAL)
+### Boot Switch Position: DOES NOT MATTER
+BootROM auto-detects SD card presence regardless of switch position.
+- Switch JTAG + SD inserted = boots from SD (PROVEN 2026-07-08)
+- Switch QSPI/SD + SD inserted = boots from SD
+- Do NOT tell user to change boot switch for SD boot.
 
-Each board needs unique MAC + IP. The modification goes into uEnv.txt:
-
+### Per-Board ethaddr
 ```
-ethaddr=02:00:00:00:00:0N          (line 1: unique MAC per board)
-ipaddr=192.168.1.1N                 (line 2: U-Boot own IP)
-boardargs=setenv bootargs ${bootargs} ip=192.168.1.1N::192.168.1.1:255.255.255.0::eth0:off
-uenvcmd=run boardargs; run sdboot
+Board 1: ethaddr=02:00:00:00:00:01  IP 192.168.1.11
+Board 2: ethaddr=02:00:00:00:00:02  IP 192.168.1.12
+Board 3: ethaddr=02:00:00:00:00:03  IP 192.168.1.13
 ```
+ethaddr in uEnv.txt DOES change Linux MAC (U-Boot patches device tree).
+ipaddr in uEnv.txt does NOT change Linux IP (U-Boot only).
+boardargs/uenvcmd in uEnv.txt causes INFINITE RECURSION (do not use).
 
-The `boardargs` line is ESSENTIAL — it adds `ip=` to kernel cmdline,
-which sets eth0 IP BEFORE /etc/network/interfaces runs in ramdisk.
+### Multi-Board IP Separation (runtime, proven)
+1. Boot one board, SSH to .10
+2. ip addr add 192.168.1.1N/24 dev eth0 (add secondary, do NOT delete .10)
+3. arp -d .10 on Mac
+4. Boot next board on .10, SSH, repeat
+5. Access boards by .11/.12/.13, never use .10 when multiple connected
 
-Without `boardargs`: MAC changes but IP stays .10 (from ramdisk).
-With `boardargs`: MAC AND IP change at kernel boot.
-
-### How to Modify uEnv.txt WITHOUT Removing SD Card
-
-1. All 3 boards connected, booted on .10
-2. ARP dance to reach each board:
-   ```
-   arp -d 192.168.1.10    # clear ARP
-   ssh root@192.168.1.10  # reaches random board
-   # check MAC to identify which board
-   ```
-3. Mount SD on the board: `mount /dev/mmcblk0p1 /mnt/sd`
-4. Write correct uEnv.txt: `cat > /mnt/sd/uEnv.txt`
-5. `sync; umount /mnt/sd`
-6. Repeat for next board (arp -d again)
-7. Power-cycle all 3
-
-### Boot Procedure
-1. Boot switch -> QSPI/SD position
-2. SD card inserted BEFORE power applied
-3. USB power + Ethernet cable to router
-4. Wait 90 seconds for full boot
-5. SSH: `sshpass -p 'analog' ssh -o PubkeyAuthentication=no root@192.168.1.1N`
-
-### Multi-Board IP Separation (Runtime Alternative)
-
-If uEnv.txt modification is not available, separate boards at runtime:
-1. All 3 connected, all on .10
-2. `arp -d .10` -> SSH -> `ip addr add .11/24 dev eth0`
-3. `arp -d .10` -> SSH (different board) -> `ip addr add .12/24 dev eth0`
-4. `arp -d .10` -> SSH (different board) -> `ip addr add .13/24 dev eth0`
-5. DO NOT delete .10 — just add secondary IPs
-
-### IMPORTANT Warnings
-- ethaddr in uEnv.txt DOES propagate to Linux (via U-Boot FDT patching)
-- ipaddr in uEnv.txt does NOT propagate (U-Boot only, not Linux)
-- bootargs `ip=` DOES propagate to Linux kernel cmdline
-- DO NOT delete .10 via SSH (B5: kills session)
-- DO NOT change MAC via `ip link set` (B: board loses network permanently)
-- CPU Serial is all zeros on Zynq 7020 (cannot use for unique ID)
+### IMPORTANT
+- Vendor BOOT.BIN (2.9MB) has correct PL Ethernet bitstream
+- Kuiper BOOT.BIN (4.7MB) does NOT bring up PL Ethernet
+- Do NOT modify uramdisk.image.gz (mkimage CRC issues, boot fails)
+- SD cards wear out after 10+ erase cycles — use fresh cards
+- sshpass needs: -o PreferredAuthentications=password (not just -o PubkeyAuthentication=no)
 
 ## Article VI: Architecture
 
-Each P201Mini has ONE Ethernet port. Mesh works over UDP/Ethernet.
-- Board 1: internet gateway (connected to router)
-- Board 2: relay node (connects through Board 1)
-- Board 3: edge node (connects through Board 2 or 1)
-- Self-healing: ETX metric detects link failure in ~900ms
+Each P201Mini has ONE Ethernet port. Mesh over UDP/Ethernet.
+Board 1 = internet gateway. Others relay through mesh.
+Self-healing: ETX detects link failure in ~900ms.
 
 ## Article VII: Identity
 
-phi^2 + phi^-2 = 3 is the project anchor.
-
-phi^2 + 1/phi^2 = 3 | TRINITY
-
-## Article VIII: Boot Switch Does NOT Affect SD Boot (PROVEN 2026-07-07)
-
-### Finding
-The P201Mini boot switch (JTAG / QSPI-SD) does NOT control SD card boot.
-SD card presence is auto-detected by bootROM regardless of switch position.
-- Switch in JTAG position + SD card inserted → boots from SD ✅
-- Switch in QSPI/SD position + SD card inserted → boots from SD ✅
-- Switch in JTAG position + NO SD card → JTAG mode (bootROM wait)
-
-### Conclusion
-Do NOT tell user to change boot switch position for SD boot.
-The switch only matters when NO SD card is present:
-- JTAG: enters JTAG wait mode (for JTAG debugging)
-- QSPI/SD: tries QSPI flash boot
-
-### Board 1 Death Cause
-Board 1 is NOT dead from boot switch. Board 1 has MMU stuck state
-from extensive JTAG experiments (ps7_init, kernel load, MMU patching).
-The CPU's MMU was enabled by JTAG-loaded code and persists across
-soft resets. Only a full power cycle with JTAG MMU disable code can recover.
+phi^2 + phi^-2 = 3 | TRINITY
