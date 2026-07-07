@@ -1,0 +1,1 @@
+uenvcmd=setenv ethaddr 02:00:00:00:00:03; setenv ipaddr 192.168.1.13; setenv serverip 192.168.1.100; echo Board 3 MAC set; load mmc 0 ${fit_load_address} ${kernel_image} && load mmc 0 ${devicetree_load_address} ${devicetree_image} && load mmc 0 ${ramdisk_load_address} ${ramdisk_image} && bootm ${fit_load_address} ${ramdisk_load_address} ${devicetree_load_address}

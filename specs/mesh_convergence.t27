@@ -1,0 +1,145 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/mesh_convergence.t27
+// M2 convergence gate: ETX metric reaches finite value within timeout.
+// phi^2 + phi^-2 = 3 | TRINITY
+
+module MeshConvergence {
+    use base::types;
+
+    const HELLO_INTERVAL_MS : u32 = 300;
+    const CONVERGENCE_TIMEOUT_MS : u32 = 5000;
+    const MAX_ETX : u8 = 255;
+    const MIN_ETX : u8 = 1;
+    const ETX_INFINITY : u8 = 255;
+    const FAST_FAIL_MISSES : u8 = 2;
+    const MAX_HOPS : u8 = 8;
+
+    fn etx_is_finite(etx: u8) -> bool {
+        return etx < ETX_INFINITY;
+    }
+
+    fn etx_is_infinity(etx: u8) -> bool {
+        return etx >= ETX_INFINITY;
+    }
+
+    fn convergence_complete(etx_11_12: u8, etx_12_13: u8) -> bool {
+        return etx_is_finite(etx_11_12) && etx_is_finite(etx_12_13);
+    }
+
+    fn triangle_complete(etx_11_12: u8, etx_12_13: u8, etx_11_13: u8) -> bool {
+        return etx_is_finite(etx_11_12) && etx_is_finite(etx_12_13) && etx_is_finite(etx_11_13);
+    }
+
+    fn etx_quality(etx: u8) -> u8 {
+        if (etx < 3) {
+            return 0;  // excellent
+        }
+        if (etx < 10) {
+            return 1;  // good
+        }
+        if (etx < 50) {
+            return 2;  // poor
+        }
+        return 3;  // bad
+    }
+
+    fn hello_count_for_convergence() -> u32 {
+        return CONVERGENCE_TIMEOUT_MS / HELLO_INTERVAL_MS;
+    }
+
+    fn within_timeout(elapsed_ms: u32) -> bool {
+        return elapsed_ms <= CONVERGENCE_TIMEOUT_MS;
+    }
+
+    fn link_alive(missed_hellos: u8) -> bool {
+        return missed_hellos < FAST_FAIL_MISSES;
+    }
+
+    fn link_dead(missed_hellos: u8) -> bool {
+        return missed_hellos >= FAST_FAIL_MISSES;
+    }
+
+    fn hop_count_exceeded(hops: u8) -> bool {
+        return hops > MAX_HOPS;
+    }
+
+    fn two_hop_path(etx_11_12: u8, etx_12_13: u8) -> u16 {
+        return etx_11_12 as u16 + etx_12_13 as u16;
+    }
+
+    test etx_finite
+        given ok = etx_is_finite(5)
+        then ok == true
+
+    test etx_infinite
+        given ok = etx_is_finite(255)
+        then ok == false
+
+    test convergence_two_nodes
+        given ok = convergence_complete(3, 255)
+        then ok == false
+
+    test convergence_all_nodes
+        given ok = convergence_complete(3, 5)
+        then ok == true
+
+    test triangle_complete_all
+        given ok = triangle_complete(2, 3, 4)
+        then ok == true
+
+    test triangle_missing_link
+        given ok = triangle_complete(2, 3, 255)
+        then ok == false
+
+    test quality_excellent
+        given q = etx_quality(1)
+        then q == 0
+
+    test quality_bad
+        given q = etx_quality(100)
+        then q == 3
+
+    test hello_count
+        given n = hello_count_for_convergence()
+        then n == 16
+
+    test within_timeout_ok
+        given ok = within_timeout(3000)
+        then ok == true
+
+    test within_timeout_expired
+        given ok = within_timeout(6000)
+        then ok == false
+
+    test link_alive_ok
+        given ok = link_alive(1)
+        then ok == true
+
+    test link_dead_fail
+        given ok = link_alive(2)
+        then ok == false
+
+    test two_hop_etx
+        given total = two_hop_path(3, 5)
+        then total == 8
+
+    test hop_limit_ok
+        given exceeded = hop_count_exceeded(5)
+        then exceeded == false
+
+    test hop_limit_exceeded
+        given exceeded = hop_count_exceeded(9)
+        then exceeded == true
+
+    invariant convergence_timeout_is_5s
+        assert CONVERGENCE_TIMEOUT_MS == 5000
+
+    invariant hello_interval_is_300ms
+        assert HELLO_INTERVAL_MS == 300
+
+    invariant max_hops_is_8
+        assert MAX_HOPS == 8
+
+    invariant fast_fail_is_2
+        assert FAST_FAIL_MISSES == 2
+}
