@@ -13,3 +13,32 @@
   "bottlenecks": ["B1-B10 documented in SOUL.md Article V"],
   "tri_cli": "v3, 8 commands, all bottlenecks handled"
 }
+
+---
+
+## Session 2 (2026-07-07 continued)
+
+### CRITICAL FINDING: Boot switch irrelevant for SD boot
+- P201Mini auto-detects SD card regardless of switch position
+- JTAG position + SD card → boots from SD perfectly
+- Do NOT tell user to change boot switch for SD boot
+
+### Board 1 death cause
+- NOT boot switch (was in JTAG, works fine for SD boot)
+- MMU stuck from JTAG experiments (ps7_init, kernel load, MMU patching)
+- DAP can examine CPU but SLCR/DDR access fails (MMU translation fault)
+- Recovery requires JTAG MMU disable code or Vivado/XSDB tools
+
+### Proven working recipe (FINAL)
+1. SD card: vendor BOOT.BIN (2.9MB) + uImage + DTB + ramdisk + uEnv.txt
+2. uEnv.txt: ONLY change ethaddr line (unique MAC per board)
+3. Boot switch: ANY position (JTAG or QSPI/SD) — doesn't matter
+4. SD card inserted BEFORE power applied
+5. Cold power cycle (USB unplug → replug)
+6. Board boots on 192.168.1.10 with unique MAC
+
+### What does NOT work
+- Kuiper BOOT.BIN (4.7MB) — Ethernet doesn't come up (wrong bitstream)
+- uEnv.txt boardargs/uenvcmd modification — infinite recursion in U-Boot
+- uEnv.txt ethaddr + ipaddr without bootargs ip= — MAC changes but IP stays .10
+- Boot switch position changes — irrelevant for SD boot

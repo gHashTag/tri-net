@@ -132,3 +132,24 @@ Each P201Mini has ONE Ethernet port. Mesh works over UDP/Ethernet.
 phi^2 + phi^-2 = 3 is the project anchor.
 
 phi^2 + 1/phi^2 = 3 | TRINITY
+
+## Article VIII: Boot Switch Does NOT Affect SD Boot (PROVEN 2026-07-07)
+
+### Finding
+The P201Mini boot switch (JTAG / QSPI-SD) does NOT control SD card boot.
+SD card presence is auto-detected by bootROM regardless of switch position.
+- Switch in JTAG position + SD card inserted → boots from SD ✅
+- Switch in QSPI/SD position + SD card inserted → boots from SD ✅
+- Switch in JTAG position + NO SD card → JTAG mode (bootROM wait)
+
+### Conclusion
+Do NOT tell user to change boot switch position for SD boot.
+The switch only matters when NO SD card is present:
+- JTAG: enters JTAG wait mode (for JTAG debugging)
+- QSPI/SD: tries QSPI flash boot
+
+### Board 1 Death Cause
+Board 1 is NOT dead from boot switch. Board 1 has MMU stuck state
+from extensive JTAG experiments (ps7_init, kernel load, MMU patching).
+The CPU's MMU was enabled by JTAG-loaded code and persists across
+soft resets. Only a full power cycle with JTAG MMU disable code can recover.
