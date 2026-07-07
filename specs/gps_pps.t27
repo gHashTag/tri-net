@@ -1,0 +1,106 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/gps_pps.t27
+// GPS PPS timestamp injection for TDMA coordination.
+// phi^2 + phi^-2 = 3 | TRINITY
+
+module GpsPps {
+    use base::types;
+
+    const PPS_INTERVAL_US : u32 = 1000000;
+    const TIMESTAMP_LEN : usize = 8;
+    const MAX_DRIFT_US : u32 = 1000;
+    const GPS_BAUD : u32 = 9600;
+    const TDMA_SLOT_US : u32 = 50000;
+    const SLOTS_PER_FRAME : u32 = 20;
+
+    fn pps_valid(interval_us: u32) -> bool {
+        return interval_us == PPS_INTERVAL_US;
+    }
+
+    fn drift_ok(drift_us: u32) -> bool {
+        return drift_us < MAX_DRIFT_US;
+    }
+
+    fn slot_count() -> u32 { return SLOTS_PER_FRAME; }
+
+    fn slot_for_node(node_id: u32, total_nodes: u32) -> u32 {
+        return node_id % total_nodes;
+    }
+
+    fn tdma_frame_us() -> u32 {
+        return SLOTS_PER_FRAME * TDMA_SLOT_US;
+    }
+
+    fn time_to_next_slot(now_us: u32, my_slot: u32) -> u32 {
+        var frame_pos : u32 = now_us % tdma_frame_us();
+        var slot_start : u32 = my_slot * TDMA_SLOT_US;
+        if (slot_start > frame_pos) {
+            return slot_start - frame_pos;
+        }
+        return tdma_frame_us() - frame_pos + slot_start;
+    }
+
+    fn in_my_slot(now_us: u32, my_slot: u32) -> bool {
+        var frame_pos : u32 = now_us % tdma_frame_us();
+        var slot_start : u32 = my_slot * TDMA_SLOT_US;
+        var slot_end : u32 = slot_start + TDMA_SLOT_US;
+        return frame_pos >= slot_start && frame_pos < slot_end;
+    }
+
+    fn gps_locked(lock_status: u8) -> bool {
+        return lock_status == 1;
+    }
+
+    test pps_interval_ok
+        given ok = pps_valid(1000000)
+        then ok == true
+
+    test pps_interval_bad
+        given ok = pps_valid(999000)
+        then ok == false
+
+    test drift_within_tolerance
+        given ok = drift_ok(500)
+        then ok == true
+
+    test drift_too_large
+        given ok = drift_ok(1500)
+        then ok == false
+
+    test slot_assignment
+        given s = slot_for_node(2, 3)
+        then s == 2
+
+    test slot_wrap
+        given s = slot_for_node(5, 3)
+        then s == 2
+
+    test tdma_frame_duration
+        given us = tdma_frame_us()
+        then us == 1000000
+
+    test in_slot_yes
+        given ok = in_my_slot(60000, 1)
+        then ok == true
+
+    test in_slot_no
+        given ok = in_my_slot(30000, 1)
+        then ok == false
+
+    test gps_locked_ok
+        given ok = gps_locked(1)
+        then ok == true
+
+    test gps_not_locked
+        given ok = gps_locked(0)
+        then ok == false
+
+    invariant pps_is_1_second
+        assert PPS_INTERVAL_US == 1000000
+
+    invariant tdma_frame_is_1_second
+        assert tdma_frame_us() == 1000000
+
+    invariant slots_fill_frame
+        assert SLOTS_PER_FRAME * TDMA_SLOT_US == PPS_INTERVAL_US
+}

@@ -1,0 +1,86 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/reed_solomon.t27
+// Reed-Solomon (255,223) FEC for Channel P.
+// phi^2 + phi^-2 = 3 | TRINITY
+
+module ReedSolomon {
+    use base::types;
+
+    const N : u32 = 255;
+    const K : u32 = 223;
+    const NPARITY : u32 = 32;
+    const FIELD_SIZE : u32 = 256;
+    const PRIMITIVE_POLY : u32 = 0x11D;
+
+    fn parity_count() -> u32 { return NPARITY; }
+    fn data_capacity() -> u32 { return K; }
+    fn codeword_length() -> u32 { return N; }
+    fn can_correct_errors() -> u32 { return NPARITY / 2; }
+
+    fn block_overhead(data_len: u32) -> u32 {
+        var blocks : u32 = (data_len + K - 1) / K;
+        return blocks * NPARITY;
+    }
+
+    fn encoded_length(data_len: u32) -> u32 {
+        var blocks : u32 = (data_len + K - 1) / K;
+        return blocks * N;
+    }
+
+    fn blocks_needed(data_len: u32) -> u32 {
+        return (data_len + K - 1) / K;
+    }
+
+    fn is_correctable(errors: u32) -> bool {
+        return errors <= can_correct_errors();
+    }
+
+    test n_greater_than_k
+        given ok = N > K
+        then ok == true
+
+    test parity_is_32
+        given p = parity_count()
+        then p == 32
+
+    test correct_16_errors
+        given c = can_correct_errors()
+        then c == 16
+
+    test single_block_overhead
+        given oh = block_overhead(223)
+        then oh == 32
+
+    test two_blocks_overhead
+        given oh = block_overhead(446)
+        then oh == 64
+
+    test encoded_single
+        given e = encoded_length(223)
+        then e == 255
+
+    test encoded_100kb
+        given e = encoded_length(100000)
+        then e > 100000
+
+    test blocks_for_100kb
+        given b = blocks_needed(100000)
+        then b == 449
+
+    test correctable_15
+        given ok = is_correctable(15)
+        then ok == true
+
+    test not_correctable_17
+        given ok = is_correctable(17)
+        then ok == false
+
+    invariant n_is_255
+        assert N == 255
+
+    invariant k_is_223
+        assert K == 223
+
+    invariant parity_equals_n_minus_k
+        assert NPARITY == N - K
+}
