@@ -1,0 +1,145 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/integration.t27
+// Full system integration test: 3-channel mesh chat.
+// phi^2 + phi^-2 = 3 | TRINITY
+
+module Integration {
+    use base::types;
+
+    // Channels
+    const CH_T : u8 = 0;
+    const CH_P : u8 = 1;
+    const CH_V : u8 = 2;
+
+    // Milestone gates
+    const M1_ETX_CONVERGE_S : u32 = 5;
+    const M2_TEXT_LATENCY_MS : u32 = 2000;
+    const M3_PHOTO_TIME_S : u32 = 5;
+    const M4_VIDEO_BITRATE_KBPS : u32 = 500;
+    const M5_HEAL_TIME_S : u32 = 5;
+
+    fn milestone_m1_converge(elapsed_s: u32) -> bool {
+        return elapsed_s <= M1_ETX_CONVERGE_S;
+    }
+
+    fn milestone_m2_text(latency_ms: u32) -> bool {
+        return latency_ms <= M2_TEXT_LATENCY_MS;
+    }
+
+    fn milestone_m3_photo(transfer_s: u32) -> bool {
+        return transfer_s <= M3_PHOTO_TIME_S;
+    }
+
+    fn milestone_m4_video(bitrate_kbps: u32) -> bool {
+        return bitrate_kbps >= M4_VIDEO_BITRATE_KBPS;
+    }
+
+    fn milestone_m5_heal(reroute_s: u32) -> bool {
+        return reroute_s <= M5_HEAL_TIME_S;
+    }
+
+    fn all_milestones_pass(m1: bool, m2: bool, m3: bool, m4: bool, m5: bool) -> bool {
+        if (!m1) { return false; }
+        if (!m2) { return false; }
+        if (!m3) { return false; }
+        if (!m4) { return false; }
+        if (!m5) { return false; }
+        return true;
+    }
+
+    fn channel_t_sufficient(snr_x10: u32) -> bool {
+        return snr_x10 >= 0;
+    }
+
+    fn channel_p_sufficient(snr_x10: u32) -> bool {
+        return snr_x10 >= 100;
+    }
+
+    fn channel_v_sufficient(snr_x10: u32) -> bool {
+        return snr_x10 >= 200;
+    }
+
+    fn crypto_active(aes_engaged: bool, trng_seeded: bool) -> bool {
+        return aes_engaged && trng_seeded;
+    }
+
+    fn mesh_reachable(hops: u8, max_hops: u8) -> bool {
+        return hops <= max_hops;
+    }
+
+    fn demo_ready(m1: bool, m2: bool, crypto: bool, mesh: bool) -> bool {
+        return m1 && m2 && crypto && mesh;
+    }
+
+    test m1_pass_3s
+        given ok = milestone_m1_converge(3)
+        then ok == true
+
+    test m1_fail_10s
+        given ok = milestone_m1_converge(10)
+        then ok == false
+
+    test m2_pass_1s
+        given ok = milestone_m2_text(1000)
+        then ok == true
+
+    test m3_pass_4s
+        given ok = milestone_m3_photo(4)
+        then ok == true
+
+    test m3_fail_10s
+        given ok = milestone_m3_photo(10)
+        then ok == false
+
+    test m4_pass_500
+        given ok = milestone_m4_video(500)
+        then ok == true
+
+    test m4_pass_higher
+        given ok = milestone_m4_video(1000)
+        then ok == true
+
+    test m5_pass_3s
+        given ok = milestone_m5_heal(3)
+        then ok == true
+
+    test all_pass
+        given ok = all_milestones_pass(true, true, true, true, true)
+        then ok == true
+
+    test all_fail_one
+        given ok = all_milestones_pass(true, true, true, false, true)
+        then ok == false
+
+    test crypto_both_required
+        given ok = crypto_active(true, false)
+        then ok == false
+
+    test crypto_both_ok
+        given ok = crypto_active(true, true)
+        then ok == true
+
+    test mesh_3_hops_ok
+        given ok = mesh_reachable(3, 8)
+        then ok == true
+
+    test demo_all_green
+        given ok = demo_ready(true, true, true, true)
+        then ok == true
+
+    test demo_mesh_missing
+        given ok = demo_ready(true, true, true, false)
+        then ok == false
+
+    invariant m1_gate_5s
+        assert M1_ETX_CONVERGE_S == 5
+
+    invariant m3_photo_5s
+        assert M3_PHOTO_TIME_S == 5
+
+    invariant m4_video_500kbps
+        assert M4_VIDEO_BITRATE_KBPS == 500
+
+    invariant m5_heal_5s
+        assert M5_HEAL_TIME_S == 5
+}

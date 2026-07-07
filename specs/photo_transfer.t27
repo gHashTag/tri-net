@@ -1,0 +1,114 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/photo_transfer.t27
+// Photo chunking + reassembly protocol for Channel P.
+// phi^2 + phi^-2 = 3 | TRINITY
+
+module PhotoTransfer {
+    use base::types;
+
+    const CHUNK_SIZE : u32 = 1024;
+    const MAX_PHOTO_KB : u32 = 200;
+    const JPEG_QUALITY : u8 = 60;
+    const RS_BLOCK_DATA : u32 = 223;
+    const RS_BLOCK_TOTAL : u32 = 255;
+
+    fn chunk_count(photo_bytes: u32) -> u32 {
+        return (photo_bytes + CHUNK_SIZE - 1) / CHUNK_SIZE;
+    }
+
+    fn photo_under_limit(kb: u32) -> bool {
+        return kb <= MAX_PHOTO_KB;
+    }
+
+    fn rs_blocks_per_chunk() -> u32 {
+        return (CHUNK_SIZE + RS_BLOCK_DATA - 1) / RS_BLOCK_DATA;
+    }
+
+    fn total_airtime_s(photo_kb: u32, bitrate_bps: u32) -> u32 {
+        var photo_bits : u32 = photo_kb * 8 * 1024;
+        var rs_overhead : u32 = photo_bits * (RS_BLOCK_TOTAL - RS_BLOCK_DATA) / RS_BLOCK_DATA;
+        var total_bits : u32 = photo_bits + rs_overhead;
+        if (bitrate_bps == 0) {
+            return 0;
+        }
+        return total_bits / bitrate_bps;
+    }
+
+    fn chunk_offset(idx: u32) -> u32 {
+        return idx * CHUNK_SIZE;
+    }
+
+    fn last_chunk_size(photo_bytes: u32, idx: u32) -> u32 {
+        var offset : u32 = chunk_offset(idx);
+        if (offset >= photo_bytes) {
+            return 0;
+        }
+        var remaining : u32 = photo_bytes - offset;
+        if (remaining > CHUNK_SIZE) {
+            return CHUNK_SIZE;
+        }
+        return remaining;
+    }
+
+    fn all_chunks_received(received: u32, total: u32) -> bool {
+        return received >= total;
+    }
+
+    fn reassembly_complete(photo_bytes: u32, received_bytes: u32) -> bool {
+        return received_bytes >= photo_bytes;
+    }
+
+    test chunk_100kb
+        given n = chunk_count(100000)
+        then n == 98
+
+    test chunk_exact
+        given n = chunk_count(1024)
+        then n == 1
+
+    test photo_200kb_ok
+        given ok = photo_under_limit(200)
+        then ok == true
+
+    test photo_500kb_fail
+        given ok = photo_under_limit(500)
+        then ok == false
+
+    test rs_blocks_per_chunk_value
+        given n = rs_blocks_per_chunk()
+        then n == 5
+
+    test airtime_100kb_250kbps
+        given t = total_airtime_s(100, 250000)
+        then t == 4
+
+    test chunk_offset_5
+        given off = chunk_offset(5)
+        then off == 5120
+
+    test last_chunk_partial
+        given sz = last_chunk_size(2500, 2)
+        then sz == 452
+
+    test last_chunk_full
+        given sz = last_chunk_size(3072, 2)
+        then sz == 1024
+
+    test all_received
+        given ok = all_chunks_received(10, 10)
+        then ok == true
+
+    test not_all_received
+        given ok = all_chunks_received(5, 10)
+        then ok == false
+
+    test reassembly_done
+        given ok = reassembly_complete(100000, 100000)
+        then ok == true
+
+    invariant chunk_is_1kb
+        assert CHUNK_SIZE == 1024
+
+    invariant max_photo_200kb
+        assert MAX_PHOTO_KB == 200
+}
