@@ -1,0 +1,15 @@
+{
+  "session": "W12-marathon-20h",
+  "outcome": "3 boards alive + M1+M2 PASS",
+  "duration_hours": 20,
+  "key_learnings": {
+    "mac_solution": "uEnv.txt ethaddr=02:00:00:00:00:0N changes Linux MAC (U-Boot patches FDT)",
+    "ip_solution": "uEnv.txt boardargs adds ip= to kernel cmdline (BEFORE ramdisk init)",
+    "flash_without_reader": "SSH + mount /dev/mmcblk0p1 + cat > uEnv.txt — NO card reader!",
+    "arp_dance": "arp -d .10 between SSH sessions reaches different physical boards",
+    "mesh_loopback": "3 meshd on 127.0.0.1 tests full stack on 1 board",
+    "pipeline": ".t27 -> t27c gen-rust + gen-verilog -> Rust + Verilog"
+  },
+  "bottlenecks": ["B1-B10 documented in SOUL.md Article V"],
+  "tri_cli": "v3, 8 commands, all bottlenecks handled"
+}
