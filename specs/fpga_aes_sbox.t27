@@ -1,0 +1,114 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/fpga_aes_sbox.t27
+// AES S-box controller for FPGA PL.
+// Substitution box access for AES-256 rounds.
+// phi^2 + phi^-2 = 3 | TRINITY
+
+module FpgaAesSbox {
+    use base::types;
+
+    const SBOX_SIZE : usize = 256;
+    const NUM_ROUNDS : usize = 14;
+    const STATE_WORDS : usize = 4;
+
+    var round_counter : u8 = 0;
+    var sbox_addr : u8 = 0;
+    var sbox_data : u8 = 0;
+
+    fn round_complete(round: u8) -> bool {
+        return round >= NUM_ROUNDS as u8;
+    }
+
+    fn next_round(round: u8) -> u8 {
+        return round + 1;
+    }
+
+    fn addr_valid(addr: u8) -> bool {
+        return addr < 255;
+    }
+
+    fn sub_bytes_needed(state: u8) -> bool {
+        return state == 1;
+    }
+
+    fn shift_rows_needed(state: u8) -> bool {
+        return state == 2;
+    }
+
+    fn mix_columns_needed(state: u8) -> bool {
+        return state == 3;
+    }
+
+    fn add_round_key_needed(state: u8) -> bool {
+        return state == 4;
+    }
+
+    fn sub_bytes_done(word_idx: u32) -> bool {
+        return word_idx >= 16;
+    }
+
+    fn full_round_done(sub: u8, shift: u8, mix: u8, ark: u8) -> bool {
+        if (sub != 1) { return false; }
+        if (shift != 1) { return false; }
+        if (mix != 1) { return false; }
+        if (ark != 1) { return false; }
+        return true;
+    }
+
+    test round_complete_at_14
+        given ok = round_complete(14)
+        then ok == true
+
+    test round_not_complete
+        given ok = round_complete(7)
+        then ok == false
+
+    test next_round_increments
+        given r = next_round(5)
+        then r == 6
+
+    test addr_254_valid
+        given ok = addr_valid(254)
+        then ok == true
+
+    test sub_bytes_state_1
+        given ok = sub_bytes_needed(1)
+        then ok == true
+
+    test sub_bytes_not_state_2
+        given ok = sub_bytes_needed(2)
+        then ok == false
+
+    test shift_rows_state_2
+        given ok = shift_rows_needed(2)
+        then ok == true
+
+    test mix_columns_state_3
+        given ok = mix_columns_needed(3)
+        then ok == true
+
+    test add_key_state_4
+        given ok = add_round_key_needed(4)
+        then ok == true
+
+    test sub_done_16_words
+        given ok = sub_bytes_done(16)
+        then ok == true
+
+    test full_round_all_done
+        given ok = full_round_done(1, 1, 1, 1)
+        then ok == true
+
+    test full_round_not_done
+        given ok = full_round_done(1, 0, 1, 1)
+        then ok == false
+
+    invariant sbox_256_entries
+        assert SBOX_SIZE == 256
+
+    invariant aes256_14_rounds
+        assert NUM_ROUNDS == 14
+
+    invariant state_4_words
+        assert STATE_WORDS == 4
+}
