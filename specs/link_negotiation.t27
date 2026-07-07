@@ -1,0 +1,144 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/link_negotiation.t27
+// Auto-negotiation: select channel (T/P/V) based on measured SNR.
+// phi^2 + phi^-2 = 3 | TRINITY
+
+module LinkNegotiation {
+    use base::types;
+
+    const SNR_T_ONLY     : u32 = 10;    // Below 10 dB: text only
+    const SNR_TP         : u32 = 20;    // 10-20 dB: text + photo
+    const SNR_ALL        : u32 = 20;    // Above 20 dB: all channels
+    const MEASURE_WINDOW : u32 = 100;   // Samples for SNR estimation
+    const RSSI_OFFSET    : u32 = 100;   // dB conversion offset
+
+    const CHANNEL_T : u8 = 0;
+    const CHANNEL_P : u8 = 1;
+    const CHANNEL_V : u8 = 2;
+
+    fn select_channel(snr_db_x10: u32) -> u8 {
+        if (snr_db_x10 < 100) {
+            return CHANNEL_T;
+        } else if (snr_db_x10 < 200) {
+            return CHANNEL_P;
+        } else {
+            return CHANNEL_V;
+        }
+    }
+
+    fn channel_t_available(snr_db_x10: u32) -> bool {
+        return snr_db_x10 >= 0;
+    }
+
+    fn channel_p_available(snr_db_x10: u32) -> bool {
+        return snr_db_x10 >= 100;
+    }
+
+    fn channel_v_available(snr_db_x10: u32) -> bool {
+        return snr_db_x10 >= 200;
+    }
+
+    fn avg_rssi(sum_rssi: u32, count: u32) -> u32 {
+        if (count == 0) {
+            return 0;
+        }
+        return sum_rssi / count;
+    }
+
+    fn snr_from_rssi(rssi_db: u32, noise_floor_db: u32) -> u32 {
+        if (rssi_db > noise_floor_db) {
+            return rssi_db - noise_floor_db;
+        }
+        return 0;
+    }
+
+    fn best_channel_from_list(t_ok: bool, p_ok: bool, v_ok: bool) -> u8 {
+        if (v_ok) {
+            return CHANNEL_V;
+        }
+        if (p_ok) {
+            return CHANNEL_P;
+        }
+        return CHANNEL_T;
+    }
+
+    fn negotiate_complete(local_best: u8, remote_best: u8) -> u8 {
+        if (local_best <= remote_best) {
+            return local_best;
+        }
+        return remote_best;
+    }
+
+    fn measurement_complete(samples: u32) -> bool {
+        return samples >= MEASURE_WINDOW;
+    }
+
+    test low_snr_text_only
+        given ch = select_channel(50)
+        then ch == CHANNEL_T
+
+    test medium_snr_photo
+        given ch = select_channel(150)
+        then ch == CHANNEL_P
+
+    test high_snr_video
+        given ch = select_channel(250)
+        then ch == CHANNEL_V
+
+    test threshold_10db
+        given ch = select_channel(100)
+        then ch == CHANNEL_P
+
+    test threshold_20db
+        given ch = select_channel(200)
+        then ch == CHANNEL_V
+
+    test avg_rssi_simple
+        given avg = avg_rssi(300, 3)
+        then avg == 100
+
+    test avg_rssi_zero_count
+        given avg = avg_rssi(100, 0)
+        then avg == 0
+
+    test snr_positive
+        given snr = snr_from_rssi(80, 50)
+        then snr == 30
+
+    test snr_negative_floor
+        given snr = snr_from_rssi(40, 50)
+        then snr == 0
+
+    test best_channel_v
+        given ch = best_channel_from_list(true, true, true)
+        then ch == CHANNEL_V
+
+    test best_channel_t_only
+        given ch = best_channel_from_list(true, false, false)
+        then ch == CHANNEL_T
+
+    test negotiate_min
+        given ch = negotiate_complete(CHANNEL_V, CHANNEL_T)
+        then ch == CHANNEL_T
+
+    test negotiate_equal
+        given ch = negotiate_complete(CHANNEL_P, CHANNEL_P)
+        then ch == CHANNEL_P
+
+    test measurement_not_done
+        given ok = measurement_complete(50)
+        then ok == false
+
+    test measurement_done
+        given ok = measurement_complete(100)
+        then ok == true
+
+    invariant t_available_always
+        assert SNR_T_ONLY == 10
+
+    invariant p_threshold_above_t
+        assert SNR_TP >= SNR_T_ONLY
+
+    invariant measurement_window_positive
+        assert MEASURE_WINDOW > 0
+}
