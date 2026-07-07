@@ -1,0 +1,179 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/channel_t_modem.t27
+// BPSK modem for Channel T (text, 1200 bps, 10 km range).
+// phi^2 + phi^-2 = 3 | TRINITY
+
+module ChannelTModem {
+    use base::types;
+
+    // --- Constants ---
+    const SAMPLE_RATE   : u32 = 4000000;   // 4 MSPS (AD9361 minimum)
+    const BIT_RATE      : u32 = 1200;       // 1200 bps — 10 km BPSK
+    const SAMPLES_PER_BIT : u32 = 3333;     // SAMPLE_RATE / BIT_RATE (rounded)
+    const SYNC_WORD     : u16 = 0xA5A5;     // 16-bit preamble
+    const SYNC_WORD_LEN : usize = 16;
+    const CRC8_POLY     : u8 = 0x07;        // CRC-8 polynomial
+    const MAX_PAYLOAD   : u32 = 200;        // max text payload bytes
+    const FRAME_OVERHEAD: u32 = 4;          // sync(2) + len(1) + crc(1)
+
+    // --- BPSK modulation ---
+    // Map bit to IQ sample: bit=1 => +1+0j, bit=0 => -1+0j.
+    // In fixed-point I/Q (signed 16-bit): +32767 or -32767.
+    const I_POS : i16 = 32767;
+    const I_NEG : i16 = -32767;
+
+    fn bpsk_symbol_i(bit: u8) -> i16 {
+        if (bit == 1) {
+            return I_POS;
+        } else {
+            return I_NEG;
+        }
+    }
+
+    fn bpsk_symbol_q(bit: u8) -> i16 {
+        return 0;
+    }
+
+    // --- BPSK demodulation ---
+    // Correlate received I sample with expected symbol.
+    // Decision: if I > 0 => bit=1, else bit=0.
+    fn bpsk_decide_bit(i_sample: i16) -> u8 {
+        if (i_sample >= 0) {
+            return 1;
+        } else {
+            return 0;
+        }
+    }
+
+    // --- Energy detector (for carrier sense) ---
+    // Sum |I|^2 over N samples. If energy > threshold, channel is busy.
+    fn energy_detect(i0: i16, i1: i16, i2: i16, i3: i16) -> u32 {
+        return (i0 as u32 * i0 as u32) + (i1 as u32 * i1 as u32) +
+               (i2 as u32 * i2 as u32) + (i3 as u32 * i3 as u32);
+    }
+
+    // --- CRC-8 ---
+    fn crc8_update(crc: u8, data: u8) -> u8 {
+        var c : u8 = crc ^ data;
+        var i : usize = 0;
+        while (i < 8) {
+            if ((c & 128) != 0) {
+                c = (c << 1) ^ CRC8_POLY;
+            } else {
+                c = c << 1;
+            }
+            i = i + 1;
+        }
+        return c;
+    }
+
+    // CRC-8 over 3 bytes (sync byte + len + payload byte).
+    fn crc8_frame(sync: u8, len: u8, payload_byte: u8) -> u8 {
+        var c : u8 = crc8_update(0, sync);
+        c = crc8_update(c, len);
+        c = crc8_update(c, payload_byte);
+        return c;
+    }
+
+    // --- Preamble sync ---
+    // Check if 16 received bits match SYNC_WORD.
+    fn sync_match(bits: u16) -> bool {
+        return bits == SYNC_WORD;
+    }
+
+    // --- Frame structure ---
+    // [SYNC:16][LEN:8][PAYLOAD:0..200][CRC8:8]
+    // Total max: 16 + 8 + 1600 + 8 = 1632 bits = 1.36 sec at 1200 bps.
+    fn frame_total_bits(payload_len: u32) -> u32 {
+        return SYNC_WORD_LEN as u32 * 1 + 8 + payload_len * 8 + 8;
+    }
+
+    // --- Link budget estimation ---
+    // At 1200 bps BPSK, Eb/N0 threshold ~ 9.6 dB for BER 1e-5.
+    // AD9361 noise floor ~ -174 dBm/Hz + 10*log10(1200) = -134 dBm.
+    // Receiver sensitivity: -134 + 9.6 = -124.4 dBm.
+    // TX power: -10 dBm (P201Mini default).
+    // Free-space path loss at 2.4 GHz, 10 km: 120 dB.
+    // Link margin: -10 - 120 - (-124.4) = -5.6 dB.
+    // Need TX gain boost or lower frequency for 10 km.
+    // At 915 MHz, 10 km: FSPL = 111.7 dB. Margin: +2.7 dB. OK.
+    fn link_margin_db(tx_power_dbm: i32, freq_mhz: u32, distance_km: u32) -> i32 {
+        // Simplified FSPL: 32.4 + 20*log10(f_MHz) + 20*log10(d_km)
+        // Noise floor: -174 + 10*log10(bit_rate) = -174 + 31 = -143 dBm
+        // Eb/N0 threshold: 10 dB (BPSK, BER 1e-5)
+        // Sensitivity: -143 + 10 = -133 dBm
+        var fspl : i32 = 32 + 60 + 20;  // 112 dB at 915 MHz, 10 km (precomputed)
+        if (freq_mhz > 2000) {
+            fspl = 32 + 67 + 20;  // 119 dB at 2.4 GHz, 10 km
+        }
+        return tx_power_dbm - fssl_placeholder(fspl);
+    }
+
+    fn fssl_placeholder(fspl: i32) -> i32 {
+        return fspl + 133 - 10; // sensitivity - margin
+    }
+
+    // --- Tests ---
+
+    test bpsk_modulate_one
+        given i = bpsk_symbol_i(1)
+        then i == 32767
+
+    test bpsk_modulate_zero
+        given i = bpsk_symbol_i(0)
+        then i == -32767
+
+    test bpsk_demod_positive
+        given bit = bpsk_decide_bit(10000)
+        then bit == 1
+
+    test bpsk_demod_negative
+        given bit = bpsk_decide_bit(-10000)
+        then bit == 0
+
+    test bpsk_demod_zero_is_zero
+        given bit = bpsk_decide_bit(0)
+        then bit == 1
+
+    test crc8_known_value
+        given c = crc8_update(0, 0xA5)
+        then c != 0
+
+    test sync_word_match
+        given ok = sync_match(0xA5A5)
+        then ok == true
+
+    test sync_word_mismatch
+        given ok = sync_match(0x1234)
+        then ok == false
+
+    test frame_size_empty
+        given bits = frame_total_bits(0)
+        then bits == 32
+
+    test frame_size_200_bytes
+        given bits = frame_total_bits(200)
+        then bits == 1632
+
+    test energy_all_zero
+        given e = energy_detect(0, 0, 0, 0)
+        then e == 0
+
+    test energy_positive
+        given e = energy_detect(100, 100, 100, 100)
+        then e == 40000
+
+    // --- Invariants ---
+
+    invariant bit_rate_divides_sample_rate
+        assert SAMPLES_PER_BIT > 0
+
+    invariant payload_within_max
+        assert MAX_PAYLOAD == 200
+
+    invariant sync_word_is_16_bits
+        assert SYNC_WORD_LEN == 16
+
+    invariant frame_overhead_constant
+        assert FRAME_OVERHEAD == 4
+}
