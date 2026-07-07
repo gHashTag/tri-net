@@ -1,3 +1,0 @@
-# Individual fuzz specs are reproducible from seed via scripts/fuzz/gen_specs.py.
-# Only manifest.json is committed for provenance.
-fuzz_*.t27
