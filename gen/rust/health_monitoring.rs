@@ -56,57 +56,57 @@ pub const RESULT_FAIL: u32 = 2;
 pub const RESULT_SKIP: u32 = 3;
 
 pub fn create_health_array(c0: u32, c1: u32, c2: u32, c3: u32, c4: u32, c5: u32, c6: u32, c7: u32) -> u64 {
-    return (((((((((c0 as u64) << 56) | ((c1 as u64) << 48)) | ((c2 as u64) << 40)) | ((c3 as u64) << 32)) | ((c4 as u64) << 24)) | ((c5 as u64) << 16)) | ((c6 as u64) << 8)) | (c7 as u64));
+    return ((((((((() << 56) | (() << 48)) | (() << 40)) | (() << 32)) | (() << 24)) | (() << 16)) | (() << 8)) | ());
 }
 
 pub fn get_health_check(array: u64, index: u32) -> u32 {
     if (index == 0) {
-        return (((array >> 56) & 0xFFFFFFFF) as u32);
+        return ();
     }
     if (index == 1) {
-        return (((array >> 48) & 0xFFFFFFFF) as u32);
+        return ();
     }
     if (index == 2) {
-        return (((array >> 40) & 0xFFFFFFFF) as u32);
+        return ();
     }
     if (index == 3) {
-        return (((array >> 32) & 0xFFFFFFFF) as u32);
+        return ();
     }
     if (index == 4) {
-        return (((array >> 24) & 0xFFFFFFFF) as u32);
+        return ();
     }
     if (index == 5) {
-        return (((array >> 16) & 0xFFFFFFFF) as u32);
+        return ();
     }
     if (index == 6) {
-        return (((array >> 8) & 0xFFFFFFFF) as u32);
+        return ();
     }
-    return ((array & 0xFFFFFFFF) as u32);
+    return ();
 }
 
 pub fn update_health_check(array: u64, index: u32, new_check: u32) -> u64 {
     if (index == 0) {
-        return ((array & 0x00FFFFFFFFFFFFFF) | ((new_check as u64) << 56));
+        return ((array & 0x00FFFFFFFFFFFFFF) | (() << 56));
     } else {
         if (index == 1) {
-            return ((array & 0xFF00FFFFFFFFFFFF) | ((new_check as u64) << 48));
+            return ((array & 0xFF00FFFFFFFFFFFF) | (() << 48));
         } else {
             if (index == 2) {
-                return ((array & 0xFFFF00FFFFFFFFFF) | ((new_check as u64) << 40));
+                return ((array & 0xFFFF00FFFFFFFFFF) | (() << 40));
             } else {
                 if (index == 3) {
-                    return ((array & 0xFFFFFF00FFFFFFFF) | ((new_check as u64) << 32));
+                    return ((array & 0xFFFFFF00FFFFFFFF) | (() << 32));
                 } else {
                     if (index == 4) {
-                        return ((array & 0xFFFFFFFF00FFFFFF) | ((new_check as u64) << 24));
+                        return ((array & 0xFFFFFFFF00FFFFFF) | (() << 24));
                     } else {
                         if (index == 5) {
-                            return ((array & 0xFFFFFFFFFF00FFFF) | ((new_check as u64) << 16));
+                            return ((array & 0xFFFFFFFFFF00FFFF) | (() << 16));
                         } else {
                             if (index == 6) {
-                                return ((array & 0xFFFFFFFFFFFF00FF) | ((new_check as u64) << 8));
+                                return ((array & 0xFFFFFFFFFFFF00FF) | (() << 8));
                             } else {
-                                return ((array & 0xFFFFFFFFFFFFFF00) | (new_check as u64));
+                                return ((array & 0xFFFFFFFFFFFFFF00) | ());
                             }
                         }
                     }
@@ -117,6 +117,8 @@ pub fn update_health_check(array: u64, index: u32, new_check: u32) -> u64 {
 }
 
 pub fn calculate_overall_health(array: u64) -> u32 {
+    let;
+    let;
     if (get_check_result(get_health_check(array, 0)) == RESULT_FAIL) {
         failed = (failed + 1);
     }
@@ -177,6 +179,8 @@ pub fn calculate_overall_health(array: u64) -> u32 {
 }
 
 pub fn count_failed_checks(array: u64) -> u32 {
+    let;
+    count = 0;
     if (get_check_result(get_health_check(array, 0)) == RESULT_FAIL) {
         count = (count + 1);
     }
@@ -205,6 +209,8 @@ pub fn count_failed_checks(array: u64) -> u32 {
 }
 
 pub fn count_warning_checks(array: u64) -> u32 {
+    let;
+    count = 0;
     if (get_check_result(get_health_check(array, 0)) == RESULT_WARN) {
         count = (count + 1);
     }
@@ -244,6 +250,10 @@ pub fn is_check_failing(array: u64, check_type: u32) -> bool {
 }
 
 pub fn get_health_percentage(array: u64) -> u32 {
+    let;
+    total = 0;
+    let;
+    passing = 0;
     if (get_check_result(get_health_check(array, 0)) != RESULT_FAIL) {
         passing = (passing + 1);
     }

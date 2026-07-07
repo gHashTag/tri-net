@@ -54,35 +54,37 @@ pub fn get_vote_timestamp(vote: u32) -> u32 {
 }
 
 pub fn create_vote_array(v0: u32, v1: u32, v2: u32, v3: u32, v4: u32, v5: u32, v6: u32, v7: u32) -> u64 {
-    return (((((((((v0 as u64) << 56) | ((v1 as u64) << 48)) | ((v2 as u64) << 40)) | ((v3 as u64) << 32)) | ((v4 as u64) << 24)) | ((v5 as u64) << 16)) | ((v6 as u64) << 8)) | (v7 as u64));
+    return ((((((((() << 56) | (() << 48)) | (() << 40)) | (() << 32)) | (() << 24)) | (() << 16)) | (() << 8)) | ());
 }
 
 pub fn get_vote(array: u64, index: u32) -> u32 {
     if (index == 0) {
-        return (((array >> 56) & 0xFFFFFFFF) as u32);
+        return ();
     }
     if (index == 1) {
-        return (((array >> 48) & 0xFFFFFFFF) as u32);
+        return ();
     }
     if (index == 2) {
-        return (((array >> 40) & 0xFFFFFFFF) as u32);
+        return ();
     }
     if (index == 3) {
-        return (((array >> 32) & 0xFFFFFFFF) as u32);
+        return ();
     }
     if (index == 4) {
-        return (((array >> 24) & 0xFFFFFFFF) as u32);
+        return ();
     }
     if (index == 5) {
-        return (((array >> 16) & 0xFFFFFFFF) as u32);
+        return ();
     }
     if (index == 6) {
-        return (((array >> 8) & 0xFFFFFFFF) as u32);
+        return ();
     }
-    return ((array & 0xFFFFFFFF) as u32);
+    return ();
 }
 
 pub fn has_quorum(yes_count: u32, no_count: u32, abstain_count: u32) -> bool {
+    let;
+    total_voting = ((yes_count + no_count) + abstain_count);
     return (total_voting >= QUORUM_THRESHOLD);
 }
 
@@ -91,6 +93,10 @@ pub fn proposal_passes(yes_count: u32, no_count: u32) -> bool {
 }
 
 pub fn calculate_consensus_value(vote_array: u64, proposal_id: u32) -> u32 {
+    let;
+    sum = 0;
+    let;
+    count = 0;
     if (get_vote_proposal_id(get_vote(vote_array, 0)) == proposal_id) {
         sum = (sum + get_proposal_value(get_vote(vote_array, 0)));
         count = (count + 1);
@@ -130,6 +136,12 @@ pub fn calculate_consensus_value(vote_array: u64, proposal_id: u32) -> u32 {
 }
 
 pub fn cooperative_decision(neighbor_values: u32, my_value: u32, weight_neighbors: u32) -> u32 {
+    let;
+    neighbor_avg = neighbor_values;
+    let;
+    weighted_neighbors = ((neighbor_avg * weight_neighbors) / 100);
+    let;
+    weighted_self = ((my_value * (100 - weight_neighbors)) / 100);
     return (weighted_neighbors + weighted_self);
 }
 

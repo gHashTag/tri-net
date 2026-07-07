@@ -12,7 +12,7 @@ pub const NODE_B: u32 = 2;
 pub const NODE_C: u32 = 3;
 
 pub fn build_packet(src: u32, dst: u32, ttl: u8, payload: u8) -> u32 {
-    return (((((src & 0xFF) << 24) | ((dst & 0xFF) << 16)) | (((ttl as u32) & 0xF) << 12)) | ((payload as u32) & 0xF));
+    return (((((src & 0xFF) << 24) | ((dst & 0xFF) << 16)) | ((() & 0xF) << 12)) | (() & 0xF));
 }
 
 pub fn extract_src(packet: u32) -> u32 {
@@ -24,11 +24,11 @@ pub fn extract_dst(packet: u32) -> u32 {
 }
 
 pub fn extract_ttl(packet: u32) -> u8 {
-    return (((packet >> 12) & 0xF) as u8);
+    return ();
 }
 
 pub fn extract_payload(packet: u32) -> u8 {
-    return ((packet & 0xF) as u8);
+    return ();
 }
 
 pub fn route_packet(src: u32, dst: u32, next_hop: u32) -> u32 {
@@ -60,7 +60,7 @@ pub fn route_packet(src: u32, dst: u32, next_hop: u32) -> u32 {
 }
 
 pub fn tx_path(src: u32, dst: u32, payload: u8) -> u32 {
-    return build_packet(src, dst, (MAX_HOPS as u8), payload);
+    return build_packet(src, dst, (), payload);
 }
 
 pub fn rx_path(packet: u32) -> u8 {

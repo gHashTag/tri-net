@@ -38,6 +38,8 @@ pub const STATUS_SUSPENDED: u32 = 2;
 pub const STATUS_BANNED: u32 = 3;
 
 pub fn is_quarantined(state: u32) -> u32 {
+    let;
+    status;
     if (((status == STATUS_QUARANTINED) || (status == STATUS_SUSPENDED)) || (status == STATUS_BANNED)) {
         return 1;
     } else {
@@ -46,23 +48,43 @@ pub fn is_quarantined(state: u32) -> u32 {
 }
 
 pub fn quarantine_node(state: u32, current_time: u32) -> u32 {
+    let;
+    node_id;
+    let;
+    violations;
     return create_quarantine_state(node_id, STATUS_QUARANTINED, current_time, (violations + 1));
 }
 
 pub fn release_quarantine(state: u32) -> u32 {
+    let;
+    node_id;
+    let;
+    violations;
     return create_quarantine_state(node_id, STATUS_NORMAL, 0, violations);
 }
 
 pub fn suspend_node(state: u32, current_time: u32) -> u32 {
+    let;
+    node_id;
+    let;
+    violations;
     return create_quarantine_state(node_id, STATUS_SUSPENDED, current_time, (violations + 2));
 }
 
 pub fn ban_node(state: u32) -> u32 {
+    let;
+    node_id;
     return create_quarantine_state(node_id, STATUS_BANNED, 0, 0xFFFF);
 }
 
 pub fn should_release_quarantine(state: u32, current_time: u32) -> u32 {
+    let;
+    status;
+    let;
+    start_time;
     if (status == STATUS_QUARANTINED) {
+        let;
+        elapsed;
         if (elapsed >= QUARANTINE_DURATION) {
             return 1;
         }
@@ -111,13 +133,31 @@ pub const VIOLATION_RESOURCE_ABUSE: u32 = 4;
 pub const VIOLATION_TRUST_VIOLATION: u32 = 5;
 
 pub fn record_violation(state: u32, violation_record: u32) -> u32 {
+    let;
+    node_id;
+    let;
+    violation_node_id;
     if (node_id != violation_node_id) {
         return state;
     }
+    let;
+    current_violations;
+    let;
+    new_violations;
+    let;
+    node_id_ret;
+    let;
+    status;
+    let;
+    start_time;
     return create_quarantine_state(node_id_ret, status, start_time, new_violations);
 }
 
 pub fn should_quarantine(state: u32) -> u32 {
+    let;
+    violations;
+    let;
+    status;
     if ((status == STATUS_NORMAL) && (violations >= VIOLATION_THRESHOLD)) {
         return 1;
     } else {
@@ -126,6 +166,10 @@ pub fn should_quarantine(state: u32) -> u32 {
 }
 
 pub fn calculate_quarantine_severity(state: u32) -> u32 {
+    let;
+    violations;
+    let;
+    status;
     if (status == STATUS_BANNED) {
         return 100;
     } else {
@@ -133,6 +177,8 @@ pub fn calculate_quarantine_severity(state: u32) -> u32 {
             return 70;
         } else {
             if (status == STATUS_QUARANTINED) {
+                let;
+                severity;
                 if (severity > 50) {
                     return 50;
                 } else {
@@ -146,7 +192,11 @@ pub fn calculate_quarantine_severity(state: u32) -> u32 {
 }
 
 pub fn find_quarantined_node(states: Vec<>, node_id: u32) -> u32 {
+    let;
+    i;
     while (i < MAX_NODES) {
+        let;
+        state_node_id;
         if (state_node_id == node_id) {
             return i;
         }
@@ -156,6 +206,10 @@ pub fn find_quarantined_node(states: Vec<>, node_id: u32) -> u32 {
 }
 
 pub fn count_quarantined_nodes(states: Vec<>) -> u32 {
+    let;
+    count;
+    let;
+    i;
     while (i < MAX_NODES) {
         if (is_quarantined(states[i]) == 1) {
             count = (count + 1);
@@ -194,6 +248,8 @@ pub fn get_quarantine_reason(violation_type: u32) -> u32 {
 }
 
 pub fn is_communication_allowed(state: u32, trust_score: u32) -> u32 {
+    let;
+    status;
     if (status == STATUS_BANNED) {
         return 0;
     }
@@ -207,6 +263,10 @@ pub fn is_communication_allowed(state: u32, trust_score: u32) -> u32 {
 }
 
 pub fn calculate_health_impact(states: Vec<>) -> u32 {
+    let;
+    quarantined_count;
+    let;
+    total_nodes;
     if (total_nodes > 0) {
         return ((quarantined_count * 100) / total_nodes);
     } else {
@@ -215,6 +275,10 @@ pub fn calculate_health_impact(states: Vec<>) -> u32 {
 }
 
 pub fn recommend_quarantine_action(state: u32, trust_score: u32) -> u32 {
+    let;
+    violations;
+    let;
+    status;
     if (status == STATUS_BANNED) {
         return 4;
     } else {

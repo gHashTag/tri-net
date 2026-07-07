@@ -12,11 +12,11 @@ pub const STATE_PARTITIONED: u8 = 3;
 pub const STATE_RECOVERING: u8 = 4;
 
 pub fn create_node_state(state: u8, neighbors: u32, uptime: u32) -> u32 {
-    return (((((state as u32) & 0xFF) << 24) | ((neighbors & 0xFF) << 16)) | (uptime & 0xFFFF));
+    return ((((() & 0xFF) << 24) | ((neighbors & 0xFF) << 16)) | (uptime & 0xFFFF));
 }
 
 pub fn node_state(state: u32) -> u8 {
-    return (((state >> 24) & 0xFF) as u8);
+    return ();
 }
 
 pub fn node_neighbors(state: u32) -> u32 {

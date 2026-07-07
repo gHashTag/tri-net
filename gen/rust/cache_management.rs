@@ -30,6 +30,14 @@ pub fn get_entry_size(entry: u32) -> u32 {
 }
 
 pub fn update_access_count(entry: u32) -> u32 {
+    let;
+    data_id;
+    let;
+    access_count;
+    let;
+    age;
+    let;
+    size;
     if (access_count < 255) {
         access_count = (access_count + 1);
     }
@@ -37,11 +45,21 @@ pub fn update_access_count(entry: u32) -> u32 {
 }
 
 pub fn update_age(entry: u32, new_age: u32) -> u32 {
+    let;
+    data_id;
+    let;
+    access_count;
+    let;
+    size;
     return create_cache_entry(data_id, access_count, new_age, size);
 }
 
 pub fn find_entry(cache: Vec<>, data_id: u32) -> u32 {
+    let;
+    i;
     while (i < MAX_ENTRIES) {
+        let;
+        entry_data_id;
         if (entry_data_id == data_id) {
             return i;
         }
@@ -51,6 +69,8 @@ pub fn find_entry(cache: Vec<>, data_id: u32) -> u32 {
 }
 
 pub fn cache_hit(cache: Vec<>, data_id: u32) -> u32 {
+    let;
+    entry_index;
     if (entry_index < MAX_ENTRIES) {
         return 1;
     } else {
@@ -59,6 +79,8 @@ pub fn cache_hit(cache: Vec<>, data_id: u32) -> u32 {
 }
 
 pub fn get_entry(cache: Vec<>, data_id: u32) -> u32 {
+    let;
+    entry_index;
     if (entry_index < MAX_ENTRIES) {
         return cache[entry_index];
     } else {
@@ -67,9 +89,15 @@ pub fn get_entry(cache: Vec<>, data_id: u32) -> u32 {
 }
 
 pub fn add_entry(cache: Vec<>, current_size: u32, data_id: u32, size: u32) -> u32 {
+    let;
+    existing_index;
     if (existing_index < MAX_ENTRIES) {
         return current_size;
     }
+    let;
+    empty_index;
+    let;
+    i;
     while (i < MAX_ENTRIES) {
         if (get_data_id(cache[i]) == 0) {
             empty_index = i;
@@ -82,6 +110,8 @@ pub fn add_entry(cache: Vec<>, current_size: u32, data_id: u32, size: u32) -> u3
         if (empty_index == MAX_ENTRIES) {
             return current_size;
         }
+        let;
+        evicted_size;
         current_size = (current_size - evicted_size);
     }
     if ((current_size + size) > MAX_CACHE_SIZE) {
@@ -92,8 +122,24 @@ pub fn add_entry(cache: Vec<>, current_size: u32, data_id: u32, size: u32) -> u3
 }
 
 pub fn find_eviction_candidate(cache: Vec<>) -> u32 {
+    let;
+    worst_score;
+    let;
+    candidate;
+    let;
+    i;
     while (i < MAX_ENTRIES) {
+        let;
+        entry;
+        let;
+        data_id;
         if (data_id != 0) {
+            let;
+            access_count;
+            let;
+            age;
+            let;
+            score;
             if (score < worst_score) {
                 worst_score = score;
                 candidate = i;
@@ -105,7 +151,11 @@ pub fn find_eviction_candidate(cache: Vec<>) -> u32 {
 }
 
 pub fn remove_entry(cache: Vec<>, current_size: u32, data_id: u32) -> u32 {
+    let;
+    entry_index;
     if (entry_index < MAX_ENTRIES) {
+        let;
+        entry_size;
         cache[entry_index] = 0;
         return (current_size - entry_size);
     } else {
@@ -114,6 +164,8 @@ pub fn remove_entry(cache: Vec<>, current_size: u32, data_id: u32) -> u32 {
 }
 
 pub fn access_cache(cache: Vec<>, data_id: u32) -> u32 {
+    let;
+    entry_index;
     if (entry_index < MAX_ENTRIES) {
         cache[entry_index] = update_access_count(cache[entry_index]);
         cache[entry_index] = update_age(cache[entry_index], 0);
@@ -124,7 +176,13 @@ pub fn access_cache(cache: Vec<>, data_id: u32) -> u32 {
 }
 
 pub fn age_cache(cache: Vec<>) -> () {
+    let;
+    i;
     while (i < MAX_ENTRIES) {
+        let;
+        entry;
+        let;
+        age;
         if (age < 255) {
             cache[i] = update_age(entry, (age + 1));
         }
@@ -145,7 +203,15 @@ pub fn calculate_utilization(current_size: u32) -> u32 {
 }
 
 pub fn find_most_popular(cache: Vec<>) -> u32 {
+    let;
+    max_access;
+    let;
+    popular_index;
+    let;
+    i;
     while (i < MAX_ENTRIES) {
+        let;
+        access_count;
         if (access_count > max_access) {
             max_access = access_count;
             popular_index = i;
@@ -156,7 +222,19 @@ pub fn find_most_popular(cache: Vec<>) -> u32 {
 }
 
 pub fn find_least_popular(cache: Vec<>) -> u32 {
+    let;
+    min_access;
+    let;
+    unpopular_index;
+    let;
+    i;
     while (i < MAX_ENTRIES) {
+        let;
+        entry;
+        let;
+        data_id;
+        let;
+        access_count;
         if ((data_id != 0) && (access_count < min_access)) {
             min_access = access_count;
             unpopular_index = i;
@@ -167,8 +245,16 @@ pub fn find_least_popular(cache: Vec<>) -> u32 {
 }
 
 pub fn should_prefetch(cache: Vec<>, data_id: u32) -> u32 {
+    let;
+    popular_index;
     if (popular_index < MAX_ENTRIES) {
+        let;
+        popular_access;
+        let;
+        entry_index;
         if (entry_index < MAX_ENTRIES) {
+            let;
+            access_count;
             if (access_count >= CACHE_HIT_THRESHOLD) {
                 return 1;
             }
@@ -178,6 +264,10 @@ pub fn should_prefetch(cache: Vec<>, data_id: u32) -> u32 {
 }
 
 pub fn calculate_efficiency(hits: u32, total_accesses: u32, current_size: u32) -> u32 {
+    let;
+    hit_rate;
+    let;
+    utilization;
     if (utilization > 0) {
         return ((hit_rate * 100) / utilization);
     } else {
@@ -206,6 +296,14 @@ pub fn get_evictions(stats: u32) -> u32 {
 }
 
 pub fn update_stats(stats: u32, hit: u32, evicted: u32) -> u32 {
+    let;
+    hits;
+    let;
+    misses;
+    let;
+    size;
+    let;
+    evictions;
     if (hit == 1) {
         hits = (hits + 1);
     } else {

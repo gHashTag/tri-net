@@ -16,12 +16,19 @@ pub fn backoff_delay_ms(attempt: u8) -> u16 { unimplemented!() }
 pub fn max_retries_for_quality(quality_q8: u8) -> u8 { unimplemented!() }
 
 pub fn should_retry(current_attempt: u8, link_quality_q8: u8) -> bool {
+    let;
+    max_retries;
     (current_attempt < max_retries);
 }
 
 pub fn base_probability(quality_q8: u8) -> u8 { unimplemented!() }
 
-pub fn retry_success_probability(attempt: u8, quality_q8: u8) -> u8 { unimplemented!() }
+pub fn retry_success_probability(attempt: u8, quality_q8: u8) -> u8 {
+    let;
+    base_prob;
+    let;
+    decay;
+}
 
 pub fn total_retry_time(max_retries: u8) -> u16 { unimplemented!() }
 

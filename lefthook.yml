@@ -1,0 +1,88 @@
+# Lefthook — tri-net golden pipeline enforcement
+# phi^2 + phi^-2 = 3
+
+pre-commit:
+  commands:
+    ascii-only:
+      run: |
+        files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(rs|t27|v)$' || true)
+        if [ -n "$files" ]; then
+          bad=$(grep -rlP '[^\x00-\x7F]' $files 2>/dev/null || true)
+          if [ -n "$bad" ]; then
+            echo "VIOLATION L3: Non-ASCII in: $bad"
+            exit 1
+          fi
+        fi
+
+    no-gen-edits:
+      run: |
+        gen_files=$(git diff --cached --name-only --diff-filter=ACMR | grep '^gen/' || true)
+        if [ -n "$gen_files" ]; then
+          echo "VIOLATION L2: Direct edit to gen/: $gen_files"
+          exit 1
+        fi
+
+    no-handwritten-logic:
+      run: |
+        src_files=$(git diff --cached --name-only --diff-filter=ACMR | grep '^src/' | grep -v '^src/bin/' || true)
+        if [ -n "$src_files" ]; then
+          for f in $src_files; do
+            logic=$(grep -cE 'fn |struct |enum |impl ' "$f" 2>/dev/null || echo 0)
+            if [ "$logic" -gt 0 ]; then
+              echo "VIOLATION L6: Business logic in $f ($logic definitions)"
+              exit 1
+            fi
+          done
+        fi
+
+    spec-has-tests:
+      glob: "*.t27"
+      run: |
+        for f in $(git diff --cached --name-only --diff-filter=ACMR | grep '\.t27$'); do
+          if ! grep -qE '^\s*(test|invariant|bench)\s' "$f"; then
+            echo "VIOLATION L4: $f has no test/invariant/bench"
+            exit 1
+          fi
+        done
+
+    no-cyrillic:
+      run: |
+        files=$(git diff --cached --name-only --diff-filter=ACM || true)
+        if [ -n "$files" ]; then
+          bad=$(grep -rlP '[\x{0400}-\x{04FF}]' $files 2>/dev/null || true)
+          if [ -n "$bad" ]; then
+            echo "VIOLATION L3: Cyrillic in: $bad"
+            exit 1
+          fi
+        fi
+
+    no-shell-scripts:
+      run: |
+        sh_files=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.sh$' || true)
+        if [ -n "$sh_files" ]; then
+          echo "VIOLATION L7 (UNITY): New shell script: $sh_files"
+          echo "Use Rust (cargo) or t27c instead."
+          exit 1
+        fi
+
+pre-push:
+  commands:
+    specs-parse:
+      run: |
+        T27C=../t27/target/release/t27c
+        if [ ! -f "$T27C" ]; then exit 0; fi
+        for spec in specs/*.t27; do
+          if ! $T27C parse "$spec" > /dev/null 2>&1; then
+            echo "PARSE FAIL: $spec"
+            exit 1
+          fi
+        done
+        echo "All specs parse OK."
+
+    cargo-build:
+      run: |
+        cargo build --release 2>&1 | tail -3
+        if [ $? -ne 0 ]; then
+          echo "cargo build FAILED"
+          exit 1
+        fi

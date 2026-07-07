@@ -15,22 +15,22 @@ pub fn frame_kind_valid(k: u8) -> bool {
 
 pub fn be_byte(w: u32, i: usize) -> u8 {
     if (i == 0) {
-        return (((w >> 24) & 255) as u8);
+        return ();
     } else {
         if (i == 1) {
-            return (((w >> 16) & 255) as u8);
+            return ();
         } else {
             if (i == 2) {
-                return (((w >> 8) & 255) as u8);
+                return ();
             } else {
-                return ((w & 255) as u8);
+                return ();
             }
         }
     }
 }
 
 pub fn u32_be(b0: u8, b1: u8, b2: u8, b3: u8) -> u32 {
-    return (((((b0 as u32) << 24) | ((b1 as u32) << 16)) | ((b2 as u32) << 8)) | (b3 as u32));
+    return ((((() << 24) | (() << 16)) | (() << 8)) | ());
 }
 
 pub fn header_byte(kind: u8, src: u32, dst: u32, ttl: u8, idx: usize) -> u8 {

@@ -30,10 +30,18 @@ pub fn get_credits(flow: u32) -> u32 {
 }
 
 pub fn update_credits(flow: u32, new_credits: u32) -> u32 {
+    let;
+    sender;
+    let;
+    receiver;
+    let;
+    window;
     return create_flow_state(sender, receiver, window, new_credits);
 }
 
 pub fn has_credits(flow: u32) -> u32 {
+    let;
+    credits;
     if (credits > 0) {
         return 1;
     } else {
@@ -42,6 +50,8 @@ pub fn has_credits(flow: u32) -> u32 {
 }
 
 pub fn consume_credit(flow: u32) -> u32 {
+    let;
+    credits;
     if (credits > 0) {
         return update_credits(flow, (credits - 1));
     } else {
@@ -50,6 +60,12 @@ pub fn consume_credit(flow: u32) -> u32 {
 }
 
 pub fn add_credits(flow: u32, additional: u32) -> u32 {
+    let;
+    credits;
+    let;
+    window;
+    let;
+    new_credits;
     if (new_credits > window) {
         new_credits = window;
     }
@@ -57,6 +73,12 @@ pub fn add_credits(flow: u32, additional: u32) -> u32 {
 }
 
 pub fn is_under_backpressure(flow: u32) -> u32 {
+    let;
+    credits;
+    let;
+    window;
+    let;
+    used;
     if (used >= BACKPRESSURE_THRESHOLD) {
         return 1;
     } else {
@@ -65,6 +87,12 @@ pub fn is_under_backpressure(flow: u32) -> u32 {
 }
 
 pub fn calculate_backpressure_level(flow: u32) -> u32 {
+    let;
+    credits;
+    let;
+    window;
+    let;
+    used;
     if (used >= BACKPRESSURE_THRESHOLD) {
         return 2;
     } else {
@@ -105,10 +133,16 @@ pub const MSG_CREDIT_UPDATE: u32 = 2;
 pub const MSG_BACKPRESSURE: u32 = 3;
 
 pub fn process_message(flow: u32, msg: u32) -> u32 {
+    let;
+    msg_type;
     if (msg_type == MSG_ACK) {
+        let;
+        credits;
         return add_credits(flow, credits);
     } else {
         if (msg_type == MSG_CREDIT_UPDATE) {
+            let;
+            credits;
             return update_credits(flow, credits);
         } else {
             return flow;
@@ -118,6 +152,10 @@ pub fn process_message(flow: u32, msg: u32) -> u32 {
 
 pub fn send_data(flow: u32, seq: u32) -> u32 {
     if (has_credits(flow) == 1) {
+        let;
+        new_flow;
+        let;
+        msg;
         return new_flow;
     } else {
         return flow;
@@ -125,11 +163,23 @@ pub fn send_data(flow: u32, seq: u32) -> u32 {
 }
 
 pub fn send_ack(flow: u32, flow_id: u32, seq: u32) -> u32 {
+    let;
+    credits;
+    let;
+    window;
+    let;
+    credit_grant;
+    let;
+    msg;
     return msg;
 }
 
 pub fn find_flow_by_sender(flows: Vec<>, sender: u32) -> u32 {
+    let;
+    i;
     while (i < MAX_FLOWS) {
+        let;
+        flow_sender;
         if (flow_sender == sender) {
             return i;
         }
@@ -139,7 +189,11 @@ pub fn find_flow_by_sender(flows: Vec<>, sender: u32) -> u32 {
 }
 
 pub fn find_flow_by_receiver(flows: Vec<>, receiver: u32) -> u32 {
+    let;
+    i;
     while (i < MAX_FLOWS) {
+        let;
+        flow_receiver;
         if (flow_receiver == receiver) {
             return i;
         }
@@ -149,6 +203,8 @@ pub fn find_flow_by_receiver(flows: Vec<>, receiver: u32) -> u32 {
 }
 
 pub fn is_any_flow_blocked(flows: Vec<>) -> u32 {
+    let;
+    i;
     while (i < MAX_FLOWS) {
         if (has_credits(flows[i]) == 0) {
             return 1;
@@ -159,7 +215,13 @@ pub fn is_any_flow_blocked(flows: Vec<>) -> u32 {
 }
 
 pub fn count_active_flows(flows: Vec<>) -> u32 {
+    let;
+    count;
+    let;
+    i;
     while (i < MAX_FLOWS) {
+        let;
+        sender;
         if (sender != 0) {
             count = (count + 1);
         }
@@ -169,6 +231,10 @@ pub fn count_active_flows(flows: Vec<>) -> u32 {
 }
 
 pub fn calculate_total_credits(flows: Vec<>) -> u32 {
+    let;
+    total;
+    let;
+    i;
     while (i < MAX_FLOWS) {
         total = (total + get_credits(flows[i]));
         i = (i + 1);
@@ -177,10 +243,24 @@ pub fn calculate_total_credits(flows: Vec<>) -> u32 {
 }
 
 pub fn apply_backpressure(flows: Vec<>, flow_index: u32) -> u32 {
+    let;
+    flow;
+    let;
+    window;
+    let;
+    credits;
+    let;
+    reduction;
+    let;
+    new_credits;
     return update_credits(flow, new_credits);
 }
 
 pub fn release_backpressure(flows: Vec<>, flow_index: u32) -> u32 {
+    let;
+    flow;
+    let;
+    window;
     return update_credits(flow, window);
 }
 

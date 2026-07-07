@@ -46,7 +46,17 @@ pub fn calculate_compression_ratio(original: u32, compressed: u32) -> u32 {
 }
 
 pub fn compress_rle(data: u32, length: u32) -> u32 {
+    let;
+    compressed;
+    let;
+    count;
+    let;
+    current;
+    let;
+    i;
     while ((i < length) && (i < 8)) {
+        let;
+        value;
         if (value == current) {
             count = (count + 1);
         } else {
@@ -63,7 +73,17 @@ pub fn compress_rle(data: u32, length: u32) -> u32 {
 }
 
 pub fn decompress_rle(compressed: u32) -> u32 {
+    let;
+    decompressed;
+    let;
+    pos;
     while (pos < 32) {
+        let;
+        count;
+        let;
+        value;
+        let;
+        i;
         while ((i < count) && (i < 8)) {
             decompressed = ((decompressed << 4) | value);
             i = (i + 1);
@@ -74,8 +94,24 @@ pub fn decompress_rle(compressed: u32) -> u32 {
 }
 
 pub fn compress_dictionary(data: u32, dictionary: Vec<>) -> u32 {
+    let;
+    best_match;
+    let;
+    best_score;
+    let;
+    i;
     while (i < DICTIONARY_SIZE) {
+        let;
+        dict_value;
+        let;
+        score;
+        let;
+        j;
         while (j < 8) {
+            let;
+            data_nibble;
+            let;
+            dict_nibble;
             if (data_nibble == dict_nibble) {
                 score = (score + 1);
             }
@@ -99,6 +135,8 @@ pub fn decompress_dictionary(index: u32, dictionary: Vec<>) -> u32 {
 }
 
 pub fn compress_delta(data: u32, previous: u32) -> u32 {
+    let;
+    delta;
     if (data > previous) {
         delta = (data - previous);
     } else {
@@ -116,6 +154,10 @@ pub fn compress_delta(data: u32, previous: u32) -> u32 {
 }
 
 pub fn decompress_delta(encoded: u32, previous: u32) -> u32 {
+    let;
+    encoding_type;
+    let;
+    value;
     if (encoding_type == 0) {
         if (previous > value) {
             return (previous - value);
@@ -124,12 +166,16 @@ pub fn decompress_delta(encoded: u32, previous: u32) -> u32 {
         }
     } else {
         if (encoding_type == 1) {
+            let;
+            delta;
             if (previous > delta) {
                 return (previous - delta);
             } else {
                 return (previous + delta);
             }
         } else {
+            let;
+            delta;
             if (previous > delta) {
                 return (previous - delta);
             } else {
@@ -140,6 +186,16 @@ pub fn decompress_delta(encoded: u32, previous: u32) -> u32 {
 }
 
 pub fn choose_compression_method(data: u32, previous: u32, dictionary: Vec<>) -> u32 {
+    let;
+    data_nibbles;
+    let;
+    rle_compressed;
+    let;
+    rle_ratio;
+    let;
+    delta_compressed;
+    let;
+    delta_size;
     if (delta_compressed < 16) {
         delta_size = 1;
     } else {
@@ -149,6 +205,8 @@ pub fn choose_compression_method(data: u32, previous: u32, dictionary: Vec<>) ->
             delta_size = 3;
         }
     }
+    let;
+    delta_ratio;
     if ((rle_ratio > delta_ratio) && (rle_ratio > 120)) {
         return METHOD_RLE;
     } else {
@@ -161,6 +219,12 @@ pub fn choose_compression_method(data: u32, previous: u32, dictionary: Vec<>) ->
 }
 
 pub fn compress_block(data: u32, previous: u32, dictionary: Vec<>) -> u32 {
+    let;
+    method;
+    let;
+    compressed;
+    let;
+    compressed_size;
     if (method == METHOD_RLE) {
         compressed = compress_rle(data, 8);
         compressed_size = 4;
@@ -201,6 +265,12 @@ pub fn decompress_block(compressed_data: u32, method: u32, previous: u32, dictio
 }
 
 pub fn calculate_total_savings(blocks: Vec<>, count: u32) -> u32 {
+    let;
+    total_original;
+    let;
+    total_compressed;
+    let;
+    i;
     while (i < count) {
         total_original = (total_original + get_original_size(blocks[i]));
         total_compressed = (total_compressed + get_compressed_size(blocks[i]));
@@ -223,7 +293,13 @@ pub fn update_dictionary(dictionary: Vec<>, new_entry: u32, index: u32) -> u32 {
 }
 
 pub fn find_pattern(data: u32, pattern: u32) -> u32 {
+    let;
+    mask;
+    let;
+    i;
     while (i < 32) {
+        let;
+        shifted;
         if (shifted == pattern) {
             return i;
         }

@@ -52,27 +52,27 @@ pub fn get_trust_verified(rel: u32) -> u32 {
 }
 
 pub fn create_trust_array(t0: u32, t1: u32, t2: u32, t3: u32, t4: u32, t5: u32, t6: u32, t7: u32) -> u64 {
-    return (((((((t0 as u64) << 56) | ((t1 as u64) << 48)) | ((t2 as u64) << 40)) | ((t3 as u64) << 32)) | ((t4 as u64) << 24)) || ((((t5 as u64) << 16) | ((t6 as u64) << 8)) | (t7 as u64)));
+    return ((((((() << 56) | (() << 48)) | (() << 40)) | (() << 32)) | (() << 24)) || (((() << 16) | (() << 8)) | ()));
 }
 
 pub fn get_trust_score(array: u64, index: u32) -> u32 {
     if (index == 0) {
-        return (((array >> 56) & 0xFFFFFFFF) as u32);
+        return ();
     }
     if (index == 1) {
-        return (((array >> 48) & 0xFFFFFFFF) as u32);
+        return ();
     }
     if (index == 2) {
-        return (((array >> 40) & 0xFFFFFFFF) as u32);
+        return ();
     }
     if (index == 3) {
-        return (((array >> 32) & 0xFFFFFFFF) as u32);
+        return ();
     }
     if (index == 4) {
-        return (((array >> 24) & 0xFFFFFFFF) as u32);
+        return ();
     }
     if (index == 5) {
-        return (((array >> 16) & 0xFFFFFFFF) as u32);
+        return ();
     }
     if (index == 6) {
     }

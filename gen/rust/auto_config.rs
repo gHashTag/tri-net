@@ -62,11 +62,18 @@ pub const PARAM_QOS_ENABLED: u32 = 6;
 pub const PARAM_SECURITY_LEVEL: u32 = 7;
 
 pub fn create_default_config() -> Vec<> {
+    let;
+    config;
+    MAX_PARAMS;
     return config;
 }
 
 pub fn get_config_value(config: Vec<>, param_id: u32) -> u32 {
+    let;
+    i;
     while (i < MAX_PARAMS) {
+        let;
+        current_param_id;
         if (current_param_id == param_id) {
             return get_param_value(config[i]);
         }
@@ -76,8 +83,16 @@ pub fn get_config_value(config: Vec<>, param_id: u32) -> u32 {
 }
 
 pub fn set_config_value(config: Vec<>, param_id: u32, new_value: u32) -> u32 {
+    let;
+    i;
     while (i < MAX_PARAMS) {
+        let;
+        current_param_id;
         if (current_param_id == param_id) {
+            let;
+            scope;
+            let;
+            status;
             config[i] = create_config_param(param_id, new_value, scope, status);
             return 1;
         }
@@ -87,6 +102,11 @@ pub fn set_config_value(config: Vec<>, param_id: u32, new_value: u32) -> u32 {
 }
 
 pub fn discover_network_params(node_count: u32, interference_level: u32) -> u32 {
+    let;
+    config;
+    MAX_PARAMS;
+    let;
+    tx_power;
     if (node_count < 4) {
         tx_power = 30;
     } else {
@@ -95,6 +115,8 @@ pub fn discover_network_params(node_count: u32, interference_level: u32) -> u32 
         }
     }
     set_config_value(config, PARAM_TX_POWER, tx_power);
+    let;
+    channel;
     if (interference_level > 70) {
         channel = 2;
     } else {
@@ -103,6 +125,8 @@ pub fn discover_network_params(node_count: u32, interference_level: u32) -> u32 
         }
     }
     set_config_value(config, PARAM_CHANNEL, channel);
+    let;
+    hello_interval;
     if (node_count < 4) {
         hello_interval = 5000;
     } else {
@@ -115,8 +139,18 @@ pub fn discover_network_params(node_count: u32, interference_level: u32) -> u32 
 }
 
 pub fn apply_config(config: Vec<>, param_id: u32) -> u32 {
+    let;
+    i;
     while (i < MAX_PARAMS) {
+        let;
+        current_param_id;
         if (current_param_id == param_id) {
+            let;
+            value;
+            let;
+            scope;
+            let;
+            success;
             config[i] = create_config_param(param_id, value, scope, STATUS_APPLIED);
             return success;
         }
@@ -126,8 +160,16 @@ pub fn apply_config(config: Vec<>, param_id: u32) -> u32 {
 }
 
 pub fn apply_all_pending(config: Vec<>) -> u32 {
+    let;
+    applied_count;
+    let;
+    i;
     while (i < MAX_PARAMS) {
+        let;
+        status;
         if (status == STATUS_PENDING) {
+            let;
+            param_id;
             if (apply_config(config, param_id) == 1) {
                 applied_count = (applied_count + 1);
             }
@@ -138,6 +180,8 @@ pub fn apply_all_pending(config: Vec<>) -> u32 {
 }
 
 pub fn validate_config(config: Vec<>, param_id: u32) -> u32 {
+    let;
+    value;
     if (param_id == PARAM_TX_POWER) {
         if ((value >= 0) && (value <= 100)) {
             return 1;
@@ -189,19 +233,27 @@ pub fn validate_config(config: Vec<>, param_id: u32) -> u32 {
 }
 
 pub fn optimize_config(config: Vec<>, network_load: u32, error_rate: u32) -> u32 {
+    let;
+    optimizations;
     if (network_load > 80) {
+        let;
+        current_retries;
         if (current_retries < 5) {
             set_config_value(config, PARAM_RETRY_LIMIT, (current_retries + 1));
             optimizations = (optimizations + 1);
         }
     }
     if (error_rate > 20) {
+        let;
+        current_rate;
         if (current_rate > 0) {
             set_config_value(config, PARAM_DATA_RATE, (current_rate - 1));
             optimizations = (optimizations + 1);
         }
     }
     if ((network_load < 30) && (error_rate < 10)) {
+        let;
+        current_rate;
         if (current_rate < 3) {
             set_config_value(config, PARAM_DATA_RATE, (current_rate + 1));
             optimizations = (optimizations + 1);
@@ -211,9 +263,27 @@ pub fn optimize_config(config: Vec<>, network_load: u32, error_rate: u32) -> u32
 }
 
 pub fn sync_config(local_config: Vec<>, remote_config: Vec<>) -> u32 {
+    let;
+    synced_count;
+    let;
+    i;
     while (i < MAX_PARAMS) {
+        let;
+        local_param_id;
+        let;
+        local_value;
+        let;
+        local_scope;
+        let;
+        j;
         while (j < MAX_PARAMS) {
+            let;
+            remote_param_id;
             if (remote_param_id == local_param_id) {
+                let;
+                remote_value;
+                let;
+                remote_scope;
                 if ((remote_scope == SCOPE_NETWORK) || (remote_scope == SCOPE_GLOBAL)) {
                     if (remote_value != local_value) {
                         set_config_value(local_config, local_param_id, remote_value);
@@ -230,8 +300,22 @@ pub fn sync_config(local_config: Vec<>, remote_config: Vec<>) -> u32 {
 }
 
 pub fn rollback_config(config: Vec<>, backup_config: Vec<>) -> u32 {
+    let;
+    rolled_back;
+    let;
+    i;
     while (i < MAX_PARAMS) {
+        let;
+        backup_param_id;
+        let;
+        backup_value;
+        let;
+        backup_scope;
+        let;
+        j;
         while (j < MAX_PARAMS) {
+            let;
+            local_param_id;
             if (local_param_id == backup_param_id) {
                 config[j] = create_config_param(backup_param_id, backup_value, backup_scope, STATUS_PENDING);
                 rolled_back = (rolled_back + 1);
@@ -245,6 +329,11 @@ pub fn rollback_config(config: Vec<>, backup_config: Vec<>) -> u32 {
 }
 
 pub fn create_backup(config: Vec<>) -> Vec<> {
+    let;
+    backup;
+    MAX_PARAMS;
+    let;
+    i;
     while (i < MAX_PARAMS) {
         backup[i] = config[i];
         i = (i + 1);
@@ -253,9 +342,25 @@ pub fn create_backup(config: Vec<>) -> Vec<> {
 }
 
 pub fn calculate_config_drift(config1: Vec<>, config2: Vec<>) -> u32 {
+    let;
+    drift_count;
+    let;
+    total_params;
+    let;
+    i;
     while (i < MAX_PARAMS) {
+        let;
+        param1_id;
+        let;
+        param1_value;
+        let;
+        j;
         while (j < MAX_PARAMS) {
+            let;
+            param2_id;
             if (param1_id == param2_id) {
+                let;
+                param2_value;
                 if (param1_value != param2_value) {
                     drift_count = (drift_count + 1);
                 }
@@ -274,6 +379,10 @@ pub fn calculate_config_drift(config1: Vec<>, config2: Vec<>) -> u32 {
 }
 
 pub fn discover_neighbors(node_id: u32, scan_count: u32) -> u32 {
+    let;
+    discovered_count;
+    let;
+    i;
     while (i < scan_count) {
         discovered_count = (discovered_count + 1);
         i = (i + 1);
@@ -282,6 +391,8 @@ pub fn discover_neighbors(node_id: u32, scan_count: u32) -> u32 {
 }
 
 pub fn assign_node_role(node_id: u32, capabilities: u32) -> u32 {
+    let;
+    role;
     if (capabilities & 0x1) {
         role = 1;
     } else {

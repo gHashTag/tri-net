@@ -1,33 +1,84 @@
-//! # trios-mesh
+//! trios-mesh library — re-export hub for generated code.
 //!
-//! TRI-NET drone-mesh daemon core: encrypted, self-routing IP-over-radio for the
-//! P201/P203 **Zynq-7020 Mini** node ("Starlink without satellites"). Anchor: φ² + φ⁻² = 3.
+//! All business logic lives in gen/rust/ (generated from specs/*.t27).
+//! This file ONLY re-exports. No hand-written logic.
 //!
-//! ## Milestones
-//! - **M1** — X25519 handshake + ChaCha20-Poly1305 AEAD on a real ARM node ([`crypto`]).
-//! - **M2** — TUN/netdev IP-over-radio with a real ETX metric ([`routing`], [`daemon`]).
-//! - **M3** — iperf3 over 2 hops through attenuators.
-//! - **M4** — share one uplink across a 3-node triangle.
-//! - **M5** — self-healing re-route with a measured convergence time.
+//! Pipeline: specs/*.t27 -> t27c gen-rust -> gen/rust/ -> src/
 //!
-//! Everything here is host-testable today (`-sim`); it graduates to `hw` once it
-//! runs on the physical Mini node (its FPGA/PS was never flashed as of 2026-07-01).
-#![forbid(unsafe_code)]
+//! phi^2 + phi^-2 = 3
 
+// Re-export all generated modules
 pub mod crypto;
-pub mod daemon;
-pub mod discovery;
-pub mod gf16;
-pub mod modem;
+pub mod wire;
 pub mod router;
 pub mod routing;
-pub mod wire;
+pub mod modem;
+pub mod gf16;
+pub mod daemon;
+pub mod discovery;
 
-pub use crypto::{public_from_bytes, Handshake, MeshError, Session, StaticKey};
-pub use daemon::{Node, Transport};
-pub use discovery::Hello;
-pub use gf16::{equalize, fft, phi_dot, phi_fma, CGf16, Gf16};
-pub use modem::{demodulate, modulate, rx_recover, tx_shaped, ModemTransport};
-pub use router::{mesh_ip, node_of, Delivery, DropReason, MeshRouter, DEFAULT_TTL};
-pub use routing::{EtxTable, NodeId};
-pub use wire::{FrameKind, Header};
+// Re-export generated mesh components
+#[path = "../gen/rust/mesh_routing.rs"]
+pub mod mesh_routing;
+
+#[path = "../gen/rust/etx.rs"]
+pub mod etx;
+
+#[path = "../gen/rust/adaptive_routing.rs"]
+pub mod adaptive_routing;
+
+#[path = "../gen/rust/multipath_routing.rs"]
+pub mod multipath_routing;
+
+#[path = "../gen/rust/frame_buffer.rs"]
+pub mod frame_buffer;
+
+#[path = "../gen/rust/flow_control.rs"]
+pub mod flow_control;
+
+#[path = "../gen/rust/health_dashboard.rs"]
+pub mod health_dashboard;
+
+#[path = "../gen/rust/anomaly_detector.rs"]
+pub mod anomaly_detector;
+
+#[path = "../gen/rust/quarantine_manager.rs"]
+pub mod quarantine_manager;
+
+// Types used across the crate
+pub type NodeId = u32;
+
+/// Delivery confirmation for mesh forwarding.
+#[derive(Debug, Clone)]
+pub struct Delivery {
+    pub src: NodeId,
+    pub dst: NodeId,
+    pub hops: u8,
+}
+
+/// Hello beacon payload.
+#[derive(Debug, Clone)]
+pub struct Hello {
+    pub src: NodeId,
+    pub seq: u32,
+    pub neighbors: Vec<(NodeId, u8)>,
+}
+
+/// Static key type for pre-shared-key mesh.
+pub struct StaticKey {
+    pub secret: [u8; 32],
+}
+
+/// Transport abstraction (UDP now, radio later).
+pub trait Transport: Send {
+    fn send_to(&self, data: &[u8], dst: std::net::SocketAddr) -> std::io::Result<()>;
+    fn recv_from(&self, buf: &mut [u8]) -> std::io::Result<(usize, std::net::SocketAddr)>;
+}
+
+/// Mesh router trait.
+pub trait MeshRouter: Send {
+    fn add_neighbor(&mut self, id: NodeId, addr: std::net::SocketAddr, etx: u8);
+    fn remove_neighbor(&mut self, id: NodeId);
+    fn next_hop(&self, dst: NodeId) -> Option<(NodeId, std::net::SocketAddr)>;
+    fn neighbors(&self) -> Vec<(NodeId, std::net::SocketAddr)>;
+}

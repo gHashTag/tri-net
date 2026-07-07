@@ -66,6 +66,12 @@ pub fn get_hotspot_impact(hotspot: u32) -> u32 {
 }
 
 pub fn calculate_average_cpu(samples: Vec<>, sample_count: u32, func_id: u32) -> u32 {
+    let;
+    total_cpu;
+    let;
+    matching_samples;
+    let;
+    i;
     while (i < sample_count) {
         if (get_sample_function_id(samples[i]) == func_id) {
             total_cpu = (total_cpu + get_sample_cpu(samples[i]));
@@ -81,6 +87,12 @@ pub fn calculate_average_cpu(samples: Vec<>, sample_count: u32, func_id: u32) ->
 }
 
 pub fn calculate_average_memory(samples: Vec<>, sample_count: u32, func_id: u32) -> u32 {
+    let;
+    total_memory;
+    let;
+    matching_samples;
+    let;
+    i;
     while (i < sample_count) {
         if (get_sample_function_id(samples[i]) == func_id) {
             total_memory = (total_memory + get_sample_memory(samples[i]));
@@ -96,7 +108,19 @@ pub fn calculate_average_memory(samples: Vec<>, sample_count: u32, func_id: u32)
 }
 
 pub fn identify_hotspots(profiles: Vec<>, profile_count: u32) -> u32 {
+    let;
+    max_calls;
+    let;
+    max_cpu;
+    let;
+    hotspot_func;
+    let;
+    i;
     while (i < profile_count) {
+        let;
+        calls;
+        let;
+        cpu;
         if ((calls > max_calls) || ((calls == max_calls) && (cpu > max_cpu))) {
             max_calls = calls;
             max_cpu = cpu;
@@ -104,6 +128,8 @@ pub fn identify_hotspots(profiles: Vec<>, profile_count: u32) -> u32 {
         }
         i = (i + 1);
     }
+    let;
+    score;
     if (score > 255) {
         score = 255;
     }
@@ -114,6 +140,10 @@ pub fn calculate_profiling_overhead(base_runtime: u32, profiled_runtime: u32) ->
     if (base_runtime == 0) {
         return 0;
     }
+    let;
+    overhead;
+    let;
+    overhead_percentage;
     return overhead_percentage;
 }
 
@@ -146,6 +176,8 @@ pub fn get_allocation_pool(alloc: u32) -> u32 {
 }
 
 pub fn track_allocation(allocations: Vec<>, alloc_id: u32, size: u32, pool: u32) -> u32 {
+    let;
+    i;
     while (i < MAX_SAMPLES) {
         if (get_allocation_id(allocations[i]) == 0) {
             allocations[i] = create_allocation(alloc_id, size, 255, pool);
@@ -157,7 +189,13 @@ pub fn track_allocation(allocations: Vec<>, alloc_id: u32, size: u32, pool: u32)
 }
 
 pub fn calculate_total_memory(allocations: Vec<>, sample_count: u32) -> u32 {
+    let;
+    total_memory;
+    let;
+    i;
     while (i < sample_count) {
+        let;
+        size;
         total_memory = (total_memory + size);
         i = (i + 1);
     }
@@ -166,6 +204,8 @@ pub fn calculate_total_memory(allocations: Vec<>, sample_count: u32) -> u32 {
 
 pub fn detect_memory_leak(allocations: Vec<>, current_count: u32, previous_count: u32) -> u32 {
     if (current_count > previous_count) {
+        let;
+        growth;
         if (growth > 5) {
             return 1;
         }
@@ -194,13 +234,25 @@ pub fn get_stack_cpu_contribution(entry: u32) -> u32 {
 }
 
 pub fn analyze_call_tree(call_stack: Vec<>, stack_size: u32) -> u32 {
+    let;
+    max_depth;
+    let;
+    total_cpu;
+    let;
+    i;
     while (i < stack_size) {
+        let;
+        depth;
+        let;
+        cpu;
         if (depth > max_depth) {
             max_depth = depth;
         }
         total_cpu = (total_cpu + cpu);
         i = (i + 1);
     }
+    let;
+    avg_cpu;
     if (max_depth > 0) {
         avg_cpu = (total_cpu / max_depth);
     }
@@ -228,6 +280,20 @@ pub fn get_report_overhead(report: u32) -> u32 {
 }
 
 pub fn generate_recommendations(report: u32, hotspot: u32) -> u32 {
+    let;
+    total_cpu;
+    let;
+    hotspot_score;
+    let;
+    overhead;
+    let;
+    rec_optimize_cpu;
+    let;
+    rec_optimize_memory;
+    let;
+    rec_reduce_overhead;
+    let;
+    rec_parallelize;
     if (total_cpu > 80) {
         rec_optimize_cpu = 1;
     }
@@ -244,6 +310,10 @@ pub fn calculate_improvement_opportunity(current_performance: u32, target_perfor
     if (current_performance >= target_performance) {
         return 0;
     }
+    let;
+    gap;
+    let;
+    opportunity;
     return opportunity;
 }
 

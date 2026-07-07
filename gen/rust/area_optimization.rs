@@ -72,7 +72,7 @@ pub fn calculate_savings_percentage(original: u32, optimized: u32) -> u8 {
     if (original <= optimized) {
         return 0;
     }
-    return ((((original - optimized) * 100) / original) as u8);
+    return ();
 }
 
 pub fn optimization_worthwhile(result: u32) -> bool {

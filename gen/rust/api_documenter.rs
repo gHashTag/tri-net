@@ -56,10 +56,22 @@ pub const DIR_OUT: u32 = 1;
 pub const DIR_INOUT: u32 = 2;
 
 pub fn extract_function_signature(code_line: u32) -> u32 {
+    let;
+    func_id;
+    let;
+    param_count;
+    let;
+    return_type;
     return create_function_doc(func_id, param_count, return_type, 0);
 }
 
 pub fn extract_parameter_info(param_line: u32, param_index: u32) -> u32 {
+    let;
+    param_type;
+    let;
+    direction;
+    let;
+    description_id;
     return create_param_doc(param_index, param_type, direction, description_id);
 }
 
@@ -84,6 +96,18 @@ pub fn get_example_explanation(example: u32) -> u32 {
 }
 
 pub fn generate_function_example(func_doc: u32) -> u32 {
+    let;
+    func_id;
+    let;
+    param_count;
+    let;
+    return_type;
+    let;
+    example_input;
+    let;
+    example_output;
+    let;
+    explanation;
     return create_function_example(func_id, example_input, example_output, explanation);
 }
 
@@ -108,9 +132,21 @@ pub fn get_description_category(desc: u32) -> u32 {
 }
 
 pub fn generate_function_description(func_doc: u32, complexity: u32) -> u32 {
+    let;
+    func_id;
+    let;
+    param_count;
+    let;
+    return_type;
+    let;
+    desc_length;
     if (desc_length > 255) {
         desc_length = 255;
     }
+    let;
+    importance;
+    let;
+    category;
     return create_description_text(func_id, desc_length, importance, category);
 }
 
@@ -167,6 +203,10 @@ pub fn get_module_description(module_doc: u32) -> u32 {
 }
 
 pub fn calculate_average_complexity(func_docs: Vec<>, func_count: u32) -> u32 {
+    let;
+    total_complexity;
+    let;
+    i;
     while (i < func_count) {
         total_complexity = (total_complexity + get_doc_complexity(func_docs[i]));
         i = (i + 1);
@@ -179,11 +219,25 @@ pub fn calculate_average_complexity(func_docs: Vec<>, func_count: u32) -> u32 {
 }
 
 pub fn generate_api_documentation(func_docs: Vec<>, func_count: u32, param_docs: Vec<>, param_count: u32) -> u32 {
+    let;
+    total_complexity;
+    let;
+    documented_funcs;
+    let;
+    i;
     while (i < func_count) {
+        let;
+        func_doc;
         total_complexity = (total_complexity + get_doc_complexity(func_doc));
+        let;
+        description;
+        let;
+        example;
         documented_funcs = (documented_funcs + 1);
         i = (i + 1);
     }
+    let;
+    avg_complexity;
     return (((((documented_funcs & 0xFF) << 24) | ((total_complexity & 0xFF) << 16)) | ((avg_complexity & 0xFF) << 8)) | (param_count & 0xFF));
 }
 
@@ -196,17 +250,33 @@ pub fn calculate_documentation_coverage(documented_funcs: u32, total_funcs: u32)
 }
 
 pub fn generate_usage_example(func_doc: u32, context: u32) -> u32 {
+    let;
+    func_id;
+    let;
+    param_count;
+    let;
+    usage_pattern;
     return create_function_example(func_id, usage_pattern, (usage_pattern + 10), 2);
 }
 
 pub fn create_dependency_graph(xrefs: Vec<>, xref_count: u32) -> u32 {
+    let;
+    total_connections;
+    let;
+    strong_connections;
+    let;
+    i;
     while (i < xref_count) {
+        let;
+        strength;
         total_connections = (total_connections + 1);
         if (strength > 70) {
             strong_connections = (strong_connections + 1);
         }
         i = (i + 1);
     }
+    let;
+    avg_strength;
     if (total_connections > 0) {
         avg_strength = (strong_connections / total_connections);
     }
@@ -214,15 +284,31 @@ pub fn create_dependency_graph(xrefs: Vec<>, xref_count: u32) -> u32 {
 }
 
 pub fn validate_documentation(func_docs: Vec<>, func_count: u32) -> u32 {
+    let;
+    missing_descriptions;
+    let;
+    missing_examples;
+    let;
+    missing_params;
+    let;
+    i;
     while (i < func_count) {
+        let;
+        func_doc;
+        let;
+        complexity;
         if (complexity == 0) {
             missing_descriptions = (missing_descriptions + 1);
         }
+        let;
+        param_count;
         if ((param_count == 0) && (i > 0)) {
             missing_params = (missing_params + 1);
         }
         i = (i + 1);
     }
+    let;
+    quality_score;
     if (quality_score > 100) {
         quality_score = 100;
     }
@@ -230,6 +316,20 @@ pub fn validate_documentation(func_docs: Vec<>, func_count: u32) -> u32 {
 }
 
 pub fn generate_documentation_report(func_docs: Vec<>, func_count: u32, xrefs: Vec<>, xref_count: u32) -> u32 {
+    let;
+    doc_summary;
+    let;
+    documented_funcs;
+    let;
+    coverage;
+    let;
+    validation;
+    let;
+    quality_score;
+    let;
+    dependency_graph;
+    let;
+    doc_complexity;
     return (((((coverage & 0xFF) << 24) | ((quality_score & 0xFF) << 16)) | ((doc_complexity & 0xFF) << 8)) | (xref_count & 0xFF));
 }
 

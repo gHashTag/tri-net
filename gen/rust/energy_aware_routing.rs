@@ -50,30 +50,44 @@ pub fn get_energy_score(energy: u32) -> u32 {
 }
 
 pub fn create_energy_array(e0: u32, e1: u32, e2: u32, e3: u32) -> u64 {
-    return (((((e0 as u64) << 48) | ((e1 as u64) << 32)) | ((e2 as u64) << 16)) | (e3 as u64));
+    return ((((() << 48) | (() << 32)) | (() << 16)) | ());
 }
 
 pub fn get_path_energy(array: u64, index: u32) -> u32 {
     if (index == 0) {
-        return (((array >> 48) & 0xFFFFFFFF) as u32);
+        return ();
     }
     if (index == 1) {
-        return (((array >> 32) & 0xFFFFFFFF) as u32);
+        return ();
     }
     if (index == 2) {
-        return (((array >> 16) & 0xFFFFFFFF) as u32);
+        return ();
     }
-    return ((array & 0xFFFFFFFF) as u32);
+    return ();
 }
 
 pub fn calculate_total_energy_cost(cost: u32) -> u32 {
+    let;
+    tx = get_tx_power(cost);
+    let;
+    rx = get_rx_power(cost);
+    let;
+    proc = get_processing_cost(cost);
+    let;
+    hops = get_hop_count_cost(cost);
+    let;
+    per_hop = ((tx + rx) + proc);
     return (per_hop * hops);
 }
 
 pub fn calculate_energy_score(battery: u32, cost: u32) -> u32 {
+    let;
+    total_cost = calculate_total_energy_cost(cost);
     if (total_cost == 0) {
         return (battery * 10);
     }
+    let;
+    score = ((battery * 100) / total_cost);
     if (score > 32767) {
         score = 32767;
     }
@@ -81,29 +95,44 @@ pub fn calculate_energy_score(battery: u32, cost: u32) -> u32 {
 }
 
 pub fn is_path_viable(energy: u32) -> bool {
+    let;
+    battery = get_battery_levels(energy);
+    let;
+    valid = get_path_valid(energy);
     return ((valid == 1) && (battery > CRITICAL_BATTERY));
 }
 
 pub fn find_energy_optimal_path(energy_array: u64) -> u32 {
+    let;
+    best_path = 0xFF;
+    let;
     if is_path_viable(get_path_energy(energy_array, 0)) {
+        let;
+        score = get_energy_score(get_path_energy(energy_array, 0));
         if (score > best_score) {
             best_score = score;
             best_path = 0;
         }
     }
     if is_path_viable(get_path_energy(energy_array, 1)) {
+        let;
+        score = get_energy_score(get_path_energy(energy_array, 1));
         if (score > best_score) {
             best_score = score;
             best_path = 1;
         }
     }
     if is_path_viable(get_path_energy(energy_array, 2)) {
+        let;
+        score = get_energy_score(get_path_energy(energy_array, 2));
         if (score > best_score) {
             best_score = score;
             best_path = 2;
         }
     }
     if is_path_viable(get_path_energy(energy_array, 3)) {
+        let;
+        score = get_energy_score(get_path_energy(energy_array, 3));
         if (score > best_score) {
             best_score = score;
             best_path = 3;
@@ -113,25 +142,36 @@ pub fn find_energy_optimal_path(energy_array: u64) -> u32 {
 }
 
 pub fn find_min_cost_path(energy_array: u64) -> u32 {
+    let;
+    best_path = 0xFF;
+    let;
     if is_path_viable(get_path_energy(energy_array, 0)) {
+        let;
+        cost = get_total_cost(get_path_energy(energy_array, 0));
         if (cost < best_cost) {
             best_cost = cost;
             best_path = 0;
         }
     }
     if is_path_viable(get_path_energy(energy_array, 1)) {
+        let;
+        cost = get_total_cost(get_path_energy(energy_array, 1));
         if (cost < best_cost) {
             best_cost = cost;
             best_path = 1;
         }
     }
     if is_path_viable(get_path_energy(energy_array, 2)) {
+        let;
+        cost = get_total_cost(get_path_energy(energy_array, 2));
         if (cost < best_cost) {
             best_cost = cost;
             best_path = 2;
         }
     }
     if is_path_viable(get_path_energy(energy_array, 3)) {
+        let;
+        cost = get_total_cost(get_path_energy(energy_array, 3));
         if (cost < best_cost) {
             best_cost = cost;
             best_path = 3;
@@ -141,25 +181,36 @@ pub fn find_min_cost_path(energy_array: u64) -> u32 {
 }
 
 pub fn select_balanced_path(energy_array: u64, current_path: u32) -> u32 {
+    let;
+    best_path = current_path;
+    let;
     if is_path_viable(get_path_energy(energy_array, 0)) {
+        let;
+        battery = get_battery_levels(get_path_energy(energy_array, 0));
         if (battery > best_battery) {
             best_battery = battery;
             best_path = 0;
         }
     }
     if is_path_viable(get_path_energy(energy_array, 1)) {
+        let;
+        battery = get_battery_levels(get_path_energy(energy_array, 1));
         if (battery > best_battery) {
             best_battery = battery;
             best_path = 1;
         }
     }
     if is_path_viable(get_path_energy(energy_array, 2)) {
+        let;
+        battery = get_battery_levels(get_path_energy(energy_array, 2));
         if (battery > best_battery) {
             best_battery = battery;
             best_path = 2;
         }
     }
     if is_path_viable(get_path_energy(energy_array, 3)) {
+        let;
+        battery = get_battery_levels(get_path_energy(energy_array, 3));
         if (battery > best_battery) {
             best_battery = battery;
             best_path = 3;
@@ -169,6 +220,8 @@ pub fn select_balanced_path(energy_array: u64, current_path: u32) -> u32 {
 }
 
 pub fn estimate_path_lifetime(energy: u32, drain_rate: u32) -> u32 {
+    let;
+    battery = get_battery_levels(energy);
     if (drain_rate == 0) {
         return 0xFF;
     }

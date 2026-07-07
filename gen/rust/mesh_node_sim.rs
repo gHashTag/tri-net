@@ -10,7 +10,7 @@ pub const NODE_3: u32 = 3;
 pub const NODE_4: u32 = 4;
 
 pub fn create_link_quality(from: u32, to: u32, quality: u8) -> u32 {
-    return ((((from & 0xFF) << 16) | ((to & 0xFF) << 8)) | (quality as u32));
+    return ((((from & 0xFF) << 16) | ((to & 0xFF) << 8)) | ());
 }
 
 pub fn link_from(link: u32) -> u32 {
@@ -22,7 +22,7 @@ pub fn link_to(link: u32) -> u32 {
 }
 
 pub fn link_quality(link: u32) -> u8 {
-    return ((link & 0xFF) as u8);
+    return ();
 }
 
 pub fn is_link_good(link: u32, threshold: u8) -> bool {

@@ -52,7 +52,13 @@ pub fn get_time_horizon(prediction: u32) -> u32 {
 }
 
 pub fn calculate_moving_average(history: Vec<>, count: u32) -> u32 {
+    let;
+    sum;
+    let;
+    i;
     while (i < count) {
+        let;
+        metrics = history[i];
         sum = (sum + get_bandwidth_usage(metrics));
         i = (i + 1);
     }
@@ -67,6 +73,12 @@ pub fn detect_trend(history: Vec<>, count: u32) -> u32 {
     if (count < 3) {
         return 0;
     }
+    let;
+    recent;
+    let;
+    previous;
+    let;
+    diff;
     if (recent > previous) {
         diff = (recent - previous);
     } else {
@@ -87,10 +99,22 @@ pub fn predict_load(history: Vec<>, count: u32) -> u32 {
     if (count == 0) {
         return 0;
     }
+    let;
+    current;
+    let;
+    trend;
+    let;
+    avg;
+    let;
+    predicted;
     if (trend == 1) {
+        let;
+        increase;
         predicted = (current + increase);
     } else {
         if (trend == 2) {
+            let;
+            decrease;
             if (current > decrease) {
                 predicted = (current - decrease);
             } else {
@@ -108,7 +132,17 @@ pub fn calculate_confidence(history: Vec<>, count: u32) -> u32 {
     if (count < 3) {
         return 20;
     }
+    let;
+    variance;
+    let;
+    avg;
+    let;
+    i;
     while (i < count) {
+        let;
+        value;
+        let;
+        diff;
         if (value > avg) {
             diff = (value - avg);
         } else {
@@ -117,6 +151,8 @@ pub fn calculate_confidence(history: Vec<>, count: u32) -> u32 {
         variance = (variance + diff);
         i = (i + 1);
     }
+    let;
+    avg_variance;
     if (count > 0) {
         avg_variance = (variance / count);
     }
@@ -136,10 +172,22 @@ pub fn calculate_confidence(history: Vec<>, count: u32) -> u32 {
 }
 
 pub fn create_load_prediction(history: Vec<>, count: u32) -> u32 {
+    let;
+    predicted;
+    let;
+    confidence;
+    let;
+    trend;
+    let;
+    horizon;
     return create_prediction(predicted, confidence, trend, horizon);
 }
 
 pub fn is_congestion_predicted(prediction: u32) -> u32 {
+    let;
+    load;
+    let;
+    confidence;
     if ((confidence > 50) && (load >= CONGESTION_THRESHOLD)) {
         return 1;
     } else {
@@ -148,6 +196,10 @@ pub fn is_congestion_predicted(prediction: u32) -> u32 {
 }
 
 pub fn is_warning_predicted(prediction: u32) -> u32 {
+    let;
+    load;
+    let;
+    confidence;
     if ((confidence > 50) && (load >= WARNING_THRESHOLD)) {
         return 1;
     } else {
@@ -156,7 +208,13 @@ pub fn is_warning_predicted(prediction: u32) -> u32 {
 }
 
 pub fn calculate_network_load(node_metrics: Vec<>, node_count: u32) -> u32 {
+    let;
+    total_load;
+    let;
+    i;
     while (i < node_count) {
+        let;
+        load;
         total_load = (total_load + load);
         i = (i + 1);
     }
@@ -168,7 +226,15 @@ pub fn calculate_network_load(node_metrics: Vec<>, node_count: u32) -> u32 {
 }
 
 pub fn find_most_loaded_node(node_metrics: Vec<>, node_count: u32) -> u32 {
+    let;
+    max_load;
+    let;
+    max_node;
+    let;
+    i;
     while (i < node_count) {
+        let;
+        load;
         if (load > max_load) {
             max_load = load;
             max_node = i;
@@ -179,7 +245,15 @@ pub fn find_most_loaded_node(node_metrics: Vec<>, node_count: u32) -> u32 {
 }
 
 pub fn find_least_loaded_node(node_metrics: Vec<>, node_count: u32) -> u32 {
+    let;
+    min_load;
+    let;
+    min_node;
+    let;
+    i;
     while (i < node_count) {
+        let;
+        load;
         if (load < min_load) {
             min_load = load;
             min_node = i;
@@ -190,7 +264,15 @@ pub fn find_least_loaded_node(node_metrics: Vec<>, node_count: u32) -> u32 {
 }
 
 pub fn calculate_load_imbalance(node_metrics: Vec<>, node_count: u32) -> u32 {
+    let;
+    max_load;
+    let;
+    min_load;
+    let;
+    i;
     while (i < node_count) {
+        let;
+        load;
         if (load > max_load) {
             max_load = load;
         }
@@ -202,6 +284,8 @@ pub fn calculate_load_imbalance(node_metrics: Vec<>, node_count: u32) -> u32 {
     if (min_load == 0) {
         return max_load;
     }
+    let;
+    imbalance;
     return imbalance;
 }
 
@@ -209,6 +293,8 @@ pub fn recommend_rerouting(prediction: u32, current_node: u32, node_metrics: Vec
     if !(is_congestion_predicted(prediction)) {
         return current_node;
     }
+    let;
+    least_loaded;
     if (least_loaded != current_node) {
         return least_loaded;
     } else {

@@ -20,30 +20,29 @@ pub const ATTEN_MAX: u8 = 30;
 pub const IPERF3_HDR_LEN: u8 = 8;
 
 pub fn iperf3_sequence(packet_byte: u8) -> u32 {
-    (packet_byte as u32);
+    ();
 }
 
-pub fn expected_loss_rate_p10(attenuation_db: u8) -> u8 { unimplemented!() }
+pub fn expected_loss_rate_p10(attenuation_db: u8) -> u8 {
+    let;
+    base_loss;
+    let;
+    att_factor;
+    let;
+    add_loss;
+    let;
+    total;
+}
 
 pub fn throughput_factor_p8(attenuation_db: u8) -> u8 {
+    let;
+    loss_p10;
+    let;
+    loss_p8;
     wrapping_sub(loss_p8);
 }
 
-pub fn signal_quality(attenuation_db: u8) -> u8 { unimplemented!() }
-
-pub fn total_attenuation(hop1_db: u8, hop2_db: u8) -> u8 { unimplemented!() }
-
-pub fn delivery_rate_p8(hop1_db: u8, hop2_db: u8) -> u8 {
-    ((product >> 8) as u8);
+pub fn signal_quality(attenuation_db: u8) -> u8 {
+    match;
 }
-
-pub fn simulate_hop(attenuation_db: u8, packet_seq: u8) -> bool {
-    (random_threshold < success_p8);
-}
-
-pub fn forward_packet(hop1_db: u8, hop2_db: u8, packet_seq: u8) -> bool { unimplemented!() }
-
-pub fn tcp_packet_byte(seq: u32, byte_index: u8, data_byte: u8) -> u8 { unimplemented!() }
-
-pub fn udp_packet_byte(seq: u16, byte_index: u8, data_byte: u8) -> u8 { unimplemented!() }
 

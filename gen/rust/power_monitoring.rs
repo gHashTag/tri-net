@@ -40,6 +40,8 @@ pub fn is_battery_critical(state: u32) -> bool {
 }
 
 pub fn is_battery_low(state: u32) -> bool {
+    let;
+    battery = get_battery_level(state);
     return ((battery > BATTERY_CRITICAL) && (battery <= BATTERY_LOW));
 }
 
@@ -48,6 +50,10 @@ pub fn is_battery_healthy(state: u32) -> bool {
 }
 
 pub fn estimate_remaining_time(state: u32) -> u32 {
+    let;
+    battery = get_battery_level(state);
+    let;
+    consumption = get_consumption(state);
     if (consumption == 0) {
         return 0xFF;
     }
@@ -55,6 +61,14 @@ pub fn estimate_remaining_time(state: u32) -> u32 {
 }
 
 pub fn update_power_mode(state: u32) -> u32 {
+    let;
+    battery = get_battery_level(state);
+    let;
+    consumption = get_consumption(state);
+    let;
+    uptime = get_uptime(state);
+    let;
+    new_mode = POWER_NORMAL;
     if (battery <= BATTERY_CRITICAL) {
         new_mode = POWER_EMERGENCY;
     } else {
@@ -66,6 +80,16 @@ pub fn update_power_mode(state: u32) -> u32 {
 }
 
 pub fn reduce_consumption(state: u32, reduction: u32) -> u32 {
+    let;
+    battery = get_battery_level(state);
+    let;
+    mode = get_power_mode(state);
+    let;
+    current_consumption = get_consumption(state);
+    let;
+    uptime = get_uptime(state);
+    let;
+    new_consumption = (current_consumption - reduction);
     if (new_consumption < 1) {
         new_consumption = 1;
     }
@@ -73,6 +97,16 @@ pub fn reduce_consumption(state: u32, reduction: u32) -> u32 {
 }
 
 pub fn drain_battery(state: u32, amount: u32) -> u32 {
+    let;
+    battery = get_battery_level(state);
+    let;
+    mode = get_power_mode(state);
+    let;
+    consumption = get_consumption(state);
+    let;
+    uptime = get_uptime(state);
+    let;
+    new_battery = (battery - amount);
     if (new_battery < 0) {
         new_battery = 0;
     }
@@ -80,6 +114,7 @@ pub fn drain_battery(state: u32, amount: u32) -> u32 {
 }
 
 pub fn get_power_priority(state: u32) -> u32 {
+    let;
     if (battery <= BATTERY_CRITICAL) {
         return 3;
     } else {
@@ -92,6 +127,7 @@ pub fn get_power_priority(state: u32) -> u32 {
 }
 
 pub fn should_sleep(state: u32, current_time: u32, sleep_start: u32, sleep_end: u32) -> bool {
+    let;
     if (battery <= BATTERY_CRITICAL) {
         return ((current_time >= sleep_start) && (current_time <= sleep_end));
     }

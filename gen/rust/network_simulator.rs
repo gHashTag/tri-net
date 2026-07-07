@@ -70,15 +70,33 @@ pub const NODE_FAILED: u32 = 2;
 pub const NODE_SLEEPING: u32 = 3;
 
 pub fn update_node_status(state: u32, new_status: u32) -> u32 {
+    let;
+    node_id;
+    let;
+    energy;
+    let;
+    position;
     return create_node_state(node_id, new_status, energy, position);
 }
 
 pub fn update_node_energy(state: u32, energy_delta: u32) -> u32 {
+    let;
+    node_id;
+    let;
+    status;
+    let;
+    energy;
+    let;
+    position;
+    let;
+    new_energy;
     if (energy_delta > energy) {
         new_energy = 0;
     } else {
         new_energy = (energy - energy_delta);
     }
+    let;
+    new_status;
     if ((new_energy == 0) && (status == NODE_ACTIVE)) {
         new_status = NODE_FAILED;
     }
@@ -106,10 +124,18 @@ pub fn get_link_latency(link: u32) -> u32 {
 }
 
 pub fn update_link_quality(link: u32, new_quality: u32) -> u32 {
+    let;
+    source;
+    let;
+    dest;
+    let;
+    latency;
     return create_link_state(source, dest, new_quality, latency);
 }
 
 pub fn is_link_operational(link: u32) -> u32 {
+    let;
+    quality;
     if (quality >= 30) {
         return 1;
     } else {
@@ -142,6 +168,12 @@ pub fn get_packet_sequence(packet: u32) -> u32 {
 }
 
 pub fn calculate_transmission_time(packet: u32, link: u32) -> u32 {
+    let;
+    size;
+    let;
+    latency;
+    let;
+    transmission_time;
     return transmission_time;
 }
 
@@ -162,10 +194,22 @@ pub fn get_sim_node_count(state: u32) -> u32 {
 }
 
 pub fn advance_simulation(state: u32, time_delta: u32) -> u32 {
+    let;
+    current_time;
+    let;
+    event_count;
+    let;
+    node_count;
+    let;
+    new_time;
     return create_sim_state(new_time, event_count, node_count);
 }
 
 pub fn process_event(event: u32, node_states: Vec<>, link_states: Vec<>) -> u32 {
+    let;
+    event_type;
+    let;
+    node_id;
     if (event_type == EVENT_PACKET_SEND) {
         return 1;
     } else {
@@ -173,6 +217,8 @@ pub fn process_event(event: u32, node_states: Vec<>, link_states: Vec<>) -> u32 
             return 1;
         } else {
             if (event_type == EVENT_NODE_FAILURE) {
+                let;
+                current_state;
                 node_states[node_id] = update_node_status(current_state, NODE_FAILED);
                 return 1;
             } else {
@@ -211,6 +257,10 @@ pub fn get_total_latency(stats: u32) -> u32 {
 }
 
 pub fn calculate_delivery_ratio(stats: u32) -> u32 {
+    let;
+    sent;
+    let;
+    recv;
     if (sent > 0) {
         return ((recv * 100) / sent);
     } else {
@@ -219,6 +269,10 @@ pub fn calculate_delivery_ratio(stats: u32) -> u32 {
 }
 
 pub fn calculate_average_latency(stats: u32) -> u32 {
+    let;
+    recv;
+    let;
+    total_latency;
     if (recv > 0) {
         return (total_latency / recv);
     } else {
@@ -227,6 +281,8 @@ pub fn calculate_average_latency(stats: u32) -> u32 {
 }
 
 pub fn create_topology(node_count: u32, density: u32) -> u32 {
+    let;
+    link_count;
     if (link_count > ((node_count * (node_count - 1)) / 2)) {
         link_count = ((node_count * (node_count - 1)) / 2);
     }
@@ -235,6 +291,8 @@ pub fn create_topology(node_count: u32, density: u32) -> u32 {
 
 pub fn inject_fault(fault_type: u32, target_id: u32, node_states: Vec<>) -> u32 {
     if (fault_type == EVENT_NODE_FAILURE) {
+        let;
+        current_state;
         node_states[target_id] = update_node_status(current_state, NODE_FAILED);
         return 1;
     } else {
@@ -247,17 +305,31 @@ pub fn inject_fault(fault_type: u32, target_id: u32, node_states: Vec<>) -> u32 
 }
 
 pub fn run_simulation_step(state: u32, events: Vec<>, event_count: u32, node_states: Vec<>, link_states: Vec<>) -> u32 {
+    let;
+    current_time;
+    let;
+    processed_count;
+    let;
+    i;
     while (i < event_count) {
+        let;
+        event_time;
         if (event_time <= current_time) {
             process_event(events[i], node_states, link_states);
             processed_count = (processed_count + 1);
         }
         i = (i + 1);
     }
+    let;
+    new_state;
     return create_sim_state(get_sim_time(new_state), (get_sim_event_count(new_state) - processed_count), get_sim_node_count(new_state));
 }
 
 pub fn generate_simulation_report(stats: u32, duration: u32, node_count: u32) -> u32 {
+    let;
+    delivery_ratio;
+    let;
+    avg_latency;
     return (((((delivery_ratio & 0xFF) << 24) | ((avg_latency & 0xFF) << 16)) | ((duration & 0xFF) << 8)) | (node_count & 0xFF));
 }
 

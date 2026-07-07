@@ -7,15 +7,15 @@ pub const HEADER_LEN: usize = 13;
 
 pub fn u32_byte(w: u32, idx: usize) -> u8 {
     if (idx == 0) {
-        return (((w >> 24) & 255) as u8);
+        return ();
     } else {
         if (idx == 1) {
-            return (((w >> 16) & 255) as u8);
+            return ();
         } else {
             if (idx == 2) {
-                return (((w >> 8) & 255) as u8);
+                return ();
             } else {
-                return ((w & 255) as u8);
+                return ();
             }
         }
     }
@@ -42,7 +42,7 @@ pub fn hello_byte(src: u32, seq: u32, heard0: u32, heard1: u32, heard2: u32, n: 
 }
 
 pub fn u32_from_bytes(b0: u8, b1: u8, b2: u8, b3: u8) -> u32 {
-    return (((((b0 as u32) << 24) | ((b1 as u32) << 16)) | ((b2 as u32) << 8)) | (b3 as u32));
+    return ((((() << 24) | (() << 16)) | (() << 8)) | ());
 }
 
 pub fn parse_hello_src(b0: u8, b1: u8, b2: u8, b3: u8) -> u32 {

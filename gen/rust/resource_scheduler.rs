@@ -54,98 +54,173 @@ pub fn get_sched_tick(state: u32) -> u32 {
 }
 
 pub fn create_task_array(t0: u32, t1: u32, t2: u32, t3: u32, t4: u32, t5: u32, t6: u32, t7: u32) -> u64 {
-    return (((((((((t0 as u64) << 56) | ((t1 as u64) << 48)) | ((t2 as u64) << 40)) | ((t3 as u64) << 32)) | ((t4 as u64) << 24)) | ((t5 as u64) << 16)) | ((t6 as u64) << 8)) | (t7 as u64));
+    return ((((((((() << 56) | (() << 48)) | (() << 40)) | (() << 32)) | (() << 24)) | (() << 16)) | (() << 8)) | ());
 }
 
 pub fn get_task_resource(array: u64, index: u32) -> u32 {
     if (index == 0) {
-        return (((array >> 56) & 0xFFFFFFFF) as u32);
+        return ();
     }
     if (index == 1) {
-        return (((array >> 48) & 0xFFFFFFFF) as u32);
+        return ();
     }
     if (index == 2) {
-        return (((array >> 40) & 0xFFFFFFFF) as u32);
+        return ();
     }
     if (index == 3) {
-        return (((array >> 32) & 0xFFFFFFFF) as u32);
+        return ();
     }
     if (index == 4) {
-        return (((array >> 24) & 0xFFFFFFFF) as u32);
+        return ();
     }
     if (index == 5) {
-        return (((array >> 16) & 0xFFFFFFFF) as u32);
+        return ();
     }
     if (index == 6) {
-        return (((array >> 8) & 0xFFFFFFFF) as u32);
+        return ();
     }
-    return ((array & 0xFFFFFFFF) as u32);
+    return ();
 }
 
 pub fn can_admit_task(state: u32, task: u32) -> bool {
+    let;
+    cpu_req = get_cpu_req(task);
+    let;
+    mem_req = get_mem_req(task);
+    let;
+    used_cpu = get_used_cpu(state);
+    let;
+    used_mem = get_used_mem(state);
+    let;
+    available_cpu = (CPU_CAPACITY - used_cpu);
+    let;
+    available_mem = (MEMORY_CAPACITY - used_mem);
     return ((cpu_req <= available_cpu) && (mem_req <= available_mem));
 }
 
 pub fn has_cpu_capacity(state: u32, cpu_req: u32) -> bool {
+    let;
+    used_cpu = get_used_cpu(state);
+    let;
+    available_cpu = (CPU_CAPACITY - used_cpu);
     return (cpu_req <= available_cpu);
 }
 
 pub fn has_memory_capacity(state: u32, mem_req: u32) -> bool {
+    let;
+    used_mem = get_used_mem(state);
+    let;
+    available_mem = (MEMORY_CAPACITY - used_mem);
     return (mem_req <= available_mem);
 }
 
 pub fn allocate_resources(state: u32, task: u32) -> u32 {
+    let;
+    cpu_req = get_cpu_req(task);
+    let;
+    mem_req = get_mem_req(task);
+    let;
+    used_cpu = get_used_cpu(state);
+    let;
+    used_mem = get_used_mem(state);
+    let;
+    active_tasks = get_active_tasks(state);
+    let;
+    tick = get_sched_tick(state);
+    let;
+    new_cpu = (used_cpu + cpu_req);
+    let;
+    new_mem = (used_mem + mem_req);
+    let;
+    new_tasks = (active_tasks + 1);
     return create_system_state(new_cpu, new_mem, new_tasks, tick);
 }
 
 pub fn release_resources(state: u32, task: u32) -> u32 {
+    let;
+    cpu_req = get_cpu_req(task);
+    let;
+    mem_req = get_mem_req(task);
+    let;
+    used_cpu = get_used_cpu(state);
+    let;
+    used_mem = get_used_mem(state);
+    let;
+    active_tasks = get_active_tasks(state);
+    let;
+    tick = get_sched_tick(state);
+    let;
+    new_cpu = (used_cpu - cpu_req);
+    let;
+    new_mem = (used_mem - mem_req);
+    let;
+    new_tasks = (active_tasks - 1);
     return create_system_state(new_cpu, new_mem, new_tasks, tick);
 }
 
 pub fn find_admittable_task(state: u32, task_array: u64) -> u32 {
+    let;
+    best_task = 0xFF;
+    let;
     if can_admit_task(state, get_task_resource(task_array, 0)) {
+        let;
+        priority = get_priority(get_task_resource(task_array, 0));
         if (priority < best_priority) {
             best_priority = priority;
             best_task = 0;
         }
     }
     if can_admit_task(state, get_task_resource(task_array, 1)) {
+        let;
+        priority = get_priority(get_task_resource(task_array, 1));
         if (priority < best_priority) {
             best_priority = priority;
             best_task = 1;
         }
     }
     if can_admit_task(state, get_task_resource(task_array, 2)) {
+        let;
+        priority = get_priority(get_task_resource(task_array, 2));
         if (priority < best_priority) {
             best_priority = priority;
             best_task = 2;
         }
     }
     if can_admit_task(state, get_task_resource(task_array, 3)) {
+        let;
+        priority = get_priority(get_task_resource(task_array, 3));
         if (priority < best_priority) {
             best_priority = priority;
             best_task = 3;
         }
     }
     if can_admit_task(state, get_task_resource(task_array, 4)) {
+        let;
+        priority = get_priority(get_task_resource(task_array, 4));
         if (priority < best_priority) {
             best_priority = priority;
             best_task = 4;
         }
     }
     if can_admit_task(state, get_task_resource(task_array, 5)) {
+        let;
+        priority = get_priority(get_task_resource(task_array, 5));
         if (priority < best_priority) {
             best_priority = priority;
             best_task = 5;
         }
     }
     if can_admit_task(state, get_task_resource(task_array, 6)) {
+        let;
+        priority = get_priority(get_task_resource(task_array, 6));
         if (priority < best_priority) {
             best_priority = priority;
             best_task = 6;
         }
     }
     if can_admit_task(state, get_task_resource(task_array, 7)) {
+        let;
+        priority = get_priority(get_task_resource(task_array, 7));
         if (priority < best_priority) {
             best_priority = priority;
             best_task = 7;
@@ -159,14 +234,28 @@ pub fn calculate_cpu_utilization(state: u32) -> u32 {
 }
 
 pub fn calculate_memory_utilization(state: u32) -> u32 {
+    let;
+    used_mem = get_used_mem(state);
     return ((used_mem * 100) / MEMORY_CAPACITY);
 }
 
 pub fn is_overloaded(state: u32) -> bool {
+    let;
+    cpu_util = calculate_cpu_utilization(state);
     return (cpu_util > 90);
 }
 
 pub fn increment_tick(state: u32) -> u32 {
+    let;
+    used_cpu = get_used_cpu(state);
+    let;
+    used_mem = get_used_mem(state);
+    let;
+    active_tasks = get_active_tasks(state);
+    let;
+    tick = get_sched_tick(state);
+    let;
+    new_tick = (tick + 1);
     if (new_tick > 255) {
         new_tick = 0;
     }
@@ -174,6 +263,8 @@ pub fn increment_tick(state: u32) -> u32 {
 }
 
 pub fn count_tasks_by_priority(task_array: u64, priority: u32) -> u32 {
+    let;
+    count = 0;
     if (get_priority(get_task_resource(task_array, 0)) == priority) {
         count = (count + 1);
     }

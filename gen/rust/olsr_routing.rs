@@ -64,13 +64,13 @@ pub fn find_index(table: u32, target_id: u32) -> u32 {
 
 pub fn set_entry(table: u32, index: u32, new_entry: u32) -> u32 {
     if (index == 0) {
-        return ((table & 0xFFFFFFFFFFFFFFFF0000000000000000) | ((new_entry as u64) << 192));
+        return ((table & 0xFFFFFFFFFFFFFFFF0000000000000000) | (() << 192));
     } else {
         if (index == 1) {
-            return ((table & 0xFFFFFFFFFFFFFFFF0000000000000000) | ((new_entry as u64) << 128));
+            return ((table & 0xFFFFFFFFFFFFFFFF0000000000000000) | (() << 128));
         } else {
             if (index == 2) {
-                return ((table & 0xFFFFFFFFFFFFFFFF0000000000000000) | ((new_entry as u64) << 64));
+                return ((table & 0xFFFFFFFFFFFFFFFF0000000000000000) | (() << 64));
             } else {
                 return (table & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF);
             }
@@ -106,6 +106,10 @@ pub fn get_second_best(table: u32, best_id: u32) -> u32 {
 }
 
 pub fn select_mprs(table: u32) -> u32 {
+    let;
+    best = get_best_neighbor(table);
+    let;
+    second = get_second_best(table, best);
     return (((best & 0xFF) << 8) | (second & 0xFF));
 }
 

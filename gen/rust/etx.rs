@@ -29,7 +29,7 @@ pub fn fp_mul(a: u8, b: u8) -> u8 {
     if ((a == 0) || (b == 0)) {
         return 0;
     }
-    return ((((a as u16) * (b as u16)) >> 8) as u8);
+    return ();
 }
 
 pub fn ewma_update(est: u8, sample: u8, alpha: u8) -> u8 {
