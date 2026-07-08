@@ -1,0 +1,103 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/adaptive_fec.t27
+// Adaptive FEC policy: how many Reed-Solomon parity symbols to spend on a frame,
+// as a function of link quality and frame criticality. This is the layer that
+// ties the two feature families together -- adaptive_mcs (SNR -> modulation) and
+// the RS erasure code (rs_encode/rs_decode recover up to M lost fragments):
+//
+//   SNR -> AdaptiveMcs::pick_mcs -> modulation -> parity_for -> RS parity budget.
+//
+// A less robust modulation means a lossier link, so it gets MORE parity; a
+// keyframe (whose loss corrupts the whole GOP) gets one extra symbol. Parity is
+// capped at MAX_PARITY (the RS(255,251) budget), and rs_decode can recover a
+// keyframe iff the lost-fragment count stays within that budget.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module AdaptiveFec {
+    use base::types;
+
+    // MCS codepoints, matching adaptive_mcs (0 = BPSK+FEC ... 2 = QPSK).
+    const MCS_BPSK_FEC : u8 = 0;
+    const MCS_BPSK     : u8 = 1;
+    const MCS_QPSK     : u8 = 2;
+
+    const MAX_PARITY : u8 = 4;   // RS(255,251) budget: recover up to 4 erasures.
+
+    // Parity symbols for a frame on a link using modulation `mcs`. Base parity
+    // rises as the modulation gets less robust (a lossier link needs more), and a
+    // keyframe adds one, capped at MAX_PARITY.
+    fn parity_for(mcs: u8, is_keyframe: u8) -> u8 {
+        let base: u8 = 3;                       // BPSK+FEC (weakest link) default
+        if (mcs == MCS_QPSK) {
+            base = 1;
+        } else if (mcs == MCS_BPSK) {
+            base = 2;
+        }
+        let boost: u8 = 0;
+        if (is_keyframe == 1) {
+            boost = 1;
+        }
+        let m: u8 = base + boost;
+        if (m > MAX_PARITY) {
+            return MAX_PARITY;
+        } else {
+            return m;
+        }
+    }
+
+    // End-to-end policy: choose the parity directly from the link SNR by running
+    // the adaptive-MCS decision first (composes adaptive_mcs).
+    fn parity_for_snr(snr_x10: u32, current_mcs: u8, is_keyframe: u8) -> u8 {
+        return parity_for(AdaptiveMcs::pick_mcs(snr_x10, current_mcs), is_keyframe);
+    }
+
+    // The RS erasure guarantee: a frame survives iff the lost-fragment count is
+    // within its parity budget.
+    fn survives(m_parity: u8, lost: u8) -> bool {
+        return lost <= m_parity;
+    }
+
+    // ---- TDD (L4) ----
+
+    test parity_by_modulation {
+        assert(parity_for(MCS_QPSK, 0) == 1, "good link, P-frame: 1");
+        assert(parity_for(MCS_BPSK, 0) == 2, "medium link, P-frame: 2");
+        assert(parity_for(MCS_BPSK_FEC, 0) == 3, "weak link, P-frame: 3");
+    }
+
+    // A keyframe always gets at least as much parity as a P-frame on the same link,
+    // and the weakest link + keyframe hits the RS budget cap.
+    test keyframe_gets_more_parity {
+        assert(parity_for(MCS_QPSK, 1) == 2, "good link keyframe: 2");
+        assert(parity_for(MCS_BPSK, 1) == 3, "medium link keyframe: 3");
+        assert(parity_for(MCS_BPSK_FEC, 1) == 4, "weak link keyframe: full budget");
+        assert(parity_for(MCS_BPSK_FEC, 1) == MAX_PARITY, "capped at MAX_PARITY");
+    }
+
+    // Monotone in link quality: a worse modulation never spends less parity.
+    test parity_monotone_in_link {
+        assert(parity_for(MCS_BPSK_FEC, 1) >= parity_for(MCS_BPSK, 1), "FEC >= BPSK");
+        assert(parity_for(MCS_BPSK, 1) >= parity_for(MCS_QPSK, 1), "BPSK >= QPSK");
+    }
+
+    // End-to-end: a strong link (20 dB) keyframe needs little parity; a weak link
+    // (8 dB, forced to BPSK+FEC) keyframe spends the full budget.
+    test snr_drives_parity {
+        assert(parity_for_snr(200, MCS_QPSK, 1) == 2, "20 dB keyframe: 2");
+        assert(parity_for_snr(80, MCS_BPSK, 1) == 4, "8 dB keyframe: full budget");
+    }
+
+    test survives_within_budget {
+        assert(survives(4, 4) == true, "4 lost, 4 parity: recovered");
+        assert(survives(4, 5) == false, "5 lost, 4 parity: lost");
+        assert(survives(2, 0) == true, "no loss always survives");
+    }
+
+    // ---- invariants ----
+
+    invariant budget_matches_rs
+        assert MAX_PARITY == 4
+
+    invariant modulation_ladder
+        assert MCS_QPSK > MCS_BPSK_FEC
+}
