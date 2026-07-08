@@ -17,6 +17,30 @@ gateway 11: gwfetch:1
 
 All three links converge; board 12 reaches the internet through the mesh.
 
+## Wire-free confirmation (boards 2 AND 3 physically OFF Ethernet)
+
+Repeated with boards 12 and 13 unplugged from Ethernet entirely (only the
+gateway board 11 wired, for its internet uplink); 12/13 driven purely over
+their UART consoles. A fresh per-node channel scan (the 2.4 GHz interferer
+had by then hopped onto 2425 -> 67 and 2465 -> 28) picked 2455 MHz, clean
+at all nodes. Result:
+
+```
+gateway 11: floor 23.4, neighbors { 12=1.17-1.18, 13=1.00 }
+gateway 11: gateway fetched "182.232.227.12" -> reply to 12: Forwarded(12)
+board 12 (NO Ethernet): INTERNET-VIA-RADIO-MESH: 182.232.227.12
+```
+
+Board 12 — no cable of any kind but power+console — requested the internet
+over the air, the gateway fetched it, and the reply came back over the air.
+"If any one node has internet, everyone has internet" — on hardware, fully
+wire-free, with the previously-impossible third node included.
+
+Note: the operating channel is chosen per-session from a live scan because
+2.4 GHz interferers move across the band within minutes (2425 was the clean
+channel in the wired run above; by the wire-free run it was jammed and 2455
+was clean).
+
 ## What it took (four changes, all committed)
 
 1. **CSMA/CA listen-before-talk.** RX stamps a shared atomic "air busy"
