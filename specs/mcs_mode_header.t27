@@ -1,0 +1,111 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/mcs_mode_header.t27
+// Per-frame MCS mode header: robustly signals the payload modulation (chosen by
+// adaptive_mcs) so a receiver can auto-detect BPSK vs QPSK for each frame.
+//
+// The mode is one logical bit, but a single symbol error on it must NOT silently
+// swap the modulation (that returns garbage bytes under the wrong demapper). So
+// the two modes are the maximally-separated bytes 0x00 and 0xFF (Hamming distance
+// 8): the 8 header symbols form an 8x repetition code on the mode bit. The
+// receiver majority-votes (popcount), which corrects up to 3 symbol errors and
+// rejects a 4-4 tie -- the header becomes the most robust field of a frame, not
+// the most fragile. popcount is a standard, trivially synthesizable FPGA primitive
+// so the Verilog and host Rust decode identically.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module McsModeHeader {
+    use base::types;
+
+    // Wire codewords for the mode bit (Hamming distance 8).
+    const MODE_BPSK_CW : u8 = 0x00;
+    const MODE_QPSK_CW : u8 = 0xFF;
+
+    // decode_mode results.
+    const DECODE_BPSK   : u8 = 0;
+    const DECODE_QPSK   : u8 = 1;
+    const DECODE_REJECT : u8 = 2;   // undecidable 4-4 tie
+
+    // Encode the chosen modulation (0 = BPSK, 1 = QPSK) into the 8-symbol header.
+    fn mode_codeword(is_qpsk: u8) -> u8 {
+        if (is_qpsk == 1) {
+            return MODE_QPSK_CW;
+        } else {
+            return MODE_BPSK_CW;
+        }
+    }
+
+    // Population count of a byte (number of set bits). Constant shifts + adds keep
+    // it trivially synthesizable and identical across backends.
+    fn popcount8(x: u8) -> u8 {
+        return (x & 1)
+             + ((x >> 1) & 1)
+             + ((x >> 2) & 1)
+             + ((x >> 3) & 1)
+             + ((x >> 4) & 1)
+             + ((x >> 5) & 1)
+             + ((x >> 6) & 1)
+             + ((x >> 7) & 1);
+    }
+
+    // Majority-vote decode of the received 8-symbol header: 0..3 set bits -> BPSK,
+    // 5..8 -> QPSK, exactly 4 -> reject (undecidable). Corrects up to 3 symbol
+    // errors; a single symbol error can never swap the modulation (distance 8).
+    fn decode_mode(raw: u8) -> u8 {
+        let ones: u8 = popcount8(raw);
+        if (ones <= 3) {
+            return DECODE_BPSK;
+        } else if (ones >= 5) {
+            return DECODE_QPSK;
+        } else {
+            return DECODE_REJECT;
+        }
+    }
+
+    // ---- TDD (L4) ----
+
+    test popcount_known {
+        assert(popcount8(0x00) == 0, "no bits");
+        assert(popcount8(0xFF) == 8, "all bits");
+        assert(popcount8(0x0F) == 4, "low nibble");
+        assert(popcount8(0xAA) == 4, "alternating");
+        assert(popcount8(0x07) == 3, "three low bits");
+    }
+
+    // Clean codewords decode to their mode.
+    test clean_codewords {
+        assert(decode_mode(MODE_BPSK_CW) == DECODE_BPSK, "0x00 -> BPSK");
+        assert(decode_mode(MODE_QPSK_CW) == DECODE_QPSK, "0xFF -> QPSK");
+    }
+
+    // Any single symbol (bit) error is corrected -> never swaps the mode.
+    test single_error_corrected {
+        assert(decode_mode(0x01) == DECODE_BPSK, "1-bit error on BPSK stays BPSK");
+        assert(decode_mode(0x80) == DECODE_BPSK, "high-bit error on BPSK stays BPSK");
+        assert(decode_mode(0xFE) == DECODE_QPSK, "1-bit error on QPSK stays QPSK");
+        assert(decode_mode(0x7F) == DECODE_QPSK, "high-bit error on QPSK stays QPSK");
+    }
+
+    // Up to 3 errors corrected; a 4-4 tie is rejected (never a silent wrong mode).
+    test three_errors_corrected_tie_rejected {
+        assert(decode_mode(0x07) == DECODE_BPSK, "3 errors on BPSK still BPSK");
+        assert(decode_mode(0xF8) == DECODE_QPSK, "3 errors on QPSK still QPSK");
+        assert(decode_mode(0x0F) == DECODE_REJECT, "4-4 tie rejected");
+        assert(decode_mode(0xAA) == DECODE_REJECT, "alternating 4-4 tie rejected");
+    }
+
+    // Encode then decode is the identity mode.
+    test roundtrip {
+        assert(decode_mode(mode_codeword(0)) == DECODE_BPSK, "BPSK roundtrips");
+        assert(decode_mode(mode_codeword(1)) == DECODE_QPSK, "QPSK roundtrips");
+    }
+
+    // ---- invariants ----
+
+    // Codewords are maximally separated (Hamming distance 8) so a single symbol
+    // error cannot turn one valid codeword into the other.
+    invariant codewords_max_distance
+        assert MODE_QPSK_CW == 255
+
+    invariant bpsk_codeword_zero
+        assert MODE_BPSK_CW == 0
+}
