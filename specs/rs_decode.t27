@@ -16,7 +16,7 @@ module RsDecode {
     use base::types;
 
     const PARITY      : u8 = 4;   // RS(255,251) parity symbols.
-    const RECOVERABLE : u8 = 2;   // erasures this closed-form solver handles.
+    const RECOVERABLE : u8 = 3;   // erasures the closed-form solvers handle (recover2/recover3).
 
     // Syndrome S_j of a received (erased-as-zero) 6-symbol codeword: evaluate it
     // at the generator root alpha^j. A clean codeword has every syndrome zero.
@@ -48,6 +48,46 @@ module RsDecode {
         return (packed & 0xFF) as u8;
     }
 
+    // Recover THREE erased symbols at known powers p0,p1,p2 from syndromes
+    // S0,S1,S2. Gaussian elimination on the Vandermonde system, using the GF(2^k)
+    // Frobenius identity (a+b)^2 = a^2+b^2 to collapse the squared row:
+    //   T1 = S1 + X0*S0
+    //   e2 = (S2 + X0^2*S0 + (X1+X0)*T1) / ((X2+X0)*(X2+X1))
+    //   e1 = (T1 + (X2+X0)*e2) / (X1+X0)
+    //   e0 = S0 + e1 + e2
+    // Packed result: (e0 << 16) | (e1 << 8) | e2. Positions must be distinct.
+    fn recover3(s0: u8, s1: u8, s2: u8, p0: u8, p1: u8, p2: u8) -> u32 {
+        let x0: u8 = Gf256::gf_pow(2, p0);
+        let x1: u8 = Gf256::gf_pow(2, p1);
+        let x2: u8 = Gf256::gf_pow(2, p2);
+        let t1: u8 = Gf256::gf_add(s1, Gf256::gf_mul(x0, s0));
+        let x0sq: u8 = Gf256::gf_mul(x0, x0);
+        let num2: u8 = Gf256::gf_add(
+            Gf256::gf_add(s2, Gf256::gf_mul(x0sq, s0)),
+            Gf256::gf_mul(Gf256::gf_add(x1, x0), t1)
+        );
+        let den2: u8 = Gf256::gf_mul(Gf256::gf_add(x2, x0), Gf256::gf_add(x2, x1));
+        let e2: u8 = Gf256::gf_mul(num2, Gf256::gf_inv(den2));
+        let e1: u8 = Gf256::gf_mul(
+            Gf256::gf_add(t1, Gf256::gf_mul(Gf256::gf_add(x2, x0), e2)),
+            Gf256::gf_inv(Gf256::gf_add(x1, x0))
+        );
+        let e0: u8 = Gf256::gf_add(Gf256::gf_add(s0, e1), e2);
+        return ((e0 as u32) << 16) | ((e1 as u32) << 8) | (e2 as u32);
+    }
+
+    fn tri_e0(packed: u32) -> u8 {
+        return ((packed >> 16) & 0xFF) as u8;
+    }
+
+    fn tri_e1(packed: u32) -> u8 {
+        return ((packed >> 8) & 0xFF) as u8;
+    }
+
+    fn tri_e2(packed: u32) -> u8 {
+        return (packed & 0xFF) as u8;
+    }
+
     // ---- TDD (L4) ----
 
     // Self-consistent: build the syndromes from chosen erased values, then confirm
@@ -69,6 +109,24 @@ module RsDecode {
         packed = recover2(s0, s1, 3, 5);
         assert(ep_of(packed) == 0x9C, "recovered e_p at power 3");
         assert(eq_of(packed) == 0x2B, "recovered e_q at power 5");
+    }
+
+    // Self-consistent 3-erasure round-trip: build S0,S1,S2 from chosen values at
+    // powers 0,1,2, then confirm recover3 inverts them.
+    test recover3_inverts_syndromes {
+        x0 = Gf256::gf_pow(2, 0);
+        x1 = Gf256::gf_pow(2, 1);
+        x2 = Gf256::gf_pow(2, 2);
+        s0 = Gf256::gf_add(Gf256::gf_add(0x11, 0x22), 0x33);
+        s1 = Gf256::gf_add(Gf256::gf_add(Gf256::gf_mul(0x11, x0), Gf256::gf_mul(0x22, x1)),
+                           Gf256::gf_mul(0x33, x2));
+        s2 = Gf256::gf_add(Gf256::gf_add(Gf256::gf_mul(0x11, Gf256::gf_mul(x0, x0)),
+                                         Gf256::gf_mul(0x22, Gf256::gf_mul(x1, x1))),
+                           Gf256::gf_mul(0x33, Gf256::gf_mul(x2, x2)));
+        packed = recover3(s0, s1, s2, 0, 1, 2);
+        assert(tri_e0(packed) == 0x11, "recovered e0");
+        assert(tri_e1(packed) == 0x22, "recovered e1");
+        assert(tri_e2(packed) == 0x33, "recovered e2");
     }
 
     // A clean (unerased) codeword has zero syndromes; a corrupted one does not.
