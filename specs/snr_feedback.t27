@@ -1,0 +1,104 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/snr_feedback.t27
+// Over-air SNR feedback: the receiver reports, in its HELLO, the SNR at which it
+// hears each neighbor. That is the FAR-END view of a link (how well the receiver
+// hears the sender) -- which is exactly what adaptive_mcs must adapt to: a sender
+// picks its modulation from how well the RECEIVER hears IT, not from how well it
+// hears the receiver. This closes the adaptive-MCS loop:
+//   measure SNR -> quantize -> HELLO -> peer dequantizes far-end SNR -> pick_mcs.
+//
+// SNR is quantized to one byte for a compact HELLO (0.2 dB/step, 0..51 dB), and a
+// feedback older than max_age ticks is treated as stale -> a conservative 0 dB so
+// the modulation falls back to the most robust rather than trusting a dead report.
+// SNR is fixed-point dB*10 (snr_x10), matching adaptive_mcs / link_negotiation.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module SnrFeedback {
+    use base::types;
+
+    const SNR_MAX_X10 : u32 = 510;   // 51.0 dB clamps to the top code (0.2 dB/step)
+    const Q_MAX       : u8  = 255;
+
+    // Quantize an SNR estimate (dB*10) to one HELLO byte: 0.2 dB per step, so
+    // q = snr_x10 / 2, saturating at 51 dB. Matches the trios-mesh snr_quantize.
+    fn snr_quantize(snr_x10: u32) -> u8 {
+        if (snr_x10 >= SNR_MAX_X10) {
+            return Q_MAX;
+        } else {
+            return (snr_x10 / 2) as u8;
+        }
+    }
+
+    // Inverse: a code byte back to snr_x10 (each step = 0.2 dB = 2 in dB*10).
+    fn snr_dequantize(q: u8) -> u32 {
+        return (q as u32) * 2;
+    }
+
+    // Is a feedback report of age `age_ticks` still fresh enough to drive MCS?
+    fn is_fresh(age_ticks: u32, max_age: u32) -> bool {
+        return age_ticks <= max_age;
+    }
+
+    // The far-end SNR (dB*10) a sender should feed to pick_mcs: the dequantized
+    // report if fresh, otherwise a conservative 0 dB (forces the robust modulation
+    // rather than trusting a stale link estimate).
+    fn feedback_snr_x10(reported_q: u8, age_ticks: u32, max_age: u32) -> u32 {
+        if (is_fresh(age_ticks, max_age)) {
+            return snr_dequantize(reported_q);
+        } else {
+            return 0;
+        }
+    }
+
+    // ---- TDD (L4) ----
+
+    test quantize_known_points {
+        assert(snr_quantize(0) == 0, "0 dB -> code 0");
+        assert(snr_quantize(200) == 100, "20 dB -> code 100");
+        assert(snr_quantize(510) == 255, "51 dB -> top code");
+    }
+
+    test quantize_saturates {
+        assert(snr_quantize(600) == 255, "60 dB saturates to 51 dB code");
+        assert(snr_quantize(510) == snr_quantize(1000), "everything >= 51 dB is the top code");
+    }
+
+    test dequantize_inverts {
+        assert(snr_dequantize(0) == 0, "code 0 -> 0 dB");
+        assert(snr_dequantize(100) == 200, "code 100 -> 20 dB");
+        assert(snr_dequantize(255) == 510, "top code -> 51 dB");
+    }
+
+    // Round-trip is exact on the quantization grid (even dB*10 within range).
+    test roundtrip_on_grid {
+        assert(snr_dequantize(snr_quantize(200)) == 200, "20 dB roundtrips");
+        assert(snr_dequantize(snr_quantize(110)) == 110, "11 dB roundtrips");
+    }
+
+    // Monotonic: a stronger link never yields a smaller code.
+    test quantize_monotonic {
+        assert(snr_quantize(100) < snr_quantize(200), "10 dB code < 20 dB code");
+        assert(snr_quantize(200) < snr_quantize(300), "20 dB code < 30 dB code");
+    }
+
+    test freshness_boundary {
+        assert(is_fresh(5, 10) == true, "age below max is fresh");
+        assert(is_fresh(10, 10) == true, "exactly max_age is still fresh");
+        assert(is_fresh(11, 10) == false, "age above max is stale");
+    }
+
+    test staleness_gates_feedback {
+        assert(feedback_snr_x10(100, 5, 10) == 200, "fresh report -> 20 dB");
+        assert(feedback_snr_x10(100, 15, 10) == 0, "stale report -> conservative 0 dB");
+        assert(feedback_snr_x10(100, 10, 10) == 200, "exactly max_age is still fresh");
+    }
+
+    // ---- invariants ----
+
+    // The clamp point and the top code are consistent (51 dB / 0.2 dB-step = 255).
+    invariant top_code_is_full
+        assert Q_MAX == 255
+
+    invariant clamp_matches_top_code
+        assert SNR_MAX_X10 == 510
+}
