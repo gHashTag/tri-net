@@ -134,4 +134,28 @@ module MeshEtx {
         est2 = ewma_update(ewma_update(OPTIMISTIC, 0, ALPHA_HALF), 0, ALPHA_HALF);
         assert(est2 < OPTIMISTIC, "EWMA should decrease");
     }
+
+    // ---- direct coverage for the remaining helpers (L4) ----
+
+    test test_alpha_from_window {
+        assert(alpha_from_window(10) == 128, "window 10 -> 0.5 in Q8.8");
+        assert(alpha_from_window(5) == 160, "window 5 -> ~0.625");
+    }
+
+    test test_bool_to_sample {
+        assert(bool_to_sample(true) == 255, "delivered -> ~1.0");
+        assert(bool_to_sample(false) == 0, "lost -> 0");
+    }
+
+    test test_fp_mul {
+        assert(fp_mul(0, 200) == 0, "zero operand short-circuits to 0");
+        assert(fp_mul(128, 128) == 64, "0.5 * 0.5 = 0.25 in Q8.8");
+        assert(fp_mul(255, 255) == 254, "~1.0 * ~1.0 ~= ~1.0");
+    }
+
+    test test_is_dead {
+        assert(is_dead(0) == true, "ratio 0 is a dead link");
+        assert(is_dead(DEAD_EPS) == false, "ratio == DEAD_EPS is not dead (strict <)");
+        assert(is_dead(255) == false, "full delivery is not dead");
+    }
 }
