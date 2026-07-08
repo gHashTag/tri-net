@@ -1,0 +1,122 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/frag_wire.t27
+// On-air wire format for one interleaved RS fragment (a column of the C x N
+// codeword matrix, see rs_interleave). Each fragment carries a fixed 4-byte
+// header followed by C coded symbols (one per codeword). The header packs into a
+// u32 (t27 has no byte arrays, so the format is modelled as packed integers, as
+// mcs_mode_header and rs_encode do):
+//
+//   bits 31..24  keyframe_id   (rolling 0..255, groups fragments of one frame)
+//   bits 23..20  column        (0..N-1; which interleave column this fragment is)
+//   bits 19..08  codeword_count(C; body length in symbols, up to 4095 codewords)
+//   bits 07..00  flags         (bit0 = keyframe/I-frame)
+//
+// The receiver reads `column` to learn each body symbol's RS power for recovery
+// (column_to_power maps column j -> codeword power N-1-j), groups fragments by
+// keyframe_id, and once >= K columns of a keyframe arrive, RS-decodes the erased
+// columns per rs_decode. This spec is the header codec + the column<->power link.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module FragWire {
+    use base::types;
+
+    const HEADER_BYTES : u32 = 4;   // packed u32 header.
+    const N            : u32 = 6;   // interleave columns = coded symbols/codeword.
+    const FLAG_KEYFRAME: u32 = 1;   // flags bit0.
+
+    // Pack the four header fields into the on-air u32 (fields masked to width).
+    fn pack_header(keyframe_id: u8, column: u8, codeword_count: u32, flags: u8) -> u32 {
+        return ((keyframe_id as u32) << 24)
+             | (((column as u32) & 0xF) << 20)
+             | ((codeword_count & 0xFFF) << 8)
+             | (flags as u32);
+    }
+
+    fn hdr_keyframe_id(h: u32) -> u8 {
+        return ((h >> 24) & 0xFF) as u8;
+    }
+
+    fn hdr_column(h: u32) -> u8 {
+        return ((h >> 20) & 0xF) as u8;
+    }
+
+    fn hdr_codeword_count(h: u32) -> u32 {
+        return (h >> 8) & 0xFFF;
+    }
+
+    fn hdr_flags(h: u32) -> u8 {
+        return (h & 0xFF) as u8;
+    }
+
+    // Total on-air bytes for a fragment: header + one symbol per codeword.
+    fn fragment_bytes(codeword_count: u32, symbol_bytes: u32) -> u32 {
+        return HEADER_BYTES + codeword_count * symbol_bytes;
+    }
+
+    // The integration link: interleave column j carries codeword symbol at power
+    // N-1-j, which is exactly the erasure power rs_decode.recover* needs. Valid
+    // only for a real column (column < N).
+    fn column_to_power(column: u8) -> u8 {
+        return ((N - 1) - (column as u32)) as u8;
+    }
+
+    fn column_valid(column: u8) -> bool {
+        return (column as u32) < N;
+    }
+
+    // Two fragments belong to the same keyframe iff their ids match.
+    fn same_keyframe(h1: u32, h2: u32) -> bool {
+        return hdr_keyframe_id(h1) == hdr_keyframe_id(h2);
+    }
+
+    fn is_keyframe_frame(h: u32) -> bool {
+        return ((hdr_flags(h) as u32) & FLAG_KEYFRAME) != 0;
+    }
+
+    // ---- TDD (L4) ----
+
+    // Pack then unpack returns every field unchanged.
+    test header_roundtrip {
+        h = pack_header(0xA7, 3, 50, 1);
+        assert(hdr_keyframe_id(h) == 0xA7, "keyframe_id");
+        assert(hdr_column(h) == 3, "column");
+        assert(hdr_codeword_count(h) == 50, "codeword_count");
+        assert(hdr_flags(h) == 1, "flags");
+    }
+
+    // Fields do not bleed into each other at the boundaries.
+    test fields_are_disjoint {
+        h = pack_header(0xFF, 0xF, 0xFFF, 0xFF);
+        assert(hdr_keyframe_id(h) == 0xFF, "max id");
+        assert(hdr_column(h) == 0xF, "max column");
+        assert(hdr_codeword_count(h) == 0xFFF, "max count");
+        assert(hdr_flags(h) == 0xFF, "max flags");
+    }
+
+    test size_and_flags {
+        assert(fragment_bytes(50, 1) == 54, "4 header + 50 symbols");
+        assert(is_keyframe_frame(pack_header(1, 0, 1, 1)) == true, "keyframe flag set");
+        assert(is_keyframe_frame(pack_header(1, 0, 1, 0)) == false, "flag clear");
+    }
+
+    // The column<->power link that connects the wire to rs_decode.
+    test column_power_link {
+        assert(column_to_power(0) == 5, "column 0 -> power N-1");
+        assert(column_to_power(5) == 0, "column N-1 -> power 0");
+        assert(column_valid(5) == true, "column 5 valid");
+        assert(column_valid(6) == false, "column 6 out of range");
+    }
+
+    test keyframe_grouping {
+        assert(same_keyframe(pack_header(9, 0, 1, 0), pack_header(9, 4, 1, 0)) == true, "same id");
+        assert(same_keyframe(pack_header(9, 0, 1, 0), pack_header(8, 0, 1, 0)) == false, "diff id");
+    }
+
+    // ---- invariants ----
+
+    invariant header_is_four_bytes
+        assert HEADER_BYTES == 4
+
+    invariant columns_match_codeword_width
+        assert N == 6
+}
