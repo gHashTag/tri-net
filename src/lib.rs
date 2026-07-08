@@ -57,6 +57,12 @@ pub mod qos_scheduler;
 #[path = "../gen/rust/link_budget.rs"]
 pub mod link_budget;
 
+#[path = "../gen/rust/anon.rs"]
+pub mod anon;
+
+#[path = "../gen/rust/mesh_metrics.rs"]
+pub mod mesh_metrics;
+
 // Types used across the crate
 pub type NodeId = u32;
 

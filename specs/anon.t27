@@ -1,0 +1,151 @@
+// Initiator anonymity: anonymous mesh frames hide sender identity.
+// AnonData frames carry src=0 on the wire; the real sender is inside
+// the AEAD-encrypted payload (first 4 bytes, NodeId LE).
+// An eavesdropper sees traffic but cannot attribute frames to senders.
+// Backward compatible: Data(1) and AnonData(2) coexist.
+// phi^2 + phi^-2 = 3
+
+module AnonFrame {
+    use base::types;
+
+    const KIND_HELLO: u8 = 0;
+    const KIND_DATA: u8 = 1;
+    const KIND_ANON_DATA: u8 = 2;
+    const ANON_SRC: u8 = 0;
+
+    // Check if a frame kind supports anonymity (src is hidden).
+    fn is_anonymous_kind(kind: u8) -> bool {
+        return kind == KIND_ANON_DATA;
+    }
+
+    // The wire-visible source for an anonymous frame is always 0.
+    fn wire_src_for_anon() -> u8 {
+        return ANON_SRC;
+    }
+
+    // Encode the original sender into the encrypted payload prefix.
+    // Returns the first byte of the 4-byte LE NodeId prefix.
+    fn inner_src_byte_0(sender_id: u8) -> u8 {
+        return sender_id;
+    }
+
+    // Extract the original sender from the decrypted payload's first byte.
+    fn extract_sender(payload_byte0: u8) -> u8 {
+        return payload_byte0;
+    }
+
+    // Check if a wire src value indicates anonymity.
+    fn is_anonymous_src(src_byte: u8) -> bool {
+        return src_byte == ANON_SRC;
+    }
+
+    // Validate that an AnonData frame has a valid kind.
+    fn validate_anon_kind(kind: u8) -> bool {
+        return kind == KIND_ANON_DATA;
+    }
+
+    // Check if both frame kinds can coexist (backward compatibility).
+    // Returns 1 if both are Data or AnonData, else 0.
+    fn kinds_coexist(kind_a: u8, kind_b: u8) -> u8 {
+        if (kind_a == KIND_DATA || kind_a == KIND_ANON_DATA) {
+            if (kind_b == KIND_DATA || kind_b == KIND_ANON_DATA) {
+                return 1;
+            }
+        }
+        return 0;
+    }
+
+    // Decide frame kind: use AnonData if anonymous flag set, else Data.
+    fn choose_kind(anonymous: bool) -> u8 {
+        if (anonymous) {
+            return KIND_ANON_DATA;
+        }
+        return KIND_DATA;
+    }
+
+    // Check if a decrypted payload is long enough to contain a sender prefix.
+    fn payload_has_sender(payload_len: usize) -> bool {
+        return payload_len >= 4;
+    }
+
+    // ---- TDD (L4) ----
+
+    test anon_kind_is_2 {
+        assert(KIND_ANON_DATA == 2, "AnonData kind is 2");
+    }
+
+    test anon_src_is_zero {
+        assert(wire_src_for_anon() == 0, "anonymous src is 0");
+    }
+
+    test is_anonymous_kind_true {
+        assert(is_anonymous_kind(2) == true, "kind 2 is anonymous");
+    }
+
+    test is_anonymous_kind_false_for_data {
+        assert(is_anonymous_kind(1) == false, "kind 1 is not anonymous");
+    }
+
+    test is_anonymous_kind_false_for_hello {
+        assert(is_anonymous_kind(0) == false, "kind 0 is not anonymous");
+    }
+
+    test inner_src_encodes_sender {
+        assert(inner_src_byte_0(22) == 22, "sender 22 encoded");
+    }
+
+    test extract_sender_recovers {
+        assert(extract_sender(22) == 22, "sender 22 recovered");
+    }
+
+    test is_anonymous_src_zero {
+        assert(is_anonymous_src(0) == true, "src 0 is anonymous");
+    }
+
+    test is_anonymous_src_nonzero {
+        assert(is_anonymous_src(11) == false, "src 11 is not anonymous");
+    }
+
+    test validate_anon_kind_valid {
+        assert(validate_anon_kind(2) == true, "kind 2 valid for anon");
+    }
+
+    test validate_anon_kind_invalid {
+        assert(validate_anon_kind(1) == false, "kind 1 invalid for anon");
+    }
+
+    test data_and_anon_coexist {
+        assert(kinds_coexist(1, 2) == 1, "Data and AnonData coexist");
+    }
+
+    test hello_and_anon_do_not_coexist_as_pair {
+        assert(kinds_coexist(0, 2) == 0, "Hello is not data-class");
+    }
+
+    test choose_anon_when_flagged {
+        assert(choose_kind(true) == 2, "anonymous=true -> AnonData");
+    }
+
+    test choose_data_when_not_flagged {
+        assert(choose_kind(false) == 1, "anonymous=false -> Data");
+    }
+
+    test payload_too_short_for_sender {
+        assert(payload_has_sender(3) == false, "3 bytes too short");
+    }
+
+    test payload_long_enough {
+        assert(payload_has_sender(4) == true, "4 bytes has sender prefix");
+    }
+
+    // ---- invariants ----
+
+    invariant anon_data_kind_is_2
+        assert KIND_ANON_DATA == 2
+
+    invariant anon_src_is_zero
+        assert ANON_SRC == 0
+
+    invariant anon_kind_distinct_from_data
+        assert KIND_ANON_DATA != KIND_DATA
+}
