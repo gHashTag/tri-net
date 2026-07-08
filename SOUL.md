@@ -33,7 +33,7 @@ Every .t27 spec MUST contain test or invariant blocks.
 2. uImage          — 4.3MB (ZIP 001 SD-BOOT/)
 3. devicetree.dtb  — 19KB (ZIP 002 SD-BOOT/)
 4. uramdisk.image.gz — 5.6MB (ZIP 002 SD-BOOT/) — ORIGINAL unmodified
-5. uEnv.txt        — 55 lines (ZIP 001 SD-BOOT/) — ONLY ethaddr changed
+5. uEnv.txt        — 56 lines — stock + ethaddr changed + bootargs line appended (see below)
 ```
 
 ### Boot Switch Position: DOES NOT MATTER
@@ -52,7 +52,24 @@ ethaddr in uEnv.txt DOES change Linux MAC (U-Boot patches device tree).
 ipaddr in uEnv.txt does NOT change Linux IP (U-Boot only).
 boardargs/uenvcmd in uEnv.txt causes INFINITE RECURSION (do not use).
 
-### Multi-Board IP Separation (runtime, proven)
+### Per-Board IP: kernel bootargs (PROVEN 2026-07-08, survives reboot)
+Append ONE line to the stock uEnv.txt (no uenvcmd, no boardargs):
+```
+bootargs=console=ttyPS0,115200n8 root=/dev/ram rw earlyprintk ip=192.168.1.1N::192.168.1.1:255.255.255.0::eth0:off
+```
+Stock sdboot's bootm picks up ${bootargs} imported from uEnv.txt; the kernel
+brings up eth0 at 192.168.1.1N as PRIMARY. Proven on all 3 boards (M1 3/3 +
+M2 three-board mesh PASS). Ready-made files: tools/board-configs/uEnv-boardN.txt.
+
+Leftover: stock init still adds factory .10 as SECONDARY each boot. Drop it
+after boot: `ip addr del 192.168.1.10/24 dev eth0`. GOTCHA: if .10 is PRIMARY
+(no bootargs ip=), deleting it also flushes all secondaries on the subnet
+(promote_secondaries=0) — delete .10 FIRST, then add the unique IP.
+
+NEVER let two boards share a MAC on the wire (switch MAC-flap kills sessions);
+duplicate SDs with the same ethaddr caused the 2026-07-08 "board dies" mystery.
+
+### Multi-Board IP Separation (runtime fallback, for stock SDs)
 1. Boot one board, SSH to .10
 2. ip addr add 192.168.1.1N/24 dev eth0 (add secondary, do NOT delete .10)
 3. arp -d .10 on Mac
