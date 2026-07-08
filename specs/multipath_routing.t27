@@ -85,12 +85,15 @@ module multipath_routing {
 
     // Check if multipath routing is viable
     fn is_multipath_viable(path_array: u64) -> u32 {
-        return (count_valid_paths(path_array) >= MIN_PATHS);
+        if (count_valid_paths(path_array) >= MIN_PATHS) {
+            return 1;
+        }
+        return 0;
     }
 
     // Select primary path based on quality metrics
     fn select_primary_path(path_array: u64, quality_array: u64) -> u32 {
-        if (!is_multipath_viable(path_array)) {
+        if (is_multipath_viable(path_array) == 0) {
             return 0xFF; // No multipath available
         }
         
@@ -125,7 +128,7 @@ module multipath_routing {
             hop1_set = hop1_set | (1 << get_multipath_hop1(get_multipath(path_array, 2)));
         }
         
-        if (get_path_valid(get_multipath(path_array, 3)) == path_valid == PATH_VALID) {
+        if (get_path_valid(get_multipath(path_array, 3)) == PATH_VALID) {
             hop1_set = hop1_set | (1 << get_multipath_hop1(get_multipath(path_array, 3)));
         }
         

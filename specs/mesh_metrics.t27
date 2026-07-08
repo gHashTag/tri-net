@@ -53,12 +53,13 @@ module MeshMetrics {
         if (ratio_q8 == 0) {
             return 0xFFFF;
         }
-        // ETX ~ 256/ratio (Q8). Clamp to avoid overflow.
-        let etx: u16 = (256 * 256) / (ratio_q8 as u16);
+        // ETX ~ 256/ratio (Q8). Numerator 256*256 = 65536 needs u32; clamp in
+        // u32 BEFORE narrowing so a low ratio can't wrap the u16.
+        let etx: u32 = (256 * 256) / (ratio_q8 as u32);
         if (etx > 0xFF00) {
             return 0xFF00;
         }
-        return etx;
+        return etx as u16;
     }
 
     // Mark a neighbor as dead.

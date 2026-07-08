@@ -42,7 +42,12 @@ module MeshEtx {
         if (est == 255 && sample == 255) {
             return 255;
         }
-        return fp_mul(alpha, sample) + fp_mul(256 - alpha, est);
+        // Q8.8 EWMA in u16 so the `256 - alpha` complement (up to 256 = 1.0) does
+        // not overflow u8 (fp_mul's u8 arg cannot represent the value 256).
+        let a16: u16 = alpha as u16;
+        let term1: u16 = ((a16 * (sample as u16)) >> 8);
+        let term2: u16 = (((256 - a16) * (est as u16)) >> 8);
+        return (term1 + term2) as u8;
     }
 
     // Check if delivery ratio is dead

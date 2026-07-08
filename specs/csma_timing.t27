@@ -46,8 +46,8 @@ module CsmaTiming {
     // Compute a random backoff in [0, cw).
     // Deterministic LCG from a seed (for testability).
     fn backoff_from_seed(seed: u32, cw: u8) -> u8 {
-        let s: u32 = seed * 6364136223846793005 + 1442695040888963407;
-        return ((s >> 33) % (cw as u32)) as u8;
+        let s: u64 = (seed as u64) * 6364136223846793005 + 1442695040888963407;
+        return ((s >> 33) % (cw as u64)) as u8;
     }
 
     // Tick the backoff: decrement if channel idle, freeze if busy.
