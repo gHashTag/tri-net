@@ -92,3 +92,48 @@ Self-healing: ETX detects link failure in ~900ms.
 ## Article VII: Identity
 
 phi^2 + phi^-2 = 3 | TRINITY
+
+## Article VIII: Debugging Doctrine (written in blood, 2026-07-08)
+
+Twenty hours were once spent "fixing" hardware that was never broken.
+Every one of the 10 problems in the W12 troubleshooting report was either
+self-inflicted (QSPI/JTAG experiments) or a network identity collision
+misread as a hardware fault. These laws exist so that never repeats.
+
+1. INDEPENDENT CHANNEL FIRST. Never debug through a signal that lies inside
+   the failure domain (the broken-ruler error). If the network is the
+   symptom, the console is the instrument: open UART (FT2232H channel B,
+   115200, root/analog) as the FIRST command of the session, not the 20th
+   hour. dmesg + /proc/cmdline dissolve most "mysteries" in minutes.
+2. OBSERVABILITY BEFORE MUTATION. No state change while blind. Read logs,
+   read /proc, read the SD from the running board BEFORE rewriting anything.
+3. RTFM BEFORE REVERSE-ENGINEERING. Vendor docs first (User Manual, Boot
+   Test readme, schematics in ~/Downloads ZIPs), empirics second. Hours of
+   JTAG archaeology rediscovered facts printed in the manual - some wrongly.
+4. ENUMERATE HYPOTHESIS CLASSES. "Appears briefly then dies" has at least
+   three cause classes: hardware, configuration, NETWORK IDENTITY. Write
+   all classes down before the first experiment; kill them cheapest-first.
+   Confirmation bias is the default failure mode, not the exception.
+5. IDENTITY BEFORE SHARED MEDIUM. Two devices with the same MAC or IP on
+   one wire poison EVERY network test - including tests of correct fixes
+   (a poisoned environment makes correct solutions test as failures).
+   `grep ethaddr` on every SD costs one second. Label physical media.
+6. ONE VARIABLE PER EXPERIMENT. One board, one cable, one console when
+   diagnosing. Three unlabeled boards + full-subnet scans = pure noise.
+7. DESTRUCTIVE TOOLS LAST. JTAG, QSPI pokes, register writes come after
+   understanding, never before - and NEVER on the last working unit.
+   Every destructive mistake adds a new fault layer that will be
+   misattributed to the original bug (the compounding spiral).
+8. AFTER A DESTRUCTIVE MISTAKE: STOP AND RE-BASELINE. Do not continue the
+   original hunt on damaged ground; re-verify what still works first.
+9. "PROVEN" REQUIRES REPRODUCTION. One lucky boot is an anecdote. Resolve
+   documentation contradictions immediately; never append a second truth
+   next to a first one (Kuiper-vs-vendor BOOT.BIN lived unresolved for
+   days and corrupted every later session).
+10. RUNTIME IS NOT PERSISTENT. `ip addr add` dies at reboot. Every fix
+    report MUST state whether it survives a power cycle; a "fixed" that
+    silently reverts guarantees a Sisyphus loop next session.
+11. KNOWLEDGE MUST SURVIVE SESSIONS. Before declaring "no access" or
+    "impossible", search memory and prior docs: the working console recipe
+    existed for 7 days while sessions debugged blind. Losing a recipe is
+    losing the board.
