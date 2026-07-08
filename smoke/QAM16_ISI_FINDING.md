@@ -45,6 +45,17 @@ precision** problem, not a noise problem (this is a clean channel).
 - So the throughput roadmap is: QPSK (done) → **PL modem + OFDM/QAM** (hardware),
   not another host modulation rung. This is the useful thing the attempt taught us.
 
+## Follow-up (iter19): timing refinement helps but is NOT enough
+
+A data-aided sub-sample timing refinement (minimize pilot EVM over a fine offset
+grid) was tried: it cut 16-QAM clean FER from **46.6% → 36.6%** — real, but still
+unusable — and gave sign-based **BPSK/QPSK exactly 0 improvement** (their timing is
+already adequate for sign decisions). So the residual is not a single timing
+offset: 16-QAM needs a full **equalizer** (finite-RRC + burst-edge ISI), not just
+better timing. Reverted (didn't earn its place on the experimental path). This
+strengthens the conclusion: higher-order QAM belongs with the PL/OFDM path, which
+has room for a proper equalizer + timing loop.
+
 ## Reproduce
 
 ```
