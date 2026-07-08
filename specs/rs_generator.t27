@@ -1,0 +1,74 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/rs_generator.t27
+// Reed-Solomon generator polynomial for 4 parity symbols (RS(255,251)) over the
+// GF(256) field defined in gf256.t27. This is the piece reed_solomon.t27 needed:
+// its sizing functions assumed a generator that lived nowhere. A codeword is a
+// multiple of g(x), so the DEFINING property is that every root alpha^i (i in
+// 0..M) is a zero of g -- which is what the tests check, evaluating g in the real
+// field rather than trusting hard-coded coefficients.
+//
+//   g(x) = (x - a^0)(x - a^1)(x - a^2)(x - a^3)
+//        = x^4 + 0x0F x^3 + 0x36 x^2 + 0x78 x + 0x40   (alpha = 2, poly 0x11D)
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module RsGenerator {
+    use base::types;
+
+    const PARITY : u8 = 4;   // RS(255,251): 4 parity symbols, corrects 2 errors.
+
+    // Coefficients of g(x), most significant first (G4 = x^4 leading term).
+    const G4 : u8 = 0x01;
+    const G3 : u8 = 0x0F;
+    const G2 : u8 = 0x36;
+    const G1 : u8 = 0x78;
+    const G0 : u8 = 0x40;
+
+    // The i-th generator root: alpha^i with alpha = 2, the field's primitive.
+    fn root(i: u8) -> u8 {
+        return Gf256::gf_pow(2, i);
+    }
+
+    // Evaluate g(x) in GF(256) by Horner's rule (multiply-add down the coeffs).
+    fn gen_eval(x: u8) -> u8 {
+        let acc: u8 = G4;
+        acc = Gf256::gf_add(Gf256::gf_mul(acc, x), G3);
+        acc = Gf256::gf_add(Gf256::gf_mul(acc, x), G2);
+        acc = Gf256::gf_add(Gf256::gf_mul(acc, x), G1);
+        acc = Gf256::gf_add(Gf256::gf_mul(acc, x), G0);
+        return acc;
+    }
+
+    // ---- TDD (L4) ----
+
+    // The defining property: every root alpha^0..alpha^3 is a zero of g(x).
+    test roots_are_zeros {
+        assert(gen_eval(root(0)) == 0, "g(alpha^0) = 0");
+        assert(gen_eval(root(1)) == 0, "g(alpha^1) = 0");
+        assert(gen_eval(root(2)) == 0, "g(alpha^2) = 0");
+        assert(gen_eval(root(3)) == 0, "g(alpha^3) = 0");
+    }
+
+    // A non-root (alpha^4 = 16, outside the parity span) is NOT a zero, and neither
+    // is 0 (g(0) = constant term).
+    test non_roots_are_nonzero {
+        assert(gen_eval(root(4)) != 0, "alpha^4 is not a root of a 4-parity g");
+        assert(gen_eval(0) == G0, "g(0) = constant term 0x40");
+    }
+
+    // The roots are the low powers of alpha (1, 2, 4, 8) — the field primitive.
+    test roots_are_alpha_powers {
+        assert(root(0) == 1, "alpha^0 = 1");
+        assert(root(1) == 2, "alpha^1 = 2");
+        assert(root(2) == 4, "alpha^2 = 4");
+        assert(root(3) == 8, "alpha^3 = 8");
+    }
+
+    // ---- invariants ----
+
+    invariant four_parity
+        assert PARITY == 4
+
+    // g is monic (leading coefficient 1) so systematic encoding divides cleanly.
+    invariant monic
+        assert G4 == 1
+}
