@@ -16,7 +16,7 @@ module RsDecode {
     use base::types;
 
     const PARITY      : u8 = 4;   // RS(255,251) parity symbols.
-    const RECOVERABLE : u8 = 3;   // erasures the closed-form solvers handle (recover2/recover3).
+    const RECOVERABLE : u8 = 4;   // erasures the closed-form solvers handle (recover2/3/4 = full budget).
 
     // Syndrome S_j of a received (erased-as-zero) 6-symbol codeword: evaluate it
     // at the generator root alpha^j. A clean codeword has every syndrome zero.
@@ -88,6 +88,59 @@ module RsDecode {
         return (packed & 0xFF) as u8;
     }
 
+    // Recover ONE erased value from the 4-erasure Vandermonde system, given its
+    // locator xi and the three OTHER locators xa,xb,xc. This is the Lagrange /
+    // inverse-Vandermonde form (same shape recover2/recover3 specialise):
+    //   e_i = (S0*sig3 + S1*sig2 + S2*sig1 + S3) / ((xi+xa)(xi+xb)(xi+xc))
+    // where sig1,sig2,sig3 are the elementary symmetric polynomials of {xa,xb,xc}.
+    fn recover_one4(s0: u8, s1: u8, s2: u8, s3: u8, xi: u8, xa: u8, xb: u8, xc: u8) -> u8 {
+        let sig1: u8 = Gf256::gf_add(Gf256::gf_add(xa, xb), xc);
+        let sig2: u8 = Gf256::gf_add(
+            Gf256::gf_add(Gf256::gf_mul(xa, xb), Gf256::gf_mul(xa, xc)),
+            Gf256::gf_mul(xb, xc)
+        );
+        let sig3: u8 = Gf256::gf_mul(Gf256::gf_mul(xa, xb), xc);
+        let num: u8 = Gf256::gf_add(
+            Gf256::gf_add(Gf256::gf_mul(s0, sig3), Gf256::gf_mul(s1, sig2)),
+            Gf256::gf_add(Gf256::gf_mul(s2, sig1), s3)
+        );
+        let den: u8 = Gf256::gf_mul(
+            Gf256::gf_mul(Gf256::gf_add(xi, xa), Gf256::gf_add(xi, xb)),
+            Gf256::gf_add(xi, xc)
+        );
+        return Gf256::gf_mul(num, Gf256::gf_inv(den));
+    }
+
+    // Recover FOUR erased symbols at known powers p0..p3 (distinct) from syndromes
+    // S0..S3 -- the full RS(255,251) parity budget. Packed (e0<<24|e1<<16|e2<<8|e3).
+    fn recover4(s0: u8, s1: u8, s2: u8, s3: u8, p0: u8, p1: u8, p2: u8, p3: u8) -> u32 {
+        let x0: u8 = Gf256::gf_pow(2, p0);
+        let x1: u8 = Gf256::gf_pow(2, p1);
+        let x2: u8 = Gf256::gf_pow(2, p2);
+        let x3: u8 = Gf256::gf_pow(2, p3);
+        let e0: u8 = recover_one4(s0, s1, s2, s3, x0, x1, x2, x3);
+        let e1: u8 = recover_one4(s0, s1, s2, s3, x1, x0, x2, x3);
+        let e2: u8 = recover_one4(s0, s1, s2, s3, x2, x0, x1, x3);
+        let e3: u8 = recover_one4(s0, s1, s2, s3, x3, x0, x1, x2);
+        return ((e0 as u32) << 24) | ((e1 as u32) << 16) | ((e2 as u32) << 8) | (e3 as u32);
+    }
+
+    fn quad_e0(packed: u32) -> u8 {
+        return ((packed >> 24) & 0xFF) as u8;
+    }
+
+    fn quad_e1(packed: u32) -> u8 {
+        return ((packed >> 16) & 0xFF) as u8;
+    }
+
+    fn quad_e2(packed: u32) -> u8 {
+        return ((packed >> 8) & 0xFF) as u8;
+    }
+
+    fn quad_e3(packed: u32) -> u8 {
+        return (packed & 0xFF) as u8;
+    }
+
     // ---- TDD (L4) ----
 
     // Self-consistent: build the syndromes from chosen erased values, then confirm
@@ -127,6 +180,38 @@ module RsDecode {
         assert(tri_e0(packed) == 0x11, "recovered e0");
         assert(tri_e1(packed) == 0x22, "recovered e1");
         assert(tri_e2(packed) == 0x33, "recovered e2");
+    }
+
+    // Direct unit for the helper: a single erased value 1 at power 0 gives all
+    // syndromes = 1, and since (1+xa)(1+xb)(1+xc) = 1+sig1+sig2+sig3 = num, the
+    // helper must return 1 for any distinct other locators (here alpha^1,2,3).
+    test recover_one4_unit {
+        assert(recover_one4(1, 1, 1, 1, 1, 2, 4, 8) == 1, "unit erasure at power 0");
+    }
+
+    // Self-consistent 4-erasure round-trip: build S0..S3 from chosen values at
+    // powers 0,1,2,3, then confirm recover4 inverts them (full parity budget).
+    test recover4_inverts_syndromes {
+        x0 = Gf256::gf_pow(2, 0);
+        x1 = Gf256::gf_pow(2, 1);
+        x2 = Gf256::gf_pow(2, 2);
+        x3 = Gf256::gf_pow(2, 3);
+        s0 = Gf256::gf_add(Gf256::gf_add(0x1A, 0x2B), Gf256::gf_add(0x3C, 0x4D));
+        s1 = Gf256::gf_add(Gf256::gf_add(Gf256::gf_mul(0x1A, x0), Gf256::gf_mul(0x2B, x1)),
+                           Gf256::gf_add(Gf256::gf_mul(0x3C, x2), Gf256::gf_mul(0x4D, x3)));
+        s2 = Gf256::gf_add(Gf256::gf_add(Gf256::gf_mul(0x1A, Gf256::gf_mul(x0, x0)),
+                                         Gf256::gf_mul(0x2B, Gf256::gf_mul(x1, x1))),
+                           Gf256::gf_add(Gf256::gf_mul(0x3C, Gf256::gf_mul(x2, x2)),
+                                         Gf256::gf_mul(0x4D, Gf256::gf_mul(x3, x3))));
+        s3 = Gf256::gf_add(Gf256::gf_add(Gf256::gf_mul(0x1A, Gf256::gf_mul(x0, Gf256::gf_mul(x0, x0))),
+                                         Gf256::gf_mul(0x2B, Gf256::gf_mul(x1, Gf256::gf_mul(x1, x1)))),
+                           Gf256::gf_add(Gf256::gf_mul(0x3C, Gf256::gf_mul(x2, Gf256::gf_mul(x2, x2))),
+                                         Gf256::gf_mul(0x4D, Gf256::gf_mul(x3, Gf256::gf_mul(x3, x3)))));
+        packed = recover4(s0, s1, s2, s3, 0, 1, 2, 3);
+        assert(quad_e0(packed) == 0x1A, "recovered e0");
+        assert(quad_e1(packed) == 0x2B, "recovered e1");
+        assert(quad_e2(packed) == 0x3C, "recovered e2");
+        assert(quad_e3(packed) == 0x4D, "recovered e3");
     }
 
     // A clean (unerased) codeword has zero syndromes; a corrupted one does not.
