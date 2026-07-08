@@ -1,0 +1,112 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/video_stream.t27
+// H.264 video chunking for Channel V.
+// phi^2 + phi^-2 = 3 | TRINITY
+
+module VideoStream {
+    use base::types;
+
+    const TARGET_BITRATE_KBPS : u32 = 500;
+    const TARGET_FPS : u32 = 30;
+    const GOP_SIZE : u32 = 60;
+    const FRAME_CHUNK_BYTES : u32 = 2048;
+    const MAX_LATENCY_MS : u32 = 500;
+
+    fn bitrate_ok(kbps: u32) -> bool {
+        return kbps >= TARGET_BITRATE_KBPS;
+    }
+
+    fn fps_ok(fps: u32) -> bool {
+        return fps >= 24;
+    }
+
+    fn frame_size_bytes(kbps: u32, fps: u32) -> u32 {
+        if (fps == 0) { return 0; }
+        return kbps * 1000 / 8 / fps;
+    }
+
+    fn chunks_per_frame(frame_bytes: u32) -> u32 {
+        return (frame_bytes + FRAME_CHUNK_BYTES - 1) / FRAME_CHUNK_BYTES;
+    }
+
+    fn gop_duration_s() -> u32 {
+        return GOP_SIZE / TARGET_FPS;
+    }
+
+    fn latency_ok(latency_ms: u32) -> bool {
+        return latency_ms <= MAX_LATENCY_MS;
+    }
+
+    fn idr_frame_needed(frame_idx: u32) -> bool {
+        return frame_idx % GOP_SIZE == 0;
+    }
+
+    fn p_frame(frame_idx: u32) -> bool {
+        return frame_idx % GOP_SIZE != 0;
+    }
+
+    fn bandwidth_sufficient(link_kbps: u32) -> bool {
+        return link_kbps >= TARGET_BITRATE_KBPS;
+    }
+
+    test bitrate_500_ok
+        given ok = bitrate_ok(500)
+        then ok == true
+
+    test bitrate_300_fail
+        given ok = bitrate_ok(300)
+        then ok == false
+
+    test fps_30_ok
+        given ok = fps_ok(30)
+        then ok == true
+
+    test fps_15_fail
+        given ok = fps_ok(15)
+        then ok == false
+
+    test frame_size_500k_30fps
+        given sz = frame_size_bytes(500, 30)
+        then sz == 2083
+
+    test chunks_2kb_frame
+        given n = chunks_per_frame(2083)
+        then n == 2
+
+    test gop_2_seconds
+        given d = gop_duration_s()
+        then d == 2
+
+    test latency_300_ok
+        given ok = latency_ok(300)
+        then ok == true
+
+    test latency_600_fail
+        given ok = latency_ok(600)
+        then ok == false
+
+    test idr_at_gop_boundary
+        given ok = idr_frame_needed(60)
+        then ok == true
+
+    test p_frame_intra_gop
+        given ok = p_frame(30)
+        then ok == true
+
+    test bandwidth_ok
+        given ok = bandwidth_sufficient(600)
+        then ok == true
+
+    test bandwidth_low
+        given ok = bandwidth_sufficient(400)
+        then ok == false
+
+    invariant target_500kbps
+        assert TARGET_BITRATE_KBPS == 500
+
+    invariant max_latency_500ms
+        assert MAX_LATENCY_MS == 500
+
+    invariant gp_60_frames
+        assert GOP_SIZE == 60
+}

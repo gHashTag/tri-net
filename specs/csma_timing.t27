@@ -1,0 +1,174 @@
+// CSMA/CA timing: listen-before-talk on the shared half-duplex channel.
+// RX stamps air_busy when energy sensed; TX runs randomized backoff that
+// freezes while busy and counts down while idle, then transmits.
+// All times in slot units (1 slot = TX_SLOT samples ~= 0.5 ms at 4 MSPS).
+// phi^2 + phi^-2 = 3
+
+module CsmaTiming {
+    use base::types;
+
+    const CW_MIN: u8 = 1;     // min contention window (slots)
+    const CW_MAX: u8 = 16;    // max contention window (starvation cap)
+    const CSMA_MAX_SLOTS: u8 = 64; // hard cap before forced TX
+    const GUARD_SLOTS: u8 = 6;     // channel busy if energy within this window
+
+    // Compute the contention window for a given backoff stage.
+    // Stage 0 -> CW_MIN, doubles each stage, capped at CW_MAX.
+    fn cw_for_stage(stage: u8) -> u8 {
+        if (stage >= 4) {
+            return CW_MAX;
+        }
+        let cw: u8 = CW_MIN;
+        let i: u8 = 0;
+        while (i < stage) {
+            cw = cw * 2;
+            if (cw >= CW_MAX) {
+                return CW_MAX;
+            }
+            i = i + 1;
+        }
+        return cw;
+    }
+
+    // Check if the channel is busy: air_busy_age < GUARD_SLOTS.
+    fn is_busy(air_busy_age_slots: u8) -> bool {
+        return air_busy_age_slots < GUARD_SLOTS;
+    }
+
+    // Should TX proceed? Backoff expired (counter == 0) OR hit hard cap.
+    fn should_tx(backoff_remaining: u8, total_slots_waited: u8) -> bool {
+        if (backoff_remaining == 0) {
+            return true;
+        }
+        return total_slots_waited >= CSMA_MAX_SLOTS;
+    }
+
+    // Compute a random backoff in [0, cw).
+    // Deterministic LCG from a seed (for testability).
+    fn backoff_from_seed(seed: u32, cw: u8) -> u8 {
+        let s: u32 = seed * 6364136223846793005 + 1442695040888963407;
+        return ((s >> 33) % (cw as u32)) as u8;
+    }
+
+    // Tick the backoff: decrement if channel idle, freeze if busy.
+    fn tick_backoff(backoff: u8, air_busy_age: u8) -> u8 {
+        if (is_busy(air_busy_age)) {
+            return backoff;
+        }
+        if (backoff == 0) {
+            return 0;
+        }
+        return backoff - 1;
+    }
+
+    // Increment total slots waited (saturating at 255).
+    fn tick_total(total: u8) -> u8 {
+        if (total >= 255) {
+            return 255;
+        }
+        return total + 1;
+    }
+
+    // Next backoff stage after a collision (double, capped).
+    fn next_stage(stage: u8) -> u8 {
+        if (stage >= 4) {
+            return 4;
+        }
+        return stage + 1;
+    }
+
+    // Reset to stage 0 after successful TX.
+    fn reset_stage() -> u8 {
+        return 0;
+    }
+
+    // ---- TDD (L4) ----
+
+    test cw_stage_0 {
+        assert(cw_for_stage(0) == 1, "stage 0: CW=1");
+    }
+
+    test cw_stage_1 {
+        assert(cw_for_stage(1) == 2, "stage 1: CW=2");
+    }
+
+    test cw_stage_2 {
+        assert(cw_for_stage(2) == 4, "stage 2: CW=4");
+    }
+
+    test cw_stage_4_capped {
+        assert(cw_for_stage(4) == 16, "stage 4: CW=16 (capped)");
+    }
+
+    test cw_high_stage_capped {
+        assert(cw_for_stage(10) == 16, "stage 10: CW=16 (capped)");
+    }
+
+    test busy_when_recent_energy {
+        assert(is_busy(3) == true, "energy 3 slots ago = busy");
+    }
+
+    test idle_when_old_energy {
+        assert(is_busy(7) == false, "energy 7 slots ago = idle");
+    }
+
+    test should_tx_at_zero_backoff {
+        assert(should_tx(0, 5) == true, "backoff=0 -> TX");
+    }
+
+    test should_tx_at_hard_cap {
+        assert(should_tx(10, 64) == true, "hard cap -> forced TX");
+    }
+
+    test should_not_tx_with_backoff {
+        assert(should_tx(5, 10) == false, "backoff remaining -> wait");
+    }
+
+    test backoff_in_range {
+        b = backoff_from_seed(42, 8);
+        assert(b < 8, "backoff < CW");
+    }
+
+    test tick_decrements_when_idle {
+        assert(tick_backoff(5, 10) == 4, "idle -> decrement");
+    }
+
+    test tick_freezes_when_busy {
+        assert(tick_backoff(5, 2) == 5, "busy -> freeze");
+    }
+
+    test tick_zero_stays_zero {
+        assert(tick_backoff(0, 10) == 0, "zero stays zero");
+    }
+
+    test tick_total_increments {
+        assert(tick_total(5) == 6, "total increments");
+    }
+
+    test tick_total_saturates {
+        assert(tick_total(255) == 255, "total saturates");
+    }
+
+    test next_stage_increments {
+        assert(next_stage(2) == 3, "stage 2 -> 3");
+    }
+
+    test next_stage_capped {
+        assert(next_stage(4) == 4, "stage 4 capped");
+    }
+
+    test reset_to_zero {
+        assert(reset_stage() == 0, "reset to stage 0");
+    }
+
+    // ---- invariants ----
+
+    invariant cw_min_is_1
+        assert CW_MIN == 1
+
+    invariant cw_max_is_16
+        assert CW_MAX == 16
+
+    invariant hard_cap_is_64
+        assert CSMA_MAX_SLOTS == 64
+}

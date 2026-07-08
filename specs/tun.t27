@@ -1,0 +1,176 @@
+// TUN interface: IPv4 packet parsing for IP-over-mesh routing.
+// Extracts destination IP from raw packets and maps to mesh NodeId.
+// Mesh IP scheme: 10.42.0.N -> NodeId N (N > 0).
+// phi^2 + phi^-2 = 3
+
+module TunRouting {
+    use base::types;
+
+    const IPV4_MIN_HDR: usize = 20;
+    const MESH_PREFIX_0: u8 = 10;
+    const MESH_PREFIX_1: u8 = 42;
+    const MESH_PREFIX_2: u8 = 0;
+
+    // Extract the version nibble from the first byte of a packet.
+    fn ip_version(b0: u8) -> u8 {
+        return (b0 >> 4) & 15;
+    }
+
+    // Check if a packet is IPv4 (version == 4 and length >= 20).
+    fn is_ipv4(b0: u8, len: usize) -> bool {
+        if (len < IPV4_MIN_HDR) {
+            return false;
+        }
+        return ip_version(b0) == 4;
+    }
+
+    // Extract the destination IP last octet from a raw IPv4 packet.
+    // dst IP is at bytes [16..20]; the node ID is byte[19].
+    fn dst_node_id(b19: u8) -> u8 {
+        return b19;
+    }
+
+    // Check if a destination IP (4 octets) is in the mesh prefix 10.42.0.x.
+    fn is_mesh_ip(octet0: u8, octet1: u8, octet2: u8, octet3: u8) -> bool {
+        if (octet0 != MESH_PREFIX_0) {
+            return false;
+        }
+        if (octet1 != MESH_PREFIX_1) {
+            return false;
+        }
+        if (octet2 != MESH_PREFIX_2) {
+            return false;
+        }
+        if (octet3 == 0) {
+            return false;
+        }
+        return true;
+    }
+
+    // Determine the destination NodeId from IP octets.
+    // Returns 0 if not a mesh IP (caller treats 0 as "no route").
+    fn dst_node(octet0: u8, octet1: u8, octet2: u8, octet3: u8) -> u8 {
+        if (is_mesh_ip(octet0, octet1, octet2, octet3)) {
+            return octet3;
+        }
+        return 0;
+    }
+
+    // Route decision: if dst is a mesh node, return it; otherwise return gateway.
+    // Returns 0 if no route and no gateway.
+    fn route_packet(dst_node: u8, gateway: u8) -> u8 {
+        if (dst_node != 0) {
+            return dst_node;
+        }
+        return gateway;
+    }
+
+    // Check if a packet is destined for our node.
+    fn is_for_us(dst_octet: u8, our_id: u8) -> bool {
+        return dst_octet == our_id;
+    }
+
+    // Extract DSCP (diffserv) field from IPv4 byte[1].
+    fn dscp(b1: u8) -> u8 {
+        return (b1 >> 2) & 63;
+    }
+
+    // QoS class from DSCP: 46=EF(voice=0), 10..43=AF(interactive=1), else=default(3).
+    fn class_from_dscp(dscp_val: u8) -> u8 {
+        if (dscp_val == 46) {
+            return 0;
+        }
+        if (dscp_val >= 10 && dscp_val <= 43) {
+            return 1;
+        }
+        return 3;
+    }
+
+    // ---- TDD (L4) ----
+
+    test ip_version_v4 {
+        assert(ip_version(0x45) == 4, "IPv4 version nibble");
+    }
+
+    test ip_version_v6 {
+        assert(ip_version(0x60) == 6, "IPv6 version nibble");
+    }
+
+    test is_ipv4_valid {
+        assert(is_ipv4(0x45, 20) == true, "valid IPv4 packet");
+    }
+
+    test is_ipv4_short_rejected {
+        assert(is_ipv4(0x45, 10) == false, "too short");
+    }
+
+    test is_ipv4_v6_rejected {
+        assert(is_ipv4(0x60, 20) == false, "not IPv4");
+    }
+
+    test mesh_ip_valid {
+        assert(is_mesh_ip(10, 42, 0, 22) == true, "10.42.0.22 is mesh");
+    }
+
+    test mesh_ip_zero_rejected {
+        assert(is_mesh_ip(10, 42, 0, 0) == false, "10.42.0.0 is not a host");
+    }
+
+    test mesh_ip_wrong_prefix {
+        assert(is_mesh_ip(192, 168, 1, 1) == false, "192.168.1.1 is not mesh");
+    }
+
+    test dst_node_extracts {
+        assert(dst_node(10, 42, 0, 22) == 22, "dst = node 22");
+    }
+
+    test dst_node_non_mesh {
+        assert(dst_node(8, 8, 8, 8) == 0, "8.8.8.8 is not mesh");
+    }
+
+    test route_to_mesh_node {
+        assert(route_packet(22, 11) == 22, "route to node 22");
+    }
+
+    test route_non_mesh_to_gateway {
+        assert(route_packet(0, 11) == 11, "non-mesh routes to gateway");
+    }
+
+    test route_non_mesh_no_gateway {
+        assert(route_packet(0, 0) == 0, "no route, no gateway");
+    }
+
+    test is_for_us_match {
+        assert(is_for_us(22, 22) == true, "packet for us");
+    }
+
+    test is_for_us_mismatch {
+        assert(is_for_us(22, 11) == false, "packet not for us");
+    }
+
+    test dscp_extract {
+        assert(dscp(0xB8) == 46, "DSCP EF = 46");
+    }
+
+    test class_ef_is_realtime {
+        assert(class_from_dscp(46) == 0, "EF = realtime");
+    }
+
+    test class_af_is_interactive {
+        assert(class_from_dscp(10) == 1, "AF = interactive");
+    }
+
+    test class_default_is_bulk {
+        assert(class_from_dscp(0) == 3, "default = bulk");
+    }
+
+    // ---- invariants ----
+
+    invariant ipv4_header_is_20_bytes
+        assert IPV4_MIN_HDR == 20
+
+    invariant mesh_prefix_is_10_42_0
+        assert MESH_PREFIX_0 == 10
+        assert MESH_PREFIX_1 == 42
+        assert MESH_PREFIX_2 == 0
+}

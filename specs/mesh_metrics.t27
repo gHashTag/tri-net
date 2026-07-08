@@ -1,0 +1,241 @@
+// Mesh metrics: ETX, link quality, throughput counters for monitoring.
+// Tracks per-neighbor delivery stats and aggregates for network health.
+// State encoded as packed u32 fields where possible.
+// phi^2 + phi^-2 = 3
+
+module MeshMetrics {
+    use base::types;
+
+    const MAX_NEIGHBORS: u8 = 8;
+    const HELLO_INTERVAL_MS: u16 = 300;
+
+    // Per-neighbor link statistics packed into a u32:
+    // [sent:12bit][recv:12bit][misses:4bit][alive:1bit][reserved:3bit]
+    fn pack_link_stats(sent: u16, recv: u16, misses: u8, alive: bool) -> u32 {
+        let alive_bit: u32 = 0;
+        if (alive) {
+            alive_bit = 1;
+        }
+        return ((sent as u32 & 0xFFF) << 20) |
+               ((recv as u32 & 0xFFF) << 8) |
+               ((misses as u32 & 0xF) << 4) |
+               alive_bit;
+    }
+
+    fn get_sent(stats: u32) -> u16 {
+        return ((stats >> 20) & 0xFFF) as u16;
+    }
+
+    fn get_recv(stats: u32) -> u16 {
+        return ((stats >> 8) & 0xFFF) as u16;
+    }
+
+    fn get_misses(stats: u32) -> u8 {
+        return ((stats >> 4) & 0xF) as u8;
+    }
+
+    fn is_alive(stats: u32) -> bool {
+        return (stats & 1) != 0;
+    }
+
+    // Delivery ratio: recv/sent (Q8 fixed-point, 0-255).
+    fn delivery_ratio_q8(stats: u32) -> u8 {
+        let sent: u16 = get_sent(stats);
+        let recv: u16 = get_recv(stats);
+        if (sent == 0) {
+            return 0;
+        }
+        return ((recv as u32 * 256) / sent as u32) as u8;
+    }
+
+    // ETX approximation from delivery ratio (255 = perfect = ETX 1.0).
+    fn etx_from_ratio(ratio_q8: u8) -> u16 {
+        if (ratio_q8 == 0) {
+            return 0xFFFF;
+        }
+        // ETX ~ 256/ratio (Q8). Clamp to avoid overflow.
+        let etx: u16 = (256 * 256) / (ratio_q8 as u16);
+        if (etx > 0xFF00) {
+            return 0xFF00;
+        }
+        return etx;
+    }
+
+    // Mark a neighbor as dead.
+    fn mark_dead(stats: u32) -> u32 {
+        return stats & 0xFFFFFFF0;
+    }
+
+    // Record a sent HELLO.
+    fn record_sent(stats: u32) -> u32 {
+        let sent: u16 = get_sent(stats);
+        if (sent >= 0xFFF) {
+            return stats;
+        }
+        return pack_link_stats(sent + 1, get_recv(stats), get_misses(stats), is_alive(stats));
+    }
+
+    // Record a received HELLO from this neighbor.
+    fn record_recv(stats: u32) -> u32 {
+        let recv: u16 = get_recv(stats);
+        if (recv >= 0xFFF) {
+            return stats;
+        }
+        return pack_link_stats(get_sent(stats), recv + 1, 0, true);
+    }
+
+    // Record a missed HELLO (increment misses, maybe mark dead).
+    fn record_miss(stats: u32, fast_fail_threshold: u8) -> u32 {
+        let misses: u8 = get_misses(stats);
+        let new_misses: u8 = misses + 1;
+        let alive: bool = new_misses < fast_fail_threshold;
+        return pack_link_stats(get_sent(stats), get_recv(stats), new_misses, alive);
+    }
+
+    // Link quality grade: 0=excellent, 1=good, 2=poor, 3=dead.
+    fn link_grade(ratio_q8: u8) -> u8 {
+        if (ratio_q8 >= 230) {
+            return 0;
+        }
+        if (ratio_q8 >= 180) {
+            return 1;
+        }
+        if (ratio_q8 >= 100) {
+            return 2;
+        }
+        return 3;
+    }
+
+    // Aggregate network health: count alive neighbors.
+    // Takes a packed array of 8 stats (simulated with individual calls).
+    fn count_alive(s0: u32, s1: u32, s2: u32, s3: u32,
+                   s4: u32, s5: u32, s6: u32, s7: u32) -> u8 {
+        let count: u8 = 0;
+        if (is_alive(s0)) { count = count + 1; }
+        if (is_alive(s1)) { count = count + 1; }
+        if (is_alive(s2)) { count = count + 1; }
+        if (is_alive(s3)) { count = count + 1; }
+        if (is_alive(s4)) { count = count + 1; }
+        if (is_alive(s5)) { count = count + 1; }
+        if (is_alive(s6)) { count = count + 1; }
+        if (is_alive(s7)) { count = count + 1; }
+        return count;
+    }
+
+    // ---- TDD (L4) ----
+
+    test pack_unpack_sent {
+        s = pack_link_stats(100, 90, 0, true);
+        assert(get_sent(s) == 100, "sent roundtrips");
+    }
+
+    test pack_unpack_recv {
+        s = pack_link_stats(100, 90, 0, true);
+        assert(get_recv(s) == 90, "recv roundtrips");
+    }
+
+    test pack_unpack_alive {
+        s = pack_link_stats(10, 8, 0, true);
+        assert(is_alive(s) == true, "alive roundtrips");
+    }
+
+    test pack_dead {
+        s = pack_link_stats(10, 8, 0, false);
+        assert(is_alive(s) == false, "dead packed");
+    }
+
+    test delivery_ratio_perfect {
+        s = pack_link_stats(100, 100, 0, true);
+        r = delivery_ratio_q8(s);
+        assert(r == 255, "perfect delivery = 255");
+    }
+
+    test delivery_ratio_half {
+        s = pack_link_stats(100, 50, 0, true);
+        r = delivery_ratio_q8(s);
+        assert(r == 128, "50% delivery ~= 128");
+    }
+
+    test delivery_ratio_zero_sent {
+        s = pack_link_stats(0, 0, 0, true);
+        r = delivery_ratio_q8(s);
+        assert(r == 0, "no sent = ratio 0");
+    }
+
+    test etx_perfect_link {
+        etx = etx_from_ratio(255);
+        assert(etx == 256, "perfect link ETX ~= 1.0");
+    }
+
+    test etx_dead_link {
+        etx = etx_from_ratio(0);
+        assert(etx == 0xFFFF, "dead link ETX = infinity");
+    }
+
+    test mark_dead_clears_alive {
+        s = pack_link_stats(10, 8, 0, true);
+        d = mark_dead(s);
+        assert(is_alive(d) == false, "mark_dead clears alive bit");
+    }
+
+    test record_sent_increments {
+        s = pack_link_stats(10, 8, 0, true);
+        s2 = record_sent(s);
+        assert(get_sent(s2) == 11, "sent incremented");
+    }
+
+    test record_recv_increments {
+        s = pack_link_stats(10, 8, 0, true);
+        s2 = record_recv(s);
+        assert(get_recv(s2) == 9, "recv incremented");
+    }
+
+    test record_miss_increments {
+        s = pack_link_stats(10, 8, 0, true);
+        s2 = record_miss(s, 3);
+        assert(get_misses(s2) == 1, "misses incremented");
+    }
+
+    test record_miss_marks_dead_at_threshold {
+        s = pack_link_stats(10, 8, 1, true);
+        s2 = record_miss(s, 2);
+        assert(is_alive(s2) == false, "dead at 2 misses with threshold 2");
+    }
+
+    test link_grade_excellent {
+        assert(link_grade(240) == 0, "excellent");
+    }
+
+    test link_grade_good {
+        assert(link_grade(190) == 1, "good");
+    }
+
+    test link_grade_poor {
+        assert(link_grade(120) == 2, "poor");
+    }
+
+    test link_grade_dead {
+        assert(link_grade(50) == 3, "dead");
+    }
+
+    test count_alive_mixed {
+        a = pack_link_stats(1, 1, 0, true);
+        d = pack_link_stats(1, 0, 0, false);
+        n = count_alive(a, d, a, d, a, d, a, d);
+        assert(n == 4, "4 alive out of 8");
+    }
+
+    test count_alive_all_dead {
+        d = pack_link_stats(1, 0, 0, false);
+        n = count_alive(d, d, d, d, d, d, d, d);
+        assert(n == 0, "0 alive");
+    }
+
+    // ---- invariants ----
+
+    invariant hello_interval_300ms
+        assert HELLO_INTERVAL_MS == 300
+
+    invariant max_neighbors_8
+        assert MAX_NEIGHBORS == 8
+}

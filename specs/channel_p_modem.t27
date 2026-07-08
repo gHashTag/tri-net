@@ -1,0 +1,156 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/channel_p_modem.t27
+// QPSK modem for Channel P (photo, 250 kbps, 3 km range).
+// phi^2 + phi^-2 = 3 | TRINITY
+
+module ChannelPModem {
+    use base::types;
+
+    const BIT_RATE      : u32 = 250000;     // 250 kbps
+    const SAMPLES_PER_SYMBOL : u32 = 16;     // 4 MSPS / 250k = 16
+    const SYNC_WORD     : u32 = 0xDEADBEEF;  // 32-bit preamble
+    const CRC16_POLY    : u16 = 0x1021;     // CRC-16 CCITT
+    const MAX_PAYLOAD   : u32 = 1024;       // 1 KB chunks for photo transfer
+    const REED_SOLOMON_N : u32 = 255;       // RS block length
+    const REED_SOLOMON_K : u32 = 223;       // RS data length (32 parity)
+
+    // QPSK: map 2 bits to I/Q constellation points.
+    // 00 => (+I, +Q), 01 => (+I, -Q), 10 => (-I, +Q), 11 => (-I, -Q)
+    const I_POS : i16 = 23170;   // 32767 / sqrt(2) ~ QPSK amplitude
+    const I_NEG : i16 = -23170;
+
+    fn qpsk_symbol_i(bits: u8) -> i16 {
+        // bit 0 (MSB) determines I sign
+        if ((bits & 2) == 0) {
+            return I_POS;
+        } else {
+            return I_NEG;
+        }
+    }
+
+    fn qpsk_symbol_q(bits: u8) -> i16 {
+        // bit 1 (LSB) determines Q sign
+        if ((bits & 1) == 0) {
+            return I_POS;
+        } else {
+            return I_NEG;
+        }
+    }
+
+    // QPSK soft decision from received I/Q
+    fn qpsk_demod_i(i_sample: i16) -> u8 {
+        if (i_sample >= 0) {
+            return 0;
+        } else {
+            return 1;
+        }
+    }
+
+    fn qpsk_demod_q(q_sample: i16) -> u8 {
+        if (q_sample >= 0) {
+            return 0;
+        } else {
+            return 1;
+        }
+    }
+
+    // Combine I and Q decisions into 2-bit symbol
+    fn qpsk_demod_symbol(i_bit: u8, q_bit: u8) -> u8 {
+        return i_bit * 2 + q_bit;
+    }
+
+    // CRC-16 CCITT update
+    fn crc16_update(crc: u16, data: u8) -> u16 {
+        var c : u16 = crc ^ (data as u16 * 256);
+        var i : usize = 0;
+        while (i < 8) {
+            if ((c & 32768) != 0) {
+                c = (c << 1) ^ CRC16_POLY;
+            } else {
+                c = c << 1;
+            }
+            i = i + 1;
+        }
+        return c;
+    }
+
+    // Frame structure: [SYNC:32][LEN:16][RS_PARITY:256][PAYLOAD:0..1784][CRC16:16]
+    // RS(255,223) adds 32 bytes of parity per 223-byte block
+    fn rs_overhead_blocks(payload_len: u32) -> u32 {
+        return (payload_len + 222) / 223;
+    }
+
+    fn rs_total_bytes(payload_len: u32) -> u32 {
+        return rs_overhead_blocks(payload_len) * REED_SOLOMON_N;
+    }
+
+    // Photo transfer time at 250 kbps
+    // 100 KB JPEG = 800,000 bits / 250,000 = 3.2 seconds
+    fn photo_transfer_seconds(photo_kb: u32) -> u32 {
+        return photo_kb * 8 / 250;
+    }
+
+    // --- Tests ---
+
+    test qpsk_mod_00_positive_i
+        given i = qpsk_symbol_i(0)
+        then i == I_POS
+
+    test qpsk_mod_10_negative_i
+        given i = qpsk_symbol_i(2)
+        then i == I_NEG
+
+    test qpsk_mod_00_positive_q
+        given q = qpsk_symbol_q(0)
+        then q == I_POS
+
+    test qpsk_mod_01_negative_q
+        given q = qpsk_symbol_q(1)
+        then q == I_NEG
+
+    test qpsk_demod_positive_i
+        given bit = qpsk_demod_i(10000)
+        then bit == 0
+
+    test qpsk_demod_negative_i
+        given bit = qpsk_demod_i(-10000)
+        then bit == 1
+
+    test qpsk_demod_symbol_00
+        given sym = qpsk_demod_symbol(0, 0)
+        then sym == 0
+
+    test qpsk_demod_symbol_11
+        given sym = qpsk_demod_symbol(1, 1)
+        then sym == 3
+
+    test rs_overhead_single_block
+        given blocks = rs_overhead_blocks(223)
+        then blocks == 1
+
+    test rs_overhead_two_blocks
+        given blocks = rs_overhead_blocks(446)
+        then blocks == 2
+
+    test rs_total_single
+        given total = rs_total_bytes(223)
+        then total == 255
+
+    test photo_100kb_transfer_time
+        given sec = photo_transfer_seconds(100)
+        then sec == 3
+
+    // --- Invariants ---
+
+    invariant qpsk_constellation_is_normalized
+        assert I_POS == 23170
+
+    invariant rs_n_greater_than_k
+        assert REED_SOLOMON_N > REED_SOLOMON_K
+
+    invariant photo_transfer_under_10_seconds
+        assert photo_transfer_seconds(100) < 10
+
+    invariant crc16_is_ccitt
+        assert CRC16_POLY == 0x1021
+}

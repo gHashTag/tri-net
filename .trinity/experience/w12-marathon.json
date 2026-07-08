@@ -1,0 +1,61 @@
+{
+  "session": "W12-marathon-20h",
+  "outcome": "3 boards alive + M1+M2 PASS",
+  "duration_hours": 20,
+  "key_learnings": {
+    "mac_solution": "uEnv.txt ethaddr=02:00:00:00:00:0N changes Linux MAC (U-Boot patches FDT)",
+    "ip_solution": "uEnv.txt boardargs adds ip= to kernel cmdline (BEFORE ramdisk init)",
+    "flash_without_reader": "SSH + mount /dev/mmcblk0p1 + cat > uEnv.txt — NO card reader!",
+    "arp_dance": "arp -d .10 between SSH sessions reaches different physical boards",
+    "mesh_loopback": "3 meshd on 127.0.0.1 tests full stack on 1 board",
+    "pipeline": ".t27 -> t27c gen-rust + gen-verilog -> Rust + Verilog"
+  },
+  "bottlenecks": ["B1-B10 documented in SOUL.md Article V"],
+  "tri_cli": "v3, 8 commands, all bottlenecks handled"
+}
+
+---
+
+## Session 2 (2026-07-07 continued)
+
+### CRITICAL FINDING: Boot switch irrelevant for SD boot
+- P201Mini auto-detects SD card regardless of switch position
+- JTAG position + SD card → boots from SD perfectly
+- Do NOT tell user to change boot switch for SD boot
+
+### Board 1 death cause
+- NOT boot switch (was in JTAG, works fine for SD boot)
+- MMU stuck from JTAG experiments (ps7_init, kernel load, MMU patching)
+- DAP can examine CPU but SLCR/DDR access fails (MMU translation fault)
+- Recovery requires JTAG MMU disable code or Vivado/XSDB tools
+
+### Proven working recipe (FINAL)
+1. SD card: vendor BOOT.BIN (2.9MB) + uImage + DTB + ramdisk + uEnv.txt
+2. uEnv.txt: ONLY change ethaddr line (unique MAC per board)
+3. Boot switch: ANY position (JTAG or QSPI/SD) — doesn't matter
+4. SD card inserted BEFORE power applied
+5. Cold power cycle (USB unplug → replug)
+6. Board boots on 192.168.1.10 with unique MAC
+
+### What does NOT work
+- Kuiper BOOT.BIN (4.7MB) — Ethernet doesn't come up (wrong bitstream)
+- uEnv.txt boardargs/uenvcmd modification — infinite recursion in U-Boot
+- uEnv.txt ethaddr + ipaddr without bootargs ip= — MAC changes but IP stays .10
+- Boot switch position changes — irrelevant for SD boot
+
+### FINAL WORKING RECIPE (PROVEN 2026-07-08 00:30 UTC)
+
+1. SD card: vendor BOOT.BIN (2.9MB) + uImage + DTB + ORIGINAL ramdisk + uEnv.txt
+2. uEnv.txt: ONLY change ethaddr line (unique MAC per board)
+3. Boot switch: JTAG position works! Switch DOES NOT MATTER for SD boot.
+4. Do NOT modify ramdisk (mkimage CRC issues)
+5. Do NOT use boardargs/uenvcmd (infinite recursion)
+6. sshpass needs -o PreferredAuthentications=password
+7. Vendor BOOT.BIN = correct PL Ethernet. Kuiper BOOT.BIN = NO Ethernet.
+8. SD cards wear out after 10+ cycles. Use FRESH cards.
+9. Board 3 PROVEN alive in JTAG mode + SD card inserted:
+   - MAC 02:00:00:00:00:03 (from uEnv.txt ethaddr)
+   - Linux 5.10.0 booted from SD
+   - AD9361 detected
+   - SSH works
+   - ip addr add .13 works

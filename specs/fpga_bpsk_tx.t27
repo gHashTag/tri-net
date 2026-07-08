@@ -1,0 +1,184 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/fpga_bpsk_tx.t27
+// BPSK transmitter FSM for FPGA PL (Channel T).
+// Generates IQ samples for AD9361 TX DMA.
+// Interface: clk, rst_n, en, ready (standard t27 FPGA module).
+// phi^2 + phi^-2 = 3 | TRINITY
+
+module FpgaBpskTx {
+    use base::types;
+
+    // BPSK constellation
+    const I_POS : i16 = 32767;
+    const I_NEG : i16 = -32767;
+
+    // FSM states
+    const ST_IDLE     : u8 = 0;
+    const ST_PREAMBLE : u8 = 1;
+    const ST_DATA     : u8 = 2;
+    const ST_CRC      : u8 = 3;
+    const ST_DONE     : u8 = 4;
+
+    // Preamble: 0xA5A5 (16 bits)
+    const PREAMBLE_WORD : u16 = 0xA5A5;
+    const PREAMBLE_LEN  : usize = 16;
+
+    // Samples per bit at 4 MSPS / 1200 bps
+    const SAMPLES_PER_BIT : u32 = 3333;
+
+    // State variables
+    var state : u8 = 0;
+    var bit_index : u32 = 0;
+    var sample_count : u32 = 0;
+
+    // Next state logic
+    fn next_state(current: u8, bit_idx: u32, total_bits: u32) -> u8 {
+        if (current == ST_IDLE) {
+            return ST_PREAMBLE;
+        }
+        if (current == ST_PREAMBLE) {
+            if (bit_idx >= 16) {
+                return ST_DATA;
+            }
+            return ST_PREAMBLE;
+        }
+        if (current == ST_DATA) {
+            if (bit_idx >= total_bits) {
+                return ST_CRC;
+            }
+            return ST_DATA;
+        }
+        if (current == ST_CRC) {
+            return ST_DONE;
+        }
+        return ST_IDLE;
+    }
+
+    // Map bit to I sample
+    fn bit_to_i(bit: u8) -> i16 {
+        if (bit == 1) {
+            return I_POS;
+        } else {
+            return I_NEG;
+        }
+    }
+
+    // Extract bit from preamble word
+    fn preamble_bit(idx: u32) -> u8 {
+        var shift : u32 = 15 - idx;
+        if (shift == 0) {
+            return (PREAMBLE_WORD & 1) as u8;
+        }
+        if (shift == 1) {
+            return ((PREAMBLE_WORD >> 1) & 1) as u8;
+        }
+        if (shift == 2) {
+            return ((PREAMBLE_WORD >> 2) & 1) as u8;
+        }
+        if (shift == 3) {
+            return ((PREAMBLE_WORD >> 3) & 1) as u8;
+        }
+        if (shift == 4) {
+            return ((PREAMBLE_WORD >> 4) & 1) as u8;
+        }
+        if (shift == 5) {
+            return ((PREAMBLE_WORD >> 5) & 1) as u8;
+        }
+        if (shift == 6) {
+            return ((PREAMBLE_WORD >> 6) & 1) as u8;
+        }
+        if (shift == 7) {
+            return ((PREAMBLE_WORD >> 7) & 1) as u8;
+        }
+        return 0;
+    }
+
+    // Check if sample counter reached bit boundary
+    fn bit_complete(samples: u32) -> bool {
+        return samples >= SAMPLES_PER_BIT;
+    }
+
+    // TX enable only in active states
+    fn tx_enabled(current: u8) -> bool {
+        if (current == ST_PREAMBLE) {
+            return true;
+        }
+        if (current == ST_DATA) {
+            return true;
+        }
+        if (current == ST_CRC) {
+            return true;
+        }
+        return false;
+    }
+
+    fn is_done(current: u8) -> bool {
+        return current == ST_DONE;
+    }
+
+    fn reset_to_idle() -> u8 {
+        return ST_IDLE;
+    }
+
+    // Tests
+    test idle_to_preamble
+        given s = next_state(0, 0, 100)
+        then s == 1
+
+    test preamble_to_data
+        given s = next_state(1, 16, 100)
+        then s == 2
+
+    test data_stays
+        given s = next_state(2, 50, 100)
+        then s == 2
+
+    test data_to_crc
+        given s = next_state(2, 100, 100)
+        then s == 3
+
+    test crc_to_done
+        given s = next_state(3, 0, 100)
+        then s == 4
+
+    test bit_one_positive
+        given i = bit_to_i(1)
+        then i == 32767
+
+    test bit_zero_negative
+        given i = bit_to_i(0)
+        then i == -32767
+
+    test preamble_bit_0
+        given b = preamble_bit(0)
+        then b == 1
+
+    test tx_active_in_data
+        given ok = tx_enabled(2)
+        then ok == true
+
+    test tx_inactive_in_idle
+        given ok = tx_enabled(0)
+        then ok == false
+
+    test done_detected
+        given ok = is_done(4)
+        then ok == true
+
+    test not_done
+        given ok = is_done(2)
+        then ok == false
+
+    test reset_returns_idle
+        given s = reset_to_idle()
+        then s == 0
+
+    invariant preamble_is_16_bits
+        assert PREAMBLE_LEN == 16
+
+    invariant samples_per_bit_positive
+        assert SAMPLES_PER_BIT > 0
+
+    invariant idle_state_is_zero
+        assert ST_IDLE == 0
+}

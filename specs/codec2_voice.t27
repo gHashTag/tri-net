@@ -1,0 +1,73 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/codec2_voice.t27
+// Codec2 700 bps voice mode for walkie-talkie on Channel T.
+// phi^2 + phi^-2 = 3 | TRINITY
+
+module Codec2Voice {
+    use base::types;
+
+    const BIT_RATE_700 : u32 = 700;
+    const BIT_RATE_1200 : u32 = 1200;
+    const BIT_RATE_2400 : u32 = 2400;
+    const BIT_RATE_3200 : u32 = 3200;
+    const FRAME_MS : u32 = 20;
+    const SAMPLE_RATE : u32 = 8000;
+    const SAMPLES_PER_FRAME : u32 = 160;
+
+    fn bits_per_frame_700() -> u32 { return BIT_RATE_700 * FRAME_MS / 1000; }
+    fn bits_per_frame_2400() -> u32 { return BIT_RATE_2400 * FRAME_MS / 1000; }
+    fn bytes_per_frame_700() -> u32 { return (bits_per_frame_700() + 7) / 8; }
+    fn frames_per_second() -> u32 { return 1000 / FRAME_MS; }
+    fn bitrate_per_second(mode: u8) -> u32 {
+        if (mode == 0) { return BIT_RATE_700; }
+        if (mode == 1) { return BIT_RATE_1200; }
+        if (mode == 2) { return BIT_RATE_2400; }
+        return BIT_RATE_3200;
+    }
+    fn fits_channel_t(mode: u8) -> bool {
+        return bitrate_per_second(mode) <= BIT_RATE_1200;
+    }
+    fn voice_seconds_in_200_bytes(mode: u8) -> u32 {
+        var bps : u32 = bitrate_per_second(mode);
+        if (bps == 0) { return 0; }
+        return 200 * 8 / bps;
+    }
+
+    test bits_700_per_frame
+        given b = bits_per_frame_700()
+        then b == 14
+
+    test bytes_700_per_frame
+        given b = bytes_per_frame_700()
+        then b == 2
+
+    test frames_50_per_sec
+        given f = frames_per_second()
+        then f == 50
+
+    test bitrate_mode_0
+        given r = bitrate_per_second(0)
+        then r == 700
+
+    test bitrate_mode_3
+        given r = bitrate_per_second(3)
+        then r == 3200
+
+    test 700_fits_channel_t
+        given ok = fits_channel_t(0)
+        then ok == true
+
+    test 2400_not_channel_t
+        given ok = fits_channel_t(2)
+        then ok == false
+
+    test voice_2sec_in_200_bytes_700
+        given s = voice_seconds_in_200_bytes(0)
+        then s == 2
+
+    invariant frame_20ms
+        assert FRAME_MS == 20
+
+    invariant samples_per_frame
+        assert SAMPLES_PER_FRAME == 160
+}

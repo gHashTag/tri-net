@@ -1,0 +1,181 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/trng.t27
+// True Random Number Generator (TRNG) controller for Xilinx Zynq PL.
+// Uses ring oscillator entropy source + von Neumann extractor.
+// phi^2 + phi^-2 = 3 | TRINITY
+
+module TrngController {
+    use base::types;
+
+    // --- Configuration ---
+    const NUM_RING_OSC    : usize = 8;     // 8 ring oscillators (XOR'd)
+    const SAMPLE_CLK_KHZ  : u32 = 100;      // Sample at 100 kHz
+    const VON_NEUMANN_DISCARD : u8 = 0;     // 0 = use von Neumann, 1 = raw
+    const SEED_LEN_BYTES  : usize = 32;     // 256-bit seed for AES-256
+    const HEALTH_THRESHOLD : u8 = 200;       // Max consecutive identical bits
+    const MIN_ENTROPY_BITSPER : u8 = 7;     // Min 7.0 bits/byte (NIST SP 800-90B)
+
+    // --- Von Neumann extractor ---
+    // Input: two consecutive raw bits from ring oscillator XOR.
+    // Output: 00 => discard, 01 => output 0, 10 => output 1, 11 => discard.
+    fn von_neumann(b0: u8, b1: u8) -> u8 {
+        if (b0 == 0) {
+            if (b1 == 1) {
+                return 0;
+            } else {
+                return 255;  // discard marker
+            }
+        } else {
+            if (b1 == 0) {
+                return 1;
+            } else {
+                return 255;  // discard marker
+            }
+        }
+    }
+
+    // --- Health check: consecutive identical bits ---
+    // If too many consecutive 0s or 1s, ring oscillator may be stuck.
+    fn health_check_stuck(consecutive_same: u8) -> bool {
+        return consecutive_same < HEALTH_THRESHOLD;
+    }
+
+    // --- Health check: bias ---
+    // In a healthy TRNG, ratio of 1s should be ~0.5.
+    // If ones_count / total > 0.6 or < 0.4, TRNG is biased.
+    fn health_check_bias(ones_count: u32, total_count: u32) -> bool {
+        if (total_count == 0) {
+            return false;
+        }
+        var ratio_times_10 : u32 = ones_count * 10 / total_count;
+        if (ratio_times_10 > 6) {
+            return false;
+        }
+        if (ratio_times_10 < 4) {
+            return false;
+        }
+        return true;
+    }
+
+    // --- XOR fold 8 raw bits into 1 ---
+    fn xor_fold_8(b0: u8, b1: u8, b2: u8, b3: u8, b4: u8, b5: u8, b6: u8, b7: u8) -> u8 {
+        return b0 ^ b1 ^ b2 ^ b3 ^ b4 ^ b5 ^ b6 ^ b7;
+    }
+
+    // --- Seed assembly: collect 256 bits from TRNG ---
+    // Each call to the raw TRNG produces 1 entropy bit after von Neumann.
+    // Need 256 successful extractions for a full seed.
+    fn seed_complete(collected_bits: u32) -> bool {
+        return collected_bits >= 256;
+    }
+
+    // --- Entropy estimation (min-entropy per byte) ---
+    // Simplified: count transitions in 8 bits.
+    // More transitions = more entropy.
+    fn count_transitions(b: u8) -> u8 {
+        var count : u8 = 0;
+        var i : usize = 0;
+        while (i < 7) {
+            var bit_i : u8 = (b >> i) & 1;
+            var bit_next : u8 = (b >> (i + 1)) & 1;
+            if (bit_i != bit_next) {
+                count = count + 1;
+            }
+            i = i + 1;
+        }
+        return count;
+    }
+
+    fn entropy_ok(transitions: u8) -> bool {
+        // At least 3 transitions in 8 bits = ~7 bits/byte
+        return transitions >= 3;
+    }
+
+    // --- Tests ---
+
+    test von_neumann_01
+        given out = von_neumann(0, 1)
+        then out == 0
+
+    test von_neumann_10
+        given out = von_neumann(1, 0)
+        then out == 1
+
+    test von_neumann_00_discard
+        given out = von_neumann(0, 0)
+        then out == 255
+
+    test von_neumann_11_discard
+        given out = von_neumann(1, 1)
+        then out == 255
+
+    test health_stuck_ok
+        given ok = health_check_stuck(100)
+        then ok == true
+
+    test health_stuck_fail
+        given ok = health_check_stuck(201)
+        then ok == false
+
+    test health_bias_balanced
+        given ok = health_check_bias(50, 100)
+        then ok == true
+
+    test health_bias_too_many_ones
+        given ok = health_check_bias(70, 100)
+        then ok == false
+
+    test health_bias_too_few_ones
+        given ok = health_check_bias(30, 100)
+        then ok == false
+
+    test xor_fold_identity
+        given out = xor_fold_8(1, 1, 1, 1, 1, 1, 1, 1)
+        then out == 0
+
+    test xor_fold_single_one
+        given out = xor_fold_8(0, 0, 0, 0, 0, 0, 0, 1)
+        then out == 1
+
+    test seed_not_complete
+        given ok = seed_complete(255)
+        then ok == false
+
+    test seed_complete_256
+        given ok = seed_complete(256)
+        then ok == true
+
+    test seed_complete_more
+        given ok = seed_complete(300)
+        then ok == true
+
+    test transitions_alternating
+        given t = count_transitions(0b10101010)
+        then t == 7
+
+    test transitions_constant
+        given t = count_transitions(0b00000000)
+        then t == 0
+
+    test entropy_ok_alternating
+        given ok = entropy_ok(7)
+        then ok == true
+
+    test entropy_fail_constant
+        given ok = entropy_ok(0)
+        then ok == false
+
+    // --- Invariants ---
+
+    invariant seed_length_256_bits
+        assert SEED_LEN_BYTES == 32
+
+    invariant ring_osc_count
+        assert NUM_RING_OSC == 8
+
+    invariant health_threshold_positive
+        assert HEALTH_THRESHOLD > 0
+
+    invariant min_entropy_above_nist
+        assert MIN_ENTROPY_BITSPER >= 7
+}
