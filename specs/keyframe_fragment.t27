@@ -1,0 +1,95 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/keyframe_fragment.t27
+// Keyframe fragmentation layout -- the transport layer that makes the RS erasure
+// code usable on a real video keyframe. A keyframe is sliced into K fixed-size
+// data fragments; the RS coder (rs_encode/rs_decode) adds M parity fragments, so
+// N = K + M coded fragments go on the air. RS(N,K) recovers the whole keyframe
+// from ANY K of the N that arrive, i.e. it tolerates up to M lost fragments --
+// exactly the budget adaptive_fec.parity_for chooses from the link SNR.
+//
+// This spec is pure layout arithmetic (offsets, tail sizing, recoverability); the
+// field math lives in gf256/rs_*. It closes the loop: fragment -> RS-encode ->
+// lose up to M -> reassemble from >= K -> RS-decode the erasures.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module KeyframeFragment {
+    use base::types;
+
+    const PARITY : u32 = 4;   // RS(255,251) budget, matches adaptive_fec/rs_decode.
+
+    // Number of data fragments K for a keyframe, ceil(bytes / payload).
+    fn data_fragments(keyframe_bytes: u32, frag_payload: u32) -> u32 {
+        return (keyframe_bytes + frag_payload - 1) / frag_payload;
+    }
+
+    // Total coded fragments N = K + M put on the air.
+    fn coded_fragments(k: u32, parity: u32) -> u32 {
+        return k + parity;
+    }
+
+    // Byte offset of data fragment `index` within the keyframe.
+    fn fragment_offset(index: u32, frag_payload: u32) -> u32 {
+        return index * frag_payload;
+    }
+
+    // Payload bytes in the final data fragment: a full payload when the keyframe
+    // divides evenly, otherwise the remainder. (Assumes keyframe_bytes > 0.)
+    fn last_data_bytes(keyframe_bytes: u32, frag_payload: u32) -> u32 {
+        let rem: u32 = keyframe_bytes % frag_payload;
+        return if (rem == 0) { frag_payload } else { rem };
+    }
+
+    // RS(N,K) reassembly guarantee: the keyframe is recoverable iff at least K of
+    // the N coded fragments arrived (equivalently, at most M = N-K were lost).
+    fn is_reassemblable(k: u32, arrived: u32) -> bool {
+        return arrived >= k;
+    }
+
+    // Parity overhead as a percentage of the data (M/K * 100).
+    fn overhead_pct(k: u32, parity: u32) -> u32 {
+        return parity * 100 / k;
+    }
+
+    // ---- TDD (L4) ----
+
+    test data_fragments_is_ceil {
+        assert(data_fragments(1000, 200) == 5, "even split");
+        assert(data_fragments(1001, 200) == 6, "one extra byte spills to a 6th");
+        assert(data_fragments(200, 200) == 1, "exactly one fragment");
+        assert(data_fragments(1, 200) == 1, "a single byte still needs one fragment");
+    }
+
+    test coded_and_offset {
+        assert(coded_fragments(5, PARITY) == 9, "5 data + 4 parity");
+        assert(fragment_offset(0, 200) == 0, "first fragment at 0");
+        assert(fragment_offset(3, 200) == 600, "fourth fragment at 600");
+    }
+
+    // Braced if-expression (exercises the t27c brace fix) selects full vs remainder.
+    test last_fragment_sizing {
+        assert(last_data_bytes(1000, 200) == 200, "even -> full payload");
+        assert(last_data_bytes(950, 200) == 150, "remainder 150");
+        assert(last_data_bytes(201, 200) == 1, "one byte tail");
+    }
+
+    // Recover from any K of N; lose one too many and it is gone.
+    test reassembly_bound {
+        assert(is_reassemblable(5, 5) == true, "exactly K arrived");
+        assert(is_reassemblable(5, 9) == true, "all N arrived");
+        assert(is_reassemblable(5, 4) == false, "one short of K");
+    }
+
+    test overhead {
+        assert(overhead_pct(4, PARITY) == 100, "4 data, 4 parity -> 100%");
+        assert(overhead_pct(8, PARITY) == 50, "8 data, 4 parity -> 50%");
+    }
+
+    // ---- invariants ----
+
+    invariant parity_matches_rs
+        assert PARITY == 4
+
+    // Coding always adds fragments (there is real redundancy on the air).
+    invariant coding_adds_redundancy
+        assert PARITY > 0
+}
