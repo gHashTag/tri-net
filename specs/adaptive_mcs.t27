@@ -1,0 +1,141 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/adaptive_mcs.t27
+// Adaptive modulation-and-coding-scheme (MCS) selection from the link SNR.
+// Unlike link_negotiation (which picks the CHANNEL T/P/V), this picks the PHY
+// MODULATION for a frame so throughput follows link quality:
+//   0 = BPSK+FEC (0.5x, most robust)   1 = BPSK (1x)   2 = QPSK (2x throughput)
+// SNR is fixed-point dB*10 (snr_x10), matching link_negotiation. The up/down
+// thresholds differ (HYSTERESIS) so a link hovering near a boundary does not
+// flap modulation every frame (802.11-style rate adaptation; Bianchi J-SAC 2000).
+// Deterministic integer logic -> same decision on the host driver and on FPGA.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module AdaptiveMcs {
+    use base::types;
+
+    // MCS codepoints (u8, ascending throughput).
+    const MCS_BPSK_FEC : u8 = 0;   // 0.5x, K=5 Viterbi on
+    const MCS_BPSK     : u8 = 1;   // 1x
+    const MCS_QPSK     : u8 = 2;   // 2x
+
+    // Thresholds in dB*10. UP thresholds exceed DOWN thresholds -> hysteresis band.
+    const QPSK_UP_X10   : u32 = 180;  // enter QPSK at 18.0 dB
+    const QPSK_DOWN_X10 : u32 = 160;  // leave QPSK below 16.0 dB
+    const BPSK_UP_X10   : u32 = 110;  // enter BPSK at 11.0 dB
+    const BPSK_DOWN_X10 : u32 = 90;   // leave BPSK below 9.0 dB (fall to BPSK+FEC)
+
+    // EWMA smoothing weight for the SNR estimate, Q8 (51/256 ~= 0.2).
+    const SNR_ALPHA_Q8 : u32 = 51;
+
+    // Relative throughput * 2 for an MCS (BPSK+FEC 0.5x -> 1, BPSK -> 2, QPSK -> 4).
+    // Used to compare/goodput-weight modulations without fractions.
+    fn mcs_rate_x2(mcs: u8) -> u8 {
+        if (mcs == MCS_QPSK) {
+            return 4;
+        } else if (mcs == MCS_BPSK) {
+            return 2;
+        } else {
+            return 1;
+        }
+    }
+
+    // Pick the MCS for the next frame given the (smoothed) link SNR and the MCS
+    // currently in use. Hysteresis: a modulation is HELD until the SNR drops below
+    // its lower threshold, and only ENTERED once the SNR rises above its higher
+    // threshold, so the decision is stable across the +/- band around a boundary.
+    fn pick_mcs(snr_x10: u32, current: u8) -> u8 {
+        if (current == MCS_QPSK) {
+            if (snr_x10 >= QPSK_DOWN_X10) {
+                return MCS_QPSK;              // hold QPSK down to 16 dB
+            } else if (snr_x10 >= BPSK_UP_X10) {
+                return MCS_BPSK;
+            } else {
+                return MCS_BPSK_FEC;
+            }
+        } else if (current == MCS_BPSK) {
+            if (snr_x10 >= QPSK_UP_X10) {
+                return MCS_QPSK;             // upgrade needs the full 18 dB
+            } else if (snr_x10 >= BPSK_DOWN_X10) {
+                return MCS_BPSK;             // hold BPSK down to 9 dB
+            } else {
+                return MCS_BPSK_FEC;
+            }
+        } else {
+            // current == MCS_BPSK_FEC
+            if (snr_x10 >= QPSK_UP_X10) {
+                return MCS_QPSK;
+            } else if (snr_x10 >= BPSK_UP_X10) {
+                return MCS_BPSK;             // upgrade needs the full 11 dB
+            } else {
+                return MCS_BPSK_FEC;
+            }
+        }
+    }
+
+    // One EWMA step on the SNR estimate: est*(1-a) + sample*a, a = ALPHA/256.
+    // Widened to u64 internally so prev*248 + sample*8 cannot overflow u32.
+    fn ewma_snr(prev_x10: u32, sample_x10: u32) -> u32 {
+        let acc: u64 = ((prev_x10 as u64) * ((256 - SNR_ALPHA_Q8) as u64))
+                     + ((sample_x10 as u64) * (SNR_ALPHA_Q8 as u64));
+        return (acc >> 8) as u32;
+    }
+
+    // ---- TDD (L4) ----
+
+    // Absolute bounds regardless of the current MCS.
+    test qpsk_at_strong_link {
+        assert(pick_mcs(200, MCS_BPSK_FEC) == MCS_QPSK, "20 dB from FEC -> QPSK");
+        assert(pick_mcs(200, MCS_BPSK) == MCS_QPSK, "20 dB from BPSK -> QPSK");
+    }
+
+    test fec_at_weak_link {
+        assert(pick_mcs(50, MCS_QPSK) == MCS_BPSK_FEC, "5 dB from QPSK -> FEC");
+        assert(pick_mcs(50, MCS_BPSK) == MCS_BPSK_FEC, "5 dB from BPSK -> FEC");
+    }
+
+    // HYSTERESIS: at 17 dB (between 16 and 18) the choice depends on history and
+    // must NOT flap — QPSK holds, BPSK does not yet jump to QPSK.
+    test hysteresis_qpsk_band_holds {
+        assert(pick_mcs(170, MCS_QPSK) == MCS_QPSK, "17 dB holds QPSK (>= 16)");
+        assert(pick_mcs(170, MCS_BPSK) == MCS_BPSK, "17 dB keeps BPSK (< 18 up)");
+    }
+
+    // HYSTERESIS: at 10 dB (between 9 and 11) BPSK holds but FEC does not upgrade.
+    test hysteresis_bpsk_band_holds {
+        assert(pick_mcs(100, MCS_BPSK) == MCS_BPSK, "10 dB holds BPSK (>= 9)");
+        assert(pick_mcs(100, MCS_BPSK_FEC) == MCS_BPSK_FEC, "10 dB keeps FEC (< 11 up)");
+    }
+
+    // Exact entry thresholds.
+    test entry_thresholds {
+        assert(pick_mcs(180, MCS_BPSK) == MCS_QPSK, "exactly 18 dB enters QPSK");
+        assert(pick_mcs(110, MCS_BPSK_FEC) == MCS_BPSK, "exactly 11 dB enters BPSK");
+    }
+
+    test rate_ordering {
+        assert(mcs_rate_x2(MCS_BPSK_FEC) == 1, "FEC 0.5x");
+        assert(mcs_rate_x2(MCS_BPSK) == 2, "BPSK 1x");
+        assert(mcs_rate_x2(MCS_QPSK) == 4, "QPSK 2x");
+    }
+
+    // EWMA moves toward the sample and stays between the two inputs.
+    test ewma_tracks_sample {
+        assert(ewma_snr(100, 200) > 100, "EWMA rises toward a higher sample");
+        assert(ewma_snr(100, 200) < 200, "EWMA lags a higher sample");
+        assert(ewma_snr(150, 150) == 150, "EWMA of a steady link is fixed");
+    }
+
+    // ---- invariants ----
+
+    // Hysteresis is well-formed: you enter a modulation at a strictly higher SNR
+    // than the one at which you leave it (no zero-width band -> no per-frame flap).
+    invariant qpsk_hysteresis_band
+        assert QPSK_UP_X10 > QPSK_DOWN_X10
+
+    invariant bpsk_hysteresis_band
+        assert BPSK_UP_X10 > BPSK_DOWN_X10
+
+    // Modulation ladder does not overlap: you must clear BPSK before QPSK.
+    invariant ladder_ordered
+        assert BPSK_UP_X10 < QPSK_UP_X10
+}
