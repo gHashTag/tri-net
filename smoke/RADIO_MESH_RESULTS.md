@@ -58,6 +58,30 @@ hardware over the air.
    Fix: inter-frame silence gap in the TX stream.
 6. Fixed HELLO jitter still collided on the shared air. Fix: random jitter.
 
+## Wire-free re-test (2026-07-08, boards 2 AND 3 physically off Ethernet)
+
+Repeated with only board 1 wired (gateway); boards 2 and 3 driven purely
+over their UART consoles. Board 13 (fully wire-free) fetched its public IP
+`182.232.227.12` over the air again — `INTERNET-VIA-RADIO-MESH`. The
+11<->13 radio link is solid; internet flows to the wire-free node.
+
+Board 12 did NOT join the mesh (neighbors `{11=inf, 13=inf}`). Directed
+diagnostics isolated the cause and cleared its hardware:
+- board 12 TX -> board 13 (proven RX): 3/3 frames decoded — TX works.
+- board 13 TX -> board 12 (standalone radio_rx): 3/3 decoded — RX works.
+- but in `trios_radiod`, board 12 was deaf.
+
+Root cause: board 12 has poorer TX/RX antenna isolation, so its own
+continuous TX LO leak inflated the daemon's raw noise-floor calibration
+(221 vs ~50 on peers). With threshold = 6x floor, incoming frames never
+crossed it. The standalone radio_rx works because it does not transmit
+during calibration. Fixed in trios_radiod: calibrate the floor from the
+POST-notch signal, median not mean (commit on branch). Deploying the
+fixed binary to a wire-free board over the 115200 console proved
+unreliable (824 KB; the console session breaks under a multi-minute
+stream) — this is the documented ramdisk/off-network deployment gap; a
+1-second Ethernet replug or SD bake deploys it cleanly.
+
 ## Honest limits
 
 - Half-duplex, no MAC/CSMA: nodes still occasionally collide; the 11<->12
