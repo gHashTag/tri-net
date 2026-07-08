@@ -27,7 +27,7 @@ Ranked by impact × how-often-it-bites-now.
 
 **Tier 1 — high leverage, do next (each unblocks later work):**
 - **W1 auto channel-scan** ✅ *this iteration*: startup scan picks a clean channel (`TRIOS_SCAN=1`, priority list, first non-jammed). Proven on board 11 (scanned 7 ch, picked 2440). **Remaining W1b:** coordinated multi-node hop — leaf nodes acquire the gateway's channel by listen-scan, or gateway broadcasts a "hop to F" control frame, so nodes agree without a shared `TRIOS_FREQ`.
-- **W2 FEC**: repetition/Hamming or convolutional K=5 (`viterbi_k5.t27` exists) on the payload. Exit: ~30% raw FER → ~99% delivered; board-12 reply lands first try.
+- **W2 FEC** ✅ *loop iter 3*: `trios-mesh/src/fec.rs` — Hamming(7,4) between the mesh frame and the modem (RadioLink.send encodes, RX decodes after rx_recover). Corrects any single-bit error per 7-bit codeword. 6 host tests pass (incl. corrects-any-single-flip + fec↔modem composition); smoke-clean on board 11. **Remaining W2b:** bit interleaver (spread bursts across codewords) + measure FER drop on a marginal 3-node link.
 - **W3 replay re-handshake**: on-air epoch-resync / re-handshake so a rebooted node rejoins in N s. Bundle with **W3b real keys**: provision per-node identity out-of-band, run the existing `Handshake` (Noise-XX) on air. Retires weak points #3 and #4 together.
 - **W4 TUN/real IP**: `/dev/net/tun` + kernel NAT on the gateway; real ping/curl over 1 then 2 hops (the deferred M3 iperf3); 255B MTU fragmentation.
 
