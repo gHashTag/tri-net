@@ -1,0 +1,85 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/rs_decode.t27
+// Reed-Solomon ERASURE recovery -- the receive side of the FEC chain
+// (gf256 -> rs_generator -> rs_encode -> rs_decode). On a mesh radio the LOST
+// fragments are known (a fragment either arrives with a good AEAD tag or not), so
+// this is the easy, exact case: erasure-only decoding, no error location needed.
+//
+// For E erased symbols at known powers, the M syndromes give E linear equations
+// in the E unknown values. This spec solves the E=2 case in closed form (a 2x2
+// system in GF(256), using gf_inv): recover2() returns both erased values from
+// the first two syndromes and the two erasure positions. Round-trip:
+//   encode -> lose 2 symbols -> syndromes -> recover2 -> original symbols back.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module RsDecode {
+    use base::types;
+
+    const PARITY      : u8 = 4;   // RS(255,251) parity symbols.
+    const RECOVERABLE : u8 = 2;   // erasures this closed-form solver handles.
+
+    // Syndrome S_j of a received (erased-as-zero) 6-symbol codeword: evaluate it
+    // at the generator root alpha^j. A clean codeword has every syndrome zero.
+    fn syndrome6(c5: u8, c4: u8, c3: u8, c2: u8, c1: u8, c0: u8, j: u8) -> u8 {
+        return RsEncode::codeword6_eval(c5, c4, c3, c2, c1, c0, Gf256::gf_pow(2, j));
+    }
+
+    // Recover two erased symbols at known powers p and q from syndromes S0, S1.
+    // Packed result: (e_p << 8) | e_q. Derivation:
+    //   S0 = e_p + e_q,   S1 = e_p*alpha^p + e_q*alpha^q
+    //   e_p = (S1 + alpha^q * S0) / (alpha^p + alpha^q),   e_q = S0 + e_p
+    fn recover2(s0: u8, s1: u8, p: u8, q: u8) -> u32 {
+        let xp: u8 = Gf256::gf_pow(2, p);
+        let xq: u8 = Gf256::gf_pow(2, q);
+        let denom: u8 = Gf256::gf_add(xp, xq);
+        let ep: u8 = Gf256::gf_mul(
+            Gf256::gf_add(s1, Gf256::gf_mul(xq, s0)),
+            Gf256::gf_inv(denom)
+        );
+        let eq: u8 = Gf256::gf_add(s0, ep);
+        return ((ep as u32) << 8) | (eq as u32);
+    }
+
+    fn ep_of(packed: u32) -> u8 {
+        return ((packed >> 8) & 0xFF) as u8;
+    }
+
+    fn eq_of(packed: u32) -> u8 {
+        return (packed & 0xFF) as u8;
+    }
+
+    // ---- TDD (L4) ----
+
+    // Self-consistent: build the syndromes from chosen erased values, then confirm
+    // recover2 inverts them back. Erasures at powers 0 and 1, values 0x0A and 0x14.
+    test recover2_inverts_syndromes {
+        s0 = Gf256::gf_add(0x0A, 0x14);
+        s1 = Gf256::gf_add(Gf256::gf_mul(0x0A, Gf256::gf_pow(2, 0)),
+                           Gf256::gf_mul(0x14, Gf256::gf_pow(2, 1)));
+        packed = recover2(s0, s1, 0, 1);
+        assert(ep_of(packed) == 0x0A, "recovered e_p");
+        assert(eq_of(packed) == 0x14, "recovered e_q");
+    }
+
+    // Different positions (powers 3 and 5) and values still invert.
+    test recover2_other_positions {
+        s0 = Gf256::gf_add(0x9C, 0x2B);
+        s1 = Gf256::gf_add(Gf256::gf_mul(0x9C, Gf256::gf_pow(2, 3)),
+                           Gf256::gf_mul(0x2B, Gf256::gf_pow(2, 5)));
+        packed = recover2(s0, s1, 3, 5);
+        assert(ep_of(packed) == 0x9C, "recovered e_p at power 3");
+        assert(eq_of(packed) == 0x2B, "recovered e_q at power 5");
+    }
+
+    // A clean (unerased) codeword has zero syndromes; a corrupted one does not.
+    test clean_codeword_has_zero_syndrome {
+        assert(syndrome6(0, 0, 0, 0, 0, 0, 0) == 0, "all-zero codeword: S0 = 0");
+        assert(syndrome6(0, 0, 0, 0, 0, 1, 0) == 1, "constant 1: S0 = c(1) = 1");
+    }
+
+    // ---- invariants ----
+
+    // You cannot recover more erasures than there are parity symbols.
+    invariant recoverable_within_parity
+        assert RECOVERABLE <= PARITY
+}
