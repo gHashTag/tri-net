@@ -1,0 +1,97 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/rs_encode.t27
+// Systematic Reed-Solomon encoding (RS(255,251), 4 parity) over gf256.t27, using
+// the generator from rs_generator.t27. Encoding is an LFSR that divides the
+// message by g(x); the 4-symbol remainder is the parity. The register state is
+// packed into one u32 (r3<<24 | r2<<16 | r1<<8 | r0) so no arrays or tuple returns
+// are needed -- rs_lfsr_step folds one message symbol into the state, and the
+// caller chains it over the message.
+//
+// A systematic codeword is `message || parity`, which by construction is a
+// multiple of g(x) -- so it evaluates to zero at every generator root alpha^i.
+// codeword6_eval + the tests check exactly that for a 2-symbol message.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module RsEncode {
+    use base::types;
+
+    // Generator coefficients (without the monic leading term), g0..g3.
+    const G0 : u8 = 0x40;
+    const G1 : u8 = 0x78;
+    const G2 : u8 = 0x36;
+    const G3 : u8 = 0x0F;
+
+    // Extract remainder byte `i` from the packed state (i = 0 -> r0 ... 3 -> r3).
+    fn st_byte(state: u32, i: u8) -> u8 {
+        return ((state >> ((i as u32) * 8)) & 0xFF) as u8;
+    }
+
+    // Fold one message symbol into the LFSR remainder (division by g). feedback =
+    // data XOR r3; the register shifts and each cell mixes feedback*g_j.
+    fn rs_lfsr_step(data: u8, state: u32) -> u32 {
+        let r0: u8 = (state & 0xFF) as u8;
+        let r1: u8 = ((state >> 8) & 0xFF) as u8;
+        let r2: u8 = ((state >> 16) & 0xFF) as u8;
+        let r3: u8 = ((state >> 24) & 0xFF) as u8;
+        let fb: u8 = Gf256::gf_add(data, r3);
+        let n0: u8 = Gf256::gf_mul(fb, G0);
+        let n1: u8 = Gf256::gf_add(r0, Gf256::gf_mul(fb, G1));
+        let n2: u8 = Gf256::gf_add(r1, Gf256::gf_mul(fb, G2));
+        let n3: u8 = Gf256::gf_add(r2, Gf256::gf_mul(fb, G3));
+        return ((n3 as u32) << 24) | ((n2 as u32) << 16) | ((n1 as u32) << 8) | (n0 as u32);
+    }
+
+    // Evaluate a 6-symbol codeword c5*x^5 + ... + c0 at x, in GF(256) (Horner).
+    fn codeword6_eval(c5: u8, c4: u8, c3: u8, c2: u8, c1: u8, c0: u8, x: u8) -> u8 {
+        let acc: u8 = c5;
+        acc = Gf256::gf_add(Gf256::gf_mul(acc, x), c4);
+        acc = Gf256::gf_add(Gf256::gf_mul(acc, x), c3);
+        acc = Gf256::gf_add(Gf256::gf_mul(acc, x), c2);
+        acc = Gf256::gf_add(Gf256::gf_mul(acc, x), c1);
+        acc = Gf256::gf_add(Gf256::gf_mul(acc, x), c0);
+        return acc;
+    }
+
+    // ---- TDD (L4) ----
+
+    test st_byte_extracts {
+        assert(st_byte(0x11223344, 0) == 0x44, "r0");
+        assert(st_byte(0x11223344, 3) == 0x11, "r3");
+    }
+
+    // Encoding a 2-symbol message [0x12, 0x34] must yield a codeword that is zero
+    // at every generator root alpha^0..alpha^3 (= 1, 2, 4, 8): the defining RS
+    // property, proving the LFSR really divides by g(x).
+    test encode_yields_valid_codeword {
+        s1 = rs_lfsr_step(0x12, 0);
+        s2 = rs_lfsr_step(0x34, s1);
+        p3 = st_byte(s2, 3);
+        p2 = st_byte(s2, 2);
+        p1 = st_byte(s2, 1);
+        p0 = st_byte(s2, 0);
+        assert(codeword6_eval(0x12, 0x34, p3, p2, p1, p0, 1) == 0, "c(alpha^0) = 0");
+        assert(codeword6_eval(0x12, 0x34, p3, p2, p1, p0, 2) == 0, "c(alpha^1) = 0");
+        assert(codeword6_eval(0x12, 0x34, p3, p2, p1, p0, 4) == 0, "c(alpha^2) = 0");
+        assert(codeword6_eval(0x12, 0x34, p3, p2, p1, p0, 8) == 0, "c(alpha^3) = 0");
+    }
+
+    // A single-symbol message: parity is just message * g_lower, so a corrupted
+    // parity breaks the root property (guards against a trivially-zero encoder).
+    test corrupt_parity_fails_root {
+        s = rs_lfsr_step(0x5A, 0);
+        p3 = st_byte(s, 3);
+        p2 = st_byte(s, 2);
+        p1 = st_byte(s, 1);
+        p0 = st_byte(s, 0);
+        assert(codeword6_eval(0, 0x5A, p3, p2, p1, p0, 2) == 0, "valid codeword is a root");
+        assert(codeword6_eval(0, 0x5A, p3, p2, p1, Gf256::gf_add(p0, 1), 2) != 0, "flipped parity is not");
+    }
+
+    // ---- invariants ----
+
+    invariant generator_constant
+        assert G0 == 0x40
+
+    invariant generator_leading_low
+        assert G3 == 0x0F
+}
