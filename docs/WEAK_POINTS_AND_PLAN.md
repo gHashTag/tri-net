@@ -27,7 +27,8 @@ Ranked by impact × how-often-it-bites-now.
 
 **Tier 1 — high leverage, do next (each unblocks later work):**
 - **W1 auto channel-scan** ✅ *this iteration*: startup scan picks a clean channel (`TRIOS_SCAN=1`, priority list, first non-jammed). Proven on board 11 (scanned 7 ch, picked 2440). **Remaining W1b:** coordinated multi-node hop — leaf nodes acquire the gateway's channel by listen-scan, or gateway broadcasts a "hop to F" control frame, so nodes agree without a shared `TRIOS_FREQ`.
-- **W2 FEC** ✅ Hamming(7,4) + **W2b bit-interleaver** (block 16cw=112b=14B; burst≤16 corrected, swept test). **W2 measurement (examples/fec_fer_bench) = HONEST NEGATIVE:** Hamming is NET-NEGATIVE at operating SNRs (σ=0.14 raw FER 3.2% vs FEC 6.5%) — 7/4 length + mis-correction outweigh the fix; only helps at the harsh tail. So **FEC is now OPT-IN (TRIOS_FEC=1), default OFF** — mesh never regresses. **A′ done: replaced Hamming with K=5 Viterbi conv code** (src/conv.rs, stronger — recovers 3% BER + triple-error-in-window). **But even Viterbi is NET-NEGATIVE end-to-end** — modem frame-failures (sync/carrier) dominate + rate-1/2 doubles frame length. **Real fix = SOFT-decision demod→soft Viterbi (A′′)**, a modem/FEC co-design. FEC stays opt-in OFF. Commits a364818/c8c003d/70847f6.
+- **W2 FEC** ✅ Hamming(7,4) + **W2b bit-interleaver** (block 16cw=112b=14B; burst≤16 corrected, swept test). **W2 measurement (examples/fec_fer_bench) = HONEST NEGATIVE:** Hamming is NET-NEGATIVE at operating SNRs (σ=0.14 raw FER 3.2% vs FEC 6.5%) — 7/4 length + mis-correction outweigh the fix; only helps at the harsh tail. So **FEC is now OPT-IN (TRIOS_FEC=1), default OFF** — mesh never regresses. **A′ done: replaced Hamming with K=5 Viterbi conv code** (src/conv.rs, stronger — recovers 3% BER + triple-error-in-window). **But even Viterbi is NET-NEGATIVE end-to-end** — modem frame-failures (sync/carrier) dominate + rate-1/2 doubles frame length. Commits a364818/c8c003d/70847f6.
+- **A″ SOFT-decision demod → soft Viterbi** ✅ *this iteration* (commit c92e878): `modem::rx_recover_soft` keeps the BPSK matched-filter confidence (i8 LLR proxy) → `conv::decode_soft` (correlation branch metric) → `fec::decode_soft`. **Soft is strictly ≥ hard at every SNR** (σ=0.18: 24.8%→24.6% FER) — implemented correctly. **BUT soft FEC is STILL net-negative vs raw** (σ=0.14: raw 2.7% vs soft 5.9%). **Root cause PROVEN by a frame-length sweep:** raw FER rises slowly with length, FEC FER rises ~2× faster (tracks the rate-1/2 length doubling) → frame loss is WHOLE-FRAME-sync-dominated, not bit-dominated; no bit-level decoder can pay for the length it adds. **The lever is modem frame-robustness / higher-rate code / PL offload — NOT a smarter decoder.** FEC stays opt-in default OFF; soft path kept ready. `SOFT_DECISION_FER_RESULTS.md`. Matches the competitor read (soft's ~1.3 dB gain only converts to frame gain once the PHY's dominant failure is bit errors — ours isn't).
 - **W3b real keys** ✅: StaticKey::generate/from_bytes/to_bytes; TRIOS_KEY secret file + `peer <id> <addr> <pubkey-hex>` config → real static-static session; falls back to demo key if unprovisioned. Proven on board 11 (public 5ee5c9…). **Closes threat #3.** Commit 78c394a.
 - **W3 replay-resync / authenticated FS handshake** ✅ *this iteration*: **B′ core** (commit 8679ae0) = `session_authenticated` mixing static-static (auth) + eph-eph (forward secrecy) + reusable `Ephemeral`; **B′-wire** (commit a20e195) puts it on the air. Plaintext 37 B beacon `[0xE2][sender][eph_pub]` every 3 s, intercepted before the session-open path (so a post-reboot session mismatch can't deadlock the re-key); a peer's NEW ephemeral → `add_link` replaces the session in place. Bootstrap static-static → upgrade to authenticated+FS; **reboot mints a fresh ephemeral so no nonce is ever reused** (closes threat #4). 4 new bin tests incl. two-node seal/open interop; **136 green**. Hardware: beacon TX + self-RX + parse proven on board 11 (`SECURE_HANDSHAKE_RESULTS.md`). **Remaining:** two *physical* boards converging over the air (session upgrade fires only for `sender != me`) — needs board 12/13 replugged; software E2E covers the path meanwhile.
 - **W4 TUN/real IP**: `/dev/net/tun` + kernel NAT on the gateway; real ping/curl over 1 then 2 hops (the deferred M3 iperf3); 255B MTU fragmentation.
@@ -44,6 +45,26 @@ Ranked by impact × how-often-it-bites-now.
 - **W-REG** band + power certification; keep to attenuator/bench until licensed-by-rule.
 
 ## Honest one-liner
-The demo is real and reproducible; the product claims (secure, self-healing,
-multi-node, real-IP, real-range) are each 1-to-several milestones away — the
-security claim in particular is currently unbacked by any secret (#3).
+The demo is real and reproducible; **security is now genuinely backed** — real
+per-node secrets + an on-air authenticated forward-secret handshake (#3+#4
+closed). The remaining product claims (real-IP, self-healing at scale,
+real-range/throughput) are each 1-to-several milestones away — the biggest gaps
+are now real IP transport (W4) and the modem's throughput/robustness ceiling.
+
+## Competitor delta — 2026-07-08 (loop iter8)
+Focused re-scan (full table in git history). Key strategic reads:
+- **openwifi** (open FPGA-SDR 802.11 on Zynq+AD9361, PHY+MAC in the PL) is the
+  precedent that **PHY+MAC belong in the PL** — validates W6 as the single
+  highest-leverage engineering item (throughput + latency + duplex all unlock).
+- **Reticulum (RNS)** is a strong but **PHY-less** stack. Angle: TRI-NET can *be*
+  the RNS-class bearer (run RNS on top) rather than reinventing routing.
+- **Meshtastic/goTenna** = too slow / no IP; **Silvus/Persistent** = closed,
+  $10k+/radio, ITAR. TRI-NET's wedge = **open + cheap (COTS AD9361) +
+  programmable-PHY IP mesh** in the gap between them. Adjacent market: the cheap
+  **open bearer for ATAK/TAK**.
+- Two borrowable techniques: **soft-decision FEC** (tried this iter — gated on
+  modem robustness first, see A″) and **TDMA with GPS-PPS slotting** (W7) to kill
+  hidden-terminal CSMA collapse.
+- Top-3 skeptic attacks: (1) BPSK throughput ceiling, (2) **no PL offload** — the
+  PHY is CPU-bound, (3) no published link-budget/range curve. (2) and a real
+  range curve are what most convert skeptics.
