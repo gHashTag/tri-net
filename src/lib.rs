@@ -63,6 +63,12 @@ pub mod anon;
 #[path = "../gen/rust/mesh_metrics.rs"]
 pub mod mesh_metrics;
 
+#[path = "../gen/rust/csma_timing.rs"]
+pub mod csma_timing;
+
+#[path = "../gen/rust/nat_traversal.rs"]
+pub mod nat_traversal;
+
 // Types used across the crate
 pub type NodeId = u32;
 

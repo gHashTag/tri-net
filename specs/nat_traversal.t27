@@ -1,0 +1,198 @@
+// NAT traversal: port mapping for P2P connections through a mesh gateway.
+// The gateway node maintains a mapping table: internal (mesh IP:port) <->
+// external (gateway-assigned port). Incoming packets to external port are
+// forwarded to the internal address.
+// Table entry: [internal_node:4bit][internal_port:8bit][external_port:8bit]
+//               [proto:1bit][age:3bit][active:1bit][reserved:7bit] = u32
+// phi^2 + phi^-2 = 3
+
+module NatTraversal {
+    use base::types;
+
+    const TABLE_SIZE: u8 = 16;
+    const MAX_AGE: u8 = 7;
+    const PROTO_UDP: u8 = 0;
+    const PROTO_TCP: u8 = 1;
+
+    // Pack a NAT table entry into a u32.
+    // [node:4][int_port:8][ext_port:8][proto:1][age:3][active:1][pad:7]
+    fn pack_entry(node: u8, int_port: u8, ext_port: u8, proto: u8, age: u8, active: bool) -> u32 {
+        let act: u32 = 0;
+        if (active) {
+            act = 1;
+        }
+        return ((node as u32 & 0xF) << 28) |
+               ((int_port as u32) << 20) |
+               ((ext_port as u32) << 12) |
+               ((proto as u32 & 1) << 11) |
+               ((age as u32 & 0x7) << 8) |
+               (act << 7);
+    }
+
+    fn get_node(entry: u32) -> u8 {
+        return ((entry >> 28) & 0xF) as u8;
+    }
+
+    fn get_int_port(entry: u32) -> u8 {
+        return ((entry >> 20) & 0xFF) as u8;
+    }
+
+    fn get_ext_port(entry: u32) -> u8 {
+        return ((entry >> 12) & 0xFF) as u8;
+    }
+
+    fn get_proto(entry: u32) -> u8 {
+        return ((entry >> 11) & 0x1) as u8;
+    }
+
+    fn get_age(entry: u32) -> u8 {
+        return ((entry >> 8) & 0x7) as u8;
+    }
+
+    fn is_active(entry: u32) -> bool {
+        return (entry & (1 << 7)) != 0;
+    }
+
+    // Allocate an external port for a new mapping.
+    // Simple: external = base + node * 32 + internal_port_offset.
+    fn allocate_ext_port(node: u8, int_port: u8, base: u8) -> u8 {
+        let ext: u16 = (base as u16) + (node as u16 * 32) + ((int_port as u16) & 31);
+        if (ext > 250) {
+            return 250;
+        }
+        return ext as u8;
+    }
+
+    // Look up: given external port + protocol, find the internal node+port.
+    // Returns the node ID (1-15) or 0 if no match.
+    fn lookup_node(ext_port: u8, proto: u8, e0: u32, e1: u32, e2: u32, e3: u32) -> u8 {
+        if (is_active(e0) && get_ext_port(e0) == ext_port && get_proto(e0) == proto) {
+            return get_node(e0);
+        }
+        if (is_active(e1) && get_ext_port(e1) == ext_port && get_proto(e1) == proto) {
+            return get_node(e1);
+        }
+        if (is_active(e2) && get_ext_port(e2) == ext_port && get_proto(e2) == proto) {
+            return get_node(e2);
+        }
+        if (is_active(e3) && get_ext_port(e3) == ext_port && get_proto(e3) == proto) {
+            return get_node(e3);
+        }
+        return 0;
+    }
+
+    // Age an entry: increment age, deactivate if too old.
+    fn tick_entry(entry: u32) -> u32 {
+        let age: u8 = get_age(entry);
+        let new_age: u8 = age + 1;
+        if (new_age >= MAX_AGE) {
+            return pack_entry(get_node(entry), get_int_port(entry), get_ext_port(entry), get_proto(entry), MAX_AGE, false);
+        }
+        return pack_entry(get_node(entry), get_int_port(entry), get_ext_port(entry), get_proto(entry), new_age, is_active(entry));
+    }
+
+    // Refresh an entry (reset age to 0, mark active).
+    fn refresh_entry(entry: u32) -> u32 {
+        return pack_entry(get_node(entry), get_int_port(entry), get_ext_port(entry), get_proto(entry), 0, true);
+    }
+
+    // Deactivate an entry (port mapping released).
+    fn deactivate_entry(entry: u32) -> u32 {
+        return pack_entry(get_node(entry), get_int_port(entry), get_ext_port(entry), get_proto(entry), get_age(entry), false);
+    }
+
+    // ---- TDD (L4) ----
+
+    test pack_unpack_node {
+        e = pack_entry(5, 80, 200, PROTO_TCP, 0, true);
+        assert(get_node(e) == 5, "node roundtrips");
+    }
+
+    test pack_unpack_ports {
+        e = pack_entry(5, 80, 200, PROTO_TCP, 0, true);
+        assert(get_int_port(e) == 80, "int_port roundtrips");
+        assert(get_ext_port(e) == 200, "ext_port roundtrips");
+    }
+
+    test pack_unpack_proto {
+        e_udp = pack_entry(1, 53, 100, PROTO_UDP, 0, true);
+        e_tcp = pack_entry(1, 80, 200, PROTO_TCP, 0, true);
+        assert(get_proto(e_udp) == 0, "UDP proto");
+        assert(get_proto(e_tcp) == 1, "TCP proto");
+    }
+
+    test pack_active {
+        e = pack_entry(1, 80, 200, PROTO_TCP, 0, true);
+        assert(is_active(e) == true, "active packed");
+    }
+
+    test pack_inactive {
+        e = pack_entry(1, 80, 200, PROTO_TCP, 0, false);
+        assert(is_active(e) == false, "inactive packed");
+    }
+
+    test allocate_ext_port_unique {
+        p1 = allocate_ext_port(1, 80, 100);
+        p2 = allocate_ext_port(2, 80, 100);
+        assert(p1 != p2, "different nodes get different ports");
+    }
+
+    test allocate_ext_port_capped {
+        p = allocate_ext_port(15, 31, 100);
+        assert(p <= 250, "port capped at 250");
+    }
+
+    test lookup_finds_active {
+        e0 = pack_entry(3, 80, 196, PROTO_TCP, 0, true);
+        n = lookup_node(196, PROTO_TCP, e0, 0, 0, 0);
+        assert(n == 3, "found node 3");
+    }
+
+    test lookup_skips_inactive {
+        e0 = pack_entry(3, 80, 196, PROTO_TCP, 0, false);
+        n = lookup_node(196, PROTO_TCP, e0, 0, 0, 0);
+        assert(n == 0, "inactive entry not found");
+    }
+
+    test lookup_wrong_port {
+        e0 = pack_entry(3, 80, 196, PROTO_TCP, 0, true);
+        n = lookup_node(200, PROTO_TCP, e0, 0, 0, 0);
+        assert(n == 0, "wrong port not found");
+    }
+
+    test lookup_wrong_proto {
+        e0 = pack_entry(3, 80, 196, PROTO_TCP, 0, true);
+        n = lookup_node(196, PROTO_UDP, e0, 0, 0, 0);
+        assert(n == 0, "wrong proto not found");
+    }
+
+    test tick_deactivates_at_max_age {
+        e = pack_entry(1, 80, 200, PROTO_TCP, 6, true);
+        e2 = tick_entry(e);
+        assert(is_active(e2) == false, "deactivated at MAX_AGE");
+    }
+
+    test refresh_resets_age {
+        e = pack_entry(1, 80, 200, PROTO_TCP, 5, true);
+        e2 = refresh_entry(e);
+        assert(get_age(e2) == 0, "age reset to 0");
+        assert(is_active(e2) == true, "still active");
+    }
+
+    test deactivate_sets_inactive {
+        e = pack_entry(1, 80, 200, PROTO_TCP, 0, true);
+        e2 = deactivate_entry(e);
+        assert(is_active(e2) == false, "deactivated");
+    }
+
+    // ---- invariants ----
+
+    invariant max_age_is_7
+        assert MAX_AGE == 7
+
+    invariant proto_udp_is_0
+        assert PROTO_UDP == 0
+
+    invariant proto_tcp_is_1
+        assert PROTO_TCP == 1
+}
