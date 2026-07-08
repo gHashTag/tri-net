@@ -82,6 +82,30 @@ unreliable (824 KB; the console session breaks under a multi-minute
 stream) — this is the documented ramdisk/off-network deployment gap; a
 1-second Ethernet replug or SD bake deploys it cleanly.
 
+## Board 12 brought into the mesh — RX cal fix + TX-gain knob (2026-07-08)
+
+After a brief Ethernet replug deployed the calibration fix to board 12, its
+behavior was fully characterized:
+- Post-notch median calibration dropped its noise floor 221 -> 124, and it
+  now DETECTS and DEMODULATES peer frames (1196 bursts; src=11, src=13, and
+  its own src=12 all decoded) — a total-deafness -> hears-everyone jump.
+- But neighbor ETX stayed `inf`: the frames modem-decode yet fail the AEAD
+  open, because board 12 hears its OWN transmit so loudly (827 self-frames
+  decoded) that it collides with/corrupts incoming frames.
+- Turning board 12's TX down (`TRIOS_TXGAIN=-12`, new env knob) removed the
+  self-interference and it converged to neighbor 13 (ETX 1.0-1.3) and its
+  FETCH request reached the gateway (board 11 logged `gateway fetched` once).
+
+Then the hard wall: with all three nodes actively beaconing on a shared
+half-duplex channel and NO CSMA, collisions destabilize every link — even
+the previously rock-solid 11<->13 dropped to `inf` once board 12 joined
+the contention. The link flaps (converges to ~1.3, drops, re-converges).
+
+Net: 2-node radio links are solid and carry internet; a 3rd active node
+without medium-access control collapses stability. The RX-cal fix and
+TX-gain knob are real and necessary but not sufficient — CSMA
+listen-before-talk is the required next milestone, not a tuning knob.
+
 ## Honest limits
 
 - Half-duplex, no MAC/CSMA: nodes still occasionally collide; the 11<->12
