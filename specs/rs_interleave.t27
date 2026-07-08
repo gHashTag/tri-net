@@ -1,0 +1,95 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/rs_interleave.t27
+// Interleaving layout that scales the single small RS(K+M,K) codeword up to a
+// whole video keyframe. A keyframe of D data symbols is laid out as C = ceil(D/K)
+// codewords (the ROWS of a C x N matrix, N = K+M). Transmission goes COLUMN by
+// column: fragment j carries column j -- one coded symbol from every codeword.
+//
+// The point: a lost fragment removes column j from EVERY codeword, i.e. exactly
+// ONE erasure per codeword, which every codeword recovers independently (M >= 1).
+// So the whole keyframe -- of any size -- inherits the single-codeword guarantee:
+// it survives up to M lost fragments. Interleaving turns a burst loss (which would
+// wipe one codeword) into distributed single-erasures. This spec is the pure
+// layout; rs_encode/rs_decode do the field math per codeword.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module RsInterleave {
+    use base::types;
+
+    const K : u32 = 2;   // data symbols per codeword (matches rs_encode).
+    const M : u32 = 4;   // parity symbols per codeword (RS(6,2), full budget).
+    const N : u32 = 6;   // coded symbols per codeword = K + M = interleave columns.
+
+    // Number of codewords (matrix rows) for a keyframe of D data symbols, ceil.
+    fn codeword_count(data_symbols: u32) -> u32 {
+        return (data_symbols + K - 1) / K;
+    }
+
+    // Fragments transmitted = interleave columns = coded symbols per codeword (N),
+    // independent of keyframe size.
+    fn fragment_count() -> u32 {
+        return N;
+    }
+
+    // Symbols carried by one fragment (column) = one per codeword = C.
+    fn symbols_per_fragment(data_symbols: u32) -> u32 {
+        return codeword_count(data_symbols);
+    }
+
+    // Total coded symbols on the air = C rows * N columns.
+    fn total_coded_symbols(data_symbols: u32) -> u32 {
+        return codeword_count(data_symbols) * N;
+    }
+
+    // Which codeword (row) a keyframe data symbol lands in, and its slot within it.
+    fn codeword_of(data_symbol_index: u32) -> u32 {
+        return data_symbol_index / K;
+    }
+
+    fn slot_in_codeword(data_symbol_index: u32) -> u32 {
+        return data_symbol_index % K;
+    }
+
+    // Whole-keyframe guarantee: survives up to M lost fragments, ANY keyframe size,
+    // because each lost fragment is a single erasure per codeword.
+    fn survives(lost_fragments: u32) -> bool {
+        return lost_fragments <= M;
+    }
+
+    // ---- TDD (L4) ----
+
+    test codeword_count_is_ceil {
+        assert(codeword_count(2) == 1, "one codeword holds K=2");
+        assert(codeword_count(3) == 2, "3 symbols spill to a 2nd codeword");
+        assert(codeword_count(100) == 50, "100 symbols -> 50 codewords");
+        assert(codeword_count(1) == 1, "a single symbol still needs a codeword");
+    }
+
+    test fragment_and_symbol_counts {
+        assert(fragment_count() == 6, "N = K + M columns");
+        assert(symbols_per_fragment(100) == 50, "one symbol per codeword per fragment");
+        assert(total_coded_symbols(100) == 300, "50 rows * 6 columns");
+    }
+
+    test symbol_placement {
+        assert(codeword_of(0) == 0, "symbol 0 -> codeword 0");
+        assert(codeword_of(5) == 2, "symbol 5 -> codeword 2 (K=2)");
+        assert(slot_in_codeword(5) == 1, "symbol 5 is slot 1 of its codeword");
+        assert(slot_in_codeword(4) == 0, "symbol 4 is slot 0");
+    }
+
+    // The whole-keyframe survival bound equals the per-codeword parity budget.
+    test whole_keyframe_survival {
+        assert(survives(4) == true, "lose 4 fragments -> 4 erasures/codeword -> recover");
+        assert(survives(5) == false, "5 lost exceeds M per codeword");
+        assert(survives(0) == true, "no loss");
+    }
+
+    // ---- invariants ----
+
+    invariant coded_width
+        assert N == K + M
+
+    invariant budget_matches_rs
+        assert M == 4
+}
