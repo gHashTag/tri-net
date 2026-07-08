@@ -1,0 +1,169 @@
+// Gateway discovery: internet-via-mesh gateway election and expiry.
+// A node with internet access announces itself; peers pick the lowest NodeId.
+// Gateways expire after GATEWAY_TTL_TICKS missed announcements.
+// State is a bitmap: bit N set = node N is a known gateway.
+// phi^2 + phi^-2 = 3
+
+module GatewayDiscovery {
+    use base::types;
+
+    const GATEWAY_TTL_TICKS: u8 = 10;
+    const MAX_GATEWAYS: u8 = 8; // nodes 1..8 can be gateways
+
+    // Gateway bitmap: each bit represents one node (1-indexed).
+    // bit 0 = node 1, bit 1 = node 2, ..., bit 7 = node 8.
+    // A separate age array tracks ticks since last announcement.
+
+    // Set the bit for a gateway node.
+    fn mark_gateway(bitmap: u8, node_id: u8) -> u8 {
+        if (node_id < 1 || node_id > MAX_GATEWAYS) {
+            return bitmap;
+        }
+        return bitmap | (1 << (node_id - 1));
+    }
+
+    // Clear the bit for a gateway node.
+    fn unmark_gateway(bitmap: u8, node_id: u8) -> u8 {
+        if (node_id < 1 || node_id > MAX_GATEWAYS) {
+            return bitmap;
+        }
+        return bitmap & ~(1 << (node_id - 1));
+    }
+
+    // Check if a node is in the gateway bitmap.
+    fn is_gateway(bitmap: u8, node_id: u8) -> bool {
+        if (node_id < 1 || node_id > MAX_GATEWAYS) {
+            return false;
+        }
+        return (bitmap & (1 << (node_id - 1))) != 0;
+    }
+
+    // Count set bits (number of known gateways).
+    fn gateway_count(bitmap: u8) -> u8 {
+        let count: u8 = 0;
+        let b: u8 = bitmap;
+        while (b != 0) {
+            if ((b & 1) != 0) {
+                count = count + 1;
+            }
+            b = b >> 1;
+        }
+        return count;
+    }
+
+    // Elect the best gateway: lowest NodeId among set bits.
+    // Returns 0 if no gateways.
+    fn best_gateway(bitmap: u8) -> u8 {
+        let i: u8 = 1;
+        while (i <= MAX_GATEWAYS) {
+            if (is_gateway(bitmap, i)) {
+                return i;
+            }
+            i = i + 1;
+        }
+        return 0;
+    }
+
+    // Check if a gateway has expired (age >= TTL).
+    fn is_expired(age: u8) -> bool {
+        return age > GATEWAY_TTL_TICKS;
+    }
+
+    // Increment age (saturating at 255).
+    fn tick_age(age: u8) -> u8 {
+        if (age >= 255) {
+            return 255;
+        }
+        return age + 1;
+    }
+
+    // Reset age to 0 (on fresh announcement).
+    fn reset_age() -> u8 {
+        return 0;
+    }
+
+    // Build a gateway announcement frame type byte.
+    const GATEWAY_TYPE: u8 = 5;
+
+    // Parse a gateway announcement: validate type byte.
+    fn is_valid_announcement(type_byte: u8) -> bool {
+        return type_byte == GATEWAY_TYPE;
+    }
+
+    // ---- TDD (L4) ----
+
+    test mark_and_check {
+        bm = mark_gateway(0, 3);
+        assert(is_gateway(bm, 3) == true, "node 3 is gateway");
+    }
+
+    test unmark_removes {
+        bm = mark_gateway(0, 3);
+        bm2 = unmark_gateway(bm, 3);
+        assert(is_gateway(bm2, 3) == false, "node 3 removed");
+    }
+
+    test invalid_node_ignored {
+        bm = mark_gateway(0, 0);
+        assert(bm == 0, "node 0 cannot be gateway");
+    }
+
+    test node_over_max_ignored {
+        bm = mark_gateway(0, 9);
+        assert(bm == 0, "node 9 exceeds MAX_GATEWAYS");
+    }
+
+    test count_multiple {
+        bm = mark_gateway(mark_gateway(0, 1), 3);
+        assert(gateway_count(bm) == 2, "two gateways");
+    }
+
+    test count_empty {
+        assert(gateway_count(0) == 0, "no gateways");
+    }
+
+    test best_picks_lowest {
+        bm = mark_gateway(mark_gateway(mark_gateway(0, 3), 1), 2);
+        assert(best_gateway(bm) == 1, "lowest NodeId wins");
+    }
+
+    test best_empty_returns_zero {
+        assert(best_gateway(0) == 0, "no gateways -> 0");
+    }
+
+    test expired_at_ttl_plus_one {
+        assert(is_expired(11) == true, "age 11 > TTL 10");
+    }
+
+    test not_expired_at_ttl {
+        assert(is_expired(10) == false, "age 10 == TTL, not expired");
+    }
+
+    test tick_increments {
+        assert(tick_age(5) == 6, "age increments");
+    }
+
+    test tick_saturates {
+        assert(tick_age(255) == 255, "age saturates at 255");
+    }
+
+    test reset_to_zero {
+        assert(reset_age() == 0, "age resets to 0");
+    }
+
+    test valid_announcement {
+        assert(is_valid_announcement(5) == true, "type 5 is GATEWAY");
+    }
+
+    test invalid_announcement {
+        assert(is_valid_announcement(1) == false, "type 1 is not GATEWAY");
+    }
+
+    // ---- invariants ----
+
+    invariant ttl_is_10
+        assert GATEWAY_TTL_TICKS == 10
+
+    invariant gateway_type_is_5
+        assert GATEWAY_TYPE == 5
+}

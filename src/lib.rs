@@ -45,6 +45,18 @@ pub mod anomaly_detector;
 #[path = "../gen/rust/quarantine_manager.rs"]
 pub mod quarantine_manager;
 
+#[path = "../gen/rust/tun.rs"]
+pub mod tun;
+
+#[path = "../gen/rust/gateway.rs"]
+pub mod gateway;
+
+#[path = "../gen/rust/qos_scheduler.rs"]
+pub mod qos_scheduler;
+
+#[path = "../gen/rust/link_budget.rs"]
+pub mod link_budget;
+
 // Types used across the crate
 pub type NodeId = u32;
 

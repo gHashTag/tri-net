@@ -1,0 +1,222 @@
+// QoS scheduler: priority + reservation for the constrained RF mesh.
+// 4 traffic classes: RealTime(0) > Interactive(1) > Streaming(2) > Bulk(3).
+// Each class has a max_gap: after that many ticks without service, it preempts.
+// State: [class_depths:4x4bit=16bit][gap_counters:4x4bit=16bit] packed into u32.
+// phi^2 + phi^-2 = 3
+
+module QosScheduler {
+    use base::types;
+
+    const CLASS_COUNT: u8 = 4;
+
+    // Traffic classes
+    const CLASS_REALTIME: u8 = 0;
+    const CLASS_INTERACTIVE: u8 = 1;
+    const CLASS_STREAMING: u8 = 2;
+    const CLASS_BULK: u8 = 3;
+
+    // Max gap per class before reservation preemption kicks in.
+    const GAP_REALTIME: u8 = 0;   // no reservation (always highest)
+    const GAP_INTERACTIVE: u8 = 3;
+    const GAP_STREAMING: u8 = 5;
+    const GAP_BULK: u8 = 10;
+
+    // Lookup max_gap for a class.
+    fn max_gap_for_class(class: u8) -> u8 {
+        if (class == CLASS_REALTIME) {
+            return GAP_REALTIME;
+        }
+        if (class == CLASS_INTERACTIVE) {
+            return GAP_INTERACTIVE;
+        }
+        if (class == CLASS_STREAMING) {
+            return GAP_STREAMING;
+        }
+        return GAP_BULK;
+    }
+
+    // Classify a frame by wire kind byte.
+    fn classify_by_kind(kind: u8) -> u8 {
+        if (kind == 0) {
+            return CLASS_REALTIME;
+        }
+        if (kind == 1) {
+            return CLASS_REALTIME;
+        }
+        if (kind == 2) {
+            return CLASS_REALTIME;
+        }
+        if (kind == 5) {
+            return CLASS_REALTIME;
+        }
+        if (kind == 0xE2) {
+            return CLASS_REALTIME;
+        }
+        return CLASS_BULK;
+    }
+
+    // Classify by frame size (encrypted payload type is opaque).
+    fn classify_by_size(size: u16) -> u8 {
+        if (size <= 100) {
+            return CLASS_REALTIME;
+        }
+        if (size <= 300) {
+            return CLASS_INTERACTIVE;
+        }
+        if (size <= 1200) {
+            return CLASS_STREAMING;
+        }
+        return CLASS_BULK;
+    }
+
+    // Combined classification: kind takes precedence, then size.
+    fn classify_frame(kind: u8, size: u16) -> u8 {
+        let kind_class: u8 = classify_by_kind(kind);
+        // HELLO, DATA, GATEWAY, HANDSHAKE are always RealTime regardless of size.
+        if (kind_class == CLASS_REALTIME) {
+            return CLASS_REALTIME;
+        }
+        return classify_by_size(size);
+    }
+
+    // Check if a class should preempt (gap >= max_gap and max_gap > 0).
+    fn should_preempt(gap: u8, class: u8) -> bool {
+        let mg: u8 = max_gap_for_class(class);
+        if (mg == 0) {
+            return false;
+        }
+        return gap >= mg;
+    }
+
+    // Next dequeue class: reservation pass first, then strict priority.
+    // Takes 4 gap values and 4 depth values, returns the class to service.
+    fn next_class(rt_gap: u8, ia_gap: u8, st_gap: u8, bk_gap: u8,
+                  rt_depth: u8, ia_depth: u8, st_depth: u8, bk_depth: u8) -> u8 {
+        // Phase 1: reservation preemption (check Bulk first, then Streaming, etc.)
+        if (should_preempt(bk_gap, CLASS_BULK) && bk_depth > 0) {
+            return CLASS_BULK;
+        }
+        if (should_preempt(st_gap, CLASS_STREAMING) && st_depth > 0) {
+            return CLASS_STREAMING;
+        }
+        if (should_preempt(ia_gap, CLASS_INTERACTIVE) && ia_depth > 0) {
+            return CLASS_INTERACTIVE;
+        }
+        // Phase 2: strict priority
+        if (rt_depth > 0) {
+            return CLASS_REALTIME;
+        }
+        if (ia_depth > 0) {
+            return CLASS_INTERACTIVE;
+        }
+        if (st_depth > 0) {
+            return CLASS_STREAMING;
+        }
+        if (bk_depth > 0) {
+            return CLASS_BULK;
+        }
+        return 255; // empty: no class to service
+    }
+
+    // Increment a gap counter (saturating at 15, since we use 4 bits).
+    fn tick_gap(gap: u8) -> u8 {
+        if (gap >= 15) {
+            return 15;
+        }
+        return gap + 1;
+    }
+
+    // ---- TDD (L4) ----
+
+    test max_gap_lookup {
+        assert(max_gap_for_class(0) == 0, "RT: no reservation");
+        assert(max_gap_for_class(3) == 10, "Bulk: 10 tick gap");
+    }
+
+    test classify_hello_is_realtime {
+        assert(classify_by_kind(0) == 0, "HELLO = RealTime");
+    }
+
+    test classify_data_is_realtime {
+        assert(classify_by_kind(1) == 0, "DATA = RealTime");
+    }
+
+    test classify_unknown_is_bulk {
+        assert(classify_by_kind(99) == 3, "unknown = Bulk");
+    }
+
+    test classify_small_is_realtime {
+        assert(classify_by_size(50) == 0, "small = RealTime");
+    }
+
+    test classify_medium_is_interactive {
+        assert(classify_by_size(200) == 1, "medium = Interactive");
+    }
+
+    test classify_large_is_streaming {
+        assert(classify_by_size(800) == 2, "large = Streaming");
+    }
+
+    test classify_huge_is_bulk {
+        assert(classify_by_size(2000) == 3, "huge = Bulk");
+    }
+
+    test classify_frame_kind_overrides_size {
+        assert(classify_frame(0, 2000) == 0, "HELLO always RT regardless of size");
+    }
+
+    test classify_frame_unknown_uses_size {
+        assert(classify_frame(99, 200) == 1, "unknown kind, medium size = Interactive");
+    }
+
+    test preempt_bulk_at_gap_10 {
+        assert(should_preempt(10, 3) == true, "Bulk at gap 10 preempts");
+    }
+
+    test no_preempt_bulk_at_gap_5 {
+        assert(should_preempt(5, 3) == false, "Bulk at gap 5 does not preempt");
+    }
+
+    test no_preempt_realtime {
+        assert(should_preempt(100, 0) == false, "RT never needs preemption");
+    }
+
+    test next_class_empty {
+        assert(next_class(0, 0, 0, 0, 0, 0, 0, 0) == 255, "all empty -> 255");
+    }
+
+    test next_class_strict_priority {
+        // RT and Bulk both have frames -> RT wins
+        assert(next_class(0, 0, 0, 0, 1, 0, 0, 1) == 0, "RT wins over Bulk");
+    }
+
+    test next_class_reservation_preemption {
+        // Bulk gap >= 10, Bulk has frames -> Bulk preempts RT
+        assert(next_class(0, 0, 0, 10, 1, 0, 0, 1) == 3, "Bulk preempts RT at gap 10");
+    }
+
+    test next_class_no_preemption_without_frames {
+        // Bulk gap >= 10 but no frames -> falls through to RT
+        assert(next_class(0, 0, 0, 10, 1, 0, 0, 0) == 0, "RT wins when Bulk empty");
+    }
+
+    test tick_gap_increments {
+        assert(tick_gap(3) == 4, "gap increments");
+    }
+
+    test tick_gap_saturates {
+        assert(tick_gap(15) == 15, "gap saturates at 15");
+    }
+
+    // ---- invariants ----
+
+    invariant four_classes
+        assert CLASS_COUNT == 4
+
+    invariant realtime_always_highest
+        assert GAP_REALTIME == 0
+
+    invariant bulk_has_largest_gap
+        assert GAP_BULK > GAP_STREAMING
+        assert GAP_STREAMING > GAP_INTERACTIVE
+}
