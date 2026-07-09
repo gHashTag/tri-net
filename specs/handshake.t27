@@ -1,0 +1,99 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/handshake.t27
+// Key-exchange handshake -- the one open gap in SECURITY_MODEL.md: how two nodes
+// agree on the shared root key that key_ratchet then evolves. This is a genuine
+// Diffie-Hellman key agreement in a small prime field (NOT a placeholder):
+//
+//   public_key(a)  = G^a mod P          shared = (G^b)^a = G^(ab) = (G^a)^b mod P
+//
+// Both endpoints reach the SAME shared secret from asymmetric views (my private +
+// your public), which is exactly the group-theoretic identity G^(ab) = G^(ba).
+// The field is toy-sized (P = 2^31-1, so products stay < 2^62 and never overflow
+// u64); a real deployment substitutes X25519 / a PQ KEM, but the STRUCTURE and the
+// agreement property proved here are the real thing, not a stand-in. session_root
+// binds the shared secret to the transcript (both public keys) and feeds the ratchet.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module Handshake {
+    use base::types;
+
+    const P : u64 = 2147483647;   // Mersenne prime M31 = 2^31 - 1.
+    const G : u64 = 7;            // group generator.
+
+    // Modular exponentiation base^exp mod P by square-and-multiply. Every product is
+    // < P^2 < 2^62, so it fits in u64 with no overflow.
+    fn mod_pow(base: u64, exp: u64) -> u64 {
+        let result: u64 = 1;
+        let b: u64 = base % P;
+        let e: u64 = exp;
+        while (e > 0) {
+            if ((e & 1) == 1) {
+                result = (result * b) % P;
+            }
+            b = (b * b) % P;
+            e = e >> 1;
+        }
+        return result;
+    }
+
+    // Public key from a private exponent: G^priv mod P (safe to broadcast).
+    fn public_key(priv_key: u64) -> u64 {
+        return mod_pow(G, priv_key);
+    }
+
+    // Shared secret from the peer's public key and my private exponent:
+    // their_pub^my_priv = G^(peer*mine) mod P -- identical on both sides.
+    fn shared_secret(their_pub: u64, my_priv: u64) -> u64 {
+        return mod_pow(their_pub, my_priv);
+    }
+
+    // Session root: the shared secret bound to the transcript (both public keys),
+    // symmetric in the two keys so initiator and responder derive the SAME root.
+    // Feeds key_ratchet as CK_0. Composes KeyRatchet::kdf for mixing/domain sep.
+    fn session_root(shared: u64, pub_a: u64, pub_b: u64) -> u64 {
+        return KeyRatchet::kdf(shared) ^ KeyRatchet::kdf(pub_a) ^ KeyRatchet::kdf(pub_b);
+    }
+
+    // ---- TDD (L4) ----
+
+    test mod_pow_basics {
+        assert(mod_pow(7, 0) == 1, "anything^0 = 1");
+        assert(mod_pow(7, 1) == 7, "G^1 = G");
+        assert(mod_pow(2, 10) == 1024, "2^10 = 1024 (< P)");
+    }
+
+    // THE property: two parties reach the same shared secret from asymmetric views.
+    test diffie_hellman_agreement {
+        given pub_a = public_key(123456)
+        then shared_secret(public_key(654321), 123456) == shared_secret(pub_a, 654321)
+    }
+
+    // Agreement holds for another key pair too (not a coincidence of one case).
+    test agreement_second_pair {
+        a = 1000003;
+        b = 99991;
+        assert(shared_secret(public_key(b), a) == shared_secret(public_key(a), b), "G^(ab)=G^(ba)");
+    }
+
+    // Both endpoints derive the same session root: session_root is symmetric in the
+    // two public keys, so initiator (a,b) and responder (b,a) agree.
+    test session_root_is_symmetric {
+        s = shared_secret(public_key(555), 777);
+        pa = public_key(777);
+        pb = public_key(555);
+        assert(session_root(s, pa, pb) == session_root(s, pb, pa), "root independent of role");
+    }
+
+    // Freshness: a different private key yields a different public key (distinct sessions).
+    test fresh_keys_differ {
+        assert(public_key(111) != public_key(222), "distinct privates -> distinct publics");
+    }
+
+    // ---- invariants ----
+
+    invariant field_is_m31
+        assert P == 2147483647
+
+    invariant generator_in_field
+        assert G < P
+}
