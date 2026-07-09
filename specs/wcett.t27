@@ -1,0 +1,94 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/wcett.t27
+// WCETT (Weighted Cumulative Expected Transmission Time; Draves et al., MobiCom
+// 2004) -- the channel-diversity-aware routing metric on top of ett_metric. A plain
+// ETT sum ignores INTRA-path interference: two hops on the SAME channel cannot
+// transmit at once, so they serialise. WCETT adds a bottleneck term:
+//
+//   WCETT = (1 - beta) * sum(ETT_i) + beta * max_channel( sum of ETT_i on channel )
+//
+// The second term is the time on the busiest channel (its hops serialise). With
+// beta in (0,1) this prefers channel-diverse paths -- which parallelise -- over
+// same-channel paths of equal total time. Modelled for a fixed 3-hop path (t27 has
+// no arrays); the per-hop ETTs come from ett_metric.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module Wcett {
+    use base::types;
+
+    const BETA_DEFAULT_X100 : u32 = 50;   // 0.5: equal weight to total time and bottleneck.
+
+    // Total ETT on channel `ch` across the 3 hops (hops not on `ch` contribute 0).
+    fn channel_load3(e1: u32, c1: u8, e2: u32, c2: u8, e3: u32, c3: u8, ch: u8) -> u32 {
+        let a: u32 = if (c1 == ch) { e1 } else { 0 };
+        let b: u32 = if (c2 == ch) { e2 } else { 0 };
+        let c: u32 = if (c3 == ch) { e3 } else { 0 };
+        return a + b + c;
+    }
+
+    fn max3(a: u32, b: u32, c: u32) -> u32 {
+        let m: u32 = if (a >= b) { a } else { b };
+        return if (m >= c) { m } else { c };
+    }
+
+    // Bottleneck = the busiest channel's serialised time. The busiest channel is one
+    // the path actually uses, so it suffices to test each hop's own channel.
+    fn bottleneck3(e1: u32, c1: u8, e2: u32, c2: u8, e3: u32, c3: u8) -> u32 {
+        return max3(
+            channel_load3(e1, c1, e2, c2, e3, c3, c1),
+            channel_load3(e1, c1, e2, c2, e3, c3, c2),
+            channel_load3(e1, c1, e2, c2, e3, c3, c3));
+    }
+
+    // WCETT for a 3-hop path, beta in x100 fixed-point.
+    fn wcett3(e1: u32, c1: u8, e2: u32, c2: u8, e3: u32, c3: u8, beta_x100: u32) -> u32 {
+        let total: u32 = e1 + e2 + e3;
+        let bott: u32 = bottleneck3(e1, c1, e2, c2, e3, c3);
+        return ((100 - beta_x100) * total + beta_x100 * bott) / 100;
+    }
+
+    // ---- TDD (L4) ----
+
+    test channel_load_groups_by_channel {
+        assert(channel_load3(60, 1, 60, 1, 60, 1, 1) == 180, "all three hops on ch 1");
+        assert(channel_load3(60, 1, 60, 2, 60, 3, 1) == 60, "only hop 1 on ch 1");
+        assert(channel_load3(60, 1, 60, 2, 60, 3, 9) == 0, "no hop on ch 9");
+    }
+
+    test max3_picks_largest {
+        assert(max3(60, 120, 90) == 120, "middle largest");
+        assert(max3(180, 60, 60) == 180, "first largest");
+        assert(max3(60, 60, 200) == 200, "last largest");
+    }
+
+    // Bottleneck: same-channel path serialises to the full total; a diverse path's
+    // bottleneck is just its busiest single hop.
+    test bottleneck_reflects_serialisation {
+        assert(bottleneck3(60, 1, 60, 1, 60, 1) == 180, "all same channel -> full total");
+        assert(bottleneck3(60, 1, 60, 2, 60, 3) == 60, "all distinct -> one hop");
+        assert(bottleneck3(60, 1, 60, 1, 60, 2) == 120, "two on ch 1 -> 120");
+    }
+
+    // THE payoff: two paths, SAME total ETT (180), but the channel-diverse path has
+    // a lower WCETT, so routing prefers it. Plain ETT would rate them equal.
+    test diversity_lowers_wcett {
+        given same = wcett3(60, 1, 60, 1, 60, 1, BETA_DEFAULT_X100)   // 0.5*180 + 0.5*180
+        then same == 180
+
+        given diverse = wcett3(60, 1, 60, 2, 60, 3, BETA_DEFAULT_X100) // 0.5*180 + 0.5*60
+        then diverse == 120
+    }
+
+    // beta boundaries: beta=0 is plain ETT sum (diversity ignored); beta=100 is pure
+    // bottleneck.
+    test beta_boundaries {
+        assert(wcett3(60, 1, 60, 2, 60, 3, 0) == 180, "beta 0 -> ETT sum");
+        assert(wcett3(60, 1, 60, 2, 60, 3, 100) == 60, "beta 100 -> bottleneck only");
+        assert(wcett3(60, 1, 60, 1, 60, 1, 0) == 180, "same-channel at beta 0 also 180");
+    }
+
+    // ---- invariants ----
+
+    invariant beta_is_half
+        assert BETA_DEFAULT_X100 == 50
+}
