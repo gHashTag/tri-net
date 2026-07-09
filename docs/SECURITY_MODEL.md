@@ -1,6 +1,6 @@
 # Security model: from key agreement to a hardened frame on a broadcast mesh
 
-A spec-first security layer for the drone mesh. Six `.t27` specs, each generated to
+A spec-first security layer for the drone mesh. Seven `.t27` specs, each generated to
 Rust (host) and Verilog/C/Zig (FPGA) by `t27c`, machine-verified by property tests
 over the generated code. It spans the whole channel lifecycle -- establishing a
 shared key over the open air, confirming it, then hardening every AEAD frame -- and
@@ -11,23 +11,27 @@ Parallel to FEC_PIPELINE.md and ROUTING_METRIC.md.
 
 A drone mesh transmits in the open. An attacker within radio range can:
 
-1. **Man-in-the-middle the key exchange** -- run two separate exchanges so each side
+1. **Impersonate a device** -- substitute its own public key into the exchange.
+   Covered by `identity` Schnorr signatures binding a long-term key to the handshake.
+2. **Man-in-the-middle the key exchange** -- run two separate exchanges so each side
    thinks it shares a key with the other (unknown-key-share). Covered by `session`
    key confirmation.
-2. **Compromise a current key** and try to read PAST traffic. Covered by `key_ratchet`
+3. **Compromise a current key** and try to read PAST traffic. Covered by `key_ratchet`
    forward secrecy (a one-way KDF chain).
-3. **Force nonce reuse** if the nonce is chosen carelessly -- catastrophic for AEAD
+4. **Force nonce reuse** if the nonce is chosen carelessly -- catastrophic for AEAD
    (plaintext-XOR leak + auth-key forgery). Covered by `aead_nonce` injectivity.
-4. **Capture and re-inject** a valid, already-authenticated frame (a REPLAY) -- the
+5. **Capture and re-inject** a valid, already-authenticated frame (a REPLAY) -- the
    AEAD tag still verifies. Covered by `replay_window`.
 
-Out of scope: the AEAD cipher itself, and post-quantum / long-term-identity
-authentication (this layer proves KEY AGREEMENT and confirmation, not identity
-binding to a long-term certificate -- a PQXDH-style identity layer is separate).
+Out of scope: the AEAD cipher itself, and binding an identity key to a real device
+(a trusted registry / PKI, and a production Ed25519 / PQ signature instead of the
+toy-field Schnorr modelled here).
 
 ## The lifecycle: handshake to secure frame
 
 ```
+   identity    sign(x, handshake) ; verify(Y, .)             (device authentication)
+       |
    handshake   G^a, G^b  ->  shared = G^(ab) mod P     (Diffie-Hellman agreement)
        |
    session     establish -> root ; confirm_tag ; mutually_confirmed  (MITM defence)
@@ -46,8 +50,12 @@ binding to a long-term certificate -- a PQXDH-style identity layer is separate).
 The single monotone sequence per sender ties the frame layer together: it is the
 replay window's key, the nonce's low 64 bits, and the ratchet's message index.
 
-## Module map (6 specs)
+## Module map (7 specs)
 
+- `identity` -- Schnorr signatures over the M31 field for device authentication.
+  `identity_key`=G^x, `commit`=G^k, `challenge` (Fiat-Shamir H), `sign_s`
+  (s=k+x*e mod P-1), `verify` (accept iff G^s == R*Y^e mod P). Composes
+  Handshake::mod_pow + KeyRatchet::kdf.
 - `handshake` -- Diffie-Hellman key agreement in a small prime field (P = 2^31-1 M31,
   products stay < 2^62, no u64 overflow). `mod_pow` (square-and-multiply),
   `public_key`=G^priv, `shared_secret`=peer_pub^priv=G^(ab), `session_root` (binds
@@ -73,6 +81,9 @@ Each is proven as a property over the generated Rust, not asserted:
 - **Key agreement (handshake):** over 1000 random key pairs, both endpoints reach the
   same shared secret G^(ab) mod P from asymmetric views; `mod_pow` matches an
   independent reference over 500 inputs.
+- **Signature correctness + unforgeability structure (identity):** over 400 random
+  (key, nonce, message), the honest Schnorr signature verifies; a tampered scalar, a
+  different message, and a wrong identity key are each rejected.
 - **Key confirmation + MITM (session):** over 300 random key triples, two honest
   parties reach the same root, confirm each other both ways, and derive the same first
   message key; an attacker's separate exchange yields a different root whose tag is
