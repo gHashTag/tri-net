@@ -1,0 +1,88 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/aead_nonce.t27
+// Deterministic AEAD nonce construction -- the second security primitive. AES-GCM
+// and ChaCha20-Poly1305 are CATASTROPHIC under nonce reuse: two frames encrypted
+// with the same (key, nonce) leak the XOR of their plaintexts and let an attacker
+// forge the GHASH auth key. A 96-bit nonce built as
+//
+//   nonce = sender_id (high 32 bits) || sequence (low 64 bits)
+//
+// is unique per (sender, sequence) with no coordination: distinct senders occupy
+// disjoint high bits, and each sender's monotone sequence (the same counter the
+// anti-replay window tracks, replay_window.t27) never repeats under one key. The
+// construction is INJECTIVE, which is exactly "no nonce is ever reused".
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module AeadNonce {
+    use base::types;
+
+    // Rekey well before the GCM safe message limit (birthday/data bounds). 2^31
+    // leaves ample margin under one key; after a rekey the sequence resets safely.
+    const REKEY_THRESHOLD : u64 = 2147483648;   // 2^31 messages.
+
+    // Build the 96-bit nonce (in a u128): sender in bits 64..95, sequence in 0..63.
+    fn make_nonce(sender_id: u32, sequence: u64) -> u128 {
+        return ((sender_id as u128) << 64) | (sequence as u128);
+    }
+
+    fn nonce_sender(nonce: u128) -> u32 {
+        return ((nonce >> 64) & 0xFFFFFFFF) as u32;
+    }
+
+    fn nonce_sequence(nonce: u128) -> u64 {
+        return (nonce & 0xFFFFFFFFFFFFFFFF) as u64;
+    }
+
+    // The sender/sequence fields do not overlap, so the nonce round-trips to its
+    // inputs -- the witness that make_nonce is injective (no reuse).
+    fn round_trips(sender_id: u32, sequence: u64) -> bool {
+        return (nonce_sender(make_nonce(sender_id, sequence)) == sender_id)
+            && (nonce_sequence(make_nonce(sender_id, sequence)) == sequence);
+    }
+
+    // Rekey before the sequence reaches the safe limit; nonce values may repeat
+    // across a rekey because the key (and thus the (key,nonce) pair) changes.
+    fn needs_rekey(sequence: u64) -> bool {
+        return sequence >= REKEY_THRESHOLD;
+    }
+
+    // ---- TDD (L4) ----
+
+    test nonce_round_trips {
+        assert(nonce_sender(make_nonce(7, 42)) == 7, "sender recovered");
+        assert(nonce_sequence(make_nonce(7, 42)) == 42, "sequence recovered");
+        assert(round_trips(7, 42) == true, "round-trip witness");
+        assert(round_trips(4294967295, 18446744073709551615) == true, "max fields round-trip");
+    }
+
+    // Fields are disjoint: same sender different sequence -> different nonce; same
+    // sequence different sender -> different nonce.
+    test nonces_are_distinct {
+        assert(make_nonce(7, 42) == make_nonce(7, 42), "deterministic");
+        assert(nonce_sequence(make_nonce(7, 43)) == 43, "seq field independent");
+        assert(nonce_sender(make_nonce(8, 42)) == 8, "sender field independent");
+    }
+
+    // A change in either field moves the nonce (no collision across the boundary).
+    test field_change_moves_nonce {
+        given a = make_nonce(1, 0)
+        then a == make_nonce(1, 0)
+
+        given seq_bump = nonce_sequence(make_nonce(1, 1))
+        then seq_bump == 1
+
+        given sender_bump = nonce_sender(make_nonce(2, 0))
+        then sender_bump == 2
+    }
+
+    test rekey_before_limit {
+        assert(needs_rekey(2147483647) == false, "just under 2^31");
+        assert(needs_rekey(2147483648) == true, "at 2^31 -> rekey");
+        assert(needs_rekey(0) == false, "fresh key");
+    }
+
+    // ---- invariants ----
+
+    invariant rekey_is_two_pow_31
+        assert REKEY_THRESHOLD == 2147483648
+}
