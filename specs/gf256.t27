@@ -102,6 +102,16 @@ module Gf256 {
         assert(gf_inv(1) == 1, "1 is self-inverse");
     }
 
+    // Zero has NO multiplicative inverse. gf_inv(0) returns 0 by convention
+    // (0^254 = 0), which is NOT a true inverse (0 * anything = 0, never 1).
+    // Callers that divide (rs_decode.recover*) must keep the divisor nonzero; for
+    // erasure recovery this holds because DISTINCT locators sum to a nonzero value,
+    // so a duplicate erasure position (den = 0) is the one caller error to avoid.
+    test zero_has_no_inverse {
+        assert(gf_inv(0) == 0, "gf_inv(0) = 0 by convention, not a real inverse");
+        assert(gf_mul(0, gf_inv(0)) == 0, "0 * gf_inv(0) = 0, never 1");
+    }
+
     // ---- invariants ----
 
     // The reduction polynomial is the degree-8 RS/QR primitive x^8+x^4+x^3+x^2+1.
