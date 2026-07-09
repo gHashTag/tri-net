@@ -1,0 +1,105 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/identity.t27
+// Device identity + authentication -- the last named gap in SECURITY_MODEL.md.
+// key confirmation (session.t27) proves both sides hold the SAME key, but not WHO
+// they are; an active attacker with no long-term identity can still substitute its
+// own public key. A signature over the handshake binds a device's long-term key to
+// what it sends, so a forged exchange is rejected.
+//
+// This is a genuine Schnorr signature in the same small prime field as handshake
+// (P = 2^31-1). For private x, public Y = G^x:
+//   sign:   R = G^k,  e = H(R, msg),  s = k + x*e mod (P-1)
+//   verify: G^s == R * Y^e  mod P
+// The verify identity is exact group algebra: G^s = G^(k+xe) = G^k * (G^x)^e = R*Y^e.
+// The challenge hash H is a placeholder mix (real deploy: SHA-256 / a PQ signature);
+// the structure and the correctness/rejection properties proved here are real.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module Identity {
+    use base::types;
+
+    const P     : u64 = 2147483647;   // field prime, matches handshake M31.
+    const G     : u64 = 7;            // generator, matches handshake.
+    const ORDER : u64 = 2147483646;   // P-1: exponents live mod the group order.
+
+    // Long-term identity public key from a device's private key: Y = G^x mod P.
+    fn identity_key(priv_x: u64) -> u64 {
+        return Handshake::public_key(priv_x);
+    }
+
+    // Per-signature commitment R = G^k mod P (k is a fresh per-signature nonce).
+    fn commit(k: u64) -> u64 {
+        return Handshake::public_key(k);
+    }
+
+    // Fiat-Shamir challenge e = H(R, msg), reduced into the exponent range [0, P-1).
+    // Composes KeyRatchet::kdf as the mixing hash placeholder.
+    fn challenge(r: u64, msg: u64) -> u64 {
+        return KeyRatchet::kdf(r ^ msg) % ORDER;
+    }
+
+    // Signature scalar s = k + x*e mod (P-1). Products stay < 2^62, no u64 overflow.
+    fn sign_s(priv_x: u64, k: u64, msg: u64) -> u64 {
+        let e: u64 = challenge(commit(k), msg);
+        return (k + priv_x * e) % ORDER;
+    }
+
+    // Verify (R, s) against the identity key Y over msg: accept (1) iff
+    // G^s == R * Y^e mod P. Composes Handshake::mod_pow.
+    fn verify(pub_y: u64, r: u64, s: u64, msg: u64) -> u8 {
+        let e: u64 = challenge(r, msg);
+        let lhs: u64 = Handshake::mod_pow(G, s);
+        let rhs: u64 = (r * Handshake::mod_pow(pub_y, e)) % P;
+        if (lhs == rhs) {
+            return 1;
+        }
+        return 0;
+    }
+
+    // ---- TDD (L4) ----
+
+    // The Fiat-Shamir challenge is deterministic and lands in the exponent range.
+    test challenge_in_range {
+        assert(challenge(100, 200) == challenge(100, 200), "deterministic");
+        assert(challenge(100, 200) < ORDER, "challenge below the group order");
+    }
+
+    // Correctness: a signature made with private x verifies under its public Y.
+    test valid_signature_verifies {
+        y = identity_key(31337);
+        r = commit(6789);
+        s = sign_s(31337, 6789, 424242);
+        assert(verify(y, r, s, 424242) == 1, "honest signature accepted");
+    }
+
+    // A tampered scalar is rejected.
+    test tampered_scalar_rejected {
+        y = identity_key(31337);
+        r = commit(6789);
+        s = sign_s(31337, 6789, 424242);
+        assert(verify(y, r, s + 1, 424242) == 0, "s+1 rejected");
+    }
+
+    // A signature does not transfer to a different message.
+    test wrong_message_rejected {
+        y = identity_key(555);
+        r = commit(111);
+        s = sign_s(555, 111, 1000);
+        assert(verify(y, r, s, 1001) == 0, "different message rejected");
+    }
+
+    // A forger without the private key (wrong identity key) is rejected.
+    test wrong_identity_rejected {
+        r = commit(111);
+        s = sign_s(555, 111, 1000);
+        assert(verify(identity_key(556), r, s, 1000) == 0, "wrong identity key rejected");
+    }
+
+    // ---- invariants ----
+
+    invariant order_is_p_minus_one
+        assert ORDER == P - 1
+
+    invariant generator_in_field
+        assert G < P
+}
