@@ -52,6 +52,9 @@ pub enum DropReason {
     SealFailed(MeshError),
     /// E3.2 — Frame header.src != actual link peer (spoof attempt).
     SrcSpoof,
+    /// Loop prevention: the frame was originated by this node (looped back), or
+    /// its only next hop is the neighbor it just arrived from (split-horizon).
+    Loop,
 }
 
 /// Outcome of handling one frame.
@@ -408,11 +411,21 @@ impl MeshRouter {
         if hdr.dst == self.id {
             return Delivery::Local(payload);
         }
+        // Loop prevention (TTL is only a backstop). Never re-forward a frame this
+        // node originated (looped back to us), and never bounce a frame straight
+        // back to the neighbor it arrived from (split-horizon). Without these, a
+        // pair of nodes whose only route toward the dst is via each other
+        // ping-pongs the packet until the hop budget is burned, making zero
+        // forward progress.
+        if hdr.src == self.id {
+            return Delivery::Dropped(DropReason::Loop);
+        }
         if hdr.ttl == 0 {
             return Delivery::Dropped(DropReason::TtlExpired);
         }
         let nh = match self.next_hop(hdr.dst) {
-            Some(n) => n,
+            Some(n) if n != from => n,
+            Some(_) => return Delivery::Dropped(DropReason::Loop),
             None => return Delivery::Dropped(DropReason::NoRoute),
         };
         // Re-seal end-to-end payload under the outgoing link, TTL-1.
@@ -573,6 +586,58 @@ mod tests {
         assert_eq!(
             c.handle_frame(1, &frame),
             Delivery::Dropped(DropReason::TtlExpired)
+        );
+    }
+
+    #[test]
+    fn frame_looped_back_to_origin_is_dropped() {
+        // A frame whose end-to-end src is THIS node has looped back to its
+        // origin; it must be dropped, never re-forwarded.
+        let (sa, sb) = sessions(); // A(1) <-> C(3)
+        let mut a = MeshRouter::new(1, 16);
+        let mut c = MeshRouter::new(3, 16);
+        a.add_link(3, sa, Box::new(VecTransport::default()));
+        c.add_link(1, sb, Box::new(VecTransport::default()));
+
+        // src = 3 (C's own id), dst = B(2), sealed under the A/C link.
+        let hdr = Header::new(FrameKind::Data, 3, 2, 8).to_bytes();
+        let body = {
+            let link = a.links.get_mut(&3).unwrap();
+            link.session.seal(&hdr, b"x").unwrap()
+        };
+        let mut frame = hdr.to_vec();
+        frame.extend_from_slice(&body);
+        assert_eq!(c.handle_frame(1, &frame), Delivery::Dropped(DropReason::Loop));
+    }
+
+    #[test]
+    fn split_horizon_no_bounce_back_to_sender() {
+        // C's only route toward B(2) resolves back to A(1), the neighbor the
+        // frame arrived from. Without split-horizon C would re-send it to A and
+        // the pair would ping-pong until TTL is burned; instead C drops it.
+        let (sa, sb) = sessions(); // A(1) <-> C(3)
+        let mut a = MeshRouter::new(1, 16);
+        let mut c = MeshRouter::new(3, 16);
+        a.add_link(3, sa, Box::new(VecTransport::default()));
+        c.add_link(1, sb, Box::new(VecTransport::default()));
+
+        // C only knows neighbor A(1), so its next hop toward any unknown dst is 1.
+        for _ in 0..4 {
+            c.observe(1, true, true);
+        }
+        assert_eq!(c.next_hop(2), Some(1), "C's only next hop toward B is A");
+
+        let hdr = Header::new(FrameKind::Data, 1, 2, 8).to_bytes();
+        let body = {
+            let link = a.links.get_mut(&3).unwrap();
+            link.session.seal(&hdr, b"x").unwrap()
+        };
+        let mut frame = hdr.to_vec();
+        frame.extend_from_slice(&body);
+        assert_eq!(
+            c.handle_frame(1, &frame),
+            Delivery::Dropped(DropReason::Loop),
+            "split-horizon: never bounce a frame back to the sender"
         );
     }
 
