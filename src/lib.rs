@@ -39,6 +39,15 @@ pub mod discovery;
 // #[path = "../gen/rust/anomaly_detector.rs"]   pub mod anomaly_detector;
 // #[path = "../gen/rust/quarantine_manager.rs"] pub mod quarantine_manager;
 
+// Re-export the real, hand-written module APIs at the crate root so binaries
+// and downstream code resolve `trios_mesh::Handshake` etc. to the actual
+// implementations. Without these, the M1 smoke harness (src/bin/smoke_m1.rs)
+// and the daemon cannot compile even though every type exists in a submodule.
+// (Additive: does NOT collide with the legacy root stubs below, which remain
+// tracked for removal — see docs/WAVE_REPORT_2026-07-10.md P0b.)
+pub use crypto::{Handshake, MeshError, Session};
+pub use daemon::Node;
+
 // Types used across the crate
 pub type NodeId = u32;
 
