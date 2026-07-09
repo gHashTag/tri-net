@@ -1,0 +1,101 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/routing_capstone.t27
+// Routing capstone: the end-to-end route decision that ties the routing stack
+// together -- ett_metric (SNR-driven per-link time), wcett (channel-diversity path
+// cost), route_select (loop-free feasibility) -- and adds the last missing piece,
+// switch HYSTERESIS, so a router does not flap between near-equal paths.
+//
+//   SNR --link_cost--> per-link ETT
+//   3-hop path --path_cost--> WCETT (channel diversity)
+//   adopt a candidate  <=>  it is loop-free feasible AND beats the current cost by
+//                           more than the hysteresis margin
+//
+// Composes three routing modules. Hysteresis mirrors the MCS hysteresis in
+// adaptive_mcs: a decision is HELD until the alternative is clearly better.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module RoutingCapstone {
+    use base::types;
+
+    const BETA_X100       : u32 = 50;   // WCETT diversity weight (matches wcett default).
+    const HYSTERESIS_X100 : u32 = 20;   // 0.20 ETT-units: ignore gains smaller than this.
+
+    // Per-link time cost from the SNR-driven MCS (composes ett_metric).
+    fn link_cost(etx_x100: u32, mcs: u8) -> u32 {
+        return EttMetric::link_ett_x100(etx_x100, mcs);
+    }
+
+    // Channel-diversity-aware cost of a 3-hop candidate path (composes wcett).
+    fn path_cost(e1: u32, c1: u8, e2: u32, c2: u8, e3: u32, c3: u8) -> u32 {
+        return Wcett::wcett3(e1, c1, e2, c2, e3, c3, BETA_X100);
+    }
+
+    // Adopt a candidate route (1) or keep the current one (0). Switch only when the
+    // candidate is loop-free feasible AND cheaper by MORE than the hysteresis margin.
+    fn should_adopt(cur_cost: u32, new_cost: u32, new_feasible: u8) -> u8 {
+        if (new_feasible == 0) {
+            return 0;
+        }
+        if ((new_cost + HYSTERESIS_X100) < cur_cost) {
+            return 1;
+        }
+        return 0;
+    }
+
+    // End-to-end decision from raw inputs: compute the candidate's loop-free
+    // feasibility (composes route_select) and apply the hysteresis rule.
+    fn adopt_from_distances(cur_cost: u32, new_cost: u32, neighbor_dist: u32, feasible_dist: u32) -> u8 {
+        let feas: u8 = if (RouteSelect::feasible(neighbor_dist, feasible_dist)) { 1 } else { 0 };
+        return should_adopt(cur_cost, new_cost, feas);
+    }
+
+    // ---- TDD (L4) ----
+
+    // Composition sanity: link cost from ett_metric, path cost from wcett.
+    test costs_compose {
+        assert(link_cost(120, 2) == 60, "20 dB QPSK link: ETT 60");
+        assert(link_cost(100, 0) == 200, "weak BPSK+FEC link: ETT 200");
+        // 3 QPSK hops on distinct channels: WCETT 0.5*180 + 0.5*60 = 120
+        assert(path_cost(60, 1, 60, 2, 60, 3) == 120, "diverse QPSK path WCETT");
+        // 3 hops on one channel: WCETT 180 (serialised)
+        assert(path_cost(60, 1, 60, 1, 60, 1) == 180, "same-channel path WCETT");
+    }
+
+    // Hysteresis: a candidate only marginally cheaper is NOT adopted; one clearly
+    // cheaper is. Margin is 20.
+    test hysteresis_holds_route {
+        assert(should_adopt(180, 161, 1) == 0, "19 cheaper (< margin): hold");
+        assert(should_adopt(180, 160, 1) == 0, "exactly margin: hold");
+        assert(should_adopt(180, 159, 1) == 1, "21 cheaper (> margin): switch");
+        assert(should_adopt(180, 120, 1) == 1, "much cheaper: switch");
+    }
+
+    // An infeasible (loop-forming) candidate is never adopted, however cheap.
+    test infeasible_never_adopted {
+        assert(should_adopt(180, 10, 0) == 0, "cheap but infeasible: keep");
+    }
+
+    // End-to-end: the channel-diverse QPSK path (WCETT 120) replaces a same-channel
+    // route (180) when the next hop is loop-free feasible (strictly closer).
+    test end_to_end_switch {
+        given diverse = path_cost(60, 1, 60, 2, 60, 3)
+        then diverse == 120
+
+        given decision = adopt_from_distances(180, diverse, 75, 100)
+        then decision == 1
+    }
+
+    test end_to_end_hold_on_loop {
+        d = path_cost(60, 1, 60, 2, 60, 3);
+        // same cost 120 but neighbor is NOT closer (100 vs 100) -> loop risk -> hold
+        assert(adopt_from_distances(180, d, 100, 100) == 0, "infeasible next hop: hold");
+    }
+
+    // ---- invariants ----
+
+    invariant hysteresis_positive
+        assert HYSTERESIS_X100 > 0
+
+    invariant beta_matches_wcett
+        assert BETA_X100 == 50
+}
