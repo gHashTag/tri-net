@@ -144,8 +144,13 @@ fn main() {
     }
     let router = Arc::new(Mutex::new(router));
     let rx = Arc::new(Mutex::new(RxShared::default()));
-    // Peers whose link is simulated-failed (ids in /tmp/mesh.drop) — for M5 demo.
+    // Peers whose link is simulated-failed — for the M5 self-heal demo.
     let dropped: Arc<Mutex<HashSet<NodeId>>> = Arc::new(Mutex::new(HashSet::new()));
+    // M5 demo hook, OFF by default. When TRIOS_SIM_DROPS names a file, node ids
+    // listed in it are treated as link-failed. Opt-in + operator-chosen path: the
+    // previous build read a hardcoded world-writable /tmp/mesh.drop every tick, so
+    // any local user could drop any mesh link on a running node (local DoS).
+    let sim_drops_path: Option<String> = std::env::var("TRIOS_SIM_DROPS").ok();
     let watch: Option<NodeId> = std::env::var("TRIOS_WATCH")
         .ok()
         .and_then(|s| s.parse().ok());
@@ -270,9 +275,11 @@ fn main() {
             v.sort();
             v
         };
-        // Refresh the simulated link-failure set from /tmp/mesh.drop (M5 control).
-        let dset: HashSet<NodeId> = std::fs::read_to_string("/tmp/mesh.drop")
-            .ok()
+        // Refresh the simulated link-failure set (M5 control; opt-in via
+        // TRIOS_SIM_DROPS, off by default — no file is read when unset).
+        let dset: HashSet<NodeId> = sim_drops_path
+            .as_deref()
+            .and_then(|p| std::fs::read_to_string(p).ok())
             .map(|s| {
                 s.split_whitespace()
                     .filter_map(|x| x.parse().ok())
