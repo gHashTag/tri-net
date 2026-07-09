@@ -1,0 +1,80 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/crypto_capstone.t27
+// Security capstone: the end-to-end receive decision that ties the crypto triad
+// together -- replay_window (a sequence is used at most once), aead_nonce (the
+// nonce is the exact deterministic one for (sender, seq)), key_ratchet (the
+// per-frame key both ends derive). A frame is admitted only when it is BOTH fresh
+// and correctly nonce-bound:
+//
+//   accept  <=>  ReplayWindow.accept(seq)  AND  nonce == AeadNonce.make_nonce(sender, seq)
+//
+// The payoff: a captured, still-authentic frame that an attacker re-injects is
+// REJECTED -- its sequence is already in the window -- so replay is defeated even
+// though the nonce is genuine; and a forged nonce for a fresh sequence is rejected
+// too. The decryption key comes from the ratchet, giving forward secrecy. Composes
+// all three security modules.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module CryptoCapstone {
+    use base::types;
+
+    // Admit a received frame (1) or drop it (0): fresh sequence AND the nonce is the
+    // exact deterministic nonce for (sender, seq). Composes ReplayWindow + AeadNonce.
+    fn accept_frame(bitmap: u64, highest: u64, sender: u32, seq: u64, nonce: u128) -> u8 {
+        let fresh: u8 = ReplayWindow::accept(bitmap, highest, seq);
+        if (fresh == 0) {
+            return 0;
+        }
+        if (nonce == AeadNonce::make_nonce(sender, seq)) {
+            return 1;
+        }
+        return 0;
+    }
+
+    // Per-frame AEAD key, derived from the ratchet -- both endpoints compute it from
+    // the shared root and the sequence, never sending it. Composes KeyRatchet.
+    fn frame_key(root: u64, seq: u64) -> u64 {
+        return KeyRatchet::message_key_at(root, seq);
+    }
+
+    // Rekey before the AEAD/GCM safe limit. Composes AeadNonce.
+    fn frame_needs_rekey(seq: u64) -> bool {
+        return AeadNonce::needs_rekey(seq);
+    }
+
+    // ---- TDD (L4) ----
+
+    // A genuine fresh frame with its correct nonce is admitted.
+    test genuine_frame_admitted {
+        n = AeadNonce::make_nonce(7, 5);
+        assert(accept_frame(ReplayWindow::empty_bitmap(), 0, 7, 5, n) == 1, "fresh + correct nonce");
+    }
+
+    // A forged nonce (wrong (sender, seq) binding) is rejected even for a fresh seq.
+    test forged_nonce_rejected {
+        wrong = AeadNonce::make_nonce(7, 6);   // nonce for seq 6, presented as seq 5
+        assert(accept_frame(ReplayWindow::empty_bitmap(), 0, 7, 5, wrong) == 0, "nonce mismatch");
+        wrong_sender = AeadNonce::make_nonce(8, 5);
+        assert(accept_frame(ReplayWindow::empty_bitmap(), 0, 7, 5, wrong_sender) == 0, "sender mismatch");
+    }
+
+    // THE payoff: after seq 5 is admitted and recorded, re-injecting the SAME frame
+    // (same correct nonce) is rejected -- replay defeated.
+    test replay_of_authentic_frame_rejected {
+        n = AeadNonce::make_nonce(7, 5);
+        bm = ReplayWindow::next_bitmap(ReplayWindow::empty_bitmap(), 0, 5);  // record seq 5
+        hi = ReplayWindow::next_highest(0, 5);
+        assert(accept_frame(bm, hi, 7, 5, n) == 0, "authentic replay still rejected");
+    }
+
+    // Both endpoints derive the same frame key; consecutive frames use distinct keys.
+    test frame_keys_match_and_differ {
+        assert(frame_key(0xABCDEF, 3) == frame_key(0xABCDEF, 3), "same root+seq -> same key");
+        assert(frame_key(0xABCDEF, 3) != frame_key(0xABCDEF, 4), "distinct per-frame keys");
+    }
+
+    test rekey_gate {
+        assert(frame_needs_rekey(0) == false, "fresh key");
+        assert(frame_needs_rekey(2147483648) == true, "at limit -> rekey");
+    }
+}
