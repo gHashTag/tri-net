@@ -36,7 +36,7 @@
 |---|---|---|---|---|
 | N1 | `main` НЕ СОБИРАЕТСЯ: `build.rs:27-30` — 4 ошибки типов (`.map_or(0, Option<SystemTime>)`) | P0 | `build.rs` | E1.1 |
 | N2 | Сгенерированный `gen/rust/*.rs` невалиден: 59 файлов с `let;`/`return ();` в `-> u8`; 9+wire вшиты в lib → 114 ошибок компиляции библиотеки | P0 | `gen/rust/*`, `src/lib.rs`, `src/wire.rs` | E1.2 |
-| N2b | Бинарники `trios_meshd`/`smoke_m1` отстали от переписанного API `src/` (`StaticKey::from_seed`, `Delivery::Local`, `Hello::parse/authenticated`, trait `Transport::send/recv` — которых больше нет) | P0 | `src/bin/*.rs` | E1.3 |
+| N2b | ЗАКРЫТО (итерации 2-3). Уточнение первопричины: типы НЕ исчезли — `lib.rs` держал мёртвые shadow-заглушки (`struct Delivery` без вариантов, `Hello` без parse/authenticated, `StaticKey` без from_seed, второй `trait Transport` с send_to/recv_from), затенявшие реальные `crypto::`/`discovery::`/`router::`/`daemon::` типы. Заглушки убраны, реальные типы реэкспортированы. Итог: `cargo build --all-targets` зелёный, оба бинарника собираются, smoke-m1 печатает M1 PASS | P0 | `src/lib.rs` | E1.3 ✓ |
 | N3 | «Noise-XX» криптографически несостоятелен: только `ee+ss` (нет `es`/`se`, нет transcript-hash); собственный тест `noise_xx_resistant_to_mitm` утверждает, что атакующий РАСШИФРОВЫВАЕТ трафик | P1 | `crypto.rs:132-161,738-781` | E1.4 |
 | N4 | MAC HELLO-биконов на вшитом в исходник константном ключе; `verify_mac()`/`is_fresh()` в демоне НЕ вызываются — аутентификация метрики это мёртвый код | P1 | `discovery.rs:13-16,82`, `trios_meshd.rs:182-188,301` | E2.1 |
 | N5 | Демон выводит статический ключ узла из ПУБЛИЧНОГО детерминированного сида (`Sha256("…node/"‖id)`) → тривиальная имперсонация/дешифровка любого узла | P1 | `trios_meshd.rs:37-42,120,132` | E2.2 |
@@ -69,7 +69,7 @@
 Sprint 1 — вернуть зелёную сборку (все `auto=true`, Rust-only):
 - E1.1 `build.rs:27-30` — заменить кривой `.map_or(0, Option)` на `and_then`-цепочку. Крит.: `cargo build` без ошибок build-скрипта. СДЕЛАНО в этой волне.
 - E1.2 регенерировать `gen/rust/*` починенным t27c ИЛИ, как интерим, отвязать 9 мёртвых re-export-модулей (0 call-sites). Крит.: `cargo build --lib` зелёный + 101 тест. Интерим СДЕЛАН (см. §7).
-- E1.3 согласовать `trios_meshd.rs`/`smoke_m1.rs` с текущим API `src/` (вернуть `StaticKey::from_seed`/эквивалент, `Delivery`-варианты, `Hello::parse/authenticated`, методы `Transport`). Крит.: `cargo build --bins` зелёный. ОТКРЫТО (P0b).
+- E1.3 согласовать бинарники с API `src/`. Крит.: `cargo build --bins` зелёный. СДЕЛАНО (итерации 2-3): реальные типы не исчезали — их затеняли мёртвые заглушки в `lib.rs`; заглушки убраны, типы реэкспортированы. `cargo build --all-targets` зелёный.
 
 Sprint 2 — идентичность + целостность метрики:
 - E2.1 в RX-пути демона вызвать `verify_mac`+`is_fresh` перед `observe()`, MAC-ключ выводить из сессии, убрать константный fallback. Крит.: тест, где поддельный `heard` отвергается.
@@ -100,7 +100,7 @@ Sprint 4 — паритет верификации:
 - `gen/rust/wire.rs` — восстановлен из последнего зелёного `2b28312` (используется `src/wire.rs`, компилируется чисто; 0 `return ();`).
 - `src/lib.rs` — 9 сгенерированных re-export-модулей с НУЛЁМ call-sites временно отвязаны (закомментированы) с пометкой вернуть после фикса t27c/PR #44.
 
-Проверено на чистом дереве ветки: `cargo build --lib` → Finished; `cargo test --lib` → **101 passed; 0 failed**. Границы честности: бинарники (`trios_meshd`, `smoke_m1`) НЕ чинились — они отстали от API `src/` (P0b, E1.3), это отдельная задача, требующая знания целевого API демона, а не слепой правки. Полная зелёная сборка (`--bins`) остаётся открытой.
+Проверено на чистом дереве ветки. Итерация 1: `cargo build --lib` Finished; `cargo test --lib` = 101 passed. Итерация 2: восстановлен M1-харнесс `smoke_m1` (реэкспорт `Handshake`/`MeshError`/`Node`), `cargo run --bin smoke-m1` печатает полный M1 PASS; наземная on-wire = 44→83 байта (разрешает doc-drift 44→79). Итерация 3: убраны мёртвые shadow-заглушки в `lib.rs`, реэкспортированы реальные `crypto`/`discovery`/`router`/`daemon` типы. ИТОГ: **`cargo build --all-targets` зелёный, `cargo test` = 101 passed, оба бинарника собираются**. P0 сборки закрыт end-to-end на ветке. Остаётся глубже: реальная регенерация `gen/` починенным t27c (Линия A / PR #44) — интерим-отвязка 9 модулей держит сборку, но `gen/` всё ещё pipeline-театр без call-sites.
 
 ## 8. Три линии сотрудничества для Wave-(N+1)
 

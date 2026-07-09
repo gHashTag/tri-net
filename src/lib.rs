@@ -40,48 +40,19 @@ pub mod discovery;
 // #[path = "../gen/rust/quarantine_manager.rs"] pub mod quarantine_manager;
 
 // Re-export the real, hand-written module APIs at the crate root so binaries
-// and downstream code resolve `trios_mesh::Handshake` etc. to the actual
-// implementations. Without these, the M1 smoke harness (src/bin/smoke_m1.rs)
-// and the daemon cannot compile even though every type exists in a submodule.
-// (Additive: does NOT collide with the legacy root stubs below, which remain
-// tracked for removal — see docs/WAVE_REPORT_2026-07-10.md P0b.)
-pub use crypto::{Handshake, MeshError, Session};
-pub use daemon::Node;
+// and downstream code resolve `trios_mesh::Delivery` etc. to the actual
+// implementations. Every type below exists in a submodule; the crate root only
+// re-exports. Earlier a set of empty root "shadow stubs" (a struct Delivery
+// with no variants, a struct Hello with no parse/authenticated, a struct
+// StaticKey with no from_seed, and a second Transport trait with send_to/
+// recv_from) shadowed these real types and made the binaries and the M1 smoke
+// harness uncompilable even though the real code was fine. Those stubs were dead
+// (zero call sites in src/; router.rs and modem.rs already use daemon::Transport)
+// and are removed. See docs/WAVE_REPORT_2026-07-10.md P0b.
+pub use crypto::{Handshake, MeshError, Session, StaticKey};
+pub use daemon::{Node, Transport};
+pub use discovery::Hello;
+pub use router::{Delivery, DropReason, MeshRouter};
 
 // Types used across the crate
 pub type NodeId = u32;
-
-/// Delivery confirmation for mesh forwarding.
-#[derive(Debug, Clone)]
-pub struct Delivery {
-    pub src: NodeId,
-    pub dst: NodeId,
-    pub hops: u8,
-}
-
-/// Hello beacon payload.
-#[derive(Debug, Clone)]
-pub struct Hello {
-    pub src: NodeId,
-    pub seq: u32,
-    pub neighbors: Vec<(NodeId, u8)>,
-}
-
-/// Static key type for pre-shared-key mesh.
-pub struct StaticKey {
-    pub secret: [u8; 32],
-}
-
-/// Transport abstraction (UDP now, radio later).
-pub trait Transport: Send {
-    fn send_to(&self, data: &[u8], dst: std::net::SocketAddr) -> std::io::Result<()>;
-    fn recv_from(&self, buf: &mut [u8]) -> std::io::Result<(usize, std::net::SocketAddr)>;
-}
-
-/// Mesh router trait.
-pub trait MeshRouter: Send {
-    fn add_neighbor(&mut self, id: NodeId, addr: std::net::SocketAddr, etx: u8);
-    fn remove_neighbor(&mut self, id: NodeId);
-    fn next_hop(&self, dst: NodeId) -> Option<(NodeId, std::net::SocketAddr)>;
-    fn neighbors(&self) -> Vec<(NodeId, std::net::SocketAddr)>;
-}
