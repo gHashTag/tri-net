@@ -1,0 +1,95 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/session.t27
+// Session establishment capstone -- the crypto lifecycle from a Diffie-Hellman
+// exchange to the first per-message key, with KEY CONFIRMATION. After handshake
+// agreement both endpoints hold a session root; but agreement alone does not prove
+// they hold the SAME one (a man-in-the-middle can run two separate exchanges).
+// Key confirmation closes that: each side sends a MAC over the transcript keyed by
+// its root, and accepts only if the peer's MAC matches its own root:
+//
+//   establish -> root   ;   confirm_tag(root, transcript)   ;   mutually_confirmed
+//
+// If a MITM interposed, the two roots differ, the two tags differ, and confirmation
+// fails -- unknown-key-share defeated. Composes Handshake (agreement) + KeyRatchet
+// (the first message key). This completes the security domain: handshake -> session
+// -> ratchet -> nonce -> replay -> secure frame.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module Session {
+    use base::types;
+
+    const CONFIRM_DOMAIN : u64 = 202511;   // domain tag separating confirmation from message keys.
+
+    // Full establishment from my private, the peer's public, and the transcript
+    // (both public keys). Composes Handshake; session_root is symmetric, so
+    // initiator and responder reach the SAME root.
+    fn establish(my_priv: u64, peer_pub: u64, pub_a: u64, pub_b: u64) -> u64 {
+        let shared: u64 = Handshake::shared_secret(peer_pub, my_priv);
+        return Handshake::session_root(shared, pub_a, pub_b);
+    }
+
+    // Key-confirmation MAC: keyed by the root, over the transcript, domain-separated
+    // from message keys. Symmetric in the two public keys, so both roles compute the
+    // same tag from the same root. Composes KeyRatchet::kdf.
+    fn confirm_tag(root: u64, pub_a: u64, pub_b: u64) -> u64 {
+        return KeyRatchet::kdf(root ^ pub_a ^ pub_b ^ CONFIRM_DOMAIN);
+    }
+
+    // Accept the peer's confirmation (1) iff its tag equals the one my root produces
+    // -- proof we hold the SAME root. A MITM whose exchange yielded a different root
+    // produces a non-matching tag and is rejected (0).
+    fn mutually_confirmed(my_root: u64, peer_tag: u64, pub_a: u64, pub_b: u64) -> u8 {
+        if (peer_tag == confirm_tag(my_root, pub_a, pub_b)) {
+            return 1;
+        }
+        return 0;
+    }
+
+    // The session's first per-message key, from the ratchet. Composes KeyRatchet.
+    fn first_key(root: u64) -> u64 {
+        return KeyRatchet::message_key_at(root, 0);
+    }
+
+    // ---- TDD (L4) ----
+
+    // Honest lifecycle: A (priv 123, sees pub_b) and B (priv 456, sees pub_a) both
+    // establish the SAME root, so their confirmation tags match and each accepts the
+    // other; and both derive the same first message key.
+    test honest_session_confirms {
+        pa = Handshake::public_key(123);
+        pb = Handshake::public_key(456);
+        root_a = establish(123, pb, pa, pb);
+        root_b = establish(456, pa, pa, pb);
+        assert(root_a == root_b, "both roles reach the same root");
+        tag_a = confirm_tag(root_a, pa, pb);
+        tag_b = confirm_tag(root_b, pa, pb);
+        assert(mutually_confirmed(root_a, tag_b, pa, pb) == 1, "A accepts B");
+        assert(mutually_confirmed(root_b, tag_a, pa, pb) == 1, "B accepts A");
+        assert(first_key(root_a) == first_key(root_b), "same first message key");
+    }
+
+    // MITM / unknown-key-share: if the peer's tag was computed under a DIFFERENT root
+    // (a separate exchange), confirmation fails.
+    test mitm_confirmation_fails {
+        pa = Handshake::public_key(123);
+        pb = Handshake::public_key(456);
+        good_root = establish(123, pb, pa, pb);
+        // attacker's exchange yields a different root; its tag will not match.
+        evil_root = establish(999, pb, pa, pb);
+        evil_tag = confirm_tag(evil_root, pa, pb);
+        assert(good_root != evil_root, "different exchange -> different root");
+        assert(mutually_confirmed(good_root, evil_tag, pa, pb) == 0, "MITM tag rejected");
+    }
+
+    // The first message key is derived, not the raw root, and is deterministic.
+    test first_key_is_derived {
+        r = establish(7, Handshake::public_key(9), Handshake::public_key(7), Handshake::public_key(9));
+        assert(first_key(r) != r, "first key != root");
+        assert(first_key(r) == first_key(r), "deterministic");
+    }
+
+    // ---- invariants ----
+
+    invariant confirm_domain_separated
+        assert CONFIRM_DOMAIN != 0
+}
