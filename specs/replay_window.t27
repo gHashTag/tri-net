@@ -1,0 +1,104 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/replay_window.t27
+// Anti-replay sliding window (IPsec/DTLS style, RFC 6479 / RFC 2401) -- the first
+// security primitive for the mesh. On a broadcast radio an attacker can capture and
+// re-inject a valid (already-AEAD-authenticated) frame; without replay protection
+// the receiver would process it twice. Each frame carries a monotonically
+// increasing per-sender sequence number; this window accepts a sequence at most
+// once and rejects anything older than the window.
+//
+// State is a 64-bit bitmap plus the highest accepted sequence. Bit b of the bitmap
+// means "highest - b has been seen" (bit 0 = the highest itself). A sequence is:
+//   ahead of the window      -> accept, slide the window forward
+//   inside the window, unseen-> accept, set its bit
+//   inside the window, seen  -> reject (replay)
+//   below the window         -> reject (too old)
+// No byte arrays needed -- the whole window is one u64.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module ReplayWindow {
+    use base::types;
+
+    const W : u64 = 64;   // window size = bits in the bitmap.
+
+    // Empty window state: nothing seen, highest = 0 (sequences start at 1).
+    fn empty_bitmap() -> u64 {
+        return 0;
+    }
+
+    // Accept (1) or reject (0) a sequence against the current window, WITHOUT
+    // mutating state. Reject = replay (seen) or too-old (below window).
+    fn accept(bitmap: u64, highest: u64, seq: u64) -> u8 {
+        if (seq > highest) {
+            return 1;
+        }
+        let diff: u64 = highest - seq;
+        if (diff >= W) {
+            return 0;
+        }
+        if (((bitmap >> diff) & 1) == 1) {
+            return 0;
+        }
+        return 1;
+    }
+
+    // New highest after accepting seq (monotone: never decreases).
+    fn next_highest(highest: u64, seq: u64) -> u64 {
+        return if (seq > highest) { seq } else { highest };
+    }
+
+    // New bitmap after accepting seq. If seq is ahead, slide the window left by the
+    // gap and set bit 0; a gap >= W resets the window to just seq. If seq is inside
+    // the window, set its bit.
+    fn next_bitmap(bitmap: u64, highest: u64, seq: u64) -> u64 {
+        if (seq > highest) {
+            let shift: u64 = seq - highest;
+            if (shift >= W) {
+                return 1;
+            }
+            return (bitmap << shift) | 1;
+        }
+        let diff: u64 = highest - seq;
+        return bitmap | (1 << diff);
+    }
+
+    // ---- TDD (L4) ----
+
+    test fresh_ahead_accepted {
+        assert(accept(empty_bitmap(), 10, 11) == 1, "seq ahead of window");
+        assert(accept(empty_bitmap(), 10, 100) == 1, "far ahead");
+    }
+
+    // The highest sequence has bit 0 set, so re-presenting it is a replay.
+    test replay_of_seen_rejected {
+        h = next_bitmap(empty_bitmap(), 0, 10);   // accept seq 10 -> bit 0 set
+        assert(accept(h, 10, 10) == 0, "replay of highest");
+        h2 = next_bitmap(h, 10, 7);               // accept seq 7 (inside window)
+        assert(accept(h2, 10, 7) == 0, "replay of an in-window seq");
+    }
+
+    test in_window_unseen_accepted {
+        h = next_bitmap(empty_bitmap(), 0, 10);   // only seq 10 seen
+        assert(accept(h, 10, 8) == 1, "in-window, not yet seen");
+    }
+
+    test too_old_rejected {
+        assert(accept(empty_bitmap(), 100, 36) == 0, "diff 64 == W -> below window");
+        assert(accept(empty_bitmap(), 100, 10) == 0, "far below window");
+        assert(accept(empty_bitmap(), 100, 37) == 1, "diff 63 < W -> in window");
+    }
+
+    // Sliding: accepting a far-ahead seq resets, so an old-but-recent seq is now old.
+    test window_slides {
+        h = next_bitmap(empty_bitmap(), 10, 200);  // jump to 200 (gap 190 >= W -> reset)
+        new_hi = next_highest(10, 200);
+        assert(new_hi == 200, "highest advanced");
+        assert(accept(h, 200, 200) == 0, "200 now seen -> replay");
+        assert(accept(h, 200, 100) == 0, "100 fell out of the window");
+    }
+
+    // ---- invariants ----
+
+    invariant window_is_64
+        assert W == 64
+}
