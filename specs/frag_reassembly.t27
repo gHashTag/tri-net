@@ -1,0 +1,124 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/frag_reassembly.t27
+// Receiver reassembly state for one keyframe -- the last link of the receive path
+// (frag_wire parses headers, this tracks arrivals, rs_decode recovers). Fragments
+// of a keyframe are the N interleave columns; the receiver records which columns
+// arrived in an N-bit bitmap (column c -> bit c). Once at least K distinct columns
+// arrive the keyframe is decodable: the ERASED columns are the clear bits, and
+// each erased column c maps (frag_wire.column_to_power) to the RS power that
+// rs_decode.recover* needs. nth_erased_column enumerates them for the caller
+// (t27 has no arrays, so erasures are read out by index).
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module FragReassembly {
+    use base::types;
+
+    const N : u32 = 6;   // interleave columns per keyframe (= coded symbols/codeword).
+
+    // Fresh reassembly state: no columns arrived.
+    fn empty() -> u32 {
+        return 0;
+    }
+
+    // Record that interleave column `column` arrived.
+    fn mark_arrived(bitmap: u32, column: u32) -> u32 {
+        return bitmap | (1 << column);
+    }
+
+    fn column_arrived(bitmap: u32, column: u32) -> bool {
+        return ((bitmap >> column) & 1) != 0;
+    }
+
+    // How many of the N columns have arrived (popcount over the low N bits).
+    fn arrived_count(bitmap: u32) -> u32 {
+        let count: u32 = 0;
+        let i: u32 = 0;
+        while (i < N) {
+            count = count + ((bitmap >> i) & 1);
+            i = i + 1;
+        }
+        return count;
+    }
+
+    // Columns still missing = erasures to recover.
+    fn erased_count(bitmap: u32) -> u32 {
+        return N - arrived_count(bitmap);
+    }
+
+    // Decodable once at least K distinct columns arrived (RS(N,K) recovers the
+    // rest). K is the codeword's data-symbol count.
+    fn should_decode(bitmap: u32, k: u32) -> bool {
+        return arrived_count(bitmap) >= k;
+    }
+
+    // All columns present -- no RS decode needed.
+    fn is_complete(bitmap: u32) -> bool {
+        return arrived_count(bitmap) == N;
+    }
+
+    // The n-th erased (missing) column, scanning low to high. Returns 255 if there
+    // is no n-th erased column. Feed column_to_power(this) to rs_decode.recover*.
+    fn nth_erased_column(bitmap: u32, n: u32) -> u8 {
+        let seen: u32 = 0;
+        let col: u32 = 0;
+        let result: u32 = 255;
+        while (col < N) {
+            if (((bitmap >> col) & 1) == 0) {
+                if (seen == n) {
+                    result = col;
+                }
+                seen = seen + 1;
+            }
+            col = col + 1;
+        }
+        return result as u8;
+    }
+
+    // ---- TDD (L4) ----
+
+    test empty_state {
+        assert(empty() == 0, "no bits set");
+        assert(arrived_count(empty()) == 0, "nothing arrived");
+        assert(erased_count(empty()) == 6, "all N erased");
+    }
+
+    test marking_columns {
+        h = mark_arrived(mark_arrived(empty(), 0), 2);
+        assert(column_arrived(h, 0) == true, "column 0 in");
+        assert(column_arrived(h, 2) == true, "column 2 in");
+        assert(column_arrived(h, 1) == false, "column 1 missing");
+        assert(arrived_count(h) == 2, "two arrived");
+        assert(erased_count(h) == 4, "four erased");
+    }
+
+    // Decode threshold: K=2 needs any 2 columns; complete = all N.
+    test decode_threshold {
+        one = mark_arrived(empty(), 3);
+        two = mark_arrived(one, 5);
+        assert(should_decode(one, 2) == false, "one column: not enough");
+        assert(should_decode(two, 2) == true, "two columns: decodable at K=2");
+        assert(is_complete(two) == false, "not all arrived");
+    }
+
+    test all_arrived_is_complete {
+        full = mark_arrived(mark_arrived(mark_arrived(mark_arrived(mark_arrived(mark_arrived(
+               empty(), 0), 1), 2), 3), 4), 5);
+        assert(is_complete(full) == true, "all six columns");
+        assert(erased_count(full) == 0, "nothing to recover");
+    }
+
+    // Erased-column enumeration: columns 2,3 arrived -> erased are 0,1,4,5 in order.
+    test erased_enumeration {
+        h = mark_arrived(mark_arrived(empty(), 2), 3);
+        assert(nth_erased_column(h, 0) == 0, "first erased");
+        assert(nth_erased_column(h, 1) == 1, "second erased");
+        assert(nth_erased_column(h, 2) == 4, "third erased");
+        assert(nth_erased_column(h, 3) == 5, "fourth erased");
+        assert(nth_erased_column(h, 4) == 255, "no fifth erased");
+    }
+
+    // ---- invariants ----
+
+    invariant columns_match_interleave
+        assert N == 6
+}
