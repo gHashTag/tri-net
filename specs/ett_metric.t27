@@ -1,0 +1,90 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/ett_metric.t27
+// SNR/rate-aware routing metric: Expected Transmission TIME (ETT) instead of plain
+// Expected Transmission COUNT (ETX). ETX (Couto et al., SIGCOMM 2003) counts
+// (re)transmissions but ignores that links run at different speeds; ETT (Draves et
+// al., MobiCom 2004) divides ETX by the link rate, so time -- what actually limits
+// throughput -- is the metric. Here the rate comes from the adaptive-MCS decision,
+// so the SNR-driven modulation feeds route selection:
+//
+//   ETT = ETX / rate,   rate from AdaptiveMcs (BPSK+FEC 0.5x, BPSK 1x, QPSK 2x)
+//
+// The payoff: a link with WORSE ETX but a faster modulation can be the faster route,
+// which plain ETX would never pick. ETT is additive over hops, lowest path wins.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module EttMetric {
+    use base::types;
+
+    const ETX_SCALE  : u32 = 100;  // x100 fixed-point, shared with etx.t27.
+    const RATE_NUMER : u32 = 2;    // ETT = ETX * RATE_NUMER / mcs_rate_x2 (rate_x2 = 2x rate).
+
+    // Per-link ETT in the same x100 fixed-point as ETX. mcs_rate_x2 is twice the
+    // relative rate (FEC->1, BPSK->2, QPSK->4), so ETT = ETX / (rate_x2/2)
+    // = ETX * 2 / rate_x2. A faster modulation lowers the time cost.
+    fn link_ett_x100(etx_x100: u32, mcs: u8) -> u32 {
+        return etx_x100 * RATE_NUMER / (AdaptiveMcs::mcs_rate_x2(mcs) as u32);
+    }
+
+    // End-to-end: derive the modulation from the link SNR first, then the ETT.
+    fn link_ett_from_snr(etx_x100: u32, snr_x10: u32, current_mcs: u8) -> u32 {
+        return link_ett_x100(etx_x100, AdaptiveMcs::pick_mcs(snr_x10, current_mcs));
+    }
+
+    // ETT is additive along a path (sum of hop times).
+    fn path_ett_x100(hop_a: u32, hop_b: u32) -> u32 {
+        return hop_a + hop_b;
+    }
+
+    // Route A is chosen when its total ETT is no worse than B's (lower time wins).
+    fn prefer_a(ett_a: u32, ett_b: u32) -> bool {
+        return ett_a <= ett_b;
+    }
+
+    // ---- TDD (L4) ----
+
+    // Rate scaling: same ETX, better modulation -> strictly lower ETT.
+    test rate_scales_time {
+        assert(link_ett_x100(200, 2) == 100, "QPSK halves the time");
+        assert(link_ett_x100(200, 1) == 200, "BPSK: ETT == ETX");
+        assert(link_ett_x100(200, 0) == 400, "BPSK+FEC doubles the time");
+    }
+
+    // The headline case: link A has WORSE ETX (1.5) but QPSK; link B has better ETX
+    // (1.2) but BPSK+FEC. Plain ETX prefers B; ETT prefers A because it is 4x faster.
+    test ett_flips_the_route {
+        given a = link_ett_x100(150, 2)   // 150*2/4 = 75
+        then a == 75
+
+        given b = link_ett_x100(120, 0)   // 120*2/1 = 240
+        then b == 240
+    }
+
+    test ett_flip_decision {
+        a = link_ett_x100(150, 2);
+        b = link_ett_x100(120, 0);
+        assert(prefer_a(a, b) == true, "ETT picks the faster QPSK link A");
+        assert(150 > 120, "...even though A's ETX is worse (ETX alone would pick B)");
+    }
+
+    // SNR drives it: a 20 dB link runs QPSK, so its ETT is half the ETX.
+    test snr_drives_ett {
+        assert(link_ett_from_snr(200, 200, 2) == 100, "20 dB -> QPSK -> half time");
+        assert(link_ett_from_snr(200, 80, 1) == 400, "8 dB -> BPSK+FEC -> double time");
+    }
+
+    test path_is_additive {
+        assert(path_ett_x100(75, 100) == 175, "two hops sum");
+        assert(prefer_a(path_ett_x100(75, 100), path_ett_x100(200, 200)) == true, "shorter path wins");
+    }
+
+    // ---- invariants ----
+
+    // rate_x2 is twice the relative rate, so BPSK (rate_x2 = 2 = RATE_NUMER) leaves
+    // ETT == ETX -- the metric reduces to plain ETX on a 1x link.
+    invariant bpsk_reduces_to_etx
+        assert RATE_NUMER == 2
+
+    invariant scale_is_x100
+        assert ETX_SCALE == 100
+}
