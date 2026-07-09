@@ -1,0 +1,107 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/key_ratchet.t27
+// Symmetric key-schedule ratchet -- the structure that gives forward secrecy (the
+// third security primitive, after replay_window and aead_nonce). A chain key
+// evolves one-way and each message gets its own key derived from the current chain
+// key, with domain separation so the message key and the next chain key are
+// independent:
+//   CK_0 = root;   CK_{n+1} = KDF(CK_n || CHAIN);   MK_n = KDF(CK_n || MSG)
+// When KDF is one-way, compromising CK_n reveals neither CK_{n-1} nor any MK_{n-1},
+// so past frames stay secret -- FORWARD SECRECY.
+//
+// Like the other crypto specs (which model the window / nonce, not the AEAD cipher)
+// this models the ratchet STRUCTURE and the properties that follow (determinism,
+// distinct per-message keys, domain separation). The `kdf` here is a non-crypto
+// xorshift bijection used to exercise the structure; the real deployment
+// substitutes a one-way KDF (HKDF-SHA256 / BLAKE2) -- that is what provides the
+// one-wayness the forward-secrecy argument needs.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module KeyRatchet {
+    use base::types;
+
+    const TAG_MSG   : u64 = 1;   // domain tag for message-key derivation.
+    const TAG_CHAIN : u64 = 2;   // domain tag for chain advance.
+
+    // Placeholder KDF: xorshift64 (a full-period bijection; overflow-free). REPLACE
+    // with a one-way KDF at deployment -- the ratchet's forward secrecy depends on
+    // this being one-way, not on the mixing here.
+    fn kdf(seed: u64) -> u64 {
+        let x: u64 = seed;
+        x = x ^ (x << 13);
+        x = x ^ (x >> 7);
+        x = x ^ (x << 17);
+        return x;
+    }
+
+    // Advance the chain one step (domain-separated from message-key derivation).
+    fn chain_next(ck: u64) -> u64 {
+        return kdf(ck ^ TAG_CHAIN);
+    }
+
+    // Message key for the current chain key (domain-separated from chain advance).
+    fn message_key(ck: u64) -> u64 {
+        return kdf(ck ^ TAG_MSG);
+    }
+
+    // Chain key at index n: advance the root n times. Both endpoints compute this
+    // identically, so they share per-message keys without sending them.
+    fn chain_key_at(root: u64, n: u64) -> u64 {
+        let ck: u64 = root;
+        let i: u64 = 0;
+        while (i < n) {
+            ck = chain_next(ck);
+            i = i + 1;
+        }
+        return ck;
+    }
+
+    // Message key for message n.
+    fn message_key_at(root: u64, n: u64) -> u64 {
+        return message_key(chain_key_at(root, n));
+    }
+
+    // ---- TDD (L4) ----
+
+    // The mixing step is deterministic and diffuses (0 is the xorshift fixed point,
+    // which is why a real root key must be nonzero / random).
+    test kdf_mixes {
+        assert(kdf(12345) == kdf(12345), "deterministic");
+        assert(kdf(1) != 1, "nonzero input is diffused");
+        assert(kdf(0) == 0, "xorshift fixed point at 0 -- roots must be nonzero");
+    }
+
+    // Determinism: the same (root, n) yields the same key on both ends.
+    test ratchet_is_deterministic {
+        assert(chain_key_at(12345, 5) == chain_key_at(12345, 5), "chain key deterministic");
+        assert(message_key_at(12345, 5) == message_key_at(12345, 5), "message key deterministic");
+        assert(chain_key_at(12345, 0) == 12345, "index 0 is the root");
+    }
+
+    // Domain separation: the message key never equals the next chain key, so seeing
+    // one leaks nothing structural about the other.
+    test message_and_chain_keys_differ {
+        assert(message_key(999) != chain_next(999), "MK_n != CK_{n+1}");
+        assert(message_key_at(7, 3) != chain_key_at(7, 4), "message key != next chain key");
+    }
+
+    // Advancing composes: CK_{n+1} is chain_next of CK_n.
+    test chain_advances_by_one {
+        given ck3 = chain_key_at(500, 3)
+        then ck3 == chain_next(chain_key_at(500, 2))
+
+        given mk3 = message_key_at(500, 3)
+        then mk3 == message_key(chain_key_at(500, 3))
+    }
+
+    // Distinct per-message keys (no key reuse across messages) -- kdf is a bijection.
+    test consecutive_message_keys_differ {
+        assert(message_key_at(88, 0) != message_key_at(88, 1), "msg 0 != msg 1");
+        assert(message_key_at(88, 1) != message_key_at(88, 2), "msg 1 != msg 2");
+    }
+
+    // ---- invariants ----
+
+    invariant tags_are_distinct
+        assert TAG_MSG != TAG_CHAIN
+}
