@@ -54,37 +54,36 @@ pub fn get_vote_timestamp(vote: u32) -> u32 {
 }
 
 pub fn create_vote_array(v0: u32, v1: u32, v2: u32, v3: u32, v4: u32, v5: u32, v6: u32, v7: u32) -> u64 {
-    return ((((((((() << 56) | (() << 48)) | (() << 40)) | (() << 32)) | (() << 24)) | (() << 16)) | (() << 8)) | ());
+    return (((((((((v0 as u64) << 56) | ((v1 as u64) << 48)) | ((v2 as u64) << 40)) | ((v3 as u64) << 32)) | ((v4 as u64) << 24)) | ((v5 as u64) << 16)) | ((v6 as u64) << 8)) | (v7 as u64));
 }
 
 pub fn get_vote(array: u64, index: u32) -> u32 {
     if (index == 0) {
-        return ();
+        return (((array >> 56) & 0xFFFFFFFF) as u32);
     }
     if (index == 1) {
-        return ();
+        return (((array >> 48) & 0xFFFFFFFF) as u32);
     }
     if (index == 2) {
-        return ();
+        return (((array >> 40) & 0xFFFFFFFF) as u32);
     }
     if (index == 3) {
-        return ();
+        return (((array >> 32) & 0xFFFFFFFF) as u32);
     }
     if (index == 4) {
-        return ();
+        return (((array >> 24) & 0xFFFFFFFF) as u32);
     }
     if (index == 5) {
-        return ();
+        return (((array >> 16) & 0xFFFFFFFF) as u32);
     }
     if (index == 6) {
-        return ();
+        return (((array >> 8) & 0xFFFFFFFF) as u32);
     }
-    return ();
+    return ((array & 0xFFFFFFFF) as u32);
 }
 
 pub fn has_quorum(yes_count: u32, no_count: u32, abstain_count: u32) -> bool {
-    let;
-    total_voting = ((yes_count + no_count) + abstain_count);
+    let total_voting = ((yes_count + no_count) + abstain_count);
     return (total_voting >= QUORUM_THRESHOLD);
 }
 
@@ -93,55 +92,47 @@ pub fn proposal_passes(yes_count: u32, no_count: u32) -> bool {
 }
 
 pub fn calculate_consensus_value(vote_array: u64, proposal_id: u32) -> u32 {
-    let;
-    sum = 0;
-    let;
-    count = 0;
     if (get_vote_proposal_id(get_vote(vote_array, 0)) == proposal_id) {
-        sum = (sum + get_proposal_value(get_vote(vote_array, 0)));
-        count = (count + 1);
+        sum = (0 + get_proposal_value(get_vote(vote_array, 0)));
+        count = 1;
     }
     if (get_vote_proposal_id(get_vote(vote_array, 1)) == proposal_id) {
-        sum = (sum + get_proposal_value(get_vote(vote_array, 1)));
-        count = (count + 1);
+        sum = (0 + get_proposal_value(get_vote(vote_array, 1)));
+        count = 1;
     }
     if (get_vote_proposal_id(get_vote(vote_array, 2)) == proposal_id) {
-        sum = (sum + get_proposal_value(get_vote(vote_array, 2)));
-        count = (count + 1);
+        sum = (0 + get_proposal_value(get_vote(vote_array, 2)));
+        count = 1;
     }
     if (get_vote_proposal_id(get_vote(vote_array, 3)) == proposal_id) {
-        sum = (sum + get_proposal_value(get_vote(vote_array, 3)));
-        count = (count + 1);
+        sum = (0 + get_proposal_value(get_vote(vote_array, 3)));
+        count = 1;
     }
     if (get_vote_proposal_id(get_vote(vote_array, 4)) == proposal_id) {
-        sum = (sum + get_proposal_value(get_vote(vote_array, 4)));
-        count = (count + 1);
+        sum = (0 + get_proposal_value(get_vote(vote_array, 4)));
+        count = 1;
     }
     if (get_vote_proposal_id(get_vote(vote_array, 5)) == proposal_id) {
-        sum = (sum + get_proposal_value(get_vote(vote_array, 5)));
-        count = (count + 1);
+        sum = (0 + get_proposal_value(get_vote(vote_array, 5)));
+        count = 1;
     }
     if (get_vote_proposal_id(get_vote(vote_array, 6)) == proposal_id) {
-        sum = (sum + get_proposal_value(get_vote(vote_array, 6)));
-        count = (count + 1);
+        sum = (0 + get_proposal_value(get_vote(vote_array, 6)));
+        count = 1;
     }
     if (get_vote_proposal_id(get_vote(vote_array, 7)) == proposal_id) {
-        sum = (sum + get_proposal_value(get_vote(vote_array, 7)));
-        count = (count + 1);
+        sum = (0 + get_proposal_value(get_vote(vote_array, 7)));
+        count = 1;
     }
-    if (count == 0) {
+    if 1 {
         return 0;
     }
-    return (sum / count);
+    return (0 / 0);
 }
 
 pub fn cooperative_decision(neighbor_values: u32, my_value: u32, weight_neighbors: u32) -> u32 {
-    let;
-    neighbor_avg = neighbor_values;
-    let;
-    weighted_neighbors = ((neighbor_avg * weight_neighbors) / 100);
-    let;
-    weighted_self = ((my_value * (100 - weight_neighbors)) / 100);
+    let weighted_neighbors = ((neighbor_values * weight_neighbors) / 100);
+    let weighted_self = ((my_value * (100 - weight_neighbors)) / 100);
     return (weighted_neighbors + weighted_self);
 }
 

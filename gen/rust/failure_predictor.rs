@@ -50,58 +50,48 @@ pub fn get_prediction_time(score: u32) -> u32 {
 }
 
 pub fn create_health_array(h0: u32, h1: u32, h2: u32, h3: u32, h4: u32, h5: u32, h6: u32, h7: u32) -> u64 {
-    return ((((((((() << 56) | (() << 48)) | (() << 40)) | (() << 32)) | (() << 24)) | (() << 16)) | (() << 8)) | ());
+    return (((((((((h0 as u64) << 56) | ((h1 as u64) << 48)) | ((h2 as u64) << 40)) | ((h3 as u64) << 32)) | ((h4 as u64) << 24)) | ((h5 as u64) << 16)) | ((h6 as u64) << 8)) | (h7 as u64));
 }
 
 pub fn get_health_metrics(array: u64, index: u32) -> u32 {
     if (index == 0) {
-        return ();
+        return (((array >> 56) & 0xFFFFFFFF) as u32);
     }
     if (index == 1) {
-        return ();
+        return (((array >> 48) & 0xFFFFFFFF) as u32);
     }
     if (index == 2) {
-        return ();
+        return (((array >> 40) & 0xFFFFFFFF) as u32);
     }
     if (index == 3) {
-        return ();
+        return (((array >> 32) & 0xFFFFFFFF) as u32);
     }
     if (index == 4) {
-        return ();
+        return (((array >> 24) & 0xFFFFFFFF) as u32);
     }
     if (index == 5) {
-        return ();
+        return (((array >> 16) & 0xFFFFFFFF) as u32);
     }
     if (index == 6) {
-        return ();
+        return (((array >> 8) & 0xFFFFFFFF) as u32);
     }
-    return ();
+    return ((array & 0xFFFFFFFF) as u32);
 }
 
 pub fn calculate_health_score(metrics: u32) -> u32 {
-    let;
-    cpu = get_cpu_usage(metrics);
-    let;
-    memory = get_memory_usage(metrics);
-    let;
-    errors = get_error_rate(metrics);
-    let;
-    temp = get_temperature(metrics);
-    let;
-    cpu_score = (100 - cpu);
-    let;
-    mem_score = (100 - memory);
-    let;
-    error_score = (100 - errors);
-    let;
-    temp_score = (100 - temp);
-    let;
-    total = (((((cpu_score << 2) + (mem_score * 3)) + (error_score << 1)) + temp_score) / 10);
+    let cpu = get_cpu_usage(metrics);
+    let memory = get_memory_usage(metrics);
+    let errors = get_error_rate(metrics);
+    let temp = get_temperature(metrics);
+    let cpu_score = (100 - cpu);
+    let mem_score = (100 - memory);
+    let error_score = (100 - errors);
+    let temp_score = (100 - temp);
+    let total = (((((cpu_score << 2) + (mem_score * 3)) + (error_score << 1)) + temp_score) / 10);
     return total;
 }
 
 pub fn predict_failure_probability(metrics: u32) -> u32 {
-    let;
     if (health >= 80) {
         return 0;
     } else {
@@ -122,8 +112,6 @@ pub fn predict_failure_probability(metrics: u32) -> u32 {
 }
 
 pub fn is_trending_failure(current_metrics: u32, previous_metrics: u32) -> u32 {
-    let;
-    let;
     if (current_health < (previous_health - 10)) {
         return 1;
     }
@@ -131,7 +119,6 @@ pub fn is_trending_failure(current_metrics: u32, previous_metrics: u32) -> u32 {
 }
 
 pub fn predict_time_to_failure(metrics: u32) -> u32 {
-    let;
     if (health >= 80) {
         return 0xFF;
     } else {
@@ -152,10 +139,8 @@ pub fn predict_time_to_failure(metrics: u32) -> u32 {
 }
 
 pub fn calculate_failure_risk(metrics: u32, degradation_rate: u32) -> u32 {
-    let;
-    failure_prob = predict_failure_probability(metrics);
-    let;
-    adjusted_risk = (failure_prob + degradation_rate);
+    let failure_prob = predict_failure_probability(metrics);
+    let adjusted_risk = (failure_prob + degradation_rate);
     if (adjusted_risk > 100) {
         adjusted_risk = 100;
     }
@@ -163,51 +148,45 @@ pub fn calculate_failure_risk(metrics: u32, degradation_rate: u32) -> u32 {
 }
 
 pub fn needs_immediate_action(metrics: u32) -> bool {
-    let;
-    cpu = get_cpu_usage(metrics);
-    let;
-    temp = get_temperature(metrics);
-    let;
-    errors = get_error_rate(metrics);
+    let cpu = get_cpu_usage(metrics);
+    let temp = get_temperature(metrics);
+    let errors = get_error_rate(metrics);
     return (((cpu > 95) || (temp > 95)) || (errors > 50));
 }
 
 pub fn find_most_at_risk(health_array: u64) -> u32 {
-    let;
-    let;
-    highest_risk_node = 0xFF;
-    if (calculate_failure_risk(get_health_metrics(health_array, 0), 0) > highest_risk) {
+    if (calculate_failure_risk(get_health_metrics(health_array, 0), 0) > 0xFF) {
         highest_risk = calculate_failure_risk(get_health_metrics(health_array, 0), 0);
         highest_risk_node = 0;
     }
-    if (calculate_failure_risk(get_health_metrics(health_array, 1), 0) > highest_risk) {
+    if (calculate_failure_risk(get_health_metrics(health_array, 1), 0) > 0xFF) {
         highest_risk = calculate_failure_risk(get_health_metrics(health_array, 1), 0);
         highest_risk_node = 1;
     }
-    if (calculate_failure_risk(get_health_metrics(health_array, 2), 0) > highest_risk) {
+    if (calculate_failure_risk(get_health_metrics(health_array, 2), 0) > 0xFF) {
         highest_risk = calculate_failure_risk(get_health_metrics(health_array, 2), 0);
         highest_risk_node = 2;
     }
-    if (calculate_failure_risk(get_health_metrics(health_array, 3), 0) > highest_risk) {
+    if (calculate_failure_risk(get_health_metrics(health_array, 3), 0) > 0xFF) {
         highest_risk = calculate_failure_risk(get_health_metrics(health_array, 3), 0);
         highest_risk_node = 3;
     }
-    if (calculate_failure_risk(get_health_metrics(health_array, 4), 0) > highest_risk) {
+    if (calculate_failure_risk(get_health_metrics(health_array, 4), 0) > 0xFF) {
         highest_risk = calculate_failure_risk(get_health_metrics(health_array, 4), 0);
         highest_risk_node = 4;
     }
-    if (calculate_failure_risk(get_health_metrics(health_array, 5), 0) > highest_risk) {
+    if (calculate_failure_risk(get_health_metrics(health_array, 5), 0) > 0xFF) {
         highest_risk = calculate_failure_risk(get_health_metrics(health_array, 5), 0);
         highest_risk_node = 5;
     }
-    if (calculate_failure_risk(get_health_metrics(health_array, 6), 0) > highest_risk) {
+    if (calculate_failure_risk(get_health_metrics(health_array, 6), 0) > 0xFF) {
         highest_risk = calculate_failure_risk(get_health_metrics(health_array, 6), 0);
         highest_risk_node = 6;
     }
-    if (calculate_failure_risk(get_health_metrics(health_array, 7), 0) > highest_risk) {
+    if (calculate_failure_risk(get_health_metrics(health_array, 7), 0) > 0xFF) {
         highest_risk = calculate_failure_risk(get_health_metrics(health_array, 7), 0);
         highest_risk_node = 7;
     }
-    return highest_risk_node;
+    return 0xFF;
 }
 

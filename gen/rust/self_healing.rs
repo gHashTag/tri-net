@@ -30,46 +30,34 @@ pub fn get_success_count(state: u32) -> u32 {
 }
 
 pub fn can_recover(state: u32, current_time: u32) -> bool {
-    let;
-    let;
-    last = get_last_attempt(state);
-    let;
+    let last = get_last_attempt(state);
     if (attempts >= MAX_RECOVERY_ATTEMPTS) {
         return false;
     }
     if (in_progress == 1) {
         return false;
     }
-    let;
-    elapsed = (current_time - last);
+    let elapsed = (current_time - last);
     return (elapsed >= RECOVERY_COOLDOWN);
 }
 
 pub fn start_recovery(state: u32, current_time: u32) -> u32 {
-    let;
-    attempts = get_attempts(state);
-    let;
-    success_count = get_success_count(state);
+    let attempts = get_attempts(state);
+    let success_count = get_success_count(state);
     return create_recovery_state(attempts, current_time, 1, success_count);
 }
 
 pub fn complete_recovery_success(state: u32) -> u32 {
-    let;
-    attempts = get_attempts(state);
-    let;
-    last = get_last_attempt(state);
-    let;
-    success_count = get_success_count(state);
+    let attempts = get_attempts(state);
+    let last = get_last_attempt(state);
+    let success_count = get_success_count(state);
     return create_recovery_state(attempts, last, 0, (success_count + 1));
 }
 
 pub fn complete_recovery_failure(state: u32) -> u32 {
-    let;
-    attempts = get_attempts(state);
-    let;
-    last = get_last_attempt(state);
-    let;
-    success_count = get_success_count(state);
+    let attempts = get_attempts(state);
+    let last = get_last_attempt(state);
+    let success_count = get_success_count(state);
     return create_recovery_state((attempts + 1), last, 0, success_count);
 }
 
@@ -102,10 +90,8 @@ pub fn get_total_links(state: u32) -> u32 {
 }
 
 pub fn network_health_percent(state: u32) -> u32 {
-    let;
-    healthy = get_healthy_nodes(state);
-    let;
-    total = get_total_nodes(state);
+    let healthy = get_healthy_nodes(state);
+    let total = get_total_nodes(state);
     if (total == 0) {
         return 100;
     }
@@ -117,8 +103,7 @@ pub fn is_network_healthy(state: u32) -> bool {
 }
 
 pub fn is_network_degraded(state: u32) -> bool {
-    let;
-    health = network_health_percent(state);
+    let health = network_health_percent(state);
     return ((health >= 50) && (health < 75));
 }
 
@@ -137,14 +122,10 @@ pub fn should_initiate_healing(recovery_state: u32, network_state: u32, current_
 }
 
 pub fn update_network_after_recovery(network_state: u32, nodes_recovered: u32, links_restored: u32) -> u32 {
-    let;
-    healthy = (get_healthy_nodes(network_state) + nodes_recovered);
-    let;
-    total = get_total_nodes(network_state);
-    let;
-    degraded = (get_degraded_links(network_state) - links_restored);
-    let;
-    total_links = get_total_links(network_state);
+    let healthy = (get_healthy_nodes(network_state) + nodes_recovered);
+    let total = get_total_nodes(network_state);
+    let degraded = (get_degraded_links(network_state) - links_restored);
+    let total_links = get_total_links(network_state);
     return create_network_state(healthy, total, degraded, total_links);
 }
 

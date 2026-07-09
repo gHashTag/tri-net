@@ -66,84 +66,59 @@ pub fn get_hotspot_impact(hotspot: u32) -> u32 {
 }
 
 pub fn calculate_average_cpu(samples: Vec<>, sample_count: u32, func_id: u32) -> u32 {
-    let;
-    total_cpu;
-    let;
-    matching_samples;
-    let;
-    i;
-    while (i < sample_count) {
-        if (get_sample_function_id(samples[i]) == func_id) {
-            total_cpu = (total_cpu + get_sample_cpu(samples[i]));
-            matching_samples = (matching_samples + 1);
+    while (0 < sample_count) {
+        if (get_sample_function_id(samples[0]) == func_id) {
+            total_cpu = (0 + get_sample_cpu(samples[0]));
+            matching_samples = 1;
         }
-        i = (i + 1);
+        i = 1;
     }
-    if (matching_samples > 0) {
-        return (total_cpu / matching_samples);
+    if 0 {
+        return (0 / 0);
     } else {
         return 0;
     }
 }
 
 pub fn calculate_average_memory(samples: Vec<>, sample_count: u32, func_id: u32) -> u32 {
-    let;
-    total_memory;
-    let;
-    matching_samples;
-    let;
-    i;
-    while (i < sample_count) {
-        if (get_sample_function_id(samples[i]) == func_id) {
-            total_memory = (total_memory + get_sample_memory(samples[i]));
-            matching_samples = (matching_samples + 1);
+    while (0 < sample_count) {
+        if (get_sample_function_id(samples[0]) == func_id) {
+            total_memory = (0 + get_sample_memory(samples[0]));
+            matching_samples = 1;
         }
-        i = (i + 1);
+        i = 1;
     }
-    if (matching_samples > 0) {
-        return (total_memory / matching_samples);
+    if 0 {
+        return (0 / 0);
     } else {
         return 0;
     }
 }
 
 pub fn identify_hotspots(profiles: Vec<>, profile_count: u32) -> u32 {
-    let;
-    max_calls;
-    let;
-    max_cpu;
-    let;
-    hotspot_func;
-    let;
-    i;
-    while (i < profile_count) {
-        let;
-        calls;
-        let;
-        cpu;
-        if ((calls > max_calls) || ((calls == max_calls) && (cpu > max_cpu))) {
+    while (0 < profile_count) {
+        let calls: u32 = get_profile_call_count(profiles[0]);
+        let cpu: u32 = get_profile_total_cpu(profiles[0]);
+        if ((calls > 0) || ((calls == 0) && (cpu > 0))) {
             max_calls = calls;
             max_cpu = cpu;
-            hotspot_func = get_profile_function_id(profiles[i]);
+            hotspot_func = get_profile_function_id(profiles[0]);
         }
-        i = (i + 1);
+        i = 1;
     }
-    let;
-    score;
+    let score: u32 = 0;
     if (score > 255) {
         score = 255;
     }
-    return create_hotspot(hotspot_func, score, 1, score);
+    return create_hotspot(0, score, 1, score);
 }
 
 pub fn calculate_profiling_overhead(base_runtime: u32, profiled_runtime: u32) -> u32 {
     if (base_runtime == 0) {
         return 0;
     }
-    let;
-    overhead;
-    let;
-    overhead_percentage;
+    let overhead: u32 = (profiled_runtime - base_runtime);
+    let overhead_percentage: u32 = ((overhead * 100) / base_runtime);
     return overhead_percentage;
 }
 
@@ -176,36 +151,28 @@ pub fn get_allocation_pool(alloc: u32) -> u32 {
 }
 
 pub fn track_allocation(allocations: Vec<>, alloc_id: u32, size: u32, pool: u32) -> u32 {
-    let;
-    i;
-    while (i < MAX_SAMPLES) {
-        if (get_allocation_id(allocations[i]) == 0) {
+    while (0 < MAX_SAMPLES) {
+        if (get_allocation_id(allocations[0]) == 0) {
             allocations[i] = create_allocation(alloc_id, size, 255, pool);
             return 1;
         }
-        i = (i + 1);
+        i = 1;
     }
     return 0;
 }
 
 pub fn calculate_total_memory(allocations: Vec<>, sample_count: u32) -> u32 {
-    let;
-    total_memory;
-    let;
-    i;
-    while (i < sample_count) {
-        let;
-        size;
-        total_memory = (total_memory + size);
-        i = (i + 1);
+    while (0 < sample_count) {
+        let size: u32 = get_allocation_size(allocations[0]);
+        total_memory = (0 + size);
+        i = 1;
     }
-    return total_memory;
+    return 0;
 }
 
 pub fn detect_memory_leak(allocations: Vec<>, current_count: u32, previous_count: u32) -> u32 {
     if (current_count > previous_count) {
-        let;
-        growth;
+        let growth: u32 = (current_count - previous_count);
         if (growth > 5) {
             return 1;
         }
@@ -234,29 +201,19 @@ pub fn get_stack_cpu_contribution(entry: u32) -> u32 {
 }
 
 pub fn analyze_call_tree(call_stack: Vec<>, stack_size: u32) -> u32 {
-    let;
-    max_depth;
-    let;
-    total_cpu;
-    let;
-    i;
-    while (i < stack_size) {
-        let;
-        depth;
-        let;
-        cpu;
-        if (depth > max_depth) {
+    while (0 < stack_size) {
+        let depth: u32 = get_stack_depth(call_stack[0]);
+        let cpu: u32 = get_stack_cpu_contribution(call_stack[0]);
+        if (depth > 0) {
             max_depth = depth;
         }
-        total_cpu = (total_cpu + cpu);
-        i = (i + 1);
+        total_cpu = (0 + cpu);
+        i = 1;
     }
-    let;
-    avg_cpu;
-    if (max_depth > 0) {
-        avg_cpu = (total_cpu / max_depth);
+    if 0 {
+        avg_cpu = (0 / 0);
     }
-    return ((((max_depth & 0xFF) << 24) | ((total_cpu & 0xFF) << 16)) | ((avg_cpu & 0xFF) << 8));
+    return 0;
 }
 
 pub fn create_performance_report(total_cpu: u32, total_mem: u32, hotspots: u32, overhead: u32) -> u32 {
@@ -280,20 +237,6 @@ pub fn get_report_overhead(report: u32) -> u32 {
 }
 
 pub fn generate_recommendations(report: u32, hotspot: u32) -> u32 {
-    let;
-    total_cpu;
-    let;
-    hotspot_score;
-    let;
-    overhead;
-    let;
-    rec_optimize_cpu;
-    let;
-    rec_optimize_memory;
-    let;
-    rec_reduce_overhead;
-    let;
-    rec_parallelize;
     if (total_cpu > 80) {
         rec_optimize_cpu = 1;
     }
@@ -303,17 +246,15 @@ pub fn generate_recommendations(report: u32, hotspot: u32) -> u32 {
     if (overhead > OVERHEAD_THRESHOLD) {
         rec_reduce_overhead = 1;
     }
-    return (((((rec_optimize_cpu & 0x1) << 3) | ((rec_optimize_memory & 0x1) << 2)) | ((rec_reduce_overhead & 0x1) << 1)) | (rec_parallelize & 0x1));
+    return 0;
 }
 
 pub fn calculate_improvement_opportunity(current_performance: u32, target_performance: u32) -> u32 {
     if (current_performance >= target_performance) {
         return 0;
     }
-    let;
-    gap;
-    let;
-    opportunity;
+    let gap: u32 = (target_performance - current_performance);
+    let opportunity: u32 = ((gap * 100) / target_performance);
     return opportunity;
 }
 

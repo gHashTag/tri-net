@@ -1,0 +1,8 @@
+# Pinned t27c compiler version — the ONLY compiler gen/rust may be produced with.
+# gen/rust/*.rs must be byte-identical to `t27c gen-rust` from this exact commit.
+# The drift-guard (.github/workflows/spec-drift-guard.yml) rebuilds t27c at this
+# SHA and fails CI on any difference. Bump this SHA ONLY together with a matching
+# full regen of gen/rust in the same commit.
+#
+# repo: https://github.com/gHashTag/t27
+4832ec6ab7fb1608425fa23122cff5dc1cac7a6f

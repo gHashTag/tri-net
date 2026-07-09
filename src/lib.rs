@@ -17,17 +17,19 @@ pub mod gf16;
 pub mod daemon;
 pub mod discovery;
 
-// Re-export generated mesh components.
+// Re-export generated mesh components. Produced from specs/*.t27 by t27c (golden
+// pipeline) and kept byte-in-sync by the pinned-t27c drift-guard (see
+// .t27c-version + .github/workflows/spec-drift-guard.yml).
 //
-// TEMPORARILY UNWIRED (2026-07-10, wave-report branch): the t27c Rust emitter
-// regressed at commit f608dad and regenerated these 9 modules with invalid Rust
-// (dropped `let`/cast statements -> `let;`, `return ();` in `-> u8` fns), which
-// broke `cargo build` on every clean clone since 2026-07-07. All 9 have ZERO
-// call sites in src/ or the binaries (verified: `grep -rn '<mod>::' src`), so
-// they are re-export theater — unwiring them restores a green build + the 101
-// hand-written tests without touching any live datapath. RE-WIRE only after the
-// t27c emitter fix (PR #44) lands and `gen/rust/*.rs` are regenerated cleanly.
-// Tracking: docs/WAVE_REPORT_2026-07-10.md P0.
+// UNWIRED pending a t27c codegen fix. gen/rust for these 9 modules is committed
+// (and drift-checked) as the canonical output of the pinned t27c, but t27c still
+// miscompiles reassigned mutable locals: `let x = 0; ... x = y;` is treated as an
+// immutable const and constant-folded (E0425 on x), `let mut` is split into
+// `let mut;` + `x = ...`, and `var` is only partially correct in complex bodies.
+// All 9 have ZERO call sites in src/ or the binaries, so leaving them unwired
+// keeps a green build without touching any live datapath. RE-WIRE once the t27c
+// mutable-local codegen bug is fixed upstream (tracked in gHashTag/t27). See
+// docs/PIPELINE.md.
 //
 // #[path = "../gen/rust/mesh_routing.rs"]       pub mod mesh_routing;
 // #[path = "../gen/rust/etx.rs"]                pub mod etx;

@@ -105,28 +105,28 @@ pub fn header_byte(kind: u8, src: u32, dst: u32, ttl: u8, idx: usize) -> u8 {
             return kind;
         } else {
             if (idx == 2) {
-                return ();
+                return (((src >> 24) & 255) as u8);
             } else {
                 if (idx == 3) {
-                    return ();
+                    return (((src >> 16) & 255) as u8);
                 } else {
                     if (idx == 4) {
-                        return ();
+                        return (((src >> 8) & 255) as u8);
                     } else {
                         if (idx == 5) {
-                            return ();
+                            return ((src & 255) as u8);
                         } else {
                             if (idx == 6) {
-                                return ();
+                                return (((dst >> 24) & 255) as u8);
                             } else {
                                 if (idx == 7) {
-                                    return ();
+                                    return (((dst >> 16) & 255) as u8);
                                 } else {
                                     if (idx == 8) {
-                                        return ();
+                                        return (((dst >> 8) & 255) as u8);
                                     } else {
                                         if (idx == 9) {
-                                            return ();
+                                            return ((dst & 255) as u8);
                                         } else {
                                             if (idx == 10) {
                                                 return ttl;

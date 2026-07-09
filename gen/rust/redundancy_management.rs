@@ -30,20 +30,20 @@ pub fn get_hop3(path: u32) -> u32 {
 }
 
 pub fn create_path_set(p0: u32, p1: u32, p2: u32, p3: u32) -> u64 {
-    return ((((() << 48) | (() << 32)) | (() << 16)) | ());
+    return (((((p0 as u64) << 48) | ((p1 as u64) << 32)) | ((p2 as u64) << 16)) | (p3 as u64));
 }
 
 pub fn get_path(path_set: u64, index: u32) -> u32 {
     if (index == 0) {
-        return ();
+        return (((path_set >> 48) & 0xFFFFFFFF) as u32);
     }
     if (index == 1) {
-        return ();
+        return (((path_set >> 32) & 0xFFFFFFFF) as u32);
     }
     if (index == 2) {
-        return ();
+        return (((path_set >> 16) & 0xFFFFFFFF) as u32);
     }
-    return ();
+    return ((path_set & 0xFFFFFFFF) as u32);
 }
 
 pub fn find_primary_path(path_set: u64) -> u32 {
@@ -85,59 +85,53 @@ pub fn find_backup_path(path_set: u64, failed_path: u32) -> u32 {
 }
 
 pub fn invalidate_path(path_set: u64, path_index: u32) -> u64 {
-    let;
-    path = get_path(path_set, path_index);
-    let;
+    let path = get_path(path_set, path_index);
     if (path_index == 0) {
-        return ((path_set & 0x0000FFFFFFFFFFFF) | (() << 48));
+        return ((path_set & 0x0000FFFFFFFFFFFF) | ((new_path as u64) << 48));
     } else {
         if (path_index == 1) {
-            return ((path_set & 0xFFFF0000FFFFFFFF) | (() << 32));
+            return ((path_set & 0xFFFF0000FFFFFFFF) | ((new_path as u64) << 32));
         } else {
             if (path_index == 2) {
-                return ((path_set & 0xFFFFFFFF0000FFFF) | (() << 16));
+                return ((path_set & 0xFFFFFFFF0000FFFF) | ((new_path as u64) << 16));
             } else {
-                return ((path_set & 0xFFFFFFFFFFFF0000) | ());
+                return ((path_set & 0xFFFFFFFFFFFF0000) | (new_path as u64));
             }
         }
     }
 }
 
 pub fn validate_path(path_set: u64, path_index: u32) -> u64 {
-    let;
-    path = get_path(path_set, path_index);
-    let;
+    let path = get_path(path_set, path_index);
     if (path_index == 0) {
-        return ((path_set & 0x0000FFFFFFFFFFFF) | (() << 48));
+        return ((path_set & 0x0000FFFFFFFFFFFF) | ((new_path as u64) << 48));
     } else {
         if (path_index == 1) {
-            return ((path_set & 0xFFFF0000FFFFFFFF) | (() << 32));
+            return ((path_set & 0xFFFF0000FFFFFFFF) | ((new_path as u64) << 32));
         } else {
             if (path_index == 2) {
-                return ((path_set & 0xFFFFFFFF0000FFFF) | (() << 16));
+                return ((path_set & 0xFFFFFFFF0000FFFF) | ((new_path as u64) << 16));
             } else {
-                return ((path_set & 0xFFFFFFFFFFFF0000) | ());
+                return ((path_set & 0xFFFFFFFFFFFF0000) | (new_path as u64));
             }
         }
     }
 }
 
 pub fn count_valid_paths(path_set: u64) -> u32 {
-    let;
-    count = 0;
     if (get_path_valid(get_path(path_set, 0)) == PATH_VALID) {
-        count = (count + 1);
+        count = 1;
     }
     if (get_path_valid(get_path(path_set, 1)) == PATH_VALID) {
-        count = (count + 1);
+        count = 1;
     }
     if (get_path_valid(get_path(path_set, 2)) == PATH_VALID) {
-        count = (count + 1);
+        count = 1;
     }
     if (get_path_valid(get_path(path_set, 3)) == PATH_VALID) {
-        count = (count + 1);
+        count = 1;
     }
-    return count;
+    return 0;
 }
 
 pub fn has_redundancy(path_set: u64) -> bool {
@@ -145,61 +139,51 @@ pub fn has_redundancy(path_set: u64) -> bool {
 }
 
 pub fn get_hop_count(path: u32) -> u32 {
-    let;
-    count = 0;
     if (get_hop1(path) != 0) {
-        count = (count + 1);
+        count = 1;
     }
     if (get_hop2(path) != 0) {
-        count = (count + 1);
+        count = 1;
     }
     if (get_hop3(path) != 0) {
-        count = (count + 1);
+        count = 1;
     }
-    return count;
+    return 0;
 }
 
 pub fn find_shortest_path(path_set: u64) -> u32 {
-    let;
-    best_path = 0xFF;
-    let;
     if (get_path_valid(get_path(path_set, 0)) == PATH_VALID) {
-        let;
-        hops = get_hop_count(get_path(path_set, 0));
-        if (hops < best_hops) {
+        let hops = get_hop_count(get_path(path_set, 0));
+        if (hops < 255) {
             best_hops = hops;
             best_path = 0;
         }
     }
     if (get_path_valid(get_path(path_set, 1)) == PATH_VALID) {
-        let;
-        hops = get_hop_count(get_path(path_set, 1));
-        if (hops < best_hops) {
+        let hops = get_hop_count(get_path(path_set, 1));
+        if (hops < 255) {
             best_hops = hops;
             best_path = 1;
         }
     }
     if (get_path_valid(get_path(path_set, 2)) == PATH_VALID) {
-        let;
-        hops = get_hop_count(get_path(path_set, 2));
-        if (hops < best_hops) {
+        let hops = get_hop_count(get_path(path_set, 2));
+        if (hops < 255) {
             best_hops = hops;
             best_path = 2;
         }
     }
     if (get_path_valid(get_path(path_set, 3)) == PATH_VALID) {
-        let;
-        hops = get_hop_count(get_path(path_set, 3));
-        if (hops < best_hops) {
+        let hops = get_hop_count(get_path(path_set, 3));
+        if (hops < 255) {
             best_hops = hops;
             best_path = 3;
         }
     }
-    return best_path;
+    return 0xFF;
 }
 
 pub fn failover(path_set: u64, failed_path: u32) -> u64 {
-    let;
     if (backup != 0xFF) {
         return invalidate_path(path_set, failed_path);
     }
