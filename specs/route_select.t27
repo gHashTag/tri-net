@@ -1,0 +1,97 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/route_select.t27
+// Route selection over the ETT metric (ett_metric.t27): pick the lowest-time path
+// among candidates and admit next hops only when they make loop-free progress.
+// This makes the SNR-driven ETT actionable -- a router with a few candidate paths
+// chooses the fastest and never forms a loop.
+//
+// Loop-freedom uses the distance-vector feasibility condition (Babel RFC 8966,
+// EIGRP DUAL): a neighbor may become the next hop only if its advertised
+// distance-to-destination is strictly less than the incumbent feasible distance,
+// which guarantees monotone progress and rules out count-to-infinity loops.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module RouteSelect {
+    use base::types;
+
+    // End-to-end ETT of a 2-hop path built from two links' (ETX, MCS). Composes
+    // ett_metric: each link's time cost, summed along the path.
+    fn route_ett2(etx1: u32, mcs1: u8, etx2: u32, mcs2: u8) -> u32 {
+        return EttMetric::path_ett_x100(
+            EttMetric::link_ett_x100(etx1, mcs1),
+            EttMetric::link_ett_x100(etx2, mcs2));
+    }
+
+    // Total ETT of a 3-hop path (extends ett_metric's 2-hop sum).
+    fn path_ett3(h1: u32, h2: u32, h3: u32) -> u32 {
+        return h1 + h2 + h3;
+    }
+
+    // Lowest ETT among candidate paths.
+    fn best2(a: u32, b: u32) -> u32 {
+        return if (a <= b) { a } else { b };
+    }
+
+    fn best3(a: u32, b: u32, c: u32) -> u32 {
+        return best2(best2(a, b), c);
+    }
+
+    // Index (0 or 1) of the better of two paths; a tie goes to path 0 (stable).
+    fn pick2(a: u32, b: u32) -> u8 {
+        return if (a <= b) { 0 } else { 1 };
+    }
+
+    // A candidate route replaces the current best only if strictly faster (a strict
+    // test avoids flapping between equal-cost routes).
+    fn improves(current_best: u32, candidate: u32) -> bool {
+        return candidate < current_best;
+    }
+
+    // Loop-free feasibility: admit a neighbor as next hop only when its distance to
+    // the destination is strictly below the incumbent feasible distance.
+    fn feasible(neighbor_dist: u32, feasible_dist: u32) -> bool {
+        return neighbor_dist < feasible_dist;
+    }
+
+    // ---- TDD (L4) ----
+
+    test best_and_pick {
+        assert(best2(75, 240) == 75, "faster of two");
+        assert(best3(240, 75, 180) == 75, "fastest of three");
+        assert(pick2(75, 240) == 0, "path 0 is faster");
+        assert(pick2(240, 75) == 1, "path 1 is faster");
+        assert(pick2(100, 100) == 0, "tie -> stable path 0");
+    }
+
+    test three_hop_path_sums {
+        assert(path_ett3(60, 60, 60) == 180, "three QPSK hops");
+        assert(path_ett3(200, 100, 60) == 360, "mixed hops sum");
+    }
+
+    // End-to-end: a 2-hop QPSK path (fast links) beats a 2-hop BPSK+FEC path (slow),
+    // composing ett_metric. QPSK links ETX 1.2 each -> ETT 60+60=120; FEC links
+    // ETX 1.0 each -> ETT 200+200=400. The faster path wins even with worse ETX.
+    test qpsk_path_beats_fec_path {
+        given fast = route_ett2(120, 2, 120, 2)
+        then fast == 120
+
+        given slow = route_ett2(100, 0, 100, 0)
+        then slow == 400
+    }
+
+    test route_choice_composes {
+        fast = route_ett2(120, 2, 120, 2);
+        slow = route_ett2(100, 0, 100, 0);
+        assert(pick2(fast, slow) == 0, "choose the QPSK path");
+        assert(best2(fast, slow) == 120, "its ETT is 120");
+        assert(improves(slow, fast) == true, "fast improves on slow");
+    }
+
+    // Loop-freedom: a neighbor strictly closer to the destination is feasible; one
+    // equal or farther is not (would risk a loop).
+    test feasibility_is_loop_free {
+        assert(feasible(75, 100) == true, "closer neighbor admitted");
+        assert(feasible(100, 100) == false, "equal distance rejected");
+        assert(feasible(120, 100) == false, "farther neighbor rejected");
+    }
+}
