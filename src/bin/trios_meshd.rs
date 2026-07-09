@@ -19,6 +19,7 @@ use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::io;
 use std::net::{SocketAddr, UdpSocket};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -32,6 +33,9 @@ const HELLO_TYPE: u8 = 0;
 const DATA_TYPE: u8 = 1;
 const FETCH_REQ: u8 = 2; // "fetch the internet for me" (M4 shared uplink)
 const FETCH_RESP: u8 = 3; // gateway's reply carrying the fetched bytes
+/// Max concurrent gateway internet-fetches. Caps the amplification a flood of
+/// FETCH_REQ can cause (each spawns a thread + an outbound TCP connect).
+const MAX_INFLIGHT_FETCHES: usize = 4;
 
 /// Deterministic demo static key from a node id.
 fn seed_for(id: NodeId) -> [u8; 32] {
@@ -45,7 +49,14 @@ fn seed_for(id: NodeId) -> [u8; 32] {
 /// the node that actually has an uplink; the result travels back over the mesh.
 fn fetch_public_ip() -> String {
     use std::io::{Read, Write};
-    match std::net::TcpStream::connect("api.ipify.org:80") {
+    use std::net::ToSocketAddrs;
+    // Bound connect time too: without a timeout a hung/unreachable host would
+    // pin a fetch slot indefinitely and defeat MAX_INFLIGHT_FETCHES.
+    let addr = match "api.ipify.org:80".to_socket_addrs().ok().and_then(|mut a| a.next()) {
+        Some(a) => a,
+        None => return "ERR: resolve".to_string(),
+    };
+    match std::net::TcpStream::connect_timeout(&addr, Duration::from_secs(4)) {
         Ok(mut s) => {
             let _ = s.set_read_timeout(Some(Duration::from_secs(6)));
             let _ =
@@ -156,6 +167,9 @@ fn main() {
         .and_then(|s| s.parse().ok());
     // M4: this node has a real internet uplink and serves FETCH requests.
     let gateway = std::env::var("TRIOS_GATEWAY").is_ok();
+    // N7: bound concurrent gateway fetches so a FETCH_REQ flood cannot spawn
+    // unbounded threads + outbound TCP connections (amplification DoS).
+    let inflight_fetches = Arc::new(AtomicUsize::new(0));
     let started = Instant::now();
     println!("[meshd] node {me} on {} — peers {peer_ids:?}", cfg.listen);
 
@@ -202,16 +216,29 @@ fn main() {
                         if p.first() == Some(&FETCH_REQ) && gateway && p.len() >= 5 =>
                     {
                         let origin = u32::from_le_bytes([p[1], p[2], p[3], p[4]]);
-                        let router = router.clone();
-                        thread::spawn(move || {
-                            let ip = fetch_public_ip();
-                            let mut resp = vec![FETCH_RESP];
-                            resp.extend_from_slice(ip.as_bytes());
-                            let d = router.lock().unwrap().send_ip(origin, &resp);
-                            println!(
-                                "[meshd] gateway fetched \"{ip}\" -> reply to {origin}: {d:?}"
+                        // N7: refuse the fetch if we are already at the concurrency
+                        // cap, instead of spawning without bound.
+                        if inflight_fetches.fetch_add(1, Ordering::SeqCst)
+                            >= MAX_INFLIGHT_FETCHES
+                        {
+                            inflight_fetches.fetch_sub(1, Ordering::SeqCst);
+                            eprintln!(
+                                "[meshd] FETCH from {origin} dropped: {MAX_INFLIGHT_FETCHES} already in flight"
                             );
-                        });
+                        } else {
+                            let router = router.clone();
+                            let inflight = inflight_fetches.clone();
+                            thread::spawn(move || {
+                                let ip = fetch_public_ip();
+                                let mut resp = vec![FETCH_RESP];
+                                resp.extend_from_slice(ip.as_bytes());
+                                let d = router.lock().unwrap().send_ip(origin, &resp);
+                                println!(
+                                    "[meshd] gateway fetched \"{ip}\" -> reply to {origin}: {d:?}"
+                                );
+                                inflight.fetch_sub(1, Ordering::SeqCst);
+                            });
+                        }
                     }
                     // M4: the gateway's reply — internet reached us over the mesh.
                     Delivery::Local(p) if p.first() == Some(&FETCH_RESP) => {
