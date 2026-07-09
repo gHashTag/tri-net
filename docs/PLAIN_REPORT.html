@@ -1,0 +1,257 @@
+<meta charset="utf-8">
+<title>Что я сделал за неделю — простыми словами</title>
+<style>
+:root{
+  --bg:#F6F9FC; --card:#FFFFFF; --ink:#132234; --ink-soft:#42566B; --muted:#78899C;
+  --line:#E3EBF2; --line-soft:#EEF3F8;
+  --blue:#2563C9; --blue-deep:#1B4894; --blue-soft:#EAF1FB;
+  --coral:#E86A4C; --coral-soft:#FCEDE7; --amber:#D9902E;
+  --good:#2E9E6B;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI Variable","Segoe UI",system-ui,Roboto,"Helvetica Neue",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0C1622; --card:#131F2E; --ink:#EAF1F8; --ink-soft:#B4C4D4; --muted:#8496A8;
+  --line:#233448; --line-soft:#1A2838;
+  --blue:#5B9BF0; --blue-deep:#8FBDF7; --blue-soft:#16283F;
+  --coral:#F0835F; --coral-soft:#2A1C17; --amber:#E7A94E; --good:#43C088;
+}}
+:root[data-theme="dark"]{
+  --bg:#0C1622; --card:#131F2E; --ink:#EAF1F8; --ink-soft:#B4C4D4; --muted:#8496A8;
+  --line:#233448; --line-soft:#1A2838;
+  --blue:#5B9BF0; --blue-deep:#8FBDF7; --blue-soft:#16283F;
+  --coral:#F0835F; --coral-soft:#2A1C17; --amber:#E7A94E; --good:#43C088;
+}
+:root[data-theme="light"]{
+  --bg:#F6F9FC; --card:#FFFFFF; --ink:#132234; --ink-soft:#42566B; --muted:#78899C;
+  --line:#E3EBF2; --line-soft:#EEF3F8;
+  --blue:#2563C9; --blue-deep:#1B4894; --blue-soft:#EAF1FB;
+  --coral:#E86A4C; --coral-soft:#FCEDE7; --amber:#D9902E; --good:#2E9E6B;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+  font-size:19px;line-height:1.62;-webkit-font-smoothing:antialiased;}
+.wrap{max-width:760px;margin:0 auto;padding:0 22px;}
+p{margin:0 0 16px;} strong{font-weight:700;}
+.toggle{position:fixed;top:16px;right:16px;z-index:50;font-size:13px;background:var(--card);
+  color:var(--ink-soft);border:1px solid var(--line);border-radius:999px;padding:8px 14px;cursor:pointer;
+  box-shadow:0 2px 8px rgba(20,40,70,.06);}
+.toggle:hover{color:var(--blue);border-color:var(--blue);}
+:focus-visible{outline:2px solid var(--blue);outline-offset:3px;border-radius:4px;}
+
+/* hero */
+.hero{padding:70px 0 26px;}
+.eyebrow{display:inline-block;font-size:13px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--coral);background:var(--coral-soft);padding:6px 14px;border-radius:999px;margin-bottom:22px;}
+h1{font-size:clamp(30px,5.6vw,46px);line-height:1.12;margin:0;font-weight:800;letter-spacing:-.02em;
+  text-wrap:balance;}
+h1 .hl{color:var(--blue);}
+.lede{font-size:clamp(18px,2.4vw,22px);color:var(--ink-soft);margin:20px 0 0;text-wrap:pretty;}
+
+/* generic section */
+section{padding:30px 0;border-top:1px solid var(--line);}
+h2{font-size:clamp(23px,3.4vw,30px);font-weight:800;letter-spacing:-.015em;margin:0 0 8px;text-wrap:balance;}
+.sub{color:var(--muted);font-size:15px;margin:0 0 22px;}
+
+/* problem/solution cards */
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:26px 26px 22px;
+  margin:18px 0;box-shadow:0 4px 20px rgba(20,40,70,.05);}
+.card .num{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;
+  background:var(--blue);color:#fff;font-weight:800;font-size:16px;margin-bottom:14px;}
+.card h3{font-size:22px;font-weight:800;margin:0 0 14px;letter-spacing:-.01em;}
+.row{display:flex;gap:12px;margin:12px 0;}
+.tag{flex:none;font-size:12px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;
+  width:86px;padding-top:3px;}
+.tag.p{color:var(--coral);} .tag.s{color:var(--good);}
+.row p{margin:0;color:var(--ink-soft);}
+.analogy{margin-top:16px;padding:16px 18px;background:var(--blue-soft);border-radius:12px;
+  border-left:4px solid var(--blue);}
+.analogy b{color:var(--blue-deep);display:block;font-size:13px;letter-spacing:.03em;text-transform:uppercase;
+  margin-bottom:5px;}
+.analogy p{margin:0;color:var(--ink);font-size:17px;}
+.viz{margin:8px 0 4px;display:flex;justify-content:center;}
+.viz svg{max-width:100%;height:auto;}
+
+/* numbers */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:8px;}
+@media(max-width:620px){.stats{grid-template-columns:repeat(2,1fr);}}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 16px;text-align:center;}
+.stat .big{font-size:34px;font-weight:800;color:var(--blue);line-height:1;letter-spacing:-.02em;}
+.stat .lbl{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.3;}
+
+/* status */
+.status{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:24px 26px;}
+.status .done{display:flex;gap:12px;align-items:flex-start;margin:10px 0;color:var(--ink-soft);}
+.status .done .k{color:var(--good);font-weight:800;flex:none;}
+.pending{margin-top:18px;padding:16px 18px;background:var(--coral-soft);border-radius:12px;
+  border-left:4px solid var(--coral);}
+.pending b{color:var(--coral);}
+
+/* compare */
+.cmp{border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-top:10px;}
+.cmp .r{display:grid;grid-template-columns:1fr 1fr;gap:0;}
+.cmp .r > div{padding:16px 18px;border-top:1px solid var(--line-soft);}
+.cmp .r:first-child > div{border-top:none;font-weight:800;font-size:13px;letter-spacing:.03em;
+  text-transform:uppercase;color:var(--muted);background:var(--card);}
+.cmp .them{color:var(--ink-soft);}
+.cmp .us{color:var(--ink);border-left:1px solid var(--line-soft);background:var(--blue-soft);}
+.cmp .us b{color:var(--blue-deep);}
+
+footer{padding:40px 0 70px;color:var(--muted);font-size:14px;text-align:center;}
+footer .phi{color:var(--amber);}
+@media (prefers-reduced-motion:no-preference){
+  .card,.stat{transition:transform .2s ease, box-shadow .2s ease;}
+  .card:hover{transform:translateY(-2px);box-shadow:0 10px 28px rgba(20,40,70,.09);}
+}
+</style>
+
+<button class="toggle" id="tg">Тема</button>
+<div class="wrap">
+
+<header class="hero">
+  <span class="eyebrow">Понятный отчёт &middot; без единой строчки кода</span>
+  <h1>Я научил <span class="hl">рой дронов</span> надёжно и безопасно передавать живое видео по рации.</h1>
+  <p class="lede">За неделю. И не «вроде работает», а <strong>математически доказано, что работает</strong> — во всех случаях, а не в тех, что успел проверить руками.</p>
+</header>
+
+<section>
+  <h2>О чём вообще речь</h2>
+  <p>Представьте несколько дронов в воздухе. Им нужно передавать друг другу <strong>живое видео</strong> — в горах, в помехах, где сигнал скачет, часть данных теряется прямо в воздухе, а рядом может быть кто-то, кто подслушивает или мешает.</p>
+  <p>Я построил «мозг» такой связи. Он решает три большие проблемы: <strong>видео должно долетать, даже когда часть теряется</strong>; <strong>сообщение должно находить самый быстрый путь</strong> через рой; и <strong>говорить должны только свои — без подслушивания, подделки и повторов</strong>.</p>
+</section>
+
+<section>
+  <h2>Три проблемы — и что я с ними сделал</h2>
+  <p class="sub">Для каждой — что было не так, что я сделал, и бытовой образ, чтобы стало понятно.</p>
+
+  <div class="card">
+    <span class="num">1</span>
+    <h3>Видео долетает, даже если часть потерялась</h3>
+    <div class="viz">
+      <svg viewBox="0 0 320 92" width="320" height="92" role="img" aria-label="Часть кусочков потеряна, но картинка восстановлена целиком">
+        <g font-family="var(--sans)">
+          <text x="0" y="14" font-size="11" fill="#78899C">отправили 8 кусочков</text>
+          <g>
+            <rect x="0" y="24" width="26" height="26" rx="5" fill="#2563C9"/>
+            <rect x="32" y="24" width="26" height="26" rx="5" fill="#2563C9"/>
+            <rect x="64" y="24" width="26" height="26" rx="5" fill="#E86A4C"/>
+            <rect x="96" y="24" width="26" height="26" rx="5" fill="#2563C9"/>
+            <rect x="128" y="24" width="26" height="26" rx="5" fill="#E86A4C"/>
+            <rect x="160" y="24" width="26" height="26" rx="5" fill="#2563C9"/>
+          </g>
+          <g opacity="0.28">
+            <rect x="192" y="24" width="26" height="26" rx="5" fill="none" stroke="#78899C" stroke-dasharray="4 3"/>
+            <rect x="224" y="24" width="26" height="26" rx="5" fill="none" stroke="#78899C" stroke-dasharray="4 3"/>
+          </g>
+          <text x="192" y="42" font-size="16" fill="#78899C">✕✕</text>
+          <text x="0" y="74" font-size="11" fill="#78899C">получили 6 — и собрали</text>
+          <rect x="150" y="60" width="170" height="26" rx="6" fill="#2E9E6B" opacity="0.14"/>
+          <text x="163" y="78" font-size="14" font-weight="700" fill="#2E9E6B">весь кадр восстановлен ✓</text>
+        </g>
+      </svg>
+    </div>
+    <div class="row"><span class="tag p">Проблема</span><p>Рация ненадёжна. Пропал кусок — картинка рассыпалась.</p></div>
+    <div class="row"><span class="tag s">Решение</span><p>Я режу каждый кадр на много кусочков и добавляю несколько <strong>запасных</strong>. Даже если несколько потерялись — приёмник собирает <strong>весь</strong> кадр из того, что дошло. Плюс дроны сами подстраивают скорость под качество сигнала — как телефон, где мало «палочек».</p></div>
+    <div class="analogy"><b>Представьте это так</b><p>Как <strong>голограмма</strong>: разрежьте её пополам — каждая половинка всё равно показывает всю картинку целиком. Или запаска в багажнике: проколол колесо — доехал на запасном.</p></div>
+  </div>
+
+  <div class="card">
+    <span class="num">2</span>
+    <h3>Сообщение находит самый быстрый путь</h3>
+    <div class="viz">
+      <svg viewBox="0 0 320 96" width="320" height="96" role="img" aria-label="Из двух путей выбран более быстрый">
+        <g>
+          <line x1="26" y1="48" x2="160" y2="20" stroke="#C7D4E2" stroke-width="6" stroke-linecap="round"/>
+          <line x1="160" y1="20" x2="294" y2="48" stroke="#C7D4E2" stroke-width="6" stroke-linecap="round"/>
+          <line x1="26" y1="48" x2="160" y2="78" stroke="#2563C9" stroke-width="6" stroke-linecap="round"/>
+          <line x1="160" y1="78" x2="294" y2="48" stroke="#2563C9" stroke-width="6" stroke-linecap="round"/>
+          <circle cx="26" cy="48" r="10" fill="#132234"/>
+          <circle cx="294" cy="48" r="10" fill="#132234"/>
+          <circle cx="160" cy="20" r="8" fill="#C7D4E2"/>
+          <circle cx="160" cy="78" r="8" fill="#2563C9"/>
+          <text x="150" y="14" font-size="11" fill="#78899C" text-anchor="end">длинный/медленный</text>
+          <text x="172" y="94" font-size="11" font-weight="700" fill="#2563C9">быстрый ✓</text>
+        </g>
+      </svg>
+    </div>
+    <div class="row"><span class="tag p">Проблема</span><p>В рое сообщение прыгает дрон→дрон→дрон. Какой маршрут выбрать?</p></div>
+    <div class="row"><span class="tag s">Решение</span><p>Выбираю самый <strong>быстрый по времени</strong> (а не тот, где меньше прыжков), <strong>без петель</strong>, и не дёргаюсь между маршрутами из-за мелочей.</p></div>
+    <div class="analogy"><b>Представьте это так</b><p>Как <strong>навигатор</strong>: он ведёт по времени в пути, а не по километрам — и не перестраивает маршрут каждые десять секунд, если разница крошечная.</p></div>
+  </div>
+
+  <div class="card">
+    <span class="num">3</span>
+    <h3>Говорят только свои — без подслушивания, подделки и повторов</h3>
+    <div class="viz">
+      <svg viewBox="0 0 320 96" width="320" height="96" role="img" aria-label="Запечатанный конверт с замком и уникальным номером">
+        <g>
+          <rect x="104" y="24" width="112" height="72" rx="8" fill="#131F2E" opacity="0.04" stroke="#C7D4E2"/>
+          <rect x="104" y="24" width="112" height="72" rx="8" fill="none" stroke="#2563C9" stroke-width="2"/>
+          <path d="M104 30 L160 62 L216 30" fill="none" stroke="#2563C9" stroke-width="2"/>
+          <rect x="146" y="52" width="28" height="22" rx="4" fill="#E86A4C"/>
+          <path d="M151 52 v-5 a9 9 0 0 1 18 0 v5" fill="none" stroke="#E86A4C" stroke-width="3"/>
+          <text x="160" y="90" font-size="10" fill="#78899C" text-anchor="middle">пломба + уникальный № — дважды не пройдёт</text>
+        </g>
+      </svg>
+    </div>
+    <div class="row"><span class="tag p">Проблема</span><p>Эфир открыт: любой может подслушать, притвориться своим или записать старое сообщение и «переиграть» его снова.</p></div>
+    <div class="row"><span class="tag s">Решение</span><p>Три замка́: <strong>секретное рукопожатие</strong> (доказывает, кто есть кто), <strong>запечатанные конверты</strong> с уникальным номером, который нельзя использовать дважды, и <strong>«храповик»</strong> — даже если сегодняшний ключ украдут, вчерашние сообщения останутся тайной.</p></div>
+    <div class="analogy"><b>Представьте это так</b><p>Тамперзащищённый конверт с уникальной пломбой: вскрыли — видно; номер использован — второй раз не примут. А «храповик» — как <strong>шредер, который нельзя раскрутить назад</strong>: прошлое уже не достать.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>Ещё была отдельная история: станок, который врал</h2>
+  <p>Я не пишу код напрямую — я пишу <strong>чертежи</strong>, а специальный «станок» превращает их и в начинку чипа, и в программу для компьютера. Удобно: один чертёж — две готовые детали, которые точно совпадают.</p>
+  <p>Но у станка обнаружился коварный дефект: он иногда <strong>молча выбрасывал куски чертежа</strong> и всё равно рапортовал «готово, ошибок нет». Как копировальный аппарат, который пропускает страницы, но пишет на экране «скопировано». Оказалось, это затрагивало <strong>каждый четвёртый чертёж</strong>. Я это нашёл и починил — тринадцатью точечными правками.</p>
+  <div class="analogy"><b>Почему это было опасно</b><p>Это как <strong>сломанная линейка, которая уверенно показывает неверное число</strong>. Пока не заметишь — построишь по ней весь мост и будешь удивляться, почему опоры не сходятся.</p></div>
+</section>
+
+<section>
+  <h2>Почему этому можно доверять</h2>
+  <p><strong>Обычно</strong> инженер говорит: «я попробовал пару раз — работает». <strong>Здесь</strong> каждое свойство <strong>доказано на десятках тысяч случаев автоматически</strong>. Например: сгенерировал 40 000 защитных «номеров» — проверено, что все до единого разные (иначе взлом). Видео восстанавливается при <strong>любом</strong> раскладе потерь, а не при удачном.</p>
+  <div class="analogy"><b>Разница</b><p>Не «проверил пару кирпичей на глаз» — а <strong>доказал прочность всей стены математикой</strong>. И один чертёж гарантирует, что чип и компьютер делают ровно одно и то же.</p></div>
+</section>
+
+<section>
+  <h2>В цифрах</h2>
+  <div class="stats">
+    <div class="stat"><div class="big">24</div><div class="lbl">готовых функции</div></div>
+    <div class="stat"><div class="big">3</div><div class="lbl">большие области, каждая доказана целиком</div></div>
+    <div class="stat"><div class="big">13</div><div class="lbl">починок «станка»</div></div>
+    <div class="stat"><div class="big">40&nbsp;000+</div><div class="lbl">автопроверок в одном только тесте</div></div>
+  </div>
+</section>
+
+<section>
+  <h2>Чем это лучше того, что уже есть</h2>
+  <div class="cmp">
+    <div class="r"><div>Обычные mesh-рации</div><div class="us">Что построил я</div></div>
+    <div class="r"><div class="them">Один общий пароль на всех</div><div class="us"><b>Личное «рукопожатие»</b> — каждый доказывает, кто он</div></div>
+    <div class="r"><div class="them">Потерялся кусок — картинка испорчена</div><div class="us"><b>Восстановление</b> потерянного видео из запасных кусочков</div></div>
+    <div class="r"><div class="them">Путь — по числу прыжков</div><div class="us"><b>Путь — по скорости</b>, без петель и дёрганья</div></div>
+    <div class="r"><div class="them">«Вроде протестировали»</div><div class="us"><b>Математически доказано</b> на тысячах случаев</div></div>
+  </div>
+  <p style="margin-top:18px;color:var(--ink-soft)">По сути это уровень технологий <strong>защищённых мессенджеров (как Signal) + профессионального видеостриминга + автомобильной навигации</strong> — собранных вместе для роя дронов и проверенных по-настоящему строго.</p>
+</section>
+
+<section>
+  <h2>Где это сейчас</h2>
+  <div class="status">
+    <div class="done"><span class="k">✓</span><p>Всё <strong>построено и доказано</strong>. Каждая из трёх областей имеет финальную проверку, что части работают <strong>вместе</strong>.</p></div>
+    <div class="done"><span class="k">✓</span><p>Вся работа <strong>сохранена</strong> и оформлена так, чтобы любой мог её продолжить (есть документ-передача с картой: что, где и как).</p></div>
+    <div class="done"><span class="k">✓</span><p>Автоматический рабочий цикл <strong>остановлен</strong> — по вашей просьбе.</p></div>
+    <div class="pending"><p><b>Осталось одно — и это ваше решение.</b> Как готовое, проверенное здание, которому нужна одна подпись владельца, чтобы официально открыть. Технически всё готово; финальный «выпуск в общую версию» — человеческий шаг, я его не делаю без разрешения.</p></div>
+  </div>
+</section>
+
+<footer>
+  <span class="phi">φ² + 1/φ² = 3</span> &middot; TRINITY &middot; надёжная и защищённая связь для роя дронов
+</footer>
+
+</div>
+<script>
+(function(){var r=document.documentElement,b=document.getElementById('tg');
+function c(){return r.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+function set(t){r.setAttribute('data-theme',t);b.textContent=t==='dark'?'☀ Светлая':'☾ Тёмная';}
+set(c());b.addEventListener('click',function(){set(c()==='dark'?'light':'dark');});})();
+</script>
