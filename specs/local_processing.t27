@@ -79,8 +79,8 @@ module local_processing {
 
     // Aggregate multiple results
     fn aggregate_results(results: [u32; MAX_RESULTS], count: u32) -> u32 {
-        let sum: u32 = 0;
-        let i: u32 = 0;
+        var sum: u32 = 0;
+        var i: u32 = 0;
         
         while (i < count) {
             let value: u32 = get_result_value(results[i]);
@@ -93,7 +93,7 @@ module local_processing {
 
     // Find task by priority
     fn find_task_by_priority(tasks: [u32; MAX_TASKS], priority: u32) -> u32 {
-        let i: u32 = 0;
+        var i: u32 = 0;
         
         while (i < MAX_TASKS) {
             let task_priority: u32 = get_priority(tasks[i]);
@@ -108,9 +108,9 @@ module local_processing {
 
     // Find highest priority task
     fn find_highest_priority_task(tasks: [u32; MAX_TASKS]) -> u32 {
-        let highest_priority: u32 = TASK_PRIORITY_LOW;
-        let task_index: u32 = MAX_TASKS;
-        let i: u32 = 0;
+        var highest_priority: u32 = TASK_PRIORITY_LOW;
+        var task_index: u32 = MAX_TASKS;
+        var i: u32 = 0;
         
         while (i < MAX_TASKS) {
             let task_priority: u32 = get_priority(tasks[i]);
@@ -126,8 +126,8 @@ module local_processing {
 
     // Count pending tasks
     fn count_pending_tasks(tasks: [u32; MAX_TASKS]) -> u32 {
-        let count: u32 = 0;
-        let i: u32 = 0;
+        var count: u32 = 0;
+        var i: u32 = 0;
         
         while (i < MAX_TASKS) {
             let task_id: u32 = get_task_id(tasks[i]);
@@ -142,8 +142,8 @@ module local_processing {
 
     // Calculate total processing load
     fn calculate_processing_load(tasks: [u32; MAX_TASKS]) -> u32 {
-        let total_load: u32 = 0;
-        let i: u32 = 0;
+        var total_load: u32 = 0;
+        var i: u32 = 0;
         
         while (i < MAX_TASKS) {
             let proc_time: u32 = get_processing_time(tasks[i]);
@@ -169,7 +169,7 @@ module local_processing {
 
     // Find completed task result
     fn find_completed_result(results: [u32; MAX_RESULTS], task_id: u32, count: u32) -> u32 {
-        let i: u32 = 0;
+        var i: u32 = 0;
         
         while (i < count) {
             let result_task_id: u32 = get_result_task_id(results[i]);
@@ -186,9 +186,9 @@ module local_processing {
 
     // Calculate processing efficiency
     fn calculate_efficiency(tasks: [u32; MAX_TASKS], results: [u32; MAX_RESULTS], result_count: u32) -> u32 {
-        let total_input: u32 = 0;
-        let total_output: u32 = 0;
-        let i: u32 = 0;
+        var total_input: u32 = 0;
+        var total_output: u32 = 0;
+        var i: u32 = 0;
         
         while (i < MAX_TASKS) {
             total_input = total_input + get_data_size(tasks[i]);
@@ -214,8 +214,8 @@ module local_processing {
             return 0;
         }
         
-        let sum: u32 = 0;
-        let i: u32 = 0;
+        var sum: u32 = 0;
+        var i: u32 = 0;
         
         while (i < count) {
             sum = sum + data_values[i];
@@ -227,8 +227,8 @@ module local_processing {
 
     // Filter data by threshold
     fn filter_data(data_values: [u32; MAX_RESULTS], count: u32, threshold: u32) -> u32 {
-        let filtered_count: u32 = 0;
-        let i: u32 = 0;
+        var filtered_count: u32 = 0;
+        var i: u32 = 0;
         
         while (i < count) {
             if (data_values[i] > threshold) {
@@ -279,10 +279,10 @@ module local_processing {
 
     // Update resource state
     fn update_resources(state: u32, cpu_delta: u32, memory_delta: u32, task_delta: u32) -> u32 {
-        let cpu: u32 = get_cpu_usage(state);
-        let memory: u32 = get_memory_usage(state);
-        let tasks: u32 = get_task_count(state);
-        let available: u32 = get_available_resources(state);
+        var cpu: u32 = get_cpu_usage(state);
+        var memory: u32 = get_memory_usage(state);
+        var tasks: u32 = get_task_count(state);
+        var available: u32 = get_available_resources(state);
         
         cpu = cpu + cpu_delta;
         memory = memory + memory_delta;

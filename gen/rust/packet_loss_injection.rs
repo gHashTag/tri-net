@@ -22,7 +22,7 @@ pub fn inject_bit_flip(packet: u32, bit_pos: u8) -> u32 {
 }
 
 pub fn calculate_crc(packet: u32) -> u16 {
-    return ();
+    return ((((((packet >> 24) & 0xFF) + ((packet >> 16) & 0xFF)) + ((packet >> 8) & 0xFF)) + (packet & 0xFF)) as u16);
 }
 
 pub fn verify_crc(packet: u32, received_crc: u16) -> bool {

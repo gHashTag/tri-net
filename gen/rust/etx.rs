@@ -29,14 +29,14 @@ pub fn fp_mul(a: u8, b: u8) -> u8 {
     if ((a == 0) || (b == 0)) {
         return 0;
     }
-    return ();
+    return ((((a as u16) * (b as u16)) >> 8) as u8);
 }
 
 pub fn ewma_update(est: u8, sample: u8, alpha: u8) -> u8 {
     if ((est == 255) && (sample == 255)) {
         return 255;
     }
-    return (fp_mul(alpha, sample) + fp_mul((256 - alpha), est));
+    return (fp_mul(alpha, sample) + fp_mul(((ONE_FP - (alpha as u16)) as u8), est));
 }
 
 pub fn is_dead(ratio: u8) -> bool {

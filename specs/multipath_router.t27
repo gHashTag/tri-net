@@ -13,7 +13,7 @@ module MultiPathRouter {
     fn select_path_index(etx_values: [u8; 3]) -> u8 {
         // Compare ETX values to find minimum (best quality)
         let min_etx: u8 = etx_values[0];
-        let mut best_idx: u8 = 0;
+        var best_idx: u8 = 0;
         
         if etx_values[1] < min_etx {
             best_idx = 1;

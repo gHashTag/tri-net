@@ -7,93 +7,70 @@ on:
       - "specs/**"
       - "gen/**"
       - "build.rs"
+      - ".t27c-version"
       - ".github/workflows/spec-drift-guard.yml"
 
-# Rebuild t27c from upstream master and regenerate every committed backend
-# under gen/<target>/<spec>.<ext> from specs/<spec>.t27. If any committed
-# output disagrees with the freshly generated output, the job fails with a
-# diff so drift between the SSOT and generated code cannot land silently.
+# PHYSICAL GUARD for the golden pipeline: specs/*.t27 -> t27c gen-rust -> gen/rust.
 #
-# Covered specs (68) × backends (3) = 204 drift checks:
-#   wire.t27  → gen/{rust,wire.rs}  gen/{zig,wire.zig}  gen/{c,wire.c}
-#   hello.t27 → gen/{rust,hello.rs} gen/{zig,hello.zig} gen/{c,hello.c}
-#   etx.t27   → gen/{rust,etx.rs}   gen/{zig,etx.zig}   gen/{c,etx.c}
+# The compiler is PINNED (.t27c-version). This job rebuilds t27c at exactly that
+# commit, regenerates every gen/rust/*.rs from specs/*.t27, and fails on ANY byte
+# difference against the committed output. That makes three classes of the
+# recurring breakage impossible to land:
+#   1. committing gen/rust produced by a stale/wrong t27c (the 2026-07-07 break),
+#   2. hand-editing gen/rust directly,
+#   3. editing a spec without regenerating.
+# It then builds + tests the tree so a green gen set that does not compile is
+# also caught. Rust is NEVER written by hand in gen/; it is generated only.
 #
-# ExprCast is lowered in all three backends via t27#1320 (Rust) + t27#1337 (Zig+C).
-# See docs/T27_FIRST_MIGRATION.md for the SSOT contract.
+# Only the rust backend is checked -- the gen/zig and gen/c backends were removed
+# from the tree, so the old "68 x 3 backends" guard was checking deleted paths.
 # Anchor: phi^2 + phi^-2 = 3.
 
 jobs:
-  regenerate-and-diff:
-    name: drift check (68 specs × 3 backends)
+  drift:
+    name: gen/rust drift vs pinned t27c
     runs-on: ubuntu-latest
     steps:
       - name: Checkout tri-net
         uses: actions/checkout@v4
-        with:
-          path: tri-net
 
-      - name: Checkout t27 (SSOT compiler source)
+      - name: Read pinned t27c commit
+        id: pin
+        run: echo "sha=$(grep -vE '^[[:space:]]*#' .t27c-version | grep -oE '[0-9a-f]{40}' | head -1)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout t27 at pinned commit
         uses: actions/checkout@v4
         with:
           repository: gHashTag/t27
-          ref: master
+          ref: ${{ steps.pin.outputs.sha }}
           path: t27
 
-      - name: Install stable Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
 
-      - name: Build t27c (release)
-        working-directory: t27
-        run: cargo build --release --manifest-path bootstrap/Cargo.toml --bin t27c
+      - name: Build pinned t27c
+        run: cargo build --release -p t27c --manifest-path t27/Cargo.toml
 
-      - name: Drift check — Rust (all specs)
-        working-directory: tri-net
+      - name: Regenerate every gen/rust from specs
         run: |
-          T27C=../t27/target/release/t27c
-          STATUS=0
-          for spec in wire hello etx crc16 byte_utils mesh_routing key_management frame_buffer packet_queue congestion_control flow_control self_healing trust_manager timer transport_tx_fsm redundancy_management fault_detection lite_crypto network_metrics m3_multihop link_statistics access_control bandwidth_allocator cache_management compression_engine cross_layer_optimizer energy_aware_routing adaptive_retry link_quality_monitor multipath_router auto_config adaptive_routing anomaly_detector api_documenter area_optimization docs_generator fpga_synthesis_report health_dashboard health_monitoring integration_tests load_predictor local_processing mesh_node_sim mesh_protocol_stack multipath_routing network_coding network_orchestrator network_simulator olsr_routing pattern_predictor performance_benchmarks performance_profiler power_monitoring production_deployment production_scenarios quarantine_manager resource_scheduler swarm_coordinator test_framework timing_closure topology_visualizer traffic_animator failure_predictor hardware_validation integration_framework network_analytics packet_loss_injection test_validator; do
-            $T27C gen-rust specs/${spec}.t27 > /tmp/${spec}_regen.rs
-            if ! diff -u gen/rust/${spec}.rs /tmp/${spec}_regen.rs; then
-              echo "::error file=gen/rust/${spec}.rs::DRIFT: gen/rust/${spec}.rs != t27c gen-rust specs/${spec}.t27"
-              echo "Fix: t27c gen-rust specs/${spec}.t27 > gen/rust/${spec}.rs"
-              STATUS=1
-            else
-              echo "gen/rust/${spec}.rs matches specs/${spec}.t27"
-            fi
+          T27C="t27/target/release/t27c"
+          for spec in specs/*.t27; do
+            name="$(basename "$spec" .t27)"
+            "$T27C" gen-rust "$spec" > "gen/rust/${name}.rs"
           done
-          exit $STATUS
 
-      - name: Drift check — Zig (all specs)
-        working-directory: tri-net
+      - name: Fail on any drift
         run: |
-          T27C=../t27/target/release/t27c
-          STATUS=0
-          for spec in wire hello etx crc16 byte_utils mesh_routing key_management frame_buffer packet_queue congestion_control flow_control self_healing trust_manager timer transport_tx_fsm redundancy_management fault_detection lite_crypto network_metrics m3_multihop link_statistics access_control bandwidth_allocator cache_management compression_engine cross_layer_optimizer energy_aware_routing adaptive_retry link_quality_monitor multipath_router auto_config adaptive_routing anomaly_detector api_documenter area_optimization docs_generator fpga_synthesis_report health_dashboard health_monitoring integration_tests load_predictor local_processing mesh_node_sim mesh_protocol_stack multipath_routing network_coding network_orchestrator network_simulator olsr_routing pattern_predictor performance_benchmarks performance_profiler power_monitoring production_deployment production_scenarios quarantine_manager resource_scheduler swarm_coordinator test_framework timing_closure topology_visualizer traffic_animator failure_predictor hardware_validation integration_framework network_analytics packet_loss_injection test_validator; do
-            $T27C gen specs/${spec}.t27 > /tmp/${spec}_regen.zig
-            if ! diff -u gen/zig/${spec}.zig /tmp/${spec}_regen.zig; then
-              echo "::error file=gen/zig/${spec}.zig::DRIFT: gen/zig/${spec}.zig != t27c gen specs/${spec}.t27"
-              echo "Fix: t27c gen specs/${spec}.t27 > gen/zig/${spec}.zig"
-              STATUS=1
-            else
-              echo "gen/zig/${spec}.zig matches specs/${spec}.t27"
-            fi
-          done
-          exit $STATUS
+          if ! git diff --quiet -- gen/rust/; then
+            echo "::error::gen/rust drifted from specs/*.t27 under the pinned t27c."
+            echo "Regenerate locally with the pinned t27c and commit the result;"
+            echo "never hand-edit gen/rust or use an unpinned compiler."
+            git --no-pager diff --stat -- gen/rust/
+            git --no-pager diff -- gen/rust/ | head -200
+            exit 1
+          fi
+          echo "gen/rust is in sync with specs under the pinned t27c."
 
-      - name: Drift check — C (all specs)
-        working-directory: tri-net
+      - name: Build + test the regenerated tree
         run: |
-          T27C=../t27/target/release/t27c
-          STATUS=0
-          for spec in wire hello etx crc16 byte_utils mesh_routing key_management frame_buffer packet_queue congestion_control flow_control self_healing trust_manager timer transport_tx_fsm redundancy_management fault_detection lite_crypto network_metrics m3_multihop link_statistics access_control bandwidth_allocator cache_management compression_engine cross_layer_optimizer energy_aware_routing adaptive_retry link_quality_monitor multipath_router auto_config adaptive_routing anomaly_detector api_documenter area_optimization docs_generator fpga_synthesis_report health_dashboard health_monitoring integration_tests load_predictor local_processing mesh_node_sim mesh_protocol_stack multipath_routing network_coding network_orchestrator network_simulator olsr_routing pattern_predictor performance_benchmarks performance_profiler power_monitoring production_deployment production_scenarios quarantine_manager resource_scheduler swarm_coordinator test_framework timing_closure topology_visualizer traffic_animator failure_predictor hardware_validation integration_framework network_analytics packet_loss_injection test_validator; do
-            $T27C gen-c specs/${spec}.t27 > /tmp/${spec}_regen.c
-            if ! diff -u gen/c/${spec}.c /tmp/${spec}_regen.c; then
-              echo "::error file=gen/c/${spec}.c::DRIFT: gen/c/${spec}.c != t27c gen-c specs/${spec}.t27"
-              echo "Fix: t27c gen-c specs/${spec}.t27 > gen/c/${spec}.c"
-              STATUS=1
-            else
-              echo "gen/c/${spec}.c matches specs/${spec}.t27"
-            fi
-          done
-          exit $STATUS
+          cargo build --all-targets --verbose
+          cargo test --verbose

@@ -52,38 +52,28 @@ pub fn xor_packets(pkt1: u32, pkt2: u32) -> u32 {
 }
 
 pub fn create_xoded_native(pkt1: u32, pkt2: u32, generation: u32, seq: u32) -> u32 {
-    let;
-    coded_payload = xor_packets(get_packet_payload(pkt1), get_packet_payload(pkt2));
-    let;
-    coeff = 0b11;
+    let coded_payload = xor_packets(get_packet_payload(pkt1), get_packet_payload(pkt2));
+    let coeff = 0b11;
     return create_coded_packet(coeff, coded_payload, generation, seq);
 }
 
 pub fn decode_xoded_packet(coded: u32, known_pkt: u32) -> u32 {
-    let;
-    coded_payload = get_coded_payload(coded);
-    let;
-    known_payload = get_packet_payload(known_pkt);
-    let;
-    decoded_payload = (coded_payload ^ known_payload);
+    let coded_payload = get_coded_payload(coded);
+    let known_payload = get_packet_payload(known_pkt);
+    let decoded_payload = (coded_payload ^ known_payload);
     return create_packet(get_packet_src(known_pkt), get_packet_dst(known_pkt), decoded_payload, get_coded_seq(coded));
 }
 
 pub fn same_generation(pkt1: u32, pkt2: u32) -> bool {
-    let;
-    seq1 = get_packet_seq(pkt1);
-    let;
-    seq2 = get_packet_seq(pkt2);
-    let;
-    gen1 = (seq1 / MAX_GENERATION_SIZE);
-    let;
-    gen2 = (seq2 / MAX_GENERATION_SIZE);
+    let seq1 = get_packet_seq(pkt1);
+    let seq2 = get_packet_seq(pkt2);
+    let gen1 = (seq1 / MAX_GENERATION_SIZE);
+    let gen2 = (seq2 / MAX_GENERATION_SIZE);
     return (gen1 == gen2);
 }
 
 pub fn get_generation_id(packet: u32) -> u32 {
-    let;
-    seq = get_packet_seq(packet);
+    let seq = get_packet_seq(packet);
     return (seq / MAX_GENERATION_SIZE);
 }
 
@@ -92,8 +82,7 @@ pub fn is_coding_beneficial(pkt1: u32, pkt2: u32, next_hop1: u32, next_hop2: u32
 }
 
 pub fn linear_code_packets(pkt1: u32, pkt2: u32, coeff1: u32, coeff2: u32) -> u32 {
-    let;
-    result = 0;
+    let mut result = 0;
     if ((coeff1 & 1) == 1) {
         result = (result ^ pkt1);
     }
@@ -104,25 +93,24 @@ pub fn linear_code_packets(pkt1: u32, pkt2: u32, coeff1: u32, coeff2: u32) -> u3
 }
 
 pub fn create_coded_generation(p0: u32, p1: u32, p2: u32, p3: u32) -> u64 {
-    return ((((() << 48) | (() << 32)) | (() << 16)) | ());
+    return (((((p0 as u64) << 48) | ((p1 as u64) << 32)) | ((p2 as u64) << 16)) | (p3 as u64));
 }
 
 pub fn get_coded_packet_gen(gen: u64, index: u32) -> u32 {
     if (index == 0) {
-        return ();
+        return (((gen >> 48) & 0xFFFFFFFF) as u32);
     }
     if (index == 1) {
-        return ();
+        return (((gen >> 32) & 0xFFFFFFFF) as u32);
     }
     if (index == 2) {
-        return ();
+        return (((gen >> 16) & 0xFFFFFFFF) as u32);
     }
-    return ();
+    return ((gen & 0xFFFFFFFF) as u32);
 }
 
 pub fn count_generation_packets(gen: u64) -> u32 {
-    let;
-    count = 0;
+    let mut count = 0;
     if (get_coded_packet_gen(gen, 0) != 0) {
         count = (count + 1);
     }
@@ -139,7 +127,7 @@ pub fn count_generation_packets(gen: u64) -> u32 {
 }
 
 pub fn is_generation_decodable(gen: u64, original_count: u32) -> u32 {
-    let;
+    let coded_count = count_generation_packets(gen);
     if (coded_count >= original_count) {
         return 1;
     }

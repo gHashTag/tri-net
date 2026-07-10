@@ -88,7 +88,7 @@ module trust_manager {
             return 50; // Neutral trust for new nodes
         }
         
-        let score = (positive * 100) / total;
+        var score = (positive * 100) / total;
         if (score > MAX_TRUST_SCORE) { score = MAX_TRUST_SCORE; }
         return score;
     }
@@ -123,8 +123,8 @@ module trust_manager {
 
     // Find most trusted node
     fn find_most_trusted(trust_array: u64) -> u32 {
-        let highest_score = 0;
-        let most_trusted = 0xFF;
+        var highest_score = 0;
+        var most_trusted = 0xFF;
         
         if (get_trust_score_value(get_trust_score(trust_array, 0)) > highest_score) {
             highest_score = get_trust_score_value(get_trust_score(trust_array, 0));
@@ -173,7 +173,7 @@ module trust_manager {
     fn should_route_via_node(trust_array: u64, node_index: u32, min_trust: u32) -> bool {
         if (node_index >= MAX_NODES) { return false; }
         
-        let score = get_trust_score(trust_array, node_index);
+        var score = get_trust_score(trust_array, node_index);
         return (get_trust_score_value(score) >= min_trust);
     }
 
@@ -218,17 +218,17 @@ module trust_manager {
     }
 
     test calculate_trust_score_balanced {
-        let score = calculate_trust_score(10, 10);
+        var score = calculate_trust_score(10, 10);
         assert(score == 50, "balanced trust");
     }
 
     test calculate_trust_score_mostly_positive {
-        let score = calculate_trust_score(18, 2);
+        var score = calculate_trust_score(18, 2);
         assert(score == 90, "high trust");
     }
 
     test calculate_trust_score_mostly_negative {
-        let score = calculate_trust_score(2, 18);
+        var score = calculate_trust_score(2, 18);
         assert(score == 10, "low trust");
     }
 

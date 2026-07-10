@@ -32,23 +32,23 @@ pub fn get_error_count(stats: u32) -> u32 {
 }
 
 pub fn create_analysis_data(node_id: u32, traffic: u32, window_start: u32, pattern: u32) -> u64 {
-    return ((((() << 48) | (() << 24)) | (() << 12)) | ());
+    return (((((node_id as u64) << 48) | ((traffic as u64) << 24)) | ((window_start as u64) << 12)) | (pattern as u64));
 }
 
 pub fn get_analysis_node_id(data: u64) -> u32 {
-    return ();
+    return (((data >> 48) & 0xFF) as u32);
 }
 
 pub fn get_analysis_traffic(data: u64) -> u32 {
-    return ();
+    return (((data >> 24) & 0xFF) as u32);
 }
 
 pub fn get_analysis_window_start(data: u64) -> u32 {
-    return ();
+    return (((data >> 12) & 0xFFF) as u32);
 }
 
 pub fn get_analysis_pattern(data: u64) -> u32 {
-    return ();
+    return ((data & 0xFFF) as u32);
 }
 
 pub const PATTERN_NORMAL: u32 = 0;
@@ -72,16 +72,13 @@ pub fn is_traffic_high(stats: u32) -> bool {
 }
 
 pub fn is_traffic_normal(stats: u32) -> bool {
-    let;
-    total = calculate_total_traffic(stats);
+    let total = calculate_total_traffic(stats);
     return ((total >= TRAFFIC_LOW) && (total <= TRAFFIC_HIGH));
 }
 
 pub fn calculate_error_rate(stats: u32) -> u32 {
-    let;
-    packets = get_packet_count(stats);
-    let;
-    errors = get_error_count(stats);
+    let packets = get_packet_count(stats);
+    let errors = get_error_count(stats);
     if (packets == 0) {
         return 0;
     }
@@ -93,8 +90,8 @@ pub fn is_high_error_rate(stats: u32) -> bool {
 }
 
 pub fn detect_pattern(stats: u32, previous_stats: u32) -> u32 {
-    let;
-    let;
+    let current_total = calculate_total_traffic(stats);
+    let previous_total = calculate_total_traffic(previous_stats);
     if (current_total > (previous_total + ANOMALY_THRESHOLD)) {
         return PATTERN_SPIKE;
     }
@@ -108,30 +105,22 @@ pub fn detect_pattern(stats: u32, previous_stats: u32) -> u32 {
 }
 
 pub fn update_traffic(stats: u32, sent_add: u32, recv_add: u32, packets_add: u32, errors_add: u32) -> u32 {
-    let;
-    sent = get_bytes_sent(stats);
-    let;
-    recv = get_bytes_recv(stats);
-    let;
-    packets = get_packet_count(stats);
-    let;
-    errors = get_error_count(stats);
+    let sent = get_bytes_sent(stats);
+    let recv = get_bytes_recv(stats);
+    let packets = get_packet_count(stats);
+    let errors = get_error_count(stats);
     return create_traffic_stats((sent + sent_add), (recv + recv_add), (packets + packets_add), (errors + errors_add));
 }
 
 pub fn needs_attention(data: u64) -> bool {
-    let;
-    pattern = get_analysis_pattern(data);
-    let;
-    traffic = get_analysis_traffic(data);
-    let;
-    stats = traffic;
+    let pattern = get_analysis_pattern(data);
+    let traffic = get_analysis_traffic(data);
+    let stats = traffic;
     return ((pattern != PATTERN_NORMAL) || is_high_error_rate(stats));
 }
 
 pub fn calculate_utilization(stats: u32, max_capacity: u32) -> u32 {
-    let;
-    total = calculate_total_traffic(stats);
+    let total = calculate_total_traffic(stats);
     if (max_capacity == 0) {
         return 0;
     }

@@ -142,8 +142,8 @@ module ResourceScheduler {
 
     // Find highest priority task that can be admitted
     fn find_admittable_task(state: u32, task_array: u64) -> u32 {
-        let best_task = 0xFF;
-        let best_priority = 0xFF;
+        var best_task = 0xFF;
+        var best_priority = 0xFF;
         
         if (can_admit_task(state, get_task_resource(task_array, 0))) {
             let priority = get_priority(get_task_resource(task_array, 0));
@@ -235,7 +235,7 @@ module ResourceScheduler {
         let active_tasks = get_active_tasks(state);
         let tick = get_sched_tick(state);
         
-        let new_tick = tick + 1;
+        var new_tick = tick + 1;
         if (new_tick > 255) { new_tick = 0; } // Wrap around
         
         return create_system_state(used_cpu, used_mem, active_tasks, new_tick);
@@ -243,7 +243,7 @@ module ResourceScheduler {
 
     // Count tasks by priority
     fn count_tasks_by_priority(task_array: u64, priority: u32) -> u32 {
-        let count = 0;
+        var count = 0;
         
         if (get_priority(get_task_resource(task_array, 0)) == priority) { count = count + 1; }
         if (get_priority(get_task_resource(task_array, 1)) == priority) { count = count + 1; }

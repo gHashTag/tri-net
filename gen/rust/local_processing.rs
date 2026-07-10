@@ -62,37 +62,28 @@ pub const STATUS_COMPLETED: u32 = 2;
 pub const STATUS_FAILED: u32 = 3;
 
 pub fn process_task(task: u32) -> u32 {
-    let;
-    task_id;
-    let;
-    data_size;
-    let;
-    proc_time;
-    let;
-    result_value;
+    let task_id: u32 = get_task_id(task);
+    let data_size: u32 = get_data_size(task);
+    let proc_time: u32 = get_processing_time(task);
+    let result_value: u32 = (data_size * proc_time);
     return create_result(task_id, STATUS_COMPLETED, data_size, result_value);
 }
 
-pub fn aggregate_results(results: Vec<>, count: u32) -> u32 {
-    let;
-    sum;
-    let;
-    i;
+pub fn aggregate_results(results: [u32; MAX_RESULTS as usize], count: u32) -> u32 {
+    let mut sum: u32 = 0;
+    let mut i: u32 = 0;
     while (i < count) {
-        let;
-        value;
+        let value: u32 = get_result_value(results[(i) as usize]);
         sum = (sum + value);
         i = (i + 1);
     }
     return sum;
 }
 
-pub fn find_task_by_priority(tasks: Vec<>, priority: u32) -> u32 {
-    let;
-    i;
+pub fn find_task_by_priority(tasks: [u32; MAX_TASKS as usize], priority: u32) -> u32 {
+    let mut i: u32 = 0;
     while (i < MAX_TASKS) {
-        let;
-        task_priority;
+        let task_priority: u32 = get_priority(tasks[(i) as usize]);
         if (task_priority == priority) {
             return i;
         }
@@ -101,16 +92,12 @@ pub fn find_task_by_priority(tasks: Vec<>, priority: u32) -> u32 {
     return MAX_TASKS;
 }
 
-pub fn find_highest_priority_task(tasks: Vec<>) -> u32 {
-    let;
-    highest_priority;
-    let;
-    task_index;
-    let;
-    i;
+pub fn find_highest_priority_task(tasks: [u32; MAX_TASKS as usize]) -> u32 {
+    let mut highest_priority: u32 = TASK_PRIORITY_LOW;
+    let mut task_index: u32 = MAX_TASKS;
+    let mut i: u32 = 0;
     while (i < MAX_TASKS) {
-        let;
-        task_priority;
+        let task_priority: u32 = get_priority(tasks[(i) as usize]);
         if (task_priority < highest_priority) {
             highest_priority = task_priority;
             task_index = i;
@@ -120,14 +107,11 @@ pub fn find_highest_priority_task(tasks: Vec<>) -> u32 {
     return task_index;
 }
 
-pub fn count_pending_tasks(tasks: Vec<>) -> u32 {
-    let;
-    count;
-    let;
-    i;
+pub fn count_pending_tasks(tasks: [u32; MAX_TASKS as usize]) -> u32 {
+    let mut count: u32 = 0;
+    let mut i: u32 = 0;
     while (i < MAX_TASKS) {
-        let;
-        task_id;
+        let task_id: u32 = get_task_id(tasks[(i) as usize]);
         if (task_id != 0) {
             count = (count + 1);
         }
@@ -136,27 +120,21 @@ pub fn count_pending_tasks(tasks: Vec<>) -> u32 {
     return count;
 }
 
-pub fn calculate_processing_load(tasks: Vec<>) -> u32 {
-    let;
-    total_load;
-    let;
-    i;
+pub fn calculate_processing_load(tasks: [u32; MAX_TASKS as usize]) -> u32 {
+    let mut total_load: u32 = 0;
+    let mut i: u32 = 0;
     while (i < MAX_TASKS) {
-        let;
-        proc_time;
+        let proc_time: u32 = get_processing_time(tasks[(i) as usize]);
         total_load = (total_load + proc_time);
         i = (i + 1);
     }
     return total_load;
 }
 
-pub fn can_accept_task(tasks: Vec<>, new_task: u32) -> u32 {
-    let;
-    current_load;
-    let;
-    new_load;
-    let;
-    total_load;
+pub fn can_accept_task(tasks: [u32; MAX_TASKS as usize], new_task: u32) -> u32 {
+    let current_load: u32 = calculate_processing_load(tasks);
+    let new_load: u32 = get_processing_time(new_task);
+    let total_load: u32 = (current_load + new_load);
     if (total_load <= PROCESSING_TIMEOUT) {
         return 1;
     } else {
@@ -164,14 +142,11 @@ pub fn can_accept_task(tasks: Vec<>, new_task: u32) -> u32 {
     }
 }
 
-pub fn find_completed_result(results: Vec<>, task_id: u32, count: u32) -> u32 {
-    let;
-    i;
+pub fn find_completed_result(results: [u32; MAX_RESULTS as usize], task_id: u32, count: u32) -> u32 {
+    let mut i: u32 = 0;
     while (i < count) {
-        let;
-        result_task_id;
-        let;
-        status;
+        let result_task_id: u32 = get_result_task_id(results[(i) as usize]);
+        let status: u32 = get_status(results[(i) as usize]);
         if ((result_task_id == task_id) && (status == STATUS_COMPLETED)) {
             return i;
         }
@@ -180,20 +155,17 @@ pub fn find_completed_result(results: Vec<>, task_id: u32, count: u32) -> u32 {
     return MAX_RESULTS;
 }
 
-pub fn calculate_efficiency(tasks: Vec<>, results: Vec<>, result_count: u32) -> u32 {
-    let;
-    total_input;
-    let;
-    total_output;
-    let;
-    i;
+pub fn calculate_efficiency(tasks: [u32; MAX_TASKS as usize], results: [u32; MAX_RESULTS as usize], result_count: u32) -> u32 {
+    let mut total_input: u32 = 0;
+    let mut total_output: u32 = 0;
+    let mut i: u32 = 0;
     while (i < MAX_TASKS) {
-        total_input = (total_input + get_data_size(tasks[i]));
+        total_input = (total_input + get_data_size(tasks[(i) as usize]));
         i = (i + 1);
     }
     i = 0;
     while (i < result_count) {
-        total_output = (total_output + get_result_size(results[i]));
+        total_output = (total_output + get_result_size(results[(i) as usize]));
         i = (i + 1);
     }
     if (total_input > 0) {
@@ -203,28 +175,24 @@ pub fn calculate_efficiency(tasks: Vec<>, results: Vec<>, result_count: u32) -> 
     }
 }
 
-pub fn aggregate_data(data_values: Vec<>, count: u32) -> u32 {
+pub fn aggregate_data(data_values: [u32; MAX_RESULTS as usize], count: u32) -> u32 {
     if (count == 0) {
         return 0;
     }
-    let;
-    sum;
-    let;
-    i;
+    let mut sum: u32 = 0;
+    let mut i: u32 = 0;
     while (i < count) {
-        sum = (sum + data_values[i]);
+        sum = (sum + data_values[(i) as usize]);
         i = (i + 1);
     }
     return (sum / count);
 }
 
-pub fn filter_data(data_values: Vec<>, count: u32, threshold: u32) -> u32 {
-    let;
-    filtered_count;
-    let;
-    i;
+pub fn filter_data(data_values: [u32; MAX_RESULTS as usize], count: u32, threshold: u32) -> u32 {
+    let mut filtered_count: u32 = 0;
+    let mut i: u32 = 0;
     while (i < count) {
-        if (data_values[i] > threshold) {
+        if (data_values[(i) as usize] > threshold) {
             filtered_count = (filtered_count + 1);
         }
         i = (i + 1);
@@ -232,11 +200,9 @@ pub fn filter_data(data_values: Vec<>, count: u32, threshold: u32) -> u32 {
     return filtered_count;
 }
 
-pub fn make_local_decision(tasks: Vec<>, results: Vec<>, result_count: u32) -> u32 {
-    let;
-    efficiency;
-    let;
-    pending;
+pub fn make_local_decision(tasks: [u32; MAX_TASKS as usize], results: [u32; MAX_RESULTS as usize], result_count: u32) -> u32 {
+    let efficiency: u32 = calculate_efficiency(tasks, results, result_count);
+    let pending: u32 = count_pending_tasks(tasks);
     if ((efficiency > 50) && (pending < (MAX_TASKS / 2))) {
         return 1;
     } else {
@@ -265,14 +231,10 @@ pub fn get_available_resources(state: u32) -> u32 {
 }
 
 pub fn update_resources(state: u32, cpu_delta: u32, memory_delta: u32, task_delta: u32) -> u32 {
-    let;
-    cpu;
-    let;
-    memory;
-    let;
-    tasks;
-    let;
-    available;
+    let mut cpu: u32 = get_cpu_usage(state);
+    let mut memory: u32 = get_memory_usage(state);
+    let mut tasks: u32 = get_task_count(state);
+    let mut available: u32 = get_available_resources(state);
     cpu = (cpu + cpu_delta);
     memory = (memory + memory_delta);
     tasks = (tasks + task_delta);
@@ -287,10 +249,8 @@ pub fn update_resources(state: u32, cpu_delta: u32, memory_delta: u32, task_delt
 }
 
 pub fn has_resources(state: u32, required_cpu: u32, required_memory: u32) -> u32 {
-    let;
-    available_cpu;
-    let;
-    available_memory;
+    let available_cpu: u32 = (100 - get_cpu_usage(state));
+    let available_memory: u32 = (100 - get_memory_usage(state));
     if ((available_cpu >= required_cpu) && (available_memory >= required_memory)) {
         return 1;
     } else {

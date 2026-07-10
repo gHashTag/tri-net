@@ -4,7 +4,7 @@
 pub const QUEUE_SIZE: u8 = 8;
 
 pub fn get_count(state: u32) -> u8 {
-    return ();
+    return (((state >> 6) & 255) as u8);
 }
 
 pub fn is_full(state: u32) -> bool {

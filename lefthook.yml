@@ -81,8 +81,10 @@ pre-push:
 
     cargo-build:
       run: |
-        cargo build --release 2>&1 | tail -3
-        if [ $? -ne 0 ]; then
+        # NOTE: `cargo build | tail` makes `$?` the exit code of `tail` (always
+        # 0), so the old form passed even on a failed build — this is how the
+        # broken 2026-07-07 build reached main. Check cargo's exit directly.
+        if ! cargo build --release; then
           echo "cargo build FAILED"
           exit 1
         fi

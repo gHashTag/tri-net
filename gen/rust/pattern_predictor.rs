@@ -44,7 +44,7 @@ pub fn get_trend_direction(storage: u32) -> u32 {
 }
 
 pub fn create_sample_array(s0: u32, s1: u32, s2: u32, s3: u32, s4: u32, s5: u32, s6: u32, s7: u32, s8: u32, s9: u32, s10: u32, s11: u32, s12: u32, s13: u32, s14: u32, s15: u32) -> u64 {
-    return ((((((((() << 56) | (() << 48)) | (() << 40)) | (() << 32)) | (() << 24)) | (() << 16)) | (() << 8)) | ());
+    return (((((((((s0 as u64) << 56) | ((s1 as u64) << 48)) | ((s2 as u64) << 40)) | ((s3 as u64) << 32)) | ((s4 as u64) << 24)) | ((s5 as u64) << 16)) | ((s6 as u64) << 8)) | (s7 as u64));
 }
 
 pub fn get_sample_array_upper(array: u64) -> u64 { unimplemented!() }
@@ -55,21 +55,17 @@ pub fn get_sample_array_lower(array: u64) -> u32 {
 
 pub fn get_sample_at(array: u64, index: u32) -> u32 {
     if (index < 8) {
-        let;
-        lower = get_sample_array_lower(array);
-        return ();
+        let lower = get_sample_array_lower(array);
+        return (((lower >> ((7 - index) * 8)) & 0xFF) as u32);
     } else {
-        let;
-        upper = get_sample_array_upper(array);
-        return ();
+        let upper = get_sample_array_upper(array);
+        return (((upper >> ((15 - index) * 8)) & 0xFF) as u32);
     }
 }
 
 pub fn calculate_moving_average(array: u64, window: u32) -> u32 {
-    let;
-    sum = 0;
-    let;
-    count = window;
+    let mut sum = 0;
+    let mut count = window;
     if (count > 16) {
         count = 16;
     }
@@ -102,8 +98,8 @@ pub fn detect_trend(array: u64, samples: u32) -> u32 {
     if (samples < 2) {
         return 0;
     }
-    let;
-    let;
+    let first = get_sample_value(get_sample_at(array, 0));
+    let last = get_sample_value(get_sample_at(array, (samples - 1)));
     if (last > (first + 5)) {
         return 1;
     } else {
@@ -116,14 +112,13 @@ pub fn detect_trend(array: u64, samples: u32) -> u32 {
 }
 
 pub fn predict_next_value(array: u64, samples: u32) -> u32 {
-    let;
-    let;
+    let trend = detect_trend(array, samples);
+    let current = get_sample_value(get_sample_at(array, (samples - 1)));
     if (trend == 1) {
         return (current + 10);
     } else {
         if (trend == 2) {
-            let;
-            predicted = (current - 10);
+            let mut predicted = (current - 10);
             if (predicted < 0) {
                 predicted = 0;
             }
@@ -135,7 +130,7 @@ pub fn predict_next_value(array: u64, samples: u32) -> u32 {
 }
 
 pub fn is_anomalous(array: u64, samples: u32, current_value: u32) -> u32 {
-    let;
+    let predicted = predict_next_value(array, samples);
     if (predicted > current_value) {
         return (predicted - current_value);
     } else {
@@ -147,18 +142,16 @@ pub fn detect_repeating_pattern(array: u64, samples: u32) -> u32 {
     if (samples < 4) {
         return 0;
     }
-    let;
-    let;
-    let;
-    let;
+    let v0 = get_sample_value(get_sample_at(array, 0));
+    let v1 = get_sample_value(get_sample_at(array, 1));
+    let v2 = get_sample_value(get_sample_at(array, 2));
+    let v3 = get_sample_value(get_sample_at(array, 3));
     if (((v0 == v2) && (v1 == v3)) && (v0 != v1)) {
         return 1;
     }
     if (samples >= 6) {
-        let;
-        v4 = get_sample_value(get_sample_at(array, 4));
-        let;
-        v5 = get_sample_value(get_sample_at(array, 5));
+        let v4 = get_sample_value(get_sample_at(array, 4));
+        let v5 = get_sample_value(get_sample_at(array, 5));
         if (((v0 == v3) && (v1 == v4)) && (v2 == v5)) {
             return 1;
         }
@@ -170,27 +163,22 @@ pub fn calculate_variance(array: u64, samples: u32) -> u32 {
     if (samples < 2) {
         return 0;
     }
-    let;
-    let;
-    sum_sq_diff = 0;
+    let avg = calculate_moving_average(array, samples);
+    let mut sum_sq_diff = 0;
     if (samples >= 1) {
-        let;
-        diff = (get_sample_value(get_sample_at(array, 0)) - avg);
+        let diff = (get_sample_value(get_sample_at(array, 0)) - avg);
         sum_sq_diff = (sum_sq_diff + (diff * diff));
     }
     if (samples >= 2) {
-        let;
-        diff = (get_sample_value(get_sample_at(array, 1)) - avg);
+        let diff = (get_sample_value(get_sample_at(array, 1)) - avg);
         sum_sq_diff = (sum_sq_diff + (diff * diff));
     }
     if (samples >= 3) {
-        let;
-        diff = (get_sample_value(get_sample_at(array, 2)) - avg);
+        let diff = (get_sample_value(get_sample_at(array, 2)) - avg);
         sum_sq_diff = (sum_sq_diff + (diff * diff));
     }
     if (samples >= 4) {
-        let;
-        diff = (get_sample_value(get_sample_at(array, 3)) - avg);
+        let diff = (get_sample_value(get_sample_at(array, 3)) - avg);
         sum_sq_diff = (sum_sq_diff + (diff * diff));
     }
     if (samples < 2) {

@@ -70,7 +70,7 @@ module PowerMonitoring {
         let consumption = get_consumption(state);
         let uptime = get_uptime(state);
         
-        let new_mode = POWER_NORMAL;
+        var new_mode = POWER_NORMAL;
         if (battery <= BATTERY_CRITICAL) {
             new_mode = POWER_EMERGENCY;
         } else if (battery <= BATTERY_LOW) {
@@ -87,7 +87,7 @@ module PowerMonitoring {
         let current_consumption = get_consumption(state);
         let uptime = get_uptime(state);
         
-        let new_consumption = current_consumption - reduction;
+        var new_consumption = current_consumption - reduction;
         if (new_consumption < 1) {
             new_consumption = 1; // Minimum consumption
         }
@@ -102,7 +102,7 @@ module PowerMonitoring {
         let consumption = get_consumption(state);
         let uptime = get_uptime(state);
         
-        let new_battery = battery - amount;
+        var new_battery = battery - amount;
         if (new_battery < 0) {
             new_battery = 0; // Battery empty
         }

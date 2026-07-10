@@ -58,69 +58,58 @@ pub fn get_optimization_target(state: u32) -> u32 {
 }
 
 pub fn create_layer_array(phy: u32, mac: u32, network: u32, transport: u32) -> u64 {
-    return ((((() << 48) | (() << 32)) | (() << 16)) | ());
+    return (((((phy as u64) << 48) | ((mac as u64) << 32)) | ((network as u64) << 16)) | (transport as u64));
 }
 
 pub fn get_layer_params(array: u64, layer: u32) -> u32 {
     if (layer == LAYER_PHY) {
-        return ();
+        return (((array >> 48) & 0xFFFFFFFF) as u32);
     }
     if (layer == LAYER_MAC) {
-        return ();
+        return (((array >> 32) & 0xFFFFFFFF) as u32);
     }
     if (layer == LAYER_NETWORK) {
-        return ();
+        return (((array >> 16) & 0xFFFFFFFF) as u32);
     }
-    return ();
+    return ((array & 0xFFFFFFFF) as u32);
 }
 
 pub fn update_layer_params(array: u64, layer: u32, new_params: u32) -> u64 {
     if (layer == LAYER_PHY) {
-        return ((array & 0x0000FFFFFFFFFFFF) | (() << 48));
+        return ((array & 0x0000FFFFFFFFFFFF) | ((new_params as u64) << 48));
     } else {
         if (layer == LAYER_MAC) {
-            return ((array & 0xFFFF0000FFFFFFFF) | (() << 32));
+            return ((array & 0xFFFF0000FFFFFFFF) | ((new_params as u64) << 32));
         } else {
             if (layer == LAYER_NETWORK) {
-                return ((array & 0xFFFFFFFF0000FFFF) | (() << 16));
+                return ((array & 0xFFFFFFFF0000FFFF) | ((new_params as u64) << 16));
             } else {
-                return ((array & 0xFFFFFFFFFFFF0000) | ());
+                return ((array & 0xFFFFFFFFFFFF0000) | (new_params as u64));
             }
         }
     }
 }
 
 pub fn calculate_joint_metric(phy_params: u32, mac_params: u32, net_params: u32) -> u32 {
-    let;
-    power_eff = (255 - get_power(phy_params));
-    let;
-    rate = get_rate(mac_params);
-    let;
-    reliability = get_retries(net_params);
-    let;
-    metric = ((((power_eff * 5) / 10) + ((rate * 3) / 10)) + ((reliability << 1) / 10));
+    let power_eff = (255 - get_power(phy_params));
+    let rate = get_rate(mac_params);
+    let reliability = get_retries(net_params);
+    let metric = ((((power_eff * 5) / 10) + ((rate * 3) / 10)) + ((reliability * 2) / 10));
     return metric;
 }
 
 pub fn needs_synchronization(state: u32, current_time: u32) -> bool {
-    let;
-    last_sync = get_last_sync(state);
-    let;
-    elapsed = (current_time - last_sync);
+    let last_sync = get_last_sync(state);
+    let elapsed = (current_time - last_sync);
     return (elapsed >= 100);
 }
 
 pub fn increment_updates(state: u32) -> u32 {
-    let;
-    mode = get_mode(state);
-    let;
-    counter = get_update_counter(state);
-    let;
-    last_sync = get_last_sync(state);
-    let;
-    target = get_optimization_target(state);
-    let;
-    new_counter = (counter + 1);
+    let mode = get_mode(state);
+    let counter = get_update_counter(state);
+    let last_sync = get_last_sync(state);
+    let target = get_optimization_target(state);
+    let mut new_counter = (counter + 1);
     if (new_counter > 255) {
         new_counter = 0;
     }
@@ -128,12 +117,9 @@ pub fn increment_updates(state: u32) -> u32 {
 }
 
 pub fn switch_mode(state: u32, new_mode: u32) -> u32 {
-    let;
-    counter = get_update_counter(state);
-    let;
-    last_sync = get_last_sync(state);
-    let;
-    target = get_optimization_target(state);
+    let counter = get_update_counter(state);
+    let last_sync = get_last_sync(state);
+    let target = get_optimization_target(state);
     return create_cross_layer_state(new_mode, counter, last_sync, target);
 }
 

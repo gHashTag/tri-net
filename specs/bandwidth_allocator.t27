@@ -95,7 +95,7 @@ module BandwidthAllocator {
         let allocated = get_allocated_bw(state);
         
         // Priority 0 = high, Priority 2 = low
-        let allocation = 0;
+        var allocation = 0;
         
         if (priority == 0) {
             // High priority: allocate up to max bandwidth
@@ -142,7 +142,7 @@ module BandwidthAllocator {
 
     // Count active flows (flows with allocated bandwidth)
     fn count_active_flows(flow_array: u64) -> u32 {
-        let count = 0;
+        var count = 0;
         
         if (get_current_bandwidth(get_flow_req(flow_array, 0)) > 0) { count = count + 1; }
         if (get_current_bandwidth(get_flow_req(flow_array, 1)) > 0) { count = count + 1; }
@@ -159,7 +159,7 @@ module BandwidthAllocator {
     // Find underutilized bandwidth (available bandwidth that can be reclaimed)
     fn find_reclaimable_bandwidth(state: u32, flow_array: u64) -> u32 {
         let allocated = get_allocated_bw(state);
-        let total_used = 0;
+        var total_used = 0;
         
         if (get_current_bandwidth(get_flow_req(flow_array, 0)) > 0) {
             total_used = total_used + get_current_bandwidth(get_flow_req(flow_array, 0));

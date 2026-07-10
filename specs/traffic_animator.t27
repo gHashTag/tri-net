@@ -40,7 +40,7 @@ module traffic_animator {
         let dest: u32 = get_anim_packet_dest(packet);
         let progress: u32 = get_anim_packet_progress(packet);
         
-        let new_progress: u32 = progress + delta;
+        var new_progress: u32 = progress + delta;
         if (new_progress > 100) {
             new_progress = 100;
         }
@@ -205,8 +205,8 @@ module traffic_animator {
         let loops: u32 = get_timeline_loop_count(timeline);
         let speed: u32 = get_timeline_speed(timeline);
         
-        let new_current: u32 = current + speed;
-        let new_loops: u32 = loops;
+        var new_current: u32 = current + speed;
+        var new_loops: u32 = loops;
         
         if (new_current >= total) {
             new_current = 0;
@@ -243,9 +243,9 @@ module traffic_animator {
     // Generate traffic burst
     fn generate_traffic_burst(pattern: u32, source: u32, dest: u32) -> u32 {
         let burst_size: u32 = get_pattern_burst_size(pattern);
-        let packet_count: u32 = 0;
+        var packet_count: u32 = 0;
         
-        let i: u32 = 0;
+        var i: u32 = 0;
         while (i < burst_size) {
             // Create animated packet
             let packet: u32 = create_anim_packet(i, source, dest, 0);
@@ -269,15 +269,15 @@ module traffic_animator {
 
     // Update all packets in animation
     fn update_animation_packets(packets: [u32; MAX_PACKETS], packet_count: u32, speed: u32) -> u32 {
-        let updated_count: u32 = 0;
-        let completed_count: u32 = 0;
-        let i: u32 = 0;
+        var updated_count: u32 = 0;
+        var completed_count: u32 = 0;
+        var i: u32 = 0;
         
         while (i < packet_count) {
             let progress: u32 = get_anim_packet_progress(packets[i]);
             
             if (progress < 100) {
-                let new_progress: u32 = progress + speed;
+                var new_progress: u32 = progress + speed;
                 if (new_progress > 100) {
                     new_progress = 100;
                 }
@@ -334,8 +334,8 @@ module traffic_animator {
     fn generate_traffic_heat_map(packets: [u32; MAX_PACKETS], packet_count: u32, 
                                  node_count: u32) -> u32 {
         let traffic_counts: [u32; 32] = [0; 32];
-        let max_traffic: u32 = 0;
-        let i: u32 = 0;
+        var max_traffic: u32 = 0;
+        var i: u32 = 0;
         
         // Count traffic per node
         while (i < packet_count) {
@@ -360,9 +360,9 @@ module traffic_animator {
         }
         
         // Return heat map data: [max_traffic][total_active_nodes][avg_traffic][0]
-        let total_active: u32 = 0;
-        let total_traffic: u32 = 0;
-        let j: u32 = 0;
+        var total_active: u32 = 0;
+        var total_traffic: u32 = 0;
+        var j: u32 = 0;
         
         while (j < node_count && j < 32) {
             if (traffic_counts[j] > 0) {
@@ -372,7 +372,7 @@ module traffic_animator {
             j = j + 1;
         }
         
-        let avg_traffic: u32 = 0;
+        var avg_traffic: u32 = 0;
         if (total_active > 0) {
             avg_traffic = total_traffic / total_active;
         }
@@ -438,10 +438,10 @@ module traffic_animator {
 
     // Calculate animation statistics
     fn calculate_animation_stats(frames: [u32; MAX_FRAMES], frame_count: u32) -> u32 {
-        let total_packets: u32 = 0;
-        let total_bytes: u32 = 0;
-        let avg_latency: u32 = 0;
-        let i: u32 = 0;
+        var total_packets: u32 = 0;
+        var total_bytes: u32 = 0;
+        var avg_latency: u32 = 0;
+        var i: u32 = 0;
         
         while (i < frame_count) {
             let packet_count: u32 = get_anim_frame_packet_count(frames[i]);

@@ -77,12 +77,12 @@ module AdaptiveRouting {
     fn calculate_score(metrics: u32, metric_type: u32) -> u32 {
         if (metric_type == METRIC_LATENCY) {
             // Lower latency = better (inverse scoring)
-            let latency = get_latency(metrics);
+            var latency = get_latency(metrics);
             if (latency == 0) { return 255; }
             return (255 / latency);
         } else if (metric_type == METRIC_HOPS) {
             // Fewer hops = better (inverse scoring)
-            let hops = get_hops(metrics);
+            var hops = get_hops(metrics);
             if (hops == 0) { return 255; }
             return (255 / hops);
         } else if (metric_type == METRIC_BANDWIDTH) {
@@ -95,8 +95,8 @@ module AdaptiveRouting {
 
     // Find best path based on metric type
     fn find_best_path(metrics_array: u64, metric_type: u32) -> u32 {
-        let best_path = 0xFF;
-        let best_score = 0;
+        var best_path = 0xFF;
+        var best_score = 0;
         
         if (calculate_score(get_path_metrics(metrics_array, 0), metric_type) > best_score) {
             best_score = calculate_score(get_path_metrics(metrics_array, 0), metric_type);
@@ -149,8 +149,8 @@ module AdaptiveRouting {
 
     // Find least congested path
     fn find_least_congested(metrics_array: u64) -> u32 {
-        let best_path = 0;
-        let best_load = get_load(get_path_metrics(metrics_array, 0));
+        var best_path = 0;
+        var best_load = get_load(get_path_metrics(metrics_array, 0));
         
         if (get_load(get_path_metrics(metrics_array, 1)) < best_load) {
             best_load = get_load(get_path_metrics(metrics_array, 1));

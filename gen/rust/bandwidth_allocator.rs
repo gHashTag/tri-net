@@ -50,32 +50,32 @@ pub fn get_last_update(state: u32) -> u32 {
 }
 
 pub fn create_flow_array(f0: u32, f1: u32, f2: u32, f3: u32, f4: u32, f5: u32, f6: u32, f7: u32) -> u64 {
-    return ((((((((() << 56) | (() << 48)) | (() << 40)) | (() << 32)) | (() << 24)) | (() << 16)) | (() << 8)) | ());
+    return (((((((((f0 as u64) << 56) | ((f1 as u64) << 48)) | ((f2 as u64) << 40)) | ((f3 as u64) << 32)) | ((f4 as u64) << 24)) | ((f5 as u64) << 16)) | ((f6 as u64) << 8)) | (f7 as u64));
 }
 
 pub fn get_flow_req(array: u64, index: u32) -> u32 {
     if (index == 0) {
-        return ();
+        return (((array >> 56) & 0xFFFFFFFF) as u32);
     }
     if (index == 1) {
-        return ();
+        return (((array >> 48) & 0xFFFFFFFF) as u32);
     }
     if (index == 2) {
-        return ();
+        return (((array >> 40) & 0xFFFFFFFF) as u32);
     }
     if (index == 3) {
-        return ();
+        return (((array >> 32) & 0xFFFFFFFF) as u32);
     }
     if (index == 4) {
-        return ();
+        return (((array >> 24) & 0xFFFFFFFF) as u32);
     }
     if (index == 5) {
-        return ();
+        return (((array >> 16) & 0xFFFFFFFF) as u32);
     }
     if (index == 6) {
-        return ();
+        return (((array >> 8) & 0xFFFFFFFF) as u32);
     }
-    return ();
+    return ((array & 0xFFFFFFFF) as u32);
 }
 
 pub fn calculate_fair_share(total_bw: u32, flow_count: u32) -> u32 {
@@ -86,12 +86,10 @@ pub fn calculate_fair_share(total_bw: u32, flow_count: u32) -> u32 {
 }
 
 pub fn allocate_bandwidth(state: u32, flow_req: u32, available_bw: u32) -> u32 {
-    let;
-    let;
-    let;
-    allocated = get_allocated_bw(state);
-    let;
-    allocation = 0;
+    let priority = get_flow_priority(flow_req);
+    let min_bw = get_min_bandwidth(flow_req);
+    let allocated = get_allocated_bw(state);
+    let mut allocation = 0;
     if (priority == 0) {
         allocation = (min_bw + ((available_bw * 7) / 10));
     } else {
@@ -110,32 +108,23 @@ pub fn allocate_bandwidth(state: u32, flow_req: u32, available_bw: u32) -> u32 {
     if (allocation < min_bw) {
         allocation = min_bw;
     }
-    let;
-    new_allocated = (allocated + allocation);
-    let;
-    pending = get_pending_requests(state);
-    let;
-    fair_share = get_fair_share(state);
-    let;
-    update = get_last_update(state);
+    let new_allocated = (allocated + allocation);
+    let pending = get_pending_requests(state);
+    let fair_share = get_fair_share(state);
+    let update = get_last_update(state);
     return create_allocation_state(new_allocated, pending, fair_share, update);
 }
 
 pub fn needs_more_bandwidth(flow_req: u32) -> bool {
-    let;
-    current = get_current_bandwidth(flow_req);
-    let;
-    min_bw = get_min_bandwidth(flow_req);
+    let current = get_current_bandwidth(flow_req);
+    let min_bw = get_min_bandwidth(flow_req);
     return (current < min_bw);
 }
 
 pub fn update_flow_bandwidth(flow_req: u32, new_bw: u32) -> u32 {
-    let;
-    flow_id = get_flow_id(flow_req);
-    let;
-    priority = get_flow_priority(flow_req);
-    let;
-    min_bw = get_min_bandwidth(flow_req);
+    let flow_id = get_flow_id(flow_req);
+    let priority = get_flow_priority(flow_req);
+    let min_bw = get_min_bandwidth(flow_req);
     if (new_bw < min_bw) {
         new_bw = min_bw;
     }
@@ -146,8 +135,7 @@ pub fn update_flow_bandwidth(flow_req: u32, new_bw: u32) -> u32 {
 }
 
 pub fn count_active_flows(flow_array: u64) -> u32 {
-    let;
-    count = 0;
+    let mut count = 0;
     if (get_current_bandwidth(get_flow_req(flow_array, 0)) > 0) {
         count = (count + 1);
     }
@@ -176,8 +164,8 @@ pub fn count_active_flows(flow_array: u64) -> u32 {
 }
 
 pub fn find_reclaimable_bandwidth(state: u32, flow_array: u64) -> u32 {
-    let;
-    let;
+    let allocated = get_allocated_bw(state);
+    let mut total_used = 0;
     if (get_current_bandwidth(get_flow_req(flow_array, 0)) > 0) {
         total_used = (total_used + get_current_bandwidth(get_flow_req(flow_array, 0)));
     }
@@ -209,24 +197,15 @@ pub fn find_reclaimable_bandwidth(state: u32, flow_array: u64) -> u32 {
 }
 
 pub fn prioritize_bandwidth(flow_array: u64, available_bw: u32) -> u64 {
-    let;
-    remaining_bw = available_bw;
-    let;
-    f0 = get_flow_req(flow_array, 0);
-    let;
-    f1 = get_flow_req(flow_array, 1);
-    let;
-    f2 = get_flow_req(flow_array, 2);
-    let;
-    f3 = get_flow_req(flow_array, 3);
-    let;
-    f4 = get_flow_req(flow_array, 4);
-    let;
-    f5 = get_flow_req(flow_array, 5);
-    let;
-    f6 = get_flow_req(flow_array, 6);
-    let;
-    f7 = get_flow_req(flow_array, 7);
+    let remaining_bw = available_bw;
+    let f0 = get_flow_req(flow_array, 0);
+    let f1 = get_flow_req(flow_array, 1);
+    let f2 = get_flow_req(flow_array, 2);
+    let f3 = get_flow_req(flow_array, 3);
+    let f4 = get_flow_req(flow_array, 4);
+    let f5 = get_flow_req(flow_array, 5);
+    let f6 = get_flow_req(flow_array, 6);
+    let f7 = get_flow_req(flow_array, 7);
     return create_flow_array(update_flow_bandwidth(f0, calculate_fair_share(remaining_bw, 8)), update_flow_bandwidth(f1, calculate_fair_share(remaining_bw, 8)), update_flow_bandwidth(f2, calculate_fair_share(remaining_bw, 8)), update_flow_bandwidth(f3, calculate_fair_share(remaining_bw, 8)), update_flow_bandwidth(f4, calculate_fair_share(remaining_bw, 8)), update_flow_bandwidth(f5, calculate_fair_share(remaining_bw, 8)), update_flow_bandwidth(f6, calculate_fair_share(remaining_bw, 8)), update_flow_bandwidth(f7, calculate_fair_share(remaining_bw, 8)));
 }
 

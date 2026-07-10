@@ -74,7 +74,7 @@ module auto_config {
 
     // Get configuration value
     fn get_config_value(config: [u32; MAX_PARAMS], param_id: u32) -> u32 {
-        let i: u32 = 0;
+        var i: u32 = 0;
         
         while (i < MAX_PARAMS) {
             let current_param_id: u32 = get_param_id(config[i]);
@@ -89,7 +89,7 @@ module auto_config {
 
     // Set configuration value
     fn set_config_value(config: [u32; MAX_PARAMS], param_id: u32, new_value: u32) -> u32 {
-        let i: u32 = 0;
+        var i: u32 = 0;
         
         while (i < MAX_PARAMS) {
             let current_param_id: u32 = get_param_id(config[i]);
@@ -110,7 +110,7 @@ module auto_config {
         let config: [u32; MAX_PARAMS] = create_default_config();
         
         // Auto-configure TX power based on node count
-        let tx_power: u32 = 50;
+        var tx_power: u32 = 50;
         if (node_count < 4) {
             tx_power = 30; // lower power for small networks
         } else if (node_count > 6) {
@@ -119,7 +119,7 @@ module auto_config {
         set_config_value(config, PARAM_TX_POWER, tx_power);
         
         // Auto-configure channel based on interference
-        let channel: u32 = 0;
+        var channel: u32 = 0;
         if (interference_level > 70) {
             channel = 2; // switch to less crowded channel
         } else if (interference_level > 40) {
@@ -128,7 +128,7 @@ module auto_config {
         set_config_value(config, PARAM_CHANNEL, channel);
         
         // Auto-configure hello interval based on network size
-        let hello_interval: u32 = 2000;
+        var hello_interval: u32 = 2000;
         if (node_count < 4) {
             hello_interval = 5000; // slower for small networks
         } else if (node_count > 6) {
@@ -141,7 +141,7 @@ module auto_config {
 
     // Apply configuration
     fn apply_config(config: [u32; MAX_PARAMS], param_id: u32) -> u32 {
-        let i: u32 = 0;
+        var i: u32 = 0;
         
         while (i < MAX_PARAMS) {
             let current_param_id: u32 = get_param_id(config[i]);
@@ -162,8 +162,8 @@ module auto_config {
 
     // Apply all pending configurations
     fn apply_all_pending(config: [u32; MAX_PARAMS]) -> u32 {
-        let applied_count: u32 = 0;
-        let i: u32 = 0;
+        var applied_count: u32 = 0;
+        var i: u32 = 0;
         
         while (i < MAX_PARAMS) {
             let status: u32 = get_param_status(config[i]);
@@ -222,7 +222,7 @@ module auto_config {
 
     // Auto-optimize configuration
     fn optimize_config(config: [u32; MAX_PARAMS], network_load: u32, error_rate: u32) -> u32 {
-        let optimizations: u32 = 0;
+        var optimizations: u32 = 0;
         
         // Optimize based on network conditions
         if (network_load > 80) {
@@ -257,8 +257,8 @@ module auto_config {
 
     // Sync configuration across nodes
     fn sync_config(local_config: [u32; MAX_PARAMS], remote_config: [u32; MAX_PARAMS]) -> u32 {
-        let synced_count: u32 = 0;
-        let i: u32 = 0;
+        var synced_count: u32 = 0;
+        var i: u32 = 0;
         
         while (i < MAX_PARAMS) {
             let local_param_id: u32 = get_param_id(local_config[i]);
@@ -266,7 +266,7 @@ module auto_config {
             let local_scope: u32 = get_param_scope(local_config[i]);
             
             // Find corresponding remote parameter
-            let j: u32 = 0;
+            var j: u32 = 0;
             while (j < MAX_PARAMS) {
                 let remote_param_id: u32 = get_param_id(remote_config[j]);
                 
@@ -295,8 +295,8 @@ module auto_config {
 
     // Rollback configuration
     fn rollback_config(config: [u32; MAX_PARAMS], backup_config: [u32; MAX_PARAMS]) -> u32 {
-        let rolled_back: u32 = 0;
-        let i: u32 = 0;
+        var rolled_back: u32 = 0;
+        var i: u32 = 0;
         
         while (i < MAX_PARAMS) {
             let backup_param_id: u32 = get_param_id(backup_config[i]);
@@ -304,7 +304,7 @@ module auto_config {
             let backup_scope: u32 = get_param_scope(backup_config[i]);
             
             // Restore from backup
-            let j: u32 = 0;
+            var j: u32 = 0;
             while (j < MAX_PARAMS) {
                 let local_param_id: u32 = get_param_id(config[j]);
                 if (local_param_id == backup_param_id) {
@@ -324,7 +324,7 @@ module auto_config {
     // Create configuration backup
     fn create_backup(config: [u32; MAX_PARAMS]) -> [u32; MAX_PARAMS] {
         let backup: [u32; MAX_PARAMS];
-        let i: u32 = 0;
+        var i: u32 = 0;
         
         while (i < MAX_PARAMS) {
             backup[i] = config[i];
@@ -336,15 +336,15 @@ module auto_config {
 
     // Calculate configuration drift
     fn calculate_config_drift(config1: [u32; MAX_PARAMS], config2: [u32; MAX_PARAMS]) -> u32 {
-        let drift_count: u32 = 0;
-        let total_params: u32 = 0;
-        let i: u32 = 0;
+        var drift_count: u32 = 0;
+        var total_params: u32 = 0;
+        var i: u32 = 0;
         
         while (i < MAX_PARAMS) {
             let param1_id: u32 = get_param_id(config1[i]);
             let param1_value: u32 = get_param_value(config1[i]);
             
-            let j: u32 = 0;
+            var j: u32 = 0;
             while (j < MAX_PARAMS) {
                 let param2_id: u32 = get_param_id(config2[j]);
                 if (param1_id == param2_id) {
@@ -372,8 +372,8 @@ module auto_config {
 
     // Auto-discover neighboring nodes
     fn discover_neighbors(node_id: u32, scan_count: u32) -> u32 {
-        let discovered_count: u32 = 0;
-        let i: u32 = 0;
+        var discovered_count: u32 = 0;
+        var i: u32 = 0;
         
         // Simulate neighbor discovery
         while (i < scan_count) {
@@ -388,7 +388,7 @@ module auto_config {
     // Auto-assign node roles
     fn assign_node_role(node_id: u32, capabilities: u32) -> u32 {
         // Roles: 0=normal, 1=coordinator, 2=relay, 3=edge
-        let role: u32 = 0;
+        var role: u32 = 0;
         
         if (capabilities & 0x1) {
             role = 1; // coordinator capability

@@ -75,7 +75,7 @@ module multipath_routing {
 
     // Count valid paths
     fn count_valid_paths(path_array: u64) -> u32 {
-        let count = 0;
+        var count = 0;
         if (get_path_valid(get_multipath(path_array, 0)) == PATH_VALID) { count = count + 1; }
         if (get_path_valid(get_multipath(path_array, 1)) == PATH_VALID) { count = count + 1; }
         if (get_path_valid(get_multipath(path_array, 2)) == PATH_VALID) { count = count + 1; }
@@ -84,7 +84,7 @@ module multipath_routing {
     }
 
     // Check if multipath routing is viable
-    fn is_multipath_viable(path_array: u64) -> u32 {
+    fn is_multipath_viable(path_array: u64) -> bool {
         return (count_valid_paths(path_array) >= MIN_PATHS);
     }
 
@@ -111,7 +111,7 @@ module multipath_routing {
         let diversity_score = 0;
         
         // Simple diversity calculation: count different first hops
-        let hop1_set = 0;
+        var hop1_set = 0;
         
         if (get_path_valid(get_multipath(path_array, 0)) == PATH_VALID) {
             hop1_set = hop1_set | (1 << get_multipath_hop1(get_multipath(path_array, 0)));
@@ -125,12 +125,12 @@ module multipath_routing {
             hop1_set = hop1_set | (1 << get_multipath_hop1(get_multipath(path_array, 2)));
         }
         
-        if (get_path_valid(get_multipath(path_array, 3)) == path_valid == PATH_VALID) {
+        if (get_path_valid(get_multipath(path_array, 3)) == PATH_VALID) {
             hop1_set = hop1_set | (1 << get_multipath_hop1(get_multipath(path_array, 3)));
         }
         
         // Count bits set
-        let count = 0;
+        var count = 0;
         if ((hop1_set & 0x01) == 0x01) { count = count + 1; }
         if ((hop1_set & 0x02) == 0x02) { count = count + 1; }
         if ((hop1_set & 0x04) == 0x04) { count = count + 1; }
@@ -151,11 +151,11 @@ module multipath_routing {
         }
         
         // Simple round-robin selection
-        let next_path = (current_path + 1) % total_paths;
+        var next_path = (current_path + 1) % total_paths;
         
         // Find next valid path
-        let found = 0;
-        let attempts = 0;
+        var found = 0;
+        var attempts = 0;
         
         while (found == 0 && attempts < 4) {
             if (get_path_valid(get_multipath(path_array, next_path)) == PATH_VALID) {

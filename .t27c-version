@@ -1,0 +1,4 @@
+# Pinned t27c compiler — verified fix commit (optimizer removal #1456 + array/index codegen #1457).
+# gen/rust must be byte-identical to `t27c gen-rust` from this exact commit.
+# repo: https://github.com/gHashTag/t27  branch: fix/faithful-rust-c-codegen-1455
+d7f3a73

@@ -126,7 +126,7 @@ module FaultDetection {
 
     // Count failed nodes in table
     fn count_failed_nodes(table: u64) -> u32 {
-        let count = 0;
+        var count = 0;
         if (is_node_failed(get_node_state(table, 0))) { count = count + 1; }
         if (is_node_failed(get_node_state(table, 1))) { count = count + 1; }
         if (is_node_failed(get_node_state(table, 2))) { count = count + 1; }

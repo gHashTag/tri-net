@@ -109,7 +109,7 @@ module NetworkCoding {
     fn linear_code_packets(pkt1: u32, pkt2: u32, coeff1: u32, coeff2: u32) -> u32 {
         // Simple linear combination: coeff1 * pkt1 + coeff2 * pkt2
         // For T27: use XOR when coefficients are odd
-        let result = 0;
+        var result = 0;
         
         if ((coeff1 & 1) == 1) {
             result = result ^ pkt1;
@@ -139,7 +139,7 @@ module NetworkCoding {
 
     // Count packets in generation
     fn count_generation_packets(gen: u64) -> u32 {
-        let count = 0;
+        var count = 0;
         if (get_coded_packet_gen(gen, 0) != 0) { count = count + 1; }
         if (get_coded_packet_gen(gen, 1) != 0) { count = count + 1; }
         if (get_coded_packet_gen(gen, 2) != 0) { count = count + 1; }

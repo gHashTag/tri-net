@@ -259,12 +259,12 @@ module test_validator {
     // Run full validation
     fn run_validation(errors: [u32; MAX_ERRORS], error_count: u32,
                       warnings: [u32; MAX_WARNINGS], warning_count: u32) -> u32 {
-        let total_errors: u32 = 0;
-        let total_warnings: u32 = 0;
-        let total_info: u32 = 0;
-        let status: u32 = VALIDATION_PASS;
+        var total_errors: u32 = 0;
+        var total_warnings: u32 = 0;
+        var total_info: u32 = 0;
+        var status: u32 = VALIDATION_PASS;
         
-        let i: u32 = 0;
+        var i: u32 = 0;
         while (i < error_count) {
             let severity: u32 = get_error_severity(errors[i]);
             if (severity == SEVERITY_ERROR) {
@@ -319,7 +319,7 @@ module test_validator {
     // Calculate cyclomatic complexity
     fn calculate_complexity(function_length: u32, branch_count: u32, loop_count: u32) -> u32 {
         // Base complexity + branches + loops
-        let complexity: u32 = 1 + branch_count + loop_count;
+        var complexity: u32 = 1 + branch_count + loop_count;
         
         // Adjust for function length
         if (function_length > 100) {

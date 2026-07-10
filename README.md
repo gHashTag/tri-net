@@ -85,16 +85,18 @@ BitNet-ternary benchmark on returned silicon, publish the raw log.
 | M1 static binary size (armv7l musleabihf) | 534 604 B | `smoke/M1_RESULTS.md` |
 | M1 binary sha256 | `e5abc335…7290a` | `smoke/M1_RESULTS.md` |
 | M1 host tests | 20 unit + 2 integration, RC=0 | `cargo test` |
-| Rust `#[test]` blocks in repo | 110 | `grep -rE '^\s*#\[test\]' src tests` |
-| Rust source lines | 4 463 | `find src -name '*.rs' \| xargs wc -l` |
+| Rust `#[test]` blocks in repo | 101 (all in `src/`; `tests/` dir removed 2026-07-07) | `grep -rE '^\s*#\[test\]' src` |
+| Rust source lines | 4 544 | `find src -name '*.rs' \| xargs wc -l` |
 | AD9361 tune target | LO 5.8 GHz | `radio/README.md` |
 | AD9361 FFT peak (1 MHz tone, digital loopback) | +0.999 MHz | `radio/README.md` |
-| AD9361 SNR over noise floor | 108.6 dB (digital loopback only, not over-the-air) | `radio/README.md`; see [W7 finding #5](docs/W7_WEAK_POINTS_STRUCTURAL.md#находка-5) and [REGULATORY_STATUS](docs/REGULATORY_STATUS.md) |
+| AD9361 SNR over noise floor | 108.6 dB (digital loopback only, not over-the-air) | `radio/README.md`; see [W7 finding #5](docs/archive/W7_WEAK_POINTS_STRUCTURAL.md#находка-5) and [REGULATORY_STATUS](docs/REGULATORY_STATUS.md) |
 | AD9361 tuning range | 70 MHz … 6 GHz | `radio/README.md` |
 | Sample rate | 30.72 MHz | `radio/README.md` |
 | Capture length | 65 536 samples | `radio/README.md` |
+
+> Примечание (2026-07-10): файл `radio/README.md` удалён при уборке 2026-07-07; строки AD9361 выше — исторический digital-loopback снимок. Текущее воспроизводимое RF-доказательство: [`docs/W12_E2E_RF_TEST_RESULTS.md`](docs/W12_E2E_RF_TEST_RESULTS.md) (30/30 PASS). Не over-the-air.
 | Connected P203 Mini boards | 3 | User confirmation 2026-07-04 |
-| T27 spec files ported | 1 (`specs/wire.t27`) | `find specs -name '*.t27'` |
+| T27 specs in tree / wired into src | 68 / 1 (`specs/wire.t27`) | `find specs -name '*.t27' \| wc -l` |
 
 ### DePIN tokenomics (contract source, `gHashTag/trinity-contracts`, not yet deployed to mainnet)
 
@@ -134,7 +136,7 @@ BitNet-ternary benchmark on returned silicon, publish the raw log.
 ## Build & test (host)
 
 ```bash
-cargo test              # 20+ unit + 2 integration tests (см. Metrics — 110 test blocks в проекте)
+cargo test              # 101 #[test] blocks, все в src/ (см. Metrics)
 cargo run --bin smoke-m1
 ```
 
@@ -223,11 +225,11 @@ Sister-репозитории: [`gHashTag/t27`](https://github.com/gHashTag/t27)
 ## Key docs
 
 - [`docs/LOCAL_FLASH.md`](docs/LOCAL_FLASH.md) — пошаговая локальная прошивка трёх плат.
-- [`docs/WAVE_DEPIN_2026-07-04.md`](docs/WAVE_DEPIN_2026-07-04.md) — DePIN whitepaper (четыре плеча, tokenomics, positioning).
+- `docs/WAVE_DEPIN_2026-07-04.md` — DePIN whitepaper (в неслитом PR #29, не на `main`).
 - `docs/COMPETITOR_MATRIX_2026-07-04.md` — 10 MANET-конкурентов × 15 полей (в [PR #28](https://github.com/gHashTag/tri-net/pull/28)).
-- [`docs/_recon/DEPIN_COMPETITORS_2026-07-04.md`](docs/_recon/DEPIN_COMPETITORS_2026-07-04.md) — 12 DePIN-сетей × 12 полей.
-- [`docs/WAVE_N3_AUDITABILITY_GAP_2026-07-04.md`](docs/WAVE_N3_AUDITABILITY_GAP_2026-07-04.md) — auditability δ paper.
-- [`docs/STRENGTHEN.md`](docs/STRENGTHEN.md) — science-driven backlog.
+- `docs/_recon/DEPIN_COMPETITORS_2026-07-04.md` — 12 DePIN-сетей × 12 полей (в неслитом PR #29, не на `main`).
+- [`docs/archive/WAVE_N3_AUDITABILITY_GAP_2026-07-04.md`](docs/archive/WAVE_N3_AUDITABILITY_GAP_2026-07-04.md) — auditability δ paper.
+- [`docs/archive/STRENGTHEN.md`](docs/archive/STRENGTHEN.md) — science-driven backlog.
 - [`docs/AUTONOMOUS.md`](docs/AUTONOMOUS.md) — human-merge only policy для agent PR's.
 
 ## License

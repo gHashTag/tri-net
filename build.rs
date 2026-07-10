@@ -24,10 +24,14 @@ fn main() {
                 let gen_path = gen_dir.join(format!("{}.rs", name.to_str().unwrap()));
                 
                 let needs_regen = !gen_path.exists() || {
-                    let spec_time = entry.metadata().map_or(0, |m| m.modified().ok())
-                        .map_or(0, |t| t.elapsed().map_or(0, |d| d.as_secs()));
-                    let gen_time = std::fs::metadata(&gen_path).map_or(0, |m| m.modified().ok())
-                        .map_or(0, |t| t.elapsed().map_or(0, |d| d.as_secs()));
+                    let spec_time = entry.metadata().ok()
+                        .and_then(|m| m.modified().ok())
+                        .and_then(|t| t.elapsed().ok())
+                        .map_or(0, |d| d.as_secs());
+                    let gen_time = std::fs::metadata(&gen_path).ok()
+                        .and_then(|m| m.modified().ok())
+                        .and_then(|t| t.elapsed().ok())
+                        .map_or(0, |d| d.as_secs());
                     spec_time < gen_time // spec is newer
                 };
                 

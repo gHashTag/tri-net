@@ -78,9 +78,9 @@ module performance_profiler {
 
     // Calculate average CPU usage
     fn calculate_average_cpu(samples: [u32; MAX_SAMPLES], sample_count: u32, func_id: u32) -> u32 {
-        let total_cpu: u32 = 0;
-        let matching_samples: u32 = 0;
-        let i: u32 = 0;
+        var total_cpu: u32 = 0;
+        var matching_samples: u32 = 0;
+        var i: u32 = 0;
         
         while (i < sample_count) {
             if (get_sample_function_id(samples[i]) == func_id) {
@@ -99,9 +99,9 @@ module performance_profiler {
 
     // Calculate average memory usage
     fn calculate_average_memory(samples: [u32; MAX_SAMPLES], sample_count: u32, func_id: u32) -> u32 {
-        let total_memory: u32 = 0;
-        let matching_samples: u32 = 0;
-        let i: u32 = 0;
+        var total_memory: u32 = 0;
+        var matching_samples: u32 = 0;
+        var i: u32 = 0;
         
         while (i < sample_count) {
             if (get_sample_function_id(samples[i]) == func_id) {
@@ -120,10 +120,10 @@ module performance_profiler {
 
     // Identify performance hotspots
     fn identify_hotspots(profiles: [u32; MAX_FUNCTIONS], profile_count: u32) -> u32 {
-        let max_calls: u32 = 0;
-        let max_cpu: u32 = 0;
-        let hotspot_func: u32 = 0;
-        let i: u32 = 0;
+        var max_calls: u32 = 0;
+        var max_cpu: u32 = 0;
+        var hotspot_func: u32 = 0;
+        var i: u32 = 0;
         
         while (i < profile_count) {
             let calls: u32 = get_profile_call_count(profiles[i]);
@@ -139,7 +139,7 @@ module performance_profiler {
         }
         
         // Calculate hotspot score
-        let score: u32 = (max_calls * 10) + max_cpu;
+        var score: u32 = (max_calls * 10) + max_cpu;
         if (score > 255) {
             score = 255;
         }
@@ -195,7 +195,7 @@ module performance_profiler {
     // Track memory allocation
     fn track_allocation(allocations: [u32; MAX_SAMPLES], alloc_id: u32, size: u32, pool: u32) -> u32 {
         // Find empty slot
-        let i: u32 = 0;
+        var i: u32 = 0;
         while (i < MAX_SAMPLES) {
             if (get_allocation_id(allocations[i]) == 0) {
                 allocations[i] = create_allocation(alloc_id, size, 255, pool);
@@ -208,8 +208,8 @@ module performance_profiler {
 
     // Calculate total memory usage
     fn calculate_total_memory(allocations: [u32; MAX_SAMPLES], sample_count: u32) -> u32 {
-        let total_memory: u32 = 0;
-        let i: u32 = 0;
+        var total_memory: u32 = 0;
+        var i: u32 = 0;
         
         while (i < sample_count) {
             let size: u32 = get_allocation_size(allocations[i]);
@@ -260,9 +260,9 @@ module performance_profiler {
 
     // Analyze call tree
     fn analyze_call_tree(call_stack: [u32; MAX_SAMPLES], stack_size: u32) -> u32 {
-        let max_depth: u32 = 0;
-        let total_cpu: u32 = 0;
-        let i: u32 = 0;
+        var max_depth: u32 = 0;
+        var total_cpu: u32 = 0;
+        var i: u32 = 0;
         
         while (i < stack_size) {
             let depth: u32 = get_stack_depth(call_stack[i]);
@@ -277,7 +277,7 @@ module performance_profiler {
         }
         
         // Return summary: [max_depth][total_cpu][average_cpu_per_level][0]
-        let avg_cpu: u32 = 0;
+        var avg_cpu: u32 = 0;
         if (max_depth > 0) {
             avg_cpu = total_cpu / max_depth;
         }
@@ -318,10 +318,10 @@ module performance_profiler {
         let overhead: u32 = get_report_overhead(report);
         
         // Recommendations: [optimize_cpu][optimize_memory][reduce_overhead][parallelize]
-        let rec_optimize_cpu: u32 = 0;
+        var rec_optimize_cpu: u32 = 0;
         let rec_optimize_memory: u32 = 0;
-        let rec_reduce_overhead: u32 = 0;
-        let rec_parallelize: u32 = 0;
+        var rec_reduce_overhead: u32 = 0;
+        var rec_parallelize: u32 = 0;
         
         if (total_cpu > 80) {
             rec_optimize_cpu = 1;

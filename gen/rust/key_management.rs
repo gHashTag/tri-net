@@ -32,20 +32,20 @@ pub fn get_key_timestamp(entry: u32) -> u32 {
 }
 
 pub fn create_key_store(k0: u32, k1: u32, k2: u32, k3: u32) -> u64 {
-    return ((((() << 48) | (() << 32)) | (() << 16)) | ());
+    return (((((k0 as u64) << 48) | ((k1 as u64) << 32)) | ((k2 as u64) << 16)) | (k3 as u64));
 }
 
 pub fn get_key_entry(store: u64, index: u32) -> u32 {
     if (index == 0) {
-        return ();
+        return (((store >> 48) & 0xFFFFFFFF) as u32);
     }
     if (index == 1) {
-        return ();
+        return (((store >> 32) & 0xFFFFFFFF) as u32);
     }
     if (index == 2) {
-        return ();
+        return (((store >> 16) & 0xFFFFFFFF) as u32);
     }
-    return ();
+    return ((store & 0xFFFFFFFF) as u32);
 }
 
 pub fn find_key_by_id(store: u64, key_id: u32) -> u32 {
@@ -69,16 +69,16 @@ pub fn find_key_by_id(store: u64, key_id: u32) -> u32 {
 
 pub fn add_key(store: u64, key_id: u32, key_value: u32, timestamp: u32) -> u64 {
     if (get_key_valid(get_key_entry(store, 0)) == KEY_INVALID) {
-        return ((store & 0x0000FFFFFFFFFFFF) | (() << 48));
+        return ((store & 0x0000FFFFFFFFFFFF) | ((create_key_entry(KEY_VALID, key_id, key_value, timestamp) as u64) << 48));
     } else {
         if (get_key_valid(get_key_entry(store, 1)) == KEY_INVALID) {
-            return ((store & 0xFFFF0000FFFFFFFF) | (() << 32));
+            return ((store & 0xFFFF0000FFFFFFFF) | ((create_key_entry(KEY_VALID, key_id, key_value, timestamp) as u64) << 32));
         } else {
             if (get_key_valid(get_key_entry(store, 2)) == KEY_INVALID) {
-                return ((store & 0xFFFFFFFF0000FFFF) | (() << 16));
+                return ((store & 0xFFFFFFFF0000FFFF) | ((create_key_entry(KEY_VALID, key_id, key_value, timestamp) as u64) << 16));
             } else {
                 if (get_key_valid(get_key_entry(store, 3)) == KEY_INVALID) {
-                    return ((store & 0xFFFFFFFFFFFF0000) | ());
+                    return ((store & 0xFFFFFFFFFFFF0000) | (create_key_entry(KEY_VALID, key_id, key_value, timestamp) as u64));
                 }
             }
         }
@@ -87,22 +87,20 @@ pub fn add_key(store: u64, key_id: u32, key_value: u32, timestamp: u32) -> u64 {
 }
 
 pub fn invalidate_key(store: u64, key_id: u32) -> u64 {
-    let;
+    let index = find_key_by_id(store, key_id);
     if (index != 0xFF) {
-        let;
-        entry = get_key_entry(store, index);
-        let;
-        new_entry = create_key_entry(KEY_INVALID, get_key_id(entry), get_key_value(entry), get_key_timestamp(entry));
+        let entry = get_key_entry(store, index);
+        let new_entry = create_key_entry(KEY_INVALID, get_key_id(entry), get_key_value(entry), get_key_timestamp(entry));
         if (index == 0) {
-            return ((store & 0x0000FFFFFFFFFFFF) | (() << 48));
+            return ((store & 0x0000FFFFFFFFFFFF) | ((new_entry as u64) << 48));
         } else {
             if (index == 1) {
-                return ((store & 0xFFFF0000FFFFFFFF) | (() << 32));
+                return ((store & 0xFFFF0000FFFFFFFF) | ((new_entry as u64) << 32));
             } else {
                 if (index == 2) {
-                    return ((store & 0xFFFFFFFF0000FFFF) | (() << 16));
+                    return ((store & 0xFFFFFFFF0000FFFF) | ((new_entry as u64) << 16));
                 } else {
-                    return ((store & 0xFFFFFFFFFFFF0000) | ());
+                    return ((store & 0xFFFFFFFFFFFF0000) | (new_entry as u64));
                 }
             }
         }
@@ -114,26 +112,24 @@ pub fn needs_rotation(entry: u32, current_time: u32) -> bool {
     if (get_key_valid(entry) == KEY_INVALID) {
         return false;
     }
-    let;
-    age = (current_time - get_key_timestamp(entry));
+    let age = (current_time - get_key_timestamp(entry));
     return (age >= ROTATION_INTERVAL);
 }
 
 pub fn rotate_key(store: u64, key_id: u32, new_value: u32, current_time: u32) -> u64 {
-    let;
+    let index = find_key_by_id(store, key_id);
     if (index != 0xFF) {
-        let;
-        new_entry = create_key_entry(KEY_VALID, key_id, new_value, current_time);
+        let new_entry = create_key_entry(KEY_VALID, key_id, new_value, current_time);
         if (index == 0) {
-            return ((store & 0x0000FFFFFFFFFFFF) | (() << 48));
+            return ((store & 0x0000FFFFFFFFFFFF) | ((new_entry as u64) << 48));
         } else {
             if (index == 1) {
-                return ((store & 0xFFFF0000FFFFFFFF) | (() << 32));
+                return ((store & 0xFFFF0000FFFFFFFF) | ((new_entry as u64) << 32));
             } else {
                 if (index == 2) {
-                    return ((store & 0xFFFFFFFF0000FFFF) | (() << 16));
+                    return ((store & 0xFFFFFFFF0000FFFF) | ((new_entry as u64) << 16));
                 } else {
-                    return ((store & 0xFFFFFFFFFFFF0000) | ());
+                    return ((store & 0xFFFFFFFFFFFF0000) | (new_entry as u64));
                 }
             }
         }
@@ -142,35 +138,31 @@ pub fn rotate_key(store: u64, key_id: u32, new_value: u32, current_time: u32) ->
 }
 
 pub fn get_active_key(store: u64) -> u32 {
-    let;
-    let;
+    let mut best_index = 0xFF;
+    let mut best_timestamp = 0;
     if (get_key_valid(get_key_entry(store, 0)) == KEY_VALID) {
-        let;
-        ts = get_key_timestamp(get_key_entry(store, 0));
+        let ts = get_key_timestamp(get_key_entry(store, 0));
         if (ts >= best_timestamp) {
             best_timestamp = ts;
             best_index = 0;
         }
     }
     if (get_key_valid(get_key_entry(store, 1)) == KEY_VALID) {
-        let;
-        ts = get_key_timestamp(get_key_entry(store, 1));
+        let ts = get_key_timestamp(get_key_entry(store, 1));
         if (ts >= best_timestamp) {
             best_timestamp = ts;
             best_index = 1;
         }
     }
     if (get_key_valid(get_key_entry(store, 2)) == KEY_VALID) {
-        let;
-        ts = get_key_timestamp(get_key_entry(store, 2));
+        let ts = get_key_timestamp(get_key_entry(store, 2));
         if (ts >= best_timestamp) {
             best_timestamp = ts;
             best_index = 2;
         }
     }
     if (get_key_valid(get_key_entry(store, 3)) == KEY_VALID) {
-        let;
-        ts = get_key_timestamp(get_key_entry(store, 3));
+        let ts = get_key_timestamp(get_key_entry(store, 3));
         if (ts >= best_timestamp) {
             best_timestamp = ts;
             best_index = 3;
@@ -183,8 +175,7 @@ pub fn get_active_key(store: u64) -> u32 {
 }
 
 pub fn count_valid_keys(store: u64) -> u32 {
-    let;
-    count = 0;
+    let mut count = 0;
     if (get_key_valid(get_key_entry(store, 0)) == KEY_VALID) {
         count = (count + 1);
     }
