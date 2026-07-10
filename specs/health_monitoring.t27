@@ -96,8 +96,8 @@ module HealthMonitoring {
 
     // Calculate overall health status
     fn calculate_overall_health(array: u64) -> u32 {
-        let failed = 0;
-        let warnings = 0;
+        var failed = 0;
+        var warnings = 0;
         
         if (get_check_result(get_health_check(array, 0)) == RESULT_FAIL) { failed = failed + 1; }
         if (get_check_result(get_health_check(array, 1)) == RESULT_FAIL) { failed = failed + 1; }
@@ -128,7 +128,7 @@ module HealthMonitoring {
 
     // Count failed checks
     fn count_failed_checks(array: u64) -> u32 {
-        let count = 0;
+        var count = 0;
         if (get_check_result(get_health_check(array, 0)) == RESULT_FAIL) { count = count + 1; }
         if (get_check_result(get_health_check(array, 1)) == RESULT_FAIL) { count = count + 1; }
         if (get_check_result(get_health_check(array, 2)) == RESULT_FAIL) { count = count + 1; }
@@ -142,7 +142,7 @@ module HealthMonitoring {
 
     // Count warning checks
     fn count_warning_checks(array: u64) -> u32 {
-        let count = 0;
+        var count = 0;
         if (get_check_result(get_health_check(array, 0)) == RESULT_WARN) { count = count + 1; }
         if (get_check_result(get_health_check(array, 1)) == RESULT_WARN) { count = count + 1; }
         if (get_check_result(get_health_check(array, 2)) == RESULT_WARN) { count = count + 1; }
@@ -167,8 +167,8 @@ module HealthMonitoring {
 
     // Get health percentage (passing checks / total checks)
     fn get_health_percentage(array: u64) -> u32 {
-        let total = 0;
-        let passing = 0;
+        var total = 0;
+        var passing = 0;
         
         if (get_check_result(get_health_check(array, 0)) != RESULT_FAIL) { passing = passing + 1; }
         if (get_check_result(get_health_check(array, 0)) != RESULT_SKIP) { total = total + 1; }

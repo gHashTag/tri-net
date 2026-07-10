@@ -1,8 +1,4 @@
-# Pinned t27c compiler version — the ONLY compiler gen/rust may be produced with.
-# gen/rust/*.rs must be byte-identical to `t27c gen-rust` from this exact commit.
-# The drift-guard (.github/workflows/spec-drift-guard.yml) rebuilds t27c at this
-# SHA and fails CI on any difference. Bump this SHA ONLY together with a matching
-# full regen of gen/rust in the same commit.
-#
-# repo: https://github.com/gHashTag/t27
-4832ec6ab7fb1608425fa23122cff5dc1cac7a6f
+# Pinned t27c compiler — verified fix commit (optimizer removal #1456 + array/index codegen #1457).
+# gen/rust must be byte-identical to `t27c gen-rust` from this exact commit.
+# repo: https://github.com/gHashTag/t27  branch: fix/faithful-rust-c-codegen-1455
+d7f3a73

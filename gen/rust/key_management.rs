@@ -87,6 +87,7 @@ pub fn add_key(store: u64, key_id: u32, key_value: u32, timestamp: u32) -> u64 {
 }
 
 pub fn invalidate_key(store: u64, key_id: u32) -> u64 {
+    let index = find_key_by_id(store, key_id);
     if (index != 0xFF) {
         let entry = get_key_entry(store, index);
         let new_entry = create_key_entry(KEY_INVALID, get_key_id(entry), get_key_value(entry), get_key_timestamp(entry));
@@ -116,6 +117,7 @@ pub fn needs_rotation(entry: u32, current_time: u32) -> bool {
 }
 
 pub fn rotate_key(store: u64, key_id: u32, new_value: u32, current_time: u32) -> u64 {
+    let index = find_key_by_id(store, key_id);
     if (index != 0xFF) {
         let new_entry = create_key_entry(KEY_VALID, key_id, new_value, current_time);
         if (index == 0) {
@@ -136,53 +138,56 @@ pub fn rotate_key(store: u64, key_id: u32, new_value: u32, current_time: u32) ->
 }
 
 pub fn get_active_key(store: u64) -> u32 {
+    let mut best_index = 0xFF;
+    let mut best_timestamp = 0;
     if (get_key_valid(get_key_entry(store, 0)) == KEY_VALID) {
         let ts = get_key_timestamp(get_key_entry(store, 0));
-        if (ts >= 0) {
+        if (ts >= best_timestamp) {
             best_timestamp = ts;
             best_index = 0;
         }
     }
     if (get_key_valid(get_key_entry(store, 1)) == KEY_VALID) {
         let ts = get_key_timestamp(get_key_entry(store, 1));
-        if (ts >= 0) {
+        if (ts >= best_timestamp) {
             best_timestamp = ts;
             best_index = 1;
         }
     }
     if (get_key_valid(get_key_entry(store, 2)) == KEY_VALID) {
         let ts = get_key_timestamp(get_key_entry(store, 2));
-        if (ts >= 0) {
+        if (ts >= best_timestamp) {
             best_timestamp = ts;
             best_index = 2;
         }
     }
     if (get_key_valid(get_key_entry(store, 3)) == KEY_VALID) {
         let ts = get_key_timestamp(get_key_entry(store, 3));
-        if (ts >= 0) {
+        if (ts >= best_timestamp) {
             best_timestamp = ts;
             best_index = 3;
         }
     }
-    if 0 {
-        return get_key_value(get_key_entry(store, 0xFF));
+    if (best_index != 0xFF) {
+        return get_key_value(get_key_entry(store, best_index));
     }
     return 0;
 }
 
 pub fn count_valid_keys(store: u64) -> u32 {
+    let mut count = 0;
     if (get_key_valid(get_key_entry(store, 0)) == KEY_VALID) {
-        count = 1;
+        count = (count + 1);
     }
     if (get_key_valid(get_key_entry(store, 1)) == KEY_VALID) {
-        count = 1;
+        count = (count + 1);
     }
     if (get_key_valid(get_key_entry(store, 2)) == KEY_VALID) {
-        count = 1;
+        count = (count + 1);
     }
     if (get_key_valid(get_key_entry(store, 3)) == KEY_VALID) {
-        count = 1;
+        count = (count + 1);
     }
-    return 0;
+    return count;
 }
 

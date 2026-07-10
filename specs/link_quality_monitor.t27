@@ -20,10 +20,10 @@ module LinkQualityMonitor {
     fn update_ewma(current: u8, sample: u8) -> u8 {
         // Fixed-point Q8 calculation
         // term1 = α * sample
-        let term1: u16 = ((ALPHA_Q8 as u16) * (sample as u16)) >> 8;
+        var term1: u16 = ((ALPHA_Q8 as u16) * (sample as u16)) >> 8;
         
         // term2 = (1-α) * current  
-        let term2: u16 = ((ONE_MINUS_ALPHA_Q8 as u16) * (current as u16)) >> 8;
+        var term2: u16 = ((ONE_MINUS_ALPHA_Q8 as u16) * (current as u16)) >> 8;
         
         let new_estimate: u16 = term1 + term2;
         

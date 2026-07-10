@@ -7,14 +7,16 @@ pub const ETX_THRESHOLD_GOOD: u8 = 0x30;
 
 pub const ETX_THRESHOLD_POOR: u8 = 0x60;
 
-pub fn select_path_index(etx_values: Vec<>) -> u8 {
-    let mut;
+pub fn select_path_index(etx_values: [u8; 3 as usize]) -> u8 {
+    let min_etx: u8 = etx_values[0];
+    let mut best_idx: u8 = 0;
 }
 
 pub fn path_quality_score(etx: u8, latency: u16, loss_p8: u8) -> u8 {
     let etx_component: u16 = ((etx as u16) * 7);
-    let latency_component: u16 = ((latency / 10) << 1);
+    let latency_component: u16 = ((latency / 10) * 2);
     let loss_component: u16 = ((loss_p8 as u16) * 1);
+    let total: u16 = (((etx_component + latency_component) + loss_component) / 10);
 }
 
 pub fn needs_failover(current_etx: u8, current_idx: u8, max_paths: u8) -> bool {
@@ -23,7 +25,9 @@ pub fn needs_failover(current_etx: u8, current_idx: u8, max_paths: u8) -> bool {
     (etx_degraded && has_backup);
 }
 
-pub fn next_path_index(current_idx: u8, max_paths: u8) -> u8 { unimplemented!() }
+pub fn next_path_index(current_idx: u8, max_paths: u8) -> u8 {
+    let next: u8 = (current_idx + 1);
+}
 
 pub fn path_reliability(etx: u8, loss_rate: u8) -> u8 {
     let product: u16 = ((etx as u16) * (loss_rate as u16));

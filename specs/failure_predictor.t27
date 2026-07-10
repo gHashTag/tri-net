@@ -148,7 +148,7 @@ module failure_predictor {
         let failure_prob = predict_failure_probability(metrics);
         
         // Adjust by degradation rate
-        let adjusted_risk = failure_prob + degradation_rate;
+        var adjusted_risk = failure_prob + degradation_rate;
         if (adjusted_risk > 100) { adjusted_risk = 100; }
         
         return adjusted_risk;
@@ -165,8 +165,8 @@ module failure_predictor {
 
     // Find most at-risk node
     fn find_most_at_risk(health_array: u64) -> u32 {
-        let highest_risk = 0xFF;
-        let highest_risk_node = 0xFF;
+        var highest_risk = 0xFF;
+        var highest_risk_node = 0xFF;
         
         if (calculate_failure_risk(get_health_metrics(health_array, 0), 0) > highest_risk) {
             highest_risk = calculate_failure_risk(get_health_metrics(health_array, 0), 0);

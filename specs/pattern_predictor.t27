@@ -85,8 +85,8 @@ module pattern_predictor {
 
     // Calculate simple moving average
     fn calculate_moving_average(array: u64, window: u32) -> u32 {
-        let sum = 0;
-        let count = window;
+        var sum = 0;
+        var count = window;
         
         if (count > 16) { count = 16; }
         
@@ -145,7 +145,7 @@ module pattern_predictor {
             return current + 10;
         } else if (trend == 2) {
             // Decreasing trend
-            let predicted = current - 10;
+            var predicted = current - 10;
             if (predicted < 0) { predicted = 0; }
             return predicted;
         } else {
@@ -197,7 +197,7 @@ module pattern_predictor {
         if (samples < 2) { return 0; }
         
         let avg = calculate_moving_average(array, samples);
-        let sum_sq_diff = 0;
+        var sum_sq_diff = 0;
         
         if (samples >= 1) {
             let diff = get_sample_value(get_sample_at(array, 0)) - avg;

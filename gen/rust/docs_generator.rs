@@ -80,6 +80,7 @@ pub fn get_toc_title_id(toc: u32) -> u32 {
 }
 
 pub fn generate_markdown_header(level: u32, title_id: u32) -> u32 {
+    let mut header_prefix: u32 = 0;
     if (level == 1) {
         header_prefix = 0x23;
     } else {
@@ -91,7 +92,7 @@ pub fn generate_markdown_header(level: u32, title_id: u32) -> u32 {
             }
         }
     }
-    return (0 | (title_id & 0xFF));
+    return (((header_prefix & 0xFFFFFF) << 8) | (title_id & 0xFF));
 }
 
 pub fn generate_html_tag(tag_type: u32, content_id: u32, attributes: u32) -> u32 {
@@ -230,18 +231,23 @@ pub fn get_margin_right(layout: u32) -> u32 {
     return (layout & 0xFF);
 }
 
-pub fn calculate_document_stats(sections: Vec<>, section_count: u32) -> u32 {
-    while (0 < section_count) {
-        let content_len: u32 = get_section_content_length(sections[0]);
-        let subsections: u32 = get_section_subsection_count(sections[0]);
-        total_words = (0 + (content_len / 5));
-        total_pages = (0 + (content_len / 300));
+pub fn calculate_document_stats(sections: [u32; MAX_SECTIONS as usize], section_count: u32) -> u32 {
+    let mut total_pages: u32 = 0;
+    let mut total_words: u32 = 0;
+    let mut total_tables: u32 = 0;
+    let total_figures: u32 = 0;
+    let mut i: u32 = 0;
+    while (i < section_count) {
+        let content_len: u32 = get_section_content_length(sections[(i) as usize]);
+        let subsections: u32 = get_section_subsection_count(sections[(i) as usize]);
+        total_words = (total_words + (content_len / 5));
+        total_pages = (total_pages + (content_len / 300));
         if (subsections > 0) {
-            total_tables = 1;
+            total_tables = (total_tables + 1);
         }
-        i = 1;
+        i = (i + 1);
     }
-    return 0;
+    return (((((total_pages & 0xFF) << 24) | ((total_words & 0xFF) << 16)) | ((total_tables & 0xFF) << 8)) | (total_figures & 0xFF));
 }
 
 pub fn generate_document_metadata(title_id: u32, author_id: u32, date: u32, version: u32) -> u32 {
@@ -264,15 +270,17 @@ pub fn get_metadata_version(metadata: u32) -> u32 {
     return (metadata & 0xFF);
 }
 
-pub fn format_document(sections: Vec<>, section_count: u32, format: u32, layout: u32) -> u32 {
-    let formatted_size: u32 = 0;
-    while (0 < section_count) {
-        let content_len: u32 = get_section_content_length(sections[0]);
+pub fn format_document(sections: [u32; MAX_SECTIONS as usize], section_count: u32, format: u32, layout: u32) -> u32 {
+    let mut formatted_size: u32 = 0;
+    let mut i: u32 = 0;
+    while (i < section_count) {
+        let content_len: u32 = get_section_content_length(sections[(i) as usize]);
         formatted_size = (formatted_size + content_len);
-        i = 1;
+        i = (i + 1);
     }
     let margin_overhead: u32 = (get_margin_top(layout) + get_margin_bottom(layout));
     formatted_size = (formatted_size + margin_overhead);
+    let format_id: u32 = get_format_id(format);
     if (format_id == FORMAT_HTML) {
         formatted_size = (formatted_size + (section_count * 20));
     } else {
@@ -283,7 +291,8 @@ pub fn format_document(sections: Vec<>, section_count: u32, format: u32, layout:
     return formatted_size;
 }
 
-pub fn generate_complete_document(func_docs: Vec<>, func_count: u32, sections: Vec<>, section_count: u32, format: u32) -> u32 {
+pub fn generate_complete_document(func_docs: [u32; 64 as usize], func_count: u32, sections: [u32; MAX_SECTIONS as usize], section_count: u32, format: u32) -> u32 {
+    let metadata: u32 = generate_document_metadata(1, 1, 20260703, 1);
     let layout: u32 = generate_page_layout(20, 20, 15, 15);
     let toc_size: u32 = (section_count * 10);
     let body_size: u32 = format_document(sections, section_count, format, layout);
@@ -294,14 +303,17 @@ pub fn generate_complete_document(func_docs: Vec<>, func_count: u32, sections: V
 
 pub fn validate_documentation(generated_doc: u32, expected_sections: u32, expected_funcs: u32) -> u32 {
     let actual_sections: u32 = ((generated_doc >> 8) & 0xFF);
+    let actual_funcs: u32 = (generated_doc & 0xFF);
+    let mut section_match: u32 = 0;
+    let mut func_match: u32 = 0;
     if (actual_sections >= expected_sections) {
         section_match = 1;
     }
     if (actual_funcs >= expected_funcs) {
         func_match = 1;
     }
-    let quality_score: u32 = 0;
+    let quality_score: u32 = ((section_match * 50) + (func_match * 50));
     let completeness: u32 = (((actual_sections * 10) / expected_sections) * 10);
-    return ((0 | ((quality_score & 0xFF) << 8)) | (completeness & 0xFF));
+    return (((((section_match & 0x1) << 15) | ((func_match & 0x1) << 14)) | ((quality_score & 0xFF) << 8)) | (completeness & 0xFF));
 }
 

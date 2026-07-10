@@ -86,7 +86,10 @@ pub fn calculate_fair_share(total_bw: u32, flow_count: u32) -> u32 {
 }
 
 pub fn allocate_bandwidth(state: u32, flow_req: u32, available_bw: u32) -> u32 {
+    let priority = get_flow_priority(flow_req);
+    let min_bw = get_min_bandwidth(flow_req);
     let allocated = get_allocated_bw(state);
+    let mut allocation = 0;
     if (priority == 0) {
         allocation = (min_bw + ((available_bw * 7) / 10));
     } else {
@@ -96,16 +99,16 @@ pub fn allocate_bandwidth(state: u32, flow_req: u32, available_bw: u32) -> u32 {
             allocation = min_bw;
         }
     }
-    if (0 > available_bw) {
+    if (allocation > available_bw) {
         allocation = available_bw;
     }
-    if (0 > MAX_BANDWIDTH) {
+    if (allocation > MAX_BANDWIDTH) {
         allocation = MAX_BANDWIDTH;
     }
-    if (0 < min_bw) {
+    if (allocation < min_bw) {
         allocation = min_bw;
     }
-    let new_allocated = (allocated + 0);
+    let new_allocated = (allocated + allocation);
     let pending = get_pending_requests(state);
     let fair_share = get_fair_share(state);
     let update = get_last_update(state);
@@ -132,65 +135,69 @@ pub fn update_flow_bandwidth(flow_req: u32, new_bw: u32) -> u32 {
 }
 
 pub fn count_active_flows(flow_array: u64) -> u32 {
+    let mut count = 0;
     if (get_current_bandwidth(get_flow_req(flow_array, 0)) > 0) {
-        count = 1;
+        count = (count + 1);
     }
     if (get_current_bandwidth(get_flow_req(flow_array, 1)) > 0) {
-        count = 1;
+        count = (count + 1);
     }
     if (get_current_bandwidth(get_flow_req(flow_array, 2)) > 0) {
-        count = 1;
+        count = (count + 1);
     }
     if (get_current_bandwidth(get_flow_req(flow_array, 3)) > 0) {
-        count = 1;
+        count = (count + 1);
     }
     if (get_current_bandwidth(get_flow_req(flow_array, 4)) > 0) {
-        count = 1;
+        count = (count + 1);
     }
     if (get_current_bandwidth(get_flow_req(flow_array, 5)) > 0) {
-        count = 1;
+        count = (count + 1);
     }
     if (get_current_bandwidth(get_flow_req(flow_array, 6)) > 0) {
-        count = 1;
+        count = (count + 1);
     }
     if (get_current_bandwidth(get_flow_req(flow_array, 7)) > 0) {
-        count = 1;
+        count = (count + 1);
     }
-    return 0;
+    return count;
 }
 
 pub fn find_reclaimable_bandwidth(state: u32, flow_array: u64) -> u32 {
+    let allocated = get_allocated_bw(state);
+    let mut total_used = 0;
     if (get_current_bandwidth(get_flow_req(flow_array, 0)) > 0) {
-        total_used = (0 + get_current_bandwidth(get_flow_req(flow_array, 0)));
+        total_used = (total_used + get_current_bandwidth(get_flow_req(flow_array, 0)));
     }
     if (get_current_bandwidth(get_flow_req(flow_array, 1)) > 0) {
-        total_used = (0 + get_current_bandwidth(get_flow_req(flow_array, 1)));
+        total_used = (total_used + get_current_bandwidth(get_flow_req(flow_array, 1)));
     }
     if (get_current_bandwidth(get_flow_req(flow_array, 2)) > 0) {
-        total_used = (0 + get_current_bandwidth(get_flow_req(flow_array, 2)));
+        total_used = (total_used + get_current_bandwidth(get_flow_req(flow_array, 2)));
     }
     if (get_current_bandwidth(get_flow_req(flow_array, 3)) > 0) {
-        total_used = (0 + get_current_bandwidth(get_flow_req(flow_array, 3)));
+        total_used = (total_used + get_current_bandwidth(get_flow_req(flow_array, 3)));
     }
     if (get_current_bandwidth(get_flow_req(flow_array, 4)) > 0) {
-        total_used = (0 + get_current_bandwidth(get_flow_req(flow_array, 4)));
+        total_used = (total_used + get_current_bandwidth(get_flow_req(flow_array, 4)));
     }
     if (get_current_bandwidth(get_flow_req(flow_array, 5)) > 0) {
-        total_used = (0 + get_current_bandwidth(get_flow_req(flow_array, 5)));
+        total_used = (total_used + get_current_bandwidth(get_flow_req(flow_array, 5)));
     }
     if (get_current_bandwidth(get_flow_req(flow_array, 6)) > 0) {
-        total_used = (0 + get_current_bandwidth(get_flow_req(flow_array, 6)));
+        total_used = (total_used + get_current_bandwidth(get_flow_req(flow_array, 6)));
     }
     if (get_current_bandwidth(get_flow_req(flow_array, 7)) > 0) {
-        total_used = (0 + get_current_bandwidth(get_flow_req(flow_array, 7)));
+        total_used = (total_used + get_current_bandwidth(get_flow_req(flow_array, 7)));
     }
-    if (allocated > 0) {
-        return (allocated - 0);
+    if (allocated > total_used) {
+        return (allocated - total_used);
     }
     return 0;
 }
 
 pub fn prioritize_bandwidth(flow_array: u64, available_bw: u32) -> u64 {
+    let remaining_bw = available_bw;
     let f0 = get_flow_req(flow_array, 0);
     let f1 = get_flow_req(flow_array, 1);
     let f2 = get_flow_req(flow_array, 2);
@@ -199,6 +206,6 @@ pub fn prioritize_bandwidth(flow_array: u64, available_bw: u32) -> u64 {
     let f5 = get_flow_req(flow_array, 5);
     let f6 = get_flow_req(flow_array, 6);
     let f7 = get_flow_req(flow_array, 7);
-    return create_flow_array(update_flow_bandwidth(f0, calculate_fair_share(available_bw, 8)), update_flow_bandwidth(f1, calculate_fair_share(available_bw, 8)), update_flow_bandwidth(f2, calculate_fair_share(available_bw, 8)), update_flow_bandwidth(f3, calculate_fair_share(available_bw, 8)), update_flow_bandwidth(f4, calculate_fair_share(available_bw, 8)), update_flow_bandwidth(f5, calculate_fair_share(available_bw, 8)), update_flow_bandwidth(f6, calculate_fair_share(available_bw, 8)), update_flow_bandwidth(f7, calculate_fair_share(available_bw, 8)));
+    return create_flow_array(update_flow_bandwidth(f0, calculate_fair_share(remaining_bw, 8)), update_flow_bandwidth(f1, calculate_fair_share(remaining_bw, 8)), update_flow_bandwidth(f2, calculate_fair_share(remaining_bw, 8)), update_flow_bandwidth(f3, calculate_fair_share(remaining_bw, 8)), update_flow_bandwidth(f4, calculate_fair_share(remaining_bw, 8)), update_flow_bandwidth(f5, calculate_fair_share(remaining_bw, 8)), update_flow_bandwidth(f6, calculate_fair_share(remaining_bw, 8)), update_flow_bandwidth(f7, calculate_fair_share(remaining_bw, 8)));
 }
 

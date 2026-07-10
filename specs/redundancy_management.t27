@@ -110,7 +110,7 @@ module RedundancyManagement {
 
     // Count valid paths
     fn count_valid_paths(path_set: u64) -> u32 {
-        let count = 0;
+        var count = 0;
         if (get_path_valid(get_path(path_set, 0)) == PATH_VALID) { count = count + 1; }
         if (get_path_valid(get_path(path_set, 1)) == PATH_VALID) { count = count + 1; }
         if (get_path_valid(get_path(path_set, 2)) == PATH_VALID) { count = count + 1; }
@@ -125,7 +125,7 @@ module RedundancyManagement {
 
     // Get path hop count (non-zero hops)
     fn get_hop_count(path: u32) -> u32 {
-        let count = 0;
+        var count = 0;
         if (get_hop1(path) != 0) { count = count + 1; }
         if (get_hop2(path) != 0) { count = count + 1; }
         if (get_hop3(path) != 0) { count = count + 1; }
@@ -134,8 +134,8 @@ module RedundancyManagement {
 
     // Find shortest valid path (by hop count)
     fn find_shortest_path(path_set: u64) -> u32 {
-        let best_path = 0xFF;
-        let best_hops = 255;
+        var best_path = 0xFF;
+        var best_hops = 255;
 
         if (get_path_valid(get_path(path_set, 0)) == PATH_VALID) {
             let hops = get_hop_count(get_path(path_set, 0));

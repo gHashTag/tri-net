@@ -69,22 +69,23 @@ pub fn get_multipath(array: u64, index: u32) -> u32 {
 }
 
 pub fn count_valid_paths(path_array: u64) -> u32 {
+    let mut count = 0;
     if (get_path_valid(get_multipath(path_array, 0)) == PATH_VALID) {
-        count = 1;
+        count = (count + 1);
     }
     if (get_path_valid(get_multipath(path_array, 1)) == PATH_VALID) {
-        count = 1;
+        count = (count + 1);
     }
     if (get_path_valid(get_multipath(path_array, 2)) == PATH_VALID) {
-        count = 1;
+        count = (count + 1);
     }
     if (get_path_valid(get_multipath(path_array, 3)) == PATH_VALID) {
-        count = 1;
+        count = (count + 1);
     }
-    return 0;
+    return count;
 }
 
-pub fn is_multipath_viable(path_array: u64) -> u32 {
+pub fn is_multipath_viable(path_array: u64) -> bool {
     return (count_valid_paths(path_array) >= MIN_PATHS);
 }
 
@@ -108,43 +109,46 @@ pub fn select_primary_path(path_array: u64, quality_array: u64) -> u32 {
 }
 
 pub fn calculate_path_diversity(path_array: u64) -> u32 {
+    let diversity_score = 0;
+    let mut hop1_set = 0;
     if (get_path_valid(get_multipath(path_array, 0)) == PATH_VALID) {
-        hop1_set = (0 | (1 << get_multipath_hop1(get_multipath(path_array, 0))));
+        hop1_set = (hop1_set | (1 << get_multipath_hop1(get_multipath(path_array, 0))));
     }
     if (get_path_valid(get_multipath(path_array, 1)) == PATH_VALID) {
-        hop1_set = (0 | (1 << get_multipath_hop1(get_multipath(path_array, 1))));
+        hop1_set = (hop1_set | (1 << get_multipath_hop1(get_multipath(path_array, 1))));
     }
     if (get_path_valid(get_multipath(path_array, 2)) == PATH_VALID) {
-        hop1_set = (0 | (1 << get_multipath_hop1(get_multipath(path_array, 2))));
+        hop1_set = (hop1_set | (1 << get_multipath_hop1(get_multipath(path_array, 2))));
     }
-    if ((get_path_valid(get_multipath(path_array, 3)) == path_valid) == PATH_VALID) {
-        hop1_set = (0 | (1 << get_multipath_hop1(get_multipath(path_array, 3))));
+    if (get_path_valid(get_multipath(path_array, 3)) == PATH_VALID) {
+        hop1_set = (hop1_set | (1 << get_multipath_hop1(get_multipath(path_array, 3))));
     }
-    if 0 {
-        count = 1;
+    let mut count = 0;
+    if ((hop1_set & 0x01) == 0x01) {
+        count = (count + 1);
     }
-    if 0 {
-        count = 1;
+    if ((hop1_set & 0x02) == 0x02) {
+        count = (count + 1);
     }
-    if 0 {
-        count = 1;
+    if ((hop1_set & 0x04) == 0x04) {
+        count = (count + 1);
     }
-    if 0 {
-        count = 1;
+    if ((hop1_set & 0x08) == 0x08) {
+        count = (count + 1);
     }
-    if 0 {
-        count = 1;
+    if ((hop1_set & 0x10) == 0x10) {
+        count = (count + 1);
     }
-    if 0 {
-        count = 1;
+    if ((hop1_set & 0x20) == 0x20) {
+        count = (count + 1);
     }
-    if 0 {
-        count = 1;
+    if ((hop1_set & 0x40) == 0x40) {
+        count = (count + 1);
     }
-    if 0 {
-        count = 1;
+    if ((hop1_set & 0x80) == 0x80) {
+        count = (count + 1);
     }
-    return 0;
+    return count;
 }
 
 pub fn distribute_load(path_array: u64, current_path: u32, load_ratio: u32) -> u32 {
@@ -152,15 +156,18 @@ pub fn distribute_load(path_array: u64, current_path: u32, load_ratio: u32) -> u
     if (total_paths < 2) {
         return current_path;
     }
-    while (1 && 1) {
+    let mut next_path = ((current_path + 1) % total_paths);
+    let mut found = 0;
+    let mut attempts = 0;
+    while ((found == 0) && (attempts < 4)) {
         if (get_path_valid(get_multipath(path_array, next_path)) == PATH_VALID) {
             found = 1;
         } else {
             next_path = ((next_path + 1) % 4);
-            attempts = 1;
+            attempts = (attempts + 1);
         }
     }
-    if 0 {
+    if (found == 1) {
         return next_path;
     }
     return current_path;
@@ -174,6 +181,9 @@ pub fn needs_failover(path_array: u64, current_path: u32) -> bool {
 }
 
 pub fn perform_failover(state: u32, path_array: u64, failed_path: u32) -> u32 {
+    let active = get_active_paths(state);
+    let current = get_current_path(state);
+    let flow = get_flow_id(state);
     if needs_failover(path_array, current) {
         let backup = distribute_load(path_array, current, 0);
         if ((backup != current) && (backup != 0xFF)) {
@@ -184,6 +194,7 @@ pub fn perform_failover(state: u32, path_array: u64, failed_path: u32) -> u32 {
 }
 
 pub fn calculate_multipath_gain(path_array: u64) -> u32 {
+    let valid_paths = count_valid_paths(path_array);
     if (valid_paths >= 2) {
         return (valid_paths * 30);
     }

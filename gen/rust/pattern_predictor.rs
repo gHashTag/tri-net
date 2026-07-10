@@ -64,39 +64,42 @@ pub fn get_sample_at(array: u64, index: u32) -> u32 {
 }
 
 pub fn calculate_moving_average(array: u64, window: u32) -> u32 {
-    let sum = 0;
-    if (window > 16) {
+    let mut sum = 0;
+    let mut count = window;
+    if (count > 16) {
         count = 16;
     }
     sum = (sum + get_sample_value(get_sample_at(array, 0)));
     sum = (sum + get_sample_value(get_sample_at(array, 1)));
     sum = (sum + get_sample_value(get_sample_at(array, 2)));
     sum = (sum + get_sample_value(get_sample_at(array, 3)));
-    if (window > 4) {
+    if (count > 4) {
         sum = (sum + get_sample_value(get_sample_at(array, 4)));
         sum = (sum + get_sample_value(get_sample_at(array, 5)));
         sum = (sum + get_sample_value(get_sample_at(array, 6)));
         sum = (sum + get_sample_value(get_sample_at(array, 7)));
     }
-    if (window > 8) {
+    if (count > 8) {
         sum = (sum + get_sample_value(get_sample_at(array, 8)));
         sum = (sum + get_sample_value(get_sample_at(array, 9)));
         sum = (sum + get_sample_value(get_sample_at(array, 10)));
         sum = (sum + get_sample_value(get_sample_at(array, 11)));
     }
-    if (window > 12) {
+    if (count > 12) {
         sum = (sum + get_sample_value(get_sample_at(array, 12)));
         sum = (sum + get_sample_value(get_sample_at(array, 13)));
         sum = (sum + get_sample_value(get_sample_at(array, 14)));
         sum = (sum + get_sample_value(get_sample_at(array, 15)));
     }
-    return (sum / window);
+    return (sum / count);
 }
 
 pub fn detect_trend(array: u64, samples: u32) -> u32 {
     if (samples < 2) {
         return 0;
     }
+    let first = get_sample_value(get_sample_at(array, 0));
+    let last = get_sample_value(get_sample_at(array, (samples - 1)));
     if (last > (first + 5)) {
         return 1;
     } else {
@@ -109,11 +112,13 @@ pub fn detect_trend(array: u64, samples: u32) -> u32 {
 }
 
 pub fn predict_next_value(array: u64, samples: u32) -> u32 {
+    let trend = detect_trend(array, samples);
+    let current = get_sample_value(get_sample_at(array, (samples - 1)));
     if (trend == 1) {
         return (current + 10);
     } else {
         if (trend == 2) {
-            let predicted = (current - 10);
+            let mut predicted = (current - 10);
             if (predicted < 0) {
                 predicted = 0;
             }
@@ -125,6 +130,7 @@ pub fn predict_next_value(array: u64, samples: u32) -> u32 {
 }
 
 pub fn is_anomalous(array: u64, samples: u32, current_value: u32) -> u32 {
+    let predicted = predict_next_value(array, samples);
     if (predicted > current_value) {
         return (predicted - current_value);
     } else {
@@ -136,6 +142,10 @@ pub fn detect_repeating_pattern(array: u64, samples: u32) -> u32 {
     if (samples < 4) {
         return 0;
     }
+    let v0 = get_sample_value(get_sample_at(array, 0));
+    let v1 = get_sample_value(get_sample_at(array, 1));
+    let v2 = get_sample_value(get_sample_at(array, 2));
+    let v3 = get_sample_value(get_sample_at(array, 3));
     if (((v0 == v2) && (v1 == v3)) && (v0 != v1)) {
         return 1;
     }
@@ -153,25 +163,27 @@ pub fn calculate_variance(array: u64, samples: u32) -> u32 {
     if (samples < 2) {
         return 0;
     }
+    let avg = calculate_moving_average(array, samples);
+    let mut sum_sq_diff = 0;
     if (samples >= 1) {
         let diff = (get_sample_value(get_sample_at(array, 0)) - avg);
-        sum_sq_diff = (0 + (diff * diff));
+        sum_sq_diff = (sum_sq_diff + (diff * diff));
     }
     if (samples >= 2) {
         let diff = (get_sample_value(get_sample_at(array, 1)) - avg);
-        sum_sq_diff = (0 + (diff * diff));
+        sum_sq_diff = (sum_sq_diff + (diff * diff));
     }
     if (samples >= 3) {
         let diff = (get_sample_value(get_sample_at(array, 2)) - avg);
-        sum_sq_diff = (0 + (diff * diff));
+        sum_sq_diff = (sum_sq_diff + (diff * diff));
     }
     if (samples >= 4) {
         let diff = (get_sample_value(get_sample_at(array, 3)) - avg);
-        sum_sq_diff = (0 + (diff * diff));
+        sum_sq_diff = (sum_sq_diff + (diff * diff));
     }
     if (samples < 2) {
         return 0;
     }
-    return (0 / samples);
+    return (sum_sq_diff / samples);
 }
 

@@ -92,9 +92,11 @@ pub fn get_example_explanation(example: u32) -> u32 {
 pub fn generate_function_example(func_doc: u32) -> u32 {
     let func_id: u32 = get_doc_function_id(func_doc);
     let param_count: u32 = get_doc_param_count(func_doc);
+    let return_type: u32 = get_doc_return_type(func_doc);
     let example_input: u32 = (param_count * 10);
     let example_output: u32 = (example_input + 5);
-    return create_function_example(func_id, example_input, example_output, 1);
+    let explanation: u32 = 1;
+    return create_function_example(func_id, example_input, example_output, explanation);
 }
 
 pub fn create_description_text(desc_id: u32, length: u32, importance: u32, category: u32) -> u32 {
@@ -119,11 +121,15 @@ pub fn get_description_category(desc: u32) -> u32 {
 
 pub fn generate_function_description(func_doc: u32, complexity: u32) -> u32 {
     let func_id: u32 = get_doc_function_id(func_doc);
-    let desc_length: u32 = (50 + (complexity * 10));
+    let param_count: u32 = get_doc_param_count(func_doc);
+    let return_type: u32 = get_doc_return_type(func_doc);
+    let mut desc_length: u32 = (50 + (complexity * 10));
     if (desc_length > 255) {
         desc_length = 255;
     }
-    return create_description_text(func_id, desc_length, 1, 0);
+    let importance: u32 = 1;
+    let category: u32 = 0;
+    return create_description_text(func_id, desc_length, importance, category);
 }
 
 pub fn create_cross_reference(source: u32, target: u32, ref_type: u32, strength: u32) -> u32 {
@@ -178,29 +184,34 @@ pub fn get_module_description(module_doc: u32) -> u32 {
     return (module_doc & 0xFF);
 }
 
-pub fn calculate_average_complexity(func_docs: Vec<>, func_count: u32) -> u32 {
-    while (0 < func_count) {
-        total_complexity = (0 + get_doc_complexity(func_docs[0]));
-        i = 1;
+pub fn calculate_average_complexity(func_docs: [u32; MAX_FUNCTIONS as usize], func_count: u32) -> u32 {
+    let mut total_complexity: u32 = 0;
+    let mut i: u32 = 0;
+    while (i < func_count) {
+        total_complexity = (total_complexity + get_doc_complexity(func_docs[(i) as usize]));
+        i = (i + 1);
     }
     if (func_count > 0) {
-        return (0 / func_count);
+        return (total_complexity / func_count);
     } else {
         return 0;
     }
 }
 
-pub fn generate_api_documentation(func_docs: Vec<>, func_count: u32, param_docs: Vec<>, param_count: u32) -> u32 {
-    while (0 < func_count) {
-        let func_doc: u32 = func_docs[0];
-        total_complexity = (0 + get_doc_complexity(func_doc));
+pub fn generate_api_documentation(func_docs: [u32; MAX_FUNCTIONS as usize], func_count: u32, param_docs: [u32; MAX_PARAMETERS as usize], param_count: u32) -> u32 {
+    let mut total_complexity: u32 = 0;
+    let mut documented_funcs: u32 = 0;
+    let mut i: u32 = 0;
+    while (i < func_count) {
+        let func_doc: u32 = func_docs[(i) as usize];
+        total_complexity = (total_complexity + get_doc_complexity(func_doc));
         let description: u32 = generate_function_description(func_doc, get_doc_complexity(func_doc));
         let example: u32 = generate_function_example(func_doc);
-        documented_funcs = 1;
-        i = 1;
+        documented_funcs = (documented_funcs + 1);
+        i = (i + 1);
     }
     let avg_complexity: u32 = calculate_average_complexity(func_docs, func_count);
-    return ((0 | ((avg_complexity & 0xFF) << 8)) | (param_count & 0xFF));
+    return (((((documented_funcs & 0xFF) << 24) | ((total_complexity & 0xFF) << 16)) | ((avg_complexity & 0xFF) << 8)) | (param_count & 0xFF));
 }
 
 pub fn calculate_documentation_coverage(documented_funcs: u32, total_funcs: u32) -> u32 {
@@ -218,47 +229,56 @@ pub fn generate_usage_example(func_doc: u32, context: u32) -> u32 {
     return create_function_example(func_id, usage_pattern, (usage_pattern + 10), 2);
 }
 
-pub fn create_dependency_graph(xrefs: Vec<>, xref_count: u32) -> u32 {
-    while (0 < xref_count) {
-        let strength: u32 = get_xref_strength(xrefs[0]);
-        total_connections = 1;
+pub fn create_dependency_graph(xrefs: [u32; MAX_FUNCTIONS as usize], xref_count: u32) -> u32 {
+    let mut total_connections: u32 = 0;
+    let mut strong_connections: u32 = 0;
+    let mut i: u32 = 0;
+    while (i < xref_count) {
+        let strength: u32 = get_xref_strength(xrefs[(i) as usize]);
+        total_connections = (total_connections + 1);
         if (strength > 70) {
-            strong_connections = 1;
+            strong_connections = (strong_connections + 1);
         }
-        i = 1;
+        i = (i + 1);
     }
-    if 0 {
-        avg_strength = (0 / 0);
+    let mut avg_strength: u32 = 0;
+    if (total_connections > 0) {
+        avg_strength = (strong_connections / total_connections);
     }
-    return (0 | (xref_count & 0xFF));
+    return (((((total_connections & 0xFF) << 24) | ((strong_connections & 0xFF) << 16)) | ((avg_strength & 0xFF) << 8)) | (xref_count & 0xFF));
 }
 
-pub fn validate_documentation(func_docs: Vec<>, func_count: u32) -> u32 {
-    while (0 < func_count) {
-        let func_doc: u32 = func_docs[0];
+pub fn validate_documentation(func_docs: [u32; MAX_FUNCTIONS as usize], func_count: u32) -> u32 {
+    let mut missing_descriptions: u32 = 0;
+    let missing_examples: u32 = 0;
+    let mut missing_params: u32 = 0;
+    let mut i: u32 = 0;
+    while (i < func_count) {
+        let func_doc: u32 = func_docs[(i) as usize];
         let complexity: u32 = get_doc_complexity(func_doc);
         if (complexity == 0) {
-            missing_descriptions = 1;
+            missing_descriptions = (missing_descriptions + 1);
         }
         let param_count: u32 = get_doc_param_count(func_doc);
-        if ((param_count == 0) && 0) {
-            missing_params = 1;
+        if ((param_count == 0) && (i > 0)) {
+            missing_params = (missing_params + 1);
         }
-        i = 1;
+        i = (i + 1);
     }
-    let quality_score: u32 = 100;
+    let mut quality_score: u32 = (100 - ((missing_descriptions * 10) + (missing_params * 5)));
     if (quality_score > 100) {
         quality_score = 100;
     }
-    return (0 | (quality_score & 0xFF));
+    return (((((missing_descriptions & 0xFF) << 24) | ((missing_examples & 0xFF) << 16)) | ((missing_params & 0xFF) << 8)) | (quality_score & 0xFF));
 }
 
-pub fn generate_documentation_report(func_docs: Vec<>, func_count: u32, xrefs: Vec<>, xref_count: u32) -> u32 {
+pub fn generate_documentation_report(func_docs: [u32; MAX_FUNCTIONS as usize], func_count: u32, xrefs: [u32; MAX_FUNCTIONS as usize], xref_count: u32) -> u32 {
     let doc_summary: u32 = generate_api_documentation(func_docs, func_count, func_docs, 0);
     let documented_funcs: u32 = ((doc_summary >> 24) & 0xFF);
     let coverage: u32 = calculate_documentation_coverage(documented_funcs, func_count);
     let validation: u32 = validate_documentation(func_docs, func_count);
     let quality_score: u32 = (validation & 0xFF);
+    let dependency_graph: u32 = create_dependency_graph(xrefs, xref_count);
     let doc_complexity: u32 = ((doc_summary >> 8) & 0xFF);
     return (((((coverage & 0xFF) << 24) | ((quality_score & 0xFF) << 16)) | ((doc_complexity & 0xFF) << 8)) | (xref_count & 0xFF));
 }

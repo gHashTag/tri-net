@@ -87,7 +87,7 @@ module network_simulator {
         let energy: u32 = get_node_energy(state);
         let position: u32 = get_node_position(state);
         
-        let new_energy: u32 = energy;
+        var new_energy: u32 = energy;
         if (energy_delta > energy) {
             new_energy = 0;
         } else {
@@ -95,7 +95,7 @@ module network_simulator {
         }
         
         // Check if node failed due to low energy
-        let new_status: u32 = status;
+        var new_status: u32 = status;
         if (new_energy == 0 && status == NODE_ACTIVE) {
             new_status = NODE_FAILED;
         }
@@ -295,7 +295,7 @@ module network_simulator {
     // Create network topology
     fn create_topology(node_count: u32, density: u32) -> u32 {
         // Simple topology creation based on density
-        let link_count: u32 = (node_count * density) / 100;
+        var link_count: u32 = (node_count * density) / 100;
         
         if (link_count > (node_count * (node_count - 1)) / 2) {
             link_count = (node_count * (node_count - 1)) / 2;
@@ -322,8 +322,8 @@ module network_simulator {
     fn run_simulation_step(state: u32, events: [u32; MAX_EVENTS], event_count: u32,
                           node_states: [u32; MAX_NODES], link_states: [u32; MAX_NODES]) -> u32 {
         let current_time: u32 = get_sim_time(state);
-        let processed_count: u32 = 0;
-        let i: u32 = 0;
+        var processed_count: u32 = 0;
+        var i: u32 = 0;
         
         while (i < event_count) {
             let event_time: u32 = get_event_timestamp(events[i]);

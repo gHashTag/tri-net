@@ -66,9 +66,12 @@ pub fn get_visibility(sig: u32) -> u32 {
 }
 
 pub fn validate_function_signature(sig: u32) -> u32 {
+    let func_id: u32 = get_sig_function_id(sig);
+    let param_count: u32 = get_param_count(sig);
     if (param_count > 8) {
         return create_validation_error(func_id, ERROR_CONSTRAINT_VIOLATION, 0, SEVERITY_ERROR);
     }
+    let return_type: u32 = get_return_type(sig);
     if (return_type > 3) {
         return create_validation_error(func_id, ERROR_TYPE_MISMATCH, 0, SEVERITY_ERROR);
     }
@@ -128,6 +131,7 @@ pub fn check_no_dynamic_arrays(line_content: u32) -> u32 {
 }
 
 pub fn check_integer_only(line_content: u32) -> u32 {
+    let has_float: u32 = ((line_content >> 8) & 0xF);
     if (has_float == 1) {
         return create_constraint_check(CONSTRAINT_INTEGER_ONLY, CONSTRAINT_FAIL, 4, 0);
     } else {
@@ -156,6 +160,8 @@ pub fn get_type_line(check: u32) -> u32 {
 }
 
 pub fn perform_type_check(check: u32) -> u32 {
+    let declared: u32 = get_declared_type(check);
+    let inferred: u32 = get_inferred_type(check);
     if (declared == inferred) {
         return 0;
     } else {
@@ -184,6 +190,7 @@ pub fn get_last_use(check: u32) -> u32 {
 }
 
 pub fn check_unused_variable(check: u32) -> u32 {
+    let usage_count: u32 = get_usage_count(check);
     if (usage_count == 0) {
         return create_validation_error(get_unused_var_id(check), ERROR_UNUSED_VARIABLE, get_first_use(check), SEVERITY_WARNING);
     } else {
@@ -217,32 +224,38 @@ pub const VALIDATION_FAIL: u32 = 1;
 
 pub const VALIDATION_WARNING: u32 = 2;
 
-pub fn run_validation(errors: Vec<>, error_count: u32, warnings: Vec<>, warning_count: u32) -> u32 {
+pub fn run_validation(errors: [u32; MAX_ERRORS as usize], error_count: u32, warnings: [u32; MAX_WARNINGS as usize], warning_count: u32) -> u32 {
+    let mut total_errors: u32 = 0;
+    let mut total_warnings: u32 = 0;
+    let mut total_info: u32 = 0;
+    let mut status: u32 = VALIDATION_PASS;
+    let mut i: u32 = 0;
     while (i < error_count) {
-        let severity: u32 = get_error_severity(errors[i]);
+        let severity: u32 = get_error_severity(errors[(i) as usize]);
         if (severity == SEVERITY_ERROR) {
-            total_errors = 1;
+            total_errors = (total_errors + 1);
         } else {
             if (severity == SEVERITY_WARNING) {
-                total_warnings = 1;
+                total_warnings = (total_warnings + 1);
             } else {
-                total_info = 1;
+                total_info = (total_info + 1);
             }
         }
         i = (i + 1);
     }
+    i = 0;
     while (i < warning_count) {
-        total_warnings = 1;
+        total_warnings = (total_warnings + 1);
         i = (i + 1);
     }
-    if 0 {
+    if (total_errors > 0) {
         status = VALIDATION_FAIL;
     } else {
-        if (0 > VIOLATION_THRESHOLD) {
+        if (total_warnings > VIOLATION_THRESHOLD) {
             status = VALIDATION_WARNING;
         }
     }
-    return create_validation_summary(0, 0, 0, VALIDATION_PASS);
+    return create_validation_summary(total_errors, total_warnings, total_info, status);
 }
 
 pub fn create_quality_metrics(complexity: u32, readability: u32, maintainability: u32, tech_debt: u32) -> u32 {
@@ -266,7 +279,7 @@ pub fn get_technical_debt(metrics: u32) -> u32 {
 }
 
 pub fn calculate_complexity(function_length: u32, branch_count: u32, loop_count: u32) -> u32 {
-    let complexity: u32 = ((1 + branch_count) + loop_count);
+    let mut complexity: u32 = ((1 + branch_count) + loop_count);
     if (function_length > 100) {
         complexity = (complexity + (function_length / 50));
     }
@@ -277,6 +290,10 @@ pub fn calculate_complexity(function_length: u32, branch_count: u32, loop_count:
 }
 
 pub fn is_quality_acceptable(metrics: u32) -> u32 {
+    let complexity: u32 = get_complexity(metrics);
+    let readability: u32 = get_readability(metrics);
+    let maintainability: u32 = get_maintainability(metrics);
+    let tech_debt: u32 = get_technical_debt(metrics);
     if (complexity > 20) {
         return 0;
     } else {

@@ -121,30 +121,31 @@ pub fn mark_node_alive(state: u32, current_time: u32) -> u32 {
 }
 
 pub fn count_failed_nodes(table: u64) -> u32 {
+    let mut count = 0;
     if is_node_failed(get_node_state(table, 0)) {
-        count = 1;
+        count = (count + 1);
     }
     if is_node_failed(get_node_state(table, 1)) {
-        count = 1;
+        count = (count + 1);
     }
     if is_node_failed(get_node_state(table, 2)) {
-        count = 1;
+        count = (count + 1);
     }
     if is_node_failed(get_node_state(table, 3)) {
-        count = 1;
+        count = (count + 1);
     }
     if is_node_failed(get_node_state(table, 4)) {
-        count = 1;
+        count = (count + 1);
     }
     if is_node_failed(get_node_state(table, 5)) {
-        count = 1;
+        count = (count + 1);
     }
     if is_node_failed(get_node_state(table, 6)) {
-        count = 1;
+        count = (count + 1);
     }
     if is_node_failed(get_node_state(table, 7)) {
-        count = 1;
+        count = (count + 1);
     }
-    return 0;
+    return count;
 }
 

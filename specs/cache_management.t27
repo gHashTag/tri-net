@@ -36,7 +36,7 @@ module cache_management {
     // Update access count
     fn update_access_count(entry: u32) -> u32 {
         let data_id: u32 = get_data_id(entry);
-        let access_count: u32 = get_access_count(entry);
+        var access_count: u32 = get_access_count(entry);
         let age: u32 = get_age(entry);
         let size: u32 = get_entry_size(entry);
         
@@ -58,7 +58,7 @@ module cache_management {
 
     // Find cache entry by data ID
     fn find_entry(cache: [u32; MAX_ENTRIES], data_id: u32) -> u32 {
-        let i: u32 = 0;
+        var i: u32 = 0;
         
         while (i < MAX_ENTRIES) {
             let entry_data_id: u32 = get_data_id(cache[i]);
@@ -103,8 +103,8 @@ module cache_management {
         }
         
         // Find empty slot
-        let empty_index: u32 = MAX_ENTRIES;
-        let i: u32 = 0;
+        var empty_index: u32 = MAX_ENTRIES;
+        var i: u32 = 0;
         
         while (i < MAX_ENTRIES) {
             if (get_data_id(cache[i]) == 0) {
@@ -139,9 +139,9 @@ module cache_management {
 
     // Find eviction candidate (LRU with low access count)
     fn find_eviction_candidate(cache: [u32; MAX_ENTRIES]) -> u32 {
-        let worst_score: u32 = 0xFFFFFFFF;
-        let candidate: u32 = MAX_ENTRIES;
-        let i: u32 = 0;
+        var worst_score: u32 = 0xFFFFFFFF;
+        var candidate: u32 = MAX_ENTRIES;
+        var i: u32 = 0;
         
         while (i < MAX_ENTRIES) {
             let entry: u32 = cache[i];
@@ -195,7 +195,7 @@ module cache_management {
 
     // Age all cache entries
     fn age_cache(cache: [u32; MAX_ENTRIES]) {
-        let i: u32 = 0;
+        var i: u32 = 0;
         
         while (i < MAX_ENTRIES) {
             let entry: u32 = cache[i];
@@ -225,9 +225,9 @@ module cache_management {
 
     // Find most popular entry
     fn find_most_popular(cache: [u32; MAX_ENTRIES]) -> u32 {
-        let max_access: u32 = 0;
-        let popular_index: u32 = MAX_ENTRIES;
-        let i: u32 = 0;
+        var max_access: u32 = 0;
+        var popular_index: u32 = MAX_ENTRIES;
+        var i: u32 = 0;
         
         while (i < MAX_ENTRIES) {
             let access_count: u32 = get_access_count(cache[i]);
@@ -245,9 +245,9 @@ module cache_management {
 
     // Find least popular entry
     fn find_least_popular(cache: [u32; MAX_ENTRIES]) -> u32 {
-        let min_access: u32 = 0xFFFFFFFF;
-        let unpopular_index: u32 = MAX_ENTRIES;
-        let i: u32 = 0;
+        var min_access: u32 = 0xFFFFFFFF;
+        var unpopular_index: u32 = MAX_ENTRIES;
+        var i: u32 = 0;
         
         while (i < MAX_ENTRIES) {
             let entry: u32 = cache[i];
@@ -326,10 +326,10 @@ module cache_management {
 
     // Update cache statistics
     fn update_stats(stats: u32, hit: u32, evicted: u32) -> u32 {
-        let hits: u32 = get_hits(stats);
-        let misses: u32 = get_misses(stats);
+        var hits: u32 = get_hits(stats);
+        var misses: u32 = get_misses(stats);
         let size: u32 = get_cache_size(stats);
-        let evictions: u32 = get_evictions(stats);
+        var evictions: u32 = get_evictions(stats);
         
         if (hit == 1) {
             hits = hits + 1;

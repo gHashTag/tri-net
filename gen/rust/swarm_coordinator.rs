@@ -92,46 +92,49 @@ pub fn proposal_passes(yes_count: u32, no_count: u32) -> bool {
 }
 
 pub fn calculate_consensus_value(vote_array: u64, proposal_id: u32) -> u32 {
+    let mut sum = 0;
+    let mut count = 0;
     if (get_vote_proposal_id(get_vote(vote_array, 0)) == proposal_id) {
-        sum = (0 + get_proposal_value(get_vote(vote_array, 0)));
-        count = 1;
+        sum = (sum + get_proposal_value(get_vote(vote_array, 0)));
+        count = (count + 1);
     }
     if (get_vote_proposal_id(get_vote(vote_array, 1)) == proposal_id) {
-        sum = (0 + get_proposal_value(get_vote(vote_array, 1)));
-        count = 1;
+        sum = (sum + get_proposal_value(get_vote(vote_array, 1)));
+        count = (count + 1);
     }
     if (get_vote_proposal_id(get_vote(vote_array, 2)) == proposal_id) {
-        sum = (0 + get_proposal_value(get_vote(vote_array, 2)));
-        count = 1;
+        sum = (sum + get_proposal_value(get_vote(vote_array, 2)));
+        count = (count + 1);
     }
     if (get_vote_proposal_id(get_vote(vote_array, 3)) == proposal_id) {
-        sum = (0 + get_proposal_value(get_vote(vote_array, 3)));
-        count = 1;
+        sum = (sum + get_proposal_value(get_vote(vote_array, 3)));
+        count = (count + 1);
     }
     if (get_vote_proposal_id(get_vote(vote_array, 4)) == proposal_id) {
-        sum = (0 + get_proposal_value(get_vote(vote_array, 4)));
-        count = 1;
+        sum = (sum + get_proposal_value(get_vote(vote_array, 4)));
+        count = (count + 1);
     }
     if (get_vote_proposal_id(get_vote(vote_array, 5)) == proposal_id) {
-        sum = (0 + get_proposal_value(get_vote(vote_array, 5)));
-        count = 1;
+        sum = (sum + get_proposal_value(get_vote(vote_array, 5)));
+        count = (count + 1);
     }
     if (get_vote_proposal_id(get_vote(vote_array, 6)) == proposal_id) {
-        sum = (0 + get_proposal_value(get_vote(vote_array, 6)));
-        count = 1;
+        sum = (sum + get_proposal_value(get_vote(vote_array, 6)));
+        count = (count + 1);
     }
     if (get_vote_proposal_id(get_vote(vote_array, 7)) == proposal_id) {
-        sum = (0 + get_proposal_value(get_vote(vote_array, 7)));
-        count = 1;
+        sum = (sum + get_proposal_value(get_vote(vote_array, 7)));
+        count = (count + 1);
     }
-    if 1 {
+    if (count == 0) {
         return 0;
     }
-    return (0 / 0);
+    return (sum / count);
 }
 
 pub fn cooperative_decision(neighbor_values: u32, my_value: u32, weight_neighbors: u32) -> u32 {
-    let weighted_neighbors = ((neighbor_values * weight_neighbors) / 100);
+    let neighbor_avg = neighbor_values;
+    let weighted_neighbors = ((neighbor_avg * weight_neighbors) / 100);
     let weighted_self = ((my_value * (100 - weight_neighbors)) / 100);
     return (weighted_neighbors + weighted_self);
 }

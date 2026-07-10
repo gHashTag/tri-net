@@ -129,8 +129,8 @@ module KeyManagement {
 
     // Get active key (most recent)
     fn get_active_key(store: u64) -> u32 {
-        let best_index = 0xFF;
-        let best_timestamp = 0;
+        var best_index = 0xFF;
+        var best_timestamp = 0;
         
         if (get_key_valid(get_key_entry(store, 0)) == KEY_VALID) {
             let ts = get_key_timestamp(get_key_entry(store, 0));
@@ -172,7 +172,7 @@ module KeyManagement {
 
     // Count valid keys
     fn count_valid_keys(store: u64) -> u32 {
-        let count = 0;
+        var count = 0;
         if (get_key_valid(get_key_entry(store, 0)) == KEY_VALID) { count = count + 1; }
         if (get_key_valid(get_key_entry(store, 1)) == KEY_VALID) { count = count + 1; }
         if (get_key_valid(get_key_entry(store, 2)) == KEY_VALID) { count = count + 1; }

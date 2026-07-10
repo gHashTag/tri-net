@@ -147,34 +147,34 @@ module topology_visualizer {
     fn calculate_force_layout(nodes: [u32; MAX_NODES], edges: [u32; MAX_EDGES], 
                             node_count: u32, edge_count: u32, params: u32) -> u32 {
         let iterations: u32 = get_layout_iterations(params);
-        let temperature: u32 = get_layout_temperature(params);
+        var temperature: u32 = get_layout_temperature(params);
         
-        let placed_nodes: u32 = 0;
-        let i: u32 = 0;
+        var placed_nodes: u32 = 0;
+        var i: u32 = 0;
         
         while (i < iterations && placed_nodes < node_count) {
             // Simple force calculation
-            let j: u32 = 0;
+            var j: u32 = 0;
             while (j < node_count) {
                 let node_id: u32 = get_viz_node_id(nodes[j]);
                 let x: u32 = get_node_x_position(nodes[j]);
                 let y: u32 = get_node_y_position(nodes[j]);
                 
                 // Calculate repulsive forces
-                let k: u32 = 0;
+                var k: u32 = 0;
                 while (k < node_count) {
                     if (k != j) {
                         let other_x: u32 = get_node_x_position(nodes[k]);
                         let other_y: u32 = get_node_y_position(nodes[k]);
                         
-                        let dx: u32 = 0;
+                        var dx: u32 = 0;
                         if (x > other_x) {
                             dx = x - other_x;
                         } else {
                             dx = other_x - x;
                         }
                         
-                        let dy: u32 = 0;
+                        var dy: u32 = 0;
                         if (y > other_y) {
                             dy = y - other_y;
                         } else {
@@ -192,7 +192,7 @@ module topology_visualizer {
                 }
                 
                 // Calculate attractive forces along edges
-                let l: u32 = 0;
+                var l: u32 = 0;
                 while (l < edge_count) {
                     let source: u32 = get_viz_edge_source(edges[l]);
                     let dest: u32 = get_viz_edge_dest(edges[l]);
@@ -224,7 +224,7 @@ module topology_visualizer {
         let center_y: u32 = CANVAS_SIZE / 2;
         let radius: u32 = CANVAS_SIZE / 3;
         
-        let i: u32 = 0;
+        var i: u32 = 0;
         while (i < node_count) {
             let angle: u32 = (i * 360) / node_count;
             
@@ -249,9 +249,9 @@ module topology_visualizer {
         let level_count: u32 = 4;
         let nodes_per_level: u32 = node_count / level_count;
         
-        let i: u32 = 0;
-        let current_level: u32 = 0;
-        let nodes_in_level: u32 = 0;
+        var i: u32 = 0;
+        var current_level: u32 = 0;
+        var nodes_in_level: u32 = 0;
         
         while (i < node_count) {
             let y: u32 = (current_level * CANVAS_SIZE) / level_count;
@@ -312,12 +312,12 @@ module topology_visualizer {
         let quality: u32 = get_viz_edge_quality(edge);
         
         // Find source and dest positions
-        let source_x: u32 = 0;
-        let source_y: u32 = 0;
-        let dest_x: u32 = 0;
-        let dest_y: u32 = 0;
+        var source_x: u32 = 0;
+        var source_y: u32 = 0;
+        var dest_x: u32 = 0;
+        var dest_y: u32 = 0;
         
-        let i: u32 = 0;
+        var i: u32 = 0;
         while (i < MAX_NODES) {
             let node_id: u32 = get_viz_node_id(nodes[i]);
             if (node_id == source) {
@@ -332,7 +332,7 @@ module topology_visualizer {
         }
         
         // Calculate edge color based on quality
-        let edge_color: u32 = 0;
+        var edge_color: u32 = 0;
         if (quality > 70) {
             edge_color = COLOR_GREEN;
         } else if (quality > 40) {
@@ -351,10 +351,10 @@ module topology_visualizer {
     // Create visualization frame
     fn create_visualization_frame(nodes: [u32; MAX_NODES], edges: [u32; MAX_EDGES],
                                 node_count: u32, edge_count: u32) -> u32 {
-        let frame_size: u32 = 0;
+        var frame_size: u32 = 0;
         
         // Render all nodes
-        let i: u32 = 0;
+        var i: u32 = 0;
         while (i < node_count) {
             let rendered: u32 = render_node(nodes[i], 20, COLOR_GREEN);
             frame_size = frame_size + 1;
@@ -362,7 +362,7 @@ module topology_visualizer {
         }
         
         // Render all edges
-        let j: u32 = 0;
+        var j: u32 = 0;
         while (j < edge_count) {
             let rendered: u32 = render_edge(edges[j], nodes, 2);
             frame_size = frame_size + 1;

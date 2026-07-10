@@ -124,7 +124,7 @@ module network_orchestrator {
 
     // Apply network policy
     fn apply_policy(policies: [u32; MAX_POLICIES], policy_id: u32, node_id: u32) -> u32 {
-        let i: u32 = 0;
+        var i: u32 = 0;
         
         while (i < MAX_POLICIES) {
             let current_policy_id: u32 = get_policy_id(policies[i]);
@@ -144,9 +144,9 @@ module network_orchestrator {
 
     // Find highest priority policy
     fn find_highest_priority_policy(policies: [u32; MAX_POLICIES], scope: u32) -> u32 {
-        let highest_priority: u32 = 0;
-        let policy_index: u32 = MAX_POLICIES;
-        let i: u32 = 0;
+        var highest_priority: u32 = 0;
+        var policy_index: u32 = MAX_POLICIES;
+        var i: u32 = 0;
         
         while (i < MAX_POLICIES) {
             let policy_scope: u32 = get_policy_scope(policies[i]);
@@ -269,8 +269,8 @@ module network_orchestrator {
                        coordinator_id: u32, current_time: u32) -> u32 {
         let coord_state: u32 = initiate_coordination(0, coordinator_id, current_time);
         
-        let participating_nodes: u32 = 0;
-        let i: u32 = 0;
+        var participating_nodes: u32 = 0;
+        var i: u32 = 0;
         
         while (i < node_count) {
             // Check if node is available
@@ -291,8 +291,8 @@ module network_orchestrator {
 
     // Calculate network optimization score
     fn calculate_optimization_score(metrics: [u32; MAX_NODES], metric_count: u32) -> u32 {
-        let total_score: u32 = 0;
-        let i: u32 = 0;
+        var total_score: u32 = 0;
+        var i: u32 = 0;
         
         while (i < metric_count) {
             total_score = total_score + metrics[i];
@@ -328,8 +328,8 @@ module network_orchestrator {
 
     // Monitor network health
     fn monitor_network_health(node_states: [u32; MAX_NODES], node_count: u32) -> u32 {
-        let healthy_nodes: u32 = 0;
-        let i: u32 = 0;
+        var healthy_nodes: u32 = 0;
+        var i: u32 = 0;
         
         while (i < node_count) {
             if (node_states[i] != 0) {

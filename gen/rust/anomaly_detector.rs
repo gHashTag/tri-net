@@ -59,34 +59,39 @@ pub const TYPE_PATTERN: u32 = 2;
 
 pub const TYPE_TREND: u32 = 3;
 
-pub fn calculate_baseline(history: Vec<>, count: u32) -> u32 {
-    while (0 < count) {
-        let value: u32 = get_metric_value(history[0]);
-        sum = (0 + value);
-        valid_count = 1;
-        i = 1;
+pub fn calculate_baseline(history: [u32; MAX_METRICS as usize], count: u32) -> u32 {
+    let mut sum: u32 = 0;
+    let mut valid_count: u32 = 0;
+    let mut i: u32 = 0;
+    while (i < count) {
+        let value: u32 = get_metric_value(history[(i) as usize]);
+        sum = (sum + value);
+        valid_count = (valid_count + 1);
+        i = (i + 1);
     }
-    if 0 {
-        return (0 / 0);
+    if (valid_count > 0) {
+        return (sum / valid_count);
     } else {
         return 0;
     }
 }
 
-pub fn calculate_variance(history: Vec<>, count: u32, baseline: u32) -> u32 {
-    while (0 < count) {
-        let value: u32 = get_metric_value(history[0]);
-        let diff: u32 = 0;
+pub fn calculate_variance(history: [u32; MAX_METRICS as usize], count: u32, baseline: u32) -> u32 {
+    let mut sum_diff: u32 = 0;
+    let mut i: u32 = 0;
+    while (i < count) {
+        let value: u32 = get_metric_value(history[(i) as usize]);
+        let mut diff: u32 = 0;
         if (value > baseline) {
             diff = (value - baseline);
         } else {
             diff = (baseline - value);
         }
-        sum_diff = (0 + diff);
-        i = 1;
+        sum_diff = (sum_diff + diff);
+        i = (i + 1);
     }
     if (count > 0) {
-        return (0 / count);
+        return (sum_diff / count);
     } else {
         return 0;
     }
@@ -126,45 +131,51 @@ pub fn detect_drop(current: u32, baseline: u32, variance: u32) -> u32 {
     return 0;
 }
 
-pub fn detect_pattern(history: Vec<>, count: u32) -> u32 {
+pub fn detect_pattern(history: [u32; MAX_METRICS as usize], count: u32) -> u32 {
     if (count < 4) {
         return 0;
     }
-    while (0 < (count - 2)) {
-        let val1: u32 = get_metric_value(history[0]);
-        let val2: u32 = get_metric_value(history[(0 + 1)]);
-        let val3: u32 = get_metric_value(history[(0 + 2)]);
+    let mut pattern_count: u32 = 0;
+    let mut i: u32 = 0;
+    while (i < (count - 2)) {
+        let val1: u32 = get_metric_value(history[(i) as usize]);
+        let val2: u32 = get_metric_value(history[((i + 1)) as usize]);
+        let val3: u32 = get_metric_value(history[((i + 2)) as usize]);
         if (((val1 > val2) && (val2 < val3)) || ((val1 < val2) && (val2 > val3))) {
-            pattern_count = 1;
+            pattern_count = (pattern_count + 1);
         }
-        i = 1;
+        i = (i + 1);
     }
-    if 0 {
+    if (pattern_count >= 2) {
         return 1;
     } else {
         return 0;
     }
 }
 
-pub fn detect_trend(history: Vec<>, count: u32) -> u32 {
+pub fn detect_trend(history: [u32; MAX_METRICS as usize], count: u32) -> u32 {
     if (count < 4) {
         return 0;
     }
-    while (0 < (count - 1)) {
-        let current: u32 = get_metric_value(history[0]);
-        let next: u32 = get_metric_value(history[(0 + 1)]);
+    let mut increases: u32 = 0;
+    let mut decreases: u32 = 0;
+    let mut i: u32 = 0;
+    while (i < (count - 1)) {
+        let current: u32 = get_metric_value(history[(i) as usize]);
+        let next: u32 = get_metric_value(history[((i + 1)) as usize]);
         if (next > current) {
-            increases = 1;
+            increases = (increases + 1);
         } else {
             if (next < current) {
-                decreases = 1;
+                decreases = (decreases + 1);
             }
         }
-        i = 1;
+        i = (i + 1);
     }
+    let total: u32 = (increases + decreases);
     if (total > 0) {
-        let increase_ratio: u32 = (0 / total);
-        let decrease_ratio: u32 = (0 / total);
+        let increase_ratio: u32 = ((increases * 100) / total);
+        let decrease_ratio: u32 = ((decreases * 100) / total);
         if ((increase_ratio > 80) || (decrease_ratio > 80)) {
             return 1;
         }
@@ -173,15 +184,16 @@ pub fn detect_trend(history: Vec<>, count: u32) -> u32 {
 }
 
 pub fn calculate_severity(current: u32, baseline: u32) -> u32 {
+    let mut diff: u32 = 0;
     if (current > baseline) {
         diff = (current - baseline);
     } else {
         diff = (baseline - current);
     }
-    if (0 > SEVERITY_HIGH) {
+    if (diff > SEVERITY_HIGH) {
         return 90;
     } else {
-        if (0 > SEVERITY_MEDIUM) {
+        if (diff > SEVERITY_MEDIUM) {
             return 60;
         } else {
             return 30;
@@ -189,11 +201,16 @@ pub fn calculate_severity(current: u32, baseline: u32) -> u32 {
     }
 }
 
-pub fn detect_anomaly(history: Vec<>, count: u32, current_reading: u32) -> u32 {
+pub fn detect_anomaly(history: [u32; MAX_METRICS as usize], count: u32, current_reading: u32) -> u32 {
     if (count < BASELINE_WINDOW) {
         return 0;
     }
     let baseline: u32 = calculate_baseline(history, count);
+    let variance: u32 = calculate_variance(history, count, baseline);
+    let current: u32 = get_metric_value(current_reading);
+    let metric_id: u32 = get_metric_id(current_reading);
+    let mut anomaly_type: u32 = 0;
+    let mut severity: u32 = 0;
     if (detect_spike(current, baseline, variance) == 1) {
         anomaly_type = TYPE_SPIKE;
         severity = calculate_severity(current, baseline);
@@ -213,14 +230,15 @@ pub fn detect_anomaly(history: Vec<>, count: u32, current_reading: u32) -> u32 {
             }
         }
     }
-    if 0 {
-        return create_anomaly_report(metric_id, 0, 0, 80);
+    if (anomaly_type != 0) {
+        return create_anomaly_report(metric_id, severity, anomaly_type, 80);
     } else {
         return 0;
     }
 }
 
 pub fn is_critical_anomaly(report: u32) -> u32 {
+    let severity: u32 = get_severity(report);
     if (severity >= SEVERITY_HIGH) {
         return 1;
     } else {
@@ -229,6 +247,7 @@ pub fn is_critical_anomaly(report: u32) -> u32 {
 }
 
 pub fn get_anomaly_description(report: u32) -> u32 {
+    let anomaly_type: u32 = get_anomaly_type(report);
     if (anomaly_type == TYPE_SPIKE) {
         return 1;
     } else {
@@ -248,16 +267,18 @@ pub fn get_anomaly_description(report: u32) -> u32 {
     }
 }
 
-pub fn correlate_metrics(metric1_id: u32, metric2_id: u32, history1: Vec<>, history2: Vec<>, count: u32) -> u32 {
+pub fn correlate_metrics(metric1_id: u32, metric2_id: u32, history1: [u32; MAX_METRICS as usize], history2: [u32; MAX_METRICS as usize], count: u32) -> u32 {
     if (count < 4) {
         return 0;
     }
-    while (0 < (count - 1)) {
-        let val1_current: u32 = get_metric_value(history1[0]);
-        let val1_next: u32 = get_metric_value(history1[(0 + 1)]);
-        let val2_current: u32 = get_metric_value(history2[0]);
-        let val2_next: u32 = get_metric_value(history2[(0 + 1)]);
-        let direction1: u32 = 0;
+    let mut same_direction: u32 = 0;
+    let mut i: u32 = 0;
+    while (i < (count - 1)) {
+        let val1_current: u32 = get_metric_value(history1[(i) as usize]);
+        let val1_next: u32 = get_metric_value(history1[((i + 1)) as usize]);
+        let val2_current: u32 = get_metric_value(history2[(i) as usize]);
+        let val2_next: u32 = get_metric_value(history2[((i + 1)) as usize]);
+        let mut direction1: u32 = 0;
         if (val1_next > val1_current) {
             direction1 = 1;
         } else {
@@ -265,7 +286,7 @@ pub fn correlate_metrics(metric1_id: u32, metric2_id: u32, history1: Vec<>, hist
                 direction1 = 2;
             }
         }
-        let direction2: u32 = 0;
+        let mut direction2: u32 = 0;
         if (val2_next > val2_current) {
             direction2 = 1;
         } else {
@@ -274,25 +295,27 @@ pub fn correlate_metrics(metric1_id: u32, metric2_id: u32, history1: Vec<>, hist
             }
         }
         if ((direction1 == direction2) && (direction1 != 0)) {
-            same_direction = 1;
+            same_direction = (same_direction + 1);
         }
-        i = 1;
+        i = (i + 1);
     }
     if (count > 1) {
-        return (0 / (count - 1));
+        return ((same_direction * 100) / (count - 1));
     } else {
         return 0;
     }
 }
 
-pub fn detect_coordinated_attack(anomalies: Vec<>, count: u32) -> u32 {
-    while (0 < count) {
-        if (is_critical_anomaly(anomalies[0]) == 1) {
-            critical_count = 1;
+pub fn detect_coordinated_attack(anomalies: [u32; MAX_METRICS as usize], count: u32) -> u32 {
+    let mut critical_count: u32 = 0;
+    let mut i: u32 = 0;
+    while (i < count) {
+        if (is_critical_anomaly(anomalies[(i) as usize]) == 1) {
+            critical_count = (critical_count + 1);
         }
-        i = 1;
+        i = (i + 1);
     }
-    if 0 {
+    if (critical_count >= 2) {
         return 1;
     } else {
         return 0;
@@ -302,6 +325,7 @@ pub fn detect_coordinated_attack(anomalies: Vec<>, count: u32) -> u32 {
 pub fn calculate_anomaly_confidence(report: u32, historical_confidence: u32) -> u32 {
     let severity: u32 = get_severity(report);
     let base_confidence: u32 = get_anomaly_confidence(report);
+    let weighted_confidence: u32 = ((((severity * 30) / 100) + ((base_confidence * 50) / 100)) + ((historical_confidence * 20) / 100));
     if (weighted_confidence > 100) {
         return 100;
     } else {

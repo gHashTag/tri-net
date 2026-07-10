@@ -30,7 +30,9 @@ pub fn get_success_count(state: u32) -> u32 {
 }
 
 pub fn can_recover(state: u32, current_time: u32) -> bool {
+    let attempts = get_attempts(state);
     let last = get_last_attempt(state);
+    let in_progress = get_in_progress(state);
     if (attempts >= MAX_RECOVERY_ATTEMPTS) {
         return false;
     }

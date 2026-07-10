@@ -150,7 +150,7 @@ module api_documenter {
         let return_type: u32 = get_doc_return_type(func_doc);
         
         // Calculate description length based on complexity
-        let desc_length: u32 = 50 + (complexity * 10);
+        var desc_length: u32 = 50 + (complexity * 10);
         if (desc_length > 255) {
             desc_length = 255;
         }
@@ -222,8 +222,8 @@ module api_documenter {
 
     // Calculate average module complexity
     fn calculate_average_complexity(func_docs: [u32; MAX_FUNCTIONS], func_count: u32) -> u32 {
-        let total_complexity: u32 = 0;
-        let i: u32 = 0;
+        var total_complexity: u32 = 0;
+        var i: u32 = 0;
         
         while (i < func_count) {
             total_complexity = total_complexity + get_doc_complexity(func_docs[i]);
@@ -240,9 +240,9 @@ module api_documenter {
     // Generate complete API documentation
     fn generate_api_documentation(func_docs: [u32; MAX_FUNCTIONS], func_count: u32, 
                                    param_docs: [u32; MAX_PARAMETERS], param_count: u32) -> u32 {
-        let total_complexity: u32 = 0;
-        let documented_funcs: u32 = 0;
-        let i: u32 = 0;
+        var total_complexity: u32 = 0;
+        var documented_funcs: u32 = 0;
+        var i: u32 = 0;
         
         while (i < func_count) {
             let func_doc: u32 = func_docs[i];
@@ -287,9 +287,9 @@ module api_documenter {
 
     // Create dependency graph
     fn create_dependency_graph(xrefs: [u32; MAX_FUNCTIONS], xref_count: u32) -> u32 {
-        let total_connections: u32 = 0;
-        let strong_connections: u32 = 0;
-        let i: u32 = 0;
+        var total_connections: u32 = 0;
+        var strong_connections: u32 = 0;
+        var i: u32 = 0;
         
         while (i < xref_count) {
             let strength: u32 = get_xref_strength(xrefs[i]);
@@ -303,7 +303,7 @@ module api_documenter {
         }
         
         // Return graph stats: [total_connections][strong_connections][avg_strength][complexity]
-        let avg_strength: u32 = 0;
+        var avg_strength: u32 = 0;
         if (total_connections > 0) {
             avg_strength = strong_connections / total_connections;
         }
@@ -316,10 +316,10 @@ module api_documenter {
 
     // Validate documentation completeness
     fn validate_documentation(func_docs: [u32; MAX_FUNCTIONS], func_count: u32) -> u32 {
-        let missing_descriptions: u32 = 0;
+        var missing_descriptions: u32 = 0;
         let missing_examples: u32 = 0;
-        let missing_params: u32 = 0;
-        let i: u32 = 0;
+        var missing_params: u32 = 0;
+        var i: u32 = 0;
         
         while (i < func_count) {
             let func_doc: u32 = func_docs[i];
@@ -338,7 +338,7 @@ module api_documenter {
         }
         
         // Return validation: [missing_descriptions][missing_examples][missing_params][quality_score]
-        let quality_score: u32 = 100 - ((missing_descriptions * 10) + (missing_params * 5));
+        var quality_score: u32 = 100 - ((missing_descriptions * 10) + (missing_params * 5));
         if (quality_score > 100) {
             quality_score = 100;
         }

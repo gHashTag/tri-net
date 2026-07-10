@@ -21,25 +21,41 @@ pub mod discovery;
 // pipeline) and kept byte-in-sync by the pinned-t27c drift-guard (see
 // .t27c-version + .github/workflows/spec-drift-guard.yml).
 //
-// UNWIRED pending a t27c codegen fix. gen/rust for these 9 modules is committed
-// (and drift-checked) as the canonical output of the pinned t27c, but t27c still
-// miscompiles reassigned mutable locals: `let x = 0; ... x = y;` is treated as an
-// immutable const and constant-folded (E0425 on x), `let mut` is split into
-// `let mut;` + `x = ...`, and `var` is only partially correct in complex bodies.
-// All 9 have ZERO call sites in src/ or the binaries, so leaving them unwired
-// keeps a green build without touching any live datapath. RE-WIRE once the t27c
-// mutable-local codegen bug is fixed upstream (tracked in gHashTag/t27). See
+// WIRED. These 9 modules now compile: the pinned t27c (fix commit d7f3a73 =
+// gHashTag/t27 #1456 optimizer removal + #1457 array/index codegen) generates
+// correct Rust, and the source specs had their genuine bugs fixed (path_valid
+// typo, is_multipath_viable bool return, etx Q8.8 width, reassigned let -> var;
+// see gHashTag/tri-net#61). They have zero call sites yet, so each carries an
+// `#[allow(...)]` for dead-code/unused lints on generated theater. See
 // docs/PIPELINE.md.
 //
-// #[path = "../gen/rust/mesh_routing.rs"]       pub mod mesh_routing;
-// #[path = "../gen/rust/etx.rs"]                pub mod etx;
-// #[path = "../gen/rust/adaptive_routing.rs"]   pub mod adaptive_routing;
-// #[path = "../gen/rust/multipath_routing.rs"]  pub mod multipath_routing;
-// #[path = "../gen/rust/frame_buffer.rs"]       pub mod frame_buffer;
-// #[path = "../gen/rust/flow_control.rs"]       pub mod flow_control;
-// #[path = "../gen/rust/health_dashboard.rs"]   pub mod health_dashboard;
-// #[path = "../gen/rust/anomaly_detector.rs"]   pub mod anomaly_detector;
-// #[path = "../gen/rust/quarantine_manager.rs"] pub mod quarantine_manager;
+#[allow(dead_code, unused, unused_parens, clippy::all)]
+#[path = "../gen/rust/mesh_routing.rs"]
+pub mod mesh_routing;
+#[allow(dead_code, unused, unused_parens, clippy::all)]
+#[path = "../gen/rust/etx.rs"]
+pub mod etx;
+#[allow(dead_code, unused, unused_parens, clippy::all)]
+#[path = "../gen/rust/adaptive_routing.rs"]
+pub mod adaptive_routing;
+#[allow(dead_code, unused, unused_parens, clippy::all)]
+#[path = "../gen/rust/multipath_routing.rs"]
+pub mod multipath_routing;
+#[allow(dead_code, unused, unused_parens, clippy::all)]
+#[path = "../gen/rust/frame_buffer.rs"]
+pub mod frame_buffer;
+#[allow(dead_code, unused, unused_parens, clippy::all)]
+#[path = "../gen/rust/flow_control.rs"]
+pub mod flow_control;
+#[allow(dead_code, unused, unused_parens, clippy::all)]
+#[path = "../gen/rust/health_dashboard.rs"]
+pub mod health_dashboard;
+#[allow(dead_code, unused, unused_parens, clippy::all)]
+#[path = "../gen/rust/anomaly_detector.rs"]
+pub mod anomaly_detector;
+#[allow(dead_code, unused, unused_parens, clippy::all)]
+#[path = "../gen/rust/quarantine_manager.rs"]
+pub mod quarantine_manager;
 
 // Re-export the real, hand-written module APIs at the crate root so binaries
 // and downstream code resolve `trios_mesh::Delivery` etc. to the actual

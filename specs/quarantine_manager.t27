@@ -191,7 +191,7 @@ module quarantine_manager {
 
     // Find quarantined node
     fn find_quarantined_node(states: [u32; MAX_NODES], node_id: u32) -> u32 {
-        let i: u32 = 0;
+        var i: u32 = 0;
         
         while (i < MAX_NODES) {
             let state_node_id: u32 = get_quarantine_node_id(states[i]);
@@ -206,8 +206,8 @@ module quarantine_manager {
 
     // Count quarantined nodes
     fn count_quarantined_nodes(states: [u32; MAX_NODES]) -> u32 {
-        let count: u32 = 0;
-        let i: u32 = 0;
+        var count: u32 = 0;
+        var i: u32 = 0;
         
         while (i < MAX_NODES) {
             if (is_quarantined(states[i]) == 1) {

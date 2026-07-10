@@ -70,14 +70,14 @@ pub fn get_path_metrics(array: u64, index: u32) -> u32 {
 
 pub fn calculate_score(metrics: u32, metric_type: u32) -> u32 {
     if (metric_type == METRIC_LATENCY) {
-        let latency = get_latency(metrics);
+        let mut latency = get_latency(metrics);
         if (latency == 0) {
             return 255;
         }
         return (255 / latency);
     } else {
         if (metric_type == METRIC_HOPS) {
-            let hops = get_hops(metrics);
+            let mut hops = get_hops(metrics);
             if (hops == 0) {
                 return 255;
             }
@@ -92,23 +92,25 @@ pub fn calculate_score(metrics: u32, metric_type: u32) -> u32 {
 }
 
 pub fn find_best_path(metrics_array: u64, metric_type: u32) -> u32 {
-    if (calculate_score(get_path_metrics(metrics_array, 0), metric_type) > 0) {
+    let mut best_path = 0xFF;
+    let mut best_score = 0;
+    if (calculate_score(get_path_metrics(metrics_array, 0), metric_type) > best_score) {
         best_score = calculate_score(get_path_metrics(metrics_array, 0), metric_type);
         best_path = 0;
     }
-    if (calculate_score(get_path_metrics(metrics_array, 1), metric_type) > 0) {
+    if (calculate_score(get_path_metrics(metrics_array, 1), metric_type) > best_score) {
         best_score = calculate_score(get_path_metrics(metrics_array, 1), metric_type);
         best_path = 1;
     }
-    if (calculate_score(get_path_metrics(metrics_array, 2), metric_type) > 0) {
+    if (calculate_score(get_path_metrics(metrics_array, 2), metric_type) > best_score) {
         best_score = calculate_score(get_path_metrics(metrics_array, 2), metric_type);
         best_path = 2;
     }
-    if (calculate_score(get_path_metrics(metrics_array, 3), metric_type) > 0) {
+    if (calculate_score(get_path_metrics(metrics_array, 3), metric_type) > best_score) {
         best_score = calculate_score(get_path_metrics(metrics_array, 3), metric_type);
         best_path = 3;
     }
-    return 0xFF;
+    return best_path;
 }
 
 pub fn needs_update(state: u32, current_time: u32) -> bool {
@@ -134,6 +136,8 @@ pub fn is_path_congested(metrics: u32) -> bool {
 }
 
 pub fn find_least_congested(metrics_array: u64) -> u32 {
+    let mut best_path = 0;
+    let mut best_load = get_load(get_path_metrics(metrics_array, 0));
     if (get_load(get_path_metrics(metrics_array, 1)) < best_load) {
         best_load = get_load(get_path_metrics(metrics_array, 1));
         best_path = 1;
@@ -146,6 +150,6 @@ pub fn find_least_congested(metrics_array: u64) -> u32 {
         best_load = get_load(get_path_metrics(metrics_array, 3));
         best_path = 3;
     }
-    return 0;
+    return best_path;
 }
 

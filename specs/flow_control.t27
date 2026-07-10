@@ -69,7 +69,7 @@ module flow_control {
         let credits: u32 = get_credits(flow);
         let window: u32 = get_window_size(flow);
         
-        let new_credits: u32 = credits + additional;
+        var new_credits: u32 = credits + additional;
         if (new_credits > window) {
             new_credits = window;
         }
@@ -176,7 +176,7 @@ module flow_control {
 
     // Manage multiple flows
     fn find_flow_by_sender(flows: [u32; MAX_FLOWS], sender: u32) -> u32 {
-        let i: u32 = 0;
+        var i: u32 = 0;
         
         while (i < MAX_FLOWS) {
             let flow_sender: u32 = get_sender_id(flows[i]);
@@ -191,7 +191,7 @@ module flow_control {
 
     // Find flow by receiver
     fn find_flow_by_receiver(flows: [u32; MAX_FLOWS], receiver: u32) -> u32 {
-        let i: u32 = 0;
+        var i: u32 = 0;
         
         while (i < MAX_FLOWS) {
             let flow_receiver: u32 = get_receiver_id(flows[i]);
@@ -206,7 +206,7 @@ module flow_control {
 
     // Check if any flow is blocked
     fn is_any_flow_blocked(flows: [u32; MAX_FLOWS]) -> u32 {
-        let i: u32 = 0;
+        var i: u32 = 0;
         
         while (i < MAX_FLOWS) {
             if (has_credits(flows[i]) == 0) {
@@ -220,8 +220,8 @@ module flow_control {
 
     // Count active flows
     fn count_active_flows(flows: [u32; MAX_FLOWS]) -> u32 {
-        let count: u32 = 0;
-        let i: u32 = 0;
+        var count: u32 = 0;
+        var i: u32 = 0;
         
         while (i < MAX_FLOWS) {
             let sender: u32 = get_sender_id(flows[i]);
@@ -236,8 +236,8 @@ module flow_control {
 
     // Calculate total available credits
     fn calculate_total_credits(flows: [u32; MAX_FLOWS]) -> u32 {
-        let total: u32 = 0;
-        let i: u32 = 0;
+        var total: u32 = 0;
+        var i: u32 = 0;
         
         while (i < MAX_FLOWS) {
             total = total + get_credits(flows[i]);

@@ -131,63 +131,65 @@ pub fn release_resources(state: u32, task: u32) -> u32 {
 }
 
 pub fn find_admittable_task(state: u32, task_array: u64) -> u32 {
+    let mut best_task = 0xFF;
+    let mut best_priority = 0xFF;
     if can_admit_task(state, get_task_resource(task_array, 0)) {
         let priority = get_priority(get_task_resource(task_array, 0));
-        if (priority < 0xFF) {
+        if (priority < best_priority) {
             best_priority = priority;
             best_task = 0;
         }
     }
     if can_admit_task(state, get_task_resource(task_array, 1)) {
         let priority = get_priority(get_task_resource(task_array, 1));
-        if (priority < 0xFF) {
+        if (priority < best_priority) {
             best_priority = priority;
             best_task = 1;
         }
     }
     if can_admit_task(state, get_task_resource(task_array, 2)) {
         let priority = get_priority(get_task_resource(task_array, 2));
-        if (priority < 0xFF) {
+        if (priority < best_priority) {
             best_priority = priority;
             best_task = 2;
         }
     }
     if can_admit_task(state, get_task_resource(task_array, 3)) {
         let priority = get_priority(get_task_resource(task_array, 3));
-        if (priority < 0xFF) {
+        if (priority < best_priority) {
             best_priority = priority;
             best_task = 3;
         }
     }
     if can_admit_task(state, get_task_resource(task_array, 4)) {
         let priority = get_priority(get_task_resource(task_array, 4));
-        if (priority < 0xFF) {
+        if (priority < best_priority) {
             best_priority = priority;
             best_task = 4;
         }
     }
     if can_admit_task(state, get_task_resource(task_array, 5)) {
         let priority = get_priority(get_task_resource(task_array, 5));
-        if (priority < 0xFF) {
+        if (priority < best_priority) {
             best_priority = priority;
             best_task = 5;
         }
     }
     if can_admit_task(state, get_task_resource(task_array, 6)) {
         let priority = get_priority(get_task_resource(task_array, 6));
-        if (priority < 0xFF) {
+        if (priority < best_priority) {
             best_priority = priority;
             best_task = 6;
         }
     }
     if can_admit_task(state, get_task_resource(task_array, 7)) {
         let priority = get_priority(get_task_resource(task_array, 7));
-        if (priority < 0xFF) {
+        if (priority < best_priority) {
             best_priority = priority;
             best_task = 7;
         }
     }
-    return 0xFF;
+    return best_task;
 }
 
 pub fn calculate_cpu_utilization(state: u32) -> u32 {
@@ -209,7 +211,7 @@ pub fn increment_tick(state: u32) -> u32 {
     let used_mem = get_used_mem(state);
     let active_tasks = get_active_tasks(state);
     let tick = get_sched_tick(state);
-    let new_tick = (tick + 1);
+    let mut new_tick = (tick + 1);
     if (new_tick > 255) {
         new_tick = 0;
     }
@@ -217,30 +219,31 @@ pub fn increment_tick(state: u32) -> u32 {
 }
 
 pub fn count_tasks_by_priority(task_array: u64, priority: u32) -> u32 {
+    let mut count = 0;
     if (get_priority(get_task_resource(task_array, 0)) == priority) {
-        count = 1;
+        count = (count + 1);
     }
     if (get_priority(get_task_resource(task_array, 1)) == priority) {
-        count = 1;
+        count = (count + 1);
     }
     if (get_priority(get_task_resource(task_array, 2)) == priority) {
-        count = 1;
+        count = (count + 1);
     }
     if (get_priority(get_task_resource(task_array, 3)) == priority) {
-        count = 1;
+        count = (count + 1);
     }
     if (get_priority(get_task_resource(task_array, 4)) == priority) {
-        count = 1;
+        count = (count + 1);
     }
     if (get_priority(get_task_resource(task_array, 5)) == priority) {
-        count = 1;
+        count = (count + 1);
     }
     if (get_priority(get_task_resource(task_array, 6)) == priority) {
-        count = 1;
+        count = (count + 1);
     }
     if (get_priority(get_task_resource(task_array, 7)) == priority) {
-        count = 1;
+        count = (count + 1);
     }
-    return 0;
+    return count;
 }
 

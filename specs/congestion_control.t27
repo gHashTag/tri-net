@@ -47,9 +47,9 @@ module congestion_control {
 
     // Update congestion window on ACK
     fn on_ack(congestion: u32) -> u32 {
-        let cwnd: u32 = get_cwnd(congestion);
+        var cwnd: u32 = get_cwnd(congestion);
         let ssthresh: u32 = get_ssthresh(congestion);
-        let state: u32 = get_congestion_state(congestion);
+        var state: u32 = get_congestion_state(congestion);
         let losses: u32 = get_loss_count(congestion);
         
         if (state == STATE_SLOW_START) {
@@ -74,10 +74,10 @@ module congestion_control {
 
     // Handle packet loss
     fn on_loss(congestion: u32) -> u32 {
-        let cwnd: u32 = get_cwnd(congestion);
-        let ssthresh: u32 = get_ssthresh(congestion);
-        let state: u32 = get_congestion_state(congestion);
-        let losses: u32 = get_loss_count(congestion);
+        var cwnd: u32 = get_cwnd(congestion);
+        var ssthresh: u32 = get_ssthresh(congestion);
+        var state: u32 = get_congestion_state(congestion);
+        var losses: u32 = get_loss_count(congestion);
         
         losses = losses + 1;
         
@@ -97,9 +97,9 @@ module congestion_control {
 
     // Handle triple duplicate ACK (fast retransmit)
     fn on_triple_dup_ack(congestion: u32) -> u32 {
-        let cwnd: u32 = get_cwnd(congestion);
-        let ssthresh: u32 = get_ssthresh(congestion);
-        let state: u32 = get_congestion_state(congestion);
+        var cwnd: u32 = get_cwnd(congestion);
+        var ssthresh: u32 = get_ssthresh(congestion);
+        var state: u32 = get_congestion_state(congestion);
         let losses: u32 = get_loss_count(congestion);
         
         // Save old cwnd
@@ -168,7 +168,7 @@ module congestion_control {
 
     // Manage multiple congestion controllers
     fn find_congestion_controller(controllers: [u32; MAX_FLOWS], flow_id: u32) -> u32 {
-        let i: u32 = 0;
+        var i: u32 = 0;
         
         while (i < MAX_FLOWS) {
             if (i == flow_id) {
@@ -182,7 +182,7 @@ module congestion_control {
 
     // Check if any flow is congested
     fn is_any_flow_congested(controllers: [u32; MAX_FLOWS]) -> u32 {
-        let i: u32 = 0;
+        var i: u32 = 0;
         
         while (i < MAX_FLOWS) {
             if (is_congested(controllers[i]) == 1) {
@@ -196,8 +196,8 @@ module congestion_control {
 
     // Calculate total congestion window
     fn calculate_total_cwnd(controllers: [u32; MAX_FLOWS]) -> u32 {
-        let total: u32 = 0;
-        let i: u32 = 0;
+        var total: u32 = 0;
+        var i: u32 = 0;
         
         while (i < MAX_FLOWS) {
             total = total + get_cwnd(controllers[i]);
@@ -209,8 +209,8 @@ module congestion_control {
 
     // Fair bandwidth allocation
     fn allocate_fair_bandwidth(controllers: [u32; MAX_FLOWS], total_bandwidth: u32) -> u32 {
-        let active_flows: u32 = 0;
-        let i: u32 = 0;
+        var active_flows: u32 = 0;
+        var i: u32 = 0;
         
         while (i < MAX_FLOWS) {
             let cwnd: u32 = get_cwnd(controllers[i]);
@@ -229,7 +229,7 @@ module congestion_control {
 
     // Probe for available bandwidth
     fn probe_bandwidth(congestion: u32) -> u32 {
-        let cwnd: u32 = get_cwnd(congestion);
+        var cwnd: u32 = get_cwnd(congestion);
         let ssthresh: u32 = get_ssthresh(congestion);
         let state: u32 = get_congestion_state(congestion);
         let losses: u32 = get_loss_count(congestion);
@@ -246,10 +246,10 @@ module congestion_control {
 
     // Reset to safe state after timeout
     fn reset_after_timeout(congestion: u32) -> u32 {
-        let cwnd: u32 = get_cwnd(congestion);
+        var cwnd: u32 = get_cwnd(congestion);
         
         // Set ssthresh to half of current window
-        let ssthresh: u32 = cwnd / 2;
+        var ssthresh: u32 = cwnd / 2;
         if (ssthresh < MIN_WINDOW) {
             ssthresh = MIN_WINDOW;
         }

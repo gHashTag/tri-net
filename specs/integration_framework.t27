@@ -85,7 +85,7 @@ module integration_framework {
         let msg_type: u32 = get_integration_message_type(message);
         
         // Find destination module
-        let i: u32 = 0;
+        var i: u32 = 0;
         while (i < MAX_MODULES) {
             let module_id: u32 = get_registered_module_id(modules[i]);
             
@@ -109,7 +109,7 @@ module integration_framework {
 
     // Receive message
     fn receive_message(messages: [u32; MAX_MESSAGES], message_count: u32, module_id: u32) -> u32 {
-        let i: u32 = 0;
+        var i: u32 = 0;
         
         while (i < message_count) {
             let dest: u32 = get_integration_message_dest(messages[i]);
@@ -160,7 +160,7 @@ module integration_framework {
         let subscription_id: u32 = module_id * 10 + event_type;
         
         // Create subscription record
-        let i: u32 = 0;
+        var i: u32 = 0;
         while (i < MAX_EVENTS) {
             if (subscriptions[i] == 0) {
                 subscriptions[i] = create_event(subscription_id, event_type, module_id, 0);
@@ -175,9 +175,9 @@ module integration_framework {
     // Publish event
     fn publish_event(event: u32, subscriptions: [u32; MAX_EVENTS], modules: [u32; MAX_MODULES]) -> u32 {
         let event_type: u32 = get_event_type(event);
-        let notified_count: u32 = 0;
+        var notified_count: u32 = 0;
         
-        let i: u32 = 0;
+        var i: u32 = 0;
         while (i < MAX_EVENTS) {
             let sub_event_type: u32 = get_event_type(subscriptions[i]);
             
@@ -224,8 +224,8 @@ module integration_framework {
 
     // Synchronize module states
     fn synchronize_states(modules: [u32; MAX_MODULES], module_count: u32, sync_requests: u32) -> u32 {
-        let synced_count: u32 = 0;
-        let i: u32 = 0;
+        var synced_count: u32 = 0;
+        var i: u32 = 0;
         
         while (i < module_count) {
             let module_id: u32 = get_registered_module_id(modules[i]);
@@ -280,10 +280,10 @@ module integration_framework {
     // Propagate error through system
     fn propagate_error(error: u32, modules: [u32; MAX_MODULES], module_count: u32) -> u32 {
         let severity: u32 = get_error_severity(error);
-        let notified_count: u32 = 0;
+        var notified_count: u32 = 0;
         
         // Notify modules based on severity
-        let i: u32 = 0;
+        var i: u32 = 0;
         while (i < module_count) {
             let module_type: u32 = get_registered_module_type(modules[i]);
             
@@ -313,7 +313,7 @@ module integration_framework {
     // Module lifecycle management
     fn load_module(module_id: u32, module_type: u32, priority: u32, modules: [u32; MAX_MODULES]) -> u32 {
         // Find empty slot
-        let i: u32 = 0;
+        var i: u32 = 0;
         while (i < MAX_MODULES) {
             if (get_registered_module_id(modules[i]) == 0) {
                 modules[i] = create_module_registration(module_id, module_type, priority, STATUS_IDLE);
@@ -327,7 +327,7 @@ module integration_framework {
 
     // Unload module
     fn unload_module(module_id: u32, modules: [u32; MAX_MODULES]) -> u32 {
-        let i: u32 = 0;
+        var i: u32 = 0;
         while (i < MAX_MODULES) {
             let registered_id: u32 = get_registered_module_id(modules[i]);
             
@@ -369,8 +369,8 @@ module integration_framework {
     // Check if dependencies are satisfied
     fn check_dependencies(module_id: u32, dependencies: [u32; MAX_MODULES], 
                          loaded_modules: [u32; MAX_MODULES], module_count: u32) -> u32 {
-        let satisfied: u32 = 1;
-        let i: u32 = 0;
+        var satisfied: u32 = 1;
+        var i: u32 = 0;
         
         while (i < MAX_MODULES) {
             let dep_module_id: u32 = get_dependency_module_id(dependencies[i]);
@@ -381,8 +381,8 @@ module integration_framework {
                 
                 if (required == 1) {
                     // Check if dependency is loaded
-                    let j: u32 = 0;
-                    let found: u32 = 0;
+                    var j: u32 = 0;
+                    var found: u32 = 0;
                     
                     while (j < module_count) {
                         let loaded_id: u32 = get_registered_module_id(loaded_modules[j]);
@@ -438,10 +438,10 @@ module integration_framework {
     // Allocate resources
     fn allocate_resources(requests: [u32; MAX_MESSAGES], request_count: u32, 
                         available_resources: u32) -> u32 {
-        let total_requested: u32 = 0;
-        let allocated_count: u32 = 0;
+        var total_requested: u32 = 0;
+        var allocated_count: u32 = 0;
         
-        let i: u32 = 0;
+        var i: u32 = 0;
         while (i < request_count) {
             let amount: u32 = get_resource_request_amount(requests[i]);
             total_requested = total_requested + amount;
@@ -453,8 +453,8 @@ module integration_framework {
             return total_requested;
         } else {
             // Allocate based on priority
-            let allocated: u32 = 0;
-            let j: u32 = 0;
+            var allocated: u32 = 0;
+            var j: u32 = 0;
             
             while (j < request_count && allocated < available_resources) {
                 let amount: u32 = get_resource_request_amount(requests[j]);
@@ -485,12 +485,12 @@ module integration_framework {
     fn generate_integration_stats(modules: [u32; MAX_MODULES], module_count: u32,
                                   messages: [u32; MAX_MESSAGES], message_count: u32,
                                   events: [u32; MAX_EVENTS], event_count: u32) -> u32 {
-        let active_modules: u32 = 0;
-        let active_messages: u32 = 0;
-        let events_processed: u32 = 0;
+        var active_modules: u32 = 0;
+        var active_messages: u32 = 0;
+        var events_processed: u32 = 0;
         let errors_handled: u32 = 0;
         
-        let i: u32 = 0;
+        var i: u32 = 0;
         while (i < module_count) {
             let status: u32 = get_registered_module_status(modules[i]);
             if (status == STATUS_ACTIVE || status == STATUS_BUSY) {
@@ -499,13 +499,13 @@ module integration_framework {
             i = i + 1;
         }
         
-        let j: u32 = 0;
+        var j: u32 = 0;
         while (j < message_count) {
             active_messages = active_messages + 1;
             j = j + 1;
         }
         
-        let k: u32 = 0;
+        var k: u32 = 0;
         while (k < event_count) {
             events_processed = events_processed + 1;
             k = k + 1;
@@ -516,9 +516,9 @@ module integration_framework {
 
     // Validate integration health
     fn validate_integration_health(modules: [u32; MAX_MODULES], module_count: u32) -> u32 {
-        let active_count: u32 = 0;
-        let error_count: u32 = 0;
-        let i: u32 = 0;
+        var active_count: u32 = 0;
+        var error_count: u32 = 0;
+        var i: u32 = 0;
         
         while (i < module_count) {
             let status: u32 = get_registered_module_status(modules[i]);
@@ -533,7 +533,7 @@ module integration_framework {
         }
         
         // Health score: [active_percentage][error_count][0][0]
-        let active_percentage: u32 = 0;
+        var active_percentage: u32 = 0;
         if (module_count > 0) {
             active_percentage = (active_count * 100) / module_count;
         }

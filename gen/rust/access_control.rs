@@ -64,6 +64,7 @@ pub fn role_meets_minimum(role: u32, min_role: u32) -> bool {
 }
 
 pub fn check_access(policy: u32, role: u32) -> u32 {
+    let min_role = get_min_role(policy);
     if !(role_meets_minimum(role, min_role)) {
         return DENY;
     }

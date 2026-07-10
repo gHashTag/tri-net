@@ -24,8 +24,10 @@ pub fn iperf3_sequence(packet_byte: u8) -> u32 {
 }
 
 pub fn expected_loss_rate_p10(attenuation_db: u8) -> u8 {
+    let base_loss: u8 = 0x10;
     let att_factor: u8 = ((attenuation_db / 3) as u8);
     let add_loss: u8 = (att_factor * 0x10);
+    let total: u16 = ((base_loss as u16) + (add_loss as u16));
 }
 
 pub fn throughput_factor_p8(attenuation_db: u8) -> u8 {
@@ -36,7 +38,9 @@ pub fn throughput_factor_p8(attenuation_db: u8) -> u8 {
 
 pub fn signal_quality(attenuation_db: u8) -> u8 { unimplemented!() }
 
-pub fn total_attenuation(hop1_db: u8, hop2_db: u8) -> u8 { unimplemented!() }
+pub fn total_attenuation(hop1_db: u8, hop2_db: u8) -> u8 {
+    let sum: u16 = ((hop1_db as u16) + (hop2_db as u16));
+}
 
 pub fn delivery_rate_p8(hop1_db: u8, hop2_db: u8) -> u8 {
     let factor1: u8 = throughput_factor_p8(hop1_db);

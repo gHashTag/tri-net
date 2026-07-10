@@ -90,6 +90,8 @@ pub fn is_high_error_rate(stats: u32) -> bool {
 }
 
 pub fn detect_pattern(stats: u32, previous_stats: u32) -> u32 {
+    let current_total = calculate_total_traffic(stats);
+    let previous_total = calculate_total_traffic(previous_stats);
     if (current_total > (previous_total + ANOMALY_THRESHOLD)) {
         return PATTERN_SPIKE;
     }
@@ -113,7 +115,8 @@ pub fn update_traffic(stats: u32, sent_add: u32, recv_add: u32, packets_add: u32
 pub fn needs_attention(data: u64) -> bool {
     let pattern = get_analysis_pattern(data);
     let traffic = get_analysis_traffic(data);
-    return ((pattern != PATTERN_NORMAL) || is_high_error_rate(traffic));
+    let stats = traffic;
+    return ((pattern != PATTERN_NORMAL) || is_high_error_rate(stats));
 }
 
 pub fn calculate_utilization(stats: u32, max_capacity: u32) -> u32 {

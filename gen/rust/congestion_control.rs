@@ -44,9 +44,9 @@ pub fn initialize_congestion() -> u32 {
 }
 
 pub fn on_ack(congestion: u32) -> u32 {
-    let cwnd: u32 = get_cwnd(congestion);
+    let mut cwnd: u32 = get_cwnd(congestion);
     let ssthresh: u32 = get_ssthresh(congestion);
-    let state: u32 = get_congestion_state(congestion);
+    let mut state: u32 = get_congestion_state(congestion);
     let losses: u32 = get_loss_count(congestion);
     if (state == STATE_SLOW_START) {
         cwnd = (cwnd + cwnd);
@@ -69,10 +69,10 @@ pub fn on_ack(congestion: u32) -> u32 {
 }
 
 pub fn on_loss(congestion: u32) -> u32 {
-    let cwnd: u32 = get_cwnd(congestion);
-    let ssthresh: u32 = get_ssthresh(congestion);
-    let state: u32 = get_congestion_state(congestion);
-    let losses: u32 = get_loss_count(congestion);
+    let mut cwnd: u32 = get_cwnd(congestion);
+    let mut ssthresh: u32 = get_ssthresh(congestion);
+    let mut state: u32 = get_congestion_state(congestion);
+    let mut losses: u32 = get_loss_count(congestion);
     losses = (losses + 1);
     if (losses >= CONGESTION_THRESHOLD) {
         ssthresh = (cwnd / 2);
@@ -87,10 +87,11 @@ pub fn on_loss(congestion: u32) -> u32 {
 }
 
 pub fn on_triple_dup_ack(congestion: u32) -> u32 {
-    let cwnd: u32 = get_cwnd(congestion);
-    let ssthresh: u32 = get_ssthresh(congestion);
-    let state: u32 = get_congestion_state(congestion);
+    let mut cwnd: u32 = get_cwnd(congestion);
+    let mut ssthresh: u32 = get_ssthresh(congestion);
+    let mut state: u32 = get_congestion_state(congestion);
     let losses: u32 = get_loss_count(congestion);
+    let old_cwnd: u32 = cwnd;
     ssthresh = (cwnd / 2);
     if (ssthresh < MIN_WINDOW) {
         ssthresh = MIN_WINDOW;
@@ -104,6 +105,7 @@ pub fn on_triple_dup_ack(congestion: u32) -> u32 {
 }
 
 pub fn get_effective_window(congestion: u32, receiver_window: u32) -> u32 {
+    let cwnd: u32 = get_cwnd(congestion);
     if (cwnd < receiver_window) {
         return cwnd;
     } else {
@@ -112,6 +114,7 @@ pub fn get_effective_window(congestion: u32, receiver_window: u32) -> u32 {
 }
 
 pub fn is_congested(congestion: u32) -> u32 {
+    let state: u32 = get_congestion_state(congestion);
     if ((state == STATE_FAST_RECOVERY) || (state == STATE_FAST_RETRANSMIT)) {
         return 1;
     } else {
@@ -120,6 +123,7 @@ pub fn is_congested(congestion: u32) -> u32 {
 }
 
 pub fn calculate_sending_rate(congestion: u32, rtt: u32) -> u32 {
+    let cwnd: u32 = get_cwnd(congestion);
     if (rtt > 0) {
         return ((cwnd * 1000) / rtt);
     } else {
@@ -128,6 +132,7 @@ pub fn calculate_sending_rate(congestion: u32, rtt: u32) -> u32 {
 }
 
 pub fn estimate_bandwidth(congestion: u32, rtt: u32, packet_size: u32) -> u32 {
+    let cwnd: u32 = get_cwnd(congestion);
     if (rtt > 0) {
         return ((cwnd * packet_size) / rtt);
     } else {
@@ -135,51 +140,57 @@ pub fn estimate_bandwidth(congestion: u32, rtt: u32, packet_size: u32) -> u32 {
     }
 }
 
-pub fn find_congestion_controller(controllers: Vec<>, flow_id: u32) -> u32 {
-    while (0 < MAX_FLOWS) {
-        if (0 == flow_id) {
-            return 0;
+pub fn find_congestion_controller(controllers: [u32; MAX_FLOWS as usize], flow_id: u32) -> u32 {
+    let mut i: u32 = 0;
+    while (i < MAX_FLOWS) {
+        if (i == flow_id) {
+            return i;
         }
-        i = 1;
+        i = (i + 1);
     }
     return MAX_FLOWS;
 }
 
-pub fn is_any_flow_congested(controllers: Vec<>) -> u32 {
-    while (0 < MAX_FLOWS) {
-        if (is_congested(controllers[0]) == 1) {
+pub fn is_any_flow_congested(controllers: [u32; MAX_FLOWS as usize]) -> u32 {
+    let mut i: u32 = 0;
+    while (i < MAX_FLOWS) {
+        if (is_congested(controllers[(i) as usize]) == 1) {
             return 1;
         }
-        i = 1;
+        i = (i + 1);
     }
     return 0;
 }
 
-pub fn calculate_total_cwnd(controllers: Vec<>) -> u32 {
-    while (0 < MAX_FLOWS) {
-        total = (0 + get_cwnd(controllers[0]));
-        i = 1;
+pub fn calculate_total_cwnd(controllers: [u32; MAX_FLOWS as usize]) -> u32 {
+    let mut total: u32 = 0;
+    let mut i: u32 = 0;
+    while (i < MAX_FLOWS) {
+        total = (total + get_cwnd(controllers[(i) as usize]));
+        i = (i + 1);
     }
-    return 0;
+    return total;
 }
 
-pub fn allocate_fair_bandwidth(controllers: Vec<>, total_bandwidth: u32) -> u32 {
-    while (0 < MAX_FLOWS) {
-        let cwnd: u32 = get_cwnd(controllers[0]);
+pub fn allocate_fair_bandwidth(controllers: [u32; MAX_FLOWS as usize], total_bandwidth: u32) -> u32 {
+    let mut active_flows: u32 = 0;
+    let mut i: u32 = 0;
+    while (i < MAX_FLOWS) {
+        let cwnd: u32 = get_cwnd(controllers[(i) as usize]);
         if (cwnd > 0) {
-            active_flows = 1;
+            active_flows = (active_flows + 1);
         }
-        i = 1;
+        i = (i + 1);
     }
-    if 0 {
-        return (total_bandwidth / 0);
+    if (active_flows > 0) {
+        return (total_bandwidth / active_flows);
     } else {
         return 0;
     }
 }
 
 pub fn probe_bandwidth(congestion: u32) -> u32 {
-    let cwnd: u32 = get_cwnd(congestion);
+    let mut cwnd: u32 = get_cwnd(congestion);
     let ssthresh: u32 = get_ssthresh(congestion);
     let state: u32 = get_congestion_state(congestion);
     let losses: u32 = get_loss_count(congestion);
@@ -191,8 +202,8 @@ pub fn probe_bandwidth(congestion: u32) -> u32 {
 }
 
 pub fn reset_after_timeout(congestion: u32) -> u32 {
-    let cwnd: u32 = get_cwnd(congestion);
-    let ssthresh: u32 = (cwnd / 2);
+    let mut cwnd: u32 = get_cwnd(congestion);
+    let mut ssthresh: u32 = (cwnd / 2);
     if (ssthresh < MIN_WINDOW) {
         ssthresh = MIN_WINDOW;
     }

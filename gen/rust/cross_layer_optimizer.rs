@@ -94,7 +94,7 @@ pub fn calculate_joint_metric(phy_params: u32, mac_params: u32, net_params: u32)
     let power_eff = (255 - get_power(phy_params));
     let rate = get_rate(mac_params);
     let reliability = get_retries(net_params);
-    let metric = ((((power_eff * 5) / 10) + ((rate * 3) / 10)) + ((reliability << 1) / 10));
+    let metric = ((((power_eff * 5) / 10) + ((rate * 3) / 10)) + ((reliability * 2) / 10));
     return metric;
 }
 
@@ -109,7 +109,7 @@ pub fn increment_updates(state: u32) -> u32 {
     let counter = get_update_counter(state);
     let last_sync = get_last_sync(state);
     let target = get_optimization_target(state);
-    let new_counter = (counter + 1);
+    let mut new_counter = (counter + 1);
     if (new_counter > 255) {
         new_counter = 0;
     }

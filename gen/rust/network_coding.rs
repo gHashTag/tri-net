@@ -82,13 +82,14 @@ pub fn is_coding_beneficial(pkt1: u32, pkt2: u32, next_hop1: u32, next_hop2: u32
 }
 
 pub fn linear_code_packets(pkt1: u32, pkt2: u32, coeff1: u32, coeff2: u32) -> u32 {
+    let mut result = 0;
     if ((coeff1 & 1) == 1) {
-        result = (0 ^ pkt1);
+        result = (result ^ pkt1);
     }
     if ((coeff2 & 1) == 1) {
-        result = (0 ^ pkt2);
+        result = (result ^ pkt2);
     }
-    return 0;
+    return result;
 }
 
 pub fn create_coded_generation(p0: u32, p1: u32, p2: u32, p3: u32) -> u64 {
@@ -109,22 +110,24 @@ pub fn get_coded_packet_gen(gen: u64, index: u32) -> u32 {
 }
 
 pub fn count_generation_packets(gen: u64) -> u32 {
+    let mut count = 0;
     if (get_coded_packet_gen(gen, 0) != 0) {
-        count = 1;
+        count = (count + 1);
     }
     if (get_coded_packet_gen(gen, 1) != 0) {
-        count = 1;
+        count = (count + 1);
     }
     if (get_coded_packet_gen(gen, 2) != 0) {
-        count = 1;
+        count = (count + 1);
     }
     if (get_coded_packet_gen(gen, 3) != 0) {
-        count = 1;
+        count = (count + 1);
     }
-    return 0;
+    return count;
 }
 
 pub fn is_generation_decodable(gen: u64, original_count: u32) -> u32 {
+    let coded_count = count_generation_packets(gen);
     if (coded_count >= original_count) {
         return 1;
     }

@@ -74,14 +74,14 @@ module health_dashboard {
             return 100; // assume healthy if no metrics
         }
         
-        let total_score: u32 = 0;
-        let metric_count: u32 = 0;
-        let i: u32 = 0;
+        var total_score: u32 = 0;
+        var metric_count: u32 = 0;
+        var i: u32 = 0;
         
         while (i < count && metrics[i] != 0) {
             let metric_type: u32 = get_health_metric_type(metrics[i]);
             let value: u32 = get_health_value(metrics[i]);
-            let metric_score: u32 = 0;
+            var metric_score: u32 = 0;
             
             // Convert metric to health score (higher is better)
             if (metric_type == METRIC_CPU || metric_type == METRIC_MEMORY) {
@@ -118,8 +118,8 @@ module health_dashboard {
             return 100;
         }
         
-        let total_health: u32 = 0;
-        let i: u32 = 0;
+        var total_health: u32 = 0;
+        var i: u32 = 0;
         
         while (i < node_count) {
             let node_health: u32 = node_metrics[i];
@@ -132,15 +132,15 @@ module health_dashboard {
 
     // Detect critical issues
     fn detect_critical_issues(metrics: [u32; MAX_METRICS], count: u32) -> u32 {
-        let critical_count: u32 = 0;
-        let i: u32 = 0;
+        var critical_count: u32 = 0;
+        var i: u32 = 0;
         
         while (i < count && metrics[i] != 0) {
             let metric_type: u32 = get_health_metric_type(metrics[i]);
             let value: u32 = get_health_value(metrics[i]);
             
             // Check if metric is in critical range
-            let is_critical: u32 = 0;
+            var is_critical: u32 = 0;
             if (metric_type == METRIC_CPU || metric_type == METRIC_MEMORY) {
                 if (value > CRITICAL_THRESHOLD) {
                     is_critical = 1;
@@ -167,15 +167,15 @@ module health_dashboard {
 
     // Detect warning issues
     fn detect_warning_issues(metrics: [u32; MAX_METRICS], count: u32) -> u32 {
-        let warning_count: u32 = 0;
-        let i: u32 = 0;
+        var warning_count: u32 = 0;
+        var i: u32 = 0;
         
         while (i < count && metrics[i] != 0) {
             let metric_type: u32 = get_health_metric_type(metrics[i]);
             let value: u32 = get_health_value(metrics[i]);
             
             // Check if metric is in warning range
-            let is_warning: u32 = 0;
+            var is_warning: u32 = 0;
             if (metric_type == METRIC_CPU || metric_type == METRIC_MEMORY) {
                 if (value > ALERT_THRESHOLD && value <= CRITICAL_THRESHOLD) {
                     is_warning = 1;
@@ -243,7 +243,7 @@ module health_dashboard {
 
     // Generate health alert
     fn generate_alert(node_id: u32, alert_type: u32, value: u32, timestamp: u32) -> u32 {
-        let severity: u32 = 0;
+        var severity: u32 = 0;
         
         if (value > CRITICAL_THRESHOLD || value < (100 - CRITICAL_THRESHOLD)) {
             severity = 3; // critical
@@ -279,8 +279,8 @@ module health_dashboard {
 
     // Find unhealthy nodes
     fn find_unhealthy_nodes(node_healths: [u32; MAX_NODES], threshold: u32) -> u32 {
-        let count: u32 = 0;
-        let i: u32 = 0;
+        var count: u32 = 0;
+        var i: u32 = 0;
         
         while (i < MAX_NODES) {
             if (node_healths[i] < threshold) {
@@ -296,9 +296,9 @@ module health_dashboard {
     fn calculate_network_trend(current_scores: [u32; MAX_NODES], 
                                previous_scores: [u32; MAX_NODES], 
                                node_count: u32) -> u32 {
-        let improving: u32 = 0;
-        let degrading: u32 = 0;
-        let i: u32 = 0;
+        var improving: u32 = 0;
+        var degrading: u32 = 0;
+        var i: u32 = 0;
         
         while (i < node_count) {
             let trend: u32 = analyze_health_trend(current_scores[i], previous_scores[i]);

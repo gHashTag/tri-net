@@ -191,10 +191,10 @@ module test_framework {
     // Run test suite
     fn run_test_suite(suite: u32, tests: [u32; MAX_TESTS], test_count: u32) -> u32 {
         let suite_id: u32 = get_suite_id(suite);
-        let total_assertions: u32 = 0;
-        let total_failures: u32 = 0;
-        let passed_tests: u32 = 0;
-        let i: u32 = 0;
+        var total_assertions: u32 = 0;
+        var total_failures: u32 = 0;
+        var passed_tests: u32 = 0;
+        var i: u32 = 0;
         
         while (i < test_count) {
             let result: u32 = run_test_case(tests[i], 0);
@@ -254,9 +254,9 @@ module test_framework {
 
     // Aggregate coverage data
     fn aggregate_coverage(coverage_data: [u32; MAX_TESTS], count: u32) -> u32 {
-        let total_branches: u32 = 0;
-        let total_covered: u32 = 0;
-        let i: u32 = 0;
+        var total_branches: u32 = 0;
+        var total_covered: u32 = 0;
+        var i: u32 = 0;
         
         while (i < count) {
             total_branches = total_branches + get_branch_count(coverage_data[i]);
@@ -314,10 +314,10 @@ module test_framework {
     // Run property test
     fn run_property_test(prop_id: u32, generator_count: u32, test_count: u32) -> u32 {
         let failures: u32 = 0;
-        let i: u32 = 0;
+        var i: u32 = 0;
         
         while (i < test_count) {
-            let j: u32 = 0;
+            var j: u32 = 0;
             while (j < generator_count) {
                 let input: u32 = generate_test_input(j, i);
                 // In real system, would test property with input
@@ -380,7 +380,7 @@ module test_framework {
         let coverage_pct: u32 = calculate_coverage_percentage(coverage);
         
         // Report: [pass_rate][coverage_pct][duration_ms][status]
-        let status: u32 = 0;
+        var status: u32 = 0;
         if (pass_rate >= 90 && coverage_pct >= COVERAGE_TARGET) {
             status = 1; // excellent
         } else if (pass_rate >= 70 && coverage_pct >= 70) {

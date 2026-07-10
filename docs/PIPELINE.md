@@ -52,22 +52,26 @@ present at `../t27/target/release/t27c`.
   hand-written logic in `src/`, ASCII-only) but hooks are bypassable, so CI +
   branch protection are the real guard.
 
-## Known t27c codegen limitation (mutable locals) — tracked upstream
+## t27c codegen fixes applied (pinned commit d7f3a73)
 
-The pinned t27c correctly lowers the dropped-`let` (t27#1401) and `ExprCast`
-(t27#1320) bugs. It still miscompiles a REASSIGNED mutable local:
+The pinned t27c carries, in order: the dropped-`let` lexer fix (t27#1401), the
+`ExprCast` fix (t27#1320), the **optimizer removal for the Rust/C source
+backends** (t27#1456 — the AST optimizer was dropping reassigned mutable locals
+and const-inlining `let`), and the **array/index codegen fix** (t27#1457 —
+`[T; N]` -> `[T; N as usize]`, non-literal indices cast to `usize`).
 
-| Spec form           | t27c output                     | Result            |
-|---------------------|---------------------------------|-------------------|
-| `let x = 0; x = y;` | drops decl, folds `x`->`0`      | E0425 undeclared  |
-| `let mut x = 0;`    | `let mut;` then `x = 0;`         | parse-broken      |
-| `var x = 0;`        | `let mut x = 0;` (correct-ish)   | works in simple bodies, still incomplete in complex ones |
+With these, all 68 specs regenerate to compiling Rust. The 9 generated mesh
+modules (`adaptive_routing`, `multipath_routing`, `anomaly_detector`,
+`flow_control`, `frame_buffer`, `health_dashboard`, `mesh_routing`, `etx`,
+`quarantine_manager`) are now WIRED in `src/lib.rs`. They still have zero call
+sites, so each `mod` declaration carries `#[allow(dead_code, unused,
+unused_parens, clippy::all)]` for lint hygiene on generated theater.
 
-`var` is the intended idiom for a mutable local, but t27c's handling is not yet
-complete for real modules. Because of this, 9 generated modules
-(`adaptive_routing`, `multipath_routing`, `anomaly_detector`, `flow_control`,
-`frame_buffer`, `health_dashboard`, `mesh_routing`, `etx`, `quarantine_manager`)
-have zero call sites and are left UNWIRED in `src/lib.rs` until the upstream fix
-lands. Their gen/rust is still committed and drift-checked as the canonical
-pinned-t27c output. Re-wire them (uncomment in `src/lib.rs`) once t27c generates
-compiling Rust for reassigned mutable locals.
+Genuine SOURCE-spec bugs surfaced by the now-correct codegen were fixed in the
+`.t27` specs (see gHashTag/tri-net#61): a `path_valid` typo, an
+`is_multipath_viable` bool-vs-u32 return type, an `etx` Q8.8 `256`-in-u8 literal,
+and ~50 reassigned locals switched from `let` to the mutable idiom `var`.
+
+The pin is `d7f3a73` on branch `fix/faithful-rust-c-codegen-1455`; once
+t27 PR #1456 merges to master, bump `.t27c-version` to the master SHA (the
+generated output is identical).

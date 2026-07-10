@@ -109,15 +109,15 @@ module CrossLayerOptimizer {
         
         if (mode == MODE_CONSERVATIVE) {
             // Reduce power across layers
-            let new_phy = current_phy_power - 10;
-            let new_mac = current_mac_power - 5;
+            var new_phy = current_phy_power - 10;
+            var new_mac = current_mac_power - 5;
             if (new_phy < 10) { new_phy = 10; }
             if (new_mac < 10) { new_mac = 10; }
             return (new_phy, new_mac);
         } else if (mode == MODE_AGGRESSIVE) {
             // Increase power for performance
-            let new_phy = current_phy_power + 10;
-            let new_mac = current_mac_power + 5;
+            var new_phy = current_phy_power + 10;
+            var new_mac = current_mac_power + 5;
             if (new_phy > 255) { new_phy = 255; }
             if (new_mac > 255) { new_mac = 255; }
             return (new_phy, new_mac);
@@ -133,21 +133,21 @@ module CrossLayerOptimizer {
         
         if (target == 0) { // Latency optimization
             // Increase rate, decrease retries
-            let new_rate = get_rate(mac_params) + 20;
-            let new_retries = get_retries(phy_params) - 1;
+            var new_rate = get_rate(mac_params) + 20;
+            var new_retries = get_retries(phy_params) - 1;
             if (new_rate > 255) { new_rate = 255; }
             if (new_retries < 1) { new_retries = 1; }
             return (new_rate, new_retries);
         } else if (target == 1) { // Throughput optimization
             // Maximize rate and window
-            let new_rate = 255;
-            let new_window = get_window(mac_params) + 10;
+            var new_rate = 255;
+            var new_window = get_window(mac_params) + 10;
             if (new_window > 255) { new_window = 255; }
             return (new_rate, new_window);
         } else { // Reliability optimization
             // Increase retries and power
-            let new_retries = get_retries(phy_params) + 3;
-            let new_power = get_power(phy_params) + 15;
+            var new_retries = get_retries(phy_params) + 3;
+            var new_power = get_power(phy_params) + 15;
             if (new_retries > 255) { new_retries = 255; }
             if (new_power > 255) { new_power = 255; }
             return (new_retries, new_power);
@@ -168,7 +168,7 @@ module CrossLayerOptimizer {
         let last_sync = get_last_sync(state);
         let target = get_optimization_target(state);
         
-        let new_counter = counter + 1;
+        var new_counter = counter + 1;
         if (new_counter > 255) { new_counter = 0; } // Wrap around
         
         return create_cross_layer_state(mode, new_counter, last_sync, target);

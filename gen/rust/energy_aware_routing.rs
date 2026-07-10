@@ -80,7 +80,7 @@ pub fn calculate_energy_score(battery: u32, cost: u32) -> u32 {
     if (total_cost == 0) {
         return (battery * 10);
     }
-    let score = ((battery * 100) / total_cost);
+    let mut score = ((battery * 100) / total_cost);
     if (score > 32767) {
         score = 32767;
     }
@@ -94,70 +94,76 @@ pub fn is_path_viable(energy: u32) -> bool {
 }
 
 pub fn find_energy_optimal_path(energy_array: u64) -> u32 {
+    let mut best_path = 0xFF;
+    let mut best_score = 0;
     if is_path_viable(get_path_energy(energy_array, 0)) {
         let score = get_energy_score(get_path_energy(energy_array, 0));
-        if (score > 0) {
+        if (score > best_score) {
             best_score = score;
             best_path = 0;
         }
     }
     if is_path_viable(get_path_energy(energy_array, 1)) {
         let score = get_energy_score(get_path_energy(energy_array, 1));
-        if (score > 0) {
+        if (score > best_score) {
             best_score = score;
             best_path = 1;
         }
     }
     if is_path_viable(get_path_energy(energy_array, 2)) {
         let score = get_energy_score(get_path_energy(energy_array, 2));
-        if (score > 0) {
+        if (score > best_score) {
             best_score = score;
             best_path = 2;
         }
     }
     if is_path_viable(get_path_energy(energy_array, 3)) {
         let score = get_energy_score(get_path_energy(energy_array, 3));
-        if (score > 0) {
+        if (score > best_score) {
             best_score = score;
             best_path = 3;
         }
     }
-    return 0xFF;
+    return best_path;
 }
 
 pub fn find_min_cost_path(energy_array: u64) -> u32 {
+    let mut best_path = 0xFF;
+    let mut best_cost = 0xFFFFFFFF;
     if is_path_viable(get_path_energy(energy_array, 0)) {
         let cost = get_total_cost(get_path_energy(energy_array, 0));
-        if (cost < 0xFFFFFFFF) {
+        if (cost < best_cost) {
             best_cost = cost;
             best_path = 0;
         }
     }
     if is_path_viable(get_path_energy(energy_array, 1)) {
         let cost = get_total_cost(get_path_energy(energy_array, 1));
-        if (cost < 0xFFFFFFFF) {
+        if (cost < best_cost) {
             best_cost = cost;
             best_path = 1;
         }
     }
     if is_path_viable(get_path_energy(energy_array, 2)) {
         let cost = get_total_cost(get_path_energy(energy_array, 2));
-        if (cost < 0xFFFFFFFF) {
+        if (cost < best_cost) {
             best_cost = cost;
             best_path = 2;
         }
     }
     if is_path_viable(get_path_energy(energy_array, 3)) {
         let cost = get_total_cost(get_path_energy(energy_array, 3));
-        if (cost < 0xFFFFFFFF) {
+        if (cost < best_cost) {
             best_cost = cost;
             best_path = 3;
         }
     }
-    return 0xFF;
+    return best_path;
 }
 
 pub fn select_balanced_path(energy_array: u64, current_path: u32) -> u32 {
+    let mut best_path = current_path;
+    let mut best_battery = get_battery_levels(get_path_energy(energy_array, current_path));
     if is_path_viable(get_path_energy(energy_array, 0)) {
         let battery = get_battery_levels(get_path_energy(energy_array, 0));
         if (battery > best_battery) {
@@ -186,7 +192,7 @@ pub fn select_balanced_path(energy_array: u64, current_path: u32) -> u32 {
             best_path = 3;
         }
     }
-    return current_path;
+    return best_path;
 }
 
 pub fn estimate_path_lifetime(energy: u32, drain_rate: u32) -> u32 {

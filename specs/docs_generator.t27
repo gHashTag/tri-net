@@ -91,7 +91,7 @@ module docs_generator {
     // Generate Markdown header
     fn generate_markdown_header(level: u32, title_id: u32) -> u32 {
         // Markdown uses # for headers, ## for subsections, etc.
-        let header_prefix: u32 = 0;
+        var header_prefix: u32 = 0;
         if (level == 1) {
             header_prefix = 0x23; // '#'
         } else if (level == 2) {
@@ -261,11 +261,11 @@ module docs_generator {
 
     // Calculate document statistics
     fn calculate_document_stats(sections: [u32; MAX_SECTIONS], section_count: u32) -> u32 {
-        let total_pages: u32 = 0;
-        let total_words: u32 = 0;
-        let total_tables: u32 = 0;
+        var total_pages: u32 = 0;
+        var total_words: u32 = 0;
+        var total_tables: u32 = 0;
         let total_figures: u32 = 0;
-        let i: u32 = 0;
+        var i: u32 = 0;
         
         while (i < section_count) {
             let content_len: u32 = get_section_content_length(sections[i]);
@@ -315,8 +315,8 @@ module docs_generator {
     // Format document for output
     fn format_document(sections: [u32; MAX_SECTIONS], section_count: u32, 
                        format: u32, layout: u32) -> u32 {
-        let formatted_size: u32 = 0;
-        let i: u32 = 0;
+        var formatted_size: u32 = 0;
+        var i: u32 = 0;
         
         while (i < section_count) {
             let content_len: u32 = get_section_content_length(sections[i]);
@@ -364,8 +364,8 @@ module docs_generator {
         let actual_sections: u32 = (generated_doc >> 8) & 0xFF;
         let actual_funcs: u32 = generated_doc & 0xFF;
         
-        let section_match: u32 = 0;
-        let func_match: u32 = 0;
+        var section_match: u32 = 0;
+        var func_match: u32 = 0;
         
         if (actual_sections >= expected_sections) {
             section_match = 1;
