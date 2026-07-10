@@ -92,8 +92,11 @@ pub struct NoiseXX {
     /// Our static identity key (long-term)
     static_secret: StaticSecret,
     static_public: PublicKey,
-    /// Our ephemeral key for this handshake
-    ephemeral: EphemeralSecret,
+    /// Our ephemeral key for this handshake. A reusable `StaticSecret` (not a
+    /// one-shot `EphemeralSecret`) because the Noise key agreement needs it for
+    /// TWO DH operations (ee and es/se); it is still freshly random per handshake
+    /// and dropped when the handshake completes.
+    ephemeral: StaticSecret,
     ephemeral_public: PublicKey,
     /// True if we're the initiator (first to send). Retained for future
     /// role-aware rekey/anti-replay logic; not yet read by current handlers.
@@ -105,7 +108,7 @@ impl NoiseXX {
     /// Start a new Noise-XX handshake with a static identity key.
     pub fn new(static_secret: StaticSecret, initiator: bool) -> Self {
         let static_public = PublicKey::from(&static_secret);
-        let ephemeral = EphemeralSecret::random_from_rng(OsRng);
+        let ephemeral = StaticSecret::random_from_rng(OsRng);
         let ephemeral_public = PublicKey::from(&ephemeral);
 
         Self {
@@ -130,33 +133,29 @@ impl NoiseXX {
     /// Complete as initiator: receive responder's message, derive session.
     /// Input: (responder_ephemeral_pub, responder_static_pub)
     pub fn complete_initiator(self, peer_ephemeral: PublicKey, peer_static: PublicKey) -> Session {
-        // SIMPLIFIED Noise-XX: Use only ee (ephemeral-ephemeral) + ss (static-static)
-        // Proper Noise-XX would use ee, es, se but that requires multiple ephemeral DH ops
-
-        // ee = ephemeral × peer_ephemeral
+        // Real Noise key agreement: ee + es + se (was ee + ss with `ss` wrongly
+        // passed in both the es and se slots, giving no forward secrecy). The
+        // initiator's shares:
+        //   ee = e_i . e_r     es = e_i . s_r     se = s_i . e_r
         let ee = self.ephemeral.diffie_hellman(&peer_ephemeral);
-        let ee_bytes = *ee.as_bytes();
-
-        // ss = static × peer_static (both sides compute this, gets same result)
-        let ss = self.static_secret.diffie_hellman(&peer_static);
-        let ss_bytes = *ss.as_bytes();
-
-        // Combine ee + ss (both sides get same result)
-        let combined = combine_dh_shares(&ee_bytes, &ss_bytes, &ss_bytes);
+        let es = self.ephemeral.diffie_hellman(&peer_static);
+        let se = self.static_secret.diffie_hellman(&peer_ephemeral);
+        let combined =
+            combine_dh_shares(ee.as_bytes(), es.as_bytes(), se.as_bytes());
         Session::from_shared(&combined, true)
     }
 
     /// Complete as responder: receive initiator's static, derive session.
     /// Input: (initiator_ephemeral_pub, initiator_static_pub)
     pub fn complete_responder(self, peer_ephemeral: PublicKey, peer_static: PublicKey) -> Session {
-        // Same as initiator: ee + ss (both sides compute same)
+        // Mirror of the initiator so both derive the SAME (ee, es, se). Here the
+        // peer is the initiator, so `peer_ephemeral = e_i`, `peer_static = s_i`:
+        //   ee = e_r . e_i     es = s_r . e_i (== e_i . s_r)     se = e_r . s_i (== s_i . e_r)
         let ee = self.ephemeral.diffie_hellman(&peer_ephemeral);
-        let ee_bytes = *ee.as_bytes();
-
-        let ss = self.static_secret.diffie_hellman(&peer_static);
-        let ss_bytes = *ss.as_bytes();
-
-        let combined = combine_dh_shares(&ee_bytes, &ss_bytes, &ss_bytes);
+        let es = self.static_secret.diffie_hellman(&peer_ephemeral);
+        let se = self.ephemeral.diffie_hellman(&peer_static);
+        let combined =
+            combine_dh_shares(ee.as_bytes(), es.as_bytes(), se.as_bytes());
         Session::from_shared(&combined, false)
     }
 }
