@@ -1,0 +1,226 @@
+// TUN device constants and pure logic for Linux /dev/net/tun interface.
+// Specs the ioctl numbers, interface flags, and packet-info prefix handling.
+// The actual open()/ioctl()/read()/write() syscalls live in src/tun_dev.rs (thin plumbing, L6-allowed).
+// Reference: Linux kernel include/uapi/linux/if_tun.h
+// phi^2 + phi^-2 = 3 | TRINITY
+
+module TunDevice {
+    use base::types;
+
+    // ---- Linux ioctl direction codes (_IOC_NONE=0, _IOC_WRITE=1, _IOC_READ=2) ----
+    const IOC_NONE: u32 = 0;
+    const IOC_WRITE: u32 = 1;
+    const IOC_READ: u32 = 2;
+
+    const IOC_DIRSHIFT: u32 = 30;
+    const IOC_SIZESHIFT: u32 = 16;
+    const IOC_TYPESHIFT: u32 = 8;
+    const IOC_NRSHIFT: u32 = 0;
+
+    // 'T' magic for TUN ioctls (ASCII 0x54)
+    const TUN_MAGIC: u32 = 84;
+
+    // sizeof(int) = 4 — TUN ioctls encode the arg size as int, not struct ifreq
+    const SIZEOF_INT: u32 = 4;
+
+    // ---- TUN ioctl command numbers (from if_tun.h) ----
+    // TUNSETIFF = _IOW('T', 202, int)
+    const TUNSETIFF: u32 = 1074025674;       // 0x400454CA
+    // TUNSETPERSIST = _IOW('T', 203, int)
+    const TUNSETPERSIST: u32 = 1074025675;   // 0x400454CB
+    // TUNSETOWNER = _IOW('T', 204, int)
+    const TUNSETOWNER: u32 = 1074025676;     // 0x400454CC
+    // TUNSETLINK = _IOW('T', 205, int)
+    const TUNSETLINK: u32 = 1074025677;      // 0x400454CD
+
+    // ---- Interface request flags (ifr_flags) ----
+    const IFF_TUN: u32 = 1;         // 0x0001 — TUN device (no Ethernet headers)
+    const IFF_TAP: u32 = 2;         // 0x0002 — TAP device (with Ethernet headers)
+    const IFF_NO_PI: u32 = 4096;    // 0x1000 — no packet-info prefix (4-byte header)
+    const IFF_UP: u32 = 1;          // interface is up (for SIOCSIFFLAGS)
+    const IFF_RUNNING: u32 = 64;    // 0x0040
+
+    // ---- Packet-info prefix (when IFF_NO_PI is NOT set) ----
+    const PI_PREFIX_LEN: u32 = 4;   // 4 bytes: flags(2) + proto(2)
+    const PI_FLAGS_OFFSET: u32 = 0;
+    const PI_PROTO_OFFSET: u32 = 2;
+
+    // ---- IPv4 constants (mirrors tun.t27) ----
+    const IPV4_MIN_HDR: u32 = 20;
+    const DEFAULT_MTU: u32 = 1500;
+    const TUN_BUF_SIZE: u32 = 1600; // MTU + 4 bytes PI prefix headroom
+
+    // ---- ifreq layout constants ----
+    const IFNAMSIZ: u32 = 16;       // max interface name length (including NUL)
+    const IFREQ_NAME_OFFSET: u32 = 0;    // ifr_name starts at byte 0
+    const IFREQ_FLAGS_OFFSET: u32 = 16;  // ifr_ifru.flags starts at byte 16
+    const IFREQ_TOTAL_SIZE: u32 = 40;    // sizeof(struct ifreq) on Linux
+
+    // ---- Build the ioctl number from components ----
+    // _IOC(dir, type, nr, size) = (dir<<30) | (size<<16) | (type<<8) | nr
+    fn build_ioctl(dir: u32, type_val: u32, nr: u32, size_val: u32) -> u32 {
+        return (dir << IOC_DIRSHIFT) | (size_val << IOC_SIZESHIFT) | (type_val << IOC_TYPESHIFT) | nr;
+    }
+
+    // Verify TUNSETIFF = _IOW('T', 202, int)
+    fn expected_tunsetiff() -> u32 {
+        return build_ioctl(IOC_WRITE, TUN_MAGIC, 202, SIZEOF_INT);
+    }
+
+    // Verify TUNSETOWNER = _IOW('T', 204, int)
+    fn expected_tunsetowner() -> u32 {
+        return build_ioctl(IOC_WRITE, TUN_MAGIC, 204, SIZEOF_INT);
+    }
+
+    // Combine IFF_TUN with IFF_NO_PI — standard flags for IP-over-mesh TUN
+    fn tun_flags_no_pi() -> u32 {
+        return IFF_TUN | IFF_NO_PI;
+    }
+
+    // Is this a TUN (not TAP)?
+    fn is_tun(flags: u32) -> bool {
+        return (flags & IFF_TUN) != 0;
+    }
+
+    // Is IFF_NO_PI set? (no 4-byte prefix on packets)
+    fn has_no_pi(flags: u32) -> bool {
+        return (flags & IFF_NO_PI) != 0;
+    }
+
+    // Packet payload offset: 0 if IFF_NO_PI, 4 if PI prefix present
+    fn payload_offset(no_pi: bool) -> u32 {
+        if (no_pi) {
+            return 0;
+        }
+        return PI_PREFIX_LEN;
+    }
+
+    // Total buffer size needed: MTU + PI prefix (if present)
+    fn buf_size(no_pi: bool) -> u32 {
+        if (no_pi) {
+            return DEFAULT_MTU;
+        }
+        return DEFAULT_MTU + PI_PREFIX_LEN;
+    }
+
+    // Is a packet long enough to contain an IPv4 header after the offset?
+    fn is_valid_ipv4_packet(total_len: u32, no_pi: bool) -> bool {
+        if (total_len < payload_offset(no_pi)) {
+            return false;
+        }
+        let payload: u32 = total_len - payload_offset(no_pi);
+        return payload >= IPV4_MIN_HDR;
+    }
+
+    // ---- TDD (L4) ----
+
+    test tunsetiff_value {
+        assert(expected_tunsetiff() == TUNSETIFF, "TUNSETIFF = 0x400454CA");
+    }
+
+    test tunsetowner_value {
+        assert(expected_tunsetowner() == TUNSETOWNER, "TUNSETOWNER = 0x400454CC");
+    }
+
+    test tunsetiff_is_write_direction {
+        assert((TUNSETIFF >> IOC_DIRSHIFT) == IOC_WRITE, "TUNSETIFF is _IOW (write)");
+    }
+
+    test tunsetiff_magic_is_T {
+        let magic: u32 = (TUNSETIFF >> IOC_TYPESHIFT) & 255;
+        assert(magic == TUN_MAGIC, "magic byte is 'T' (84)");
+    }
+
+    test tunsetiff_nr_is_202 {
+        let nr: u32 = TUNSETIFF & 255;
+        assert(nr == 202, "TUNSETIFF nr = 202");
+    }
+
+    test tunsetiff_size_is_4 {
+        let sz: u32 = (TUNSETIFF >> IOC_SIZESHIFT) & 16383;
+        assert(sz == SIZEOF_INT, "TUNSETIFF size = sizeof(int) = 4");
+    }
+
+    test tun_no_pi_flags {
+        assert(tun_flags_no_pi() == (IFF_TUN | IFF_NO_PI), "IFF_TUN|IFF_NO_PI = 0x1001");
+    }
+
+    test tun_no_pi_value {
+        assert(tun_flags_no_pi() == 4097, "combined = 4097 decimal");
+    }
+
+    test is_tun_true_for_tun {
+        assert(is_tun(tun_flags_no_pi()) == true, "tun flags indicate TUN");
+    }
+
+    test is_tun_false_for_tap {
+        assert(is_tun(IFF_TAP) == false, "TAP is not TUN");
+    }
+
+    test has_no_pi_true {
+        assert(has_no_pi(tun_flags_no_pi()) == true, "NO_PI is set");
+    }
+
+    test has_no_pi_false {
+        assert(has_no_pi(IFF_TUN) == false, "NO_PI not set in plain IFF_TUN");
+    }
+
+    test payload_offset_with_no_pi {
+        assert(payload_offset(true) == 0, "no PI prefix = offset 0");
+    }
+
+    test payload_offset_with_pi {
+        assert(payload_offset(false) == 4, "PI present = skip 4 bytes");
+    }
+
+    test buf_size_no_pi {
+        assert(buf_size(true) == 1500, "buffer = MTU when no PI");
+    }
+
+    test buf_size_with_pi {
+        assert(buf_size(false) == 1504, "buffer = MTU + 4 when PI");
+    }
+
+    test valid_ipv4_packet_no_pi {
+        assert(is_valid_ipv4_packet(20, true) == true, "20 bytes, no PI = valid");
+    }
+
+    test valid_ipv4_packet_with_pi {
+        assert(is_valid_ipv4_packet(24, false) == true, "24 bytes, PI = 20 payload = valid");
+    }
+
+    test invalid_short_packet_no_pi {
+        assert(is_valid_ipv4_packet(10, true) == false, "10 bytes too short");
+    }
+
+    test invalid_short_packet_with_pi {
+        assert(is_valid_ipv4_packet(20, false) == false, "20 bytes minus 4 PI = 16 payload = too short");
+    }
+
+    test ifreq_name_is_16_bytes {
+        assert(IFNAMSIZ == 16, "IFNAMSIZ = 16");
+    }
+
+    test ifreq_flags_at_offset_16 {
+        assert(IFREQ_FLAGS_OFFSET == 16, "ifr_flags at byte 16");
+    }
+
+    test ifreq_total_40_bytes {
+        assert(IFREQ_TOTAL_SIZE == 40, "sizeof(struct ifreq) = 40");
+    }
+
+    test tunsetpersist_value {
+        assert(TUNSETPERSIST == expected_tunsetiff() + 1, "TUNSETPERSIST = TUNSETIFF + 1");
+    }
+
+    // ---- invariants ----
+
+    invariant tunsetiff_is_iow
+        assert (TUNSETIFF >> IOC_DIRSHIFT) == IOC_WRITE
+
+    invariant tun_flags_combination
+        assert tun_flags_no_pi() == (IFF_TUN | IFF_NO_PI)
+
+    invariant pi_prefix_is_4_bytes
+        assert PI_PREFIX_LEN == 4
+}
