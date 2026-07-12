@@ -16,6 +16,7 @@ pub mod modem;
 pub mod gf16;
 pub mod daemon;
 pub mod discovery;
+pub mod tun_dev;
 
 // Re-export generated mesh components
 #[path = "../gen/rust/mesh_routing.rs"]
@@ -44,6 +45,12 @@ pub mod anomaly_detector;
 
 #[path = "../gen/rust/quarantine_manager.rs"]
 pub mod quarantine_manager;
+
+#[path = "../gen/rust/tun.rs"]
+pub mod tun;
+
+#[path = "../gen/rust/tun_device.rs"]
+pub mod tun_device;
 
 // Types used across the crate
 pub type NodeId = u32;
