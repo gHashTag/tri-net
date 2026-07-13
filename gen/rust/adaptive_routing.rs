@@ -12,7 +12,8 @@ pub const METRIC_BANDWIDTH: u32 = 2;
 pub const UPDATE_INTERVAL: u32 = 5000;
 
 pub fn create_path_metrics(latency: u32, hops: u32, bandwidth: u32, load: u32) -> u32 {
-    return (((((latency & 0xFF) << 24) | ((hops & 0xFF) << 16)) | ((bandwidth & 0xFF) << 8)) | (load & 0xFF));
+    return (((((latency & 0xFF) << 24) | ((hops & 0xFF) << 16)) | ((bandwidth & 0xFF) << 8))
+        | (load & 0xFF));
 }
 
 pub fn get_latency(metrics: u32) -> u32 {
@@ -31,8 +32,14 @@ pub fn get_load(metrics: u32) -> u32 {
     return (metrics & 0xFF);
 }
 
-pub fn create_selection_state(primary: u32, backup: u32, metric_type: u32, last_update: u32) -> u32 {
-    return (((((primary & 0x3) << 30) | ((backup & 0x3) << 28)) | ((metric_type & 0x3) << 26)) | (last_update & 0xFFFFFF));
+pub fn create_selection_state(
+    primary: u32,
+    backup: u32,
+    metric_type: u32,
+    last_update: u32,
+) -> u32 {
+    return (((((primary & 0x3) << 30) | ((backup & 0x3) << 28)) | ((metric_type & 0x3) << 26))
+        | (last_update & 0xFFFFFF));
 }
 
 pub fn get_primary_path(state: u32) -> u32 {
@@ -52,34 +59,32 @@ pub fn get_last_update(state: u32) -> u32 {
 }
 
 pub fn create_path_metrics_array(m0: u32, m1: u32, m2: u32, m3: u32) -> u64 {
-    return ((((() << 48) | (() << 32)) | (() << 16)) | ());
+    return (((((m0 as u64) << 48) | ((m1 as u64) << 32)) | ((m2 as u64) << 16)) | (m3 as u64));
 }
 
 pub fn get_path_metrics(array: u64, index: u32) -> u32 {
     if (index == 0) {
-        return ();
+        return (((array >> 48) & 0xFFFFFFFF) as u32);
     }
     if (index == 1) {
-        return ();
+        return (((array >> 32) & 0xFFFFFFFF) as u32);
     }
     if (index == 2) {
-        return ();
+        return (((array >> 16) & 0xFFFFFFFF) as u32);
     }
-    return ();
+    return ((array & 0xFFFFFFFF) as u32);
 }
 
 pub fn calculate_score(metrics: u32, metric_type: u32) -> u32 {
     if (metric_type == METRIC_LATENCY) {
-        let;
-        latency = get_latency(metrics);
+        let latency = get_latency(metrics);
         if (latency == 0) {
             return 255;
         }
         return (255 / latency);
     } else {
         if (metric_type == METRIC_HOPS) {
-            let;
-            hops = get_hops(metrics);
+            let hops = get_hops(metrics);
             if (hops == 0) {
                 return 255;
             }
@@ -94,9 +99,8 @@ pub fn calculate_score(metrics: u32, metric_type: u32) -> u32 {
 }
 
 pub fn find_best_path(metrics_array: u64, metric_type: u32) -> u32 {
-    let;
-    best_path = 0xFF;
-    let;
+    let mut best_path = 0xFF;
+    let mut best_score = 0;
     if (calculate_score(get_path_metrics(metrics_array, 0), metric_type) > best_score) {
         best_score = calculate_score(get_path_metrics(metrics_array, 0), metric_type);
         best_path = 0;
@@ -117,26 +121,20 @@ pub fn find_best_path(metrics_array: u64, metric_type: u32) -> u32 {
 }
 
 pub fn needs_update(state: u32, current_time: u32) -> bool {
-    let;
-    last = get_last_update(state);
-    let;
-    elapsed = (current_time - last);
+    let last = get_last_update(state);
+    let elapsed = (current_time - last);
     return (elapsed >= UPDATE_INTERVAL);
 }
 
 pub fn update_selection(state: u32, primary: u32, backup: u32, current_time: u32) -> u32 {
-    let;
-    metric_type = get_metric_type(state);
+    let metric_type = get_metric_type(state);
     return create_selection_state(primary, backup, metric_type, current_time);
 }
 
 pub fn change_metric_type(state: u32, new_metric: u32) -> u32 {
-    let;
-    primary = get_primary_path(state);
-    let;
-    backup = get_backup_path(state);
-    let;
-    last = get_last_update(state);
+    let primary = get_primary_path(state);
+    let backup = get_backup_path(state);
+    let last = get_last_update(state);
     return create_selection_state(primary, backup, new_metric, last);
 }
 
@@ -145,9 +143,8 @@ pub fn is_path_congested(metrics: u32) -> bool {
 }
 
 pub fn find_least_congested(metrics_array: u64) -> u32 {
-    let;
-    best_path = 0;
-    let;
+    let mut best_path = 0;
+    let mut best_load = get_load(get_path_metrics(metrics_array, 0));
     if (get_load(get_path_metrics(metrics_array, 1)) < best_load) {
         best_load = get_load(get_path_metrics(metrics_array, 1));
         best_path = 1;
@@ -162,4 +159,3 @@ pub fn find_least_congested(metrics_array: u64) -> u32 {
     }
     return best_path;
 }
-

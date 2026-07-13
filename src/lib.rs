@@ -9,13 +9,13 @@
 
 // Re-export all generated modules
 pub mod crypto;
-pub mod wire;
-pub mod router;
-pub mod routing;
-pub mod modem;
-pub mod gf16;
 pub mod daemon;
 pub mod discovery;
+pub mod gf16;
+pub mod modem;
+pub mod router;
+pub mod routing;
+pub mod wire;
 
 // Re-export generated mesh components
 #[path = "../gen/rust/mesh_routing.rs"]

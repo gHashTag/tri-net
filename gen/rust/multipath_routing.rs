@@ -12,7 +12,8 @@ pub const PATH_VALID: u32 = 1;
 pub const PATH_INVALID: u32 = 0;
 
 pub fn create_multipath(valid: u32, hop1: u32, hop2: u32, hop3: u32) -> u32 {
-    return (((((valid & 0x1) << 24) | ((hop1 & 0xFF) << 16)) | ((hop2 & 0xFF) << 8)) | (hop3 & 0xFF));
+    return (((((valid & 0x1) << 24) | ((hop1 & 0xFF) << 16)) | ((hop2 & 0xFF) << 8))
+        | (hop3 & 0xFF));
 }
 
 pub fn get_path_valid(path: u32) -> u32 {
@@ -32,7 +33,8 @@ pub fn get_multipath_hop3(path: u32) -> u32 {
 }
 
 pub fn create_multipath_state(active: u32, current: u32, flow_id: u32, last_update: u32) -> u32 {
-    return (((((active & 0xFF) << 24) | ((current & 0xFF) << 16)) | ((flow_id & 0xFF) << 8)) | (last_update & 0xFF));
+    return (((((active & 0xFF) << 24) | ((current & 0xFF) << 16)) | ((flow_id & 0xFF) << 8))
+        | (last_update & 0xFF));
 }
 
 pub fn get_active_paths(state: u32) -> u32 {
@@ -52,25 +54,24 @@ pub fn get_multipath_last_update(state: u32) -> u32 {
 }
 
 pub fn create_path_array(p0: u32, p1: u32, p2: u32, p3: u32) -> u64 {
-    return ((((() << 48) | (() << 32)) | (() << 16)) | ());
+    return (((((p0 as u64) << 48) | ((p1 as u64) << 32)) | ((p2 as u64) << 16)) | (p3 as u64));
 }
 
 pub fn get_multipath(array: u64, index: u32) -> u32 {
     if (index == 0) {
-        return ();
+        return (((array >> 48) & 0xFFFFFFFF) as u32);
     }
     if (index == 1) {
-        return ();
+        return (((array >> 32) & 0xFFFFFFFF) as u32);
     }
     if (index == 2) {
-        return ();
+        return (((array >> 16) & 0xFFFFFFFF) as u32);
     }
-    return ();
+    return ((array & 0xFFFFFFFF) as u32);
 }
 
 pub fn count_valid_paths(path_array: u64) -> u32 {
-    let;
-    count = 0;
+    let mut count = 0;
     if (get_path_valid(get_multipath(path_array, 0)) == PATH_VALID) {
         count = (count + 1);
     }
@@ -110,8 +111,7 @@ pub fn select_primary_path(path_array: u64, quality_array: u64) -> u32 {
 }
 
 pub fn calculate_path_diversity(path_array: u64) -> u32 {
-    let;
-    let;
+    let mut hop1_set = 0;
     if (get_path_valid(get_multipath(path_array, 0)) == PATH_VALID) {
         hop1_set = (hop1_set | (1 << get_multipath_hop1(get_multipath(path_array, 0))));
     }
@@ -124,8 +124,7 @@ pub fn calculate_path_diversity(path_array: u64) -> u32 {
     if ((get_path_valid(get_multipath(path_array, 3)) == path_valid) == PATH_VALID) {
         hop1_set = (hop1_set | (1 << get_multipath_hop1(get_multipath(path_array, 3))));
     }
-    let;
-    count = 0;
+    let mut count = 0;
     if ((hop1_set & 0x01) == 0x01) {
         count = (count + 1);
     }
@@ -154,14 +153,13 @@ pub fn calculate_path_diversity(path_array: u64) -> u32 {
 }
 
 pub fn distribute_load(path_array: u64, current_path: u32, load_ratio: u32) -> u32 {
-    let;
-    total_paths = count_valid_paths(path_array);
+    let total_paths = count_valid_paths(path_array);
     if (total_paths < 2) {
         return current_path;
     }
-    let;
-    let;
-    let;
+    let mut next_path = ((current_path + 1) % total_paths);
+    let mut found = 0;
+    let mut attempts = 0;
     while ((found == 0) && (attempts < 4)) {
         if (get_path_valid(get_multipath(path_array, next_path)) == PATH_VALID) {
             found = 1;
@@ -184,12 +182,11 @@ pub fn needs_failover(path_array: u64, current_path: u32) -> bool {
 }
 
 pub fn perform_failover(state: u32, path_array: u64, failed_path: u32) -> u32 {
-    let;
-    let;
-    let;
+    let active = get_active_paths(state);
+    let current = get_current_path(state);
+    let flow = get_flow_id(state);
     if needs_failover(path_array, current) {
-        let;
-        backup = distribute_load(path_array, current, 0);
+        let backup = distribute_load(path_array, current, 0);
         if ((backup != current) && (backup != 0xFF)) {
             return create_multipath_state(active, backup, flow, 0);
         }
@@ -198,10 +195,9 @@ pub fn perform_failover(state: u32, path_array: u64, failed_path: u32) -> u32 {
 }
 
 pub fn calculate_multipath_gain(path_array: u64) -> u32 {
-    let;
+    let valid_paths = count_valid_paths(path_array);
     if (valid_paths >= 2) {
         return (valid_paths * 30);
     }
     return 0;
 }
-

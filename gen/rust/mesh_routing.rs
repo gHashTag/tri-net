@@ -32,4 +32,3 @@ pub fn is_mesh_subnet(a: u8, b: u8, c: u8) -> bool {
 pub fn is_ttl_expired(ttl: u8) -> bool {
     return (ttl == 0);
 }
-

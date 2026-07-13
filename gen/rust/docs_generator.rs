@@ -80,8 +80,7 @@ pub fn get_toc_title_id(toc: u32) -> u32 {
 }
 
 pub fn generate_markdown_header(level: u32, title_id: u32) -> u32 {
-    let;
-    header_prefix;
+    let mut header_prefix: u32 = 0;
     if (level == 1) {
         header_prefix = 0x23;
     } else {
@@ -233,21 +232,13 @@ pub fn get_margin_right(layout: u32) -> u32 {
 }
 
 pub fn calculate_document_stats(sections: Vec<>, section_count: u32) -> u32 {
-    let;
-    total_pages;
-    let;
-    total_words;
-    let;
-    total_tables;
-    let;
-    total_figures;
-    let;
-    i;
+    let mut total_pages: u32 = 0;
+    let mut total_words: u32 = 0;
+    let mut total_tables: u32 = 0;
+    let mut i: u32 = 0;
     while (i < section_count) {
-        let;
-        content_len;
-        let;
-        subsections;
+        let content_len: u32 = get_section_content_length(sections[i]);
+        let subsections: u32 = get_section_subsection_count(sections[i]);
         total_words = (total_words + (content_len / 5));
         total_pages = (total_pages + (content_len / 300));
         if (subsections > 0) {
@@ -255,7 +246,7 @@ pub fn calculate_document_stats(sections: Vec<>, section_count: u32) -> u32 {
         }
         i = (i + 1);
     }
-    return (((((total_pages & 0xFF) << 24) | ((total_words & 0xFF) << 16)) | ((total_tables & 0xFF) << 8)) | (total_figures & 0xFF));
+    return (((((total_pages & 0xFF) << 24) | ((total_words & 0xFF) << 16)) | ((total_tables & 0xFF) << 8)) | 0);
 }
 
 pub fn generate_document_metadata(title_id: u32, author_id: u32, date: u32, version: u32) -> u32 {
@@ -279,21 +270,16 @@ pub fn get_metadata_version(metadata: u32) -> u32 {
 }
 
 pub fn format_document(sections: Vec<>, section_count: u32, format: u32, layout: u32) -> u32 {
-    let;
-    formatted_size;
-    let;
-    i;
+    let mut formatted_size: u32 = 0;
+    let mut i: u32 = 0;
     while (i < section_count) {
-        let;
-        content_len;
+        let content_len: u32 = get_section_content_length(sections[i]);
         formatted_size = (formatted_size + content_len);
         i = (i + 1);
     }
-    let;
-    margin_overhead;
+    let margin_overhead: u32 = (get_margin_top(layout) + get_margin_bottom(layout));
     formatted_size = (formatted_size + margin_overhead);
-    let;
-    format_id;
+    let format_id: u32 = get_format_id(format);
     if (format_id == FORMAT_HTML) {
         formatted_size = (formatted_size + (section_count * 20));
     } else {
@@ -305,40 +291,27 @@ pub fn format_document(sections: Vec<>, section_count: u32, format: u32, layout:
 }
 
 pub fn generate_complete_document(func_docs: Vec<>, func_count: u32, sections: Vec<>, section_count: u32, format: u32) -> u32 {
-    let;
-    metadata;
-    let;
-    layout;
-    let;
-    toc_size;
-    let;
-    body_size;
-    let;
-    index_size;
-    let;
-    total_size;
+    let layout: u32 = generate_page_layout(20, 20, 15, 15);
+    let toc_size: u32 = (section_count * 10);
+    let body_size: u32 = format_document(sections, section_count, format, layout);
+    let index_size: u32 = (func_count * 5);
+    let total_size: u32 = ((toc_size + body_size) + index_size);
     return ((((total_size & 0xFFFF) << 16) | ((section_count & 0xFF) << 8)) | (func_count & 0xFF));
 }
 
 pub fn validate_documentation(generated_doc: u32, expected_sections: u32, expected_funcs: u32) -> u32 {
-    let;
-    actual_sections;
-    let;
-    actual_funcs;
-    let;
-    section_match;
-    let;
-    func_match;
+    let actual_sections: u32 = ((generated_doc >> 8) & 0xFF);
+    let actual_funcs: u32 = (generated_doc & 0xFF);
+    let mut section_match: u32 = 0;
+    let mut func_match: u32 = 0;
     if (actual_sections >= expected_sections) {
         section_match = 1;
     }
     if (actual_funcs >= expected_funcs) {
         func_match = 1;
     }
-    let;
-    quality_score;
-    let;
-    completeness;
+    let quality_score: u32 = ((section_match * 50) + (func_match * 50));
+    let completeness: u32 = (((actual_sections * 10) / expected_sections) * 10);
     return (((((section_match & 0x1) << 15) | ((func_match & 0x1) << 14)) | ((quality_score & 0xFF) << 8)) | (completeness & 0xFF));
 }
 

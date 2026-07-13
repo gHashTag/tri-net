@@ -68,20 +68,15 @@ pub const STATE_EXECUTING: u32 = 3;
 pub const STATE_COMPLETED: u32 = 4;
 
 pub fn initiate_coordination(current_state: u32, coordinator_id: u32, current_time: u32) -> u32 {
-    let;
-    timeout;
+    let timeout: u32 = (current_time + COORDINATION_TIMEOUT);
     return create_coordination_state(coordinator_id, STATE_INITIATING, 0, timeout);
 }
 
 pub fn advance_phase(state: u32) -> u32 {
-    let;
-    coordinator_id;
-    let;
-    coord_state;
-    let;
-    phase;
-    let;
-    timeout;
+    let coordinator_id: u32 = get_coordinator_id(state);
+    let coord_state: u32 = get_coordination_state(state);
+    let phase: u32 = get_coordination_phase(state);
+    let timeout: u32 = get_coordination_timeout(state);
     if (coord_state == STATE_INITIATING) {
         return create_coordination_state(coordinator_id, STATE_NEGOTIATING, (phase + 1), timeout);
     } else {
@@ -102,8 +97,7 @@ pub fn advance_phase(state: u32) -> u32 {
 }
 
 pub fn is_coordination_complete(state: u32) -> u32 {
-    let;
-    coord_state;
+    let coord_state: u32 = get_coordination_state(state);
     if (coord_state == STATE_COMPLETED) {
         return 1;
     } else {
@@ -112,10 +106,8 @@ pub fn is_coordination_complete(state: u32) -> u32 {
 }
 
 pub fn is_coordination_timeout(state: u32, current_time: u32) -> u32 {
-    let;
-    timeout;
-    let;
-    coord_state;
+    let timeout: u32 = get_coordination_timeout(state);
+    let coord_state: u32 = get_coordination_state(state);
     if ((coord_state != STATE_IDLE) && (coord_state != STATE_COMPLETED)) {
         if (current_time >= timeout) {
             return 1;
@@ -125,13 +117,10 @@ pub fn is_coordination_timeout(state: u32, current_time: u32) -> u32 {
 }
 
 pub fn apply_policy(policies: Vec<>, policy_id: u32, node_id: u32) -> u32 {
-    let;
-    i;
+    let mut i: u32 = 0;
     while (i < MAX_POLICIES) {
-        let;
-        current_policy_id;
-        let;
-        scope;
+        let current_policy_id: u32 = get_policy_id(policies[i]);
+        let scope: u32 = get_policy_scope(policies[i]);
         if (current_policy_id == policy_id) {
             if ((scope == SCOPE_NODE) || (scope == SCOPE_GLOBAL)) {
                 return get_policy_parameter(policies[i]);
@@ -143,17 +132,12 @@ pub fn apply_policy(policies: Vec<>, policy_id: u32, node_id: u32) -> u32 {
 }
 
 pub fn find_highest_priority_policy(policies: Vec<>, scope: u32) -> u32 {
-    let;
-    highest_priority;
-    let;
-    policy_index;
-    let;
-    i;
+    let mut highest_priority: u32 = 0;
+    let mut policy_index: u32 = MAX_POLICIES;
+    let mut i: u32 = 0;
     while (i < MAX_POLICIES) {
-        let;
-        policy_scope;
-        let;
-        priority;
+        let policy_scope: u32 = get_policy_scope(policies[i]);
+        let priority: u32 = get_policy_priority(policies[i]);
         if ((policy_scope == scope) || (policy_scope == SCOPE_GLOBAL)) {
             if (priority > highest_priority) {
                 highest_priority = priority;
@@ -194,10 +178,8 @@ pub const OPT_LATENCY_REDUCTION: u32 = 2;
 pub const OPT_BANDWIDTH_MAXIMIZATION: u32 = 3;
 
 pub fn process_optimization(request: u32, policies: Vec<>) -> u32 {
-    let;
-    opt_type;
-    let;
-    target;
+    let opt_type: u32 = get_optimization_type(request);
+    let target: u32 = get_optimization_target(request);
     if (opt_type == OPT_LOAD_BALANCE) {
         return apply_policy(policies, 1, target);
     } else {
@@ -246,12 +228,7 @@ pub const ACTION_BANDWIDTH_ALLOCATE: u32 = 2;
 pub const ACTION_QOS_SET: u32 = 3;
 
 pub fn execute_action(action: u32, current_time: u32) -> u32 {
-    let;
-    action_type;
-    let;
-    target;
-    let;
-    parameter;
+    let action_type: u32 = get_action_type(action);
     if (action_type == ACTION_ROUTE_UPDATE) {
         return 1;
     } else {
@@ -272,20 +249,16 @@ pub fn execute_action(action: u32, current_time: u32) -> u32 {
 }
 
 pub fn coordinate_nodes(node_states: Vec<>, node_count: u32, coordinator_id: u32, current_time: u32) -> u32 {
-    let;
-    coord_state;
-    let;
-    participating_nodes;
-    let;
-    i;
+    let coord_state: u32 = initiate_coordination(0, coordinator_id, current_time);
+    let mut participating_nodes: u32 = 0;
+    let mut i: u32 = 0;
     while (i < node_count) {
         if (node_states[i] != 0) {
             participating_nodes = (participating_nodes + 1);
         }
         i = (i + 1);
     }
-    let;
-    required_nodes;
+    let required_nodes: u32 = ((node_count / 2) + 1);
     if (participating_nodes >= required_nodes) {
         return advance_phase(coord_state);
     } else {
@@ -294,10 +267,8 @@ pub fn coordinate_nodes(node_states: Vec<>, node_count: u32, coordinator_id: u32
 }
 
 pub fn calculate_optimization_score(metrics: Vec<>, metric_count: u32) -> u32 {
-    let;
-    total_score;
-    let;
-    i;
+    let mut total_score: u32 = 0;
+    let mut i: u32 = 0;
     while (i < metric_count) {
         total_score = (total_score + metrics[i]);
         i = (i + 1);
@@ -310,10 +281,8 @@ pub fn calculate_optimization_score(metrics: Vec<>, metric_count: u32) -> u32 {
 }
 
 pub fn detect_optimization_opportunity(load_metrics: Vec<>, energy_metrics: Vec<>, node_count: u32) -> u32 {
-    let;
-    load_score;
-    let;
-    energy_score;
+    let load_score: u32 = calculate_optimization_score(load_metrics, node_count);
+    let energy_score: u32 = calculate_optimization_score(energy_metrics, node_count);
     if ((load_score > 70) || (energy_score < 30)) {
         return 1;
     } else {
@@ -326,10 +295,8 @@ pub fn generate_optimization_plan(opportunity_type: u32, affected_nodes: u32) ->
 }
 
 pub fn monitor_network_health(node_states: Vec<>, node_count: u32) -> u32 {
-    let;
-    healthy_nodes;
-    let;
-    i;
+    let mut healthy_nodes: u32 = 0;
+    let mut i: u32 = 0;
     while (i < node_count) {
         if (node_states[i] != 0) {
             healthy_nodes = (healthy_nodes + 1);

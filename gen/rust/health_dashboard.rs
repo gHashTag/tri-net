@@ -12,7 +12,8 @@ pub const ALERT_THRESHOLD: u32 = 70;
 pub const CRITICAL_THRESHOLD: u32 = 90;
 
 pub fn create_health_metric(node_id: u32, metric_type: u32, value: u32, timestamp: u32) -> u32 {
-    return (((((node_id & 0xFF) << 24) | ((metric_type & 0xFF) << 16)) | ((value & 0xFF) << 8)) | (timestamp & 0xFF));
+    return (((((node_id & 0xFF) << 24) | ((metric_type & 0xFF) << 16)) | ((value & 0xFF) << 8))
+        | (timestamp & 0xFF));
 }
 
 pub fn get_health_node_id(metric: u32) -> u32 {
@@ -48,7 +49,8 @@ pub const METRIC_LINK_QUALITY: u32 = 6;
 pub const METRIC_BATTERY: u32 = 7;
 
 pub fn create_health_score(overall: u32, critical: u32, warning: u32, timestamp: u32) -> u32 {
-    return (((((overall & 0xFF) << 24) | ((critical & 0xFF) << 16)) | ((warning & 0xFF) << 8)) | (timestamp & 0xFF));
+    return (((((overall & 0xFF) << 24) | ((critical & 0xFF) << 16)) | ((warning & 0xFF) << 8))
+        | (timestamp & 0xFF));
 }
 
 pub fn get_overall_health(score: u32) -> u32 {
@@ -67,30 +69,26 @@ pub fn get_score_timestamp(score: u32) -> u32 {
     return (score & 0xFF);
 }
 
-pub fn calculate_node_health(metrics: Vec<>, count: u32) -> u32 {
+pub fn calculate_node_health(metrics: Vec, count: u32) -> u32 {
     if (count == 0) {
         return 100;
     }
-    let;
-    total_score;
-    let;
-    metric_count;
-    let;
-    i;
+    let mut total_score: u32 = 0;
+    let mut metric_count: u32 = 0;
+    let mut i: u32 = 0;
     while ((i < count) && (metrics[i] != 0)) {
-        let;
-        metric_type;
-        let;
-        value;
-        let;
-        metric_score;
+        let metric_type: u32 = get_health_metric_type(metrics[i]);
+        let value: u32 = get_health_value(metrics[i]);
+        let mut metric_score: u32 = 0;
         if ((metric_type == METRIC_CPU) || (metric_type == METRIC_MEMORY)) {
             metric_score = (100 - value);
         } else {
             if ((metric_type == METRIC_BANDWIDTH) || (metric_type == METRIC_LINK_QUALITY)) {
                 metric_score = value;
             } else {
-                if (((metric_type == METRIC_LATENCY) || (metric_type == METRIC_PACKET_LOSS)) || (metric_type == METRIC_ERROR_RATE)) {
+                if (((metric_type == METRIC_LATENCY) || (metric_type == METRIC_PACKET_LOSS))
+                    || (metric_type == METRIC_ERROR_RATE))
+                {
                     metric_score = (100 - value);
                 } else {
                     if (metric_type == METRIC_BATTERY) {
@@ -112,46 +110,42 @@ pub fn calculate_node_health(metrics: Vec<>, count: u32) -> u32 {
     }
 }
 
-pub fn calculate_network_health(node_metrics: Vec<>, node_count: u32) -> u32 {
+pub fn calculate_network_health(node_metrics: Vec, node_count: u32) -> u32 {
     if (node_count == 0) {
         return 100;
     }
-    let;
-    total_health;
-    let;
-    i;
+    let mut total_health: u32 = 0;
+    let mut i: u32 = 0;
     while (i < node_count) {
-        let;
-        node_health;
+        let node_health: u32 = node_metrics[i];
         total_health = (total_health + node_health);
         i = (i + 1);
     }
     return (total_health / node_count);
 }
 
-pub fn detect_critical_issues(metrics: Vec<>, count: u32) -> u32 {
-    let;
-    critical_count;
-    let;
-    i;
+pub fn detect_critical_issues(metrics: Vec, count: u32) -> u32 {
+    let mut critical_count: u32 = 0;
+    let mut i: u32 = 0;
     while ((i < count) && (metrics[i] != 0)) {
-        let;
-        metric_type;
-        let;
-        value;
-        let;
-        is_critical;
+        let metric_type: u32 = get_health_metric_type(metrics[i]);
+        let value: u32 = get_health_value(metrics[i]);
+        let mut is_critical: u32 = 0;
         if ((metric_type == METRIC_CPU) || (metric_type == METRIC_MEMORY)) {
             if (value > CRITICAL_THRESHOLD) {
                 is_critical = 1;
             }
         } else {
-            if (((metric_type == METRIC_BANDWIDTH) || (metric_type == METRIC_LINK_QUALITY)) || (metric_type == METRIC_BATTERY)) {
+            if (((metric_type == METRIC_BANDWIDTH) || (metric_type == METRIC_LINK_QUALITY))
+                || (metric_type == METRIC_BATTERY))
+            {
                 if (value < (100 - CRITICAL_THRESHOLD)) {
                     is_critical = 1;
                 }
             } else {
-                if (((metric_type == METRIC_LATENCY) || (metric_type == METRIC_PACKET_LOSS)) || (metric_type == METRIC_ERROR_RATE)) {
+                if (((metric_type == METRIC_LATENCY) || (metric_type == METRIC_PACKET_LOSS))
+                    || (metric_type == METRIC_ERROR_RATE))
+                {
                     if (value > CRITICAL_THRESHOLD) {
                         is_critical = 1;
                     }
@@ -166,29 +160,28 @@ pub fn detect_critical_issues(metrics: Vec<>, count: u32) -> u32 {
     return critical_count;
 }
 
-pub fn detect_warning_issues(metrics: Vec<>, count: u32) -> u32 {
-    let;
-    warning_count;
-    let;
-    i;
+pub fn detect_warning_issues(metrics: Vec, count: u32) -> u32 {
+    let mut warning_count: u32 = 0;
+    let mut i: u32 = 0;
     while ((i < count) && (metrics[i] != 0)) {
-        let;
-        metric_type;
-        let;
-        value;
-        let;
-        is_warning;
+        let metric_type: u32 = get_health_metric_type(metrics[i]);
+        let value: u32 = get_health_value(metrics[i]);
+        let mut is_warning: u32 = 0;
         if ((metric_type == METRIC_CPU) || (metric_type == METRIC_MEMORY)) {
             if ((value > ALERT_THRESHOLD) && (value <= CRITICAL_THRESHOLD)) {
                 is_warning = 1;
             }
         } else {
-            if (((metric_type == METRIC_BANDWIDTH) || (metric_type == METRIC_LINK_QUALITY)) || (metric_type == METRIC_BATTERY)) {
+            if (((metric_type == METRIC_BANDWIDTH) || (metric_type == METRIC_LINK_QUALITY))
+                || (metric_type == METRIC_BATTERY))
+            {
                 if ((value < (100 - ALERT_THRESHOLD)) && (value >= (100 - CRITICAL_THRESHOLD))) {
                     is_warning = 1;
                 }
             } else {
-                if (((metric_type == METRIC_LATENCY) || (metric_type == METRIC_PACKET_LOSS)) || (metric_type == METRIC_ERROR_RATE)) {
+                if (((metric_type == METRIC_LATENCY) || (metric_type == METRIC_PACKET_LOSS))
+                    || (metric_type == METRIC_ERROR_RATE))
+                {
                     if ((value > ALERT_THRESHOLD) && (value <= CRITICAL_THRESHOLD)) {
                         is_warning = 1;
                     }
@@ -203,18 +196,16 @@ pub fn detect_warning_issues(metrics: Vec<>, count: u32) -> u32 {
     return warning_count;
 }
 
-pub fn generate_health_report(node_metrics: Vec<>, count: u32, timestamp: u32) -> u32 {
-    let;
-    node_health;
-    let;
-    critical_count;
-    let;
-    warning_count;
+pub fn generate_health_report(node_metrics: Vec, count: u32, timestamp: u32) -> u32 {
+    let node_health: u32 = calculate_node_health(node_metrics, count);
+    let critical_count: u32 = detect_critical_issues(node_metrics, count);
+    let warning_count: u32 = detect_warning_issues(node_metrics, count);
     return create_health_score(node_health, critical_count, warning_count, timestamp);
 }
 
 pub fn create_health_alert(node_id: u32, alert_type: u32, severity: u32, timestamp: u32) -> u32 {
-    return (((((node_id & 0xFF) << 24) | ((alert_type & 0xF) << 20)) | ((severity & 0xF) << 16)) | (timestamp & 0xFFFF));
+    return (((((node_id & 0xFF) << 24) | ((alert_type & 0xF) << 20)) | ((severity & 0xF) << 16))
+        | (timestamp & 0xFFFF));
 }
 
 pub fn get_alert_node_id(alert: u32) -> u32 {
@@ -246,8 +237,7 @@ pub const ALERT_CONGESTION: u32 = 4;
 pub const ALERT_SECURITY: u32 = 5;
 
 pub fn generate_alert(node_id: u32, alert_type: u32, value: u32, timestamp: u32) -> u32 {
-    let;
-    severity;
+    let mut severity: u32 = 0;
     if ((value > CRITICAL_THRESHOLD) || (value < (100 - CRITICAL_THRESHOLD))) {
         severity = 3;
     } else {
@@ -262,8 +252,7 @@ pub fn generate_alert(node_id: u32, alert_type: u32, value: u32, timestamp: u32)
 
 pub fn analyze_health_trend(current_health: u32, previous_health: u32) -> u32 {
     if (current_health > previous_health) {
-        let;
-        improvement;
+        let improvement: u32 = (current_health - previous_health);
         if (improvement > 10) {
             return 2;
         } else {
@@ -271,8 +260,7 @@ pub fn analyze_health_trend(current_health: u32, previous_health: u32) -> u32 {
         }
     } else {
         if (current_health < previous_health) {
-            let;
-            degradation;
+            let degradation: u32 = (previous_health - current_health);
             if (degradation > 10) {
                 return 3;
             } else {
@@ -284,11 +272,9 @@ pub fn analyze_health_trend(current_health: u32, previous_health: u32) -> u32 {
     }
 }
 
-pub fn find_unhealthy_nodes(node_healths: Vec<>, threshold: u32) -> u32 {
-    let;
-    count;
-    let;
-    i;
+pub fn find_unhealthy_nodes(node_healths: Vec, threshold: u32) -> u32 {
+    let mut count: u32 = 0;
+    let mut i: u32 = 0;
     while (i < MAX_NODES) {
         if (node_healths[i] < threshold) {
             count = (count + 1);
@@ -298,16 +284,12 @@ pub fn find_unhealthy_nodes(node_healths: Vec<>, threshold: u32) -> u32 {
     return count;
 }
 
-pub fn calculate_network_trend(current_scores: Vec<>, previous_scores: Vec<>, node_count: u32) -> u32 {
-    let;
-    improving;
-    let;
-    degrading;
-    let;
-    i;
+pub fn calculate_network_trend(current_scores: Vec, previous_scores: Vec, node_count: u32) -> u32 {
+    let mut improving: u32 = 0;
+    let mut degrading: u32 = 0;
+    let mut i: u32 = 0;
     while (i < node_count) {
-        let;
-        trend;
+        let trend: u32 = analyze_health_trend(current_scores[i], previous_scores[i]);
         if ((trend == 1) || (trend == 2)) {
             improving = (improving + 1);
         } else {
@@ -328,13 +310,17 @@ pub fn calculate_network_trend(current_scores: Vec<>, previous_scores: Vec<>, no
     }
 }
 
-pub fn generate_summary_report(network_health: u32, critical_count: u32, warning_count: u32, timestamp: u32) -> u32 {
+pub fn generate_summary_report(
+    network_health: u32,
+    critical_count: u32,
+    warning_count: u32,
+    timestamp: u32,
+) -> u32 {
     return create_health_score(network_health, critical_count, warning_count, timestamp);
 }
 
 pub fn is_monitoring_active(last_update: u32, current_time: u32) -> u32 {
-    let;
-    elapsed;
+    let elapsed: u32 = (current_time - last_update);
     if (elapsed < (HEALTH_UPDATE_INTERVAL * 3)) {
         return 1;
     } else {
@@ -349,4 +335,3 @@ pub fn calculate_uptime(total_uptime: u32, total_time: u32) -> u32 {
         return 100;
     }
 }
-

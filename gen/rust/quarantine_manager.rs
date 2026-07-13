@@ -10,7 +10,8 @@ pub const VIOLATION_THRESHOLD: u32 = 3;
 pub const TRUST_THRESHOLD: u32 = 30;
 
 pub fn create_quarantine_state(node_id: u32, status: u32, start_time: u32, violations: u32) -> u32 {
-    return (((((node_id & 0xFF) << 24) | ((status & 0x3) << 22)) | ((start_time & 0xFF) << 14)) | (violations & 0x3FFF));
+    return (((((node_id & 0xFF) << 24) | ((status & 0x3) << 22)) | ((start_time & 0xFF) << 14))
+        | (violations & 0x3FFF));
 }
 
 pub fn get_quarantine_node_id(state: u32) -> u32 {
@@ -38,9 +39,10 @@ pub const STATUS_SUSPENDED: u32 = 2;
 pub const STATUS_BANNED: u32 = 3;
 
 pub fn is_quarantined(state: u32) -> u32 {
-    let;
-    status;
-    if (((status == STATUS_QUARANTINED) || (status == STATUS_SUSPENDED)) || (status == STATUS_BANNED)) {
+    let status: u32 = get_quarantine_status(state);
+    if (((status == STATUS_QUARANTINED) || (status == STATUS_SUSPENDED))
+        || (status == STATUS_BANNED))
+    {
         return 1;
     } else {
         return 0;
@@ -48,43 +50,33 @@ pub fn is_quarantined(state: u32) -> u32 {
 }
 
 pub fn quarantine_node(state: u32, current_time: u32) -> u32 {
-    let;
-    node_id;
-    let;
-    violations;
+    let node_id: u32 = get_quarantine_node_id(state);
+    let violations: u32 = get_violation_count(state);
     return create_quarantine_state(node_id, STATUS_QUARANTINED, current_time, (violations + 1));
 }
 
 pub fn release_quarantine(state: u32) -> u32 {
-    let;
-    node_id;
-    let;
-    violations;
+    let node_id: u32 = get_quarantine_node_id(state);
+    let violations: u32 = get_violation_count(state);
     return create_quarantine_state(node_id, STATUS_NORMAL, 0, violations);
 }
 
 pub fn suspend_node(state: u32, current_time: u32) -> u32 {
-    let;
-    node_id;
-    let;
-    violations;
+    let node_id: u32 = get_quarantine_node_id(state);
+    let violations: u32 = get_violation_count(state);
     return create_quarantine_state(node_id, STATUS_SUSPENDED, current_time, (violations + 2));
 }
 
 pub fn ban_node(state: u32) -> u32 {
-    let;
-    node_id;
+    let node_id: u32 = get_quarantine_node_id(state);
     return create_quarantine_state(node_id, STATUS_BANNED, 0, 0xFFFF);
 }
 
 pub fn should_release_quarantine(state: u32, current_time: u32) -> u32 {
-    let;
-    status;
-    let;
-    start_time;
+    let status: u32 = get_quarantine_status(state);
+    let start_time: u32 = get_start_time(state);
     if (status == STATUS_QUARANTINED) {
-        let;
-        elapsed;
+        let elapsed: u32 = (current_time - start_time);
         if (elapsed >= QUARANTINE_DURATION) {
             return 1;
         }
@@ -100,8 +92,15 @@ pub fn update_quarantine_state(state: u32, current_time: u32) -> u32 {
     }
 }
 
-pub fn create_violation_record(node_id: u32, violation_type: u32, severity: u32, timestamp: u32) -> u32 {
-    return (((((node_id & 0xFF) << 24) | ((violation_type & 0xF) << 20)) | ((severity & 0xF) << 16)) | (timestamp & 0xFFFF));
+pub fn create_violation_record(
+    node_id: u32,
+    violation_type: u32,
+    severity: u32,
+    timestamp: u32,
+) -> u32 {
+    return (((((node_id & 0xFF) << 24) | ((violation_type & 0xF) << 20))
+        | ((severity & 0xF) << 16))
+        | (timestamp & 0xFFFF));
 }
 
 pub fn get_violation_node_id(record: u32) -> u32 {
@@ -133,31 +132,22 @@ pub const VIOLATION_RESOURCE_ABUSE: u32 = 4;
 pub const VIOLATION_TRUST_VIOLATION: u32 = 5;
 
 pub fn record_violation(state: u32, violation_record: u32) -> u32 {
-    let;
-    node_id;
-    let;
-    violation_node_id;
+    let node_id: u32 = get_quarantine_node_id(state);
+    let violation_node_id: u32 = get_violation_node_id(violation_record);
     if (node_id != violation_node_id) {
         return state;
     }
-    let;
-    current_violations;
-    let;
-    new_violations;
-    let;
-    node_id_ret;
-    let;
-    status;
-    let;
-    start_time;
+    let current_violations: u32 = get_violation_count(state);
+    let new_violations: u32 = (current_violations + 1);
+    let node_id_ret: u32 = get_quarantine_node_id(state);
+    let status: u32 = get_quarantine_status(state);
+    let start_time: u32 = get_start_time(state);
     return create_quarantine_state(node_id_ret, status, start_time, new_violations);
 }
 
 pub fn should_quarantine(state: u32) -> u32 {
-    let;
-    violations;
-    let;
-    status;
+    let violations: u32 = get_violation_count(state);
+    let status: u32 = get_quarantine_status(state);
     if ((status == STATUS_NORMAL) && (violations >= VIOLATION_THRESHOLD)) {
         return 1;
     } else {
@@ -166,10 +156,8 @@ pub fn should_quarantine(state: u32) -> u32 {
 }
 
 pub fn calculate_quarantine_severity(state: u32) -> u32 {
-    let;
-    violations;
-    let;
-    status;
+    let violations: u32 = get_violation_count(state);
+    let status: u32 = get_quarantine_status(state);
     if (status == STATUS_BANNED) {
         return 100;
     } else {
@@ -177,8 +165,7 @@ pub fn calculate_quarantine_severity(state: u32) -> u32 {
             return 70;
         } else {
             if (status == STATUS_QUARANTINED) {
-                let;
-                severity;
+                let severity: u32 = (violations * 10);
                 if (severity > 50) {
                     return 50;
                 } else {
@@ -191,12 +178,10 @@ pub fn calculate_quarantine_severity(state: u32) -> u32 {
     }
 }
 
-pub fn find_quarantined_node(states: Vec<>, node_id: u32) -> u32 {
-    let;
-    i;
+pub fn find_quarantined_node(states: Vec, node_id: u32) -> u32 {
+    let mut i: u32 = 0;
     while (i < MAX_NODES) {
-        let;
-        state_node_id;
+        let state_node_id: u32 = get_quarantine_node_id(states[i]);
         if (state_node_id == node_id) {
             return i;
         }
@@ -205,11 +190,9 @@ pub fn find_quarantined_node(states: Vec<>, node_id: u32) -> u32 {
     return MAX_NODES;
 }
 
-pub fn count_quarantined_nodes(states: Vec<>) -> u32 {
-    let;
-    count;
-    let;
-    i;
+pub fn count_quarantined_nodes(states: Vec) -> u32 {
+    let mut count: u32 = 0;
+    let mut i: u32 = 0;
     while (i < MAX_NODES) {
         if (is_quarantined(states[i]) == 1) {
             count = (count + 1);
@@ -248,8 +231,7 @@ pub fn get_quarantine_reason(violation_type: u32) -> u32 {
 }
 
 pub fn is_communication_allowed(state: u32, trust_score: u32) -> u32 {
-    let;
-    status;
+    let status: u32 = get_quarantine_status(state);
     if (status == STATUS_BANNED) {
         return 0;
     }
@@ -262,23 +244,18 @@ pub fn is_communication_allowed(state: u32, trust_score: u32) -> u32 {
     return 1;
 }
 
-pub fn calculate_health_impact(states: Vec<>) -> u32 {
-    let;
-    quarantined_count;
-    let;
-    total_nodes;
-    if (total_nodes > 0) {
-        return ((quarantined_count * 100) / total_nodes);
+pub fn calculate_health_impact(states: Vec) -> u32 {
+    let quarantined_count: u32 = count_quarantined_nodes(states);
+    if (MAX_NODES > 0) {
+        return ((quarantined_count * 100) / MAX_NODES);
     } else {
         return 0;
     }
 }
 
 pub fn recommend_quarantine_action(state: u32, trust_score: u32) -> u32 {
-    let;
-    violations;
-    let;
-    status;
+    let violations: u32 = get_violation_count(state);
+    let status: u32 = get_quarantine_status(state);
     if (status == STATUS_BANNED) {
         return 4;
     } else {
@@ -299,7 +276,8 @@ pub fn recommend_quarantine_action(state: u32, trust_score: u32) -> u32 {
 }
 
 pub fn create_notification(node_id: u32, action: u32, reason: u32, duration: u32) -> u32 {
-    return (((((node_id & 0xFF) << 24) | ((action & 0xF) << 20)) | ((reason & 0xF) << 16)) | (duration & 0xFFFF));
+    return (((((node_id & 0xFF) << 24) | ((action & 0xF) << 20)) | ((reason & 0xF) << 16))
+        | (duration & 0xFFFF));
 }
 
 pub fn get_notification_node_id(notification: u32) -> u32 {
@@ -317,4 +295,3 @@ pub fn get_notification_reason(notification: u32) -> u32 {
 pub fn get_notification_duration(notification: u32) -> u32 {
     return (notification & 0xFFFF);
 }
-

@@ -30,7 +30,7 @@ pub fn success_rate(sent: u32, success: u32) -> u8 {
         return 100;
     }
     if (sent >= success) {
-        return ();
+        return ((((success as u16) * 100) / (sent as u16)) as u8);
     } else {
         return 0;
     }

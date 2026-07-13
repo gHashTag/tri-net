@@ -32,39 +32,37 @@ pub fn get_link_quality(state: u32) -> u32 {
 }
 
 pub fn create_node_table(n0: u32, n1: u32, n2: u32, n3: u32, n4: u32, n5: u32, n6: u32, n7: u32) -> u64 {
-    return ((((((((() << 56) | (() << 48)) | (() << 40)) | (() << 32)) | (() << 24)) | (() << 16)) | (() << 8)) | ());
+    return (((((((((n0 as u64) << 56) | ((n1 as u64) << 48)) | ((n2 as u64) << 40)) | ((n3 as u64) << 32)) | ((n4 as u64) << 24)) | ((n5 as u64) << 16)) | ((n6 as u64) << 8)) | (n7 as u64));
 }
 
 pub fn get_node_state(table: u64, index: u32) -> u32 {
     if (index == 0) {
-        return ();
+        return (((table >> 56) & 0xFF) as u32);
     }
     if (index == 1) {
-        return ();
+        return (((table >> 48) & 0xFF) as u32);
     }
     if (index == 2) {
-        return ();
+        return (((table >> 40) & 0xFF) as u32);
     }
     if (index == 3) {
-        return ();
+        return (((table >> 32) & 0xFF) as u32);
     }
     if (index == 4) {
-        return ();
+        return (((table >> 24) & 0xFF) as u32);
     }
     if (index == 5) {
-        return ();
+        return (((table >> 16) & 0xFF) as u32);
     }
     if (index == 6) {
-        return ();
+        return (((table >> 8) & 0xFF) as u32);
     }
-    return ();
+    return ((table & 0xFF) as u32);
 }
 
 pub fn is_heartbeat_timeout(state: u32, current_time: u32) -> bool {
-    let;
-    last_seen = get_last_heartbeat(state);
-    let;
-    elapsed = (current_time - last_seen);
+    let last_seen = get_last_heartbeat(state);
+    let elapsed = (current_time - last_seen);
     return (elapsed >= HEARTBEAT_TIMEOUT);
 }
 
@@ -76,24 +74,17 @@ pub fn detect_node_failure(state: u32, current_time: u32) -> u32 {
 }
 
 pub fn increment_failure_count(state: u32) -> u32 {
-    let;
-    alive = get_is_alive(state);
-    let;
-    failures = get_failure_count(state);
-    let;
-    heartbeat = get_last_heartbeat(state);
-    let;
-    quality = get_link_quality(state);
-    let;
-    new_failures = (failures + 1);
+    let alive = get_is_alive(state);
+    let failures = get_failure_count(state);
+    let heartbeat = get_last_heartbeat(state);
+    let quality = get_link_quality(state);
+    let new_failures = (failures + 1);
     return create_node_state(alive, new_failures, heartbeat, quality);
 }
 
 pub fn reset_failure_count(state: u32, current_time: u32) -> u32 {
-    let;
-    alive = get_is_alive(state);
-    let;
-    quality = get_link_quality(state);
+    let alive = get_is_alive(state);
+    let quality = get_link_quality(state);
     return create_node_state(alive, 0, current_time, quality);
 }
 
@@ -102,8 +93,7 @@ pub fn is_node_failed(state: u32) -> bool {
 }
 
 pub fn is_node_warning(state: u32) -> bool {
-    let;
-    failures = get_failure_count(state);
+    let failures = get_failure_count(state);
     return ((failures >= WARNING_THRESHOLD) && (failures < FAILURE_THRESHOLD));
 }
 
@@ -112,34 +102,26 @@ pub fn is_poor_link(state: u32) -> bool {
 }
 
 pub fn update_link_quality(state: u32, new_quality: u32) -> u32 {
-    let;
-    alive = get_is_alive(state);
-    let;
-    failures = get_failure_count(state);
-    let;
-    heartbeat = get_last_heartbeat(state);
+    let alive = get_is_alive(state);
+    let failures = get_failure_count(state);
+    let heartbeat = get_last_heartbeat(state);
     return create_node_state(alive, failures, heartbeat, new_quality);
 }
 
 pub fn mark_node_dead(state: u32) -> u32 {
-    let;
-    failures = get_failure_count(state);
-    let;
-    heartbeat = get_last_heartbeat(state);
-    let;
-    quality = get_link_quality(state);
+    let failures = get_failure_count(state);
+    let heartbeat = get_last_heartbeat(state);
+    let quality = get_link_quality(state);
     return create_node_state(0, failures, heartbeat, quality);
 }
 
 pub fn mark_node_alive(state: u32, current_time: u32) -> u32 {
-    let;
-    quality = get_link_quality(state);
+    let quality = get_link_quality(state);
     return create_node_state(1, 0, current_time, quality);
 }
 
 pub fn count_failed_nodes(table: u64) -> u32 {
-    let;
-    count = 0;
+    let mut count = 0;
     if is_node_failed(get_node_state(table, 0)) {
         count = (count + 1);
     }
