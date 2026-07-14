@@ -69,7 +69,7 @@ pub fn process_task(task: u32) -> u32 {
     return create_result(task_id, STATUS_COMPLETED, data_size, result_value);
 }
 
-pub fn aggregate_results(results: Vec<>, count: u32) -> u32 {
+pub fn aggregate_results(results: [u32; MAX_RESULTS], count: u32) -> u32 {
     let mut sum: u32 = 0;
     let mut i: u32 = 0;
     while (i < count) {
@@ -80,7 +80,7 @@ pub fn aggregate_results(results: Vec<>, count: u32) -> u32 {
     return sum;
 }
 
-pub fn find_task_by_priority(tasks: Vec<>, priority: u32) -> u32 {
+pub fn find_task_by_priority(tasks: [u32; MAX_TASKS], priority: u32) -> u32 {
     let mut i: u32 = 0;
     while (i < MAX_TASKS) {
         let task_priority: u32 = get_priority(tasks[i]);
@@ -92,7 +92,7 @@ pub fn find_task_by_priority(tasks: Vec<>, priority: u32) -> u32 {
     return MAX_TASKS;
 }
 
-pub fn find_highest_priority_task(tasks: Vec<>) -> u32 {
+pub fn find_highest_priority_task(tasks: [u32; MAX_TASKS]) -> u32 {
     let mut highest_priority: u32 = TASK_PRIORITY_LOW;
     let mut task_index: u32 = MAX_TASKS;
     let mut i: u32 = 0;
@@ -107,7 +107,7 @@ pub fn find_highest_priority_task(tasks: Vec<>) -> u32 {
     return task_index;
 }
 
-pub fn count_pending_tasks(tasks: Vec<>) -> u32 {
+pub fn count_pending_tasks(tasks: [u32; MAX_TASKS]) -> u32 {
     let mut count: u32 = 0;
     let mut i: u32 = 0;
     while (i < MAX_TASKS) {
@@ -120,7 +120,7 @@ pub fn count_pending_tasks(tasks: Vec<>) -> u32 {
     return count;
 }
 
-pub fn calculate_processing_load(tasks: Vec<>) -> u32 {
+pub fn calculate_processing_load(tasks: [u32; MAX_TASKS]) -> u32 {
     let mut total_load: u32 = 0;
     let mut i: u32 = 0;
     while (i < MAX_TASKS) {
@@ -131,7 +131,7 @@ pub fn calculate_processing_load(tasks: Vec<>) -> u32 {
     return total_load;
 }
 
-pub fn can_accept_task(tasks: Vec<>, new_task: u32) -> u32 {
+pub fn can_accept_task(tasks: [u32; MAX_TASKS], new_task: u32) -> u32 {
     let current_load: u32 = calculate_processing_load(tasks);
     let new_load: u32 = get_processing_time(new_task);
     let total_load: u32 = (current_load + new_load);
@@ -142,7 +142,7 @@ pub fn can_accept_task(tasks: Vec<>, new_task: u32) -> u32 {
     }
 }
 
-pub fn find_completed_result(results: Vec<>, task_id: u32, count: u32) -> u32 {
+pub fn find_completed_result(results: [u32; MAX_RESULTS], task_id: u32, count: u32) -> u32 {
     let mut i: u32 = 0;
     while (i < count) {
         let result_task_id: u32 = get_result_task_id(results[i]);
@@ -155,7 +155,7 @@ pub fn find_completed_result(results: Vec<>, task_id: u32, count: u32) -> u32 {
     return MAX_RESULTS;
 }
 
-pub fn calculate_efficiency(tasks: Vec<>, results: Vec<>, result_count: u32) -> u32 {
+pub fn calculate_efficiency(tasks: [u32; MAX_TASKS], results: [u32; MAX_RESULTS], result_count: u32) -> u32 {
     let mut total_input: u32 = 0;
     let mut total_output: u32 = 0;
     let mut i: u32 = 0;
@@ -175,7 +175,7 @@ pub fn calculate_efficiency(tasks: Vec<>, results: Vec<>, result_count: u32) -> 
     }
 }
 
-pub fn aggregate_data(data_values: Vec<>, count: u32) -> u32 {
+pub fn aggregate_data(data_values: [u32; MAX_RESULTS], count: u32) -> u32 {
     if (count == 0) {
         return 0;
     }
@@ -188,7 +188,7 @@ pub fn aggregate_data(data_values: Vec<>, count: u32) -> u32 {
     return (sum / count);
 }
 
-pub fn filter_data(data_values: Vec<>, count: u32, threshold: u32) -> u32 {
+pub fn filter_data(data_values: [u32; MAX_RESULTS], count: u32, threshold: u32) -> u32 {
     let mut filtered_count: u32 = 0;
     let mut i: u32 = 0;
     while (i < count) {
@@ -200,7 +200,7 @@ pub fn filter_data(data_values: Vec<>, count: u32, threshold: u32) -> u32 {
     return filtered_count;
 }
 
-pub fn make_local_decision(tasks: Vec<>, results: Vec<>, result_count: u32) -> u32 {
+pub fn make_local_decision(tasks: [u32; MAX_TASKS], results: [u32; MAX_RESULTS], result_count: u32) -> u32 {
     let efficiency: u32 = calculate_efficiency(tasks, results, result_count);
     let pending: u32 = count_pending_tasks(tasks);
     if ((efficiency > 50) && (pending < (MAX_TASKS / 2))) {

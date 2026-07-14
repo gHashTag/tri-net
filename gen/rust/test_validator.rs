@@ -224,7 +224,7 @@ pub const VALIDATION_FAIL: u32 = 1;
 
 pub const VALIDATION_WARNING: u32 = 2;
 
-pub fn run_validation(errors: Vec<>, error_count: u32, warnings: Vec<>, warning_count: u32) -> u32 {
+pub fn run_validation(errors: [u32; MAX_ERRORS], error_count: u32, warnings: [u32; MAX_WARNINGS], warning_count: u32) -> u32 {
     let mut total_errors: u32 = 0;
     let mut total_warnings: u32 = 0;
     let mut total_info: u32 = 0;

@@ -139,7 +139,7 @@ pub fn estimate_bandwidth(congestion: u32, rtt: u32, packet_size: u32) -> u32 {
     }
 }
 
-pub fn find_congestion_controller(controllers: Vec<>, flow_id: u32) -> u32 {
+pub fn find_congestion_controller(controllers: [u32; MAX_FLOWS], flow_id: u32) -> u32 {
     let mut i: u32 = 0;
     while (i < MAX_FLOWS) {
         if (i == flow_id) {
@@ -150,7 +150,7 @@ pub fn find_congestion_controller(controllers: Vec<>, flow_id: u32) -> u32 {
     return MAX_FLOWS;
 }
 
-pub fn is_any_flow_congested(controllers: Vec<>) -> u32 {
+pub fn is_any_flow_congested(controllers: [u32; MAX_FLOWS]) -> u32 {
     let mut i: u32 = 0;
     while (i < MAX_FLOWS) {
         if (is_congested(controllers[i]) == 1) {
@@ -161,7 +161,7 @@ pub fn is_any_flow_congested(controllers: Vec<>) -> u32 {
     return 0;
 }
 
-pub fn calculate_total_cwnd(controllers: Vec<>) -> u32 {
+pub fn calculate_total_cwnd(controllers: [u32; MAX_FLOWS]) -> u32 {
     let mut total: u32 = 0;
     let mut i: u32 = 0;
     while (i < MAX_FLOWS) {
@@ -171,7 +171,7 @@ pub fn calculate_total_cwnd(controllers: Vec<>) -> u32 {
     return total;
 }
 
-pub fn allocate_fair_bandwidth(controllers: Vec<>, total_bandwidth: u32) -> u32 {
+pub fn allocate_fair_bandwidth(controllers: [u32; MAX_FLOWS], total_bandwidth: u32) -> u32 {
     let mut active_flows: u32 = 0;
     let mut i: u32 = 0;
     while (i < MAX_FLOWS) {

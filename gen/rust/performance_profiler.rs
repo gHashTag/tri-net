@@ -65,7 +65,7 @@ pub fn get_hotspot_impact(hotspot: u32) -> u32 {
     return (hotspot & 0xFF);
 }
 
-pub fn calculate_average_cpu(samples: Vec<>, sample_count: u32, func_id: u32) -> u32 {
+pub fn calculate_average_cpu(samples: [u32; MAX_SAMPLES], sample_count: u32, func_id: u32) -> u32 {
     let mut total_cpu: u32 = 0;
     let mut matching_samples: u32 = 0;
     let mut i: u32 = 0;
@@ -83,7 +83,7 @@ pub fn calculate_average_cpu(samples: Vec<>, sample_count: u32, func_id: u32) ->
     }
 }
 
-pub fn calculate_average_memory(samples: Vec<>, sample_count: u32, func_id: u32) -> u32 {
+pub fn calculate_average_memory(samples: [u32; MAX_SAMPLES], sample_count: u32, func_id: u32) -> u32 {
     let mut total_memory: u32 = 0;
     let mut matching_samples: u32 = 0;
     let mut i: u32 = 0;
@@ -101,7 +101,7 @@ pub fn calculate_average_memory(samples: Vec<>, sample_count: u32, func_id: u32)
     }
 }
 
-pub fn identify_hotspots(profiles: Vec<>, profile_count: u32) -> u32 {
+pub fn identify_hotspots(profiles: [u32; MAX_FUNCTIONS], profile_count: u32) -> u32 {
     let mut max_calls: u32 = 0;
     let mut max_cpu: u32 = 0;
     let mut hotspot_func: u32 = 0;
@@ -160,7 +160,7 @@ pub fn get_allocation_pool(alloc: u32) -> u32 {
     return (alloc & 0xFF);
 }
 
-pub fn track_allocation(allocations: Vec<>, alloc_id: u32, size: u32, pool: u32) -> u32 {
+pub fn track_allocation(allocations: [u32; MAX_SAMPLES], alloc_id: u32, size: u32, pool: u32) -> u32 {
     let mut i: u32 = 0;
     while (i < MAX_SAMPLES) {
         if (get_allocation_id(allocations[i]) == 0) {
@@ -172,7 +172,7 @@ pub fn track_allocation(allocations: Vec<>, alloc_id: u32, size: u32, pool: u32)
     return 0;
 }
 
-pub fn calculate_total_memory(allocations: Vec<>, sample_count: u32) -> u32 {
+pub fn calculate_total_memory(allocations: [u32; MAX_SAMPLES], sample_count: u32) -> u32 {
     let mut total_memory: u32 = 0;
     let mut i: u32 = 0;
     while (i < sample_count) {
@@ -183,7 +183,7 @@ pub fn calculate_total_memory(allocations: Vec<>, sample_count: u32) -> u32 {
     return total_memory;
 }
 
-pub fn detect_memory_leak(allocations: Vec<>, current_count: u32, previous_count: u32) -> u32 {
+pub fn detect_memory_leak(allocations: [u32; MAX_SAMPLES], current_count: u32, previous_count: u32) -> u32 {
     if (current_count > previous_count) {
         let growth: u32 = (current_count - previous_count);
         if (growth > 5) {
@@ -213,7 +213,7 @@ pub fn get_stack_cpu_contribution(entry: u32) -> u32 {
     return (entry & 0xFF);
 }
 
-pub fn analyze_call_tree(call_stack: Vec<>, stack_size: u32) -> u32 {
+pub fn analyze_call_tree(call_stack: [u32; MAX_SAMPLES], stack_size: u32) -> u32 {
     let mut max_depth: u32 = 0;
     let mut total_cpu: u32 = 0;
     let mut i: u32 = 0;

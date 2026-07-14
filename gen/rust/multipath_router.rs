@@ -7,7 +7,7 @@ pub const ETX_THRESHOLD_GOOD: u8 = 0x30;
 
 pub const ETX_THRESHOLD_POOR: u8 = 0x60;
 
-pub fn select_path_index(etx_values: Vec<>) -> u8 { unimplemented!() }
+pub fn select_path_index(etx_values: [u8; 3]) -> u8 { unimplemented!() }
 
 pub fn path_quality_score(etx: u8, latency: u16, loss_p8: u8) -> u8 {
     let etx_component: u16 = ((etx as u16) * 7);

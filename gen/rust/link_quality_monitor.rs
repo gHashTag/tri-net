@@ -20,7 +20,7 @@ pub fn update_ewma(current: u8, sample: u8) -> u8 {
     let term2: u16 = (((ONE_MINUS_ALPHA_Q8 as u16) * (current as u16)) >> 8);
 }
 
-pub fn calculate_trend(history: Vec<>) -> i8 { unimplemented!() }
+pub fn calculate_trend(history: [u8; 8]) -> i8 { unimplemented!() }
 
 pub fn predict_next_etx(current: u8, trend: i8) -> u8 { unimplemented!() }
 

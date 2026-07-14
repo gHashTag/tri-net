@@ -229,7 +229,7 @@ pub fn calculate_packet_position(source_x: u32, source_y: u32, dest_x: u32, dest
     return (((current_x & 0xFF) << 24) | ((current_y & 0xFF) << 16));
 }
 
-pub fn update_animation_packets(packets: Vec<>, packet_count: u32, speed: u32) -> u32 {
+pub fn update_animation_packets(packets: [u32; MAX_PACKETS], packet_count: u32, speed: u32) -> u32 {
     let mut updated_count: u32 = 0;
     let mut completed_count: u32 = 0;
     let mut i: u32 = 0;
@@ -253,7 +253,7 @@ pub fn update_animation_packets(packets: Vec<>, packet_count: u32, speed: u32) -
     return ((((updated_count & 0xFF) << 24) | ((completed_count & 0xFF) << 16)) | ((packet_count & 0xFF) << 8));
 }
 
-pub fn render_animation_frame(packets: Vec<>, packet_count: u32, paths: Vec<>, path_count: u32, frame_id: u32) -> u32 {
+pub fn render_animation_frame(packets: [u32; MAX_PACKETS], packet_count: u32, paths: [u32; MAX_PATHS], path_count: u32, frame_id: u32) -> u32 {
     let timestamp: u32 = (frame_id * (1000 / ANIMATION_FPS));
     let duration: u32 = (1000 / ANIMATION_FPS);
     return create_animation_frame(frame_id, timestamp, packet_count, duration);
@@ -275,8 +275,8 @@ pub fn optimize_animation_performance(packet_count: u32, target_fps: u32) -> u32
     }
 }
 
-pub fn generate_traffic_heat_map(packets: Vec<>, packet_count: u32, node_count: u32) -> u32 {
-    let mut traffic_counts: Vec<> = vec![];
+pub fn generate_traffic_heat_map(packets: [u32; MAX_PACKETS], packet_count: u32, node_count: u32) -> u32 {
+    let mut traffic_counts: [u32; 32] = vec![];
     let mut max_traffic: u32 = 0;
     let mut i: u32 = 0;
     while (i < packet_count) {
@@ -313,7 +313,7 @@ pub fn generate_traffic_heat_map(packets: Vec<>, packet_count: u32, node_count: 
     return ((((max_traffic & 0xFF) << 24) | ((total_active & 0xFF) << 16)) | ((avg_traffic & 0xFF) << 8));
 }
 
-pub fn generate_traffic_animation(packets: Vec<>, packet_count: u32, paths: Vec<>, path_count: u32, node_count: u32, duration_frames: u32) -> u32 {
+pub fn generate_traffic_animation(packets: [u32; MAX_PACKETS], packet_count: u32, paths: [u32; MAX_PATHS], path_count: u32, node_count: u32, duration_frames: u32) -> u32 {
     let complexity: u32 = calculate_animation_complexity(packet_count, path_count, node_count);
     let optimization: u32 = optimize_animation_performance(packet_count, ANIMATION_FPS);
     let actual_packet_count: u32 = (packet_count - optimization);
@@ -342,7 +342,7 @@ pub fn process_animation_control(control: u32, timeline: u32) -> u32 {
     }
 }
 
-pub fn calculate_animation_stats(frames: Vec<>, frame_count: u32) -> u32 {
+pub fn calculate_animation_stats(frames: [u32; MAX_FRAMES], frame_count: u32) -> u32 {
     let mut total_packets: u32 = 0;
     let mut total_bytes: u32 = 0;
     let mut avg_latency: u32 = 0;

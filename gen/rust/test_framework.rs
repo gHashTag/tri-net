@@ -179,7 +179,7 @@ pub fn get_teardown_id(suite: u32) -> u32 {
     return (suite & 0xFF);
 }
 
-pub fn run_test_suite(suite: u32, tests: Vec<>, test_count: u32) -> u32 {
+pub fn run_test_suite(suite: u32, tests: [u32; MAX_TESTS], test_count: u32) -> u32 {
     let suite_id: u32 = get_suite_id(suite);
     let mut total_assertions: u32 = 0;
     let mut total_failures: u32 = 0;
@@ -230,7 +230,7 @@ pub fn calculate_coverage_percentage(coverage: u32) -> u32 {
     }
 }
 
-pub fn aggregate_coverage(coverage_data: Vec<>, count: u32) -> u32 {
+pub fn aggregate_coverage(coverage_data: [u32; MAX_TESTS], count: u32) -> u32 {
     let mut total_branches: u32 = 0;
     let mut total_covered: u32 = 0;
     let mut i: u32 = 0;

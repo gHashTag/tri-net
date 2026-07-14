@@ -86,7 +86,7 @@ pub fn count_valid_paths(path_array: u64) -> u32 {
 }
 
 pub fn is_multipath_viable(path_array: u64) -> u32 {
-    return (count_valid_paths(path_array) >= MIN_PATHS);
+    return ((count_valid_paths(path_array) >= MIN_PATHS)) as u32;
 }
 
 pub fn select_primary_path(path_array: u64, quality_array: u64) -> u32 {

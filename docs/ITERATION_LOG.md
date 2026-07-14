@@ -98,3 +98,18 @@ phi^2 + phi^-2 = 3
 - Anti-anchor: every external behavior claim is cited; every performance number is deferred to the real-device gate; no fabricated metrics.
 
 phi^2 + phi^-2 = 3
+
+## 2026-07-14 - W7 wave (part 7): gen/ regen to match upgraded t27c + new defect isolation
+- PR: [#81](https://github.com/gHashTag/tri-net/pull/81) DRAFT (unchanged; not merged, not force-pushed). Bundled with the E1.1 push because the pre-push `stale-gen` gate is repo-wide.
+- Trigger: the toolchain binary at `/home/user/workspace/toolchain/t27c` was upgraded mid-session to a defect-A/B-fix build (SHA-256 `052ede5189b23b9b542537f203394acd2efcfd7e50024add2a70118c47e9e6d5`, t27 commit `b1a0f8d`, supersedes `2a114bc`/`6921c9a`). The committed `gen/` (produced by `2a114bc`) became genuinely stale versus the current toolchain; `stale-gen` correctly blocked the push.
+- Action: regenerated all 76 specs through the repo batch workflow (`T27C` env). 24 gen/rust files changed. No hand-edits; no spec edits; toolchain binary NOT committed.
+- MEASURED whole-crate `cargo build --release` (repaired->fixed t27c): 106 -> 28 -> **28 (27 hard errors)**. Error CLASS shifted, not count:
+  - Defect A (`[T; N]` -> `Vec<>`, E0107): **FIXED** by `052ede5` (0 E0107).
+  - Defect B (comparison -> `u32` at `return`): **FIXED** at return sites (e.g. `is_multipath_viable` return now `(...) as u32`).
+  - **NEW defect C** (t27c codegen): array-length constant is emitted with its spec type `u32` (e.g. `const MAX_FLOWS: u32` used as `[u32; MAX_FLOWS]`), but Rust array lengths must be `usize` -> **26 E0308** ("array length can only be `usize`") across ~9 files (flow_control, anomaly_detector, health_dashboard, quarantine_manager, multipath_routing, etc.). Dominant remaining whole-crate build blocker. NOT hand-patched (would violate L2/L6).
+  - **Defect B residual** (t27c codegen): logical-not `!` on a `u32`-valued call used in a boolean `if` condition is not lowered -> **1 E0308** at `gen/rust/multipath_routing.rs:93` (`if !(is_multipath_viable(...))`). The return-site coercion did not cover condition/operator contexts. NOT hand-patched.
+- Net: the crate still does NOT fully build; `cargo-build` hook stays ADVISORY. The two remaining defects (C + B-residual) are isolated for the t27 compiler owner, not masked.
+- Fix path for t27c owner: (C) cast/lower array-length constants to `usize` in emitted array types; (B-residual) coerce bool-valued expressions to the surrounding numeric contract at operator/condition sites, not only at `return`.
+- Hardware: NONE (sandbox only).
+
+phi^2 + phi^-2 = 3

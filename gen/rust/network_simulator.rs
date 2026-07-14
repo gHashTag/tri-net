@@ -185,7 +185,7 @@ pub fn advance_simulation(state: u32, time_delta: u32) -> u32 {
     return create_sim_state(new_time, event_count, node_count);
 }
 
-pub fn process_event(event: u32, node_states: Vec<>, link_states: Vec<>) -> u32 {
+pub fn process_event(event: u32, node_states: [u32; MAX_NODES], link_states: [u32; MAX_NODES]) -> u32 {
     let event_type: u32 = get_event_type(event);
     let node_id: u32 = get_event_node_id(event);
     if (event_type == EVENT_PACKET_SEND) {
@@ -261,7 +261,7 @@ pub fn create_topology(node_count: u32, density: u32) -> u32 {
     return link_count;
 }
 
-pub fn inject_fault(fault_type: u32, target_id: u32, node_states: Vec<>) -> u32 {
+pub fn inject_fault(fault_type: u32, target_id: u32, node_states: [u32; MAX_NODES]) -> u32 {
     if (fault_type == EVENT_NODE_FAILURE) {
         let current_state: u32 = node_states[target_id];
         node_states[target_id] = update_node_status(current_state, NODE_FAILED);
@@ -275,7 +275,7 @@ pub fn inject_fault(fault_type: u32, target_id: u32, node_states: Vec<>) -> u32 
     }
 }
 
-pub fn run_simulation_step(state: u32, events: Vec<>, event_count: u32, node_states: Vec<>, link_states: Vec<>) -> u32 {
+pub fn run_simulation_step(state: u32, events: [u32; MAX_EVENTS], event_count: u32, node_states: [u32; MAX_NODES], link_states: [u32; MAX_NODES]) -> u32 {
     let current_time: u32 = get_sim_time(state);
     let mut processed_count: u32 = 0;
     let mut i: u32 = 0;

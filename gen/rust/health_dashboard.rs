@@ -67,7 +67,7 @@ pub fn get_score_timestamp(score: u32) -> u32 {
     return (score & 0xFF);
 }
 
-pub fn calculate_node_health(metrics: Vec<>, count: u32) -> u32 {
+pub fn calculate_node_health(metrics: [u32; MAX_METRICS], count: u32) -> u32 {
     if (count == 0) {
         return 100;
     }
@@ -106,7 +106,7 @@ pub fn calculate_node_health(metrics: Vec<>, count: u32) -> u32 {
     }
 }
 
-pub fn calculate_network_health(node_metrics: Vec<>, node_count: u32) -> u32 {
+pub fn calculate_network_health(node_metrics: [u32; MAX_NODES], node_count: u32) -> u32 {
     if (node_count == 0) {
         return 100;
     }
@@ -120,7 +120,7 @@ pub fn calculate_network_health(node_metrics: Vec<>, node_count: u32) -> u32 {
     return (total_health / node_count);
 }
 
-pub fn detect_critical_issues(metrics: Vec<>, count: u32) -> u32 {
+pub fn detect_critical_issues(metrics: [u32; MAX_METRICS], count: u32) -> u32 {
     let mut critical_count: u32 = 0;
     let mut i: u32 = 0;
     while ((i < count) && (metrics[i] != 0)) {
@@ -152,7 +152,7 @@ pub fn detect_critical_issues(metrics: Vec<>, count: u32) -> u32 {
     return critical_count;
 }
 
-pub fn detect_warning_issues(metrics: Vec<>, count: u32) -> u32 {
+pub fn detect_warning_issues(metrics: [u32; MAX_METRICS], count: u32) -> u32 {
     let mut warning_count: u32 = 0;
     let mut i: u32 = 0;
     while ((i < count) && (metrics[i] != 0)) {
@@ -184,7 +184,7 @@ pub fn detect_warning_issues(metrics: Vec<>, count: u32) -> u32 {
     return warning_count;
 }
 
-pub fn generate_health_report(node_metrics: Vec<>, count: u32, timestamp: u32) -> u32 {
+pub fn generate_health_report(node_metrics: [u32; MAX_METRICS], count: u32, timestamp: u32) -> u32 {
     let node_health: u32 = calculate_node_health(node_metrics, count);
     let critical_count: u32 = detect_critical_issues(node_metrics, count);
     let warning_count: u32 = detect_warning_issues(node_metrics, count);
@@ -259,7 +259,7 @@ pub fn analyze_health_trend(current_health: u32, previous_health: u32) -> u32 {
     }
 }
 
-pub fn find_unhealthy_nodes(node_healths: Vec<>, threshold: u32) -> u32 {
+pub fn find_unhealthy_nodes(node_healths: [u32; MAX_NODES], threshold: u32) -> u32 {
     let mut count: u32 = 0;
     let mut i: u32 = 0;
     while (i < MAX_NODES) {
@@ -271,7 +271,7 @@ pub fn find_unhealthy_nodes(node_healths: Vec<>, threshold: u32) -> u32 {
     return count;
 }
 
-pub fn calculate_network_trend(current_scores: Vec<>, previous_scores: Vec<>, node_count: u32) -> u32 {
+pub fn calculate_network_trend(current_scores: [u32; MAX_NODES], previous_scores: [u32; MAX_NODES], node_count: u32) -> u32 {
     let mut improving: u32 = 0;
     let mut degrading: u32 = 0;
     let mut i: u32 = 0;

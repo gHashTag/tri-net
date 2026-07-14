@@ -139,7 +139,7 @@ pub const ALGORITHM_HIERARCHICAL: u32 = 2;
 
 pub const ALGORITHM_GRID: u32 = 3;
 
-pub fn calculate_force_layout(nodes: Vec<>, edges: Vec<>, node_count: u32, edge_count: u32, params: u32) -> u32 {
+pub fn calculate_force_layout(nodes: [u32; MAX_NODES], edges: [u32; MAX_EDGES], node_count: u32, edge_count: u32, params: u32) -> u32 {
     let iterations: u32 = get_layout_iterations(params);
     let mut temperature: u32 = get_layout_temperature(params);
     let mut placed_nodes: u32 = 0;
@@ -193,7 +193,7 @@ pub fn calculate_force_layout(nodes: Vec<>, edges: Vec<>, node_count: u32, edge_
     return placed_nodes;
 }
 
-pub fn calculate_circular_layout(nodes: Vec<>, node_count: u32) -> u32 {
+pub fn calculate_circular_layout(nodes: [u32; MAX_NODES], node_count: u32) -> u32 {
     let center_x: u32 = (CANVAS_SIZE / 2);
     let center_y: u32 = _cse1;
     let radius: u32 = (CANVAS_SIZE / 3);
@@ -211,7 +211,7 @@ pub fn calculate_circular_layout(nodes: Vec<>, node_count: u32) -> u32 {
     return node_count;
 }
 
-pub fn calculate_hierarchical_layout(nodes: Vec<>, edges: Vec<>, node_count: u32, edge_count: u32) -> u32 {
+pub fn calculate_hierarchical_layout(nodes: [u32; MAX_NODES], edges: [u32; MAX_EDGES], node_count: u32, edge_count: u32) -> u32 {
     let nodes_per_level: u32 = (node_count / 4);
     let mut i: u32 = 0;
     let mut current_level: u32 = 0;
@@ -232,7 +232,7 @@ pub fn calculate_hierarchical_layout(nodes: Vec<>, edges: Vec<>, node_count: u32
     return node_count;
 }
 
-pub fn apply_layout(nodes: Vec<>, edges: Vec<>, node_count: u32, edge_count: u32, params: u32) -> u32 {
+pub fn apply_layout(nodes: [u32; MAX_NODES], edges: [u32; MAX_EDGES], node_count: u32, edge_count: u32, params: u32) -> u32 {
     let algorithm: u32 = get_layout_algorithm(params);
     if (algorithm == ALGORITHM_FORCE_DIRECTED) {
         return calculate_force_layout(nodes, edges, node_count, edge_count, params);
@@ -257,7 +257,7 @@ pub fn render_node(node: u32, size: u32, color: u32) -> u32 {
     return (((((x & 0xFF) << 24) | ((y & 0xFF) << 16)) | ((size & 0xFF) << 8)) | (node_color & 0xFF));
 }
 
-pub fn render_edge(edge: u32, nodes: Vec<>, thickness: u32) -> u32 {
+pub fn render_edge(edge: u32, nodes: [u32; MAX_NODES], thickness: u32) -> u32 {
     let source: u32 = get_viz_edge_source(edge);
     let dest: u32 = get_viz_edge_dest(edge);
     let quality: u32 = get_viz_edge_quality(edge);
@@ -290,7 +290,7 @@ pub fn render_edge(edge: u32, nodes: Vec<>, thickness: u32) -> u32 {
     return (((((source_x & 0xFF) << 24) | ((source_y & 0xFF) << 16)) | ((dest_x & 0xFF) << 8)) | (dest_y & 0xFF));
 }
 
-pub fn create_visualization_frame(nodes: Vec<>, edges: Vec<>, node_count: u32, edge_count: u32) -> u32 {
+pub fn create_visualization_frame(nodes: [u32; MAX_NODES], edges: [u32; MAX_EDGES], node_count: u32, edge_count: u32) -> u32 {
     let mut frame_size: u32 = 0;
     let mut i: u32 = 0;
     while (i < node_count) {
@@ -324,7 +324,7 @@ pub fn optimize_rendering(node_count: u32, edge_count: u32, target_fps: u32) -> 
     }
 }
 
-pub fn generate_topology_visualization(nodes: Vec<>, edges: Vec<>, node_count: u32, edge_count: u32, layout_params: u32) -> u32 {
+pub fn generate_topology_visualization(nodes: [u32; MAX_NODES], edges: [u32; MAX_EDGES], node_count: u32, edge_count: u32, layout_params: u32) -> u32 {
     let layout_result: u32 = apply_layout(nodes, edges, node_count, edge_count, layout_params);
     let frame: u32 = create_visualization_frame(nodes, edges, node_count, edge_count);
     let detail_level: u32 = optimize_rendering(node_count, edge_count, 30);

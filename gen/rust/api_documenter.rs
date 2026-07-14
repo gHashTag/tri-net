@@ -178,7 +178,7 @@ pub fn get_module_description(module_doc: u32) -> u32 {
     return (module_doc & 0xFF);
 }
 
-pub fn calculate_average_complexity(func_docs: Vec<>, func_count: u32) -> u32 {
+pub fn calculate_average_complexity(func_docs: [u32; MAX_FUNCTIONS], func_count: u32) -> u32 {
     let mut total_complexity: u32 = 0;
     let mut i: u32 = 0;
     while (i < func_count) {
@@ -192,7 +192,7 @@ pub fn calculate_average_complexity(func_docs: Vec<>, func_count: u32) -> u32 {
     }
 }
 
-pub fn generate_api_documentation(func_docs: Vec<>, func_count: u32, param_docs: Vec<>, param_count: u32) -> u32 {
+pub fn generate_api_documentation(func_docs: [u32; MAX_FUNCTIONS], func_count: u32, param_docs: [u32; MAX_PARAMETERS], param_count: u32) -> u32 {
     let mut total_complexity: u32 = 0;
     let mut documented_funcs: u32 = 0;
     let mut i: u32 = 0;
@@ -223,7 +223,7 @@ pub fn generate_usage_example(func_doc: u32, context: u32) -> u32 {
     return create_function_example(func_id, usage_pattern, (usage_pattern + 10), 2);
 }
 
-pub fn create_dependency_graph(xrefs: Vec<>, xref_count: u32) -> u32 {
+pub fn create_dependency_graph(xrefs: [u32; MAX_FUNCTIONS], xref_count: u32) -> u32 {
     let mut total_connections: u32 = 0;
     let mut strong_connections: u32 = 0;
     let mut i: u32 = 0;
@@ -242,7 +242,7 @@ pub fn create_dependency_graph(xrefs: Vec<>, xref_count: u32) -> u32 {
     return (((((total_connections & 0xFF) << 24) | ((strong_connections & 0xFF) << 16)) | ((avg_strength & 0xFF) << 8)) | (xref_count & 0xFF));
 }
 
-pub fn validate_documentation(func_docs: Vec<>, func_count: u32) -> u32 {
+pub fn validate_documentation(func_docs: [u32; MAX_FUNCTIONS], func_count: u32) -> u32 {
     let mut missing_descriptions: u32 = 0;
     let mut missing_params: u32 = 0;
     let mut i: u32 = 0;
@@ -265,7 +265,7 @@ pub fn validate_documentation(func_docs: Vec<>, func_count: u32) -> u32 {
     return (((((missing_descriptions & 0xFF) << 24) | 0) | ((missing_params & 0xFF) << 8)) | (quality_score & 0xFF));
 }
 
-pub fn generate_documentation_report(func_docs: Vec<>, func_count: u32, xrefs: Vec<>, xref_count: u32) -> u32 {
+pub fn generate_documentation_report(func_docs: [u32; MAX_FUNCTIONS], func_count: u32, xrefs: [u32; MAX_FUNCTIONS], xref_count: u32) -> u32 {
     let doc_summary: u32 = generate_api_documentation(func_docs, func_count, func_docs, 0);
     let documented_funcs: u32 = ((doc_summary >> 24) & 0xFF);
     let coverage: u32 = calculate_documentation_coverage(documented_funcs, func_count);

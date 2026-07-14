@@ -59,7 +59,7 @@ pub const TYPE_PATTERN: u32 = 2;
 
 pub const TYPE_TREND: u32 = 3;
 
-pub fn calculate_baseline(history: Vec<>, count: u32) -> u32 {
+pub fn calculate_baseline(history: [u32; MAX_METRICS], count: u32) -> u32 {
     let mut sum: u32 = 0;
     let mut valid_count: u32 = 0;
     let mut i: u32 = 0;
@@ -76,7 +76,7 @@ pub fn calculate_baseline(history: Vec<>, count: u32) -> u32 {
     }
 }
 
-pub fn calculate_variance(history: Vec<>, count: u32, baseline: u32) -> u32 {
+pub fn calculate_variance(history: [u32; MAX_METRICS], count: u32, baseline: u32) -> u32 {
     let mut sum_diff: u32 = 0;
     let mut i: u32 = 0;
     while (i < count) {
@@ -131,7 +131,7 @@ pub fn detect_drop(current: u32, baseline: u32, variance: u32) -> u32 {
     return 0;
 }
 
-pub fn detect_pattern(history: Vec<>, count: u32) -> u32 {
+pub fn detect_pattern(history: [u32; MAX_METRICS], count: u32) -> u32 {
     if (count < 4) {
         return 0;
     }
@@ -153,7 +153,7 @@ pub fn detect_pattern(history: Vec<>, count: u32) -> u32 {
     }
 }
 
-pub fn detect_trend(history: Vec<>, count: u32) -> u32 {
+pub fn detect_trend(history: [u32; MAX_METRICS], count: u32) -> u32 {
     if (count < 4) {
         return 0;
     }
@@ -201,7 +201,7 @@ pub fn calculate_severity(current: u32, baseline: u32) -> u32 {
     }
 }
 
-pub fn detect_anomaly(history: Vec<>, count: u32, current_reading: u32) -> u32 {
+pub fn detect_anomaly(history: [u32; MAX_METRICS], count: u32, current_reading: u32) -> u32 {
     if (count < BASELINE_WINDOW) {
         return 0;
     }
@@ -267,7 +267,7 @@ pub fn get_anomaly_description(report: u32) -> u32 {
     }
 }
 
-pub fn correlate_metrics(metric1_id: u32, metric2_id: u32, history1: Vec<>, history2: Vec<>, count: u32) -> u32 {
+pub fn correlate_metrics(metric1_id: u32, metric2_id: u32, history1: [u32; MAX_METRICS], history2: [u32; MAX_METRICS], count: u32) -> u32 {
     if (count < 4) {
         return 0;
     }
@@ -306,7 +306,7 @@ pub fn correlate_metrics(metric1_id: u32, metric2_id: u32, history1: Vec<>, hist
     }
 }
 
-pub fn detect_coordinated_attack(anomalies: Vec<>, count: u32) -> u32 {
+pub fn detect_coordinated_attack(anomalies: [u32; MAX_METRICS], count: u32) -> u32 {
     let mut critical_count: u32 = 0;
     let mut i: u32 = 0;
     while (i < count) {
