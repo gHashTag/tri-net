@@ -1,0 +1,149 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/admin_status.t27
+// Admin dashboard status validation logic.
+// The runtime JSON serialization lives in Rust glue, but the *semantic
+// invariants* — legal node_id ranges, uptime overflow guards, attestation
+// state encoding, HTTP path traversal rejection — live here.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module AdminStatus {
+    use base::types;
+
+    // Node id: same range as trios_meshd (u32, but we use u16 practically
+    // because the mesh currently ships 3 boards and id=0 is reserved).
+    const NODE_ID_MIN : u16 = 1;
+    const NODE_ID_MAX : u16 = 65534;  // 65535 reserved for broadcast
+
+    // Uptime: seconds since daemon start. u32 rolls over at ~136 years —
+    // plenty. But the JSON serializer must clamp to u32 to avoid overflow
+    // on 64-bit sources.
+    const UPTIME_MAX : u32 = 0xFFFFFFFF;
+
+    // Attestation state:
+    //   0 = missing (never valid on a production node)
+    //   1 = pre-silicon Ed25519 placeholder (v0.1 default)
+    //   2 = chip-signed 1-of-3 (partial trust)
+    //   3 = chip-signed 3-of-3 Phi+Euler+Gamma (full Trinity)
+    const ATTEST_MISSING       : u8 = 0;
+    const ATTEST_ED25519_SIM   : u8 = 1;
+    const ATTEST_CHIP_PARTIAL  : u8 = 2;
+    const ATTEST_CHIP_FULL     : u8 = 3;
+    const ATTEST_MAX           : u8 = 3;
+
+    // Admin write access requires at least ATTEST_ED25519_SIM. Missing
+    // attestation is read-only. Pre-silicon build ships ATTEST_ED25519_SIM
+    // as the default until 2026-12-16 tape-out.
+    fn write_allowed(attest_state: u8) -> bool {
+        return attest_state >= ATTEST_ED25519_SIM && attest_state <= ATTEST_MAX;
+    }
+
+    // Full Trinity check: iPhone client MAY display "chip-attested" badge
+    // only when this returns true.
+    fn chip_attested(attest_state: u8) -> bool {
+        return attest_state == ATTEST_CHIP_FULL;
+    }
+
+    // Attestation state validity.
+    fn attest_valid(s: u8) -> bool {
+        return s <= ATTEST_MAX;
+    }
+
+    // Node id validity.
+    fn node_id_valid(id: u16) -> bool {
+        return id >= NODE_ID_MIN && id <= NODE_ID_MAX;
+    }
+
+    // Clamp a 64-bit uptime source down to u32-safe seconds.
+    fn uptime_clamp_u32(u_hi: u32, u_lo: u32) -> u32 {
+        if (u_hi != 0) {
+            return UPTIME_MAX;
+        }
+        return u_lo;
+    }
+
+    // ---- HTTP path traversal rejection (skeleton static-file server) ----
+    //
+    // A byte b is legal in a request-target segment iff it is:
+    //   - ASCII letter [a-zA-Z]
+    //   - ASCII digit [0-9]
+    //   - one of . _ - / (46, 95, 45, 47)
+    // Everything else is rejected. `..` sequences are rejected at the
+    // segment layer in the runtime; here we only enforce byte-set.
+    fn path_byte_legal(b: u8) -> bool {
+        if (b >= 48 && b <= 57)   { return true; }  // 0-9
+        if (b >= 65 && b <= 90)   { return true; }  // A-Z
+        if (b >= 97 && b <= 122)  { return true; }  // a-z
+        if (b == 46) { return true; }  // .
+        if (b == 95) { return true; }  // _
+        if (b == 45) { return true; }  // -
+        if (b == 47) { return true; }  // /
+        return false;
+    }
+
+    // A pair of consecutive dot bytes indicates a traversal attempt.
+    fn is_dot_dot(b0: u8, b1: u8) -> bool {
+        return b0 == 46 && b1 == 46;
+    }
+
+    // ---- Tests ----
+
+    test node_id_range {
+        assert(node_id_valid(1), "min ok");
+        assert(node_id_valid(11), "board 11 ok");
+        assert(node_id_valid(65534), "max ok");
+        assert(!node_id_valid(0), "zero rejected");
+        assert(!node_id_valid(65535), "broadcast rejected");
+    }
+
+    test attest_states {
+        assert(attest_valid(0), "missing ok");
+        assert(attest_valid(3), "full ok");
+        assert(!attest_valid(4), "4 rejected");
+    }
+
+    test write_gating {
+        assert(!write_allowed(ATTEST_MISSING), "missing → no write");
+        assert(write_allowed(ATTEST_ED25519_SIM), "sim → write ok");
+        assert(write_allowed(ATTEST_CHIP_PARTIAL), "partial → write ok");
+        assert(write_allowed(ATTEST_CHIP_FULL), "full → write ok");
+    }
+
+    test chip_badge_only_on_full {
+        assert(!chip_attested(ATTEST_MISSING), "missing → no badge");
+        assert(!chip_attested(ATTEST_ED25519_SIM), "sim → no badge");
+        assert(!chip_attested(ATTEST_CHIP_PARTIAL), "partial → no badge");
+        assert(chip_attested(ATTEST_CHIP_FULL), "full → badge");
+    }
+
+    test uptime_clamp {
+        assert(uptime_clamp_u32(0, 42) == 42, "in-range passes");
+        assert(uptime_clamp_u32(0, UPTIME_MAX) == UPTIME_MAX, "max passes");
+        assert(uptime_clamp_u32(1, 0) == UPTIME_MAX, "overflow clamps");
+        assert(uptime_clamp_u32(5, 999) == UPTIME_MAX, "any high clamps");
+    }
+
+    test path_bytes_legal {
+        assert(path_byte_legal(65), "A ok");
+        assert(path_byte_legal(97), "a ok");
+        assert(path_byte_legal(48), "0 ok");
+        assert(path_byte_legal(47), "/ ok");
+        assert(path_byte_legal(46), ". ok");
+        assert(path_byte_legal(95), "_ ok");
+        assert(path_byte_legal(45), "- ok");
+    }
+
+    test path_bytes_illegal {
+        assert(!path_byte_legal(32), "space rejected");
+        assert(!path_byte_legal(63), "? rejected");
+        assert(!path_byte_legal(35), "# rejected");
+        assert(!path_byte_legal(37), "% rejected");
+        assert(!path_byte_legal(0),  "NUL rejected");
+        assert(!path_byte_legal(59), "; rejected");
+    }
+
+    test dot_dot_detection {
+        assert(is_dot_dot(46, 46), "'..' flagged");
+        assert(!is_dot_dot(46, 47), "'./' not flagged");
+        assert(!is_dot_dot(47, 46), "'/.' not flagged");
+    }
+}
