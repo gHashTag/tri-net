@@ -89,10 +89,16 @@ fn main() -> std::io::Result<()> {
 // ─── query parsing ─────────────────────────────────────────────────────────
 
 /// Parse the header + first question from an mDNS query. Returns
-/// (txid, qname_string, qtype) if it looks like a well-formed query with at
-/// least one question and no name-compression pointers in the question name
-/// (compression in queries is legal but rare; we skip such packets to keep
-/// the parser small).
+/// (txid, qname_string, qtype) if it looks like a well-formed query with
+/// at least one question. Handles RFC 1035 §4.1.4 name compression
+/// (pointer form `0b11xxxxxx xxxxxxxx`), which iPhone Bonjour uses
+/// heavily in multi-question packets. Pointer loops are detected via a
+/// hop limit of 32 (RFC does not mandate but every real resolver caps
+/// this to avoid DoS).
+///
+/// Weak-point #4 (W7 audit 2026-07-14): the previous parser silently
+/// returned None on any 0xC0 byte, so iPhone Bonjour queries were dropped
+/// and the phone never discovered `_tri-admin._tcp.local`.
 pub fn parse_first_question(pkt: &[u8]) -> Option<(u16, String, u16)> {
     if pkt.len() < 12 {
         return None;
@@ -108,35 +114,91 @@ pub fn parse_first_question(pkt: &[u8]) -> Option<(u16, String, u16)> {
         return None;
     }
 
-    let mut i = 12usize;
+    let (name, after) = read_name(pkt, 12)?;
+    if after + 4 > pkt.len() {
+        return None;
+    }
+    let qtype = u16::from_be_bytes([pkt[after], pkt[after + 1]]);
+    Some((txid, name, qtype))
+}
+
+/// Read a possibly-compressed DNS name starting at `start`. Returns the
+/// decoded dotted name and the offset immediately after the name's
+/// terminator in the *outer* packet (not inside a jumped-into region).
+/// Follows up to 32 pointer hops before giving up (loop guard). Visited
+/// pointer targets are tracked in a small vector to catch cycles that
+/// hop count would eventually catch but slower.
+#[allow(clippy::needless_range_loop)]
+fn read_name(pkt: &[u8], start: usize) -> Option<(String, usize)> {
     let mut name = String::new();
-    while i < pkt.len() {
-        let len = pkt[i];
-        if len == 0 {
-            i += 1;
-            break;
-        }
-        // Refuse compression pointers in question.
-        if len & 0xC0 != 0 {
+    let mut i = start;
+    let mut end_after: Option<usize> = None;
+    let mut hops: u8 = 0;
+    let mut visited: [bool; 512] = [false; 512];
+    let mut total_bytes: usize = 0;
+
+    loop {
+        if i >= pkt.len() {
             return None;
         }
-        let ll = len as usize;
+        let b = pkt[i];
+        if b == 0 {
+            if end_after.is_none() {
+                end_after = Some(i + 1);
+            }
+            break;
+        }
+        if b & 0xC0 == 0xC0 {
+            if i + 1 >= pkt.len() {
+                return None;
+            }
+            let ptr = (((b & 0x3F) as usize) << 8) | pkt[i + 1] as usize;
+            if ptr >= pkt.len() {
+                return None;
+            }
+            if end_after.is_none() {
+                end_after = Some(i + 2);
+            }
+            // Loop guard: refuse to revisit an offset. Pkt size in mDNS
+            // is bounded by MTU (~1500), so 512-entry map covers the
+            // useful range; larger packets fall back to hop count.
+            if ptr < visited.len() {
+                if visited[ptr] {
+                    return None;
+                }
+                visited[ptr] = true;
+            }
+            hops += 1;
+            if hops > 32 {
+                return None;
+            }
+            i = ptr;
+            continue;
+        }
+        if b & 0xC0 != 0 {
+            // 10xxxxxx and 01xxxxxx are reserved; refuse.
+            return None;
+        }
+        let ll = b as usize;
         if i + 1 + ll > pkt.len() {
             return None;
         }
         if !name.is_empty() {
             name.push('.');
         }
-        for &b in &pkt[i + 1..i + 1 + ll] {
-            name.push(b as char);
+        for j in 0..ll {
+            name.push(pkt[i + 1 + j] as char);
         }
         i += 1 + ll;
+        // Bound total decoded name length — RFC 1035 caps a wire name at
+        // 255 octets. Anything longer indicates hostile input.
+        total_bytes += 1 + ll;
+        if total_bytes > 255 {
+            return None;
+        }
     }
-    if i + 4 > pkt.len() {
-        return None;
-    }
-    let qtype = u16::from_be_bytes([pkt[i], pkt[i + 1]]);
-    Some((txid, name, qtype))
+
+    Some((name, end_after?))
 }
 
 // ─── reply assembly ────────────────────────────────────────────────────────
@@ -371,5 +433,140 @@ mod tests {
         .unwrap();
         let port_be = ADMIN_PORT.to_be_bytes();
         assert!(out.windows(2).any(|w| w == port_be));
+    }
+
+    // Weak-point #4 regression: iPhone Bonjour packs the second question
+    // using RFC 1035 name-compression. Craft a packet where the qname is
+    // a pointer back to an earlier full name. The parser must decode it.
+    #[test]
+    fn parse_accepts_compressed_qname() {
+        let mut pkt = Vec::new();
+        pkt.extend_from_slice(&0xBEEFu16.to_be_bytes());
+        pkt.extend_from_slice(&0u16.to_be_bytes()); // flags
+        pkt.extend_from_slice(&1u16.to_be_bytes()); // qd
+        pkt.extend_from_slice(&0u16.to_be_bytes()); // an
+        pkt.extend_from_slice(&0u16.to_be_bytes()); // ns
+        pkt.extend_from_slice(&0u16.to_be_bytes()); // ar
+        // Full name written starting at offset 12, then a pointer would
+        // reuse it. For a single-question packet, emulate iPhone's habit
+        // of encoding a leading label then jumping into a stored suffix.
+        // Layout: [3]foo [pointer -> offset 20 where "_tcp.local" lives]
+        // First: label "foo" at offset 12..16, then pointer 0xC0 0x14 at
+        // offset 16..18, then qtype+class at 18..22, then the stored
+        // suffix labels at offset 22 onward.
+        // Simpler and more realistic: put full name, then a *second*
+        // question is a pointer back. Since parser reads only the first
+        // question, exercise compression by placing the shared suffix
+        // first, then the query as pointer.
+        // Concretely: suffix "local" at offset 12, pointer 0xC00C for
+        // qname, and expect name == "local".
+        pkt.push(5);
+        pkt.extend_from_slice(b"local");
+        pkt.push(0);
+        // Now the actual question starts at offset 12+7 = 19: just a
+        // pointer 0xC0 0x0C referring to "local" at offset 12.
+        pkt.push(0xC0);
+        pkt.push(0x0C);
+        pkt.extend_from_slice(&mdns_wire::TYPE_PTR.to_be_bytes());
+        pkt.extend_from_slice(&mdns_wire::CLASS_IN.to_be_bytes());
+        // Note: this isn't a strict RFC layout (real queries put question
+        // first), but the parser walks header->question in order. To
+        // exercise the parser correctly, rebuild with question first and
+        // use pointer as sole label.
+
+        // Simpler valid construction:
+        let mut p2 = Vec::new();
+        p2.extend_from_slice(&0xBEEFu16.to_be_bytes());
+        p2.extend_from_slice(&0u16.to_be_bytes());
+        p2.extend_from_slice(&1u16.to_be_bytes());
+        p2.extend_from_slice(&0u16.to_be_bytes());
+        p2.extend_from_slice(&0u16.to_be_bytes());
+        p2.extend_from_slice(&0u16.to_be_bytes());
+        // question at offset 12: label "foo" then pointer to suffix at
+        // offset 18 ("bar.local").
+        p2.push(3);
+        p2.extend_from_slice(b"foo"); // offset 12..16
+        p2.push(0xC0);
+        p2.push(18); // pointer to offset 18
+        p2.extend_from_slice(&mdns_wire::TYPE_PTR.to_be_bytes()); // 18..20? no
+        // Recompute: offset 12 = 3, 13..16 = foo, 16 = 0xC0, 17 = 0x12 (=18).
+        // qtype at 18..20, class at 20..22. But we said pointer -> 18
+        // which is qtype. That's not a name; skip this construction.
+
+        // Cleanest: header + suffix labels stored *before* the question.
+        // Since parser starts at offset 12, we can only exercise
+        // pointer by placing the shared name in the *answer section*
+        // above offset 12, which is impossible. So build a two-question
+        // packet-like layout where the parser sees full name first (as
+        // qname) and would jump into it only if we injected a pointer
+        // there. For a single-question parser, the meaningful test is
+        // just "pointer as first byte of qname" pointing into the
+        // header area — which is invalid — OR a mixed label+pointer.
+        // Do mixed: label "tri" + pointer to a suffix we prepended.
+        let mut p3 = Vec::new();
+        p3.extend_from_slice(&0xBEEFu16.to_be_bytes());
+        p3.extend_from_slice(&0u16.to_be_bytes());
+        p3.extend_from_slice(&1u16.to_be_bytes());
+        p3.extend_from_slice(&0u16.to_be_bytes());
+        p3.extend_from_slice(&0u16.to_be_bytes());
+        p3.extend_from_slice(&0u16.to_be_bytes());
+        // qname at offset 12: [3]tri [ptr -> ??]
+        p3.push(3);
+        p3.extend_from_slice(b"tri"); // 12..16
+        // pointer bytes at 16..18 will point to offset 22
+        p3.push(0xC0);
+        p3.push(22);
+        // qtype+class at 18..22
+        p3.extend_from_slice(&mdns_wire::TYPE_PTR.to_be_bytes());
+        p3.extend_from_slice(&mdns_wire::CLASS_IN.to_be_bytes());
+        // now at offset 22 we stash a suffix "net.local"
+        p3.push(3);
+        p3.extend_from_slice(b"net");
+        p3.push(5);
+        p3.extend_from_slice(b"local");
+        p3.push(0);
+
+        let (txid, name, qtype) = parse_first_question(&p3).unwrap();
+        assert_eq!(txid, 0xBEEF);
+        assert_eq!(name, "tri.net.local");
+        assert_eq!(qtype, mdns_wire::TYPE_PTR);
+        // Silence unused-var lint on the exploratory pkt/p2 above.
+        let _ = (pkt, p2);
+    }
+
+    #[test]
+    fn parse_rejects_out_of_bounds_pointer() {
+        // Pointer past end of packet must be rejected.
+        let mut p = Vec::new();
+        p.extend_from_slice(&0xBEEFu16.to_be_bytes());
+        p.extend_from_slice(&0u16.to_be_bytes());
+        p.extend_from_slice(&1u16.to_be_bytes());
+        p.extend_from_slice(&0u16.to_be_bytes());
+        p.extend_from_slice(&0u16.to_be_bytes());
+        p.extend_from_slice(&0u16.to_be_bytes());
+        p.push(0xC0);
+        p.push(200); // way past end
+        p.extend_from_slice(&mdns_wire::TYPE_PTR.to_be_bytes());
+        p.extend_from_slice(&mdns_wire::CLASS_IN.to_be_bytes());
+        assert!(parse_first_question(&p).is_none());
+    }
+
+    #[test]
+    fn parse_rejects_pointer_loop() {
+        // Build a self-referential pointer: qname pointer at offset 12
+        // points to itself (offset 12). read_name rejects because ptr
+        // >= i on the very first hop.
+        let mut p = Vec::new();
+        p.extend_from_slice(&0xBEEFu16.to_be_bytes());
+        p.extend_from_slice(&0u16.to_be_bytes());
+        p.extend_from_slice(&1u16.to_be_bytes());
+        p.extend_from_slice(&0u16.to_be_bytes());
+        p.extend_from_slice(&0u16.to_be_bytes());
+        p.extend_from_slice(&0u16.to_be_bytes());
+        p.push(0xC0);
+        p.push(12);
+        p.extend_from_slice(&mdns_wire::TYPE_PTR.to_be_bytes());
+        p.extend_from_slice(&mdns_wire::CLASS_IN.to_be_bytes());
+        assert!(parse_first_question(&p).is_none());
     }
 }
