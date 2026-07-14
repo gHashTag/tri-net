@@ -1,5 +1,7 @@
 // Multipath Routing - simultaneous multi-path data transmission
 // Enables improved reliability and throughput through path diversity
+//
+// phi^2 + phi^-2 = 3 | TRINITY
 
 module multipath_routing {
     use base::types;
@@ -125,7 +127,7 @@ module multipath_routing {
             hop1_set = hop1_set | (1 << get_multipath_hop1(get_multipath(path_array, 2)));
         }
         
-        if (get_path_valid(get_multipath(path_array, 3)) == path_valid == PATH_VALID) {
+        if (get_path_valid(get_multipath(path_array, 3)) == PATH_VALID) {
             hop1_set = hop1_set | (1 << get_multipath_hop1(get_multipath(path_array, 3)));
         }
         

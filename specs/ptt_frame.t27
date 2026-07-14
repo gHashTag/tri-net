@@ -1,0 +1,242 @@
+// SPDX-License-Identifier: Apache-2.0
+// tri-net/specs/ptt_frame.t27
+// Push-to-Talk control frame for iPhone admin PWA ↔ P203 Mini node.
+// Fixed 8-byte header carried over WebSocket in binary opcode 0x2 OR
+// over raw UDP inside trios_meshd data payload:
+//   [0]  version (=1)
+//   [1]  action  (0=idle 1=start 2=stop 3=heartbeat)
+//   [2]  talkgroup id (0..=15, matches MPU5-style 16 groups)
+//   [3]  reserved (=0)
+//   [4..8] sequence number, u32 big-endian (per-session monotonic)
+// Payload after header (v0.1 skeleton): empty for control frames; when
+// audio pipeline (E3.1) lands, RTP-like Opus frame follows the 8-byte header.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module PttFrame {
+    use base::types;
+
+    const PTT_VERSION      : u8 = 1;
+    const PTT_HEADER_LEN   : usize = 8;
+
+    // Actions (matches JS UI: ptt/start ptt/stop ptt/heartbeat)
+    const ACT_IDLE      : u8 = 0;
+    const ACT_START     : u8 = 1;
+    const ACT_STOP      : u8 = 2;
+    const ACT_HEARTBEAT : u8 = 3;
+    const ACT_MAX       : u8 = 3;
+
+    // Talkgroup range: 16 groups (0..=15), inclusive.
+    const TG_MAX : u8 = 15;
+
+    // Action is well-formed iff it is one of the four defined values.
+    fn action_valid(a: u8) -> bool {
+        return a <= ACT_MAX;
+    }
+
+    // Talkgroup id is valid iff it fits in 4 bits (matches MPU5 16-group model).
+    fn talkgroup_valid(tg: u8) -> bool {
+        return tg <= TG_MAX;
+    }
+
+    // Extract byte i of a big-endian u32 (i=0 is most significant).
+    fn be_byte(w: u32, i: usize) -> u8 {
+        if (i == 0) {
+            return ((w >> 24) & 255) as u8;
+        } else if (i == 1) {
+            return ((w >> 16) & 255) as u8;
+        } else if (i == 2) {
+            return ((w >> 8) & 255) as u8;
+        } else {
+            return (w & 255) as u8;
+        }
+    }
+
+    // Reassemble u32 big-endian from 4 bytes.
+    fn u32_be(b0: u8, b1: u8, b2: u8, b3: u8) -> u32 {
+        return ((b0 as u32) << 24)
+             | ((b1 as u32) << 16)
+             | ((b2 as u32) << 8)
+             |  (b3 as u32);
+    }
+
+    // The idx-th byte of the serialized PTT header.
+    fn header_byte(action: u8, tg: u8, seq: u32, idx: usize) -> u8 {
+        if (idx == 0) {
+            return PTT_VERSION;
+        } else if (idx == 1) {
+            return action;
+        } else if (idx == 2) {
+            return tg;
+        } else if (idx == 3) {
+            return 0;
+        } else if (idx == 4) {
+            return be_byte(seq, 0);
+        } else if (idx == 5) {
+            return be_byte(seq, 1);
+        } else if (idx == 6) {
+            return be_byte(seq, 2);
+        } else {
+            return be_byte(seq, 3);
+        }
+    }
+
+    // parse() accepts iff:
+    //   byte0 == PTT_VERSION
+    //   byte1 is a valid action
+    //   byte2 is a valid talkgroup
+    //   byte3 == 0 (reserved must be zero — future-proofs the field)
+    fn parse_valid(b0: u8, b1: u8, b2: u8, b3: u8) -> bool {
+        if (b0 != PTT_VERSION) {
+            return false;
+        }
+        if (!action_valid(b1)) {
+            return false;
+        }
+        if (!talkgroup_valid(b2)) {
+            return false;
+        }
+        if (b3 != 0) {
+            return false;
+        }
+        return true;
+    }
+
+    // Extract sequence number from parsed header.
+    fn parse_seq(b4: u8, b5: u8, b6: u8, b7: u8) -> u32 {
+        return u32_be(b4, b5, b6, b7);
+    }
+
+    // Session state transition guard (matches JS `ptt-ack` flip):
+    //   idle       → start  ✓
+    //   talking    → stop   ✓
+    //   any        → heartbeat ✓ (does not change state)
+    // All other transitions are illegal (out-of-order frame or replay).
+    // States encoded: 0=idle 1=talking.
+    fn transition_valid(prev_state: u8, action: u8) -> bool {
+        if (action == ACT_HEARTBEAT) {
+            return true;
+        }
+        if (prev_state == 0 && action == ACT_START) {
+            return true;
+        }
+        if (prev_state == 1 && action == ACT_STOP) {
+            return true;
+        }
+        return false;
+    }
+
+    // Next state after applying a valid action. Caller must gate on
+    // transition_valid first; passing an invalid transition returns prev_state.
+    fn next_state(prev_state: u8, action: u8) -> u8 {
+        if (!transition_valid(prev_state, action)) {
+            return prev_state;
+        }
+        if (action == ACT_START) {
+            return 1;
+        }
+        if (action == ACT_STOP) {
+            return 0;
+        }
+        return prev_state;
+    }
+
+    // ---- Tests ----
+
+    test version_byte_is_one {
+        b = header_byte(ACT_START, 0, 0, 0);
+        assert(b == PTT_VERSION, "byte 0 must be VERSION");
+    }
+
+    test action_start_encodes_1 {
+        b = header_byte(ACT_START, 0, 0, 1);
+        assert(b == 1, "action byte");
+    }
+
+    test talkgroup_range_ok {
+        assert(talkgroup_valid(0), "tg 0 ok");
+        assert(talkgroup_valid(15), "tg 15 ok");
+        assert(!talkgroup_valid(16), "tg 16 rejected");
+    }
+
+    test action_range_ok {
+        assert(action_valid(0), "idle ok");
+        assert(action_valid(3), "heartbeat ok");
+        assert(!action_valid(4), "action 4 rejected");
+    }
+
+    test seq_roundtrip_zero {
+        b4 = header_byte(ACT_START, 0, 0, 4);
+        b5 = header_byte(ACT_START, 0, 0, 5);
+        b6 = header_byte(ACT_START, 0, 0, 6);
+        b7 = header_byte(ACT_START, 0, 0, 7);
+        s = parse_seq(b4, b5, b6, b7);
+        assert(s == 0, "seq 0 roundtrip");
+    }
+
+    test seq_roundtrip_high {
+        // 0xDEADBEEF
+        b4 = header_byte(ACT_START, 0, 0xDEADBEEF, 4);
+        b5 = header_byte(ACT_START, 0, 0xDEADBEEF, 5);
+        b6 = header_byte(ACT_START, 0, 0xDEADBEEF, 6);
+        b7 = header_byte(ACT_START, 0, 0xDEADBEEF, 7);
+        s = parse_seq(b4, b5, b6, b7);
+        assert(s == 0xDEADBEEF, "high seq roundtrip");
+    }
+
+    test parse_accepts_valid {
+        ok = parse_valid(PTT_VERSION, ACT_START, 3, 0);
+        assert(ok, "valid frame accepted");
+    }
+
+    test parse_rejects_wrong_version {
+        ok = parse_valid(2, ACT_START, 3, 0);
+        assert(!ok, "wrong version rejected");
+    }
+
+    test parse_rejects_nonzero_reserved {
+        ok = parse_valid(PTT_VERSION, ACT_START, 3, 1);
+        assert(!ok, "nonzero reserved rejected");
+    }
+
+    test parse_rejects_bad_talkgroup {
+        ok = parse_valid(PTT_VERSION, ACT_START, 200, 0);
+        assert(!ok, "tg 200 rejected");
+    }
+
+    test parse_rejects_bad_action {
+        ok = parse_valid(PTT_VERSION, 42, 0, 0);
+        assert(!ok, "action 42 rejected");
+    }
+
+    test transition_idle_to_start {
+        ok = transition_valid(0, ACT_START);
+        assert(ok, "idle→start ok");
+    }
+
+    test transition_stop_from_idle_rejected {
+        ok = transition_valid(0, ACT_STOP);
+        assert(!ok, "stop from idle rejected");
+    }
+
+    test transition_start_from_talking_rejected {
+        ok = transition_valid(1, ACT_START);
+        assert(!ok, "double-start rejected");
+    }
+
+    test transition_heartbeat_any {
+        assert(transition_valid(0, ACT_HEARTBEAT), "hb from idle");
+        assert(transition_valid(1, ACT_HEARTBEAT), "hb from talking");
+    }
+
+    test next_state_flips {
+        s = next_state(0, ACT_START);
+        assert(s == 1, "start → talking");
+        s2 = next_state(1, ACT_STOP);
+        assert(s2 == 0, "stop → idle");
+    }
+
+    test next_state_holds_on_invalid {
+        s = next_state(0, ACT_STOP);
+        assert(s == 0, "invalid transition holds state");
+    }
+}

@@ -1,0 +1,198 @@
+// audio_crypto — W3 (W7 audit follow-up 2026-07-14).
+//
+// Spec-first envelope for authenticated + confidential PTT audio.
+//
+// Design intent:
+//   * Wrap a PttAudio frame (specs/ptt_audio.t27) with a fixed-layout
+//     crypto envelope that a mesh forwarder can validate BEFORE decrypt.
+//   * The envelope carries session_id (already in PttAudio), a nonce
+//     (12 bytes, ChaCha20-Poly1305 convention), and a MAC tag (16 bytes,
+//     Poly1305 convention).
+//   * This spec covers ONLY the WIRE LAYOUT and PREDICATES over that
+//     layout. It does NOT implement ChaCha20 or Poly1305 or X25519.
+//     Runtime bindings live in gen/rust/audio_crypto.rs and (later)
+//     src/bin/audio_crypto_wrap.rs.
+//
+// NON-CLAIM ("no chip, no TRI" applied to crypto):
+//   The reference runtime in this wave uses a PLACEHOLDER keystream
+//   (single-byte XOR mask) and a PLACEHOLDER MAC (HMAC-SHA256-truncated).
+//   That is NOT cryptographically strong. Do NOT ship this to any
+//   adversarial channel. It exists so:
+//     (a) the spec layout can be exercised end-to-end,
+//     (b) predicate tests can be written and pass in sandbox,
+//     (c) a future audited replacement (RustCrypto chacha20poly1305 +
+//         x25519_dalek, or FIPS-compliant crate audited on ssdm4) can
+//         drop in without touching the spec or the byte layout.
+//   Every runtime file that ships the placeholder MUST carry the tag
+//   `-crypto-placeholder` in its comment header and in any log line.
+//
+// Prior art (cited, not claimed):
+//   * RFC 7539 — ChaCha20 and Poly1305 for IETF Protocols.
+//   * RFC 7748 — Elliptic Curves for Security (X25519).
+//   * RFC 8439 — ChaCha20-Poly1305 AEAD Construction.
+//   * Reticulum LXST — real-time voice over Reticulum, uses ChaCha20
+//     for symmetric encryption and Ed25519/X25519 primitives for
+//     identity and forward secrecy.
+//     https://reticulumnet.nl/software
+//
+// Threat model (this envelope defends against):
+//   T1 — passive eavesdropper on the mesh recording PTT.
+//   T2 — active adversary replaying a captured frame (already partially
+//        addressed by ReplayGuard in audio_forwarder.rs; MAC-tag +
+//        nonce-freshness makes replay a forgery attempt not just a
+//        duplicate seq).
+//   T3 — active adversary flipping bits mid-flight (bit-flip attack on
+//        Opus payload). Poly1305 MAC rejects the modified frame.
+//
+// Threat model (this envelope does NOT defend against):
+//   * Compromise of the endpoint key store (PWA localStorage /
+//     admin_httpd process memory).
+//   * Traffic analysis: nonce and session_id are visible; an adversary
+//     can count frames per session.
+//   * Side channels in a PLACEHOLDER runtime — the placeholder is not
+//     constant-time.
+//
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module AudioCrypto {
+    use base::types;
+
+    // ─── crypto-envelope constants ──────────────────────────────────
+
+    // Envelope version. Bumps whenever wire layout changes.
+    const CRYPTO_ENVELOPE_VERSION : u8 = 1;
+
+    // ChaCha20-Poly1305 conventions.
+    //   Nonce: 12 bytes (RFC 7539 §2.3).
+    //   MAC tag: 16 bytes (Poly1305, RFC 7539 §2.5).
+    const NONCE_LEN : usize = 12;
+    const TAG_LEN   : usize = 16;
+
+    // Wire layout of a wrapped audio frame:
+    //   byte 0                  : crypto_envelope_version (u8)
+    //   byte 1..13              : nonce (12 bytes, big-endian sequence)
+    //   byte 13..13+CT_LEN      : ciphertext (opaque; same length as
+    //                             the plaintext PttAudio frame)
+    //   byte (end-16)..end      : MAC tag (16 bytes)
+    //
+    // Fixed overhead per frame: 1 + 12 + 16 = 29 bytes.
+    const CRYPTO_HEADER_LEN  : usize = 1 + NONCE_LEN;   // 13
+    const CRYPTO_OVERHEAD    : usize = CRYPTO_HEADER_LEN + TAG_LEN;  // 29
+
+    // ─── predicates ─────────────────────────────────────────────────
+
+    fn crypto_version_valid(v: u8) -> bool {
+        return (v == CRYPTO_ENVELOPE_VERSION);
+    }
+
+    // Total wrapped size for a plaintext frame of length `plain_len`.
+    fn wrapped_len(plain_len: usize) -> usize {
+        return CRYPTO_OVERHEAD + plain_len;
+    }
+
+    // Given the on-wire buffer length, return the enclosed ciphertext
+    // length. Runtime MUST NOT touch bytes if this returns 0.
+    fn ciphertext_len(wire_len: usize) -> usize {
+        if (wire_len < CRYPTO_OVERHEAD) { return 0; }
+        return wire_len - CRYPTO_OVERHEAD;
+    }
+
+    // A wrapped frame is "structurally acceptable" iff it carries a
+    // known envelope version, is long enough to contain a non-empty
+    // ciphertext, and its total length is within the envelope's own
+    // sanity bound derived from PttAudio's OPUS_MAX_LEN.
+    //
+    // Anti-anchor: this predicate says NOTHING about whether the MAC
+    // tag verifies. Structural + cryptographic verdicts are separate
+    // steps in the runtime pipeline.
+    fn envelope_structurally_ok(wire_len: usize, version: u8) -> bool {
+        if (!crypto_version_valid(version)) { return false; }
+        if (wire_len < CRYPTO_OVERHEAD + 1) { return false; }
+        // Upper bound: PttAudio HEADER_LEN(9) + OPUS_MAX_LEN(512) = 521
+        // plaintext, plus our 29-byte overhead = 550.
+        if (wire_len > 550) { return false; }
+        return true;
+    }
+
+    // Nonce freshness invariant: for a given session_id, no two frames
+    // may share a nonce. The runtime constructs nonce = 8 zero bytes
+    // then u32 seq big-endian (or a monotonic counter). This spec
+    // codifies the invariant so the reviewer can point here.
+    fn nonces_distinct(nonce_a_seq: u32, nonce_b_seq: u32) -> bool {
+        return (nonce_a_seq != nonce_b_seq);
+    }
+
+    // Nonce byte layout: 8 zero bytes followed by 4 bytes of the
+    // sequence counter, big-endian. This is a common "nonce-misuse
+    // resistant" convention for streaming protocols; RFC 7539 §2.3
+    // recommends the same when a counter is available.
+    fn nonce_byte(seq_counter: u32, idx: u8) -> u8 {
+        if (idx < 8) { return 0; }
+        if (idx == 8)  { return ((seq_counter >> 24) & 255) as u8; }
+        if (idx == 9)  { return ((seq_counter >> 16) & 255) as u8; }
+        if (idx == 10) { return ((seq_counter >> 8)  & 255) as u8; }
+        return (seq_counter & 255) as u8;
+    }
+
+    // Byte-index extractors for the fixed header (version + nonce).
+    fn header_byte(version: u8, seq_counter: u32, idx: u8) -> u8 {
+        if (idx == 0) { return version; }
+        // idx 1..12 covers the 12-byte nonce.
+        return nonce_byte(seq_counter, (idx - 1) as u8);
+    }
+
+    // ─── tests ──────────────────────────────────────────────────────
+
+    test constants_match_rfc7539 {
+        assert(NONCE_LEN == 12, "RFC 7539 §2.3");
+        assert(TAG_LEN == 16, "Poly1305 tag length");
+        assert(CRYPTO_OVERHEAD == 29, "1 + 12 + 16 = 29");
+    }
+
+    test wrapped_len_arithmetic {
+        assert(wrapped_len(0) == 29, "empty plaintext still has overhead");
+        assert(wrapped_len(89) == 118, "typical PttAudio frame (9+80) + 29");
+        assert(wrapped_len(521) == 550, "max PttAudio (9+512) + 29");
+    }
+
+    test ciphertext_len_arithmetic {
+        assert(ciphertext_len(0) == 0, "buf too short");
+        assert(ciphertext_len(28) == 0, "still too short");
+        assert(ciphertext_len(29) == 0, "exactly overhead, no CT");
+        assert(ciphertext_len(118) == 89, "typical wrapped frame");
+    }
+
+    test envelope_gate {
+        assert(!envelope_structurally_ok(0, 1), "empty rejected");
+        assert(!envelope_structurally_ok(29, 1), "overhead-only rejected");
+        assert(envelope_structurally_ok(118, 1), "typical accepted");
+        assert(envelope_structurally_ok(550, 1), "max accepted");
+        assert(!envelope_structurally_ok(551, 1), "over-max rejected");
+        assert(!envelope_structurally_ok(118, 2), "bad version rejected");
+    }
+
+    test nonce_layout {
+        // First 8 bytes are zero.
+        assert(nonce_byte(0xDEADBEEF, 0) == 0, "nonce[0]=0");
+        assert(nonce_byte(0xDEADBEEF, 7) == 0, "nonce[7]=0");
+        // Last 4 bytes carry the counter big-endian.
+        assert(nonce_byte(0xDEADBEEF, 8) == 0xDE, "nonce[8]=hi");
+        assert(nonce_byte(0xDEADBEEF, 9) == 0xAD, "nonce[9]");
+        assert(nonce_byte(0xDEADBEEF, 10) == 0xBE, "nonce[10]");
+        assert(nonce_byte(0xDEADBEEF, 11) == 0xEF, "nonce[11]=lo");
+    }
+
+    test nonce_freshness {
+        assert(nonces_distinct(0, 1), "sequential seqs distinct");
+        assert(!nonces_distinct(42, 42), "duplicate seq same nonce");
+    }
+
+    test header_byte_extractor {
+        assert(header_byte(1, 0xDEADBEEF, 0) == 1, "version at idx 0");
+        assert(header_byte(1, 0xDEADBEEF, 1) == 0, "nonce first byte at idx 1");
+        assert(header_byte(1, 0xDEADBEEF, 9) == 0xDE, "counter hi at idx 9");
+        assert(header_byte(1, 0xDEADBEEF, 12) == 0xEF, "counter lo at idx 12");
+    }
+}
+
+// phi^2 + phi^-2 = 3

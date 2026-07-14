@@ -1,0 +1,170 @@
+// ptt_audio — E3.1: PTT audio-frame envelope for Tri-Net.
+//
+// This spec covers ONLY the envelope: version, session, sequence, opus_len,
+// and byte-level layout of the frame that carries an Opus packet from the
+// admin PWA over the WebSocket to admin_httpd, and (in a later PR) from
+// admin_httpd across the mesh via trios_meshd.
+//
+// It does NOT decode Opus. Opus is treated as an opaque byte string of
+// declared length. Runtime hooks (libopus, browser MediaRecorder / AudioWorklet,
+// mesh emission path) live in admin_httpd + PWA + trios_meshd. Numbers
+// like RTT / audio latency stay -sim until measured on real hardware.
+//
+// Prior art:
+//   * RFC 6716 §3.2 — Opus internal framing.
+//   * RFC 7587 §4.2 — RTP payload for Opus, source of the 20 ms default
+//     frame duration and the "SILK-only up to 40 ms, hybrid/CELT up to 60 ms"
+//     limits.
+//
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module PttAudio {
+    use base::types;
+
+    // Framing constants.
+    const AUDIO_FRAME_VERSION : u8 = 1;
+
+    // Opus per RFC 7587 §4.2: valid frame durations at 2.5, 5, 10, 20, 40, 60 ms.
+    // We restrict Tri-Net PTT to 20 ms (default) at 48 kHz to give us
+    // deterministic pacing and a fixed 50 fps rate. 20 ms of 16-bit stereo
+    // 48 kHz PCM is 3840 bytes; Opus at 32 kbit/s CBR typically yields ~80
+    // bytes; VBR up to a few hundred. We cap at 512 to catch runaway encoders.
+    const FRAME_DURATION_MS   : u8  = 20;
+    const OPUS_MIN_LEN        : u16 = 3;
+    const OPUS_MAX_LEN        : u16 = 512;
+
+    // Session ID is a 32-bit random value chosen by the initiator. Sequence
+    // wraps every 65536 frames = every 21.8 minutes at 50 fps — a session
+    // that runs longer must re-key (new session_id, seq starts at 0 again).
+    // Anti-anchor: wrap doesn't imply "you can go longer for free" — it's a
+    // correctness gate.
+    const SESSION_ID_LEN : usize = 4;
+    const SEQ_WRAP       : u32 = 65536;
+
+    // Frame layout on the wire (all big-endian multi-byte fields):
+    //   byte 0        : version (u8)
+    //   byte 1..4     : session_id (u32 BE)
+    //   byte 5..6     : seq (u16 BE)
+    //   byte 7..8     : opus_len (u16 BE)
+    //   byte 9..     : opus_len bytes of Opus payload
+    // Fixed header = 9 bytes; total frame len = 9 + opus_len.
+    const HEADER_LEN : usize = 9;
+
+    fn version_valid(v: u8) -> bool {
+        return v == AUDIO_FRAME_VERSION;
+    }
+
+    fn opus_len_valid(n: u16) -> bool {
+        if (n < OPUS_MIN_LEN) { return false; }
+        if (n > OPUS_MAX_LEN) { return false; }
+        return true;
+    }
+
+    fn seq_wraps_at_16bit(seq_a: u16, seq_b: u16) -> bool {
+        // seq_b is meant to be seq_a + 1 modulo 2^16. Runtime uses u16 arith
+        // which wraps naturally; this helper just codifies the invariant so
+        // reviewers can point at the spec, not at Rust semantics.
+        return (seq_b as u32) == (((seq_a as u32) + 1) & 0xFFFF);
+    }
+
+    // Total wire length for an audio frame carrying `opus_len` payload.
+    fn total_frame_len(opus_len: u16) -> usize {
+        return HEADER_LEN + (opus_len as usize);
+    }
+
+    // Reject frames whose declared opus_len doesn't match the actual byte
+    // count of the payload. Runtime MUST enforce this before decode.
+    fn frame_len_consistent(declared_opus_len: u16, actual_total_len: usize) -> bool {
+        return actual_total_len == total_frame_len(declared_opus_len);
+    }
+
+    // Big-endian byte extractors for the header, so the runtime writer /
+    // reader can be checked byte-by-byte in unit tests.
+    fn header_byte(version: u8, session_id: u32, seq: u16, opus_len: u16, idx: u8) -> u8 {
+        if (idx == 0) { return version; }
+        if (idx == 1) { return ((session_id >> 24) & 255) as u8; }
+        if (idx == 2) { return ((session_id >> 16) & 255) as u8; }
+        if (idx == 3) { return ((session_id >> 8)  & 255) as u8; }
+        if (idx == 4) { return (session_id         & 255) as u8; }
+        if (idx == 5) { return ((seq as u32 >> 8)  & 255) as u8; }
+        if (idx == 6) { return (seq as u32         & 255) as u8; }
+        if (idx == 7) { return ((opus_len as u32 >> 8) & 255) as u8; }
+        return (opus_len as u32 & 255) as u8;
+    }
+
+    // Anti-anchor gate: an audio frame is considered "safe to forward on
+    // mesh" only if all three predicates hold: version, opus_len bound,
+    // and header/payload consistency.
+    fn mesh_forward_safe(version: u8, opus_len: u16, actual_total_len: usize) -> bool {
+        if (!version_valid(version)) { return false; }
+        if (!opus_len_valid(opus_len)) { return false; }
+        return frame_len_consistent(opus_len, actual_total_len);
+    }
+
+    test constants_match_rfc7587_defaults {
+        assert(AUDIO_FRAME_VERSION == 1, "wire version 1");
+        assert(FRAME_DURATION_MS == 20, "20 ms default per RFC 7587");
+        assert(HEADER_LEN == 9, "9-byte header");
+        assert(SEQ_WRAP == 65536, "u16 seq wraps at 65536");
+    }
+
+    test opus_len_bounds {
+        assert(!opus_len_valid(0), "empty rejected");
+        assert(!opus_len_valid(2), "under-min rejected (Opus TOC needs >= 3 bytes)");
+        assert(opus_len_valid(3), "min accepted");
+        assert(opus_len_valid(80), "typical 32kbps CBR");
+        assert(opus_len_valid(512), "max accepted");
+        assert(!opus_len_valid(513), "over-max rejected");
+        assert(!opus_len_valid(65535), "top rejected");
+    }
+
+    test version_gate {
+        assert(version_valid(1), "v1 accepted");
+        assert(!version_valid(0), "v0 rejected");
+        assert(!version_valid(2), "v2 rejected (would need new spec)");
+        assert(!version_valid(255), "top rejected");
+    }
+
+    test seq_wrap_semantics {
+        assert(seq_wraps_at_16bit(0, 1), "0->1");
+        assert(seq_wraps_at_16bit(1, 2), "1->2");
+        assert(seq_wraps_at_16bit(65534, 65535), "u16 boundary-1");
+        assert(seq_wraps_at_16bit(65535, 0), "u16 wrap");
+        assert(!seq_wraps_at_16bit(0, 2), "skip rejected");
+        assert(!seq_wraps_at_16bit(5, 5), "same rejected");
+    }
+
+    test total_and_consistency {
+        assert(total_frame_len(3) == 12, "12 bytes total for min payload");
+        assert(total_frame_len(80) == 89, "89 bytes for 80B opus");
+        assert(total_frame_len(512) == 521, "521 bytes for max payload");
+        assert(frame_len_consistent(80, 89), "consistent 80 -> 89");
+        assert(!frame_len_consistent(80, 90), "off-by-one rejected");
+        assert(!frame_len_consistent(80, 88), "under rejected");
+    }
+
+    test header_byte_extraction {
+        // Session 0xDEADBEEF, seq 0x1234, opus_len 0x0050 (80).
+        let sid: u32 = 0xDEADBEEF;
+        let seq: u16 = 0x1234;
+        let ol : u16 = 0x0050;
+        assert(header_byte(AUDIO_FRAME_VERSION, sid, seq, ol, 0) == 1, "version");
+        assert(header_byte(AUDIO_FRAME_VERSION, sid, seq, ol, 1) == 0xDE, "sid[0]");
+        assert(header_byte(AUDIO_FRAME_VERSION, sid, seq, ol, 2) == 0xAD, "sid[1]");
+        assert(header_byte(AUDIO_FRAME_VERSION, sid, seq, ol, 3) == 0xBE, "sid[2]");
+        assert(header_byte(AUDIO_FRAME_VERSION, sid, seq, ol, 4) == 0xEF, "sid[3]");
+        assert(header_byte(AUDIO_FRAME_VERSION, sid, seq, ol, 5) == 0x12, "seq[0]");
+        assert(header_byte(AUDIO_FRAME_VERSION, sid, seq, ol, 6) == 0x34, "seq[1]");
+        assert(header_byte(AUDIO_FRAME_VERSION, sid, seq, ol, 7) == 0x00, "opus_len[0]");
+        assert(header_byte(AUDIO_FRAME_VERSION, sid, seq, ol, 8) == 0x50, "opus_len[1]");
+    }
+
+    test mesh_forward_gate {
+        assert(mesh_forward_safe(1, 80, 89), "v1 + 80B + total 89 OK");
+        assert(!mesh_forward_safe(0, 80, 89), "bad version rejected");
+        assert(!mesh_forward_safe(1, 2, 11), "under-min opus rejected");
+        assert(!mesh_forward_safe(1, 80, 90), "size mismatch rejected");
+        assert(!mesh_forward_safe(1, 513, 522), "over-max opus rejected");
+    }
+}
+// phi^2 + 1/phi^2 = 3 | TRINITY

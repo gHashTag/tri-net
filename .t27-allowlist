@@ -1,0 +1,61 @@
+# .t27-allowlist -- narrow, reviewable exceptions to the golden pipeline.
+# phi^2 + phi^-2 = 3 | TRINITY
+#
+# LAW: Business logic MUST come from specs/*.t27 via t27c (SOUL.md L6 PIPELINE,
+# L2 GENERATION). Every file that contains hand-written Rust definitions
+# (fn / struct / enum / impl / trait) under src/ or a non-generated file under
+# gen/ is REJECTED by Lefthook unless it is listed here with a justification.
+#
+# This file is the SINGLE reviewable surface for pipeline exceptions. Adding a
+# line here shows up in the PR diff, so a reviewer can veto any new hand-written
+# implementation. Do NOT add a path here to silence the hook -- add it only when
+# the exception is a genuine, documented bootstrap/infrastructure need.
+#
+# Format: one path per line. First whitespace-delimited token is the repo-root
+# relative path; everything after `#` on the line is the human justification.
+# Blank lines and full-line comments (leading `#`) are ignored by the hook.
+#
+# ---------------------------------------------------------------------------
+# CATEGORY A -- M1 bootstrap core (hand-written before t27c matured).
+# These are the audited/tested transport primitives. They pre-date the
+# pipeline and are frozen: modify with review, do not grow new logic here.
+# ---------------------------------------------------------------------------
+src/lib.rs            # re-export hub + shared trait/type defs (no algorithmic logic)
+src/crypto.rs         # AUDITED X25519 + HKDF + ChaCha20-Poly1305 AEAD + ratchet (RustCrypto)
+src/wire.rs           # M1 on-radio frame header codec
+src/router.rs         # M1 neighbor table / next-hop selection
+src/routing.rs        # M1 ETX routing glue
+src/modem.rs          # M1 OFDM/modem host-sim
+src/gf16.rs           # GF(16) scalar backend (see Cargo `goldenfloat-ffi` feature)
+src/daemon.rs         # M1 UDP transport run-loop
+src/discovery.rs      # M1 hello-beacon neighbor discovery
+
+# ---------------------------------------------------------------------------
+# CATEGORY B -- binary entry points (AGENTS.md: "thin: parse config, call
+# generated logic"). Allowed to hold I/O glue + main(). Wire-format / crypto
+# codec logic inside a bin MUST migrate to a spec (see specs/mdns_proxy.t27).
+# ---------------------------------------------------------------------------
+src/bin/trios_meshd.rs      # mesh daemon entry point
+src/bin/smoke_m1.rs         # M1 host smoke harness
+src/bin/admin_httpd.rs      # iPhone admin dashboard HTTP surface (E1.1)
+src/bin/attest_dna.rs       # device-DNA attestation CLI (A2)
+src/bin/audio_forwarder.rs  # PTT audio relay (E3.2); does NOT encrypt (see src/crypto.rs)
+src/bin/mdns_responder.rs   # mDNS/DNS-SD responder (E1.3)
+src/bin/mdns_proxy.rs       # RFC 8766 discovery-proxy runtime; envelope logic tracked by specs/mdns_proxy.t27
+
+# ---------------------------------------------------------------------------
+# CATEGORY C -- build/infra.
+# ---------------------------------------------------------------------------
+build.rs              # cargo build script: mtime-driven t27c regen shim
+
+# ---------------------------------------------------------------------------
+# CATEGORY D -- (now empty). The former quarantined placeholder
+# gen/rust/audio_crypto.rs has been REGENERATED from specs/audio_crypto.t27 by
+# t27c (SHA 2a114bc0...): the hand-authored XOR-keystream + truncated-SHA256
+# skeleton is gone, replaced by spec-derived wire-layout code carrying the
+# canonical t27c banner. It now passes gen-provenance on its own merits and
+# needs no allowlist entry. NOTE: the spec models the audio crypto ENVELOPE
+# (version / nonce / header layout) only -- it does NOT implement
+# ChaCha20-Poly1305 or X25519. Real PTT confidentiality still requires wiring
+# the audited src/crypto.rs AEAD into src/bin/audio_forwarder.rs (unchanged
+# blocker); no placeholder crypto remains in the tree to mask that gap.

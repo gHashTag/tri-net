@@ -51,14 +51,11 @@ pub fn get_time_horizon(prediction: u32) -> u32 {
     return (prediction & 0x3FFF);
 }
 
-pub fn calculate_moving_average(history: Vec<>, count: u32) -> u32 {
-    let;
-    sum;
-    let;
-    i;
+pub fn calculate_moving_average(history: [u32; HISTORY_SIZE], count: u32) -> u32 {
+    let mut sum: u32 = 0;
+    let mut i: u32 = 0;
     while (i < count) {
-        let;
-        metrics = history[i];
+        let metrics = history[i];
         sum = (sum + get_bandwidth_usage(metrics));
         i = (i + 1);
     }
@@ -69,16 +66,13 @@ pub fn calculate_moving_average(history: Vec<>, count: u32) -> u32 {
     }
 }
 
-pub fn detect_trend(history: Vec<>, count: u32) -> u32 {
+pub fn detect_trend(history: [u32; HISTORY_SIZE], count: u32) -> u32 {
     if (count < 3) {
         return 0;
     }
-    let;
-    recent;
-    let;
-    previous;
-    let;
-    diff;
+    let recent: u32 = get_bandwidth_usage(history[(count - 1)]);
+    let previous: u32 = get_bandwidth_usage(history[(count - 3)]);
+    let mut diff: u32 = 0;
     if (recent > previous) {
         diff = (recent - previous);
     } else {
@@ -95,26 +89,20 @@ pub fn detect_trend(history: Vec<>, count: u32) -> u32 {
     }
 }
 
-pub fn predict_load(history: Vec<>, count: u32) -> u32 {
+pub fn predict_load(history: [u32; HISTORY_SIZE], count: u32) -> u32 {
     if (count == 0) {
         return 0;
     }
-    let;
-    current;
-    let;
-    trend;
-    let;
-    avg;
-    let;
-    predicted;
+    let current: u32 = get_bandwidth_usage(history[(count - 1)]);
+    let trend: u32 = detect_trend(history, count);
+    let avg: u32 = calculate_moving_average(history, count);
+    let mut predicted: u32 = current;
     if (trend == 1) {
-        let;
-        increase;
+        let increase: u32 = ((current - avg) / 2);
         predicted = (current + increase);
     } else {
         if (trend == 2) {
-            let;
-            decrease;
+            let decrease: u32 = ((avg - current) / 2);
             if (current > decrease) {
                 predicted = (current - decrease);
             } else {
@@ -128,21 +116,16 @@ pub fn predict_load(history: Vec<>, count: u32) -> u32 {
     return predicted;
 }
 
-pub fn calculate_confidence(history: Vec<>, count: u32) -> u32 {
+pub fn calculate_confidence(history: [u32; HISTORY_SIZE], count: u32) -> u32 {
     if (count < 3) {
         return 20;
     }
-    let;
-    variance;
-    let;
-    avg;
-    let;
-    i;
+    let mut variance: u32 = 0;
+    let avg: u32 = calculate_moving_average(history, count);
+    let mut i: u32 = 0;
     while (i < count) {
-        let;
-        value;
-        let;
-        diff;
+        let value: u32 = get_bandwidth_usage(history[i]);
+        let mut diff: u32 = 0;
         if (value > avg) {
             diff = (value - avg);
         } else {
@@ -151,8 +134,7 @@ pub fn calculate_confidence(history: Vec<>, count: u32) -> u32 {
         variance = (variance + diff);
         i = (i + 1);
     }
-    let;
-    avg_variance;
+    let mut avg_variance: u32 = 0;
     if (count > 0) {
         avg_variance = (variance / count);
     }
@@ -171,23 +153,16 @@ pub fn calculate_confidence(history: Vec<>, count: u32) -> u32 {
     }
 }
 
-pub fn create_load_prediction(history: Vec<>, count: u32) -> u32 {
-    let;
-    predicted;
-    let;
-    confidence;
-    let;
-    trend;
-    let;
-    horizon;
-    return create_prediction(predicted, confidence, trend, horizon);
+pub fn create_load_prediction(history: [u32; HISTORY_SIZE], count: u32) -> u32 {
+    let predicted: u32 = predict_load(history, count);
+    let confidence: u32 = calculate_confidence(history, count);
+    let trend: u32 = detect_trend(history, count);
+    return create_prediction(predicted, confidence, trend, PREDICTION_WINDOW);
 }
 
 pub fn is_congestion_predicted(prediction: u32) -> u32 {
-    let;
-    load;
-    let;
-    confidence;
+    let load: u32 = get_predicted_load(prediction);
+    let confidence: u32 = get_confidence(prediction);
     if ((confidence > 50) && (load >= CONGESTION_THRESHOLD)) {
         return 1;
     } else {
@@ -196,10 +171,8 @@ pub fn is_congestion_predicted(prediction: u32) -> u32 {
 }
 
 pub fn is_warning_predicted(prediction: u32) -> u32 {
-    let;
-    load;
-    let;
-    confidence;
+    let load: u32 = get_predicted_load(prediction);
+    let confidence: u32 = get_confidence(prediction);
     if ((confidence > 50) && (load >= WARNING_THRESHOLD)) {
         return 1;
     } else {
@@ -207,14 +180,11 @@ pub fn is_warning_predicted(prediction: u32) -> u32 {
     }
 }
 
-pub fn calculate_network_load(node_metrics: Vec<>, node_count: u32) -> u32 {
-    let;
-    total_load;
-    let;
-    i;
+pub fn calculate_network_load(node_metrics: [u32; MAX_NODES], node_count: u32) -> u32 {
+    let mut total_load: u32 = 0;
+    let mut i: u32 = 0;
     while (i < node_count) {
-        let;
-        load;
+        let load: u32 = get_bandwidth_usage(node_metrics[i]);
         total_load = (total_load + load);
         i = (i + 1);
     }
@@ -225,16 +195,12 @@ pub fn calculate_network_load(node_metrics: Vec<>, node_count: u32) -> u32 {
     }
 }
 
-pub fn find_most_loaded_node(node_metrics: Vec<>, node_count: u32) -> u32 {
-    let;
-    max_load;
-    let;
-    max_node;
-    let;
-    i;
+pub fn find_most_loaded_node(node_metrics: [u32; MAX_NODES], node_count: u32) -> u32 {
+    let mut max_load: u32 = 0;
+    let mut max_node: u32 = 0;
+    let mut i: u32 = 0;
     while (i < node_count) {
-        let;
-        load;
+        let load: u32 = get_bandwidth_usage(node_metrics[i]);
         if (load > max_load) {
             max_load = load;
             max_node = i;
@@ -244,16 +210,12 @@ pub fn find_most_loaded_node(node_metrics: Vec<>, node_count: u32) -> u32 {
     return max_node;
 }
 
-pub fn find_least_loaded_node(node_metrics: Vec<>, node_count: u32) -> u32 {
-    let;
-    min_load;
-    let;
-    min_node;
-    let;
-    i;
+pub fn find_least_loaded_node(node_metrics: [u32; MAX_NODES], node_count: u32) -> u32 {
+    let mut min_load: u32 = 255;
+    let mut min_node: u32 = 0;
+    let mut i: u32 = 0;
     while (i < node_count) {
-        let;
-        load;
+        let load: u32 = get_bandwidth_usage(node_metrics[i]);
         if (load < min_load) {
             min_load = load;
             min_node = i;
@@ -263,16 +225,12 @@ pub fn find_least_loaded_node(node_metrics: Vec<>, node_count: u32) -> u32 {
     return min_node;
 }
 
-pub fn calculate_load_imbalance(node_metrics: Vec<>, node_count: u32) -> u32 {
-    let;
-    max_load;
-    let;
-    min_load;
-    let;
-    i;
+pub fn calculate_load_imbalance(node_metrics: [u32; MAX_NODES], node_count: u32) -> u32 {
+    let mut max_load: u32 = 0;
+    let mut min_load: u32 = 255;
+    let mut i: u32 = 0;
     while (i < node_count) {
-        let;
-        load;
+        let load: u32 = get_bandwidth_usage(node_metrics[i]);
         if (load > max_load) {
             max_load = load;
         }
@@ -284,17 +242,15 @@ pub fn calculate_load_imbalance(node_metrics: Vec<>, node_count: u32) -> u32 {
     if (min_load == 0) {
         return max_load;
     }
-    let;
-    imbalance;
+    let imbalance: u32 = ((max_load - min_load) / 10);
     return imbalance;
 }
 
-pub fn recommend_rerouting(prediction: u32, current_node: u32, node_metrics: Vec<>, node_count: u32) -> u32 {
+pub fn recommend_rerouting(prediction: u32, current_node: u32, node_metrics: [u32; MAX_NODES], node_count: u32) -> u32 {
     if !(is_congestion_predicted(prediction)) {
         return current_node;
     }
-    let;
-    least_loaded;
+    let least_loaded: u32 = find_least_loaded_node(node_metrics, node_count);
     if (least_loaded != current_node) {
         return least_loaded;
     } else {

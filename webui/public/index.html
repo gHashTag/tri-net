@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<!--
+  Tri-Net Admin PWA · v0.1 skeleton
+  Purpose: iPhone Safari client for P203 Mini node admin dashboard + PTT.
+  License: Apache-2.0
+  Anchor: phi^2 + phi^-2 = 3
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Tri-Net">
+  <meta name="theme-color" content="#0a0e14">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <title>Tri-Net Admin</title>
+  <style>
+    :root {
+      --bg: #0a0e14;
+      --bg-elev: #131820;
+      --fg: #d0d6dd;
+      --fg-dim: #7a848f;
+      --accent: #4dc4a6;
+      --warn: #d4a24d;
+      --err: #d45a5a;
+      --border: #1e242e;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+      font-size: 15px;
+      line-height: 1.4;
+      overscroll-behavior: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    header {
+      padding: env(safe-area-inset-top, 12px) 16px 12px;
+      background: var(--bg-elev);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    header h1 { margin: 0; font-size: 17px; font-weight: 600; }
+    header .subtitle {
+      font-size: 12px;
+      color: var(--fg-dim);
+      margin-top: 2px;
+      font-variant-numeric: tabular-nums;
+    }
+    .status-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--err);
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    .status-dot.ok { background: var(--accent); }
+    .status-dot.warn { background: var(--warn); }
+    nav {
+      display: flex;
+      background: var(--bg-elev);
+      border-bottom: 1px solid var(--border);
+    }
+    nav button {
+      flex: 1;
+      padding: 12px 8px;
+      background: transparent;
+      color: var(--fg-dim);
+      border: none;
+      border-bottom: 2px solid transparent;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    nav button.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    main { padding: 16px; padding-bottom: 100px; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .card {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    .card h2 {
+      margin: 0 0 10px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--fg-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .kv { display: flex; justify-content: space-between; padding: 4px 0; font-variant-numeric: tabular-nums; }
+    .kv .k { color: var(--fg-dim); }
+    .kv .v { color: var(--fg); }
+    .neighbor {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      align-items: center;
+    }
+    .neighbor:last-child { border-bottom: none; }
+    .neighbor .id { font-weight: 600; font-size: 15px; color: var(--accent); }
+    .neighbor .etx {
+      font-variant-numeric: tabular-nums;
+      font-size: 13px;
+      color: var(--fg-dim);
+    }
+    .neighbor .etx .val { color: var(--fg); font-weight: 500; }
+    .empty { color: var(--fg-dim); font-style: normal; padding: 12px 0; text-align: center; }
+
+    .ptt-shell {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--bg-elev);
+      border-top: 1px solid var(--border);
+      padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      z-index: 20;
+    }
+    .ptt-btn {
+      flex: 1;
+      height: 64px;
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      border-radius: 32px;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      transition: background 100ms, transform 100ms;
+      touch-action: manipulation;
+    }
+    .ptt-btn:active, .ptt-btn.talking { background: var(--warn); transform: scale(0.98); }
+    .ptt-btn:disabled { background: var(--border); color: var(--fg-dim); }
+    .ptt-status {
+      min-width: 90px;
+      font-size: 12px;
+      color: var(--fg-dim);
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    #log {
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 11px;
+      background: #000;
+      color: #7fd4a6;
+      padding: 10px;
+      border-radius: 8px;
+      max-height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .warn-banner {
+      background: #3a2a10;
+      border: 1px solid var(--warn);
+      color: var(--warn);
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      margin-bottom: 12px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1><span id="statusDot" class="status-dot"></span>Tri-Net Node <span id="nodeId">–</span></h1>
+    <div class="subtitle" id="subtitle">connecting…</div>
+  </header>
+
+  <nav>
+    <button class="tab active" data-panel="dashboard">Dashboard</button>
+    <button class="tab" data-panel="ptt">PTT</button>
+    <button class="tab" data-panel="debug">Debug</button>
+  </nav>
+
+  <main>
+    <div class="warn-banner">
+      Pre-silicon build. Attestation is Ed25519 placeholder, not chip-signed.
+      No Trinity chip claim until SKY26b tape-out.
+    </div>
+
+    <section class="panel active" id="panel-dashboard">
+      <div class="card">
+        <h2>Node</h2>
+        <div class="kv"><span class="k">Node ID</span><span class="v" id="d-nodeId">–</span></div>
+        <div class="kv"><span class="k">Uptime</span><span class="v" id="d-uptime">–</span></div>
+        <div class="kv"><span class="k">Build</span><span class="v" id="d-build">–</span></div>
+        <div class="kv"><span class="k">Attestation</span><span class="v" id="d-attest">–</span></div>
+      </div>
+      <div class="card">
+        <h2>Neighbors</h2>
+        <div id="neighbors"><div class="empty">no data yet</div></div>
+      </div>
+      <div class="card">
+        <h2>Mesh transport</h2>
+        <div class="kv"><span class="k">Listen</span><span class="v" id="d-listen">–</span></div>
+        <div class="kv"><span class="k">HELLO period</span><span class="v" id="d-hello">–</span></div>
+        <div class="kv"><span class="k">ETX window</span><span class="v" id="d-etxwin">–</span></div>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-ptt">
+      <div class="card">
+        <h2>Push-to-Talk</h2>
+        <div class="kv"><span class="k">Codec</span><span class="v">Opus 24 kbps (planned)</span></div>
+        <div class="kv"><span class="k">Frame</span><span class="v">20 ms</span></div>
+        <div class="kv"><span class="k">Talk group</span><span class="v" id="d-tg">default</span></div>
+        <div class="kv"><span class="k">Session</span><span class="v" id="d-ptt-session">idle</span></div>
+      </div>
+      <div class="warn-banner">
+        PTT audio pipeline not wired yet in v0.1 skeleton.
+        Button below only sends WebSocket control frames to prove the transport.
+        Real Opus encode/decode ships in E3.1–E3.3.
+      </div>
+    </section>
+
+    <section class="panel" id="panel-debug">
+      <div class="card">
+        <h2>WebSocket log</h2>
+        <div id="log"></div>
+      </div>
+    </section>
+  </main>
+
+  <div class="ptt-shell">
+    <button class="ptt-btn" id="pttBtn" disabled>PTT</button>
+    <div class="ptt-status" id="pttStatus">not connected</div>
+  </div>
+
+  <script>
+    'use strict';
+    // ─────────────────────────────────────────────────────────────────────
+    // Tri-Net Admin PWA · minimal client
+    // Talks to admin_httpd over WebSocket (ws://host:8080/ws).
+    // Real deployment: wss://host:8443/ws with mTLS. v0.1 = http/ws only.
+    // ─────────────────────────────────────────────────────────────────────
+
+    const $ = (id) => document.getElementById(id);
+    const log = (msg) => {
+      const el = $('log');
+      const ts = new Date().toISOString().slice(11, 23);
+      el.textContent += `[${ts}] ${msg}\n`;
+      el.scrollTop = el.scrollHeight;
+    };
+    const setStatus = (dot, text) => {
+      $('statusDot').className = 'status-dot ' + dot;
+      $('subtitle').textContent = text;
+    };
+
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(t => {
+      t.onclick = () => {
+        document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+        document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
+        t.classList.add('active');
+        $('panel-' + t.dataset.panel).classList.add('active');
+      };
+    });
+
+    // WebSocket lifecycle
+    let ws = null;
+    let reconnectDelay = 500;
+    const HOST = location.host || 'localhost:8080';
+
+    function connect() {
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      const url = `${proto}://${HOST}/ws`;
+      log('connecting: ' + url);
+      setStatus('warn', 'connecting…');
+      ws = new WebSocket(url);
+
+      ws.onopen = () => {
+        log('open');
+        setStatus('ok', 'connected');
+        reconnectDelay = 500;
+        $('pttBtn').disabled = false;
+        $('pttStatus').textContent = 'idle';
+        ws.send(JSON.stringify({ type: 'subscribe', topics: ['status', 'neighbors'] }));
+      };
+
+      ws.onmessage = (ev) => {
+        let m;
+        try { m = JSON.parse(ev.data); } catch (e) { log('bad-json: ' + ev.data); return; }
+        handle(m);
+      };
+
+      ws.onclose = () => {
+        log('closed');
+        setStatus('err', `reconnect in ${reconnectDelay}ms`);
+        $('pttBtn').disabled = true;
+        $('pttStatus').textContent = 'not connected';
+        setTimeout(connect, reconnectDelay);
+        reconnectDelay = Math.min(reconnectDelay * 2, 8000);
+      };
+
+      ws.onerror = (e) => log('error');
+    }
+
+    function handle(m) {
+      log('rx: ' + JSON.stringify(m).slice(0, 120));
+      switch (m.type) {
+        case 'status':
+          $('nodeId').textContent = m.node_id ?? '–';
+          $('d-nodeId').textContent = m.node_id ?? '–';
+          $('d-uptime').textContent = m.uptime_s != null ? m.uptime_s + ' s' : '–';
+          $('d-build').textContent = m.build ?? '–';
+          $('d-attest').textContent = m.attestation ?? '–';
+          $('d-listen').textContent = m.listen ?? '–';
+          $('d-hello').textContent = m.hello_ms != null ? m.hello_ms + ' ms' : '–';
+          $('d-etxwin').textContent = m.etx_window ?? '–';
+          break;
+        case 'neighbors':
+          renderNeighbors(m.list || [], m.fresh, m.source_unix_time);
+          break;
+        case 'ptt-ack':
+          $('d-ptt-session').textContent = m.state || 'idle';
+          $('pttStatus').textContent = m.state || 'idle';
+          break;
+      }
+    }
+
+    function renderNeighbors(list, fresh, sourceUnixTime) {
+      const el = $('neighbors');
+      const staleTag = (fresh === false)
+        ? '<div class="empty">meshd status file stale or missing — waiting for trios_meshd</div>' : '';
+      if (!list.length) {
+        el.innerHTML = staleTag || '<div class="empty">no neighbors visible</div>';
+        return;
+      }
+      const rows = list.map(n => {
+        const etx = (n.etx == null) ? '∞' : Number(n.etx).toFixed(2);
+        const alive = n.alive ? '' : ' <span style="color:var(--warn)">dropped</span>';
+        return `
+          <div class="neighbor">
+            <div class="id">#${n.id}${alive}</div>
+            <div class="etx">ETX <span class="val">${etx}</span></div>
+          </div>`;
+      }).join('');
+      const age = sourceUnixTime
+        ? Math.max(0, Math.floor(Date.now()/1000) - sourceUnixTime)
+        : null;
+      const footer = (age != null)
+        ? `<div class="empty" style="opacity:.6;padding:4px 0 0">source ${age}s ago</div>` : '';
+      el.innerHTML = staleTag + rows + footer;
+    }
+
+    // ─── PTT control + E3.1 audio capture ────────────────────────────
+    // Envelope layout (spec: specs/ptt_audio.t27):
+    //   version(1) | session_id(4 BE) | seq(2 BE) | opus_len(2 BE) | opus[opus_len]
+    // We treat MediaRecorder chunks as opaque "opus" payload for now.
+    // Real Opus encoding (via libopus WASM) is E3.2 territory. Server
+    // validates the envelope and refuses malformed frames.
+
+    const pttBtn = $('pttBtn');
+    const AUDIO_FRAME_VERSION = 1;
+    const OPUS_MIN_LEN = 3;
+    const OPUS_MAX_LEN = 512;
+
+    let mediaRec = null;
+    let audioSeq = 0;
+    let audioSession = 0;
+
+    function newSessionId() {
+      const arr = new Uint32Array(1);
+      crypto.getRandomValues(arr);
+      return arr[0] >>> 0;
+    }
+
+    function bytesToB64(bytes) {
+      let s = '';
+      for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+      return btoa(s);
+    }
+
+    function buildAudioFrame(sessionId, seq, opusBytes) {
+      const total = 9 + opusBytes.length;
+      const buf = new Uint8Array(total);
+      const dv = new DataView(buf.buffer);
+      buf[0] = AUDIO_FRAME_VERSION;
+      dv.setUint32(1, sessionId, false);
+      dv.setUint16(5, seq, false);
+      dv.setUint16(7, opusBytes.length, false);
+      buf.set(opusBytes, 9);
+      return buf;
+    }
+
+    // E3.2: Prefer WebCodecs AudioEncoder for real 20ms Opus frames. Falls
+    // back to MediaRecorder container-blobs when the browser lacks
+    // WebCodecs (older iOS Safari). Both paths pipe into the same
+    // buildAudioFrame → base64 → WebSocket sink.
+    let webcodecsEncoder = null;
+    let webcodecsCtx = null;
+    let webcodecsSource = null;
+    let webcodecsWorkletNode = null;
+
+    async function startAudioCapture() {
+      if (mediaRec || webcodecsEncoder) return;
+      audioSession = newSessionId();
+      audioSeq = 0;
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // Path A: WebCodecs AudioEncoder — real Opus, 20ms frames.
+      if (window.AudioEncoder && window.AudioData) {
+        try {
+          const supported = await AudioEncoder.isConfigSupported({
+            codec: 'opus',
+            sampleRate: 48000,
+            numberOfChannels: 1,
+            bitrate: 24000,
+            opus: { frameDuration: 20000 } // 20 ms in μs
+          });
+          if (supported.supported) {
+            webcodecsEncoder = new AudioEncoder({
+              output: (chunk) => {
+                if (!ws || ws.readyState !== 1) return;
+                let bytes = new Uint8Array(chunk.byteLength);
+                chunk.copyTo(bytes);
+                if (bytes.length < OPUS_MIN_LEN) return;
+                if (bytes.length > OPUS_MAX_LEN) bytes = bytes.slice(0, OPUS_MAX_LEN);
+                const frame = buildAudioFrame(audioSession, audioSeq & 0xFFFF, bytes);
+                ws.send(JSON.stringify({ type: 'audio', payload: bytesToB64(frame) }));
+                audioSeq = (audioSeq + 1) & 0xFFFF;
+              },
+              error: (e) => log('opus encoder err: ' + e.message)
+            });
+            webcodecsEncoder.configure(supported.config);
+
+            // AudioWorklet feeds 48 kHz mono PCM chunks into the encoder.
+            const AC = window.AudioContext || window.webkitAudioContext;
+            webcodecsCtx = new AC({ sampleRate: 48000 });
+            const workletSrc = URL.createObjectURL(new Blob([`
+              class OpusFeeder extends AudioWorkletProcessor {
+                process(inputs) {
+                  const ch0 = inputs[0][0];
+                  if (ch0) this.port.postMessage(ch0.slice(0));
+                  return true;
+                }
+              }
+              registerProcessor('opus-feeder', OpusFeeder);
+            `], { type: 'application/javascript' }));
+            await webcodecsCtx.audioWorklet.addModule(workletSrc);
+            webcodecsSource = webcodecsCtx.createMediaStreamSource(stream);
+            webcodecsWorkletNode = new AudioWorkletNode(webcodecsCtx, 'opus-feeder');
+            webcodecsWorkletNode.port.onmessage = (ev) => {
+              const pcm = ev.data; // Float32Array, one AudioWorklet quantum (128 samples usually)
+              if (!webcodecsEncoder) return;
+              const ad = new AudioData({
+                format: 'f32-planar',
+                sampleRate: 48000,
+                numberOfFrames: pcm.length,
+                numberOfChannels: 1,
+                timestamp: performance.now() * 1000,
+                data: pcm
+              });
+              try { webcodecsEncoder.encode(ad); } catch (_) {}
+              ad.close();
+            };
+            webcodecsSource.connect(webcodecsWorkletNode);
+            log('audio: capture started (WebCodecs Opus 20ms/24kbps)');
+            return;
+          }
+        } catch (e) {
+          log('WebCodecs unavailable, falling back: ' + e.message);
+        }
+      }
+
+      // Path B: MediaRecorder fallback. Blobs are container-wrapped Opus
+      // or AAC — opaque to us. Runtime still validates envelope.
+      const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : (MediaRecorder.isTypeSupported('audio/mp4;codecs=mp4a.40.2')
+            ? 'audio/mp4;codecs=mp4a.40.2' : '');
+      const opts = mime ? { mimeType: mime } : {};
+      mediaRec = new MediaRecorder(stream, opts);
+      mediaRec.ondataavailable = async (ev) => {
+        if (!ev.data || ev.data.size === 0) return;
+        if (!ws || ws.readyState !== 1) return;
+        const ab = await ev.data.arrayBuffer();
+        let bytes = new Uint8Array(ab);
+        if (bytes.length < OPUS_MIN_LEN) return;
+        if (bytes.length > OPUS_MAX_LEN) bytes = bytes.slice(0, OPUS_MAX_LEN);
+        const frame = buildAudioFrame(audioSession, audioSeq & 0xFFFF, bytes);
+        ws.send(JSON.stringify({ type: 'audio', payload: bytesToB64(frame) }));
+        audioSeq = (audioSeq + 1) & 0xFFFF;
+      };
+      mediaRec.start(100);
+      log('audio: capture started (MediaRecorder ' + (mime || 'default') + ' — fallback)');
+    }
+
+    function stopAudioCapture() {
+      if (webcodecsEncoder) {
+        try { webcodecsEncoder.close(); } catch (_) {}
+        webcodecsEncoder = null;
+      }
+      if (webcodecsWorkletNode) {
+        try { webcodecsWorkletNode.disconnect(); } catch (_) {}
+        webcodecsWorkletNode = null;
+      }
+      if (webcodecsSource) {
+        try { webcodecsSource.mediaStream.getTracks().forEach(t => t.stop()); } catch (_) {}
+        webcodecsSource = null;
+      }
+      if (webcodecsCtx) {
+        try { webcodecsCtx.close(); } catch (_) {}
+        webcodecsCtx = null;
+      }
+      if (mediaRec) {
+        try { mediaRec.stop(); } catch (_) {}
+        try { mediaRec.stream.getTracks().forEach(t => t.stop()); } catch (_) {}
+        mediaRec = null;
+      }
+      log('audio: capture stopped');
+    }
+
+    const pressStart = () => {
+      if (!ws || ws.readyState !== 1) return;
+      pttBtn.classList.add('talking');
+      ws.send(JSON.stringify({ type: 'ptt', action: 'start', tg: 'default' }));
+      log('tx: ptt/start');
+      startAudioCapture();
+    };
+    const pressEnd = () => {
+      if (!ws || ws.readyState !== 1) return;
+      pttBtn.classList.remove('talking');
+      stopAudioCapture();
+      ws.send(JSON.stringify({ type: 'ptt', action: 'stop' }));
+      log('tx: ptt/stop');
+    };
+    pttBtn.addEventListener('touchstart', (e) => { e.preventDefault(); pressStart(); }, { passive: false });
+    pttBtn.addEventListener('touchend',   (e) => { e.preventDefault(); pressEnd();   }, { passive: false });
+    pttBtn.addEventListener('mousedown',  pressStart);
+    pttBtn.addEventListener('mouseup',    pressEnd);
+    pttBtn.addEventListener('mouseleave', pressEnd);
+
+    connect();
+  </script>
+</body>
+</html>

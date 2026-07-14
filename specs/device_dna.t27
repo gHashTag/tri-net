@@ -1,0 +1,222 @@
+// device_dna — Track B / A2 primitive: Xilinx Device DNA challenge/response
+// wire format.
+//
+// Prior art (Track B A1 literature review — docs/W7_FPGA_LITERATURE.md):
+//   * Guajardo et al. CHES 2007 — FPGA intrinsic PUFs.
+//   * SACHa DATE 2019 — self-attestation of configurable hardware.
+//   * PUFatt DAC 2014 — processor-based PUF for attestation.
+//   * Papalamprou et al. arXiv:2506.21073 — PQC-signed FPGA attestations.
+//
+// The spec here does NOT claim novelty of the crypto primitives. It defines
+// the *packaging*: how a challenge is framed, how the response is bound to
+// the die-unique DNA + a nonce + a timestamp so that MITM replay is rejected
+// and the same challenge asked twice from two boards produces two different
+// signatures.
+//
+// What lives in RUNTIME (not here — must remain -sim until Ratchet §3):
+//   * Actual read of Xilinx DNA_PORT primitive on the PL fabric.
+//   * Ed25519 signing (or PQC alternative per Papalamprou 2025).
+//   * Non-volatile key store integration.
+//
+// Ratchet reminder (skill v1.1 §"Sandbox-vs-hardware discipline"):
+//   sim -> synth -> single-board smoke -> cross-board smoke.
+// Every function below is sim-only until the ratchet advances.
+//
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module DeviceDna {
+    use base::types;
+
+    // Xilinx 7-series Device DNA is 57 bits, right-padded into 64 bits when
+    // read out via DNA_PORT. UltraScale is 96 bits. We frame both by carrying
+    // the payload as two u32 words plus an explicit bit-length field.
+    const DNA_BITS_7SERIES     : u8 = 57;
+    const DNA_BITS_ULTRASCALE  : u8 = 96;
+
+    // Wire message discriminators.
+    const MSG_CHALLENGE : u8 = 0x01;
+    const MSG_RESPONSE  : u8 = 0x02;
+    const MSG_REKEY     : u8 = 0x03;
+
+    // Sizes of the fixed parts of each frame (byte counts).
+    const CHALLENGE_HEADER_LEN : usize = 24;   // type(1) + nonce(16) + ts(8) - alignment padding = 1+15+8 - but we set 24 for clarity
+    const RESPONSE_HEADER_LEN  : usize = 40;   // type(1) + nonce echo(16) + ts(8) + dna_word_hi(4) + dna_word_lo(4) + dna_bits(1) + pad(6)
+    const NONCE_LEN            : usize = 16;
+    const SIG_LEN              : usize = 64;   // Ed25519 signature octet length (RFC 8032 §5.1.6).
+
+    // Skew tolerance — accept responses whose timestamp is within +/- this
+    // many seconds of local clock. Anything older is treated as replay.
+    // Deliberately small (30 s) because Tri-Net nodes are time-synced from
+    // AD9361 GPS PPS on hardware.
+    const CLOCK_SKEW_S : u32 = 30;
+
+    // Predicates. Every one has a hardware-relevant justification.
+
+    fn dna_bit_count_valid(bits: u8) -> bool {
+        if (bits == DNA_BITS_7SERIES) { return true; }
+        if (bits == DNA_BITS_ULTRASCALE) { return true; }
+        return false;
+    }
+
+    // Nonce sanity: length is fixed at 16 bytes (128 bits). Any deviation is
+    // a protocol violation — reject upstream.
+    fn nonce_length_valid(n: usize) -> bool {
+        return n == NONCE_LEN;
+    }
+
+    // Freshness window check. `now` and `ts` are Unix seconds; both u32 for
+    // spec simplicity (works up to 2106). Response is fresh iff the delta
+    // between now and ts is within CLOCK_SKEW_S in either direction.
+    fn timestamp_fresh(now: u32, ts: u32) -> bool {
+        if (now >= ts) {
+            return (now - ts) <= CLOCK_SKEW_S;
+        }
+        return (ts - now) <= CLOCK_SKEW_S;
+    }
+
+    // The signed transcript is: nonce || ts_be || dna_bits || dna_hi_be || dna_lo_be.
+    // Total length (in bytes): 16 + 8 + 1 + 4 + 4 = 33.
+    // A signer takes SHA-256 of this transcript and signs the digest.
+    const TRANSCRIPT_LEN : usize = 33;
+
+    // Runtime asserts each byte of the transcript matches the spec below.
+    // idx 0..15 -> nonce byte idx.
+    // idx 16..23 -> ts_be byte idx (u64 -> 8 bytes).
+    // idx 24 -> dna_bits.
+    // idx 25..28 -> dna_hi_be byte idx.
+    // idx 29..32 -> dna_lo_be byte idx.
+
+    // Helper: extract byte i (0..7) of a big-endian u64.
+    fn u64_be_byte(w_hi: u32, w_lo: u32, i: u8) -> u8 {
+        if (i < 4) {
+            return ((w_hi >> (24 - (i as u32) * 8)) & 255) as u8;
+        }
+        return ((w_lo >> (24 - ((i - 4) as u32) * 8)) & 255) as u8;
+    }
+
+    fn u32_be_byte(w: u32, i: u8) -> u8 {
+        return ((w >> (24 - (i as u32) * 8)) & 255) as u8;
+    }
+
+    // Locate which region byte `idx` in the transcript belongs to.
+    // 0 -> nonce, 1 -> ts, 2 -> dna_bits, 3 -> dna_hi, 4 -> dna_lo, 255 -> out.
+    fn transcript_region(idx: u8) -> u8 {
+        if (idx < 16)  { return 0; }
+        if (idx < 24)  { return 1; }
+        if (idx == 24) { return 2; }
+        if (idx < 29)  { return 3; }
+        if (idx < 33)  { return 4; }
+        return 255;
+    }
+
+    // Frame-length guards on the wire.
+    fn challenge_frame_len_valid(n: usize) -> bool {
+        // type(1) + nonce(16) + ts_hi(4) + ts_lo(4) = 25.
+        return n == 25;
+    }
+
+    fn response_frame_len_valid(n: usize) -> bool {
+        // type(1) + nonce(16) + ts_hi(4) + ts_lo(4)
+        //   + dna_bits(1) + dna_hi(4) + dna_lo(4)
+        //   + sig(64) = 98.
+        return n == 98;
+    }
+
+    // Chip-attest binding: a response is "chip-attested" only if it carries
+    // a DNA payload that passes the width predicate AND the signature length
+    // matches Ed25519 (64 bytes). Anything else is downgraded to -sim.
+    fn chip_attest_binding(dna_bits: u8, sig_len: usize) -> bool {
+        if (!dna_bit_count_valid(dna_bits)) { return false; }
+        return sig_len == SIG_LEN;
+    }
+
+    test constants_match_spec {
+        assert(DNA_BITS_7SERIES == 57, "7-series DNA width");
+        assert(DNA_BITS_ULTRASCALE == 96, "UltraScale DNA width");
+        assert(NONCE_LEN == 16, "nonce 128-bit");
+        assert(SIG_LEN == 64, "Ed25519 signature length");
+        assert(TRANSCRIPT_LEN == 33, "signed transcript byte count");
+    }
+
+    test dna_bit_count_predicate {
+        assert(dna_bit_count_valid(57), "7-series accepted");
+        assert(dna_bit_count_valid(96), "UltraScale accepted");
+        assert(!dna_bit_count_valid(0), "zero rejected");
+        assert(!dna_bit_count_valid(64), "post-pad rejected");
+        assert(!dna_bit_count_valid(128), "over-width rejected");
+    }
+
+    test nonce_length_predicate {
+        assert(!nonce_length_valid(0), "empty rejected");
+        assert(!nonce_length_valid(15), "short rejected");
+        assert(nonce_length_valid(16), "exact accepted");
+        assert(!nonce_length_valid(17), "long rejected");
+        assert(!nonce_length_valid(64), "way over rejected");
+    }
+
+    test timestamp_freshness {
+        // now = 1000, exact match.
+        assert(timestamp_fresh(1000, 1000), "exact match");
+        // 30s in the past — boundary accepted.
+        assert(timestamp_fresh(1030, 1000), "30s past boundary");
+        // 30s in the future (clock drift the other way).
+        assert(timestamp_fresh(1000, 1030), "30s future boundary");
+        // 31s past — replay window closed.
+        assert(!timestamp_fresh(1031, 1000), "31s past rejected");
+        // 31s future — future skew closed.
+        assert(!timestamp_fresh(1000, 1031), "31s future rejected");
+        // Very old ts.
+        assert(!timestamp_fresh(1000000, 0), "epoch-old rejected");
+    }
+
+    test frame_length_predicates {
+        assert(challenge_frame_len_valid(25), "challenge = 25 bytes");
+        assert(!challenge_frame_len_valid(24), "24 rejected");
+        assert(!challenge_frame_len_valid(26), "26 rejected");
+        assert(response_frame_len_valid(98), "response = 98 bytes");
+        assert(!response_frame_len_valid(97), "97 rejected");
+        assert(!response_frame_len_valid(99), "99 rejected");
+    }
+
+    test transcript_regions {
+        assert(transcript_region(0) == 0, "byte 0 = nonce");
+        assert(transcript_region(15) == 0, "byte 15 = nonce (last)");
+        assert(transcript_region(16) == 1, "byte 16 = ts");
+        assert(transcript_region(23) == 1, "byte 23 = ts (last)");
+        assert(transcript_region(24) == 2, "byte 24 = dna_bits");
+        assert(transcript_region(25) == 3, "byte 25 = dna_hi");
+        assert(transcript_region(28) == 3, "byte 28 = dna_hi (last)");
+        assert(transcript_region(29) == 4, "byte 29 = dna_lo");
+        assert(transcript_region(32) == 4, "byte 32 = dna_lo (last)");
+        assert(transcript_region(33) == 255, "byte 33 = out-of-range");
+    }
+
+    test u64_be_byte_layout {
+        // 0x1122334455667788
+        assert(u64_be_byte(0x11223344, 0x55667788, 0) == 0x11, "b0");
+        assert(u64_be_byte(0x11223344, 0x55667788, 1) == 0x22, "b1");
+        assert(u64_be_byte(0x11223344, 0x55667788, 2) == 0x33, "b2");
+        assert(u64_be_byte(0x11223344, 0x55667788, 3) == 0x44, "b3");
+        assert(u64_be_byte(0x11223344, 0x55667788, 4) == 0x55, "b4");
+        assert(u64_be_byte(0x11223344, 0x55667788, 5) == 0x66, "b5");
+        assert(u64_be_byte(0x11223344, 0x55667788, 6) == 0x77, "b6");
+        assert(u64_be_byte(0x11223344, 0x55667788, 7) == 0x88, "b7");
+    }
+
+    test u32_be_byte_layout {
+        assert(u32_be_byte(0x11223344, 0) == 0x11, "b0");
+        assert(u32_be_byte(0x11223344, 1) == 0x22, "b1");
+        assert(u32_be_byte(0x11223344, 2) == 0x33, "b2");
+        assert(u32_be_byte(0x11223344, 3) == 0x44, "b3");
+    }
+
+    test chip_attest_gating {
+        assert(chip_attest_binding(57, 64), "7-series + Ed25519 accepted");
+        assert(chip_attest_binding(96, 64), "UltraScale + Ed25519 accepted");
+        assert(!chip_attest_binding(57, 63), "short sig rejected");
+        assert(!chip_attest_binding(57, 65), "long sig rejected");
+        assert(!chip_attest_binding(0, 64), "no DNA rejected");
+        assert(!chip_attest_binding(128, 64), "wrong DNA width rejected");
+    }
+}
+// phi^2 + 1/phi^2 = 3 | TRINITY

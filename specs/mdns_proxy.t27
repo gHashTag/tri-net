@@ -1,0 +1,261 @@
+// mdns_proxy -- overlay envelope + framing + dispatch for the RFC 8766
+// style Discovery Proxy. This spec is the SINGLE SOURCE OF TRUTH for the
+// byte-level, spec-verifiable parts of the proxy that today live hand-written
+// in src/bin/mdns_proxy.rs. Once t27c is available in the build environment,
+// `t27c gen-rust specs/mdns_proxy.t27 > gen/rust/mdns_proxy.rs` replaces the
+// hand-written envelope/predicate logic; src/bin/mdns_proxy.rs keeps only the
+// socket bind + dispatch run-loop glue (AGENTS.md: bins are thin wrappers).
+//
+// What lives in runtime (NOT here, cannot be spec-verified):
+//   - UDP multicast bind on 224.0.0.251:5353 and TCP overlay socket
+//   - the async dispatch loop, connection accept, timeouts
+//   - the static routing table population from mesh neighbor state
+//
+// NON-CLAIMS (RFC 8766 completeness is NOT achieved):
+//   - NOT a complete RFC 8766 Discovery Proxy. No DNSSEC (RFC 8766 does not
+//     require it, but no chain-of-trust is modelled), no DNS Push (RFC 8765),
+//     no aggressive NSEC caching (RFC 8767).
+//   - NO rate limiting (RFC 8766 deployment guidance): DoS-exposed.
+//   - NO confidentiality: the overlay envelope is plaintext framing. Wrap in
+//     the mesh AEAD (src/crypto.rs, ChaCha20-Poly1305) before any adversarial
+//     channel. See specs/audio_crypto.t27 for the separate PTT envelope.
+//   - Multi-question handling here is bounded COUNTING/VALIDATION only; the
+//     runtime iterates questions -- this spec pins the bounds and the per-
+//     question dispatch class, not the loop.
+//
+// phi^2 + phi^-2 = 3 | TRINITY
+
+module MdnsProxy {
+    use base::types;
+
+    // --- envelope constants -----------------------------------------
+
+    // Overlay envelope version. Bumps on any wire-layout change.
+    const PROXY_VERSION : u8 = 1;
+
+    // RFC 1035 section 3.1: a full domain name is at most 255 octets.
+    const MAX_QNAME_LEN : u8 = 255;
+
+    // Query envelope header: version(1) + txid(2) + qtype(2) + qname_len(1).
+    const QUERY_HEADER_LEN : u8 = 6;
+
+    // Reply envelope header: version(1) + txid(2) + status(1) + payload_len(2).
+    const REPLY_HEADER_LEN : u8 = 6;
+
+    // Bounded framing: a 2-byte big-endian length prefix precedes every
+    // envelope on the TCP overlay. Anything larger than this is treated as
+    // hostile and the connection is dropped. 8 KiB comfortably holds a full
+    // 255-octet QNAME query and a bounded PTR/SRV/TXT reply set.
+    const MAX_FRAME_LEN : u16 = 8192;
+
+    // Reply status codes. 0 = ok, 1 = not-found, 2 = refused. Anything else
+    // is malformed.
+    const STATUS_OK        : u8 = 0;
+    const STATUS_NOT_FOUND : u8 = 1;
+    const STATUS_REFUSED   : u8 = 2;
+    const STATUS_MAX       : u8 = 2;
+
+    // Multi-question bound. mDNS permits qdcount > 1 (RFC 6762 section 5.3
+    // known-answer suppression bundles). We accept a small bounded batch so a
+    // single overlay round-trip can carry a service enumeration, but cap it to
+    // keep the dispatch loop bounded and DoS-resistant.
+    const MAX_QUESTIONS : u16 = 16;
+
+    // Record TYPEs we dispatch on (mirror of specs/mdns_wire.t27, RFC 1035
+    // section 3.2.2). Duplicated as literals intentionally: dispatch must not
+    // silently follow a wire-format constant change without a test here.
+    const QTYPE_A   : u16 = 1;
+    const QTYPE_PTR : u16 = 12;
+    const QTYPE_TXT : u16 = 16;
+    const QTYPE_SRV : u16 = 33;
+    const QTYPE_ANY : u16 = 255;
+
+    // Dispatch route classes for the static routing table.
+    //   0 = drop (unsupported qtype)
+    //   1 = local-answer  (proxy answers from its own service records)
+    //   2 = mesh-forward   (relay across the overlay to a peer segment)
+    const ROUTE_DROP    : u8 = 0;
+    const ROUTE_LOCAL   : u8 = 1;
+    const ROUTE_FORWARD : u8 = 2;
+
+    // --- predicates -------------------------------------------------
+
+    fn proxy_version_valid(v: u8) -> bool {
+        return (v == PROXY_VERSION);
+    }
+
+    // A QNAME length is valid iff non-zero (empty names are rejected at the
+    // envelope layer) and within the RFC 1035 255-octet ceiling.
+    fn qname_len_valid(n: u16) -> bool {
+        if (n == 0) {
+            return false;
+        }
+        return (n <= (MAX_QNAME_LEN as u16));
+    }
+
+    fn status_valid(s: u8) -> bool {
+        return (s <= STATUS_MAX);
+    }
+
+    // Bounded framing predicate: a declared frame length must be non-zero and
+    // within MAX_FRAME_LEN. The runtime rejects (drops the connection) when
+    // this returns false BEFORE allocating a receive buffer.
+    fn frame_len_valid(len: u16) -> bool {
+        if (len == 0) {
+            return false;
+        }
+        return (len <= MAX_FRAME_LEN);
+    }
+
+    // Multi-question count predicate: at least one question, at most
+    // MAX_QUESTIONS. qdcount == 0 is a malformed proxy query.
+    fn qdcount_valid(qdcount: u16) -> bool {
+        if (qdcount == 0) {
+            return false;
+        }
+        return (qdcount <= MAX_QUESTIONS);
+    }
+
+    // The minimum wire length that can hold `qdcount` questions, given each
+    // question needs at least the 6-byte header plus one QNAME octet. Used by
+    // the runtime to reject truncated multi-question frames before parsing.
+    fn min_query_wire_len(qdcount: u16) -> u16 {
+        return qdcount * ((QUERY_HEADER_LEN as u16) + 1);
+    }
+
+    // --- dispatch / routing -----------------------------------------
+
+    // Static dispatch: map a query TYPE to a route class. PTR/SRV/TXT service
+    // discovery is answered locally by the proxy; A records for known hosts
+    // are forwarded across the mesh; ANY is forwarded (the proxy does not
+    // synthesize ANY responses); everything else is dropped.
+    fn route_for_qtype(qtype: u16) -> u8 {
+        if (qtype == QTYPE_PTR) { return ROUTE_LOCAL; }
+        if (qtype == QTYPE_SRV) { return ROUTE_LOCAL; }
+        if (qtype == QTYPE_TXT) { return ROUTE_LOCAL; }
+        if (qtype == QTYPE_A)   { return ROUTE_FORWARD; }
+        if (qtype == QTYPE_ANY) { return ROUTE_FORWARD; }
+        return ROUTE_DROP;
+    }
+
+    // A query is dispatchable iff its route class is not DROP.
+    fn qtype_dispatchable(qtype: u16) -> bool {
+        return (route_for_qtype(qtype) != ROUTE_DROP);
+    }
+
+    // --- big-endian byte extractors (spec-verifiable wire layout) ----
+
+    fn u16_hi(w: u16) -> u8 { return ((w >> 8) & 255) as u8; }
+    fn u16_lo(w: u16) -> u8 { return (w & 255) as u8; }
+
+    // Query envelope header bytes in order:
+    //   0: version, 1: txid hi, 2: txid lo, 3: qtype hi, 4: qtype lo,
+    //   5: qname_len.
+    fn query_header_byte(txid: u16, qtype: u16, qname_len: u8, idx: u8) -> u8 {
+        if (idx == 0) { return PROXY_VERSION; }
+        if (idx == 1) { return u16_hi(txid); }
+        if (idx == 2) { return u16_lo(txid); }
+        if (idx == 3) { return u16_hi(qtype); }
+        if (idx == 4) { return u16_lo(qtype); }
+        return qname_len;
+    }
+
+    // Reply envelope header bytes in order:
+    //   0: version, 1: txid hi, 2: txid lo, 3: status,
+    //   4: payload_len hi, 5: payload_len lo.
+    fn reply_header_byte(txid: u16, status: u8, payload_len: u16, idx: u8) -> u8 {
+        if (idx == 0) { return PROXY_VERSION; }
+        if (idx == 1) { return u16_hi(txid); }
+        if (idx == 2) { return u16_lo(txid); }
+        if (idx == 3) { return status; }
+        if (idx == 4) { return u16_hi(payload_len); }
+        return u16_lo(payload_len);
+    }
+
+    // --- tests ------------------------------------------------------
+
+    test version_predicate {
+        assert(proxy_version_valid(1), "version 1 accepted");
+        assert(!proxy_version_valid(0), "version 0 rejected");
+        assert(!proxy_version_valid(2), "version 2 rejected");
+    }
+
+    test qname_length_bounds {
+        assert(!qname_len_valid(0), "empty qname rejected");
+        assert(qname_len_valid(1), "single octet ok");
+        assert(qname_len_valid(255), "255 boundary ok");
+        assert(!qname_len_valid(256), "256 rejected");
+    }
+
+    test status_bounds {
+        assert(status_valid(0), "ok");
+        assert(status_valid(1), "not-found");
+        assert(status_valid(2), "refused");
+        assert(!status_valid(3), "3 rejected");
+        assert(!status_valid(255), "top rejected");
+    }
+
+    test framing_bounds {
+        assert(!frame_len_valid(0), "zero-length frame rejected");
+        assert(frame_len_valid(1), "single byte ok");
+        assert(frame_len_valid(8192), "max frame ok");
+        assert(!frame_len_valid(8193), "over-max rejected");
+    }
+
+    test multi_question_bounds {
+        assert(!qdcount_valid(0), "zero questions rejected");
+        assert(qdcount_valid(1), "single question ok");
+        assert(qdcount_valid(16), "batch boundary ok");
+        assert(!qdcount_valid(17), "over-batch rejected");
+        assert(min_query_wire_len(1) == 7, "one question needs >=7 bytes");
+        assert(min_query_wire_len(3) == 21, "three questions need >=21 bytes");
+    }
+
+    test dispatch_routing {
+        assert(route_for_qtype(QTYPE_PTR) == ROUTE_LOCAL, "PTR answered locally");
+        assert(route_for_qtype(QTYPE_SRV) == ROUTE_LOCAL, "SRV answered locally");
+        assert(route_for_qtype(QTYPE_TXT) == ROUTE_LOCAL, "TXT answered locally");
+        assert(route_for_qtype(QTYPE_A) == ROUTE_FORWARD, "A forwarded");
+        assert(route_for_qtype(QTYPE_ANY) == ROUTE_FORWARD, "ANY forwarded");
+        assert(route_for_qtype(999) == ROUTE_DROP, "unknown dropped");
+        assert(qtype_dispatchable(QTYPE_PTR), "PTR dispatchable");
+        assert(!qtype_dispatchable(999), "unknown not dispatchable");
+    }
+
+    test query_header_layout {
+        // txid=0xBEEF, qtype=PTR(12), qname_len=24
+        assert(query_header_byte(0xBEEF, 12, 24, 0) == 1, "version");
+        assert(query_header_byte(0xBEEF, 12, 24, 1) == 0xBE, "txid hi");
+        assert(query_header_byte(0xBEEF, 12, 24, 2) == 0xEF, "txid lo");
+        assert(query_header_byte(0xBEEF, 12, 24, 3) == 0, "qtype hi");
+        assert(query_header_byte(0xBEEF, 12, 24, 4) == 12, "qtype lo (PTR)");
+        assert(query_header_byte(0xBEEF, 12, 24, 5) == 24, "qname_len");
+    }
+
+    test reply_header_layout {
+        // txid=0xBEEF, status=0, payload_len=0x0102
+        assert(reply_header_byte(0xBEEF, 0, 0x0102, 0) == 1, "version");
+        assert(reply_header_byte(0xBEEF, 0, 0x0102, 1) == 0xBE, "txid hi");
+        assert(reply_header_byte(0xBEEF, 0, 0x0102, 2) == 0xEF, "txid lo");
+        assert(reply_header_byte(0xBEEF, 0, 0x0102, 3) == 0, "status ok");
+        assert(reply_header_byte(0xBEEF, 0, 0x0102, 4) == 0x01, "plen hi");
+        assert(reply_header_byte(0xBEEF, 0, 0x0102, 5) == 0x02, "plen lo");
+    }
+
+    test header_length_constants {
+        assert(QUERY_HEADER_LEN == 6, "query header 6 bytes");
+        assert(REPLY_HEADER_LEN == 6, "reply header 6 bytes");
+    }
+
+    // Invariant: the dispatch classes partition every possible qtype into
+    // exactly one of {drop, local, forward}; route_for_qtype never returns a
+    // value outside that set.
+    invariant route_class_bounded {
+        assert(route_for_qtype(QTYPE_PTR) <= ROUTE_FORWARD, "PTR class bounded");
+        assert(route_for_qtype(QTYPE_A) <= ROUTE_FORWARD, "A class bounded");
+        assert(route_for_qtype(0) <= ROUTE_FORWARD, "zero class bounded");
+        assert(route_for_qtype(65535) <= ROUTE_FORWARD, "max class bounded");
+    }
+}
+
+// phi^2 + phi^-2 = 3 | TRINITY

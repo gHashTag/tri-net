@@ -1,0 +1,9 @@
+VCD info: dumpfile build/tb_dna_reader.vcd opened for output.
+PASS:   T1 dna_out cleared under reset
+PASS:         T1 valid low under reset
+PASS: lid asserted after DNA_BITS clks
+PASS:  dna_out == bit_reverse(SIM_VAL)
+PASS: start ignored, dna_out unchanged
+PASS:          T4 valid still asserted
+ALL 5 CHECKS PASSED
+tb_dna_reader.v:101: $finish called at 1385000 (1ps)
