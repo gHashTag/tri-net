@@ -1,0 +1,461 @@
+#! /usr/bin/vvp
+:ivl_version "12.0 (stable)";
+:ivl_delay_selection "TYPICAL";
+:vpi_time_precision - 12;
+:vpi_module "/usr/lib/x86_64-linux-gnu/ivl/system.vpi";
+:vpi_module "/usr/lib/x86_64-linux-gnu/ivl/vhdl_sys.vpi";
+:vpi_module "/usr/lib/x86_64-linux-gnu/ivl/vhdl_textio.vpi";
+:vpi_module "/usr/lib/x86_64-linux-gnu/ivl/v2005_math.vpi";
+:vpi_module "/usr/lib/x86_64-linux-gnu/ivl/va_math.vpi";
+:vpi_module "/usr/lib/x86_64-linux-gnu/ivl/v2009.vpi";
+S_0x555cecad6810 .scope package, "$unit" "$unit" 2 1;
+ .timescale 0 0;
+S_0x555cecad69a0 .scope module, "tb_dna_reader" "tb_dna_reader" 3 17;
+ .timescale -9 -12;
+P_0x555cecab7230 .param/l "DNA_BITS" 1 3 18, +C4<00000000000000000000000000111001>;
+P_0x555cecab7270 .param/l "SIM_VAL" 1 3 19, C4<100100011010001010110011110001001101010111100110111101111>;
+v0x555cecafe6e0_0 .var "clk", 0 0;
+v0x555cecafe7a0_0 .net "dna_out", 56 0, v0x555cecafdfd0_0;  1 drivers
+v0x555cecafe860_0 .var/i "errors", 31 0;
+v0x555cecafe900_0 .var "rst_n", 0 0;
+v0x555cecafe9a0_0 .var "start", 0 0;
+v0x555cecafea90_0 .net "valid", 0 0, v0x555cecafe580_0;  1 drivers
+S_0x555cecad2e10 .scope function.vec4.s57, "bit_reverse" "bit_reverse" 3 39, 3 39 0, S_0x555cecad69a0;
+ .timescale -9 -12;
+; Variable bit_reverse is vec4 return value of scope S_0x555cecad2e10
+v0x555cecac38e0_0 .var/i "i", 31 0;
+v0x555cecac3b90_0 .var "v", 56 0;
+TD_tb_dna_reader.bit_reverse ;
+    %pushi/vec4 0, 0, 57;
+    %ret/vec4 0, 0, 57;  Assign to bit_reverse (store_vec4_to_lval)
+    %pushi/vec4 0, 0, 32;
+    %store/vec4 v0x555cecac38e0_0, 0, 32;
+T_0.0 ;
+    %load/vec4 v0x555cecac38e0_0;
+    %cmpi/s 57, 0, 32;
+    %jmp/0xz T_0.1, 5;
+    %load/vec4 v0x555cecac3b90_0;
+    %pushi/vec4 56, 0, 32;
+    %load/vec4 v0x555cecac38e0_0;
+    %sub;
+    %part/s 1;
+    %ix/getv/s 4, v0x555cecac38e0_0;
+    %ret/vec4 0, 4, 1; Assign to bit_reverse (store_vec4_to_lval)
+    %load/vec4 v0x555cecac38e0_0;
+    %addi 1, 0, 32;
+    %store/vec4 v0x555cecac38e0_0, 0, 32;
+    %jmp T_0.0;
+T_0.1 ;
+    %end;
+S_0x555cecafce10 .scope task, "check" "check" 3 50, 3 50 0, S_0x555cecad69a0;
+ .timescale -9 -12;
+v0x555cecac3f20_0 .var "cond", 0 0;
+v0x555cecac52c0_0 .var "label", 255 0;
+TD_tb_dna_reader.check ;
+    %load/vec4 v0x555cecac3f20_0;
+    %nor/r;
+    %flag_set/vec4 8;
+    %jmp/0xz  T_1.2, 8;
+    %vpi_call/w 3 53 "$display", "FAIL: %s", v0x555cecac52c0_0 {0 0 0};
+    %load/vec4 v0x555cecafe860_0;
+    %addi 1, 0, 32;
+    %store/vec4 v0x555cecafe860_0, 0, 32;
+    %jmp T_1.3;
+T_1.2 ;
+    %vpi_call/w 3 56 "$display", "PASS: %s", v0x555cecac52c0_0 {0 0 0};
+T_1.3 ;
+    %end;
+S_0x555cecafd070 .scope module, "dut" "dna_reader" 3 30, 4 24 0, S_0x555cecad69a0;
+ .timescale -9 -12;
+    .port_info 0 /INPUT 1 "clk";
+    .port_info 1 /INPUT 1 "rst_n";
+    .port_info 2 /INPUT 1 "start";
+    .port_info 3 /OUTPUT 57 "dna_out";
+    .port_info 4 /OUTPUT 1 "valid";
+P_0x555cecafd250 .param/l "DNA_BITS" 0 4 27, +C4<00000000000000000000000000111001>;
+P_0x555cecafd290 .param/l "S_HOLD" 1 4 44, C4<11>;
+P_0x555cecafd2d0 .param/l "S_IDLE" 1 4 41, C4<00>;
+P_0x555cecafd310 .param/l "S_LOAD" 1 4 42, C4<01>;
+P_0x555cecafd350 .param/l "S_SHIFT" 1 4 43, C4<10>;
+v0x555cecafdf10_0 .net "clk", 0 0, v0x555cecafe6e0_0;  1 drivers
+v0x555cecafdfd0_0 .var "dna_out", 56 0;
+v0x555cecafe090_0 .net "dout", 0 0, L_0x555cecafeb30;  1 drivers
+v0x555cecafe130_0 .var "read_pulse", 0 0;
+v0x555cecafe1d0_0 .net "rst_n", 0 0, v0x555cecafe900_0;  1 drivers
+v0x555cecafe2c0_0 .var "shift_cnt", 5 0;
+v0x555cecafe360_0 .var "shift_en", 0 0;
+v0x555cecafe400_0 .net "start", 0 0, v0x555cecafe9a0_0;  1 drivers
+v0x555cecafe4a0_0 .var "state", 1 0;
+v0x555cecafe580_0 .var "valid", 0 0;
+E_0x555cecad3f30/0 .event negedge, v0x555cecafe1d0_0;
+E_0x555cecad3f30/1 .event posedge, v0x555cecac5570_0;
+E_0x555cecad3f30 .event/or E_0x555cecad3f30/0, E_0x555cecad3f30/1;
+S_0x555cecafd650 .scope module, "u_dna_port" "DNA_PORT" 4 58, 5 17 0, S_0x555cecafd070;
+ .timescale -9 -12;
+    .port_info 0 /OUTPUT 1 "DOUT";
+    .port_info 1 /INPUT 1 "CLK";
+    .port_info 2 /INPUT 1 "DIN";
+    .port_info 3 /INPUT 1 "READ";
+    .port_info 4 /INPUT 1 "SHIFT";
+P_0x555cecafd850 .param/l "SIM_DNA_VALUE" 0 5 18, C4<100100011010001010110011110001001101010111100110111101111>;
+v0x555cecac5570_0 .net "CLK", 0 0, v0x555cecafe6e0_0;  alias, 1 drivers
+L_0x7f51c8bb7018 .functor BUFT 1, C4<0>, C4<0>, C4<0>, C4<0>;
+v0x555cecac5840_0 .net "DIN", 0 0, L_0x7f51c8bb7018;  1 drivers
+v0x555cecafda60_0 .net "DOUT", 0 0, L_0x555cecafeb30;  alias, 1 drivers
+v0x555cecafdb00_0 .net "READ", 0 0, v0x555cecafe130_0;  1 drivers
+v0x555cecafdbc0_0 .net "SHIFT", 0 0, v0x555cecafe360_0;  1 drivers
+v0x555cecafdcd0_0 .var "dna_reg", 56 0;
+v0x555cecafddb0_0 .var "loaded", 0 0;
+E_0x555cecad4180 .event posedge, v0x555cecac5570_0;
+L_0x555cecafeb30 .part v0x555cecafdcd0_0, 0, 1;
+    .scope S_0x555cecafd650;
+T_2 ;
+    %pushi/vec4 0, 0, 57;
+    %store/vec4 v0x555cecafdcd0_0, 0, 57;
+    %pushi/vec4 0, 0, 1;
+    %store/vec4 v0x555cecafddb0_0, 0, 1;
+    %end;
+    .thread T_2;
+    .scope S_0x555cecafd650;
+T_3 ;
+    %wait E_0x555cecad4180;
+    %load/vec4 v0x555cecafdb00_0;
+    %flag_set/vec4 8;
+    %jmp/0xz  T_3.0, 8;
+    %pushi/vec4 2443359172, 0, 32;
+    %concati/vec4 28036591, 0, 25;
+    %assign/vec4 v0x555cecafdcd0_0, 0;
+    %pushi/vec4 1, 0, 1;
+    %assign/vec4 v0x555cecafddb0_0, 0;
+    %jmp T_3.1;
+T_3.0 ;
+    %load/vec4 v0x555cecafdbc0_0;
+    %flag_set/vec4 9;
+    %flag_get/vec4 9;
+    %jmp/0 T_3.4, 9;
+    %load/vec4 v0x555cecafddb0_0;
+    %and;
+T_3.4;
+    %flag_set/vec4 8;
+    %jmp/0xz  T_3.2, 8;
+    %load/vec4 v0x555cecac5840_0;
+    %load/vec4 v0x555cecafdcd0_0;
+    %parti/s 56, 1, 2;
+    %concat/vec4; draw_concat_vec4
+    %assign/vec4 v0x555cecafdcd0_0, 0;
+T_3.2 ;
+T_3.1 ;
+    %jmp T_3;
+    .thread T_3;
+    .scope S_0x555cecafd070;
+T_4 ;
+    %wait E_0x555cecad3f30;
+    %load/vec4 v0x555cecafe1d0_0;
+    %nor/r;
+    %flag_set/vec4 8;
+    %jmp/0xz  T_4.0, 8;
+    %pushi/vec4 0, 0, 2;
+    %assign/vec4 v0x555cecafe4a0_0, 0;
+    %pushi/vec4 0, 0, 6;
+    %assign/vec4 v0x555cecafe2c0_0, 0;
+    %pushi/vec4 0, 0, 1;
+    %assign/vec4 v0x555cecafe360_0, 0;
+    %pushi/vec4 0, 0, 1;
+    %assign/vec4 v0x555cecafe130_0, 0;
+    %pushi/vec4 0, 0, 57;
+    %assign/vec4 v0x555cecafdfd0_0, 0;
+    %pushi/vec4 0, 0, 1;
+    %assign/vec4 v0x555cecafe580_0, 0;
+    %jmp T_4.1;
+T_4.0 ;
+    %pushi/vec4 0, 0, 1;
+    %assign/vec4 v0x555cecafe130_0, 0;
+    %pushi/vec4 0, 0, 1;
+    %assign/vec4 v0x555cecafe360_0, 0;
+    %load/vec4 v0x555cecafe4a0_0;
+    %dup/vec4;
+    %pushi/vec4 0, 0, 2;
+    %cmp/u;
+    %jmp/1 T_4.2, 6;
+    %dup/vec4;
+    %pushi/vec4 1, 0, 2;
+    %cmp/u;
+    %jmp/1 T_4.3, 6;
+    %dup/vec4;
+    %pushi/vec4 2, 0, 2;
+    %cmp/u;
+    %jmp/1 T_4.4, 6;
+    %dup/vec4;
+    %pushi/vec4 3, 0, 2;
+    %cmp/u;
+    %jmp/1 T_4.5, 6;
+    %pushi/vec4 0, 0, 2;
+    %assign/vec4 v0x555cecafe4a0_0, 0;
+    %jmp T_4.7;
+T_4.2 ;
+    %pushi/vec4 0, 0, 1;
+    %assign/vec4 v0x555cecafe580_0, 0;
+    %load/vec4 v0x555cecafe400_0;
+    %flag_set/vec4 8;
+    %jmp/0xz  T_4.8, 8;
+    %pushi/vec4 1, 0, 1;
+    %assign/vec4 v0x555cecafe130_0, 0;
+    %pushi/vec4 0, 0, 6;
+    %assign/vec4 v0x555cecafe2c0_0, 0;
+    %pushi/vec4 1, 0, 2;
+    %assign/vec4 v0x555cecafe4a0_0, 0;
+T_4.8 ;
+    %jmp T_4.7;
+T_4.3 ;
+    %pushi/vec4 1, 0, 1;
+    %assign/vec4 v0x555cecafe360_0, 0;
+    %pushi/vec4 2, 0, 2;
+    %assign/vec4 v0x555cecafe4a0_0, 0;
+    %jmp T_4.7;
+T_4.4 ;
+    %pushi/vec4 1, 0, 1;
+    %assign/vec4 v0x555cecafe360_0, 0;
+    %load/vec4 v0x555cecafdfd0_0;
+    %parti/s 56, 0, 2;
+    %load/vec4 v0x555cecafe090_0;
+    %concat/vec4; draw_concat_vec4
+    %assign/vec4 v0x555cecafdfd0_0, 0;
+    %load/vec4 v0x555cecafe2c0_0;
+    %addi 1, 0, 6;
+    %assign/vec4 v0x555cecafe2c0_0, 0;
+    %load/vec4 v0x555cecafe2c0_0;
+    %pad/u 32;
+    %cmpi/e 56, 0, 32;
+    %jmp/0xz  T_4.10, 4;
+    %pushi/vec4 0, 0, 1;
+    %assign/vec4 v0x555cecafe360_0, 0;
+    %pushi/vec4 3, 0, 2;
+    %assign/vec4 v0x555cecafe4a0_0, 0;
+T_4.10 ;
+    %jmp T_4.7;
+T_4.5 ;
+    %pushi/vec4 1, 0, 1;
+    %assign/vec4 v0x555cecafe580_0, 0;
+    %jmp T_4.7;
+T_4.7 ;
+    %pop/vec4 1;
+T_4.1 ;
+    %jmp T_4;
+    .thread T_4;
+    .scope S_0x555cecad69a0;
+T_5 ;
+    %pushi/vec4 0, 0, 1;
+    %store/vec4 v0x555cecafe6e0_0, 0, 1;
+    %pushi/vec4 0, 0, 1;
+    %store/vec4 v0x555cecafe900_0, 0, 1;
+    %pushi/vec4 0, 0, 1;
+    %store/vec4 v0x555cecafe9a0_0, 0, 1;
+    %pushi/vec4 0, 0, 32;
+    %store/vec4 v0x555cecafe860_0, 0, 32;
+    %end;
+    .thread T_5, $init;
+    .scope S_0x555cecad69a0;
+T_6 ;
+    %delay 5000, 0;
+    %load/vec4 v0x555cecafe6e0_0;
+    %inv;
+    %store/vec4 v0x555cecafe6e0_0, 0, 1;
+    %jmp T_6;
+    .thread T_6;
+    .scope S_0x555cecad69a0;
+T_7 ;
+    %vpi_call/w 3 62 "$dumpfile", "build/tb_dna_reader.vcd" {0 0 0};
+    %vpi_call/w 3 63 "$dumpvars", 32'sb00000000000000000000000000000000, S_0x555cecad69a0 {0 0 0};
+    %delay 7000, 0;
+    %pushi/vec4 0, 0, 1;
+    %store/vec4 v0x555cecafe900_0, 0, 1;
+    %delay 20000, 0;
+    %load/vec4 v0x555cecafe7a0_0;
+    %pushi/vec4 0, 0, 57;
+    %cmp/e;
+    %flag_get/vec4 6;
+    %store/vec4 v0x555cecac3f20_0, 0, 1;
+    %pushi/vec4 21553, 0, 32; draw_string_vec4
+    %pushi/vec4 543452769, 0, 32; draw_string_vec4
+    %concat/vec4; draw_string_vec4
+    %pushi/vec4 1601140084, 0, 32; draw_string_vec4
+    %concat/vec4; draw_string_vec4
+    %pushi/vec4 543386725, 0, 32; draw_string_vec4
+    %concat/vec4; draw_string_vec4
+    %pushi/vec4 1634887012, 0, 32; draw_string_vec4
+    %concat/vec4; draw_string_vec4
+    %pushi/vec4 544566884, 0, 32; draw_string_vec4
+    %concat/vec4; draw_string_vec4
+    %pushi/vec4 1701978226, 0, 32; draw_string_vec4
+    %concat/vec4; draw_string_vec4
+    %pushi/vec4 1702061428, 0, 32; draw_string_vec4
+    %concat/vec4; draw_string_vec4
+    %store/vec4 v0x555cecac52c0_0, 0, 256;
+    %fork TD_tb_dna_reader.check, S_0x555cecafce10;
+    %join;
+    %load/vec4 v0x555cecafea90_0;
+    %pushi/vec4 0, 0, 1;
+    %cmp/e;
+    %flag_get/vec4 6;
+    %store/vec4 v0x555cecac3f20_0, 0, 1;
+    %pushi/vec4 0, 0, 32; draw_string_vec4
+    %pushi/vec4 0, 0, 32; draw_string_vec4
+    %concat/vec4; draw_string_vec4
+    %pushi/vec4 1412505718, 0, 32; draw_string_vec4
+    %concat/vec4; draw_string_vec4
+    %pushi/vec4 1634494820, 0, 32; draw_string_vec4
+    %concat/vec4; draw_string_vec4
+    %pushi/vec4 543977335, 0, 32; draw_string_vec4
+    %concat/vec4; draw_string_vec4
+    %pushi/vec4 544566884, 0, 32; draw_string_vec4
+    %concat/vec4; draw_string_vec4
+    %pushi/vec4 1701978226, 0, 32; draw_string_vec4
+    %concat/vec4; draw_string_vec4
+    %pushi/vec4 1702061428, 0, 32; draw_string_vec4
+    %concat/vec4; draw_string_vec4
+    %store/vec4 v0x555cecac52c0_0, 0, 256;
+    %fork TD_tb_dna_reader.check, S_0x555cecafce10;
+    %join;
+    %wait E_0x555cecad4180;
+    %pushi/vec4 1, 0, 1;
+    %store/vec4 v0x555cecafe900_0, 0, 1;
+    %wait E_0x555cecad4180;
+    %wait E_0x555cecad4180;
+    %pushi/vec4 1, 0, 1;
+    %store/vec4 v0x555cecafe9a0_0, 0, 1;
+    %wait E_0x555cecad4180;
+    %pushi/vec4 0, 0, 1;
+    %store/vec4 v0x555cecafe9a0_0, 0, 1;
+    %pushi/vec4 65, 0, 32;
+T_7.0 %dup/vec4;
+    %pushi/vec4 0, 0, 32;
+    %cmp/s;
+    %jmp/1xz T_7.1, 5;
+    %jmp/1 T_7.1, 4;
+    %pushi/vec4 1, 0, 32;
+    %sub;
+    %wait E_0x555cecad4180;
+    %jmp T_7.0;
+T_7.1 ;
+    %pop/vec4 1;
+    %load/vec4 v0x555cecafea90_0;
+    %pushi/vec4 1, 0, 1;
+    %cmp/e;
+    %flag_get/vec4 6;
+    %store/vec4 v0x555cecac3f20_0, 0, 1;
+    %pushi/vec4 3637692480, 0, 33;
+    %concati/vec4 3269912266, 0, 32;
+    %concati/vec4 3840461512, 0, 32;
+    %concati/vec4 2173016529, 0, 33;
+    %concati/vec4 2512945425, 0, 32;
+    %concati/vec4 3826644004, 0, 34;
+    %concati/vec4 2504339974, 0, 32;
+    %concati/vec4 57437043, 0, 28;
+    %store/vec4 v0x555cecac52c0_0, 0, 256;
+    %fork TD_tb_dna_reader.check, S_0x555cecafce10;
+    %join;
+    %load/vec4 v0x555cecafe7a0_0;
+    %pushi/vec4 2443359172, 0, 32;
+    %concati/vec4 28036591, 0, 25;
+    %store/vec4 v0x555cecac3b90_0, 0, 57;
+    %callf/vec4 TD_tb_dna_reader.bit_reverse, S_0x555cecad2e10;
+    %cmp/e;
+    %flag_get/vec4 6;
+    %store/vec4 v0x555cecac3f20_0, 0, 1;
+    %pushi/vec4 2173811077, 0, 34;
+    %concati/vec4 4219186081, 0, 33;
+    %concati/vec4 4109664649, 0, 39;
+    %concati/vec4 2781969865, 0, 32;
+    %concati/vec4 2514064841, 0, 32;
+    %concati/vec4 3449069901, 0, 32;
+    %concati/vec4 2497049956, 0, 34;
+    %concati/vec4 85033, 0, 20;
+    %store/vec4 v0x555cecac52c0_0, 0, 256;
+    %fork TD_tb_dna_reader.check, S_0x555cecafce10;
+    %join;
+    %wait E_0x555cecad4180;
+    %pushi/vec4 1, 0, 1;
+    %store/vec4 v0x555cecafe9a0_0, 0, 1;
+    %wait E_0x555cecad4180;
+    %pushi/vec4 0, 0, 1;
+    %store/vec4 v0x555cecafe9a0_0, 0, 1;
+    %pushi/vec4 65, 0, 32;
+T_7.2 %dup/vec4;
+    %pushi/vec4 0, 0, 32;
+    %cmp/s;
+    %jmp/1xz T_7.3, 5;
+    %jmp/1 T_7.3, 4;
+    %pushi/vec4 1, 0, 32;
+    %sub;
+    %wait E_0x555cecad4180;
+    %jmp T_7.2;
+T_7.3 ;
+    %pop/vec4 1;
+    %load/vec4 v0x555cecafe7a0_0;
+    %pushi/vec4 2443359172, 0, 32;
+    %concati/vec4 28036591, 0, 25;
+    %store/vec4 v0x555cecac3b90_0, 0, 57;
+    %callf/vec4 TD_tb_dna_reader.bit_reverse, S_0x555cecad2e10;
+    %cmp/e;
+    %flag_get/vec4 6;
+    %store/vec4 v0x555cecac3f20_0, 0, 1;
+    %pushi/vec4 3874013924, 0, 33;
+    %concati/vec4 3896562382, 0, 32;
+    %concati/vec4 3705595082, 0, 32;
+    %concati/vec4 3361226952, 0, 32;
+    %concati/vec4 3703750366, 0, 32;
+    %concati/vec4 3941089514, 0, 32;
+    %concati/vec4 3704017090, 0, 32;
+    %concati/vec4 1852269924, 0, 31;
+    %store/vec4 v0x555cecac52c0_0, 0, 256;
+    %fork TD_tb_dna_reader.check, S_0x555cecafce10;
+    %join;
+    %load/vec4 v0x555cecafea90_0;
+    %pushi/vec4 1, 0, 1;
+    %cmp/e;
+    %flag_get/vec4 6;
+    %store/vec4 v0x555cecac3f20_0, 0, 1;
+    %pushi/vec4 0, 0, 32; draw_string_vec4
+    %pushi/vec4 0, 0, 32; draw_string_vec4
+    %concat/vec4; draw_string_vec4
+    %pushi/vec4 5518368, 0, 32; draw_string_vec4
+    %concat/vec4; draw_string_vec4
+    %pushi/vec4 1986096233, 0, 32; draw_string_vec4
+    %concat/vec4; draw_string_vec4
+    %pushi/vec4 1679848308, 0, 32; draw_string_vec4
+    %concat/vec4; draw_string_vec4
+    %pushi/vec4 1768713248, 0, 32; draw_string_vec4
+    %concat/vec4; draw_string_vec4
+    %pushi/vec4 1634956133, 0, 32; draw_string_vec4
+    %concat/vec4; draw_string_vec4
+    %pushi/vec4 1920230756, 0, 32; draw_string_vec4
+    %concat/vec4; draw_string_vec4
+    %store/vec4 v0x555cecac52c0_0, 0, 256;
+    %fork TD_tb_dna_reader.check, S_0x555cecafce10;
+    %join;
+    %load/vec4 v0x555cecafe860_0;
+    %cmpi/e 0, 0, 32;
+    %jmp/0xz  T_7.4, 4;
+    %vpi_call/w 3 97 "$display", "ALL 5 CHECKS PASSED" {0 0 0};
+    %jmp T_7.5;
+T_7.4 ;
+    %vpi_call/w 3 99 "$display", "FAILED %0d CHECK(S)", v0x555cecafe860_0 {0 0 0};
+T_7.5 ;
+    %vpi_call/w 3 101 "$finish" {0 0 0};
+    %end;
+    .thread T_7;
+    .scope S_0x555cecad69a0;
+T_8 ;
+    %delay 2000000, 0;
+    %vpi_call/w 3 107 "$display", "WATCHDOG timeout at 2 us" {0 0 0};
+    %vpi_call/w 3 108 "$finish" {0 0 0};
+    %end;
+    .thread T_8;
+# The file index is used to find the file name in the following table.
+:file_names 6;
+    "N/A";
+    "<interactive>";
+    "-";
+    "tb_dna_reader.v";
+    "../dna_reader.v";
+    "dna_port_model.v";

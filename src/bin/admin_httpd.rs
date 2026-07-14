@@ -526,6 +526,15 @@ fn ws_loop(
     stream.set_read_timeout(Some(Duration::from_millis(250)))?;
     let mut last_push = Instant::now() - Duration::from_secs(2);
     let mut ptt_state: u8 = 0;
+    // Optional E3.2 audio forwarder sink. Lazily opened on first accepted
+    // frame; on any I/O error, dropped so we retry on the next frame.
+    let mut audio_fwd: Option<TcpStream> = std::env::var("AUDIO_FWD_ADDR")
+        .ok()
+        .and_then(|addr| TcpStream::connect_timeout(&addr.parse().ok()?, Duration::from_millis(250)).ok())
+        .map(|s| {
+            let _ = s.set_write_timeout(Some(Duration::from_millis(100)));
+            s
+        });
     loop {
         if last_push.elapsed() >= Duration::from_secs(1) {
             let s = build_status_json(node_id, started, admin_status_gen::ATTEST_ED25519_SIM);
@@ -570,11 +579,24 @@ fn ws_loop(
                 if compact.contains("\"type\":\"audio\"") {
                     // Parse E3.1 audio frame envelope. Payload is base64 of
                     // the 9-byte header + opus bytes. Runtime validates the
-                    // envelope against the spec predicates but does NOT
-                    // decode Opus and does NOT forward to mesh (that's E3.2).
+                    // envelope against the spec predicates and, if
+                    // AUDIO_FWD_ADDR is set, forwards the raw bytes to the
+                    // audio_forwarder over a persistent TCP connection
+                    // (E3.2). Forwarding is best-effort and does NOT block
+                    // the ack path.
                     if let Some(payload_b64) = extract_json_string_field(&msg, "payload") {
                         if let Some(raw) = b64_decode(&payload_b64) {
                             let audio_ack = audio_frame_verdict(&raw);
+                            // Best-effort forward. Only forward frames the
+                            // verdict accepted. On any error, drop the
+                            // socket and reopen lazily on the next accept.
+                            if audio_ack.contains("\"accepted\":true") {
+                                if let Some(sink) = audio_fwd.as_mut() {
+                                    if sink.write_all(&raw).is_err() {
+                                        audio_fwd = None;
+                                    }
+                                }
+                            }
                             let _ = ws_send_text(&mut stream, &audio_ack);
                         } else {
                             let _ = ws_send_text(&mut stream,

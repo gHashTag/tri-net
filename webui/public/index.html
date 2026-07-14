@@ -407,47 +407,131 @@
       return buf;
     }
 
+    // E3.2: Prefer WebCodecs AudioEncoder for real 20ms Opus frames. Falls
+    // back to MediaRecorder container-blobs when the browser lacks
+    // WebCodecs (older iOS Safari). Both paths pipe into the same
+    // buildAudioFrame → base64 → WebSocket sink.
+    let webcodecsEncoder = null;
+    let webcodecsCtx = null;
+    let webcodecsSource = null;
+    let webcodecsWorkletNode = null;
+
     async function startAudioCapture() {
-      if (mediaRec) return;
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        // Prefer opus. Safari may return audio/mp4 — still opaque to us.
-        const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-          ? 'audio/webm;codecs=opus'
-          : (MediaRecorder.isTypeSupported('audio/mp4;codecs=mp4a.40.2')
-              ? 'audio/mp4;codecs=mp4a.40.2' : '');
-        const opts = mime ? { mimeType: mime } : {};
-        mediaRec = new MediaRecorder(stream, opts);
-        audioSession = newSessionId();
-        audioSeq = 0;
-        mediaRec.ondataavailable = async (ev) => {
-          if (!ev.data || ev.data.size === 0) return;
-          if (!ws || ws.readyState !== 1) return;
-          const ab = await ev.data.arrayBuffer();
-          let bytes = new Uint8Array(ab);
-          // Clamp into E3.1 envelope bounds. This is a placeholder pipe —
-          // real Opus will be delivered by an AudioWorklet + libopus WASM
-          // encoder in E3.2 producing exact 20ms Opus frames.
-          if (bytes.length < OPUS_MIN_LEN) return;
-          if (bytes.length > OPUS_MAX_LEN) bytes = bytes.slice(0, OPUS_MAX_LEN);
-          const frame = buildAudioFrame(audioSession, audioSeq & 0xFFFF, bytes);
-          const payload = bytesToB64(frame);
-          ws.send(JSON.stringify({ type: 'audio', payload }));
-          audioSeq = (audioSeq + 1) & 0xFFFF;
-        };
-        // 100ms slices — MediaRecorder minimum. E3.2 tightens to 20ms.
-        mediaRec.start(100);
-        log('audio: capture started (' + (mime || 'default') + ')');
-      } catch (e) {
-        log('audio err: ' + e);
+      if (mediaRec || webcodecsEncoder) return;
+      audioSession = newSessionId();
+      audioSeq = 0;
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // Path A: WebCodecs AudioEncoder — real Opus, 20ms frames.
+      if (window.AudioEncoder && window.AudioData) {
+        try {
+          const supported = await AudioEncoder.isConfigSupported({
+            codec: 'opus',
+            sampleRate: 48000,
+            numberOfChannels: 1,
+            bitrate: 24000,
+            opus: { frameDuration: 20000 } // 20 ms in μs
+          });
+          if (supported.supported) {
+            webcodecsEncoder = new AudioEncoder({
+              output: (chunk) => {
+                if (!ws || ws.readyState !== 1) return;
+                let bytes = new Uint8Array(chunk.byteLength);
+                chunk.copyTo(bytes);
+                if (bytes.length < OPUS_MIN_LEN) return;
+                if (bytes.length > OPUS_MAX_LEN) bytes = bytes.slice(0, OPUS_MAX_LEN);
+                const frame = buildAudioFrame(audioSession, audioSeq & 0xFFFF, bytes);
+                ws.send(JSON.stringify({ type: 'audio', payload: bytesToB64(frame) }));
+                audioSeq = (audioSeq + 1) & 0xFFFF;
+              },
+              error: (e) => log('opus encoder err: ' + e.message)
+            });
+            webcodecsEncoder.configure(supported.config);
+
+            // AudioWorklet feeds 48 kHz mono PCM chunks into the encoder.
+            const AC = window.AudioContext || window.webkitAudioContext;
+            webcodecsCtx = new AC({ sampleRate: 48000 });
+            const workletSrc = URL.createObjectURL(new Blob([`
+              class OpusFeeder extends AudioWorkletProcessor {
+                process(inputs) {
+                  const ch0 = inputs[0][0];
+                  if (ch0) this.port.postMessage(ch0.slice(0));
+                  return true;
+                }
+              }
+              registerProcessor('opus-feeder', OpusFeeder);
+            `], { type: 'application/javascript' }));
+            await webcodecsCtx.audioWorklet.addModule(workletSrc);
+            webcodecsSource = webcodecsCtx.createMediaStreamSource(stream);
+            webcodecsWorkletNode = new AudioWorkletNode(webcodecsCtx, 'opus-feeder');
+            webcodecsWorkletNode.port.onmessage = (ev) => {
+              const pcm = ev.data; // Float32Array, one AudioWorklet quantum (128 samples usually)
+              if (!webcodecsEncoder) return;
+              const ad = new AudioData({
+                format: 'f32-planar',
+                sampleRate: 48000,
+                numberOfFrames: pcm.length,
+                numberOfChannels: 1,
+                timestamp: performance.now() * 1000,
+                data: pcm
+              });
+              try { webcodecsEncoder.encode(ad); } catch (_) {}
+              ad.close();
+            };
+            webcodecsSource.connect(webcodecsWorkletNode);
+            log('audio: capture started (WebCodecs Opus 20ms/24kbps)');
+            return;
+          }
+        } catch (e) {
+          log('WebCodecs unavailable, falling back: ' + e.message);
+        }
       }
+
+      // Path B: MediaRecorder fallback. Blobs are container-wrapped Opus
+      // or AAC — opaque to us. Runtime still validates envelope.
+      const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : (MediaRecorder.isTypeSupported('audio/mp4;codecs=mp4a.40.2')
+            ? 'audio/mp4;codecs=mp4a.40.2' : '');
+      const opts = mime ? { mimeType: mime } : {};
+      mediaRec = new MediaRecorder(stream, opts);
+      mediaRec.ondataavailable = async (ev) => {
+        if (!ev.data || ev.data.size === 0) return;
+        if (!ws || ws.readyState !== 1) return;
+        const ab = await ev.data.arrayBuffer();
+        let bytes = new Uint8Array(ab);
+        if (bytes.length < OPUS_MIN_LEN) return;
+        if (bytes.length > OPUS_MAX_LEN) bytes = bytes.slice(0, OPUS_MAX_LEN);
+        const frame = buildAudioFrame(audioSession, audioSeq & 0xFFFF, bytes);
+        ws.send(JSON.stringify({ type: 'audio', payload: bytesToB64(frame) }));
+        audioSeq = (audioSeq + 1) & 0xFFFF;
+      };
+      mediaRec.start(100);
+      log('audio: capture started (MediaRecorder ' + (mime || 'default') + ' — fallback)');
     }
 
     function stopAudioCapture() {
-      if (!mediaRec) return;
-      try { mediaRec.stop(); } catch (_) {}
-      try { mediaRec.stream.getTracks().forEach(t => t.stop()); } catch (_) {}
-      mediaRec = null;
+      if (webcodecsEncoder) {
+        try { webcodecsEncoder.close(); } catch (_) {}
+        webcodecsEncoder = null;
+      }
+      if (webcodecsWorkletNode) {
+        try { webcodecsWorkletNode.disconnect(); } catch (_) {}
+        webcodecsWorkletNode = null;
+      }
+      if (webcodecsSource) {
+        try { webcodecsSource.mediaStream.getTracks().forEach(t => t.stop()); } catch (_) {}
+        webcodecsSource = null;
+      }
+      if (webcodecsCtx) {
+        try { webcodecsCtx.close(); } catch (_) {}
+        webcodecsCtx = null;
+      }
+      if (mediaRec) {
+        try { mediaRec.stop(); } catch (_) {}
+        try { mediaRec.stream.getTracks().forEach(t => t.stop()); } catch (_) {}
+        mediaRec = null;
+      }
       log('audio: capture stopped');
     }
 
