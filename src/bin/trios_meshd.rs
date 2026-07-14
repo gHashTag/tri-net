@@ -329,6 +329,36 @@ fn main() {
                 })
                 .collect();
             println!("[meshd] node {me} neighbors {{ {} }}", s.join(", "));
+
+            // E1.2 IPC — write live neighbor snapshot for admin_httpd to read.
+            // Atomic via tmp+rename so a reader never sees a torn file. Path:
+            //   $TRINET_STATUS_PATH or /tmp/trinet-<me>-status.json.
+            // Schema is inline JSON (no serde dep needed here): keeps the
+            // meshd hot-path independent of admin surface changes.
+            let status_path = std::env::var("TRINET_STATUS_PATH")
+                .unwrap_or_else(|_| format!("/tmp/trinet-{me}-status.json"));
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            let uptime = started.elapsed().as_secs();
+            let mut nb_json = String::from("[");
+            for (i, (id, e)) in rt.neighbors().iter().enumerate() {
+                if i > 0 { nb_json.push(','); }
+                let etx = if e.is_finite() { format!("{e:.4}") } else { "null".into() };
+                let alive = !dset.contains(id);
+                nb_json.push_str(&format!(
+                    "{{\"id\":{id},\"etx\":{etx},\"alive\":{alive}}}"
+                ));
+            }
+            nb_json.push(']');
+            let body = format!(
+                "{{\"node_id\":{me},\"seq\":{seq},\"tick\":{tick},\"uptime_s\":{uptime},\"unix_time\":{now},\"neighbors\":{nb_json}}}"
+            );
+            let tmp = format!("{status_path}.tmp");
+            if std::fs::write(&tmp, body.as_bytes()).is_ok() {
+                let _ = std::fs::rename(&tmp, &status_path);
+            }
         }
     }
 }

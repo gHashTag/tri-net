@@ -15,6 +15,10 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 // Bring the generated primitives into scope. These modules contain ONLY
 // what came out of `t27c gen-rust`; every function in them mirrors an
 // assertion-covered spec function.
+#[path = "../../gen/rust/ptt_audio.rs"]
+#[allow(dead_code, non_snake_case, clippy::needless_return, unused_parens, non_upper_case_globals)]
+mod ptt_audio_gen;
+
 #[path = "../../gen/rust/ptt_frame.rs"]
 #[allow(dead_code, unused_parens, clippy::all)]
 mod ptt_frame_gen;
@@ -224,6 +228,148 @@ fn path_is_safe(path: &str) -> bool {
     true
 }
 
+// ─── base64 decode (mirror of b64_encode above) ────────────────────────────────
+// Standard Base64 alphabet (RFC 4648 §4). Rejects any non-alphabet input.
+fn b64_val(c: u8) -> Option<u8> {
+    match c {
+        b'A'..=b'Z' => Some(c - b'A'),
+        b'a'..=b'z' => Some(c - b'a' + 26),
+        b'0'..=b'9' => Some(c - b'0' + 52),
+        b'+' => Some(62),
+        b'/' => Some(63),
+        _ => None,
+    }
+}
+
+fn b64_decode(s: &str) -> Option<Vec<u8>> {
+    let b = s.as_bytes();
+    if b.len() % 4 != 0 { return None; }
+    let mut out = Vec::with_capacity(b.len() / 4 * 3);
+    for chunk in b.chunks(4) {
+        let mut vals = [0u8; 4];
+        let mut pad = 0usize;
+        for (i, &c) in chunk.iter().enumerate() {
+            if c == b'=' {
+                pad += 1;
+                vals[i] = 0;
+            } else {
+                vals[i] = b64_val(c)?;
+            }
+        }
+        let triplet = ((vals[0] as u32) << 18)
+            | ((vals[1] as u32) << 12)
+            | ((vals[2] as u32) << 6)
+            | (vals[3] as u32);
+        out.push(((triplet >> 16) & 0xFF) as u8);
+        if pad < 2 { out.push(((triplet >> 8) & 0xFF) as u8); }
+        if pad < 1 { out.push((triplet & 0xFF) as u8); }
+    }
+    Some(out)
+}
+
+// ─── tiny JSON string-field extractor (no serde in this bin) ────────────────
+fn extract_json_string_field(json: &str, field: &str) -> Option<String> {
+    // Accept both `"field":` and `"field" :` shapes.
+    let key = format!("\"{field}\"");
+    let idx = json.find(&key)?;
+    let tail = &json[idx + key.len()..];
+    let tail = tail.trim_start();
+    let tail = tail.strip_prefix(':')?;
+    let tail = tail.trim_start();
+    let tail = tail.strip_prefix('"')?;
+    let end = tail.find('"')?;
+    Some(tail[..end].to_string())
+}
+
+// ─── E3.1 audio-frame verdict ──────────────────────────────────────────
+// Validate a raw audio frame against the spec predicates and return a JSON
+// ack. Runtime does NOT decode Opus and does NOT forward to mesh yet.
+fn audio_frame_verdict(raw: &[u8]) -> String {
+    if raw.len() < ptt_audio_gen::HEADER_LEN as usize {
+        return r#"{"type":"audio-ack","accepted":false,"reason":"short header"}"#.into();
+    }
+    let version = raw[0];
+    if !ptt_audio_gen::version_valid(version) {
+        return r#"{"type":"audio-ack","accepted":false,"reason":"bad version"}"#.into();
+    }
+    let session_id = u32::from_be_bytes(raw[1..5].try_into().unwrap());
+    let seq = u16::from_be_bytes(raw[5..7].try_into().unwrap());
+    let opus_len = u16::from_be_bytes(raw[7..9].try_into().unwrap());
+    if !ptt_audio_gen::opus_len_valid(opus_len) {
+        return format!(
+            r#"{{"type":"audio-ack","accepted":false,"reason":"opus_len out of bounds","opus_len":{opus_len}}}"#
+        );
+    }
+    if !ptt_audio_gen::mesh_forward_safe(version, opus_len, raw.len()) {
+        return format!(
+            r#"{{"type":"audio-ack","accepted":false,"reason":"size mismatch","declared_opus_len":{opus_len},"actual_total_len":{}}}"#,
+            raw.len()
+        );
+    }
+    format!(
+        r#"{{"type":"audio-ack","accepted":true,"session_id":{session_id},"seq":{seq},"opus_len":{opus_len}}}"#
+    )
+}
+
+// ─── E1.2 IPC — read live neighbor snapshot from meshd ─────────────────────
+//
+// trios_meshd writes /tmp/trinet-<node>-status.json every 3 ticks. We read
+// it on each /api/status request. If the file is missing or torn, we degrade
+// gracefully to an empty neighbor list — admin_httpd never crashes on IPC.
+//
+// Ownership: we do NOT parse this as trusted structured data. Only two fields
+// are extracted with byte-level regex-free scanning: the `neighbors` array
+// (echoed as-is if it looks well-formed) and the `unix_time` freshness stamp.
+
+fn read_meshd_status(node_id: u16) -> (String, Option<u64>) {
+    let path = std::env::var("TRINET_STATUS_PATH")
+        .unwrap_or_else(|_| format!("/tmp/trinet-{node_id}-status.json"));
+    let body = match std::fs::read_to_string(&path) {
+        Ok(s) => s,
+        Err(_) => return ("[]".to_string(), None),
+    };
+    // Extract `"neighbors":[...]` payload with balanced bracket scan.
+    let neighbors = if let Some(start) = body.find("\"neighbors\":") {
+        let rest = &body[start + "\"neighbors\":".len()..];
+        if rest.starts_with('[') {
+            let mut depth = 0i32;
+            let mut end = 0usize;
+            for (i, c) in rest.char_indices() {
+                match c {
+                    '[' => depth += 1,
+                    ']' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            end = i + 1;
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            if end > 0 { rest[..end].to_string() } else { "[]".to_string() }
+        } else { "[]".to_string() }
+    } else { "[]".to_string() };
+    // Extract `"unix_time":N` for freshness comparison (drop if > 30s old).
+    let unix_time = body.find("\"unix_time\":").and_then(|i| {
+        let tail = &body[i + "\"unix_time\":".len()..];
+        let end = tail.find(|c: char| !c.is_ascii_digit()).unwrap_or(tail.len());
+        tail[..end].parse::<u64>().ok()
+    });
+    (neighbors, unix_time)
+}
+
+fn neighbors_fresh(unix_time: Option<u64>) -> bool {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    match unix_time {
+        Some(t) => now.saturating_sub(t) <= 30,
+        None => false,
+    }
+}
+
 fn build_status_json(node_id: u16, started: Instant, attest: u8) -> String {
     let secs_full = started.elapsed().as_secs();
     let uptime = admin_status_gen::uptime_clamp_u32(
@@ -339,6 +485,15 @@ fn handle_conn(
         let body = build_status_json(node_id, started, admin_status_gen::ATTEST_ED25519_SIM);
         return write_response(&mut stream, 200, "application/json", body.as_bytes());
     }
+    if req.path == "/api/neighbors" {
+        let (nb, ts) = read_meshd_status(node_id);
+        let fresh = neighbors_fresh(ts);
+        let body = format!(
+            r#"{{"list":{nb},"fresh":{fresh},"source_unix_time":{}}}"#,
+            ts.map(|t| t.to_string()).unwrap_or_else(|| "null".into())
+        );
+        return write_response(&mut stream, 200, "application/json", body.as_bytes());
+    }
     let rel = if req.path == "/" { "/index.html" } else { req.path.as_str() };
     if !path_is_safe(rel) {
         return write_response(&mut stream, 403, "text/plain", b"forbidden");
@@ -377,16 +532,25 @@ fn ws_loop(
             if ws_send_text(&mut stream, &s).is_err() {
                 return Ok(());
             }
-            let _ = ws_send_text(&mut stream, r#"{"type":"neighbors","list":[]}"#);
+            let (nb, ts) = read_meshd_status(node_id);
+            let fresh = neighbors_fresh(ts);
+            let msg = format!(
+                r#"{{"type":"neighbors","list":{nb},"fresh":{fresh},"source_unix_time":{}}}"#,
+                ts.map(|t| t.to_string()).unwrap_or_else(|| "null".into())
+            );
+            let _ = ws_send_text(&mut stream, &msg);
             last_push = Instant::now();
         }
         match ws_recv_text(&mut stream) {
             Ok(Some(msg)) => {
                 eprintln!("conn#{cid} ws rx: {}", &msg[..msg.len().min(120)]);
-                if msg.contains("\"type\":\"ptt\"") {
-                    let action = if msg.contains("\"action\":\"start\"") {
+                // Compact form — strip inter-token whitespace so we tolerate
+                // both {"type":"x"} and {"type": "x"} JSON serialisers.
+                let compact: String = msg.chars().filter(|c| !c.is_whitespace()).collect();
+                if compact.contains("\"type\":\"ptt\"") {
+                    let action = if compact.contains("\"action\":\"start\"") {
                         ptt_frame_gen::ACT_START
-                    } else if msg.contains("\"action\":\"stop\"") {
+                    } else if compact.contains("\"action\":\"stop\"") {
                         ptt_frame_gen::ACT_STOP
                     } else {
                         ptt_frame_gen::ACT_HEARTBEAT
@@ -401,6 +565,24 @@ fn ws_loop(
                     } else {
                         let ack = r#"{"type":"ptt-ack","state":"unchanged","accepted":false,"reason":"invalid transition"}"#;
                         let _ = ws_send_text(&mut stream, ack);
+                    }
+                }
+                if compact.contains("\"type\":\"audio\"") {
+                    // Parse E3.1 audio frame envelope. Payload is base64 of
+                    // the 9-byte header + opus bytes. Runtime validates the
+                    // envelope against the spec predicates but does NOT
+                    // decode Opus and does NOT forward to mesh (that's E3.2).
+                    if let Some(payload_b64) = extract_json_string_field(&msg, "payload") {
+                        if let Some(raw) = b64_decode(&payload_b64) {
+                            let audio_ack = audio_frame_verdict(&raw);
+                            let _ = ws_send_text(&mut stream, &audio_ack);
+                        } else {
+                            let _ = ws_send_text(&mut stream,
+                                r#"{"type":"audio-ack","accepted":false,"reason":"bad base64"}"#);
+                        }
+                    } else {
+                        let _ = ws_send_text(&mut stream,
+                            r#"{"type":"audio-ack","accepted":false,"reason":"missing payload"}"#);
                     }
                 }
             }
@@ -497,6 +679,98 @@ mod tests {
     #[test]
     fn ws_accept_rejects_short_key() {
         assert_eq!(ws_accept_key("short"), None);
+    }
+
+    #[test]
+    fn b64_decode_rfc4648_roundtrip() {
+        for &s in &["", "Zg==", "Zm8=", "Zm9v", "Zm9vYg==", "Zm9vYmE=", "Zm9vYmFy"] {
+            let decoded = b64_decode(s).expect("decodes");
+            assert_eq!(b64_encode(&decoded), s, "roundtrip {s}");
+        }
+    }
+
+    #[test]
+    fn b64_decode_rejects_garbage() {
+        assert!(b64_decode("!!!!").is_none(), "symbols rejected");
+        assert!(b64_decode("Zm9").is_none(), "unpadded len%4 != 0 rejected");
+    }
+
+    #[test]
+    fn extract_json_field_basic() {
+        let msg = r#"{"type":"audio","payload":"AQIDBAU=","seq":42}"#;
+        assert_eq!(extract_json_string_field(msg, "payload").as_deref(), Some("AQIDBAU="));
+        assert_eq!(extract_json_string_field(msg, "missing"), None);
+    }
+
+    fn build_audio_frame(seq: u16, opus: &[u8]) -> Vec<u8> {
+        let mut v = Vec::with_capacity(9 + opus.len());
+        v.push(ptt_audio_gen::AUDIO_FRAME_VERSION);
+        v.extend_from_slice(&0xDEADBEEFu32.to_be_bytes());
+        v.extend_from_slice(&seq.to_be_bytes());
+        v.extend_from_slice(&(opus.len() as u16).to_be_bytes());
+        v.extend_from_slice(opus);
+        v
+    }
+
+    #[test]
+    fn audio_verdict_accepts_valid_frame() {
+        let opus = vec![0xF8u8; 80]; // 80B typical
+        let frame = build_audio_frame(1, &opus);
+        let ack = audio_frame_verdict(&frame);
+        assert!(ack.contains("\"accepted\":true"), "got: {ack}");
+        assert!(ack.contains("\"opus_len\":80"));
+    }
+
+    #[test]
+    fn audio_verdict_rejects_bad_version() {
+        let mut frame = build_audio_frame(1, &vec![0u8; 80]);
+        frame[0] = 42;
+        let ack = audio_frame_verdict(&frame);
+        assert!(ack.contains("bad version"), "got: {ack}");
+    }
+
+    #[test]
+    fn audio_verdict_rejects_size_mismatch() {
+        let mut frame = build_audio_frame(1, &vec![0u8; 80]);
+        frame.push(0);
+        let ack = audio_frame_verdict(&frame);
+        assert!(ack.contains("size mismatch"), "got: {ack}");
+    }
+
+    #[test]
+    fn audio_verdict_rejects_under_min_opus_len() {
+        // opus_len = 2 (below OPUS_MIN_LEN = 3)
+        let mut hdr = Vec::new();
+        hdr.push(1u8);
+        hdr.extend_from_slice(&0u32.to_be_bytes());
+        hdr.extend_from_slice(&1u16.to_be_bytes());
+        hdr.extend_from_slice(&2u16.to_be_bytes());
+        hdr.extend_from_slice(&[0u8; 2]);
+        let ack = audio_frame_verdict(&hdr);
+        assert!(ack.contains("opus_len out of bounds"), "got: {ack}");
+    }
+
+    #[test]
+    fn ipc_neighbors_parser_extracts_array() {
+        let sample = r#"{"node_id":11,"seq":42,"tick":9,"uptime_s":30,"unix_time":1784003000,"neighbors":[{"id":12,"etx":1.0400,"alive":true},{"id":13,"etx":2.0100,"alive":true}]}"#;
+        let tmp = std::env::temp_dir().join("trinet-99-status.json");
+        std::fs::write(&tmp, sample).unwrap();
+        std::env::set_var("TRINET_STATUS_PATH", &tmp);
+        let (nb, ts) = read_meshd_status(99);
+        assert!(nb.contains("\"id\":12"));
+        assert!(nb.contains("\"id\":13"));
+        assert_eq!(ts, Some(1784003000));
+        std::env::remove_var("TRINET_STATUS_PATH");
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn ipc_missing_file_yields_empty_array() {
+        std::env::set_var("TRINET_STATUS_PATH", "/nonexistent/trinet-status.json");
+        let (nb, ts) = read_meshd_status(0);
+        assert_eq!(nb, "[]");
+        assert_eq!(ts, None);
+        std::env::remove_var("TRINET_STATUS_PATH");
     }
 
     #[test]

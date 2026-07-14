@@ -1,0 +1,227 @@
+// mdns_wire — byte-level wire format for mDNS advertisement of the
+// Tri-Net admin surface. Covers the spec-verifiable primitives:
+//   - QNAME label encoding (RFC 1035 §3.1)
+//   - Record types & classes (RFC 1035 §3.2)
+//   - mDNS unicast-response bit + cache-flush bit (RFC 6762 §18.10-11)
+//   - PTR / SRV / TXT record layout for DNS-SD service (RFC 6763 §4-6)
+//
+// What lives in runtime (NOT here):
+//   - UDP multicast socket bind on 224.0.0.251:5353
+//   - IP_MULTICAST_TTL=255 and interface selection
+//   - Response scheduling (probe/announce/goodbye timing)
+//   - String → label list splitting (needs heap; runtime does it)
+//
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module MdnsWire {
+    use base::types;
+
+    // RFC 1035 §3.2.2 — record TYPE values we emit / accept.
+    const TYPE_A     : u16 = 1;
+    const TYPE_PTR   : u16 = 12;
+    const TYPE_TXT   : u16 = 16;
+    const TYPE_AAAA  : u16 = 28;
+    const TYPE_SRV   : u16 = 33;
+
+    // RFC 1035 §3.2.4 — record CLASS values.
+    const CLASS_IN         : u16 = 1;
+    // RFC 6762 §10.2 — cache-flush bit ORed into CLASS on unique records.
+    const CACHE_FLUSH_BIT  : u16 = 0x8000;
+
+    // RFC 6762 §18.10 — Q(uery)U(nicast-response) bit in the query CLASS field.
+    // Not used when we're the responder, but the constant is here for the
+    // future query-side path.
+    const QU_BIT           : u16 = 0x8000;
+
+    // Header flag fields (RFC 1035 §4.1.1). For unsolicited announcements
+    // per RFC 6762 §8.3, QR=1 (response), OPCODE=0, AA=1, RD=0, RA=0, RCODE=0.
+    // Encoded: |QR|OPCODE|AA|TC|RD|RA|Z|RCODE|.
+    const FLAGS_ANNOUNCE   : u16 = 0x8400;
+
+    // RFC 6762 §10 — the recommended TTL for the shared PTR records is 4500 s.
+    // For the unique A/SRV/TXT records the recommended TTL is 120 s.
+    const TTL_SHARED_S  : u32 = 4500;
+    const TTL_UNIQUE_S  : u32 = 120;
+
+    // Max label length per RFC 1035 §3.1: 63 octets. Ours must be < 64.
+    const LABEL_MAX_LEN : u8 = 63;
+
+    // Guard: a label length byte must fit in six bits (top two bits are the
+    // pointer / extended-label discriminator per RFC 1035 §4.1.4).
+    fn label_len_valid(len: u8) -> bool {
+        return len <= LABEL_MAX_LEN;
+    }
+
+    // Byte legality inside a label byte-stream — mDNS restricts DNS-SD names
+    // to net-unicode (RFC 6763 §4.1.2). We accept anything except NUL and
+    // the two-byte-length control range.
+    fn label_byte_legal(b: u8) -> bool {
+        return b >= 32;
+    }
+
+    // Big-endian split of a u16 (record type/class, rdata length).
+    fn u16_hi(w: u16) -> u8 {
+        return ((w >> 8) & 255) as u8;
+    }
+    fn u16_lo(w: u16) -> u8 {
+        return (w & 255) as u8;
+    }
+
+    // Big-endian split of a u32 (TTL).
+    fn u32_b0(w: u32) -> u8 { return ((w >> 24) & 255) as u8; }
+    fn u32_b1(w: u32) -> u8 { return ((w >> 16) & 255) as u8; }
+    fn u32_b2(w: u32) -> u8 { return ((w >> 8)  & 255) as u8; }
+    fn u32_b3(w: u32) -> u8 { return (w & 255) as u8; }
+
+    // TXT rdata: DNS-SD requires each key=value pair to be prefixed by its
+    // length byte. This function checks a candidate rdata length: it must
+    // fit into a u16 and be non-zero (RFC 6763 §6.1).
+    fn txt_rdata_length_valid(n: u16) -> bool {
+        if (n == 0) {
+            return false;
+        }
+        return n <= 65535;
+    }
+
+    // SRV rdata is always 6 header bytes (priority + weight + port) plus the
+    // encoded target QNAME. Priority/weight = 0 by convention.
+    const SRV_HEADER_BYTES : u16 = 6;
+
+    // Port number sanity — non-zero, top bit of u16 already caught by type.
+    fn port_valid(p: u16) -> bool {
+        return p > 0;
+    }
+
+    // Compose CLASS field with the cache-flush bit ORed in for unique records.
+    fn class_unique(cls: u16) -> u16 {
+        return cls | CACHE_FLUSH_BIT;
+    }
+
+    // Header assembly: given transaction ID (mDNS uses 0), flags, and record
+    // counts, produce the twelve header bytes in order.
+    fn header_byte(id: u16, flags: u16, qdcount: u16, ancount: u16, nscount: u16, arcount: u16, idx: u8) -> u8 {
+        if (idx == 0)  { return u16_hi(id); }
+        if (idx == 1)  { return u16_lo(id); }
+        if (idx == 2)  { return u16_hi(flags); }
+        if (idx == 3)  { return u16_lo(flags); }
+        if (idx == 4)  { return u16_hi(qdcount); }
+        if (idx == 5)  { return u16_lo(qdcount); }
+        if (idx == 6)  { return u16_hi(ancount); }
+        if (idx == 7)  { return u16_lo(ancount); }
+        if (idx == 8)  { return u16_hi(nscount); }
+        if (idx == 9)  { return u16_lo(nscount); }
+        if (idx == 10) { return u16_hi(arcount); }
+        return u16_lo(arcount);
+    }
+
+    // Fixed-size record fixed-header bytes: TYPE(2) + CLASS(2) + TTL(4) + RDLEN(2).
+    // Ten bytes total. `idx` selects which byte to emit.
+    fn record_header_byte(rtype: u16, rclass: u16, ttl: u32, rdlen: u16, idx: u8) -> u8 {
+        if (idx == 0) { return u16_hi(rtype); }
+        if (idx == 1) { return u16_lo(rtype); }
+        if (idx == 2) { return u16_hi(rclass); }
+        if (idx == 3) { return u16_lo(rclass); }
+        if (idx == 4) { return u32_b0(ttl); }
+        if (idx == 5) { return u32_b1(ttl); }
+        if (idx == 6) { return u32_b2(ttl); }
+        if (idx == 7) { return u32_b3(ttl); }
+        if (idx == 8) { return u16_hi(rdlen); }
+        return u16_lo(rdlen);
+    }
+
+    test type_constants_match_iana {
+        assert(TYPE_A == 1, "A record type");
+        assert(TYPE_PTR == 12, "PTR record type");
+        assert(TYPE_TXT == 16, "TXT record type");
+        assert(TYPE_AAAA == 28, "AAAA record type");
+        assert(TYPE_SRV == 33, "SRV record type");
+    }
+
+    test class_and_flags {
+        assert(CLASS_IN == 1, "class IN");
+        assert(CACHE_FLUSH_BIT == 0x8000, "cache-flush high bit");
+        assert(QU_BIT == 0x8000, "QU bit high bit");
+        assert(class_unique(CLASS_IN) == 0x8001, "IN|cache-flush");
+        assert(FLAGS_ANNOUNCE == 0x8400, "QR=1 AA=1 announcement flags");
+    }
+
+    test label_length_bounds {
+        assert(label_len_valid(0), "empty allowed (root)");
+        assert(label_len_valid(1), "single byte");
+        assert(label_len_valid(63), "boundary");
+        assert(!label_len_valid(64), "64 rejected");
+        assert(!label_len_valid(255), "top rejected");
+    }
+
+    test label_byte_legality {
+        assert(!label_byte_legal(0), "NUL rejected");
+        assert(!label_byte_legal(31), "control rejected");
+        assert(label_byte_legal(32), "space accepted");
+        assert(label_byte_legal(65), "A accepted");
+        assert(label_byte_legal(255), "high byte accepted (utf-8 continuation)");
+    }
+
+    test u16_split_roundtrip {
+        assert(u16_hi(0x1234) == 0x12, "hi 1234");
+        assert(u16_lo(0x1234) == 0x34, "lo 1234");
+        assert(u16_hi(0) == 0, "hi zero");
+        assert(u16_lo(0) == 0, "lo zero");
+        assert(u16_hi(0xFFFF) == 0xFF, "hi ffff");
+        assert(u16_lo(0xFFFF) == 0xFF, "lo ffff");
+    }
+
+    test u32_split_roundtrip {
+        assert(u32_b0(0x11223344) == 0x11, "b0");
+        assert(u32_b1(0x11223344) == 0x22, "b1");
+        assert(u32_b2(0x11223344) == 0x33, "b2");
+        assert(u32_b3(0x11223344) == 0x44, "b3");
+    }
+
+    test txt_rdata_bounds {
+        assert(!txt_rdata_length_valid(0), "empty TXT rejected");
+        assert(txt_rdata_length_valid(1), "single byte ok");
+        assert(txt_rdata_length_valid(65535), "max ok");
+    }
+
+    test port_bounds {
+        assert(!port_valid(0), "port 0 rejected");
+        assert(port_valid(80), "80 ok");
+        assert(port_valid(8080), "8080 ok");
+        assert(port_valid(65535), "top ok");
+    }
+
+    test ttl_constants {
+        assert(TTL_SHARED_S == 4500, "shared TTL matches RFC 6762 §10");
+        assert(TTL_UNIQUE_S == 120, "unique TTL matches RFC 6762 §10");
+    }
+
+    test srv_header_size {
+        assert(SRV_HEADER_BYTES == 6, "SRV pri+weight+port = 6 bytes");
+    }
+
+    // Sanity: header layout — pull individual bytes for a known input and
+    // check they match the expected big-endian sequence.
+    test header_layout_known_announce {
+        assert(header_byte(0, FLAGS_ANNOUNCE, 0, 4, 0, 0, 0) == 0, "id hi");
+        assert(header_byte(0, FLAGS_ANNOUNCE, 0, 4, 0, 0, 1) == 0, "id lo");
+        assert(header_byte(0, FLAGS_ANNOUNCE, 0, 4, 0, 0, 2) == 0x84, "flags hi");
+        assert(header_byte(0, FLAGS_ANNOUNCE, 0, 4, 0, 0, 3) == 0x00, "flags lo");
+        assert(header_byte(0, FLAGS_ANNOUNCE, 0, 4, 0, 0, 6) == 0, "ancount hi");
+        assert(header_byte(0, FLAGS_ANNOUNCE, 0, 4, 0, 0, 7) == 4, "ancount lo");
+    }
+
+    test record_header_layout {
+        assert(record_header_byte(TYPE_PTR, CLASS_IN, TTL_SHARED_S, 8, 0) == 0, "type hi");
+        assert(record_header_byte(TYPE_PTR, CLASS_IN, TTL_SHARED_S, 8, 1) == 12, "type lo (PTR)");
+        assert(record_header_byte(TYPE_PTR, CLASS_IN, TTL_SHARED_S, 8, 2) == 0, "class hi");
+        assert(record_header_byte(TYPE_PTR, CLASS_IN, TTL_SHARED_S, 8, 3) == 1, "class lo (IN)");
+        // TTL 4500 = 0x00001194 -> 00 00 11 94
+        assert(record_header_byte(TYPE_PTR, CLASS_IN, TTL_SHARED_S, 8, 4) == 0x00, "ttl b0");
+        assert(record_header_byte(TYPE_PTR, CLASS_IN, TTL_SHARED_S, 8, 5) == 0x00, "ttl b1");
+        assert(record_header_byte(TYPE_PTR, CLASS_IN, TTL_SHARED_S, 8, 6) == 0x11, "ttl b2");
+        assert(record_header_byte(TYPE_PTR, CLASS_IN, TTL_SHARED_S, 8, 7) == 0x94, "ttl b3");
+        assert(record_header_byte(TYPE_PTR, CLASS_IN, TTL_SHARED_S, 8, 8) == 0, "rdlen hi");
+        assert(record_header_byte(TYPE_PTR, CLASS_IN, TTL_SHARED_S, 8, 9) == 8, "rdlen lo");
+    }
+}
+// phi^2 + 1/phi^2 = 3 | TRINITY

@@ -333,7 +333,7 @@
           $('d-etxwin').textContent = m.etx_window ?? '–';
           break;
         case 'neighbors':
-          renderNeighbors(m.list || []);
+          renderNeighbors(m.list || [], m.fresh, m.source_unix_time);
           break;
         case 'ptt-ack':
           $('d-ptt-session').textContent = m.state || 'idle';
@@ -342,29 +342,126 @@
       }
     }
 
-    function renderNeighbors(list) {
+    function renderNeighbors(list, fresh, sourceUnixTime) {
       const el = $('neighbors');
-      if (!list.length) { el.innerHTML = '<div class="empty">no neighbors visible</div>'; return; }
-      el.innerHTML = list.map(n => `
-        <div class="neighbor">
-          <div class="id">#${n.id}</div>
-          <div class="etx">ETX <span class="val">${n.etx?.toFixed?.(2) ?? '∞'}</span></div>
-          <div class="etx">${n.last_seen_ms ?? '–'} ms ago</div>
-        </div>
-      `).join('');
+      const staleTag = (fresh === false)
+        ? '<div class="empty">meshd status file stale or missing — waiting for trios_meshd</div>' : '';
+      if (!list.length) {
+        el.innerHTML = staleTag || '<div class="empty">no neighbors visible</div>';
+        return;
+      }
+      const rows = list.map(n => {
+        const etx = (n.etx == null) ? '∞' : Number(n.etx).toFixed(2);
+        const alive = n.alive ? '' : ' <span style="color:var(--warn)">dropped</span>';
+        return `
+          <div class="neighbor">
+            <div class="id">#${n.id}${alive}</div>
+            <div class="etx">ETX <span class="val">${etx}</span></div>
+          </div>`;
+      }).join('');
+      const age = sourceUnixTime
+        ? Math.max(0, Math.floor(Date.now()/1000) - sourceUnixTime)
+        : null;
+      const footer = (age != null)
+        ? `<div class="empty" style="opacity:.6;padding:4px 0 0">source ${age}s ago</div>` : '';
+      el.innerHTML = staleTag + rows + footer;
     }
 
-    // PTT control (transport-only, no audio yet)
+    // ─── PTT control + E3.1 audio capture ────────────────────────────
+    // Envelope layout (spec: specs/ptt_audio.t27):
+    //   version(1) | session_id(4 BE) | seq(2 BE) | opus_len(2 BE) | opus[opus_len]
+    // We treat MediaRecorder chunks as opaque "opus" payload for now.
+    // Real Opus encoding (via libopus WASM) is E3.2 territory. Server
+    // validates the envelope and refuses malformed frames.
+
     const pttBtn = $('pttBtn');
+    const AUDIO_FRAME_VERSION = 1;
+    const OPUS_MIN_LEN = 3;
+    const OPUS_MAX_LEN = 512;
+
+    let mediaRec = null;
+    let audioSeq = 0;
+    let audioSession = 0;
+
+    function newSessionId() {
+      const arr = new Uint32Array(1);
+      crypto.getRandomValues(arr);
+      return arr[0] >>> 0;
+    }
+
+    function bytesToB64(bytes) {
+      let s = '';
+      for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+      return btoa(s);
+    }
+
+    function buildAudioFrame(sessionId, seq, opusBytes) {
+      const total = 9 + opusBytes.length;
+      const buf = new Uint8Array(total);
+      const dv = new DataView(buf.buffer);
+      buf[0] = AUDIO_FRAME_VERSION;
+      dv.setUint32(1, sessionId, false);
+      dv.setUint16(5, seq, false);
+      dv.setUint16(7, opusBytes.length, false);
+      buf.set(opusBytes, 9);
+      return buf;
+    }
+
+    async function startAudioCapture() {
+      if (mediaRec) return;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Prefer opus. Safari may return audio/mp4 — still opaque to us.
+        const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : (MediaRecorder.isTypeSupported('audio/mp4;codecs=mp4a.40.2')
+              ? 'audio/mp4;codecs=mp4a.40.2' : '');
+        const opts = mime ? { mimeType: mime } : {};
+        mediaRec = new MediaRecorder(stream, opts);
+        audioSession = newSessionId();
+        audioSeq = 0;
+        mediaRec.ondataavailable = async (ev) => {
+          if (!ev.data || ev.data.size === 0) return;
+          if (!ws || ws.readyState !== 1) return;
+          const ab = await ev.data.arrayBuffer();
+          let bytes = new Uint8Array(ab);
+          // Clamp into E3.1 envelope bounds. This is a placeholder pipe —
+          // real Opus will be delivered by an AudioWorklet + libopus WASM
+          // encoder in E3.2 producing exact 20ms Opus frames.
+          if (bytes.length < OPUS_MIN_LEN) return;
+          if (bytes.length > OPUS_MAX_LEN) bytes = bytes.slice(0, OPUS_MAX_LEN);
+          const frame = buildAudioFrame(audioSession, audioSeq & 0xFFFF, bytes);
+          const payload = bytesToB64(frame);
+          ws.send(JSON.stringify({ type: 'audio', payload }));
+          audioSeq = (audioSeq + 1) & 0xFFFF;
+        };
+        // 100ms slices — MediaRecorder minimum. E3.2 tightens to 20ms.
+        mediaRec.start(100);
+        log('audio: capture started (' + (mime || 'default') + ')');
+      } catch (e) {
+        log('audio err: ' + e);
+      }
+    }
+
+    function stopAudioCapture() {
+      if (!mediaRec) return;
+      try { mediaRec.stop(); } catch (_) {}
+      try { mediaRec.stream.getTracks().forEach(t => t.stop()); } catch (_) {}
+      mediaRec = null;
+      log('audio: capture stopped');
+    }
+
     const pressStart = () => {
       if (!ws || ws.readyState !== 1) return;
       pttBtn.classList.add('talking');
       ws.send(JSON.stringify({ type: 'ptt', action: 'start', tg: 'default' }));
       log('tx: ptt/start');
+      startAudioCapture();
     };
     const pressEnd = () => {
       if (!ws || ws.readyState !== 1) return;
       pttBtn.classList.remove('talking');
+      stopAudioCapture();
       ws.send(JSON.stringify({ type: 'ptt', action: 'stop' }));
       log('tx: ptt/stop');
     };
