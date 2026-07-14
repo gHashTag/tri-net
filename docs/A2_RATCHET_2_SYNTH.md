@@ -58,7 +58,7 @@ The synth is called PASS when all of the following hold:
 - The `DNA_PORT` primitive appears in the post-synth utilisation report as an instantiated cell (not silently dropped, not replaced with a shift register).
 - `place_design` and `route_design` (Vivado) or `nextpnr-xilinx` complete.
 - `report_timing_summary` shows `WNS >= -0.5 ns` at 100 MHz.
-- Utilisation stays under 50 LUTs and 100 FFs for the reader block (leaves 99 %+ of the fabric free for the rest of the design).
+- Utilisation for the reader block: **measured on host TBD** (weak-point audit 2026-07-14: previous claim of "< 50 LUTs and 100 FFs" was an unmeasured guess and violated `numbers-without-realm-check`; it has been retracted). The block is expected to fit in a small fraction of the fabric because it is a shift-register plus a DNA_PORT primitive, but no synthesis run has ever produced the actual number. On acceptance of ratchet 2/4 the exact resource count from `synth_yosys.sh` on ssdm4 (or Vivado on any host) MUST replace this line, with the SHA and command that produced it cited inline.
 
 If DNA_PORT is silently dropped by the tool (a known Yosys risk before `synth_xilinx -family xc7` learned about it), report as **Ratchet-2 FAIL** and file the toolchain limitation as a repo issue with the exact Yosys/nextpnr commit hashes tried.
 

@@ -7,3 +7,4 @@ tests/fuzz/grammar_v2/target/
 tests/fuzz/grammar_v2/Cargo.lock
 tests/fuzz/grammar_v2/out/
 
+sim/build/

@@ -16,10 +16,48 @@
 //
 // Spec: specs/device_dna.t27 (dna_bits_7series = 57).
 //
+// Toolchain paths (W4, 2026-07-14):
+//   * Simulation (iverilog): the testbench compiles this file together
+//     with sim/dna_port_model.v, which defines a behavioural `DNA_PORT`
+//     module. Nothing extra required.
+//   * Yosys openXC7 synthesis: yosys needs DNA_PORT to be declared as a
+//     black box or read from a Xilinx UNISIM stub. The `(* blackbox *)`
+//     attribute below (guarded by `SYNTHESIS`) gives yosys the shape of
+//     the primitive without a body, so `synth_xilinx -family xc7` can
+//     recognise it. `scripts/synth_yosys.sh` also passes -defer so late
+//     resolution works if the environment provides its own UNISIM cell.
+//   * Vivado synthesis: Vivado has DNA_PORT in its own UNISIM library;
+//     the blackbox stub must NOT be compiled in that flow.
+//
 // phi^2 + phi^-2 = 3
 
 `timescale 1ns / 1ps
 `default_nettype none
+
+// ─── DNA_PORT resolution ──────────────────────────────────────────
+// When compiling for synthesis via yosys openXC7, `SYNTHESIS` is
+// defined by `scripts/synth_yosys.sh` (see -DSYNTHESIS). In that path
+// this stub gives yosys a black-box declaration of DNA_PORT so it can
+// preserve the primitive through synth_xilinx.
+//
+// For iverilog simulation, `SYNTHESIS` is NOT defined, and
+// `sim/dna_port_model.v` supplies the behavioural implementation. If
+// both files are compiled together in a synth flow that also defines
+// SYNTHESIS, we would end up with duplicate module definitions — so
+// the synth script is careful to include ONLY dna_reader.v.
+`ifdef SYNTHESIS
+(* blackbox *)
+module DNA_PORT #(
+    parameter [56:0] SIM_DNA_VALUE = 57'h0
+) (
+    output wire DOUT,
+    input  wire CLK,
+    input  wire DIN,
+    input  wire READ,
+    input  wire SHIFT
+);
+endmodule
+`endif
 
 module dna_reader #(
     // Bits to shift out of DNA_PORT. 7-series = 57. UltraScale = 96 (needs

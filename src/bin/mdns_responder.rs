@@ -100,6 +100,22 @@ fn main() -> std::io::Result<()> {
 /// returned None on any 0xC0 byte, so iPhone Bonjour queries were dropped
 /// and the phone never discovered `_tri-admin._tcp.local`.
 pub fn parse_first_question(pkt: &[u8]) -> Option<(u16, String, u16)> {
+    let (txid, questions) = parse_all_questions(pkt)?;
+    let (name, qtype) = questions.into_iter().next()?;
+    Some((txid, name, qtype))
+}
+
+/// Parse every question in an mDNS query packet. RFC 6762 permits
+/// qdcount > 1 ("Multiple Questions" §5), and Apple resolvers routinely
+/// batch A + AAAA + PTR into a single packet. Returns the txid and a
+/// vector of `(name, qtype)` pairs. Malformed / truncated packets return
+/// `None`. Bounded at 64 questions per packet as a DoS guard — no
+/// legitimate mDNS resolver batches more than a handful.
+///
+/// Weak-point #4 fix (W7 part-2) taught the parser to decode compressed
+/// names. Weak-point #6 fix (W7 part-3, W6 workstream) teaches it to
+/// iterate over qdcount > 1 so batched queries are actually seen.
+pub fn parse_all_questions(pkt: &[u8]) -> Option<(u16, Vec<(String, u16)>)> {
     if pkt.len() < 12 {
         return None;
     }
@@ -113,13 +129,26 @@ pub fn parse_first_question(pkt: &[u8]) -> Option<(u16, String, u16)> {
     if qdcount == 0 {
         return None;
     }
-
-    let (name, after) = read_name(pkt, 12)?;
-    if after + 4 > pkt.len() {
+    if qdcount > 64 {
         return None;
     }
-    let qtype = u16::from_be_bytes([pkt[after], pkt[after + 1]]);
-    Some((txid, name, qtype))
+
+    let mut out = Vec::with_capacity(qdcount as usize);
+    let mut cursor = 12usize;
+    for _ in 0..qdcount {
+        let (name, after) = read_name(pkt, cursor)?;
+        // Each question fixed tail = 2 bytes qtype + 2 bytes qclass.
+        if after + 4 > pkt.len() {
+            return None;
+        }
+        let qtype = u16::from_be_bytes([pkt[after], pkt[after + 1]]);
+        // qclass at [after+2 .. after+4] is intentionally ignored:
+        // mDNS uses the top bit as "unicast-response" flag and low bits
+        // for IN=1. Our responder does not distinguish.
+        cursor = after + 4;
+        out.push((name, qtype));
+    }
+    Some((txid, out))
 }
 
 /// Read a possibly-compressed DNS name starting at `start`. Returns the
@@ -298,16 +327,34 @@ fn handle_query(
     admin_ip: Ipv4Addr,
     node_id: u16,
 ) -> Option<Vec<u8>> {
-    let (txid, name, qtype) = parse_first_question(pkt)?;
-    // Match against SERVICE (PTR discovery) or the instance name (SRV/TXT probe).
-    let want_ptr = name.eq_ignore_ascii_case(SERVICE)
-        && (qtype == mdns_wire::TYPE_PTR || qtype == 0xFF /* ANY */);
-    let want_srv = name.eq_ignore_ascii_case(instance)
-        && (qtype == mdns_wire::TYPE_SRV
-            || qtype == mdns_wire::TYPE_TXT
-            || qtype == 0xFF);
-    let want_a =
-        name.eq_ignore_ascii_case(hostname) && (qtype == mdns_wire::TYPE_A || qtype == 0xFF);
+    // W6 (2026-07-14): iterate over every question, not just the first.
+    // Apple resolvers batch A + AAAA + PTR in one packet; the previous
+    // implementation would drop the packet the moment the first question
+    // was for a name we don't own, even if a later question in the same
+    // packet asked for our service.
+    let (txid, questions) = parse_all_questions(pkt)?;
+    let mut want_ptr = false;
+    let mut want_srv = false;
+    let mut want_a = false;
+    for (name, qtype) in &questions {
+        if name.eq_ignore_ascii_case(SERVICE)
+            && (*qtype == mdns_wire::TYPE_PTR || *qtype == 0xFF)
+        {
+            want_ptr = true;
+        }
+        if name.eq_ignore_ascii_case(instance)
+            && (*qtype == mdns_wire::TYPE_SRV
+                || *qtype == mdns_wire::TYPE_TXT
+                || *qtype == 0xFF)
+        {
+            want_srv = true;
+        }
+        if name.eq_ignore_ascii_case(hostname)
+            && (*qtype == mdns_wire::TYPE_A || *qtype == 0xFF)
+        {
+            want_a = true;
+        }
+    }
     if !(want_ptr || want_srv || want_a) {
         return None;
     }
@@ -568,5 +615,100 @@ mod tests {
         p.extend_from_slice(&mdns_wire::TYPE_PTR.to_be_bytes());
         p.extend_from_slice(&mdns_wire::CLASS_IN.to_be_bytes());
         assert!(parse_first_question(&p).is_none());
+    }
+
+    // ─── W6: multi-question support (qdcount > 1) ─────────────────────
+
+    fn craft_multi_query(names_and_types: &[(&str, u16)]) -> Vec<u8> {
+        let mut pkt = Vec::new();
+        pkt.extend_from_slice(&0xBEEFu16.to_be_bytes());
+        pkt.extend_from_slice(&0u16.to_be_bytes()); // flags
+        pkt.extend_from_slice(&(names_and_types.len() as u16).to_be_bytes()); // qd
+        pkt.extend_from_slice(&0u16.to_be_bytes()); // an
+        pkt.extend_from_slice(&0u16.to_be_bytes()); // ns
+        pkt.extend_from_slice(&0u16.to_be_bytes()); // ar
+        for (name, qtype) in names_and_types {
+            encode_name(name, &mut pkt);
+            pkt.extend_from_slice(&qtype.to_be_bytes());
+            pkt.extend_from_slice(&mdns_wire::CLASS_IN.to_be_bytes());
+        }
+        pkt
+    }
+
+    #[test]
+    fn parse_all_questions_two_of_two() {
+        let pkt = craft_multi_query(&[
+            (SERVICE, mdns_wire::TYPE_PTR),
+            ("trios-node-11._trinet-admin._tcp.local", mdns_wire::TYPE_SRV),
+        ]);
+        let (txid, qs) = parse_all_questions(&pkt).unwrap();
+        assert_eq!(txid, 0xBEEF);
+        assert_eq!(qs.len(), 2);
+        assert_eq!(qs[0].0, SERVICE);
+        assert_eq!(qs[0].1, mdns_wire::TYPE_PTR);
+        assert_eq!(qs[1].0, "trios-node-11._trinet-admin._tcp.local");
+        assert_eq!(qs[1].1, mdns_wire::TYPE_SRV);
+    }
+
+    #[test]
+    fn parse_all_questions_three_apple_style() {
+        // Emulate iPhone Bonjour: batched A + AAAA + PTR.
+        let pkt = craft_multi_query(&[
+            ("trios-node-11.local", mdns_wire::TYPE_A),
+            ("trios-node-11.local", 0x001C /* AAAA */),
+            (SERVICE, mdns_wire::TYPE_PTR),
+        ]);
+        let (_, qs) = parse_all_questions(&pkt).unwrap();
+        assert_eq!(qs.len(), 3);
+        assert_eq!(qs[2].0, SERVICE);
+    }
+
+    #[test]
+    fn parse_all_questions_rejects_truncated_second() {
+        // qd=2 declared, but only one question actually present.
+        let mut pkt = Vec::new();
+        pkt.extend_from_slice(&0xBEEFu16.to_be_bytes());
+        pkt.extend_from_slice(&0u16.to_be_bytes());
+        pkt.extend_from_slice(&2u16.to_be_bytes()); // qd=2 (lie)
+        pkt.extend_from_slice(&0u16.to_be_bytes());
+        pkt.extend_from_slice(&0u16.to_be_bytes());
+        pkt.extend_from_slice(&0u16.to_be_bytes());
+        encode_name(SERVICE, &mut pkt);
+        pkt.extend_from_slice(&mdns_wire::TYPE_PTR.to_be_bytes());
+        pkt.extend_from_slice(&mdns_wire::CLASS_IN.to_be_bytes());
+        // no second question follows
+        assert!(parse_all_questions(&pkt).is_none());
+    }
+
+    #[test]
+    fn parse_all_questions_dos_guard() {
+        // qdcount=65 must be rejected as a DoS guard.
+        let mut pkt = Vec::new();
+        pkt.extend_from_slice(&0xBEEFu16.to_be_bytes());
+        pkt.extend_from_slice(&0u16.to_be_bytes());
+        pkt.extend_from_slice(&65u16.to_be_bytes());
+        pkt.extend_from_slice(&0u16.to_be_bytes());
+        pkt.extend_from_slice(&0u16.to_be_bytes());
+        pkt.extend_from_slice(&0u16.to_be_bytes());
+        assert!(parse_all_questions(&pkt).is_none());
+    }
+
+    #[test]
+    fn handle_query_answers_second_question_of_batch() {
+        // First question is for a foreign name; second question is for
+        // our SERVICE. The pre-W6 handler would have seen only the first
+        // and returned None. Post-W6 it must reply.
+        let pkt = craft_multi_query(&[
+            ("printer._ipp._tcp.local", mdns_wire::TYPE_PTR),
+            (SERVICE, mdns_wire::TYPE_PTR),
+        ]);
+        let reply = handle_query(
+            &pkt,
+            "trios-node-11._trinet-admin._tcp.local",
+            "trios-node-11.local",
+            Ipv4Addr::new(10, 0, 0, 11),
+            11,
+        );
+        assert!(reply.is_some(), "batched query must be answered");
     }
 }

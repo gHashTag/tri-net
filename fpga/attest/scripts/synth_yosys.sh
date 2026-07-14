@@ -40,9 +40,13 @@ if ! command -v yosys >/dev/null 2>&1; then
   exit 3
 fi
 
-# Yosys script. `read_verilog -defer` because DNA_PORT is a vendor black box.
+# Yosys script.
+# -DSYNTHESIS activates the `(* blackbox *)` DNA_PORT stub inside
+# dna_reader.v so yosys learns the primitive's port shape without a body.
+# -defer keeps late-resolution semantics if an external UNISIM library is
+# also injected via the environment.
 cat > "$BUILD/synth.ys" <<EOF
-read_verilog -defer $RTL
+read_verilog -defer -DSYNTHESIS $RTL
 hierarchy -check -top $TOP
 proc; opt; fsm; opt; memory; opt
 # Xilinx 7-series techmap; requires yosys built with Xilinx flow.
