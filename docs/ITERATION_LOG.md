@@ -81,3 +81,20 @@ phi^2 + phi^-2 = 3
 - Anti-anchor: every number above is a sandbox measurement or an explicit blocker with the exact defect isolated; no hardware, no full-RFC, no fabricated metrics.
 
 phi^2 + phi^-2 = 3
+
+## 2026-07-14 - W7 wave (part 6): E1.1 iPhone topology decision record closed (honesty pass)
+- PR: [#81](https://github.com/gHashTag/tri-net/pull/81) DRAFT (unchanged draft status; not merged, not force-pushed). Independent of the t27 compiler work.
+- Milestone: E1.1 (iPhone <-> P201 Mini topology). Converted `docs/E1_1_IPHONE_TOPOLOGY.md` from a Russian DRAFT into a production-honest, English decision record.
+- Status change: DRAFT -> **DECISION COMPLETE - HARDWARE UNVERIFIED** (architecture closed; real-device validation is a separate gate, not a reason to stay draft).
+- Corrections applied (authoritative-source checked):
+  - Board naming normalized: P203 is a deprecated alias; document uses **P201 Mini** (matches CLAUDE.md hardware target).
+  - Variant A (USB Personal Hotspot via ipheth) kept as **PROVISIONAL PRIMARY**, gated on a real-device acceptance gate (section 7). Cites Apple 111785 + ArchWiki iPhone tethering.
+  - Removed the false "Airplane Mode + Wi-Fi off => hotspot without SIM/cellular" claim; Personal Hotspot shares the cellular connection (Apple iph45447ca6). Enterprise/MDM/MVNO restriction elevated to a PRIMARY risk.
+  - Removed the false "NSLocalNetworkUsageDescription gives Safari PWA an mDNS-browse prompt" claim; that key is native-app Info.plist and iOS Safari has no public DNS-SD browse API (Apple NetServices FAQ + DTS forum 704037). Lane A now uses a deterministic entry path (QR / printed URL / stable trinet-admin.local after real resolution). Avahi advertisement preserved for native tooling only.
+  - Removed uncited goodput numbers ("50-100 Mbps") and "all iPhones" universals; acceptance is measured throughput/latency on the real iPhone+cable+P201 image.
+  - Self-signed https://<ip> does NOT satisfy Safari trust; `curl -k` is not browser evidence; certificate/pairing/bootstrap deferred to E2.2 (section 8).
+- Smoke: two levels. Level 1 (sandbox IP/API sim, `smoke/e1_1_admin_httpd_smoke.sh`) MEASURED PASS this session (build ok; /api/status node_id=11; index.html served; /ws 101 + correct Sec-WebSocket-Accept). Level 2 (real-device gate, section 7) is the blocking hardware gate: carrier/hotspot availability, Trust prompt, ipheth iface, DHCP lease, Safari-by-IP, stable hostname/QR, aggregate PTT+admin traffic measurement, 5 cable reconnect cycles. mDNS browse is optional native-tool evidence, not a PWA criterion.
+- Hardware: NONE (sandbox only). No hotspot/tether/Safari-trust claim is made as validated.
+- Anti-anchor: every external behavior claim is cited; every performance number is deferred to the real-device gate; no fabricated metrics.
+
+phi^2 + phi^-2 = 3

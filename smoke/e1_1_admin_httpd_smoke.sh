@@ -1,5 +1,13 @@
 #!/usr/bin/env bash
-# Smoke test for admin_httpd (E1.1). Sandbox-only (-sim).
+# Smoke test for admin_httpd (E1.1) - LEVEL 1 (sandbox IP/API simulation).
+#
+# E1.1 has two smoke levels (see docs/E1_1_IPHONE_TOPOLOGY.md):
+#   * Level 1 (this script): sandbox IP/API simulation on 127.0.0.1. Proves the
+#     endpoints answer; does NOT prove Safari trust (uses no real cert) and does
+#     NOT exercise iPhone tethering.
+#   * Level 2 (real-device gate, docs/E1_1_IPHONE_TOPOLOGY.md section 7): the
+#     BLOCKING gate on a real iPhone + cable + P201 Mini image. Not runnable in
+#     sandbox (requires hardware).
 #
 # What this actually verifies:
 #   * The binary builds against the crate.
