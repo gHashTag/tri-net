@@ -119,7 +119,7 @@ pub fn calculate_path_diversity(path_array: u64) -> u32 {
     if (get_path_valid(get_multipath(path_array, 2)) == PATH_VALID) {
         hop1_set = (hop1_set | (1 << get_multipath_hop1(get_multipath(path_array, 2))));
     }
-    if ((get_path_valid(get_multipath(path_array, 3)) == path_valid) == PATH_VALID) {
+    if (get_path_valid(get_multipath(path_array, 3)) == PATH_VALID) {
         hop1_set = (hop1_set | (1 << get_multipath_hop1(get_multipath(path_array, 3))));
     }
     let mut count = 0;

@@ -90,12 +90,9 @@ pub const ASSERT_RANGE: u32 = 4;
 pub const ASSERT_BITMASK: u32 = 5;
 
 pub fn check_assertion(assertion: u32) -> u32 {
-    let;
-    assert_type;
-    let;
-    actual;
-    let;
-    expected;
+    let assert_type: u32 = get_assertion_type(assertion);
+    let actual: u32 = get_actual_value(assertion);
+    let expected: u32 = get_expected_value(assertion);
     if (assert_type == ASSERT_EQUAL) {
         if (actual == expected) {
             return 1;
@@ -125,10 +122,8 @@ pub fn check_assertion(assertion: u32) -> u32 {
                     }
                 } else {
                     if (assert_type == ASSERT_RANGE) {
-                        let;
-                        min;
-                        let;
-                        max;
+                        let min: u32 = (expected & 0xF);
+                        let max: u32 = ((expected >> 4) & 0xF);
                         if ((actual >= min) && (actual <= max)) {
                             return 1;
                         } else {
@@ -152,20 +147,11 @@ pub fn check_assertion(assertion: u32) -> u32 {
 }
 
 pub fn run_test_case(test_case: u32, function_ptr: u32) -> u32 {
-    let;
-    test_id;
-    let;
-    function_id;
-    let;
-    input;
-    let;
-    expected;
-    let;
-    actual;
-    let;
-    assertion;
-    let;
-    passed;
+    let test_id: u32 = get_test_case_id(test_case);
+    let input: u32 = get_test_input(test_case);
+    let expected: u32 = get_expected_output(test_case);
+    let assertion: u32 = create_assertion(ASSERT_EQUAL, input, expected, 0);
+    let passed: u32 = check_assertion(assertion);
     if (passed == 1) {
         return create_test_result(test_id, STATUS_PASS, 1, 0);
     } else {
@@ -194,25 +180,16 @@ pub fn get_teardown_id(suite: u32) -> u32 {
 }
 
 pub fn run_test_suite(suite: u32, tests: Vec<>, test_count: u32) -> u32 {
-    let;
-    suite_id;
-    let;
-    total_assertions;
-    let;
-    total_failures;
-    let;
-    passed_tests;
-    let;
-    i;
+    let suite_id: u32 = get_suite_id(suite);
+    let mut total_assertions: u32 = 0;
+    let mut total_failures: u32 = 0;
+    let mut passed_tests: u32 = 0;
+    let mut i: u32 = 0;
     while (i < test_count) {
-        let;
-        result;
-        let;
-        assertions;
-        let;
-        failures;
-        let;
-        status;
+        let result: u32 = run_test_case(tests[i], 0);
+        let assertions: u32 = get_assertion_count(result);
+        let failures: u32 = get_failure_count(result);
+        let status: u32 = get_test_status(result);
         total_assertions = (total_assertions + assertions);
         total_failures = (total_failures + failures);
         if (status == STATUS_PASS) {
@@ -244,10 +221,8 @@ pub fn get_line_count(coverage: u32) -> u32 {
 }
 
 pub fn calculate_coverage_percentage(coverage: u32) -> u32 {
-    let;
-    total_branches;
-    let;
-    covered_branches;
+    let total_branches: u32 = get_branch_count(coverage);
+    let covered_branches: u32 = get_covered_branches(coverage);
     if (total_branches > 0) {
         return ((covered_branches * 100) / total_branches);
     } else {
@@ -256,12 +231,9 @@ pub fn calculate_coverage_percentage(coverage: u32) -> u32 {
 }
 
 pub fn aggregate_coverage(coverage_data: Vec<>, count: u32) -> u32 {
-    let;
-    total_branches;
-    let;
-    total_covered;
-    let;
-    i;
+    let mut total_branches: u32 = 0;
+    let mut total_covered: u32 = 0;
+    let mut i: u32 = 0;
     while (i < count) {
         total_branches = (total_branches + get_branch_count(coverage_data[i]));
         total_covered = (total_covered + get_covered_branches(coverage_data[i]));
@@ -295,8 +267,7 @@ pub fn get_property_failure_count(prop_test: u32) -> u32 {
 }
 
 pub fn generate_test_input(generator_id: u32, seed: u32) -> u32 {
-    let;
-    generated;
+    let generated: u32 = (((seed * 1103515245) + 12345) & 0x7FFFFFFF);
     if (generator_id == 0) {
         return (generated & 0xFF);
     } else {
@@ -313,21 +284,16 @@ pub fn generate_test_input(generator_id: u32, seed: u32) -> u32 {
 }
 
 pub fn run_property_test(prop_id: u32, generator_count: u32, test_count: u32) -> u32 {
-    let;
-    failures;
-    let;
-    i;
+    let mut i: u32 = 0;
     while (i < test_count) {
-        let;
-        j;
+        let mut j: u32 = 0;
         while (j < generator_count) {
-            let;
-            input;
+            let input: u32 = generate_test_input(j, i);
             j = (j + 1);
         }
         i = (i + 1);
     }
-    return create_property_test(prop_id, generator_count, test_count, failures);
+    return create_property_test(prop_id, generator_count, test_count, 0);
 }
 
 pub fn create_test_summary(total: u32, passed: u32, failed: u32, skipped: u32) -> u32 {
@@ -351,10 +317,8 @@ pub fn get_skipped_tests(summary: u32) -> u32 {
 }
 
 pub fn calculate_pass_rate(summary: u32) -> u32 {
-    let;
-    total;
-    let;
-    passed;
+    let total: u32 = get_total_tests(summary);
+    let passed: u32 = get_passed_tests(summary);
     if (total > 0) {
         return ((passed * 100) / total);
     } else {
@@ -371,12 +335,8 @@ pub fn meets_coverage_target(coverage_percentage: u32, target: u32) -> u32 {
 }
 
 pub fn generate_test_report(summary: u32, coverage: u32, duration_ms: u32) -> u32 {
-    let;
-    pass_rate;
-    let;
-    coverage_pct;
-    let;
-    status;
+    let pass_rate: u32 = calculate_pass_rate(summary);
+    let coverage_pct: u32 = calculate_coverage_percentage(coverage);
     if ((pass_rate >= 90) && (coverage_pct >= COVERAGE_TARGET)) {
         status = 1;
     } else {

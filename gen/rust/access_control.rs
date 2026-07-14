@@ -64,7 +64,7 @@ pub fn role_meets_minimum(role: u32, min_role: u32) -> bool {
 }
 
 pub fn check_access(policy: u32, role: u32) -> u32 {
-    let;
+    let min_role = get_min_role(policy);
     if !(role_meets_minimum(role, min_role)) {
         return DENY;
     }
@@ -90,32 +90,23 @@ pub fn verify_creds(creds: u32, provided_token: u32) -> bool {
 }
 
 pub fn authorize_node(creds: u32) -> u32 {
-    let;
-    node_id = get_node_id(creds);
-    let;
-    role = get_role(creds);
-    let;
-    token = get_auth_token(creds);
+    let node_id = get_node_id(creds);
+    let role = get_role(creds);
+    let token = get_auth_token(creds);
     return create_node_creds(node_id, role, token, PERMIT);
 }
 
 pub fn revoke_node(creds: u32) -> u32 {
-    let;
-    node_id = get_node_id(creds);
-    let;
-    role = get_role(creds);
-    let;
-    token = get_auth_token(creds);
+    let node_id = get_node_id(creds);
+    let role = get_role(creds);
+    let token = get_auth_token(creds);
     return create_node_creds(node_id, role, token, DENY);
 }
 
 pub fn change_role(creds: u32, new_role: u32) -> u32 {
-    let;
-    node_id = get_node_id(creds);
-    let;
-    token = get_auth_token(creds);
-    let;
-    auth = is_authorized(creds);
+    let node_id = get_node_id(creds);
+    let token = get_auth_token(creds);
+    let auth = is_authorized(creds);
     return create_node_creds(node_id, new_role, token, auth);
 }
 
@@ -123,8 +114,7 @@ pub fn check_resource_access(creds: u32, policy: u32, provided_token: u32) -> u3
     if !(verify_creds(creds, provided_token)) {
         return DENY;
     }
-    let;
-    role = get_role(creds);
+    let role = get_role(creds);
     return check_access(policy, role);
 }
 

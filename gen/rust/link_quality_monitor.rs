@@ -16,37 +16,21 @@ pub const QUALITY_POOR: u8 = 0x60;
 pub const TREND_THRESHOLD: u8 = 0x05;
 
 pub fn update_ewma(current: u8, sample: u8) -> u8 {
-    let;
-    term1;
-    let;
-    term2;
-    let;
-    new_estimate;
+    let term1: u16 = (((ALPHA_Q8 as u16) * (sample as u16)) >> 8);
+    let term2: u16 = (((ONE_MINUS_ALPHA_Q8 as u16) * (current as u16)) >> 8);
 }
 
-pub fn calculate_trend(history: Vec<>) -> i8 {
-    let;
-    recent_avg;
-    let;
-    older_avg;
-}
+pub fn calculate_trend(history: Vec<>) -> i8 { unimplemented!() }
 
-pub fn predict_next_etx(current: u8, trend: i8) -> u8 {
-    let;
-    prediction;
-}
+pub fn predict_next_etx(current: u8, trend: i8) -> u8 { unimplemented!() }
 
 pub fn is_degrading(current_etx: u8, trend: i8) -> bool {
     ((current_etx > QUALITY_POOR) && (trend > TREND_THRESHOLD));
 }
 
 pub fn quality_score(etx: u8, latency_ms: u16) -> u8 {
-    let;
-    etx_component;
-    let;
-    latency_component;
-    let;
-    combined;
+    let etx_component: u16 = (((etx as u16) * 7) / 10);
+    let latency_component: u16 = (latency_ms / 100);
 }
 
 pub fn classify_quality(score: u8) -> u8 { unimplemented!() }

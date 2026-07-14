@@ -49,14 +49,13 @@ src/bin/mdns_proxy.rs       # RFC 8766 discovery-proxy runtime; envelope logic t
 build.rs              # cargo build script: mtime-driven t27c regen shim
 
 # ---------------------------------------------------------------------------
-# CATEGORY D -- QUARANTINED PLACEHOLDER (NOT production, NOT audited).
-# gen/rust/audio_crypto.rs was hand-authored as a "skeleton" (its header is
-# NOT the canonical t27c banner) and carries XOR-keystream + truncated-SHA256
-# MAC primitives that are NOT in specs/audio_crypto.t27. It is UNUSED: not
-# referenced by src/lib.rs and not linked by any binary, so it can never reach
-# a production build (fail-closed by non-linkage). It is retained only as the
-# tested reference layout for the spec. BLOCKER to real AEAD: the spec models
-# wire layout only; a real ChaCha20-Poly1305/X25519 binding needs t27c crypto-
-# binding codegen (absent) + integration into the PTT path. See
-# docs/W7_DISCOVERY_PROXY_SPEC.md and docs/T27_ENFORCEMENT.md.
-gen/rust/audio_crypto.rs  # PLACEHOLDER -crypto-placeholder; unused dead code; NOT production security
+# CATEGORY D -- (now empty). The former quarantined placeholder
+# gen/rust/audio_crypto.rs has been REGENERATED from specs/audio_crypto.t27 by
+# t27c (SHA 2a114bc0...): the hand-authored XOR-keystream + truncated-SHA256
+# skeleton is gone, replaced by spec-derived wire-layout code carrying the
+# canonical t27c banner. It now passes gen-provenance on its own merits and
+# needs no allowlist entry. NOTE: the spec models the audio crypto ENVELOPE
+# (version / nonce / header layout) only -- it does NOT implement
+# ChaCha20-Poly1305 or X25519. Real PTT confidentiality still requires wiring
+# the audited src/crypto.rs AEAD into src/bin/audio_forwarder.rs (unchanged
+# blocker); no placeholder crypto remains in the tree to mask that gap.

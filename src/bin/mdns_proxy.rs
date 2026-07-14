@@ -1,52 +1,44 @@
-// mdns_proxy — W7 workstream (2026-07-14).
+// mdns_proxy -- RFC 8766 style Discovery Proxy overlay runtime.
 //
-// RFC 8766 Discovery Proxy skeleton. Wraps mDNS queries into an overlay
-// envelope so they can traverse the mesh across L2 segments. This file
-// provides the envelope wrap/unwrap, the predicates, and unit tests.
+// This binary is a THIN WRAPPER (AGENTS.md: bins hold only socket + dispatch
+// glue). All spec-verifiable logic -- envelope constants, predicates, bounded
+// framing bounds, and qtype routing -- is sourced from the generated module
+// gen/rust/mdns_proxy.rs, which is produced by t27c from specs/mdns_proxy.t27.
+// This file adds ONLY: struct serialization, TCP framing I/O, the two-process
+// dispatch loop, and CLI glue.
 //
-// Full end-to-end runtime (two-process smoke, trios_meshd integration,
-// audio_crypto envelope wrapping) is explicitly OUT OF SCOPE for this
-// commit — see docs/W7_DISCOVERY_PROXY_SPEC.md §"Что откладывается на
-// следующую волну".
-//
-// Non-claims:
-//   * NOT a complete RFC 8766 implementation. §6 (Rate Limiting), §7
-//     (Administratively Prohibited Names), §8 (Deployment Considerations)
-//     are not touched.
-//   * NOT DoS-hardened. No rate limiting.
-//   * NOT confidentiality-protected. Overlay is plain TCP; replace with
-//     audio_crypto envelope (W3) before adversarial deployment.
+// Non-claims (see specs/mdns_proxy.t27 for the authoritative list):
+//   * NOT a complete RFC 8766 implementation: no rate limiting (RFC 8766 s6),
+//     no administratively-prohibited-name filtering (s7), no DNSSEC/DNS-Push.
+//   * NOT DoS-hardened beyond bounded framing.
+//   * NOT confidentiality-protected: the overlay is plaintext TCP. Wrap in the
+//     mesh AEAD (src/crypto.rs) before any adversarial channel.
 //
 // phi^2 + phi^-2 = 3
 
 use std::io::{self, Read, Write};
+use std::net::{TcpListener, TcpStream};
 
-// ─── envelope constants ─────────────────────────────────────────────
+// Spec-verifiable logic, generated from specs/mdns_proxy.t27 by t27c.
+#[path = "../../gen/rust/mdns_proxy.rs"]
+mod proxy;
 
-pub const PROXY_VERSION: u8 = 1;
-pub const MAX_QNAME_LEN: usize = 255;
+use proxy::{
+    query_header_byte, qname_len_valid, proxy_version_valid, reply_header_byte,
+    route_for_qtype, status_valid, MAX_FRAME_LEN, MAX_QNAME_LEN,
+    QUERY_HEADER_LEN, REPLY_HEADER_LEN, ROUTE_FORWARD, ROUTE_LOCAL, STATUS_OK,
+    STATUS_REFUSED,
+};
 
-// Query envelope: version(1) + txid(2) + qtype(2) + qname_len(1) + qname(N)
-pub const QUERY_HEADER_LEN: usize = 6;
-
-// Reply envelope: version(1) + txid(2) + status(1) + payload_len(2) + payload(N)
-pub const REPLY_HEADER_LEN: usize = 6;
-
-// ─── predicates ─────────────────────────────────────────────────────
-
-pub fn proxy_version_valid(v: u8) -> bool {
-    v == PROXY_VERSION
+// A qname string is valid iff non-empty and within the generated
+// MAX_QNAME_LEN ceiling; the length bound itself is checked by the generated
+// predicate so the wire rule lives in exactly one place (the spec).
+fn qname_valid(name: &str) -> bool {
+    if name.is_empty() || name.len() > MAX_QNAME_LEN as usize {
+        return false;
+    }
+    qname_len_valid(name.len() as u16)
 }
-
-pub fn qname_valid(name: &str) -> bool {
-    !name.is_empty() && name.len() <= MAX_QNAME_LEN
-}
-
-pub fn status_valid(s: u8) -> bool {
-    s <= 2
-}
-
-// ─── wrap / unwrap ──────────────────────────────────────────────────
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ProxyQuery {
@@ -67,26 +59,29 @@ pub enum UnwrapError {
     TooShort,
     BadVersion,
     BadQnameLen,
-    BadPayloadLen,
     BadStatus,
     BadUtf8,
 }
 
+// Serialize a query using the generated per-byte header layout, so the header
+// wire order is defined once in the spec (query_header_byte) and never drifts.
 pub fn wrap_query(q: &ProxyQuery) -> Option<Vec<u8>> {
     if !qname_valid(&q.qname) {
         return None;
     }
-    let mut out = Vec::with_capacity(QUERY_HEADER_LEN + q.qname.len());
-    out.push(PROXY_VERSION);
-    out.extend_from_slice(&q.txid.to_be_bytes());
-    out.extend_from_slice(&q.qtype.to_be_bytes());
-    out.push(q.qname.len() as u8);
+    let qlen = q.qname.len() as u8;
+    let hdr = QUERY_HEADER_LEN as usize;
+    let mut out = Vec::with_capacity(hdr + q.qname.len());
+    for idx in 0..QUERY_HEADER_LEN {
+        out.push(query_header_byte(q.txid, q.qtype, qlen, idx));
+    }
     out.extend_from_slice(q.qname.as_bytes());
     Some(out)
 }
 
 pub fn unwrap_query(wire: &[u8]) -> Result<ProxyQuery, UnwrapError> {
-    if wire.len() < QUERY_HEADER_LEN {
+    let hdr = QUERY_HEADER_LEN as usize;
+    if wire.len() < hdr {
         return Err(UnwrapError::TooShort);
     }
     if !proxy_version_valid(wire[0]) {
@@ -95,37 +90,35 @@ pub fn unwrap_query(wire: &[u8]) -> Result<ProxyQuery, UnwrapError> {
     let txid = u16::from_be_bytes([wire[1], wire[2]]);
     let qtype = u16::from_be_bytes([wire[3], wire[4]]);
     let qname_len = wire[5] as usize;
-    if qname_len == 0 {
+    if !qname_len_valid(qname_len as u16) {
         return Err(UnwrapError::BadQnameLen);
     }
-    if wire.len() < QUERY_HEADER_LEN + qname_len {
+    if wire.len() < hdr + qname_len {
         return Err(UnwrapError::TooShort);
     }
-    let qname_bytes = &wire[QUERY_HEADER_LEN..QUERY_HEADER_LEN + qname_len];
-    let qname = std::str::from_utf8(qname_bytes)
+    let qname = std::str::from_utf8(&wire[hdr..hdr + qname_len])
         .map_err(|_| UnwrapError::BadUtf8)?
         .to_string();
     Ok(ProxyQuery { txid, qtype, qname })
 }
 
 pub fn wrap_reply(r: &ProxyReply) -> Option<Vec<u8>> {
-    if !status_valid(r.status) {
+    if !status_valid(r.status) || r.payload.len() > u16::MAX as usize {
         return None;
     }
-    if r.payload.len() > u16::MAX as usize {
-        return None;
+    let hdr = REPLY_HEADER_LEN as usize;
+    let plen = r.payload.len() as u16;
+    let mut out = Vec::with_capacity(hdr + r.payload.len());
+    for idx in 0..REPLY_HEADER_LEN {
+        out.push(reply_header_byte(r.txid, r.status, plen, idx));
     }
-    let mut out = Vec::with_capacity(REPLY_HEADER_LEN + r.payload.len());
-    out.push(PROXY_VERSION);
-    out.extend_from_slice(&r.txid.to_be_bytes());
-    out.push(r.status);
-    out.extend_from_slice(&(r.payload.len() as u16).to_be_bytes());
     out.extend_from_slice(&r.payload);
     Some(out)
 }
 
 pub fn unwrap_reply(wire: &[u8]) -> Result<ProxyReply, UnwrapError> {
-    if wire.len() < REPLY_HEADER_LEN {
+    let hdr = REPLY_HEADER_LEN as usize;
+    if wire.len() < hdr {
         return Err(UnwrapError::TooShort);
     }
     if !proxy_version_valid(wire[0]) {
@@ -137,57 +130,106 @@ pub fn unwrap_reply(wire: &[u8]) -> Result<ProxyReply, UnwrapError> {
         return Err(UnwrapError::BadStatus);
     }
     let payload_len = u16::from_be_bytes([wire[4], wire[5]]) as usize;
-    if wire.len() < REPLY_HEADER_LEN + payload_len {
+    if wire.len() < hdr + payload_len {
         return Err(UnwrapError::TooShort);
     }
-    let payload = wire[REPLY_HEADER_LEN..REPLY_HEADER_LEN + payload_len].to_vec();
+    let payload = wire[hdr..hdr + payload_len].to_vec();
     Ok(ProxyReply { txid, status, payload })
 }
 
-// ─── skeleton I/O helpers (used only by the future end-to-end runtime) ──
-
-/// Read one length-prefixed query from a TCP stream. Length prefix is
-/// 2 bytes big-endian, followed by that many bytes of envelope. Bounded
-/// at 8 KiB per frame — anything larger is malicious for our workload.
+// Bounded framing: a 2-byte big-endian length prefix, capped at the generated
+// MAX_FRAME_LEN. Anything larger is treated as hostile.
 pub fn read_framed(stream: &mut impl Read) -> io::Result<Vec<u8>> {
     let mut len_buf = [0u8; 2];
     stream.read_exact(&mut len_buf)?;
-    let len = u16::from_be_bytes(len_buf) as usize;
-    if len > 8192 {
+    let len = u16::from_be_bytes(len_buf);
+    if len > MAX_FRAME_LEN {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "frame too large"));
     }
-    let mut buf = vec![0u8; len];
+    let mut buf = vec![0u8; len as usize];
     stream.read_exact(&mut buf)?;
     Ok(buf)
 }
 
 pub fn write_framed(stream: &mut impl Write, payload: &[u8]) -> io::Result<()> {
-    if payload.len() > 8192 {
+    if payload.len() > MAX_FRAME_LEN as usize {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "frame too large"));
     }
-    let len = payload.len() as u16;
-    stream.write_all(&len.to_be_bytes())?;
+    stream.write_all(&(payload.len() as u16).to_be_bytes())?;
     stream.write_all(payload)?;
     Ok(())
 }
 
-// ─── main is intentionally minimal ──────────────────────────────────
-// The full binary orchestrator (bind UDP 5353, bind TCP overlay port,
-// dispatch, static routing table) lands in a later workstream. For now
-// the binary compiles into a no-op so the module can be linked into
-// tests and future integration code.
+// Dispatch one query to a reply using the generated routing table. LOCAL
+// (PTR/SRV/TXT) is answered from the proxy; FORWARD (A/ANY) returns a forward
+// marker (a real mesh relays here); everything else is REFUSED.
+fn answer(q: &ProxyQuery) -> ProxyReply {
+    let route = route_for_qtype(q.qtype);
+    if route == ROUTE_LOCAL {
+        let mut payload = b"LOCAL:".to_vec();
+        payload.extend_from_slice(q.qname.as_bytes());
+        ProxyReply { txid: q.txid, status: STATUS_OK, payload }
+    } else if route == ROUTE_FORWARD {
+        ProxyReply { txid: q.txid, status: STATUS_OK, payload: b"FORWARD".to_vec() }
+    } else {
+        ProxyReply { txid: q.txid, status: STATUS_REFUSED, payload: Vec::new() }
+    }
+}
+
+fn serve(addr: &str) -> io::Result<()> {
+    let listener = TcpListener::bind(addr)?;
+    eprintln!("mdns_proxy: serving on {addr}");
+    for stream in listener.incoming() {
+        let mut stream = stream?;
+        let wire = match read_framed(&mut stream) {
+            Ok(w) => w,
+            Err(_) => continue,
+        };
+        let reply = match unwrap_query(&wire) {
+            Ok(q) => answer(&q),
+            Err(_) => ProxyReply { txid: 0, status: STATUS_REFUSED, payload: Vec::new() },
+        };
+        if let Some(out) = wrap_reply(&reply) {
+            let _ = write_framed(&mut stream, &out);
+        }
+    }
+    Ok(())
+}
+
+fn query(addr: &str, qtype: u16, qname: &str) -> io::Result<()> {
+    let mut stream = TcpStream::connect(addr)?;
+    let q = ProxyQuery { txid: 0xBEEF, qtype, qname: qname.to_string() };
+    let wire = wrap_query(&q)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "invalid query"))?;
+    write_framed(&mut stream, &wire)?;
+    let reply_wire = read_framed(&mut stream)?;
+    let reply = unwrap_reply(&reply_wire)
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("{e:?}")))?;
+    let payload = String::from_utf8_lossy(&reply.payload);
+    println!("status={} payload={payload}", reply.status);
+    Ok(())
+}
 
 fn main() {
-    eprintln!(
-        "mdns_proxy: skeleton only (W7 workstream, 2026-07-14). See \
-         docs/W7_DISCOVERY_PROXY_SPEC.md for what is and is not \
-         implemented in this build."
-    );
+    let args: Vec<String> = std::env::args().collect();
+    let rc = match args.get(1).map(String::as_str) {
+        Some("--serve") if args.len() == 3 => serve(&args[2]).map(|_| 0).unwrap_or(1),
+        Some("--query") if args.len() == 5 => {
+            let qtype: u16 = args[3].parse().unwrap_or(0);
+            query(&args[2], qtype, &args[4]).map(|_| 0).unwrap_or(1)
+        }
+        _ => {
+            eprintln!("usage: mdns_proxy --serve <addr> | --query <addr> <qtype> <qname>");
+            2
+        }
+    };
+    std::process::exit(rc);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proxy::{QTYPE_A, QTYPE_ANY, QTYPE_PTR, QTYPE_SRV, QTYPE_TXT, ROUTE_DROP};
 
     #[test]
     fn version_predicate() {
@@ -200,76 +242,50 @@ mod tests {
     fn qname_predicate() {
         assert!(!qname_valid(""));
         assert!(qname_valid("_trinet-admin._tcp.local"));
-        let long = "a".repeat(255);
-        assert!(qname_valid(&long));
-        let too_long = "a".repeat(256);
-        assert!(!qname_valid(&too_long));
+        assert!(qname_valid(&"a".repeat(255)));
+        assert!(!qname_valid(&"a".repeat(256)));
     }
 
     #[test]
     fn query_wrap_unwrap_roundtrip() {
-        let q = ProxyQuery {
-            txid: 0xBEEF,
-            qtype: 12, // PTR
-            qname: "_trinet-admin._tcp.local".to_string(),
-        };
+        let q = ProxyQuery { txid: 0xBEEF, qtype: 12, qname: "_trinet-admin._tcp.local".to_string() };
         let wire = wrap_query(&q).expect("wrap ok");
-        let back = unwrap_query(&wire).expect("unwrap ok");
-        assert_eq!(back, q);
+        assert_eq!(unwrap_query(&wire).expect("unwrap ok"), q);
     }
 
     #[test]
     fn reply_wrap_unwrap_roundtrip() {
-        let r = ProxyReply {
-            txid: 0xBEEF,
-            status: 0,
-            payload: vec![1, 2, 3, 4, 5],
-        };
+        let r = ProxyReply { txid: 0xBEEF, status: 0, payload: vec![1, 2, 3, 4, 5] };
         let wire = wrap_reply(&r).expect("wrap ok");
-        let back = unwrap_reply(&wire).expect("unwrap ok");
-        assert_eq!(back, r);
+        assert_eq!(unwrap_reply(&wire).expect("unwrap ok"), r);
     }
 
     #[test]
     fn reply_wrap_rejects_bad_status() {
-        let r = ProxyReply {
-            txid: 0,
-            status: 42,
-            payload: vec![],
-        };
+        let r = ProxyReply { txid: 0, status: 42, payload: vec![] };
         assert!(wrap_reply(&r).is_none());
     }
 
     #[test]
     fn query_wrap_rejects_empty_qname() {
-        let q = ProxyQuery {
-            txid: 0,
-            qtype: 12,
-            qname: String::new(),
-        };
+        let q = ProxyQuery { txid: 0, qtype: 12, qname: String::new() };
         assert!(wrap_query(&q).is_none());
     }
 
     #[test]
     fn query_wrap_rejects_too_long_qname() {
-        let q = ProxyQuery {
-            txid: 0,
-            qtype: 12,
-            qname: "a".repeat(256),
-        };
+        let q = ProxyQuery { txid: 0, qtype: 12, qname: "a".repeat(256) };
         assert!(wrap_query(&q).is_none());
     }
 
     #[test]
     fn query_unwrap_rejects_bad_version() {
-        let wire = vec![2u8, 0, 0, 0, 12, 1, b'x'];
-        assert_eq!(unwrap_query(&wire), Err(UnwrapError::BadVersion));
+        assert_eq!(unwrap_query(&[2u8, 0, 0, 0, 12, 1, b'x']), Err(UnwrapError::BadVersion));
     }
 
     #[test]
     fn query_unwrap_rejects_zero_qname_len() {
-        let wire = vec![1u8, 0, 0, 0, 12, 0];
-        assert_eq!(unwrap_query(&wire), Err(UnwrapError::BadQnameLen));
+        assert_eq!(unwrap_query(&[1u8, 0, 0, 0, 12, 0]), Err(UnwrapError::BadQnameLen));
     }
 
     #[test]
@@ -280,25 +296,42 @@ mod tests {
 
     #[test]
     fn query_unwrap_rejects_truncated_qname() {
-        // Declares qname_len=10 but only 3 bytes follow.
-        let wire = vec![1u8, 0, 0, 0, 12, 10, b'a', b'b', b'c'];
-        assert_eq!(unwrap_query(&wire), Err(UnwrapError::TooShort));
+        assert_eq!(unwrap_query(&[1u8, 0, 0, 0, 12, 10, b'a', b'b', b'c']), Err(UnwrapError::TooShort));
     }
 
     #[test]
     fn reply_unwrap_rejects_bad_status() {
-        let wire = vec![1u8, 0, 0, 42 /* bad status */, 0, 0];
-        assert_eq!(unwrap_reply(&wire), Err(UnwrapError::BadStatus));
+        assert_eq!(unwrap_reply(&[1u8, 0, 0, 42, 0, 0]), Err(UnwrapError::BadStatus));
     }
 
     #[test]
     fn framed_roundtrip_over_memory() {
-        // Simulate a TCP stream with a Vec<u8> cursor.
         let payload = b"framed-payload".to_vec();
         let mut buf: Vec<u8> = Vec::new();
         write_framed(&mut buf, &payload).unwrap();
         let mut cursor = std::io::Cursor::new(buf);
-        let back = read_framed(&mut cursor).unwrap();
-        assert_eq!(back, payload);
+        assert_eq!(read_framed(&mut cursor).unwrap(), payload);
+    }
+
+    #[test]
+    fn answer_routes_via_generated_table() {
+        assert_eq!(route_for_qtype(QTYPE_PTR), ROUTE_LOCAL);
+        assert_eq!(route_for_qtype(QTYPE_SRV), ROUTE_LOCAL);
+        assert_eq!(route_for_qtype(QTYPE_TXT), ROUTE_LOCAL);
+        assert_eq!(route_for_qtype(QTYPE_A), ROUTE_FORWARD);
+        assert_eq!(route_for_qtype(QTYPE_ANY), ROUTE_FORWARD);
+        assert_eq!(route_for_qtype(9999), ROUTE_DROP);
+
+        let local = answer(&ProxyQuery { txid: 1, qtype: QTYPE_PTR, qname: "x.local".to_string() });
+        assert_eq!(local.status, STATUS_OK);
+        assert!(local.payload.starts_with(b"LOCAL:"));
+
+        let fwd = answer(&ProxyQuery { txid: 1, qtype: QTYPE_A, qname: "x.local".to_string() });
+        assert_eq!(fwd.status, STATUS_OK);
+        assert_eq!(fwd.payload, b"FORWARD");
+
+        let drop = answer(&ProxyQuery { txid: 1, qtype: 9999, qname: "x.local".to_string() });
+        assert_eq!(drop.status, STATUS_REFUSED);
+        assert!(drop.payload.is_empty());
     }
 }

@@ -30,18 +30,14 @@ pub fn get_credits(flow: u32) -> u32 {
 }
 
 pub fn update_credits(flow: u32, new_credits: u32) -> u32 {
-    let;
-    sender;
-    let;
-    receiver;
-    let;
-    window;
+    let sender: u32 = get_sender_id(flow);
+    let receiver: u32 = get_receiver_id(flow);
+    let window: u32 = get_window_size(flow);
     return create_flow_state(sender, receiver, window, new_credits);
 }
 
 pub fn has_credits(flow: u32) -> u32 {
-    let;
-    credits;
+    let credits: u32 = get_credits(flow);
     if (credits > 0) {
         return 1;
     } else {
@@ -50,8 +46,7 @@ pub fn has_credits(flow: u32) -> u32 {
 }
 
 pub fn consume_credit(flow: u32) -> u32 {
-    let;
-    credits;
+    let credits: u32 = get_credits(flow);
     if (credits > 0) {
         return update_credits(flow, (credits - 1));
     } else {
@@ -60,12 +55,9 @@ pub fn consume_credit(flow: u32) -> u32 {
 }
 
 pub fn add_credits(flow: u32, additional: u32) -> u32 {
-    let;
-    credits;
-    let;
-    window;
-    let;
-    new_credits;
+    let credits: u32 = get_credits(flow);
+    let window: u32 = get_window_size(flow);
+    let mut new_credits: u32 = (credits + additional);
     if (new_credits > window) {
         new_credits = window;
     }
@@ -73,12 +65,9 @@ pub fn add_credits(flow: u32, additional: u32) -> u32 {
 }
 
 pub fn is_under_backpressure(flow: u32) -> u32 {
-    let;
-    credits;
-    let;
-    window;
-    let;
-    used;
+    let credits: u32 = get_credits(flow);
+    let window: u32 = get_window_size(flow);
+    let used: u32 = (window - credits);
     if (used >= BACKPRESSURE_THRESHOLD) {
         return 1;
     } else {
@@ -87,12 +76,9 @@ pub fn is_under_backpressure(flow: u32) -> u32 {
 }
 
 pub fn calculate_backpressure_level(flow: u32) -> u32 {
-    let;
-    credits;
-    let;
-    window;
-    let;
-    used;
+    let credits: u32 = get_credits(flow);
+    let window: u32 = get_window_size(flow);
+    let used: u32 = (window - credits);
     if (used >= BACKPRESSURE_THRESHOLD) {
         return 2;
     } else {
@@ -133,16 +119,13 @@ pub const MSG_CREDIT_UPDATE: u32 = 2;
 pub const MSG_BACKPRESSURE: u32 = 3;
 
 pub fn process_message(flow: u32, msg: u32) -> u32 {
-    let;
-    msg_type;
+    let msg_type: u32 = get_message_type(msg);
     if (msg_type == MSG_ACK) {
-        let;
-        credits;
+        let credits: u32 = get_message_credits(msg);
         return add_credits(flow, credits);
     } else {
         if (msg_type == MSG_CREDIT_UPDATE) {
-            let;
-            credits;
+            let credits: u32 = get_message_credits(msg);
             return update_credits(flow, credits);
         } else {
             return flow;
@@ -152,10 +135,8 @@ pub fn process_message(flow: u32, msg: u32) -> u32 {
 
 pub fn send_data(flow: u32, seq: u32) -> u32 {
     if (has_credits(flow) == 1) {
-        let;
-        new_flow;
-        let;
-        msg;
+        let new_flow: u32 = consume_credit(flow);
+        let msg: u32 = create_flow_message(MSG_DATA, 0, 0, seq);
         return new_flow;
     } else {
         return flow;
@@ -163,23 +144,17 @@ pub fn send_data(flow: u32, seq: u32) -> u32 {
 }
 
 pub fn send_ack(flow: u32, flow_id: u32, seq: u32) -> u32 {
-    let;
-    credits;
-    let;
-    window;
-    let;
-    credit_grant;
-    let;
-    msg;
+    let credits: u32 = get_credits(flow);
+    let window: u32 = get_window_size(flow);
+    let credit_grant: u32 = (window - credits);
+    let msg: u32 = create_flow_message(MSG_ACK, flow_id, credit_grant, seq);
     return msg;
 }
 
 pub fn find_flow_by_sender(flows: Vec<>, sender: u32) -> u32 {
-    let;
-    i;
+    let mut i: u32 = 0;
     while (i < MAX_FLOWS) {
-        let;
-        flow_sender;
+        let flow_sender: u32 = get_sender_id(flows[i]);
         if (flow_sender == sender) {
             return i;
         }
@@ -189,11 +164,9 @@ pub fn find_flow_by_sender(flows: Vec<>, sender: u32) -> u32 {
 }
 
 pub fn find_flow_by_receiver(flows: Vec<>, receiver: u32) -> u32 {
-    let;
-    i;
+    let mut i: u32 = 0;
     while (i < MAX_FLOWS) {
-        let;
-        flow_receiver;
+        let flow_receiver: u32 = get_receiver_id(flows[i]);
         if (flow_receiver == receiver) {
             return i;
         }
@@ -203,8 +176,7 @@ pub fn find_flow_by_receiver(flows: Vec<>, receiver: u32) -> u32 {
 }
 
 pub fn is_any_flow_blocked(flows: Vec<>) -> u32 {
-    let;
-    i;
+    let mut i: u32 = 0;
     while (i < MAX_FLOWS) {
         if (has_credits(flows[i]) == 0) {
             return 1;
@@ -215,13 +187,10 @@ pub fn is_any_flow_blocked(flows: Vec<>) -> u32 {
 }
 
 pub fn count_active_flows(flows: Vec<>) -> u32 {
-    let;
-    count;
-    let;
-    i;
+    let mut count: u32 = 0;
+    let mut i: u32 = 0;
     while (i < MAX_FLOWS) {
-        let;
-        sender;
+        let sender: u32 = get_sender_id(flows[i]);
         if (sender != 0) {
             count = (count + 1);
         }
@@ -231,10 +200,8 @@ pub fn count_active_flows(flows: Vec<>) -> u32 {
 }
 
 pub fn calculate_total_credits(flows: Vec<>) -> u32 {
-    let;
-    total;
-    let;
-    i;
+    let mut total: u32 = 0;
+    let mut i: u32 = 0;
     while (i < MAX_FLOWS) {
         total = (total + get_credits(flows[i]));
         i = (i + 1);
@@ -243,24 +210,16 @@ pub fn calculate_total_credits(flows: Vec<>) -> u32 {
 }
 
 pub fn apply_backpressure(flows: Vec<>, flow_index: u32) -> u32 {
-    let;
-    flow;
-    let;
-    window;
-    let;
-    credits;
-    let;
-    reduction;
-    let;
-    new_credits;
+    let flow: u32 = flows[flow_index];
+    let credits: u32 = get_credits(flow);
+    let reduction: u32 = (credits / 2);
+    let new_credits: u32 = (credits - reduction);
     return update_credits(flow, new_credits);
 }
 
 pub fn release_backpressure(flows: Vec<>, flow_index: u32) -> u32 {
-    let;
-    flow;
-    let;
-    window;
+    let flow: u32 = flows[flow_index];
+    let window: u32 = get_window_size(flow);
     return update_credits(flow, window);
 }
 
