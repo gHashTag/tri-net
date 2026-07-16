@@ -7,10 +7,14 @@ import CoreMedia
 class VideoEncoder {
     private var session: VTCompressionSession?
     var onNALUnit: ((Data) -> Void)?
-    let width: Int32 = 640
-    let height: Int32 = 480
+    // Dimensions come from the first captured frame — cameras that ignore
+    // the session preset would otherwise get scale-squashed by VideoToolbox
+    private var width: Int32 = 0
+    private var height: Int32 = 0
 
-    func setup() -> Bool {
+    func setup(width: Int32, height: Int32) -> Bool {
+        self.width = width
+        self.height = height
         var s: VTCompressionSession?
         let r = VTCompressionSessionCreate(
             allocator: kCFAllocatorDefault,
@@ -28,11 +32,18 @@ class VideoEncoder {
             refcon: Unmanaged.passUnretained(self).toOpaque(),
             compressionSessionOut: &s
         )
-        guard r == noErr, let s = s else { return false }
+        guard r == noErr, let s = s else {
+            NSLog("TRINET: VTCompressionSessionCreate status=\(r)")
+            return false
+        }
         session = s
-        VTSessionSetProperty(s, key: kVTCompressionPropertyKey_AverageBitRate, value: 500_000 as CFNumber)
+        // AutoLevel: a fixed level (e.g. 3.1, max 1280x720) makes the encoder
+        // silently reject every frame from cameras that ignore the session
+        // preset and deliver 1080p. Bitrate scales with the actual dimensions.
+        let bitrate = min(2_000_000, Int(width) * Int(height) * 2)
+        VTSessionSetProperty(s, key: kVTCompressionPropertyKey_AverageBitRate, value: bitrate as CFNumber)
         VTSessionSetProperty(s, key: kVTCompressionPropertyKey_RealTime, value: kCFBooleanTrue)
-        VTSessionSetProperty(s, key: kVTCompressionPropertyKey_ProfileLevel, value: kVTProfileLevel_H264_Baseline_3_1 as CFString)
+        VTSessionSetProperty(s, key: kVTCompressionPropertyKey_ProfileLevel, value: kVTProfileLevel_H264_Baseline_AutoLevel as CFString)
         VTSessionSetProperty(s, key: kVTCompressionPropertyKey_MaxKeyFrameInterval, value: 30 as CFNumber)
         VTCompressionSessionPrepareToEncodeFrames(s)
         return true
@@ -77,7 +88,17 @@ class VideoEncoder {
     }
 
     func encode(_ sampleBuffer: CMSampleBuffer) {
-        guard let s = session, let pb = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        guard let pb = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        if session == nil {
+            let w = Int32(CVPixelBufferGetWidth(pb))
+            let h = Int32(CVPixelBufferGetHeight(pb))
+            guard setup(width: w, height: h) else {
+                NSLog("TRINET: encoder setup FAILED \(w)x\(h)")
+                return
+            }
+            NSLog("TRINET: encoder session \(w)x\(h)")
+        }
+        guard let s = session else { return }
         VTCompressionSessionEncodeFrame(s, imageBuffer: pb,
             presentationTimeStamp: CMSampleBufferGetPresentationTimeStamp(sampleBuffer),
             duration: .invalid, frameProperties: nil, sourceFrameRefcon: nil, infoFlagsOut: nil)

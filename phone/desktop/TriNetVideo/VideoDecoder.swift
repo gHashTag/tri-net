@@ -25,9 +25,17 @@ class VideoDecoder: ObservableObject {
         }
         switch type {
         // CMVideoFormatDescriptionCreateFromH264ParameterSets expects raw
-        // parameter sets — strip the 4-byte Annex-B start code
-        case 7: NSLog("TRINET: got SPS \(nal.count)B"); sps = nal.subdata(in: 4..<nal.count); tryInit()
-        case 8: NSLog("TRINET: got PPS \(nal.count)B"); pps = nal.subdata(in: 4..<nal.count); tryInit()
+        // parameter sets — strip the 4-byte Annex-B start code.
+        // A changed SPS/PPS (peer restarted with new dimensions) must
+        // re-create the session, or old-format frames decode as garbage.
+        case 7:
+            let s = nal.subdata(in: 4..<nal.count)
+            if s != sps { sps = s; formatDesc = nil; session = nil }
+            tryInit()
+        case 8:
+            let p = nal.subdata(in: 4..<nal.count)
+            if p != pps { pps = p; formatDesc = nil; session = nil }
+            tryInit()
         default: decode(nal)
         }
     }

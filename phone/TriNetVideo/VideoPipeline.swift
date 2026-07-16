@@ -34,6 +34,7 @@ class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         output.setSampleBufferDelegate(self, queue: DispatchQueue(label: "camera"))
         if session.canAddOutput(output) { session.addOutput(output) }
         session.commitConfiguration()
+        applyOrientation()
     }
 
     func switchCamera() {
@@ -46,12 +47,31 @@ class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
             session.addInput(input)
         }
         session.commitConfiguration()
+        // input swap re-creates the output connection — orientation must be re-applied
+        applyOrientation()
+        // restart the encoder so its lazy setup matches the new camera's frames
+        if encoder != nil {
+            let enc = H264Encoder()
+            enc.onFrame = { [weak self] data, isKey in self?.onFrame?(data, isKey) }
+            encoder = enc
+        }
+    }
+
+    // Raw H.264 carries no orientation metadata, so rotate at capture:
+    // the app is portrait-locked, encode frames upright (90 deg from the
+    // landscape sensor) and every receiver displays them as-is.
+    private func applyOrientation() {
+        guard let conn = output.connection(with: .video) else { return }
+        if #available(iOS 17.0, *) {
+            if conn.isVideoRotationAngleSupported(90) { conn.videoRotationAngle = 90 }
+        } else if conn.isVideoOrientationSupported {
+            conn.videoOrientation = .portrait
+        }
     }
 
     func start() {
         guard encoder == nil else { return }
         let enc = H264Encoder()
-        guard enc.setup() else { return }
         enc.onFrame = { [weak self] data, isKey in self?.onFrame?(data, isKey) }
         encoder = enc
         if !session.isRunning { startPreview() }
@@ -70,10 +90,14 @@ class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
 class H264Encoder {
     private var session: VTCompressionSession?
     var onFrame: ((Data, Bool) -> Void)?
-    let width: Int32 = 480
-    let height: Int32 = 272
+    // Dimensions come from the first captured frame (rotation/preset aware) —
+    // hardcoded values would make VideoToolbox scale-squash rotated buffers
+    private var width: Int32 = 0
+    private var height: Int32 = 0
 
-    func setup() -> Bool {
+    func setup(width: Int32, height: Int32) -> Bool {
+        self.width = width
+        self.height = height
         var s: VTCompressionSession?
         let r = VTCompressionSessionCreate(
             allocator: kCFAllocatorDefault, width: width, height: height,
@@ -148,7 +172,14 @@ class H264Encoder {
     }
 
     func encode(_ sb: CMSampleBuffer) {
-        guard let s = session, let pb = CMSampleBufferGetImageBuffer(sb) else { return }
+        guard let pb = CMSampleBufferGetImageBuffer(sb) else { return }
+        if session == nil {
+            let w = Int32(CVPixelBufferGetWidth(pb))
+            let h = Int32(CVPixelBufferGetHeight(pb))
+            guard setup(width: w, height: h) else { return }
+            NSLog("TRINET: encoder session \(w)x\(h)")
+        }
+        guard let s = session else { return }
         VTCompressionSessionEncodeFrame(s, imageBuffer: pb, presentationTimeStamp: CMSampleBufferGetPresentationTimeStamp(sb), duration: .invalid, frameProperties: nil, sourceFrameRefcon: nil, infoFlagsOut: nil)
     }
 }
@@ -175,9 +206,17 @@ class H264Decoder: ObservableObject {
         }
         switch nalType {
         // CMVideoFormatDescriptionCreateFromH264ParameterSets expects raw
-        // parameter sets — strip the 4-byte Annex-B start code
-        case 7: sps = nalUnit.subdata(in: 4..<nalUnit.count); tryInitSession()
-        case 8: pps = nalUnit.subdata(in: 4..<nalUnit.count); tryInitSession()
+        // parameter sets — strip the 4-byte Annex-B start code.
+        // A changed SPS/PPS (peer restarted with new dimensions) must
+        // re-create the session, or old-format frames decode as garbage.
+        case 7:
+            let s = nalUnit.subdata(in: 4..<nalUnit.count)
+            if s != sps { sps = s; formatDesc = nil; session = nil }
+            tryInitSession()
+        case 8:
+            let p = nalUnit.subdata(in: 4..<nalUnit.count)
+            if p != pps { pps = p; formatDesc = nil; session = nil }
+            tryInitSession()
         default: decodeFrame(nalUnit)
         }
     }
