@@ -113,6 +113,33 @@ struct HomeView: View {
 
 // MARK: - Call Screen (FaceTime style)
 
+struct RemoteVideoArea: View {
+    @ObservedObject var decoder: H264Decoder
+    let phase: StreamViewModel.CallPhase
+    let remoteIP: String
+
+    var body: some View {
+        ZStack {
+            Color.black
+            if decoder.frameCount > 0, let frame = decoder.currentFrame {
+                RemoteVideoDisplay(imageBuffer: frame, frameId: decoder.frameCount)
+            } else {
+                VStack(spacing: 20) {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                        .tint(.white)
+                    Text(phase == .connecting ? "Connecting..." : "Waiting for video")
+                        .font(.system(size: 18, weight: .medium, design: .rounded))
+                        .foregroundColor(.gray)
+                    Text("→ \(remoteIP)")
+                        .font(.system(size: 14, design: .monospaced))
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+    }
+}
+
 struct CallScreen: View {
     @ObservedObject var vm: StreamViewModel
     @State private var showControls = true
@@ -122,26 +149,11 @@ struct CallScreen: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            // Remote video (full screen)
-            if vm.decoder.frameCount > 0, let frame = vm.decoder.currentFrame {
-                RemoteVideoDisplay(imageBuffer: frame, frameId: vm.decoder.frameCount)
-                    .id(vm.decoder.frameCount)
-                    .ignoresSafeArea()
-                    .onTapGesture { withAnimation { showControls.toggle() } }
-            } else {
-                // Connecting state
-                VStack(spacing: 20) {
-                    ProgressView()
-                        .scaleEffect(1.5)
-                        .tint(.white)
-                    Text(vm.phase == .connecting ? "Connecting..." : "Waiting for video")
-                        .font(.system(size: 18, weight: .medium, design: .rounded))
-                        .foregroundColor(.gray)
-                    Text("→ \(vm.remoteIP)")
-                        .font(.system(size: 14, design: .monospaced))
-                        .foregroundColor(.secondary)
-                }
-            }
+            // Remote video (full screen). Own subview observing the decoder
+            // directly — nested ObservableObjects don't propagate through vm.
+            RemoteVideoArea(decoder: vm.decoder, phase: vm.phase, remoteIP: vm.remoteIP)
+                .ignoresSafeArea()
+                .onTapGesture { withAnimation { showControls.toggle() } }
 
             // Self camera PiP
             VStack {

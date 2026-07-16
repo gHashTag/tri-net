@@ -196,6 +196,8 @@ class H264Decoder: ObservableObject {
     private var pps: Data?
 
     private var fedCount = 0
+    var cbErrCount = 0
+    private var decodeErrCount = 0
 
     func feed(_ nalUnit: Data) {
         guard nalUnit.count > 4 else { return }
@@ -242,6 +244,13 @@ class H264Decoder: ObservableObject {
                 let refCon = Unmanaged.passUnretained(self).toOpaque()
                 var callback = VTDecompressionOutputCallbackRecord(
                     decompressionOutputCallback: { refCon, _, status, _, imageBuffer, _, _ in
+                        if status != noErr {
+                            let d = Unmanaged<H264Decoder>.fromOpaque(refCon!).takeUnretainedValue()
+                            d.cbErrCount += 1
+                            if d.cbErrCount <= 5 || d.cbErrCount % 500 == 0 {
+                                NSLog("TRINET: decode callback status=\(status) (#\(d.cbErrCount))")
+                            }
+                        }
                         guard status == noErr, let imageBuffer = imageBuffer else { return }
                         let decoder = Unmanaged<H264Decoder>.fromOpaque(refCon!).takeUnretainedValue()
                         DispatchQueue.main.async {
@@ -299,7 +308,13 @@ class H264Decoder: ObservableObject {
             sampleSizeEntryCount: 1, sampleSizeArray: &sampleSize, sampleBufferOut: &sampleBuffer
         )
         guard let sb = sampleBuffer else { return }
-        VTDecompressionSessionDecodeFrame(session, sampleBuffer: sb, flags: [], frameRefcon: nil, infoFlagsOut: nil)
+        let st = VTDecompressionSessionDecodeFrame(session, sampleBuffer: sb, flags: [], frameRefcon: nil, infoFlagsOut: nil)
+        if st != noErr {
+            decodeErrCount += 1
+            if decodeErrCount <= 5 || decodeErrCount % 500 == 0 {
+                NSLog("TRINET: DecodeFrame status=\(st) (#\(decodeErrCount))")
+            }
+        }
     }
 }
 
@@ -364,7 +379,9 @@ class BSDTransport {
                     if count == 1 || count % 200 == 0 {
                         NSLog("TRINET: rx #\(count) \(n)B")
                     }
-                    self.onData?(Data(bytes: buf, count: n))
+                    if let nal = self.reassemble(Data(bytes: buf, count: n)) {
+                        self.onData?(nal)
+                    }
                 } else {
                     break // socket closed by disconnect() or error
                 }
@@ -372,8 +389,37 @@ class BSDTransport {
         }
     }
 
+    // MARK: application-level fragmentation
+    // UDP datagrams are capped (~9KB default on Apple platforms) and anything
+    // over the WiFi MTU relies on lossy IP fragmentation, so large NALs
+    // (I-frames) are split into [0xFA 0xFB seqLo seqHi idx total]+chunk
+    // datagrams and reassembled on receive. Raw NALs always start
+    // 00 00 00 01, so the magic prefix is unambiguous.
+    private let maxPayload = 1200
+    private var fragSeqOut: UInt16 = 0
+    private var fragSeqIn: UInt16 = 0xFFFF
+    private var fragParts: [Data?] = []
+    private var fragHave = 0
+
     func send(_ data: Data) {
         guard fd >= 0 else { return }
+        if data.count <= maxPayload {
+            rawSend(data)
+            return
+        }
+        let total = (data.count + maxPayload - 1) / maxPayload
+        guard total <= 255 else { return }
+        fragSeqOut &+= 1
+        for i in 0..<total {
+            let start = i * maxPayload
+            let end = min(start + maxPayload, data.count)
+            var pkt = Data([0xFA, 0xFB, UInt8(fragSeqOut & 0xFF), UInt8(fragSeqOut >> 8), UInt8(i), UInt8(total)])
+            pkt.append(data.subdata(in: start..<end))
+            rawSend(pkt)
+        }
+    }
+
+    private func rawSend(_ data: Data) {
         var p = peer
         _ = data.withUnsafeBytes { raw in
             withUnsafePointer(to: &p) { pp in
@@ -382,6 +428,32 @@ class BSDTransport {
                 }
             }
         }
+    }
+
+    // Returns a complete NAL when the datagram finishes one, nil otherwise
+    private func reassemble(_ d: Data) -> Data? {
+        guard d.count > 6, d[0] == 0xFA, d[1] == 0xFB else { return d }
+        let seq = UInt16(d[2]) | (UInt16(d[3]) << 8)
+        let idx = Int(d[4])
+        let total = Int(d[5])
+        guard total > 0, idx < total else { return nil }
+        if seq != fragSeqIn || fragParts.count != total {
+            fragSeqIn = seq
+            fragParts = Array(repeating: nil, count: total)
+            fragHave = 0
+        }
+        if fragParts[idx] == nil {
+            fragParts[idx] = d.subdata(in: 6..<d.count)
+            fragHave += 1
+        }
+        if fragHave == total {
+            let whole = fragParts.compactMap { $0 }.reduce(Data(), +)
+            fragSeqIn = 0xFFFF
+            fragParts = []
+            fragHave = 0
+            return whole
+        }
+        return nil
     }
 
     func disconnect() {
@@ -425,21 +497,16 @@ struct RemoteVideoDisplay: UIViewRepresentable {
 }
 
 class VideoDisplayView: UIView {
-    override class var layerClass: AnyClass { AVSampleBufferDisplayLayer.self }
-    var displayLayer: AVSampleBufferDisplayLayer { layer as! AVSampleBufferDisplayLayer }
+    // One shared CIContext — creating one per frame re-initializes Metal
+    // 30x/sec and stalls the main thread
+    private static let ciContext = CIContext()
 
     func update(_ buffer: CVImageBuffer) {
         let ci = CIImage(cvImageBuffer: buffer)
-        let context = CIContext()
-        if let cg = context.createCGImage(ci, from: ci.extent) {
-            let img = UIImage(cgImage: cg)
-            // Use a simple sublayer to display
-            if let oldLayer = layer.sublayers?.first { oldLayer.removeFromSuperlayer() }
-            let imgLayer = CALayer()
-            imgLayer.frame = bounds
-            imgLayer.contents = img.cgImage
-            imgLayer.contentsGravity = .resizeAspect
-            layer.addSublayer(imgLayer)
-        }
+        guard let cg = VideoDisplayView.ciContext.createCGImage(ci, from: ci.extent) else { return }
+        // Contents go on the view's own layer — a recreated sublayer sized
+        // to pre-layout zero bounds renders nothing
+        layer.contents = cg
+        layer.contentsGravity = .resizeAspect
     }
 }

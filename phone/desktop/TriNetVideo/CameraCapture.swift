@@ -36,8 +36,13 @@ class CameraCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
             NSLog("TRINET: vga640x480 preset unsupported, keeping \(session.sessionPreset.rawValue)")
         }
 
+        // Width/height keys force the output to scale — cameras ignore the
+        // session preset and deliver 1080p, whose I-frames exceed a single
+        // UDP datagram (drops/EMSGSIZE) and the peer can never start decoding
         output.videoSettings = [
-            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
+            kCVPixelBufferWidthKey as String: 640,
+            kCVPixelBufferHeightKey as String: 480
         ]
         output.alwaysDiscardsLateVideoFrames = true
         output.setSampleBufferDelegate(self, queue: queue)
