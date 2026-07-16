@@ -78,6 +78,8 @@ class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         if !session.isRunning { startPreview() }
     }
 
+    func forceKeyframe() { encoder?.forceKeyframe() }
+
     func stop() { encoder = nil }
     func stopAll() { session.stopRunning() }
 
@@ -172,6 +174,10 @@ class H264Encoder {
         }
     }
 
+    // Set by a peer Picture-Loss-Indication (0xFC): force the next frame to IDR
+    private var forceKeyframeNext = false
+    func forceKeyframe() { forceKeyframeNext = true }
+
     func encode(_ sb: CMSampleBuffer) {
         guard let pb = CMSampleBufferGetImageBuffer(sb) else { return }
         if session == nil {
@@ -181,7 +187,13 @@ class H264Encoder {
             NSLog("TRINET: encoder session \(w)x\(h)")
         }
         guard let s = session else { return }
-        VTCompressionSessionEncodeFrame(s, imageBuffer: pb, presentationTimeStamp: CMSampleBufferGetPresentationTimeStamp(sb), duration: .invalid, frameProperties: nil, sourceFrameRefcon: nil, infoFlagsOut: nil)
+        var props: CFDictionary?
+        if forceKeyframeNext {
+            forceKeyframeNext = false
+            props = [kVTEncodeFrameOptionKey_ForceKeyFrame: kCFBooleanTrue] as CFDictionary
+            NSLog("TRINET: forcing keyframe (peer PLI)")
+        }
+        VTCompressionSessionEncodeFrame(s, imageBuffer: pb, presentationTimeStamp: CMSampleBufferGetPresentationTimeStamp(sb), duration: .invalid, frameProperties: props, sourceFrameRefcon: nil, infoFlagsOut: nil)
     }
 }
 
@@ -199,13 +211,19 @@ class H264Decoder: ObservableObject {
     private var fedCount = 0
     var cbErrCount = 0
     private var decodeErrCount = 0
+    // After a session (re)start or decode failure, P-frames reference an IDR
+    // we never saw — skip them and ask the sender for a keyframe until an IDR
+    // arrives, rather than decoding garbage.
+    var awaitingIDR = true
+    private var lastPLI = Date.distantPast
+    var onKeyframeNeeded: (() -> Void)?
 
     func feed(_ nalUnit: Data) {
         guard nalUnit.count > 4 else { return }
         let nalType = nalUnit[4] & 0x1F
         fedCount += 1
         if fedCount <= 10 || fedCount % 500 == 0 {
-            NSLog("TRINET: NAL #\(fedCount) type=\(nalType) \(nalUnit.count)B session=\(session != nil)")
+            NSLog("TRINET: NAL #\(fedCount) type=\(nalType) \(nalUnit.count)B session=\(session != nil) awaitIDR=\(awaitingIDR)")
         }
         switch nalType {
         // CMVideoFormatDescriptionCreateFromH264ParameterSets expects raw
@@ -214,13 +232,27 @@ class H264Decoder: ObservableObject {
         // re-create the session, or old-format frames decode as garbage.
         case 7:
             let s = nalUnit.subdata(in: 4..<nalUnit.count)
-            if s != sps { sps = s; formatDesc = nil; session = nil }
+            if s != sps { sps = s; formatDesc = nil; session = nil; awaitingIDR = true }
             tryInitSession()
         case 8:
             let p = nalUnit.subdata(in: 4..<nalUnit.count)
-            if p != pps { pps = p; formatDesc = nil; session = nil }
+            if p != pps { pps = p; formatDesc = nil; session = nil; awaitingIDR = true }
             tryInitSession()
+        case 5: // IDR — resync point
+            awaitingIDR = false
+            decodeFrame(nalUnit)
+        case 1 where awaitingIDR:
+            requestKeyframe()
         default: decodeFrame(nalUnit)
+        }
+    }
+
+    // Ask the sender for an IDR, throttled to ~3x/sec
+    func requestKeyframe() {
+        let now = Date()
+        if now.timeIntervalSince(lastPLI) > 0.33 {
+            lastPLI = now
+            onKeyframeNeeded?()
         }
     }
 
@@ -251,6 +283,9 @@ class H264Decoder: ObservableObject {
                             if d.cbErrCount <= 5 || d.cbErrCount % 500 == 0 {
                                 NSLog("TRINET: decode callback status=\(status) (#\(d.cbErrCount))")
                             }
+                            // A single dropped P-frame is normal on lossy UDP; the
+                            // 0.5s keyframe cadence resyncs on its own. Forcing an
+                            // IDR per failure caused a PLI storm.
                         }
                         guard status == noErr, let imageBuffer = imageBuffer else { return }
                         let decoder = Unmanaged<H264Decoder>.fromOpaque(refCon!).takeUnretainedValue()
@@ -330,6 +365,9 @@ class BSDTransport {
     private var peer = sockaddr_in()
     private var running = false
     private let rxQueue = DispatchQueue(label: "mesh.rx", qos: .userInitiated)
+    // Separate queue: rxQueue is parked forever in a blocking recv(), so a
+    // timer scheduled on it would never fire.
+    private let hsQueue = DispatchQueue(label: "mesh.hs", qos: .userInitiated)
     var onData: ((Data) -> Void)?
     var isReady = false
 
@@ -368,6 +406,17 @@ class BSDTransport {
         isReady = true
         NSLog("TRINET: BSD transport up — listen :\(recvPort), peer \(host):\(port)")
 
+        // Drive the forward-secret handshake until a session is established
+        let timer = DispatchSource.makeTimerSource(queue: hsQueue)
+        timer.schedule(deadline: .now(), repeating: .milliseconds(250))
+        timer.setEventHandler { [weak self] in
+            guard let self = self else { return }
+            if self.crypto.established { self.handshakeTimer?.cancel(); self.handshakeTimer = nil; return }
+            self.rawSendWire(self.crypto.handshakePacket())
+        }
+        handshakeTimer = timer
+        timer.resume()
+
         let sock = fd
         rxQueue.async { [weak self] in
             var buf = [UInt8](repeating: 0, count: 65536)
@@ -376,11 +425,18 @@ class BSDTransport {
                 guard let self = self, self.running else { break }
                 let n = recv(sock, &buf, buf.count, 0)
                 if n > 0 {
+                    let pkt = Data(bytes: buf, count: n)
+                    if self.crypto.isHandshake(pkt) {
+                        let wasEstablished = self.crypto.established
+                        self.crypto.consumeHandshake(pkt)
+                        if !wasEstablished { self.rawSendWire(self.crypto.handshakePacket()) }
+                        continue
+                    }
                     count += 1
                     if count == 1 || count % 200 == 0 {
                         NSLog("TRINET: rx #\(count) \(n)B")
                     }
-                    if let plain = self.unseal(Data(bytes: buf, count: n)),
+                    if let plain = self.crypto.unseal(pkt),
                        let msg = self.reassemble(plain) {
                         self.onData?(msg)
                     }
@@ -391,12 +447,11 @@ class BSDTransport {
         }
     }
 
-    // MARK: encryption
-    // Every datagram is sealed with ChaCha20-Poly1305 (12B nonce + ct + 16B
-    // tag) under a pre-shared key — unauthenticated LAN packets are dropped.
-    // MVP: static PSK; key exchange belongs to the mesh layer (trios-mesh B').
-    private static let cryptoKey = SymmetricKey(data: SHA256.hash(data: Data("tri-net-psk-v1".utf8)))
-    private var dropCount = 0
+    // MARK: forward-secret session (see MeshCrypto). Data is sealed under a
+    // per-connection ephemeral session key; the static PSK only authenticates
+    // the handshake, so a later PSK leak can't decrypt recorded traffic.
+    private let crypto = MeshCrypto()
+    private var handshakeTimer: DispatchSourceTimer?
 
     // MARK: application-level fragmentation
     // UDP datagrams are capped (~9KB default on Apple platforms) and anything
@@ -426,9 +481,15 @@ class BSDTransport {
         }
     }
 
+    // Encrypt a fragment under the session key, then wire it out
     private func rawSend(_ data: Data) {
-        guard let sealed = try? ChaChaPoly.seal(data, using: BSDTransport.cryptoKey) else { return }
-        let wire = sealed.combined
+        guard let wire = crypto.seal(data) else { return } // drop until session up
+        rawSendWire(wire)
+    }
+
+    // Send bytes verbatim (handshake packets are already self-authenticating)
+    private func rawSendWire(_ wire: Data) {
+        guard fd >= 0 else { return }
         var p = peer
         _ = wire.withUnsafeBytes { raw in
             withUnsafePointer(to: &p) { pp in
@@ -437,19 +498,6 @@ class BSDTransport {
                 }
             }
         }
-    }
-
-    // Decrypt + authenticate; nil for foreign/corrupt datagrams
-    private func unseal(_ d: Data) -> Data? {
-        guard let box = try? ChaChaPoly.SealedBox(combined: d),
-              let plain = try? ChaChaPoly.open(box, using: BSDTransport.cryptoKey) else {
-            dropCount += 1
-            if dropCount <= 3 || dropCount % 1000 == 0 {
-                NSLog("TRINET: dropped unauthenticated datagram \(d.count)B (#\(dropCount))")
-            }
-            return nil
-        }
-        return plain
     }
 
     // Returns a complete NAL when the datagram finishes one, nil otherwise.
@@ -478,6 +526,7 @@ class BSDTransport {
 
     func disconnect() {
         running = false
+        handshakeTimer?.cancel(); handshakeTimer = nil
         if fd >= 0 { close(fd); fd = -1 }
         isReady = false
     }
@@ -654,5 +703,79 @@ final class AudioController {
         #if os(iOS)
         try? AVAudioSession.sharedInstance().setActive(false)
         #endif
+    }
+}
+
+// MARK: - Forward-secret session crypto (see desktop/TriNetVideo/MeshCrypto.swift
+// for the Mac copy — the two folder targets duplicate shared types, same as
+// H264Encoder/VideoEncoder). Mirrors trios-mesh/src/crypto.rs: ephemeral
+// X25519 -> HKDF session key -> ChaCha20-Poly1305, with the ephemeral exchange
+// authenticated by a PSK (HMAC). Forward secrecy: a later PSK leak can't
+// decrypt recorded traffic, because ephemeral private keys are never persisted.
+// Wire (handshake): [0x54 0x48] + ephPub(32) + HMAC-SHA256(PSK, ephPub)(32) = 66B
+final class MeshCrypto {
+    private static let psk = SymmetricKey(data: SHA256.hash(data: Data("tri-net-psk-v1".utf8)))
+    private static let hkdfSalt = Data("trios-mesh/v1/session".utf8)
+    private static let hkdfInfo = Data("aead-key".utf8)
+    static let handshakeMagic: [UInt8] = [0x54, 0x48]
+
+    private let ephPriv = Curve25519.KeyAgreement.PrivateKey()
+    private var sessionKey: SymmetricKey?
+    private var dropCount = 0
+
+    var established: Bool { sessionKey != nil }
+
+    func handshakePacket() -> Data {
+        let pub = ephPriv.publicKey.rawRepresentation
+        let mac = HMAC<SHA256>.authenticationCode(for: pub, using: MeshCrypto.psk)
+        var d = Data(MeshCrypto.handshakeMagic)
+        d.append(pub)
+        d.append(Data(mac))
+        return d
+    }
+
+    func isHandshake(_ d: Data) -> Bool {
+        d.count == 66 && d[0] == MeshCrypto.handshakeMagic[0] && d[1] == MeshCrypto.handshakeMagic[1]
+    }
+
+    @discardableResult
+    func consumeHandshake(_ d: Data) -> Bool {
+        guard isHandshake(d) else { return false }
+        let pub = d.subdata(in: 2..<34)
+        let mac = d.subdata(in: 34..<66)
+        guard HMAC<SHA256>.isValidAuthenticationCode(mac, authenticating: pub, using: MeshCrypto.psk) else {
+            NSLog("TRINET: handshake HMAC invalid — rejected")
+            return true
+        }
+        guard let peerPub = try? Curve25519.KeyAgreement.PublicKey(rawRepresentation: pub),
+              let shared = try? ephPriv.sharedSecretFromKeyAgreement(with: peerPub) else {
+            return true
+        }
+        let key = shared.hkdfDerivedSymmetricKey(using: SHA256.self,
+                                                 salt: MeshCrypto.hkdfSalt,
+                                                 sharedInfo: MeshCrypto.hkdfInfo,
+                                                 outputByteCount: 32)
+        if sessionKey == nil { NSLog("TRINET: session established (forward-secret)") }
+        sessionKey = key
+        return true
+    }
+
+    func seal(_ plain: Data) -> Data? {
+        guard let key = sessionKey,
+              let box = try? ChaChaPoly.seal(plain, using: key) else { return nil }
+        return box.combined
+    }
+
+    func unseal(_ wire: Data) -> Data? {
+        guard let key = sessionKey else { return nil }
+        guard let box = try? ChaChaPoly.SealedBox(combined: wire),
+              let plain = try? ChaChaPoly.open(box, using: key) else {
+            dropCount += 1
+            if dropCount <= 3 || dropCount % 1000 == 0 {
+                NSLog("TRINET: dropped unauthenticated datagram \(wire.count)B (#\(dropCount))")
+            }
+            return nil
+        }
+        return plain
     }
 }

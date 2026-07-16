@@ -61,6 +61,8 @@ class CameraCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         encoder = enc
     }
 
+    func forceKeyframe() { encoder?.forceKeyframe() }
+
     func switchTo(_ device: AVCaptureDevice) {
         session.beginConfiguration()
         session.inputs.forEach { session.removeInput($0) }

@@ -87,6 +87,11 @@ class VideoEncoder {
         }
     }
 
+    // Set by a peer Picture-Loss-Indication (0xFC control packet): forces the
+    // next encoded frame to be an IDR so the far decoder can resync after loss.
+    private var forceKeyframeNext = false
+    func forceKeyframe() { forceKeyframeNext = true }
+
     func encode(_ sampleBuffer: CMSampleBuffer) {
         guard let pb = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         if session == nil {
@@ -99,8 +104,14 @@ class VideoEncoder {
             NSLog("TRINET: encoder session \(w)x\(h)")
         }
         guard let s = session else { return }
+        var props: CFDictionary?
+        if forceKeyframeNext {
+            forceKeyframeNext = false
+            props = [kVTEncodeFrameOptionKey_ForceKeyFrame: kCFBooleanTrue] as CFDictionary
+            NSLog("TRINET: forcing keyframe (peer PLI)")
+        }
         VTCompressionSessionEncodeFrame(s, imageBuffer: pb,
             presentationTimeStamp: CMSampleBufferGetPresentationTimeStamp(sampleBuffer),
-            duration: .invalid, frameProperties: nil, sourceFrameRefcon: nil, infoFlagsOut: nil)
+            duration: .invalid, frameProperties: props, sourceFrameRefcon: nil, infoFlagsOut: nil)
     }
 }

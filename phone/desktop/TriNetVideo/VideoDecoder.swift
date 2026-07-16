@@ -15,13 +15,19 @@ class VideoDecoder: ObservableObject {
     private var pps: Data?
 
     private var fedCount = 0
+    // After a session (re)start or a decode failure the stream is out of sync:
+    // P-frames reference an IDR we never saw and decode to garbage. Skip them
+    // and ask the sender for a fresh keyframe (throttled) until an IDR arrives.
+    private var awaitingIDR = true
+    private var lastPLI = Date.distantPast
+    var onKeyframeNeeded: (() -> Void)?
 
     func feed(_ nal: Data) {
         guard nal.count > 4 else { return }
         let type = nal[4] & 0x1F
         fedCount += 1
         if fedCount <= 10 || fedCount % 500 == 0 {
-            NSLog("TRINET: NAL #\(fedCount) type=\(type) \(nal.count)B session=\(session != nil)")
+            NSLog("TRINET: NAL #\(fedCount) type=\(type) \(nal.count)B session=\(session != nil) awaitIDR=\(awaitingIDR)")
         }
         switch type {
         // CMVideoFormatDescriptionCreateFromH264ParameterSets expects raw
@@ -30,12 +36,17 @@ class VideoDecoder: ObservableObject {
         // re-create the session, or old-format frames decode as garbage.
         case 7:
             let s = nal.subdata(in: 4..<nal.count)
-            if s != sps { sps = s; formatDesc = nil; session = nil }
+            if s != sps { sps = s; formatDesc = nil; session = nil; awaitingIDR = true }
             tryInit()
         case 8:
             let p = nal.subdata(in: 4..<nal.count)
-            if p != pps { pps = p; formatDesc = nil; session = nil }
+            if p != pps { pps = p; formatDesc = nil; session = nil; awaitingIDR = true }
             tryInit()
+        case 5: // IDR — we can resync here
+            awaitingIDR = false
+            decode(nal)
+        case 1 where awaitingIDR:
+            requestKeyframe() // skip the P-frame, ask for an IDR instead
         default: decode(nal)
         }
     }
@@ -62,8 +73,13 @@ class VideoDecoder: ObservableObject {
                 let ref = Unmanaged.passUnretained(self).toOpaque()
                 var cb = VTDecompressionOutputCallbackRecord(
                     decompressionOutputCallback: { ref, _, status, _, buf, _, _ in
-                        guard status == noErr, let buf = buf else { return }
                         let dec = Unmanaged<VideoDecoder>.fromOpaque(ref!).takeUnretainedValue()
+                        guard status == noErr, let buf = buf else {
+                            // A single dropped P-frame fails here and is normal on
+                            // lossy UDP; the 0.5s keyframe cadence resyncs on its
+                            // own. Forcing an IDR per failure caused a PLI storm.
+                            return
+                        }
                         DispatchQueue.main.async {
                             if dec.frameCount == 0 { NSLog("TRINET: FIRST FRAME DECODED!") }
                             dec.currentFrame = buf
@@ -85,6 +101,16 @@ class VideoDecoder: ObservableObject {
                 NSLog("TRINET: VTDecompressionSessionCreate status=\(vtStatus) session=\(ns != nil)")
                 session = ns
             }
+        }
+    }
+
+    // Ask the sender for an IDR, at most ~3x/sec so a burst of skipped
+    // P-frames doesn't flood the return path.
+    private func requestKeyframe() {
+        let now = Date()
+        if now.timeIntervalSince(lastPLI) > 0.33 {
+            lastPLI = now
+            onKeyframeNeeded?()
         }
     }
 

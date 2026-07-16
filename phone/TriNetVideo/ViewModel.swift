@@ -59,10 +59,19 @@ class StreamViewModel: ObservableObject {
         // UDP: send to remoteIP:7000, listen on 7000 (same port for both)
         transport.connect(host: remoteIP, port: 7000, recvPort: 7000)
 
-        // Incoming: UDP → audio player / H.264 decoder → display
+        // Peer PLI → force an IDR from our encoder
+        decoder.onKeyframeNeeded = { [weak self] in
+            self?.transport.send(Data([0xFC, 0x00]))
+        }
+
+        // Incoming: UDP → PLI / audio player / H.264 decoder → display
         transport.onData = { [weak self] data in
             guard let self = self else { return }
             self.bytesRecv += data.count
+            if data.count == 2, data[0] == 0xFC { // Picture Loss Indication
+                self.camera.forceKeyframe()
+                return
+            }
             if data.count > 2, data[0] == 0xFD, data[1] == 0xAD {
                 self.audio.playPacket(data.subdata(in: 2..<data.count))
                 return

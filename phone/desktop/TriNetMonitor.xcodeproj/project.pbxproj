@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		144EA8CA8611748CC2C6498E /* VideoEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72EFD27FFE9177F3C365221D /* VideoEncoder.swift */; };
 		16CC1C6D7EEBF2EE5C3F95A1 /* TriNetMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A55AB3C5EF91C2E49F7A086 /* TriNetMonitor.swift */; };
+		7BC6C7C0D52EF3F427643504 /* MeshCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34A698FD561A4D1344491A23 /* MeshCrypto.swift */; };
 		8EDD1E7105EA28C7B290C700 /* VideoDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2831FC425A30E3FBFA75BD40 /* VideoDecoder.swift */; };
 		8FB37216EA6E4DAA9752526F /* MeshTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF4870614578478C431D47B9 /* MeshTransport.swift */; };
 		A4B51FD9AC3F6A939BFE6083 /* RTIHeatmap.swift in Sources */ = {isa = PBXBuildFile; fileRef = A55D68653305B39F6D4E6C1F /* RTIHeatmap.swift */; };
@@ -22,6 +23,7 @@
 		20B0445AEA738BFAA34619AA /* AudioController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioController.swift; sourceTree = "<group>"; };
 		2831FC425A30E3FBFA75BD40 /* VideoDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoDecoder.swift; sourceTree = "<group>"; };
 		2A55AB3C5EF91C2E49F7A086 /* TriNetMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriNetMonitor.swift; sourceTree = "<group>"; };
+		34A698FD561A4D1344491A23 /* MeshCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshCrypto.swift; sourceTree = "<group>"; };
 		432A15C47C534F56D40856CC /* VideoCallTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoCallTab.swift; sourceTree = "<group>"; };
 		72EFD27FFE9177F3C365221D /* VideoEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEncoder.swift; sourceTree = "<group>"; };
 		8CD42991E4D14A95B2A03439 /* TriNetMonitor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TriNetMonitor.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -46,6 +48,7 @@
 				20B0445AEA738BFAA34619AA /* AudioController.swift */,
 				FE481AF1D2D340638A1ED080 /* CallManager.swift */,
 				BED4FD339A53B74B67C3AC3B /* CameraCapture.swift */,
+				34A698FD561A4D1344491A23 /* MeshCrypto.swift */,
 				AF4870614578478C431D47B9 /* MeshTransport.swift */,
 				2831FC425A30E3FBFA75BD40 /* VideoDecoder.swift */,
 				72EFD27FFE9177F3C365221D /* VideoEncoder.swift */,
@@ -122,6 +125,7 @@
 				C270D9DDE66C74E5DC1A30B3 /* AudioController.swift in Sources */,
 				D71FF2DC1AF5071C5554087C /* CallManager.swift in Sources */,
 				C73AAD99E5A78718DEBAB8D8 /* CameraCapture.swift in Sources */,
+				7BC6C7C0D52EF3F427643504 /* MeshCrypto.swift in Sources */,
 				8FB37216EA6E4DAA9752526F /* MeshTransport.swift in Sources */,
 				A4B51FD9AC3F6A939BFE6083 /* RTIHeatmap.swift in Sources */,
 				16CC1C6D7EEBF2EE5C3F95A1 /* TriNetMonitor.swift in Sources */,

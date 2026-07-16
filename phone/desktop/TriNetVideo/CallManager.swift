@@ -64,9 +64,18 @@ class CallManager: ObservableObject {
             DispatchQueue.main.async { self.framesSent += 1 }
         }
 
-        // Transport → audio player / Decoder → Display
+        // Peer asks for a fresh keyframe after loss → force an IDR now
+        decoder.onKeyframeNeeded = { [weak self] in
+            self?.transport.send(Data([0xFC, 0x00]))
+        }
+
+        // Transport → audio player / PLI / Decoder → Display
         transport.onReceive = { [weak self] data in
             guard let self = self else { return }
+            if data.count == 2, data[0] == 0xFC { // Picture Loss Indication
+                self.camera.forceKeyframe()
+                return
+            }
             if data.count > 2, data[0] == 0xFD, data[1] == 0xAD {
                 self.audio.playPacket(data.subdata(in: 2..<data.count))
                 return

@@ -12,6 +12,9 @@ class MeshTransport {
     private var peer = sockaddr_in()
     private var running = false
     private let rxQueue = DispatchQueue(label: "mesh.rx", qos: .userInitiated)
+    // Separate queue: rxQueue is parked forever in a blocking recv(), so a
+    // timer scheduled on it would never fire.
+    private let hsQueue = DispatchQueue(label: "mesh.hs", qos: .userInitiated)
     var onReceive: ((Data) -> Void)?
     var connected = false
 
@@ -50,6 +53,18 @@ class MeshTransport {
         connected = true
         NSLog("TRINET: BSD transport up — listen :\(listenPort), peer \(peerHost):\(peerPort)")
 
+        // Drive the handshake until a session is established (both sides send
+        // periodically so neither has to be "first").
+        let timer = DispatchSource.makeTimerSource(queue: hsQueue)
+        timer.schedule(deadline: .now(), repeating: .milliseconds(250))
+        timer.setEventHandler { [weak self] in
+            guard let self = self else { return }
+            if self.crypto.established { self.handshakeTimer?.cancel(); self.handshakeTimer = nil; return }
+            self.rawSendWire(self.crypto.handshakePacket())
+        }
+        handshakeTimer = timer
+        timer.resume()
+
         let sock = fd
         rxQueue.async { [weak self] in
             var buf = [UInt8](repeating: 0, count: 65536)
@@ -58,11 +73,19 @@ class MeshTransport {
                 guard let self = self, self.running else { break }
                 let n = recv(sock, &buf, buf.count, 0)
                 if n > 0 {
+                    let pkt = Data(bytes: buf, count: n)
+                    if self.crypto.isHandshake(pkt) {
+                        let wasEstablished = self.crypto.established
+                        self.crypto.consumeHandshake(pkt)
+                        // Answer so the peer also derives the session
+                        if !wasEstablished { self.rawSendWire(self.crypto.handshakePacket()) }
+                        continue
+                    }
                     count += 1
                     if count == 1 || count % 500 == 0 {
                         NSLog("TRINET: rx #\(count) \(n)B")
                     }
-                    if let plain = self.unseal(Data(bytes: buf, count: n)),
+                    if let plain = self.crypto.unseal(pkt),
                        let msg = self.reassemble(plain) {
                         self.onReceive?(msg)
                     }
@@ -85,25 +108,11 @@ class MeshTransport {
     private var fragBufs: [UInt16: (parts: [Data?], have: Int)] = [:]
     private var sendErrCount = 0
 
-    // MARK: encryption
-    // Every datagram is sealed with ChaCha20-Poly1305 (12B nonce + ct + 16B
-    // tag) under a pre-shared key — unauthenticated LAN packets are dropped.
-    // MVP: static PSK; key exchange belongs to the mesh layer (trios-mesh B').
-    private static let cryptoKey = SymmetricKey(data: SHA256.hash(data: Data("tri-net-psk-v1".utf8)))
-    private var dropCount = 0
-
-    // Decrypt + authenticate; nil for foreign/corrupt datagrams
-    private func unseal(_ d: Data) -> Data? {
-        guard let box = try? ChaChaPoly.SealedBox(combined: d),
-              let plain = try? ChaChaPoly.open(box, using: MeshTransport.cryptoKey) else {
-            dropCount += 1
-            if dropCount <= 3 || dropCount % 1000 == 0 {
-                NSLog("TRINET: dropped unauthenticated datagram \(d.count)B (#\(dropCount))")
-            }
-            return nil
-        }
-        return plain
-    }
+    // MARK: forward-secret session (see MeshCrypto). Data is sealed under a
+    // per-connection ephemeral session key; the static PSK only authenticates
+    // the handshake, so a later PSK leak can't decrypt recorded traffic.
+    private let crypto = MeshCrypto()
+    private var handshakeTimer: DispatchSourceTimer?
 
     func send(_ data: Data) {
         guard fd >= 0 else { return }
@@ -123,9 +132,15 @@ class MeshTransport {
         }
     }
 
+    // Encrypt a fragment under the session key, then wire it out
     private func rawSend(_ data: Data) {
-        guard let sealed = try? ChaChaPoly.seal(data, using: MeshTransport.cryptoKey) else { return }
-        let wire = sealed.combined
+        guard let wire = crypto.seal(data) else { return } // drop until session up
+        rawSendWire(wire)
+    }
+
+    // Send bytes verbatim (handshake packets are already self-authenticating)
+    private func rawSendWire(_ wire: Data) {
+        guard fd >= 0 else { return }
         var p = peer
         let sent = wire.withUnsafeBytes { raw in
             withUnsafePointer(to: &p) { pp in
@@ -168,6 +183,7 @@ class MeshTransport {
 
     func disconnect() {
         running = false
+        handshakeTimer?.cancel(); handshakeTimer = nil
         if fd >= 0 { close(fd); fd = -1 }
         connected = false
     }
