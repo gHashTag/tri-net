@@ -188,16 +188,18 @@ struct CallScreen: View {
                             Text("↑\(vm.framesSent) ↓\(vm.framesReceived)")
                                 .font(DS.mono(11)).foregroundColor(DS.faint)
                         }
-                        HStack(spacing: 14) {
+                        // Equal-width flexible cells so the row always fits the
+                        // phone width (6 controls; each cell centers a 46pt circle).
+                        HStack(spacing: 6) {
                             iBtn(system: vm.isMuted ? "mic.slash.fill" : "mic.fill", active: vm.isMuted) { vm.isMuted.toggle() }
                             iBtn(system: "arrow.triangle.2.circlepath.camera.fill", active: false) { vm.camera.switchCamera() }
                             iBtn(system: vm.cameraOff ? "video.slash.fill" : "video.fill", active: vm.cameraOff) { vm.cameraOff.toggle() }
                             iBtn(system: vm.isBlurred ? "person.crop.rectangle.badge.plus.fill" : "person.crop.rectangle", active: vm.isBlurred) { vm.toggleBlur() }
                             iBtn(system: "bubble.left.and.bubble.right\(vm.chat.isEmpty ? "" : ".fill")", active: false) { withAnimation { showChat = true } }
-                            Spacer()
                             Button(action: { vm.stopCall() }) {
-                                Image(systemName: "phone.down.fill").font(.system(size: 22)).foregroundColor(DS.onFill)
-                                    .frame(width: 66, height: 56).background(DS.danger, in: Capsule())
+                                Image(systemName: "phone.down.fill").font(.system(size: 19)).foregroundColor(DS.onFill)
+                                    .frame(width: 46, height: 46).background(DS.danger, in: Circle())
+                                    .frame(maxWidth: .infinity)
                             }.buttonStyle(.plain)
                         }
                     }
@@ -237,10 +239,11 @@ private struct iBtn: View {
     let system: String; let active: Bool; let action: () -> Void
     var body: some View {
         Button(action: action) {
-            Image(systemName: system).font(.system(size: 20))
+            Image(systemName: system).font(.system(size: 18))
                 .foregroundColor(active ? DS.danger : DS.text)
-                .frame(width: 56, height: 56)
+                .frame(width: 46, height: 46)
                 .overlay(Circle().stroke(active ? DS.danger.opacity(0.6) : DS.hairlineStrong, lineWidth: 1))
+                .frame(maxWidth: .infinity)
         }.buttonStyle(.plain)
     }
 }
