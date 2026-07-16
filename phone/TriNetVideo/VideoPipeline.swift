@@ -58,8 +58,6 @@ class H264Encoder {
     var onFrame: ((Data, Bool) -> Void)?
     let width: Int32 = 480
     let height: Int32 = 272
-    var spsSent = false
-    var ppsSent = false
 
     func setup() -> Bool {
         var s: VTCompressionSession?
@@ -87,27 +85,32 @@ class H264Encoder {
     }
 
     private func process(_ sb: CMSampleBuffer) {
+        // UDP is lossy and receivers can join mid-stream, so SPS/PPS must be
+        // re-sent with every keyframe, not once per session
+        var isKeyframe = true
+        if let atts = CMSampleBufferGetSampleAttachmentsArray(sb, createIfNecessary: false), CFArrayGetCount(atts) > 0 {
+            let dict = unsafeBitCast(CFArrayGetValueAtIndex(atts, 0), to: CFDictionary.self)
+            isKeyframe = !CFDictionaryContainsKey(dict, Unmanaged.passUnretained(kCMSampleAttachmentKey_NotSync).toOpaque())
+        }
         // Extract SPS/PPS from formatDescription and send FIRST
-        if let fmtDesc = CMSampleBufferGetFormatDescription(sb) {
+        if isKeyframe, let fmtDesc = CMSampleBufferGetFormatDescription(sb) {
             // SPS
             var spsSize = 0
             var spsPtr: UnsafePointer<UInt8>? = nil
             CMVideoFormatDescriptionGetH264ParameterSetAtIndex(fmtDesc, parameterSetIndex: 0, parameterSetPointerOut: &spsPtr, parameterSetSizeOut: &spsSize, parameterSetCountOut: nil, nalUnitHeaderLengthOut: nil)
-            if let sp = spsPtr, spsSize > 0, !spsSent {
+            if let sp = spsPtr, spsSize > 0 {
                 var spsData = Data([0, 0, 0, 1])
                 spsData.append(Data(bytes: sp, count: spsSize))
                 onFrame?(spsData, true)
-                spsSent = true
             }
             // PPS
             var ppsSize = 0
             var ppsPtr: UnsafePointer<UInt8>? = nil
             CMVideoFormatDescriptionGetH264ParameterSetAtIndex(fmtDesc, parameterSetIndex: 1, parameterSetPointerOut: &ppsPtr, parameterSetSizeOut: &ppsSize, parameterSetCountOut: nil, nalUnitHeaderLengthOut: nil)
-            if let pp = ppsPtr, ppsSize > 0, !ppsSent {
+            if let pp = ppsPtr, ppsSize > 0 {
                 var ppsData = Data([0, 0, 0, 1])
                 ppsData.append(Data(bytes: pp, count: ppsSize))
                 onFrame?(ppsData, true)
-                ppsSent = true
             }
         }
 
@@ -151,8 +154,10 @@ class H264Decoder: ObservableObject {
         guard nalUnit.count > 4 else { return }
         let nalType = nalUnit[4] & 0x1F
         switch nalType {
-        case 7: sps = nalUnit; tryInitSession()
-        case 8: pps = nalUnit; tryInitSession()
+        // CMVideoFormatDescriptionCreateFromH264ParameterSets expects raw
+        // parameter sets — strip the 4-byte Annex-B start code
+        case 7: sps = nalUnit.subdata(in: 4..<nalUnit.count); tryInitSession()
+        case 8: pps = nalUnit.subdata(in: 4..<nalUnit.count); tryInitSession()
         default: decodeFrame(nalUnit)
         }
     }

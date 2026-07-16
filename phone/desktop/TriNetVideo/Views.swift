@@ -258,10 +258,10 @@ struct CameraPreview: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
+        view.wantsLayer = true // must be set BEFORE touching view.layer, else it's nil
         let layer = AVCaptureVideoPreviewLayer(session: session)
         layer.videoGravity = .resizeAspectFill
         view.layer?.addSublayer(layer)
-        view.wantsLayer = true
         context.coordinator.previewLayer = layer
         return view
     }
@@ -290,7 +290,6 @@ struct RemoteVideoView: View {
 
             if let frame = decoder.currentFrame {
                 VideoFrameView(imageBuffer: frame, frameId: decoder.frameCount)
-                    .id(decoder.frameCount)
             } else {
                 VStack(spacing: 16) {
                     ProgressView()
@@ -324,11 +323,9 @@ struct VideoFrameView: NSViewRepresentable {
         let img = NSImage(size: rep.size)
         img.addRepresentation(rep)
 
-        let layer = CALayer()
-        layer.contents = img
-        layer.contentsGravity = .resizeAspect
-        layer.frame = nsView.bounds
-        nsView.layer?.sublayers?.forEach { $0.removeFromSuperlayer() }
-        nsView.layer?.addSublayer(layer)
+        // Set contents on the view's own layer — a fresh sublayer sized to
+        // nsView.bounds is zero-sized before layout and renders nothing
+        nsView.layer?.contents = img
+        nsView.layer?.contentsGravity = .resizeAspect
     }
 }

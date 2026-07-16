@@ -39,6 +39,25 @@ class VideoEncoder {
     }
 
     private func handleEncoded(_ sb: CMSampleBuffer) {
+        // UDP is lossy and receivers can join mid-stream, so SPS/PPS must be
+        // re-sent with every keyframe — the peer's decoder can't start without them
+        var isKeyframe = true
+        if let atts = CMSampleBufferGetSampleAttachmentsArray(sb, createIfNecessary: false), CFArrayGetCount(atts) > 0 {
+            let dict = unsafeBitCast(CFArrayGetValueAtIndex(atts, 0), to: CFDictionary.self)
+            isKeyframe = !CFDictionaryContainsKey(dict, Unmanaged.passUnretained(kCMSampleAttachmentKey_NotSync).toOpaque())
+        }
+        if isKeyframe, let fmtDesc = CMSampleBufferGetFormatDescription(sb) {
+            for i in 0..<2 {
+                var size = 0
+                var psPtr: UnsafePointer<UInt8>? = nil
+                CMVideoFormatDescriptionGetH264ParameterSetAtIndex(fmtDesc, parameterSetIndex: i, parameterSetPointerOut: &psPtr, parameterSetSizeOut: &size, parameterSetCountOut: nil, nalUnitHeaderLengthOut: nil)
+                if let p = psPtr, size > 0 {
+                    var d = Data([0, 0, 0, 1])
+                    d.append(Data(bytes: p, count: size))
+                    onNALUnit?(d)
+                }
+            }
+        }
         guard let db = CMSampleBufferGetDataBuffer(sb) else { return }
         var len = 0, total = 0
         var ptr: UnsafeMutablePointer<Int8>?

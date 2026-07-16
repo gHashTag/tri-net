@@ -14,12 +14,20 @@ class VideoDecoder: ObservableObject {
     private var sps: Data?
     private var pps: Data?
 
+    private var fedCount = 0
+
     func feed(_ nal: Data) {
         guard nal.count > 4 else { return }
         let type = nal[4] & 0x1F
+        fedCount += 1
+        if fedCount <= 10 || fedCount % 500 == 0 {
+            NSLog("TRINET: NAL #\(fedCount) type=\(type) \(nal.count)B session=\(session != nil)")
+        }
         switch type {
-        case 7: sps = nal; tryInit()
-        case 8: pps = nal; tryInit()
+        // CMVideoFormatDescriptionCreateFromH264ParameterSets expects raw
+        // parameter sets — strip the 4-byte Annex-B start code
+        case 7: NSLog("TRINET: got SPS \(nal.count)B"); sps = nal.subdata(in: 4..<nal.count); tryInit()
+        case 8: NSLog("TRINET: got PPS \(nal.count)B"); pps = nal.subdata(in: 4..<nal.count); tryInit()
         default: decode(nal)
         }
     }
@@ -34,11 +42,12 @@ class VideoDecoder: ObservableObject {
                 ]
                 let sizes: [Int] = [sps.count, pps.count]
                 var desc: CMVideoFormatDescription?
-                CMVideoFormatDescriptionCreateFromH264ParameterSets(
+                let fdStatus = CMVideoFormatDescriptionCreateFromH264ParameterSets(
                     allocator: kCFAllocatorDefault, parameterSetCount: 2,
                     parameterSetPointers: ptrs, parameterSetSizes: sizes,
                     nalUnitHeaderLength: 4, formatDescriptionOut: &desc
                 )
+                NSLog("TRINET: CMVideoFormatDescriptionCreate status=\(fdStatus)")
                 guard let d = desc else { return }
                 formatDesc = d
 
@@ -48,6 +57,7 @@ class VideoDecoder: ObservableObject {
                         guard status == noErr, let buf = buf else { return }
                         let dec = Unmanaged<VideoDecoder>.fromOpaque(ref!).takeUnretainedValue()
                         DispatchQueue.main.async {
+                            if dec.frameCount == 0 { NSLog("TRINET: FIRST FRAME DECODED!") }
                             dec.currentFrame = buf
                             dec.frameCount += 1
                         }
@@ -59,11 +69,12 @@ class VideoDecoder: ObservableObject {
                     kCVPixelBufferIOSurfacePropertiesKey: [:] as CFDictionary
                 ]
                 var ns: VTDecompressionSession?
-                VTDecompressionSessionCreate(
+                let vtStatus = VTDecompressionSessionCreate(
                     allocator: kCFAllocatorDefault, formatDescription: d,
                     decoderSpecification: nil, imageBufferAttributes: attrs as CFDictionary,
                     outputCallback: &cb, decompressionSessionOut: &ns
                 )
+                NSLog("TRINET: VTDecompressionSessionCreate status=\(vtStatus) session=\(ns != nil)")
                 session = ns
             }
         }
