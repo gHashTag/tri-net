@@ -1,0 +1,97 @@
+[
+ {
+  "id": "B01",
+  "title": "Static-key mutual auth (Noise-XX) + bind NodeId to static X25519 key",
+  "labels": [
+   "crypto",
+   "security",
+   "enhancement"
+  ]
+ },
+ {
+  "id": "B02",
+  "title": "Gate ETX/routing on completed auth; MAC/sign HELLOs (kill Sybil + blackhole)",
+  "labels": [
+   "routing",
+   "crypto",
+   "security",
+   "enhancement"
+  ]
+ },
+ {
+  "id": "B03",
+  "title": "Fast failure detection via HELLO seq gaps (BFD-style): force ETX=INF after k missed beacons",
+  "labels": [
+   "enhancement",
+   "routing",
+   "performance"
+  ]
+ },
+ {
+  "id": "B04",
+  "title": "Beacon scheduler + neighbor-expiry sweep in the daemon",
+  "labels": [
+   "enhancement",
+   "routing",
+   "research"
+  ]
+ },
+ {
+  "id": "B05",
+  "title": "routing: replace flat-window DeliveryRatio with WMEWMA + optimistic bootstrap",
+  "labels": [
+   "enhancement",
+   "routing",
+   "performance",
+   "research"
+  ]
+ },
+ {
+  "id": "B06",
+  "title": "Multi-hop additive path ETX with Babel-style feasibility condition (loop-free relay routing)",
+  "labels": [
+   "enhancement",
+   "routing",
+   "research"
+  ]
+ },
+ {
+  "id": "B07",
+  "title": "B07: Host-side single-carrier + OFDM modem sim to fix MCS / link-budget before RTL",
+  "labels": [
+   "enhancement",
+   "research",
+   "phy",
+   "performance"
+  ]
+ },
+ {
+  "id": "B08",
+  "title": "Add GF16 host DSP model of the OFDM FFT/equalizer datapath (sim-first)",
+  "labels": [
+   "enhancement",
+   "phy",
+   "performance",
+   "research"
+  ]
+ },
+ {
+  "id": "B09",
+  "title": "Authenticate HELLO beacons with per-neighbor freshness (monotonic seq + timestamp window under a MAC)",
+  "labels": [
+   "security",
+   "routing",
+   "crypto",
+   "enhancement"
+  ]
+ },
+ {
+  "id": "B10",
+  "title": "Periodic HKDF ratchet rekey + zeroize all key material (crypto/M1, tri-net#10)",
+  "labels": [
+   "crypto",
+   "security",
+   "enhancement"
+  ]
+ }
+]

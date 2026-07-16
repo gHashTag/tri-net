@@ -1,0 +1,51 @@
+[
+ {
+  "asset": "GoldenFloat GF16 (arXiv:2606.05017; zig-golden-float rust/goldenfloat-sys, phi_dot/phi_fma C-ABI; 323 MHz Artix-7 XC7A35T, 35/35 PASS)",
+  "mechanism": "16-bit phi-derived FP datapath: half the multiplier width vs fp32 => more parallel FFT/equalizer taps per DSP48; ready Rust FFI gives a bit-exact model that maps 1:1 to t27-emitted Verilog. Realistic gain = area/width, NOT accuracy (paper makes no superiority claim).",
+  "module": "trios-mesh src/ new gf16 DSP model of OFDM FFT/equalizer taps (sim-first) -> later P201/P203 Mini Zynq-7020 PL radio datapath",
+  "effort": "M",
+  "auto": true
+ },
+ {
+  "asset": "Ternary / BitNet b1.58 (tt-trinity-gamma bitnet_encoder.v, k3_alu.v, arXiv:2402.17764; R-SI-1 no-star audit; zig-golden-float GFTernary)",
+  "mechanism": "Add-only multiply-free ternary {-1,0,+1} inference (~1.58 bit/trit, ~20x memory vs fp32) runs WITHOUT consuming DSP48 slices, so onboard AI coexists with the OFDM datapath on the DSP-starved 7020. Consumes AD9361 spectral features -> jam/clear + suggested channel/TX-power.",
+  "module": "P201/P203 Mini onboard AI: ternary RF-interference/jam classifier stub feeding trios-mesh src/routing.rs adaptive input (S9). FPGA accel later via t27 gen-bitnet-bundle.",
+  "effort": "M",
+  "auto": true
+ },
+ {
+  "asset": "VSA / HDC (zig-hdc HRR/bundle/similarity over GF16; tt-trinity-gamma VSA PE mesh)",
+  "mechanism": "Hypervectors clean up to the correct symbol under ~30% bit corruption via nearest-neighbor similarity => graceful degradation instead of link drops. Robustness heuristic only, NOT a proven convergence guarantee.",
+  "module": "trios-mesh src/routing.rs + src/discovery.rs: neighbor IDs / anti-jam channel fingerprints as bundled hypervectors layered on the ETX metric; measure convergence in -sim.",
+  "effort": "M",
+  "auto": true
+ },
+ {
+  "asset": "BLAKE3 + append-only audit ring (tt-trinity-euler/gamma blake3_anchor.v, audit_log_ring_buffer.v, proof_trace_writer.v)",
+  "mechanism": "BLAKE3-hashed tamper-evident append-only log of C2/telemetry frames; integrity offload + auditable command trail (not new crypto strength - AEAD already gives confidentiality/authenticity).",
+  "module": "trios-mesh src/crypto.rs / src/wire.rs Rust audit log now (auto); Zynq PL BLAKE3 offload future silicon. Strengthens injection defense + BVLOS/CAAS regulatory evidence.",
+  "effort": "S",
+  "auto": true
+ },
+ {
+  "asset": "84-format conformance catalog + Corona oracle + 0x47C0 anchor (arXiv:2606.09686; paper3-methodology; tt-trinity-corona 17 decoders->FP32; t27 FORMAT-SPEC-001.json)",
+  "mechanism": "SHA-256-fingerprinted, ml_dtypes-cross-validated bit-exact numeric vectors; universal check 3.0=phi^2+phi^-2 and dot4(1,2,3,4)=0x47C0 give a single source-of-truth encoding so the datapath is bit-identical in sim and silicon.",
+  "module": "trios-mesh CI + gf16 DSP module golden tests -> de-risks the 'never run on hardware' sim-vs-hardware parity gap.",
+  "effort": "S",
+  "auto": true
+ },
+ {
+  "asset": "t27 spec-first FPGA flow + BitNet HLS bundle (Yosys->nextpnr->prjxray->.bit, no Vivado; AXI slave+DMA+IRQ+engine_top; host Rust driver)",
+  "mechanism": "Same open flow that closed GF16 on Artix-7 targets the Zynq-7020 PL; BitNet HLS bundle is a ready AXI-attached ternary accelerator the trios-mesh Rust host driver can talk to.",
+  "module": "Zynq PL ternary-classifier accelerator + trios-mesh host driver (RTL/bitstream => auto=false; Rust host-driver side testable early).",
+  "effort": "L",
+  "auto": false
+ },
+ {
+  "asset": "tt-trinity Phi/Euler/Gamma/Corona ASIC + D2D holo-mesh (four SUBMITTED TinyTapeout dies; die-to-die mesh mirrors drone-to-drone mesh)",
+  "mechanism": "Owned open-silicon compute path with a chip-to-chip mesh protocol conceptually mirroring the drone mesh => the concrete 'own-chip vs Starlink' differentiator. MUST stay pre-silicon: SUBMITTED/PROJECTED, no die returned, no measured TOPS, no per-shuttle DOI.",
+  "module": "Report/pitch strategy narrative (not a code module); keep OFAC-listed parties out of US pitches.",
+  "effort": "S",
+  "auto": false
+ }
+]

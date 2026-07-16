@@ -1,0 +1,72 @@
+[
+ {
+  "slug": "epic-drone-mesh",
+  "old": 219,
+  "new": 1
+ },
+ {
+  "slug": "skill-fix-fpga-synth",
+  "old": 220,
+  "new": 2
+ },
+ {
+  "slug": "docs-honest-status",
+  "old": 221,
+  "new": 3
+ },
+ {
+  "slug": "p0-autoflash-portable",
+  "old": 222,
+  "new": 4
+ },
+ {
+  "slug": "p0-ax7203-flash",
+  "old": 223,
+  "new": 5
+ },
+ {
+  "slug": "tri-net-skill",
+  "old": 224,
+  "new": 6
+ },
+ {
+  "slug": "p0-toolchain",
+  "old": 225,
+  "new": 7
+ },
+ {
+  "slug": "p0-mini-boot",
+  "old": 226,
+  "new": 8
+ },
+ {
+  "slug": "p1-ad9361-phy",
+  "old": 227,
+  "new": 9
+ },
+ {
+  "slug": "p1-mesh-repo",
+  "old": 228,
+  "new": 10
+ },
+ {
+  "slug": "p1-mesh-tun-etx",
+  "old": 229,
+  "new": 11
+ },
+ {
+  "slug": "p1-iperf-2hop",
+  "old": 230,
+  "new": 12
+ },
+ {
+  "slug": "p2-shared-uplink",
+  "old": 231,
+  "new": 13
+ },
+ {
+  "slug": "p2-self-heal",
+  "old": 232,
+  "new": 14
+ }
+]

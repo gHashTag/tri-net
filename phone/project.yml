@@ -1,0 +1,37 @@
+name: TriNetVideo
+options:
+  bundleIdPrefix: com.trinet
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    CODE_SIGN_STYLE: Automatic
+targets:
+  TriNetVideo:
+    type: application
+    platform: iOS
+    sources:
+      - path: TriNetVideo
+    info:
+      path: TriNetVideo/Info.plist
+      properties:
+        CFBundleDisplayName: TRI-NET Video
+        NSCameraUsageDescription: "TRI-NET needs camera to stream video over mesh radio"
+        NSMicrophoneUsageDescription: "TRI-NET needs microphone for video calls"
+        NSLocalNetworkUsageDescription: "TRI-NET needs local network to connect to mesh radio nodes"
+        UILaunchScreen:
+          UIColorName: ""
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.trinet.video
+        DEVELOPMENT_TEAM: "5H75B24AH5"
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "Apple Development"
+        CODE_SIGNING_REQUIRED: YES
+        CODE_SIGNING_ALLOWED: YES
+        GENERATE_INFOPLIST_FILE: NO
+        PRODUCT_NAME: TriNetVideo

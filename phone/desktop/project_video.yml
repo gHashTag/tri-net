@@ -1,0 +1,30 @@
+name: TriNetVideo
+options:
+  bundleIdPrefix: com.trinet
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGNING_REQUIRED: NO
+    CODE_SIGNING_ALLOWED: YES
+targets:
+  TriNetVideo:
+    type: application
+    platform: macOS
+    sources:
+      - path: TriNetVideo
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.trinet.video
+        PRODUCT_NAME: TriNetVideo
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: "TRI-NET Video"
+        INFOPLIST_KEY_NSCameraUsageDescription: "Video calls over mesh"
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Audio for video calls"
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: "Mesh video transport"
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: YES

@@ -7,3 +7,8 @@ tests/fuzz/grammar_v2/target/
 tests/fuzz/grammar_v2/Cargo.lock
 tests/fuzz/grammar_v2/out/
 
+
+# phone/ (consolidated tri-net-phone) — build artifacts
+.DS_Store
+**/.build/
+**/xcuserdata/
