@@ -24,6 +24,8 @@ final class AudioController {
     // Live audio levels (0...1), reported per buffer for the TX/RX meters.
     var onTxLevel: ((Float) -> Void)?
     var onRxLevel: ((Float) -> Void)?
+    // Raw incoming 16k Int16 PCM (magic stripped) — for the call recorder.
+    var onRxPCM: ((Data) -> Void)?
     private var playing = false
     private var capturing = false
     private var rxCount = 0
@@ -134,6 +136,7 @@ final class AudioController {
             }
         }
         onRxLevel?(Self.level(sumSq, n))
+        onRxPCM?(d)
         rxCount += 1
         if rxCount <= 2 || rxCount % 200 == 0 {
             NSLog("TRINET: audio rx #\(rxCount) \(d.count)B engineRunning=\(playEngine.isRunning) playerPlaying=\(player.isPlaying) mixerVol=\(playEngine.mainMixerNode.outputVolume)")

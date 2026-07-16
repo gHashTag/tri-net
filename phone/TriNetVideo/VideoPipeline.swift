@@ -2,6 +2,8 @@
 import SwiftUI
 import AVFoundation
 import VideoToolbox
+import Vision
+import CoreImage
 import Network
 import CryptoKit
 
@@ -79,12 +81,23 @@ class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     }
 
     func forceKeyframe() { encoder?.forceKeyframe() }
+    func nudgeBitrate(down: Bool) { encoder?.nudgeBitrate(down: down) }
+    var bitrateKbps: Int { encoder?.bitrateKbps ?? 0 }
+
+    // Virtual background: blur all but the person on the outgoing frame.
+    var blurBackground = false
+    private let blur = BackgroundBlur()
 
     func stop() { encoder = nil }
     func stopAll() { session.stopRunning() }
 
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        encoder?.encode(sampleBuffer)
+        if blurBackground, let pb = CMSampleBufferGetImageBuffer(sampleBuffer) {
+            let out = blur.process(pb)
+            encoder?.encode(pixelBuffer: out, pts: CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
+        } else {
+            encoder?.encode(sampleBuffer)
+        }
     }
 }
 
@@ -115,7 +128,8 @@ class H264Encoder {
         )
         guard r == noErr, let s = s else { return false }
         session = s
-        VTSessionSetProperty(s, key: kVTCompressionPropertyKey_AverageBitRate, value: 200_000 as CFNumber)
+        maxBitrate = 200_000; curBitrate = maxBitrate
+        VTSessionSetProperty(s, key: kVTCompressionPropertyKey_AverageBitRate, value: curBitrate as CFNumber)
         VTSessionSetProperty(s, key: kVTCompressionPropertyKey_RealTime, value: kCFBooleanTrue)
         VTSessionSetProperty(s, key: kVTCompressionPropertyKey_ProfileLevel, value: kVTProfileLevel_H264_Baseline_3_0 as CFString)
         VTSessionSetProperty(s, key: kVTCompressionPropertyKey_MaxKeyFrameInterval, value: 10 as CFNumber)
@@ -178,8 +192,25 @@ class H264Encoder {
     private var forceKeyframeNext = false
     func forceKeyframe() { forceKeyframeNext = true }
 
+    // Adaptive bitrate (PLI-driven), mirrors the macOS encoder.
+    private var maxBitrate = 200_000
+    private var curBitrate = 200_000
+    private(set) var bitrateKbps = 0
+    func nudgeBitrate(down: Bool) {
+        guard let s = session, maxBitrate > 0 else { return }
+        let floor = max(80_000, maxBitrate / 8)
+        curBitrate = down ? max(floor, Int(Double(curBitrate) * 0.7))
+                          : min(maxBitrate, Int(Double(curBitrate) * 1.2))
+        bitrateKbps = curBitrate / 1000
+        VTSessionSetProperty(s, key: kVTCompressionPropertyKey_AverageBitRate, value: curBitrate as CFNumber)
+    }
+
     func encode(_ sb: CMSampleBuffer) {
         guard let pb = CMSampleBufferGetImageBuffer(sb) else { return }
+        encode(pixelBuffer: pb, pts: CMSampleBufferGetPresentationTimeStamp(sb))
+    }
+
+    func encode(pixelBuffer pb: CVPixelBuffer, pts: CMTime) {
         if session == nil {
             let w = Int32(CVPixelBufferGetWidth(pb))
             let h = Int32(CVPixelBufferGetHeight(pb))
@@ -193,7 +224,7 @@ class H264Encoder {
             props = [kVTEncodeFrameOptionKey_ForceKeyFrame: kCFBooleanTrue] as CFDictionary
             NSLog("TRINET: forcing keyframe (peer PLI)")
         }
-        VTCompressionSessionEncodeFrame(s, imageBuffer: pb, presentationTimeStamp: CMSampleBufferGetPresentationTimeStamp(sb), duration: .invalid, frameProperties: props, sourceFrameRefcon: nil, infoFlagsOut: nil)
+        VTCompressionSessionEncodeFrame(s, imageBuffer: pb, presentationTimeStamp: pts, duration: .invalid, frameProperties: props, sourceFrameRefcon: nil, infoFlagsOut: nil)
     }
 }
 
@@ -801,5 +832,48 @@ final class MeshCrypto {
             return nil
         }
         return plain
+    }
+}
+
+// MARK: - Virtual background (embedded; iOS target uses a static file list).
+// Vision person-segmentation → CIBlendWithMask blurs the background on the
+// outgoing frame so the peer sees the blur. Mirrors desktop/BackgroundBlur.swift.
+final class BackgroundBlur {
+    private let ci = CIContext()
+    private let request = VNGeneratePersonSegmentationRequest()
+    private var pool: CVPixelBufferPool?
+
+    init() {
+        request.qualityLevel = .balanced
+        request.outputPixelFormat = kCVPixelFormatType_OneComponent8
+    }
+
+    func process(_ pb: CVPixelBuffer) -> CVPixelBuffer {
+        let handler = VNImageRequestHandler(cvPixelBuffer: pb, options: [:])
+        guard (try? handler.perform([request])) != nil,
+              let mask = request.results?.first?.pixelBuffer else { return pb }
+        let frame = CIImage(cvPixelBuffer: pb)
+        var maskImg = CIImage(cvPixelBuffer: mask)
+        let sx = frame.extent.width / maskImg.extent.width
+        let sy = frame.extent.height / maskImg.extent.height
+        maskImg = maskImg.transformed(by: CGAffineTransform(scaleX: sx, y: sy))
+        let blurred = frame.clampedToExtent().applyingGaussianBlur(sigma: 12).cropped(to: frame.extent)
+        guard let blend = CIFilter(name: "CIBlendWithMask", parameters: [
+            kCIInputImageKey: frame, kCIInputBackgroundImageKey: blurred, kCIInputMaskImageKey: maskImg
+        ])?.outputImage else { return pb }
+        let W = CVPixelBufferGetWidth(pb), H = CVPixelBufferGetHeight(pb)
+        if pool == nil {
+            let attrs: [String: Any] = [
+                kCVPixelBufferPixelFormatTypeKey as String: CVPixelBufferGetPixelFormatType(pb),
+                kCVPixelBufferWidthKey as String: W, kCVPixelBufferHeightKey as String: H,
+                kCVPixelBufferIOSurfacePropertiesKey as String: [:]
+            ]
+            CVPixelBufferPoolCreate(nil, nil, attrs as CFDictionary, &pool)
+        }
+        var out: CVPixelBuffer?
+        guard let p = pool, CVPixelBufferPoolCreatePixelBuffer(nil, p, &out) == kCVReturnSuccess,
+              let outBuf = out else { return pb }
+        ci.render(blend, to: outBuf)
+        return outBuf
     }
 }

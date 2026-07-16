@@ -28,6 +28,26 @@ class StreamViewModel: ObservableObject {
     // Chat + reactions (shown live on both ends)
     @Published var chat: [ChatLine] = []
     @Published var liveReaction: String?
+    @Published var isBlurred = false
+
+    func toggleBlur() {
+        isBlurred.toggle()
+        camera.blurBackground = isBlurred
+    }
+
+    // Adaptive bitrate: sample incoming PLI rate every 3s.
+    private var pliCount = 0
+    private var abrTimer: Timer?
+    func startABR() {
+        abrTimer?.invalidate()
+        abrTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
+            guard let self = self, self.phase == .live else { return }
+            if self.pliCount >= 3 { self.camera.nudgeBitrate(down: true) }
+            else if self.pliCount == 0 { self.camera.nudgeBitrate(down: false) }
+            self.pliCount = 0
+        }
+    }
+    func notePLI() { pliCount += 1 }
 
     func sendChat(_ text: String) {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -106,6 +126,7 @@ class StreamViewModel: ObservableObject {
             self.bytesRecv += data.count
             if data.count == 2, data[0] == 0xFC { // Picture Loss Indication
                 self.camera.forceKeyframe()
+                self.notePLI()   // adaptive bitrate signal
                 return
             }
             if data.count > 2, data[0] == 0xFD, data[1] == 0xAD { // audio
@@ -162,6 +183,8 @@ class StreamViewModel: ObservableObject {
             }
         }
 
+        startABR()
+
         // Fallback: go live after 2s even without remote video
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             if self.phase == .connecting { self.phase = .live }
@@ -174,6 +197,7 @@ class StreamViewModel: ObservableObject {
         audio.stop()
         transport.disconnect()
         timer?.invalidate(); timer = nil
+        abrTimer?.invalidate(); abrTimer = nil
         phase = .idle
         framesSent = 0; framesReceived = 0
         bytesSent = 0; bytesRecv = 0

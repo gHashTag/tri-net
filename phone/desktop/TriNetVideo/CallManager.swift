@@ -258,6 +258,11 @@ class CallManager: ObservableObject {
         audio.onRxLevel = { [weak self] lvl in
             DispatchQueue.main.async { self?.rxLevel = max(lvl, (self?.rxLevel ?? 0) * 0.8) }
         }
+        // Incoming PCM → recorder audio track while recording
+        audio.onRxPCM = { [weak self] pcm in
+            guard let self = self, self.isRecording else { return }
+            self.recorder.appendAudio(pcm)
+        }
         // Off the main path: first touch of the mic can block ~60s on TCC
         // init, and audio must never hold up transport/video startup.
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.audio.start() }
