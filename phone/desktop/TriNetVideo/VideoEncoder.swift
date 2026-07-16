@@ -40,8 +40,9 @@ class VideoEncoder {
         // AutoLevel: a fixed level (e.g. 3.1, max 1280x720) makes the encoder
         // silently reject every frame from cameras that ignore the session
         // preset and deliver 1080p. Bitrate scales with the actual dimensions.
-        let bitrate = min(2_000_000, Int(width) * Int(height) * 2)
-        VTSessionSetProperty(s, key: kVTCompressionPropertyKey_AverageBitRate, value: bitrate as CFNumber)
+        maxBitrate = min(2_000_000, Int(width) * Int(height) * 2)
+        curBitrate = maxBitrate
+        VTSessionSetProperty(s, key: kVTCompressionPropertyKey_AverageBitRate, value: curBitrate as CFNumber)
         VTSessionSetProperty(s, key: kVTCompressionPropertyKey_RealTime, value: kCFBooleanTrue)
         VTSessionSetProperty(s, key: kVTCompressionPropertyKey_ProfileLevel, value: kVTProfileLevel_H264_Baseline_AutoLevel as CFString)
         VTSessionSetProperty(s, key: kVTCompressionPropertyKey_MaxKeyFrameInterval, value: 30 as CFNumber)
@@ -92,8 +93,28 @@ class VideoEncoder {
     private var forceKeyframeNext = false
     func forceKeyframe() { forceKeyframeNext = true }
 
+    // Adaptive bitrate: the PLI rate is a live loss estimate. Drop the encode
+    // bitrate on sustained loss, recover it toward the cap when the link is clean.
+    private var maxBitrate = 1_000_000
+    private var curBitrate = 1_000_000
+    private(set) var bitrateKbps: Int = 0
+    func nudgeBitrate(down: Bool) {
+        guard let s = session, maxBitrate > 0 else { return }
+        let floor = max(120_000, maxBitrate / 8)
+        curBitrate = down ? max(floor, Int(Double(curBitrate) * 0.7))
+                          : min(maxBitrate, Int(Double(curBitrate) * 1.2))
+        bitrateKbps = curBitrate / 1000
+        VTSessionSetProperty(s, key: kVTCompressionPropertyKey_AverageBitRate, value: curBitrate as CFNumber)
+    }
+
     func encode(_ sampleBuffer: CMSampleBuffer) {
         guard let pb = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        encode(pixelBuffer: pb, pts: CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
+    }
+
+    // Encode a raw pixel buffer (used when a filter — e.g. background blur —
+    // has already produced a processed frame).
+    func encode(pixelBuffer pb: CVPixelBuffer, pts: CMTime) {
         if session == nil {
             let w = Int32(CVPixelBufferGetWidth(pb))
             let h = Int32(CVPixelBufferGetHeight(pb))
@@ -110,8 +131,7 @@ class VideoEncoder {
             props = [kVTEncodeFrameOptionKey_ForceKeyFrame: kCFBooleanTrue] as CFDictionary
             NSLog("TRINET: forcing keyframe (peer PLI)")
         }
-        VTCompressionSessionEncodeFrame(s, imageBuffer: pb,
-            presentationTimeStamp: CMSampleBufferGetPresentationTimeStamp(sampleBuffer),
+        VTCompressionSessionEncodeFrame(s, imageBuffer: pb, presentationTimeStamp: pts,
             duration: .invalid, frameProperties: props, sourceFrameRefcon: nil, infoFlagsOut: nil)
     }
 }

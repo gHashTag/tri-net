@@ -27,6 +27,11 @@ final class AudioController {
     private var playing = false
     private var capturing = false
     private var rxCount = 0
+    // Adaptive jitter buffer: grow the pre-roll target when inter-packet gaps
+    // are erratic, shrink it when they're steady (packets ≈20ms apart).
+    private var preRollTarget = 3
+    private var lastRxAt: CFTimeInterval = 0
+    private var jitterEwma: Double = 0.02
     private var txCount = 0
 
     // RMS -> perceptual 0...1 (sqrt gives a livelier meter than raw RMS)
@@ -133,10 +138,20 @@ final class AudioController {
         if rxCount <= 2 || rxCount % 200 == 0 {
             NSLog("TRINET: audio rx #\(rxCount) \(d.count)B engineRunning=\(playEngine.isRunning) playerPlaying=\(player.isPlaying) mixerVol=\(playEngine.mainMixerNode.outputVolume)")
         }
+        // Track inter-packet gap to size the pre-roll adaptively.
+        let now = CFAbsoluteTimeGetCurrent()
+        if lastRxAt > 0 {
+            let gap = now - lastRxAt
+            jitterEwma = jitterEwma * 0.9 + abs(gap - 0.02) * 0.1  // deviation from 20ms
+            preRollTarget = jitterEwma > 0.04 ? min(8, preRollTarget + 1)
+                          : jitterEwma < 0.015 ? max(2, preRollTarget - 1) : preRollTarget
+        }
+        lastRxAt = now
+
         player.scheduleBuffer(buf, completionHandler: nil)
-        // Jitter buffer: start playback only after a small pre-roll (~3 packets
-        // ≈ 60ms) is queued, so initial network jitter doesn't cause underruns.
-        if !player.isPlaying && rxCount >= 3 { player.play() }
+        // Adaptive jitter buffer: start (or restart after an underrun) once the
+        // pre-roll target is queued, so network jitter doesn't cause choppiness.
+        if !player.isPlaying && rxCount >= preRollTarget { player.play() }
     }
 
     func stop() {

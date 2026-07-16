@@ -18,6 +18,7 @@
 		C270D9DDE66C74E5DC1A30B3 /* AudioController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0445AEA738BFAA34619AA /* AudioController.swift */; };
 		C73AAD99E5A78718DEBAB8D8 /* CameraCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = BED4FD339A53B74B67C3AC3B /* CameraCapture.swift */; };
 		D71FF2DC1AF5071C5554087C /* CallManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE481AF1D2D340638A1ED080 /* CallManager.swift */; };
+		DAF6D4EF3DC01D613A72B27A /* BackgroundBlur.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ECC2F3EAC83479F7A0D2341 /* BackgroundBlur.swift */; };
 		E00EF2E2E4936A31DF3F1B15 /* VideoCallTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 432A15C47C534F56D40856CC /* VideoCallTab.swift */; };
 		FA37124F072CB8ADC4B3905A /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 227CBA24BA6F542237F2CD11 /* DesignSystem.swift */; };
 /* End PBXBuildFile section */
@@ -29,6 +30,7 @@
 		2A55AB3C5EF91C2E49F7A086 /* TriNetMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriNetMonitor.swift; sourceTree = "<group>"; };
 		34A698FD561A4D1344491A23 /* MeshCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshCrypto.swift; sourceTree = "<group>"; };
 		432A15C47C534F56D40856CC /* VideoCallTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoCallTab.swift; sourceTree = "<group>"; };
+		6ECC2F3EAC83479F7A0D2341 /* BackgroundBlur.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundBlur.swift; sourceTree = "<group>"; };
 		72EFD27FFE9177F3C365221D /* VideoEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEncoder.swift; sourceTree = "<group>"; };
 		8CD42991E4D14A95B2A03439 /* TriNetMonitor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TriNetMonitor.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A55D68653305B39F6D4E6C1F /* RTIHeatmap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RTIHeatmap.swift; sourceTree = "<group>"; };
@@ -52,6 +54,7 @@
 			isa = PBXGroup;
 			children = (
 				20B0445AEA738BFAA34619AA /* AudioController.swift */,
+				6ECC2F3EAC83479F7A0D2341 /* BackgroundBlur.swift */,
 				FE481AF1D2D340638A1ED080 /* CallManager.swift */,
 				EC01D2BB9D49E3653F739BC9 /* CallRecorder.swift */,
 				BED4FD339A53B74B67C3AC3B /* CameraCapture.swift */,
@@ -132,6 +135,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C270D9DDE66C74E5DC1A30B3 /* AudioController.swift in Sources */,
+				DAF6D4EF3DC01D613A72B27A /* BackgroundBlur.swift in Sources */,
 				D71FF2DC1AF5071C5554087C /* CallManager.swift in Sources */,
 				9883135C4EC8B3D8C9780D21 /* CallRecorder.swift in Sources */,
 				C73AAD99E5A78718DEBAB8D8 /* CameraCapture.swift in Sources */,

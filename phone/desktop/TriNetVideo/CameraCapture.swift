@@ -62,6 +62,12 @@ class CameraCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     }
 
     func forceKeyframe() { encoder?.forceKeyframe() }
+    func nudgeBitrate(down: Bool) { encoder?.nudgeBitrate(down: down) }
+    var bitrateKbps: Int { encoder?.bitrateKbps ?? 0 }
+
+    // Virtual background: blur everything but the person on the outgoing frame.
+    var blurBackground = false
+    private let blur = BackgroundBlur()
 
     func switchTo(_ device: AVCaptureDevice) {
         session.beginConfiguration()
@@ -90,6 +96,11 @@ class CameraCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         capCount += 1
         if capCount == 1 { NSLog("TRINET: captureOutput first frame, encoder=\(encoder != nil)") }
         onSampleBuffer?(sampleBuffer)
-        encoder?.encode(sampleBuffer)
+        if blurBackground, let pb = CMSampleBufferGetImageBuffer(sampleBuffer) {
+            let out = blur.process(pb)
+            encoder?.encode(pixelBuffer: out, pts: CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
+        } else {
+            encoder?.encode(sampleBuffer)
+        }
     }
 }

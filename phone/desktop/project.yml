@@ -23,6 +23,7 @@ targets:
       - path: TriNetVideo/CameraCapture.swift
       - path: TriNetVideo/ScreenCapture.swift
       - path: TriNetVideo/CallRecorder.swift
+      - path: TriNetVideo/BackgroundBlur.swift
       - path: TriNetVideo/MeshTransport.swift
       - path: TriNetVideo/VideoDecoder.swift
       - path: TriNetVideo/VideoEncoder.swift

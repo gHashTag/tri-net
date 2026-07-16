@@ -30,6 +30,22 @@ class CallManager: ObservableObject {
     // thread so the bars fall smoothly when a buffer is quiet or absent.
     @Published var txLevel: Float = 0
     @Published var rxLevel: Float = 0
+    @Published var bitrateKbps: Int = 0
+
+    // Adaptive bitrate: sample the incoming PLI rate every 3s. Sustained PLIs
+    // mean the peer is losing our video → back off; a clean window → recover.
+    private var pliCount = 0
+    private var abrTimer: Timer?
+    private func startABR() {
+        abrTimer?.invalidate()
+        abrTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
+            guard let self = self, self.isInCall else { return }
+            if self.pliCount >= 3 { self.camera.nudgeBitrate(down: true) }
+            else if self.pliCount == 0 { self.camera.nudgeBitrate(down: false) }
+            self.pliCount = 0
+            self.bitrateKbps = self.camera.bitrateKbps
+        }
+    }
 
     init() {
         localIP = MeshTransport.getLocalIP()
@@ -56,6 +72,12 @@ class CallManager: ObservableObject {
     private var recSink: AnyCancellable?
     @Published var isRecording = false
     @Published var lastRecordingPath: String?
+    @Published var isBlurred = false
+
+    func toggleBlur() {
+        isBlurred.toggle()
+        camera.blurBackground = isBlurred
+    }
 
     func toggleRecording() {
         if isRecording {
@@ -171,6 +193,7 @@ class CallManager: ObservableObject {
             guard let self = self else { return }
             if data.count == 2, data[0] == 0xFC { // Picture Loss Indication
                 self.camera.forceKeyframe()
+                self.pliCount += 1   // adaptive bitrate: PLI = loss signal
                 return
             }
             if data.count > 2, data[0] == 0xFD, data[1] == 0xAD { // audio
@@ -259,12 +282,14 @@ class CallManager: ObservableObject {
         isInCall = true
         isStarting = false
         status = "Waiting for video..."
+        startABR()
     }
 
     func endCall() {
         if #available(macOS 12.3, *) { (screen as? ScreenCapture)?.stop() }
         isScreenSharing = false
         if isRecording { recorder.stop { [weak self] url in self?.lastRecordingPath = url?.path }; isRecording = false; recSink = nil }
+        abrTimer?.invalidate(); abrTimer = nil
         camera.stop()
         audio.stop()
         transport.disconnect()

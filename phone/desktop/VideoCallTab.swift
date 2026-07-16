@@ -171,6 +171,7 @@ private struct InCallView: View {
                          active: call.isScreenSharing, tint: DS.live) { call.toggleScreenShare() }
                 IconPill(system: "bubble.left.and.bubble.right\(call.chat.isEmpty ? "" : ".fill")", active: showChat) { showChat.toggle() }
                 IconPill(system: call.isRecording ? "record.circle.fill" : "record.circle", active: call.isRecording, tint: DS.danger) { call.toggleRecording() }
+                IconPill(system: call.isBlurred ? "person.crop.rectangle.badge.plus.fill" : "person.crop.rectangle", active: call.isBlurred, tint: DS.live) { call.toggleBlur() }
                 Menu {
                     ForEach(call.cameras, id: \.uniqueID) { cam in
                         Button(cam.localizedName) { call.selectCamera(cam.uniqueID) }
