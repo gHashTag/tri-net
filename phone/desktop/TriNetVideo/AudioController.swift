@@ -109,8 +109,11 @@ final class AudioController {
             }
         }
         rxCount += 1
-        if rxCount == 1 { NSLog("TRINET: audio rx first packet \(d.count)B") }
+        if rxCount <= 2 || rxCount % 200 == 0 {
+            NSLog("TRINET: audio rx #\(rxCount) \(d.count)B engineRunning=\(playEngine.isRunning) playerPlaying=\(player.isPlaying) mixerVol=\(playEngine.mainMixerNode.outputVolume)")
+        }
         player.scheduleBuffer(buf, completionHandler: nil)
+        if !player.isPlaying { player.play() } // ensure playback actually runs
     }
 
     func stop() {

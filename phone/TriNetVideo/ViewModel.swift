@@ -88,7 +88,9 @@ class StreamViewModel: ObservableObject {
             guard let self = self, !self.isMuted else { return }
             self.transport.send(pkt)
         }
-        audio.start()
+        // Off the main path: first touch of the mic can block on permission /
+        // session init, and audio must never hold up transport/video startup.
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.audio.start() }
 
         // Outgoing: camera → H.264 → UDP
         camera.onFrame = { [weak self] h264Data, _ in

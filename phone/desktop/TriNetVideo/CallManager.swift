@@ -92,7 +92,9 @@ class CallManager: ObservableObject {
             guard let self = self, !self.isMuted else { return }
             self.transport.send(pkt)
         }
-        audio.start()
+        // Off the main path: first touch of the mic can block ~60s on TCC
+        // init, and audio must never hold up transport/video startup.
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.audio.start() }
 
         // Start camera
         camera.start(device: cameras.first(where: { $0.uniqueID == selectedCameraID }))

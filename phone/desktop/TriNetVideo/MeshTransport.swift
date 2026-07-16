@@ -75,10 +75,13 @@ class MeshTransport {
                 if n > 0 {
                     let pkt = Data(bytes: buf, count: n)
                     if self.crypto.isHandshake(pkt) {
-                        let wasEstablished = self.crypto.established
                         self.crypto.consumeHandshake(pkt)
-                        // Answer so the peer also derives the session
-                        if !wasEstablished { self.rawSendWire(self.crypto.handshakePacket()) }
+                        // Always answer: if the peer is still sending handshakes
+                        // it hasn't derived the session yet (its own ARP may
+                        // have dropped our earlier reply). We only receive a
+                        // handshake while the peer is NOT established, and it
+                        // stops sending once it is, so this can't loop forever.
+                        self.rawSendWire(self.crypto.handshakePacket())
                         continue
                     }
                     count += 1

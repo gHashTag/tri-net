@@ -427,9 +427,12 @@ class BSDTransport {
                 if n > 0 {
                     let pkt = Data(bytes: buf, count: n)
                     if self.crypto.isHandshake(pkt) {
-                        let wasEstablished = self.crypto.established
                         self.crypto.consumeHandshake(pkt)
-                        if !wasEstablished { self.rawSendWire(self.crypto.handshakePacket()) }
+                        // Always answer: the peer keeps sending handshakes only
+                        // while it hasn't derived the session (its ARP may have
+                        // dropped our earlier reply), and stops once it has —
+                        // so this can't loop forever.
+                        self.rawSendWire(self.crypto.handshakePacket())
                         continue
                     }
                     count += 1
