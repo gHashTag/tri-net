@@ -52,6 +52,26 @@ class CallManager: ObservableObject {
     let transport = MeshTransport()
     let audio = AudioController()
     private var screen: Any?  // ScreenCapture (macOS 12.3+), lazily created
+    private let recorder = CallRecorder()
+    private var recSink: AnyCancellable?
+    @Published var isRecording = false
+    @Published var lastRecordingPath: String?
+
+    func toggleRecording() {
+        if isRecording {
+            recorder.stop { [weak self] url in self?.lastRecordingPath = url?.path }
+            isRecording = false
+            recSink = nil
+        } else {
+            recorder.start()
+            isRecording = recorder.recording
+            // Append every decoded frame to the recording.
+            recSink = decoder.$currentFrame.sink { [weak self] buf in
+                guard let self = self, self.isRecording, let b = buf else { return }
+                self.recorder.append(b)
+            }
+        }
+    }
 
     // Local preview
     @Published var previewSession: AVCaptureSession?
@@ -60,6 +80,20 @@ class CallManager: ObservableObject {
     // Chat + reactions
     @Published var chat: [ChatLine] = []
     @Published var liveReaction: String?    // transient emoji overlay
+
+    // Group / roster — participants heard from (by source IP) + self.
+    @Published var roster: [String] = []
+    @Published var isGroup = false
+    private var lastSeen: [String: Date] = [:]
+    // Per-source decoders for conference video (1-1 keeps the single `decoder`).
+    var groupDecoders: [String: VideoDecoder] = [:]
+
+    private func noteSender(_ ip: String) {
+        lastSeen[ip] = Date()
+        let active = lastSeen.filter { Date().timeIntervalSince($0.value) < 6 }.keys.sorted()
+        let list = ([localIP] + active).reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
+        if list != roster { DispatchQueue.main.async { self.roster = list } }
+    }
 
     func sendChat(_ text: String) {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -160,6 +194,35 @@ class CallManager: ObservableObject {
             }
         }
 
+        // Per-source routing (roster in both modes; group video decode).
+        transport.onReceiveFrom = { [weak self] data, ip in
+            guard let self = self else { return }
+            self.noteSender(ip)
+            guard self.isGroup else { return }  // 1-1 already handled in onReceive
+            // Control packets are broadcast to all — handle once
+            if data.count == 2, data[0] == 0xFC { return }
+            if data.count > 2, data[0] == 0xFD, data[1] == 0xAD {
+                self.audio.playPacket(data.subdata(in: 2..<data.count)); return
+            }
+            if data.count > 2, data[0] == 0xFB, data[1] == 0xCA {
+                let msg = String(decoding: data.subdata(in: 2..<data.count), as: UTF8.self)
+                DispatchQueue.main.async { self.chat.append(ChatLine(who: .them, text: msg)) }
+                return
+            }
+            if data.count > 2, data[0] == 0xFE, data[1] == 0xAC {
+                let emoji = String(decoding: data.subdata(in: 2..<data.count), as: UTF8.self)
+                DispatchQueue.main.async { self.showReaction(emoji) }
+                return
+            }
+            // Video → per-source decoder
+            let dec = self.groupDecoders[ip] ?? {
+                let d = VideoDecoder(); self.groupDecoders[ip] = d
+                DispatchQueue.main.async { self.objectWillChange.send() }
+                return d
+            }()
+            dec.feed(data)
+        }
+
         // Outgoing audio: mic → 16k PCM → UDP (mute drops packets at source)
         audio.onPacket = { [weak self] pkt in
             guard let self = self, !self.isMuted else { return }
@@ -180,8 +243,18 @@ class CallManager: ObservableObject {
         camera.start(device: cameras.first(where: { $0.uniqueID == selectedCameraID }))
         previewSession = camera.session
 
-        // Start transport (send to peer:7000, listen on :7000 — same port both ways)
-        transport.connect(peerHost: remoteIP, peerPort: p, listenPort: p)
+        // Group if the peer field lists several IPs (comma/space separated);
+        // otherwise a 1-1 forward-secret call.
+        let hosts = remoteIP.split(whereSeparator: { $0 == "," || $0 == " " })
+            .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        if hosts.count > 1 {
+            isGroup = true
+            transport.connectGroup(peerHosts: hosts, peerPort: p, listenPort: p)
+            NSLog("TRINET: group call — \(hosts.count) peers")
+        } else {
+            isGroup = false
+            transport.connect(peerHost: remoteIP, peerPort: p, listenPort: p)
+        }
 
         isInCall = true
         isStarting = false
@@ -191,10 +264,15 @@ class CallManager: ObservableObject {
     func endCall() {
         if #available(macOS 12.3, *) { (screen as? ScreenCapture)?.stop() }
         isScreenSharing = false
+        if isRecording { recorder.stop { [weak self] url in self?.lastRecordingPath = url?.path }; isRecording = false; recSink = nil }
         camera.stop()
         audio.stop()
         transport.disconnect()
         isInCall = false
+        isGroup = false
+        roster = []
+        groupDecoders = [:]
+        lastSeen = [:]
         status = "Idle"
         framesSent = 0
         framesReceived = 0

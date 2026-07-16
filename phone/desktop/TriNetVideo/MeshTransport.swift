@@ -9,17 +9,34 @@ import CryptoKit
 
 class MeshTransport {
     private var fd: Int32 = -1
-    private var peer = sockaddr_in()
+    private var peer = sockaddr_in()          // 1-1 peer (ephemeral session)
+    private var peers: [(addr: sockaddr_in, ip: String)] = []  // group peers
     private var running = false
     private let rxQueue = DispatchQueue(label: "mesh.rx", qos: .userInitiated)
     // Separate queue: rxQueue is parked forever in a blocking recv(), so a
     // timer scheduled on it would never fire.
     private let hsQueue = DispatchQueue(label: "mesh.hs", qos: .userInitiated)
     var onReceive: ((Data) -> Void)?
+    // Group calls need to know WHO sent each datagram (per-source decoding +
+    // roster), so recvfrom carries the sender IP up alongside the payload.
+    var onReceiveFrom: ((Data, String) -> Void)?
     var connected = false
 
+    // Conference mode: a group of >1 peers shares one static conference key
+    // (HKDF of the PSK) instead of pairwise ephemeral handshakes — full-mesh
+    // broadcast to 2-4 nodes, the right topology for a zero-server mesh.
+    private var groupMode = false
+    private var groupKey: SymmetricKey?
+    private static let confKey = SymmetricKey(
+        data: HKDF<SHA256>.deriveKey(
+            inputKeyMaterial: SymmetricKey(data: SHA256.hash(data: Data("tri-net-psk-v1".utf8))),
+            salt: Data("trios-mesh/v1/conference".utf8),
+            info: Data("group-aead".utf8), outputByteCount: 32))
+
+    // 1-1 (ephemeral forward-secret) — unchanged path.
     func connect(peerHost: String, peerPort: UInt16, listenPort: UInt16) {
         disconnect()
+        groupMode = false
 
         fd = socket(AF_INET, SOCK_DGRAM, 0)
         guard fd >= 0 else {
@@ -65,35 +82,51 @@ class MeshTransport {
         handshakeTimer = timer
         timer.resume()
 
-        let sock = fd
+        startRx(fd)
+    }
+
+    // Receive loop shared by 1-1 and group. recvfrom carries the sender's
+    // address so the caller can route by source (per-source decoding + roster).
+    private func startRx(_ sock: Int32) {
         rxQueue.async { [weak self] in
             var buf = [UInt8](repeating: 0, count: 65536)
+            var from = sockaddr_in()
             var count = 0
             while true {
                 guard let self = self, self.running else { break }
-                let n = recv(sock, &buf, buf.count, 0)
+                var fromLen = socklen_t(MemoryLayout<sockaddr_in>.size)
+                let n = withUnsafeMutablePointer(to: &from) { fp in
+                    fp.withMemoryRebound(to: sockaddr.self, capacity: 1) { s in
+                        recvfrom(sock, &buf, buf.count, 0, s, &fromLen)
+                    }
+                }
                 if n > 0 {
                     let pkt = Data(bytes: buf, count: n)
+                    let senderIP = String(cString: inet_ntoa(from.sin_addr))
+                    if self.groupMode {
+                        guard let key = self.groupKey,
+                              let box = try? ChaChaPoly.SealedBox(combined: pkt),
+                              let plain = try? ChaChaPoly.open(box, using: key) else { continue }
+                        if let msg = self.reassemble(plain) {
+                            self.onReceiveFrom?(msg, senderIP)
+                        }
+                        continue
+                    }
+                    // 1-1 ephemeral path
                     if self.crypto.isHandshake(pkt) {
                         self.crypto.consumeHandshake(pkt)
-                        // Always answer: if the peer is still sending handshakes
-                        // it hasn't derived the session yet (its own ARP may
-                        // have dropped our earlier reply). We only receive a
-                        // handshake while the peer is NOT established, and it
-                        // stops sending once it is, so this can't loop forever.
                         self.rawSendWire(self.crypto.handshakePacket())
                         continue
                     }
                     count += 1
-                    if count == 1 || count % 500 == 0 {
-                        NSLog("TRINET: rx #\(count) \(n)B")
-                    }
+                    if count == 1 || count % 500 == 0 { NSLog("TRINET: rx #\(count) \(n)B") }
                     if let plain = self.crypto.unseal(pkt),
                        let msg = self.reassemble(plain) {
                         self.onReceive?(msg)
+                        self.onReceiveFrom?(msg, senderIP)
                     }
                 } else {
-                    break // socket closed by disconnect() or error
+                    break
                 }
             }
         }
@@ -135,18 +168,33 @@ class MeshTransport {
         }
     }
 
-    // Encrypt a fragment under the session key, then wire it out
+    // Encrypt a fragment (group key in conference mode, else the ephemeral
+    // session key) and wire it out.
     private func rawSend(_ data: Data) {
-        guard let wire = crypto.seal(data) else { return } // drop until session up
-        rawSendWire(wire)
+        if groupMode {
+            guard let key = groupKey,
+                  let box = try? ChaChaPoly.seal(data, using: key) else { return }
+            rawSendWire(box.combined)
+        } else {
+            guard let wire = crypto.seal(data) else { return } // drop until session up
+            rawSendWire(wire)
+        }
     }
 
-    // Send bytes verbatim (handshake packets are already self-authenticating)
+    // Send bytes verbatim. In conference mode, full-mesh broadcast to every
+    // peer; in 1-1, just the single peer. (Handshakes are self-authenticating.)
     private func rawSendWire(_ wire: Data) {
         guard fd >= 0 else { return }
-        var p = peer
+        if groupMode {
+            for var pr in peers { sendOne(wire, &pr.addr) }
+        } else {
+            sendOne(wire, &peer)
+        }
+    }
+
+    private func sendOne(_ wire: Data, _ addr: inout sockaddr_in) {
         let sent = wire.withUnsafeBytes { raw in
-            withUnsafePointer(to: &p) { pp in
+            withUnsafePointer(to: &addr) { pp in
                 pp.withMemoryRebound(to: sockaddr.self, capacity: 1) { s in
                     sendto(fd, raw.baseAddress, wire.count, 0, s, socklen_t(MemoryLayout<sockaddr_in>.size))
                 }
@@ -158,6 +206,41 @@ class MeshTransport {
                 NSLog("TRINET: sendto(\(wire.count)B) failed: \(String(cString: strerror(errno))) (#\(sendErrCount))")
             }
         }
+    }
+
+    // Conference call: 2-4 peers, shared static conference key, full-mesh
+    // broadcast, per-source delivery. No pairwise handshake.
+    func connectGroup(peerHosts: [String], peerPort: UInt16, listenPort: UInt16) {
+        disconnect()
+        groupMode = true
+        groupKey = MeshTransport.confKey
+
+        fd = socket(AF_INET, SOCK_DGRAM, 0)
+        guard fd >= 0 else { NSLog("TRINET: socket() failed"); return }
+        var on: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, 4)
+        var addr = sockaddr_in()
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = listenPort.bigEndian
+        addr.sin_addr.s_addr = 0
+        let r = withUnsafePointer(to: &addr) { p in
+            p.withMemoryRebound(to: sockaddr.self, capacity: 1) { s in
+                Darwin.bind(fd, s, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+        guard r == 0 else { NSLog("TRINET: group bind failed"); close(fd); fd = -1; return }
+
+        peers = peerHosts.map { ip in
+            var a = sockaddr_in()
+            a.sin_family = sa_family_t(AF_INET)
+            a.sin_port = peerPort.bigEndian
+            a.sin_addr.s_addr = inet_addr(ip)
+            return (a, ip)
+        }
+        running = true
+        connected = true
+        NSLog("TRINET: GROUP transport up — listen :\(listenPort), \(peers.count) peers")
+        startRx(fd)
     }
 
     // Returns a complete NAL when the datagram finishes one, nil otherwise.

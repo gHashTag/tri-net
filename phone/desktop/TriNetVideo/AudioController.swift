@@ -52,7 +52,9 @@ final class AudioController {
         playEngine.prepare()
         do {
             try playEngine.start()
-            player.play()
+            // Don't start the player yet — jitter buffer: let a few packets
+            // queue first (pre-roll) so a burst of network jitter at the start
+            // doesn't underrun into choppiness.
             playing = true
             NSLog("TRINET: audio playback engine up (out \(playEngine.outputNode.outputFormat(forBus: 0)))")
         } catch {
@@ -132,7 +134,9 @@ final class AudioController {
             NSLog("TRINET: audio rx #\(rxCount) \(d.count)B engineRunning=\(playEngine.isRunning) playerPlaying=\(player.isPlaying) mixerVol=\(playEngine.mainMixerNode.outputVolume)")
         }
         player.scheduleBuffer(buf, completionHandler: nil)
-        if !player.isPlaying { player.play() } // ensure playback actually runs
+        // Jitter buffer: start playback only after a small pre-roll (~3 packets
+        // ≈ 60ms) is queued, so initial network jitter doesn't cause underruns.
+        if !player.isPlaying && rxCount >= 3 { player.play() }
     }
 
     func stop() {

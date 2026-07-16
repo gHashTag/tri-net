@@ -682,7 +682,7 @@ final class AudioController {
 
         do {
             try engine.start()
-            player.play()
+            // Player starts after a small pre-roll in playPacket (jitter buffer)
             started = true
             return true
         } catch {
@@ -714,6 +714,8 @@ final class AudioController {
         rxCount += 1
         if rxCount == 1 { NSLog("TRINET: audio rx first packet \(d.count)B") }
         player.scheduleBuffer(buf, completionHandler: nil)
+        // Jitter buffer: begin playback after ~3 packets are queued (~60ms).
+        if !player.isPlaying && rxCount >= 3 { player.play() }
     }
 
     func stop() {

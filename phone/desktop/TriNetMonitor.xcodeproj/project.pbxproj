@@ -13,6 +13,7 @@
 		7BC6C7C0D52EF3F427643504 /* MeshCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34A698FD561A4D1344491A23 /* MeshCrypto.swift */; };
 		8EDD1E7105EA28C7B290C700 /* VideoDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2831FC425A30E3FBFA75BD40 /* VideoDecoder.swift */; };
 		8FB37216EA6E4DAA9752526F /* MeshTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF4870614578478C431D47B9 /* MeshTransport.swift */; };
+		9883135C4EC8B3D8C9780D21 /* CallRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC01D2BB9D49E3653F739BC9 /* CallRecorder.swift */; };
 		A4B51FD9AC3F6A939BFE6083 /* RTIHeatmap.swift in Sources */ = {isa = PBXBuildFile; fileRef = A55D68653305B39F6D4E6C1F /* RTIHeatmap.swift */; };
 		C270D9DDE66C74E5DC1A30B3 /* AudioController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0445AEA738BFAA34619AA /* AudioController.swift */; };
 		C73AAD99E5A78718DEBAB8D8 /* CameraCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = BED4FD339A53B74B67C3AC3B /* CameraCapture.swift */; };
@@ -34,6 +35,7 @@
 		A9F379575CCFDE0476C19D25 /* ScreenCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCapture.swift; sourceTree = "<group>"; };
 		AF4870614578478C431D47B9 /* MeshTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshTransport.swift; sourceTree = "<group>"; };
 		BED4FD339A53B74B67C3AC3B /* CameraCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraCapture.swift; sourceTree = "<group>"; };
+		EC01D2BB9D49E3653F739BC9 /* CallRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallRecorder.swift; sourceTree = "<group>"; };
 		FE481AF1D2D340638A1ED080 /* CallManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -51,6 +53,7 @@
 			children = (
 				20B0445AEA738BFAA34619AA /* AudioController.swift */,
 				FE481AF1D2D340638A1ED080 /* CallManager.swift */,
+				EC01D2BB9D49E3653F739BC9 /* CallRecorder.swift */,
 				BED4FD339A53B74B67C3AC3B /* CameraCapture.swift */,
 				34A698FD561A4D1344491A23 /* MeshCrypto.swift */,
 				AF4870614578478C431D47B9 /* MeshTransport.swift */,
@@ -130,6 +133,7 @@
 			files = (
 				C270D9DDE66C74E5DC1A30B3 /* AudioController.swift in Sources */,
 				D71FF2DC1AF5071C5554087C /* CallManager.swift in Sources */,
+				9883135C4EC8B3D8C9780D21 /* CallRecorder.swift in Sources */,
 				C73AAD99E5A78718DEBAB8D8 /* CameraCapture.swift in Sources */,
 				FA37124F072CB8ADC4B3905A /* DesignSystem.swift in Sources */,
 				7BC6C7C0D52EF3F427643504 /* MeshCrypto.swift in Sources */,

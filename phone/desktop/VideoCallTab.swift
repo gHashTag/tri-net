@@ -93,9 +93,16 @@ private struct InCallView: View {
     var body: some View {
         VStack(spacing: 12) {
             ZStack(alignment: .topLeading) {
-                MonitorRemoteVideo(decoder: call.decoder)
-                    .clipShape(RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: DS.radius, style: .continuous).stroke(DS.hairline, lineWidth: 1))
+                // Group → adaptive grid of per-source decoders; 1-1 → single feed
+                if call.isGroup {
+                    GroupGrid(call: call)
+                        .clipShape(RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: DS.radius, style: .continuous).stroke(DS.hairline, lineWidth: 1))
+                } else {
+                    MonitorRemoteVideo(decoder: call.decoder)
+                        .clipShape(RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: DS.radius, style: .continuous).stroke(DS.hairline, lineWidth: 1))
+                }
 
                 // Floating reaction
                 if let r = call.liveReaction {
@@ -107,8 +114,12 @@ private struct InCallView: View {
 
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 6) {
-                        StatusTag(text: call.framesReceived > 0 ? "Secure" : "Connecting", live: call.framesReceived > 0)
+                        StatusTag(text: call.framesReceived > 0 || !call.groupDecoders.isEmpty ? "Secure" : "Connecting",
+                                  live: call.framesReceived > 0 || !call.groupDecoders.isEmpty)
                             .background(DS.ink.opacity(0.5), in: Capsule())
+                        if call.roster.count > 1 {
+                            StatusTag(text: "\(call.roster.count) in call", live: true).background(DS.ink.opacity(0.5), in: Capsule())
+                        }
                         if call.isScreenSharing {
                             StatusTag(text: "Sharing Screen", live: true).background(DS.ink.opacity(0.5), in: Capsule())
                         }
@@ -159,6 +170,7 @@ private struct InCallView: View {
                 IconPill(system: call.isScreenSharing ? "rectangle.inset.filled.on.rectangle" : "rectangle.on.rectangle",
                          active: call.isScreenSharing, tint: DS.live) { call.toggleScreenShare() }
                 IconPill(system: "bubble.left.and.bubble.right\(call.chat.isEmpty ? "" : ".fill")", active: showChat) { showChat.toggle() }
+                IconPill(system: call.isRecording ? "record.circle.fill" : "record.circle", active: call.isRecording, tint: DS.danger) { call.toggleRecording() }
                 Menu {
                     ForEach(call.cameras, id: \.uniqueID) { cam in
                         Button(cam.localizedName) { call.selectCamera(cam.uniqueID) }
@@ -304,5 +316,39 @@ private struct MonitorCameraPreview: NSViewRepresentable {
 
     func updateNSView(_ nsView: NSView, context: Context) {
         nsView.layer?.sublayers?.first?.frame = nsView.bounds
+    }
+}
+
+// Adaptive grid of per-source decoders for a conference call (full-mesh,
+// 2-4 nodes). Columns scale with participant count.
+private struct GroupGrid: View {
+    @ObservedObject var call: CallManager
+    var body: some View {
+        let ids = call.groupDecoders.keys.sorted()
+        let cols = ids.count <= 1 ? 1 : 2
+        return ZStack {
+            DS.surface
+            if ids.isEmpty {
+                VStack(spacing: 10) {
+                    ProgressView().controlSize(.small)
+                    Text("WAITING FOR PARTICIPANTS").font(DS.mono(11, .medium)).tracking(1).foregroundColor(DS.faint)
+                }
+            } else {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: cols), spacing: 6) {
+                    ForEach(ids, id: \.self) { ip in
+                        if let dec = call.groupDecoders[ip] {
+                            ZStack(alignment: .bottomLeading) {
+                                MonitorRemoteVideo(decoder: dec)
+                                    .aspectRatio(4/3, contentMode: .fit)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                Text(ip).font(DS.mono(9)).foregroundColor(DS.text)
+                                    .padding(4).background(DS.ink.opacity(0.6), in: Capsule()).padding(6)
+                            }
+                        }
+                    }
+                }
+                .padding(6)
+            }
+        }
     }
 }
