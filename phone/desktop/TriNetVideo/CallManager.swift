@@ -19,6 +19,10 @@ class CallManager: ObservableObject {
     @Published var recentIPs: [String] = []
     @Published var cameras: [AVCaptureDevice] = []
     @Published var selectedCameraID: String = ""
+    // Live audio levels (0...1) for the TX/RX meters. Decayed on the main
+    // thread so the bars fall smoothly when a buffer is quiet or absent.
+    @Published var txLevel: Float = 0
+    @Published var rxLevel: Float = 0
 
     init() {
         localIP = MeshTransport.getLocalIP()
@@ -91,6 +95,13 @@ class CallManager: ObservableObject {
         audio.onPacket = { [weak self] pkt in
             guard let self = self, !self.isMuted else { return }
             self.transport.send(pkt)
+        }
+        // Audio levels -> meters (peak-hold with decay so bars don't flicker)
+        audio.onTxLevel = { [weak self] lvl in
+            DispatchQueue.main.async { self?.txLevel = max(lvl, (self?.txLevel ?? 0) * 0.8) }
+        }
+        audio.onRxLevel = { [weak self] lvl in
+            DispatchQueue.main.async { self?.rxLevel = max(lvl, (self?.rxLevel ?? 0) * 0.8) }
         }
         // Off the main path: first touch of the mic can block ~60s on TCC
         // init, and audio must never hold up transport/video startup.
