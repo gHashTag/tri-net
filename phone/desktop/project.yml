@@ -18,6 +18,11 @@ targets:
       - path: TriNetMonitor.swift
       - path: RTIHeatmap.swift
       - path: VideoCallTab.swift
+      - path: TriNetVideo/CallManager.swift
+      - path: TriNetVideo/CameraCapture.swift
+      - path: TriNetVideo/MeshTransport.swift
+      - path: TriNetVideo/VideoDecoder.swift
+      - path: TriNetVideo/VideoEncoder.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.trinet.monitor

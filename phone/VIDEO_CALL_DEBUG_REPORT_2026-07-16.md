@@ -1,5 +1,13 @@
 # ОТЧЁТ: Видеосвязь Mac ↔ iPhone через mesh — детальный разбор задачи
 
+> ✅ **РЕШЕНО 2026-07-16 вечером** (см. коммит `fix(phone): Mac<->iPhone video call working end-to-end`).
+> Видео iPhone→Mac декодируется и отображается, Mac→iPhone отправляется. 5 багов:
+> (1) NWListener на macOS = IPv6-only → BSD-сокет; (2) iOS слал SPS/PPS один раз за сессию → теперь с каждым keyframe;
+> (3) Mac-энкодер не слал SPS/PPS вообще → тот же фикс; (4) оба декодера передавали SPS/PPS со стартовым кодом
+> Annex-B в CMVideoFormatDescriptionCreate (-12712) → срезать 4 байта; (5) отображение: wantsLayer после addSublayer
+> + пересоздание NSView через .id() с нулевым bounds. Разделы ниже — исторический контекст ДО решения.
+> Остаточная косметика: поворот кадра (portrait-ориентация не передаётся в сыром H.264), пустой лог-вью на iPhone.
+
 > Статус на 2026-07-16. Пути в этом отчёте указаны до консолидации в репо tri-net;
 > актуальный корень проекта: `tri-net/phone/` (бывш. `/Users/ssdm4/Desktop/PROJECTS/CLAUDE/tri-net-phone/`).
 

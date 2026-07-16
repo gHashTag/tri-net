@@ -203,6 +203,18 @@ struct CallScreen: View {
                             }
                         }
 
+                        // Flip front/back camera
+                        Button(action: { vm.camera.switchCamera() }) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.white.opacity(0.2))
+                                    .frame(width: 60, height: 60)
+                                Image(systemName: "arrow.triangle.2.circlepath.camera.fill")
+                                    .font(.system(size: 22))
+                                    .foregroundColor(.white)
+                            }
+                        }
+
                         // Camera toggle
                         Button(action: { vm.cameraOff.toggle() }) {
                             ZStack {

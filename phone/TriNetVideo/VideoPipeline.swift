@@ -19,10 +19,12 @@ class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         DispatchQueue.global().async { self.session.startRunning() }
     }
 
+    private var position: AVCaptureDevice.Position = .front
+
     private func setupSession() {
         session.beginConfiguration()
         session.sessionPreset = AVCaptureSession.Preset(rawValue: "AVCaptureSessionPreset352x288")
-        if let cam = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front),
+        if let cam = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position),
            let input = try? AVCaptureDeviceInput(device: cam),
            session.canAddInput(input) {
             session.addInput(input)
@@ -31,6 +33,18 @@ class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         output.alwaysDiscardsLateVideoFrames = true
         output.setSampleBufferDelegate(self, queue: DispatchQueue(label: "camera"))
         if session.canAddOutput(output) { session.addOutput(output) }
+        session.commitConfiguration()
+    }
+
+    func switchCamera() {
+        position = (position == .front) ? .back : .front
+        session.beginConfiguration()
+        session.inputs.forEach { session.removeInput($0) }
+        if let cam = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position),
+           let input = try? AVCaptureDeviceInput(device: cam),
+           session.canAddInput(input) {
+            session.addInput(input)
+        }
         session.commitConfiguration()
     }
 
@@ -150,9 +164,15 @@ class H264Decoder: ObservableObject {
     private var sps: Data?
     private var pps: Data?
 
+    private var fedCount = 0
+
     func feed(_ nalUnit: Data) {
         guard nalUnit.count > 4 else { return }
         let nalType = nalUnit[4] & 0x1F
+        fedCount += 1
+        if fedCount <= 10 || fedCount % 500 == 0 {
+            NSLog("TRINET: NAL #\(fedCount) type=\(nalType) \(nalUnit.count)B session=\(session != nil)")
+        }
         switch nalType {
         // CMVideoFormatDescriptionCreateFromH264ParameterSets expects raw
         // parameter sets — strip the 4-byte Annex-B start code
@@ -177,6 +197,7 @@ class H264Decoder: ObservableObject {
                     parameterSetPointers: paramPointers, parameterSetSizes: paramSizes,
                     nalUnitHeaderLength: 4, formatDescriptionOut: &desc
                 )
+                NSLog("TRINET: CMVideoFormatDescriptionCreate status=\(status)")
                 guard status == noErr, let desc = desc else { return }
                 self.formatDesc = desc
                 let refCon = Unmanaged.passUnretained(self).toOpaque()
@@ -185,6 +206,7 @@ class H264Decoder: ObservableObject {
                         guard status == noErr, let imageBuffer = imageBuffer else { return }
                         let decoder = Unmanaged<H264Decoder>.fromOpaque(refCon!).takeUnretainedValue()
                         DispatchQueue.main.async {
+                            if decoder.frameCount == 0 { NSLog("TRINET: FIRST FRAME DECODED!") }
                             decoder.currentFrame = imageBuffer
                             decoder.frameCount += 1
                         }
@@ -196,11 +218,12 @@ class H264Decoder: ObservableObject {
                     kCVPixelBufferIOSurfacePropertiesKey: [:] as CFDictionary
                 ]
                 var newSession: VTDecompressionSession?
-                VTDecompressionSessionCreate(
+                let vtStatus = VTDecompressionSessionCreate(
                     allocator: kCFAllocatorDefault, formatDescription: desc,
                     decoderSpecification: nil, imageBufferAttributes: attrs as CFDictionary,
                     outputCallback: &callback, decompressionSessionOut: &newSession
                 )
+                NSLog("TRINET: VTDecompressionSessionCreate status=\(vtStatus) session=\(newSession != nil)")
                 self.session = newSession
             }
         }
@@ -241,56 +264,94 @@ class H264Decoder: ObservableObject {
     }
 }
 
-// MARK: - Network Transport (NWConnection for iOS, works reliably)
+// MARK: - Network Transport (BSD UDP socket)
+// NWListener delivered ZERO datagrams on both macOS and iOS (it spawned a new
+// flow per datagram and receiveMessage never fired) — a plain AF_INET socket
+// bound to :recvPort receives and sends reliably, and the peer sees our
+// source port = recvPort (symmetric UDP).
 
 class BSDTransport {
-    private var conn: NWConnection?
-    private var listener: NWListener?
+    private var fd: Int32 = -1
+    private var peer = sockaddr_in()
+    private var running = false
+    private let rxQueue = DispatchQueue(label: "mesh.rx", qos: .userInitiated)
     var onData: ((Data) -> Void)?
     var isReady = false
 
     func connect(host: String, port: UInt16, recvPort: UInt16) {
         disconnect()
 
-        // Send connection to peer
-        conn = NWConnection(host: NWEndpoint.Host(host),
-                            port: NWEndpoint.Port(rawValue: port)!,
-                            using: .udp)
-        conn?.start(queue: .global())
-
-        // Listen for incoming on recvPort
-        do {
-            listener = try NWListener(using: .udp, on: NWEndpoint.Port(rawValue: recvPort)!)
-        } catch {
-            // Fallback: bind NWConnection to any port
+        fd = socket(AF_INET, SOCK_DGRAM, 0)
+        guard fd >= 0 else {
+            NSLog("TRINET: socket() failed: \(String(cString: strerror(errno)))")
             return
         }
-        listener?.newConnectionHandler = { [weak self] c in
-            c.start(queue: .global())
-            self?.receiveLoop(c)
-        }
-        listener?.start(queue: .global())
-        isReady = true
-    }
+        var on: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, 4)
 
-    private func receiveLoop(_ c: NWConnection) {
-        c.receiveMessage { [weak self] data, _, _, _ in
-            if let d = data {
-                self?.onData?(d)
+        var addr = sockaddr_in()
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = recvPort.bigEndian
+        addr.sin_addr.s_addr = 0
+        let r = withUnsafePointer(to: &addr) { p in
+            p.withMemoryRebound(to: sockaddr.self, capacity: 1) { s in
+                Darwin.bind(fd, s, socklen_t(MemoryLayout<sockaddr_in>.size))
             }
-            self?.receiveLoop(c)
+        }
+        guard r == 0 else {
+            NSLog("TRINET: bind(:\(recvPort)) failed: \(String(cString: strerror(errno)))")
+            close(fd); fd = -1
+            return
+        }
+
+        peer = sockaddr_in()
+        peer.sin_family = sa_family_t(AF_INET)
+        peer.sin_port = port.bigEndian
+        peer.sin_addr.s_addr = inet_addr(host)
+
+        running = true
+        isReady = true
+        NSLog("TRINET: BSD transport up — listen :\(recvPort), peer \(host):\(port)")
+
+        let sock = fd
+        rxQueue.async { [weak self] in
+            var buf = [UInt8](repeating: 0, count: 65536)
+            var count = 0
+            while true {
+                guard let self = self, self.running else { break }
+                let n = recv(sock, &buf, buf.count, 0)
+                if n > 0 {
+                    count += 1
+                    if count == 1 || count % 200 == 0 {
+                        NSLog("TRINET: rx #\(count) \(n)B")
+                    }
+                    self.onData?(Data(bytes: buf, count: n))
+                } else {
+                    break // socket closed by disconnect() or error
+                }
+            }
         }
     }
 
     func send(_ data: Data) {
-        conn?.send(content: data, completion: .contentProcessed({ _ in }))
+        guard fd >= 0 else { return }
+        var p = peer
+        _ = data.withUnsafeBytes { raw in
+            withUnsafePointer(to: &p) { pp in
+                pp.withMemoryRebound(to: sockaddr.self, capacity: 1) { s in
+                    sendto(fd, raw.baseAddress, data.count, 0, s, socklen_t(MemoryLayout<sockaddr_in>.size))
+                }
+            }
+        }
     }
 
     func disconnect() {
-        conn?.cancel(); listener?.cancel()
-        conn = nil; listener = nil
+        running = false
+        if fd >= 0 { close(fd); fd = -1 }
         isReady = false
     }
+
+    deinit { disconnect() }
 }
 
 // MARK: - Camera Preview (UIView)

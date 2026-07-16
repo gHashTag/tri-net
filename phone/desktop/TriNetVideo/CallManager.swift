@@ -17,6 +17,8 @@ class CallManager: ObservableObject {
     @Published var isMuted = false
     @Published var cameraOff = false
     @Published var recentIPs: [String] = []
+    @Published var cameras: [AVCaptureDevice] = []
+    @Published var selectedCameraID: String = ""
 
     init() {
         localIP = MeshTransport.getLocalIP()
@@ -24,6 +26,14 @@ class CallManager: ObservableObject {
         if let saved = UserDefaults.standard.array(forKey: "recentIPs") as? [String] {
             recentIPs = saved
         }
+        cameras = CameraCapture.availableCameras()
+        selectedCameraID = AVCaptureDevice.default(for: .video)?.uniqueID ?? cameras.first?.uniqueID ?? ""
+    }
+
+    func selectCamera(_ id: String) {
+        selectedCameraID = id
+        guard let device = cameras.first(where: { $0.uniqueID == id }) else { return }
+        if isInCall { camera.switchTo(device) }
     }
 
     let camera = CameraCapture()
@@ -64,7 +74,7 @@ class CallManager: ObservableObject {
         }
 
         // Start camera
-        camera.start()
+        camera.start(device: cameras.first(where: { $0.uniqueID == selectedCameraID }))
         previewSession = camera.session
 
         // Start transport (send to peer:7000, listen on :7000 — same port both ways)

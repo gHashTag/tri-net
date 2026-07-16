@@ -12,13 +12,20 @@ class CameraCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     var onNALUnit: ((Data) -> Void)?
     var onSampleBuffer: ((CMSampleBuffer) -> Void)?
 
-    func start() {
+    static func availableCameras() -> [AVCaptureDevice] {
+        AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.builtInWideAngleCamera, .external, .continuityCamera],
+            mediaType: .video, position: .unspecified
+        ).devices
+    }
+
+    func start(device: AVCaptureDevice? = nil) {
         guard !session.isRunning else { return }
         session.beginConfiguration()
         session.sessionPreset = .vga640x480
 
-        // Find camera
-        if let cam = AVCaptureDevice.default(for: .video) {
+        session.inputs.forEach { session.removeInput($0) }
+        if let cam = device ?? AVCaptureDevice.default(for: .video) {
             if let input = try? AVCaptureDeviceInput(device: cam), session.canAddInput(input) {
                 session.addInput(input)
             }
@@ -40,6 +47,15 @@ class CameraCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
             enc.onNALUnit = { [weak self] data in self?.onNALUnit?(data) }
             encoder = enc
         }
+    }
+
+    func switchTo(_ device: AVCaptureDevice) {
+        session.beginConfiguration()
+        session.inputs.forEach { session.removeInput($0) }
+        if let input = try? AVCaptureDeviceInput(device: device), session.canAddInput(input) {
+            session.addInput(input)
+        }
+        session.commitConfiguration()
     }
 
     func stop() {

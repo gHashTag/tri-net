@@ -7,16 +7,26 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		144EA8CA8611748CC2C6498E /* VideoEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72EFD27FFE9177F3C365221D /* VideoEncoder.swift */; };
 		16CC1C6D7EEBF2EE5C3F95A1 /* TriNetMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A55AB3C5EF91C2E49F7A086 /* TriNetMonitor.swift */; };
+		8EDD1E7105EA28C7B290C700 /* VideoDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2831FC425A30E3FBFA75BD40 /* VideoDecoder.swift */; };
+		8FB37216EA6E4DAA9752526F /* MeshTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF4870614578478C431D47B9 /* MeshTransport.swift */; };
 		A4B51FD9AC3F6A939BFE6083 /* RTIHeatmap.swift in Sources */ = {isa = PBXBuildFile; fileRef = A55D68653305B39F6D4E6C1F /* RTIHeatmap.swift */; };
+		C73AAD99E5A78718DEBAB8D8 /* CameraCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = BED4FD339A53B74B67C3AC3B /* CameraCapture.swift */; };
+		D71FF2DC1AF5071C5554087C /* CallManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE481AF1D2D340638A1ED080 /* CallManager.swift */; };
 		E00EF2E2E4936A31DF3F1B15 /* VideoCallTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 432A15C47C534F56D40856CC /* VideoCallTab.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		2831FC425A30E3FBFA75BD40 /* VideoDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoDecoder.swift; sourceTree = "<group>"; };
 		2A55AB3C5EF91C2E49F7A086 /* TriNetMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriNetMonitor.swift; sourceTree = "<group>"; };
 		432A15C47C534F56D40856CC /* VideoCallTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoCallTab.swift; sourceTree = "<group>"; };
+		72EFD27FFE9177F3C365221D /* VideoEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEncoder.swift; sourceTree = "<group>"; };
 		8CD42991E4D14A95B2A03439 /* TriNetMonitor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TriNetMonitor.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A55D68653305B39F6D4E6C1F /* RTIHeatmap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RTIHeatmap.swift; sourceTree = "<group>"; };
+		AF4870614578478C431D47B9 /* MeshTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshTransport.swift; sourceTree = "<group>"; };
+		BED4FD339A53B74B67C3AC3B /* CameraCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraCapture.swift; sourceTree = "<group>"; };
+		FE481AF1D2D340638A1ED080 /* CallManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -28,12 +38,25 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		4990817AFEF5B22035759A7D /* TriNetVideo */ = {
+			isa = PBXGroup;
+			children = (
+				FE481AF1D2D340638A1ED080 /* CallManager.swift */,
+				BED4FD339A53B74B67C3AC3B /* CameraCapture.swift */,
+				AF4870614578478C431D47B9 /* MeshTransport.swift */,
+				2831FC425A30E3FBFA75BD40 /* VideoDecoder.swift */,
+				72EFD27FFE9177F3C365221D /* VideoEncoder.swift */,
+			);
+			path = TriNetVideo;
+			sourceTree = "<group>";
+		};
 		F9A4133CDBCCE7D23B0428D1 = {
 			isa = PBXGroup;
 			children = (
 				A55D68653305B39F6D4E6C1F /* RTIHeatmap.swift */,
 				2A55AB3C5EF91C2E49F7A086 /* TriNetMonitor.swift */,
 				432A15C47C534F56D40856CC /* VideoCallTab.swift */,
+				4990817AFEF5B22035759A7D /* TriNetVideo */,
 				4788FD180304BB5A1F2D9A84 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -93,9 +116,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D71FF2DC1AF5071C5554087C /* CallManager.swift in Sources */,
+				C73AAD99E5A78718DEBAB8D8 /* CameraCapture.swift in Sources */,
+				8FB37216EA6E4DAA9752526F /* MeshTransport.swift in Sources */,
 				A4B51FD9AC3F6A939BFE6083 /* RTIHeatmap.swift in Sources */,
 				16CC1C6D7EEBF2EE5C3F95A1 /* TriNetMonitor.swift in Sources */,
 				E00EF2E2E4936A31DF3F1B15 /* VideoCallTab.swift in Sources */,
+				8EDD1E7105EA28C7B290C700 /* VideoDecoder.swift in Sources */,
+				144EA8CA8611748CC2C6498E /* VideoEncoder.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
