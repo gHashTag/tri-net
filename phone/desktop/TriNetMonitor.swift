@@ -666,17 +666,19 @@ struct MonitorView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Tab bar
-            HStack(spacing: 2) {
-                tabButton("Network", icon: "network", active: !showRTI && !showVideo) { showRTI = false; showVideo = false }
-                tabButton("RTI Heatmap", icon: "viewfinder", active: showRTI) { showRTI = true; showVideo = false }
-                tabButton("Video Call", icon: "video.fill", active: showVideo) { showVideo = true; showRTI = false }
+            // Tab bar — unified pill nav
+            HStack(spacing: 6) {
+                Text("TRI-NET").font(DS.display(14, .bold)).tracking(1)
+                    .foregroundColor(DS.text).padding(.trailing, 8)
+                TabPill(title: "Network", icon: "network", active: !showRTI && !showVideo) { showRTI = false; showVideo = false }
+                TabPill(title: "RTI Heatmap", icon: "viewfinder", active: showRTI) { showRTI = true; showVideo = false }
+                TabPill(title: "Video Call", icon: "video.fill", active: showVideo) { showVideo = true; showRTI = false }
                 Spacer()
             }
-            .padding(.horizontal, 12)
-            .padding(.top, 6)
-            .padding(.bottom, 4)
-            .background(Color(white: 0.08))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+            .background(DS.ink)
+            .overlay(alignment: .bottom) { Hairline() }
 
             if showVideo {
                 // Video call view
@@ -705,7 +707,7 @@ struct MonitorView: View {
                             .padding(.horizontal, 12)
                             .padding(.bottom, 10)
                         }
-                        .background(Color.gray.opacity(0.08))
+                        .background(DS.ink)
 
                         Divider()
 
@@ -1006,12 +1008,12 @@ struct FilterChip: View {
     var body: some View {
         Button(action: action) {
             Text(label)
-                .font(.system(size: 10, weight: isSelected ? .bold : .regular, design: .rounded))
-                .foregroundColor(isSelected ? .white : .gray)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(isSelected ? Color.blue : Color.gray.opacity(0.15))
-                .cornerRadius(12)
+                .font(DS.ui(11, isSelected ? .semibold : .regular))
+                .foregroundColor(isSelected ? DS.onFill : DS.dim)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 5)
+                .background(isSelected ? DS.fill : Color.clear, in: Capsule())
+                .overlay(isSelected ? nil : Capsule().stroke(DS.hairline, lineWidth: 1))
         }
         .buttonStyle(.plain)
     }
@@ -1050,7 +1052,7 @@ struct HealthPanel: View {
             }
         }
         .padding(10)
-        .background(Color.gray.opacity(0.1))
+        .background(DS.surface)
     }
 }
 
@@ -1088,7 +1090,7 @@ struct NodeListView: View {
         }
         .frame(maxHeight: 200)
         .padding(.vertical, 4)
-        .background(Color.gray.opacity(0.05))
+        .background(DS.ink)
     }
 }
 
@@ -1156,7 +1158,7 @@ struct EventLogView: View {
             }
         }
         .padding(.vertical, 4)
-        .background(Color.gray.opacity(0.05))
+        .background(DS.ink)
     }
 }
 

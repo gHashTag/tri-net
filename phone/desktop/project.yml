@@ -15,6 +15,7 @@ targets:
     type: application
     platform: macOS
     sources:
+      - path: DesignSystem.swift
       - path: TriNetMonitor.swift
       - path: RTIHeatmap.swift
       - path: VideoCallTab.swift

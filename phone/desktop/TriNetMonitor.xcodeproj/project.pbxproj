@@ -17,10 +17,12 @@
 		C73AAD99E5A78718DEBAB8D8 /* CameraCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = BED4FD339A53B74B67C3AC3B /* CameraCapture.swift */; };
 		D71FF2DC1AF5071C5554087C /* CallManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE481AF1D2D340638A1ED080 /* CallManager.swift */; };
 		E00EF2E2E4936A31DF3F1B15 /* VideoCallTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 432A15C47C534F56D40856CC /* VideoCallTab.swift */; };
+		FA37124F072CB8ADC4B3905A /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 227CBA24BA6F542237F2CD11 /* DesignSystem.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		20B0445AEA738BFAA34619AA /* AudioController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioController.swift; sourceTree = "<group>"; };
+		227CBA24BA6F542237F2CD11 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 		2831FC425A30E3FBFA75BD40 /* VideoDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoDecoder.swift; sourceTree = "<group>"; };
 		2A55AB3C5EF91C2E49F7A086 /* TriNetMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriNetMonitor.swift; sourceTree = "<group>"; };
 		34A698FD561A4D1344491A23 /* MeshCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshCrypto.swift; sourceTree = "<group>"; };
@@ -59,6 +61,7 @@
 		F9A4133CDBCCE7D23B0428D1 = {
 			isa = PBXGroup;
 			children = (
+				227CBA24BA6F542237F2CD11 /* DesignSystem.swift */,
 				A55D68653305B39F6D4E6C1F /* RTIHeatmap.swift */,
 				2A55AB3C5EF91C2E49F7A086 /* TriNetMonitor.swift */,
 				432A15C47C534F56D40856CC /* VideoCallTab.swift */,
@@ -125,6 +128,7 @@
 				C270D9DDE66C74E5DC1A30B3 /* AudioController.swift in Sources */,
 				D71FF2DC1AF5071C5554087C /* CallManager.swift in Sources */,
 				C73AAD99E5A78718DEBAB8D8 /* CameraCapture.swift in Sources */,
+				FA37124F072CB8ADC4B3905A /* DesignSystem.swift in Sources */,
 				7BC6C7C0D52EF3F427643504 /* MeshCrypto.swift in Sources */,
 				8FB37216EA6E4DAA9752526F /* MeshTransport.swift in Sources */,
 				A4B51FD9AC3F6A939BFE6083 /* RTIHeatmap.swift in Sources */,

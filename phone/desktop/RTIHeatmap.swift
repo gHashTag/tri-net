@@ -65,7 +65,7 @@ struct RTIHeatmapView: View {
     var body: some View {
         VStack(spacing: 4) {
             HStack {
-                Text("RTI").font(.headline).foregroundColor(.white)
+                Text("RTI HEATMAP").font(DS.display(15, .semibold)).tracking(0.5).foregroundColor(DS.text)
                 Spacer()
                 Text(e.lastMsg).font(.caption).foregroundColor(e.listening ? .green : .orange)
             }.padding(8)
@@ -108,7 +108,7 @@ struct RTIHeatmapView: View {
                 Button("Clear") { e.clear() }.font(.caption)
             }.padding(8)
         }
-        .background(Color(white: 0.06))
+        .background(DS.ink)
         .onAppear { e.go() }
     }
     
