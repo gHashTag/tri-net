@@ -1,48 +1,66 @@
 // AudioController.swift — capture -> 16kHz mono int16 PCM over UDP -> playback.
 // Wire format: [0xFD 0xAD] + little-endian Int16 samples (~20ms per packet,
-// fits one datagram — never fragmented). Voice processing gives echo
-// cancellation where the platform supports it.
+// fits one datagram — never fragmented).
+//
+// Two SEPARATE engines. A single engine with voice processing fused the mic
+// input and speaker output into one VPIO unit that failed to initialize on
+// this Mac (err -10875) — and because the graph was shared, the failure took
+// the *playback* path down with it. Splitting them means playback (a plain
+// player -> mixer -> speakers graph, no input) always starts, so incoming
+// audio is heard even if mic capture can't start. Trade-off: no hardware echo
+// cancellation on macOS (acceptable — the Mac is usually on headphones/the
+// far end handles AEC).
 import Foundation
 import AVFoundation
 
 final class AudioController {
-    private let engine = AVAudioEngine()
+    private let playEngine = AVAudioEngine()
+    private let capEngine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
     private var converter: AVAudioConverter?
     private let wireFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32,
                                            sampleRate: 16000, channels: 1, interleaved: false)!
     var onPacket: ((Data) -> Void)?
-    private var started = false
+    private var playing = false
+    private var capturing = false
     private var rxCount = 0
     private var txCount = 0
 
     func start() {
-        guard !started else { return }
-        // Voice processing (echo cancellation) fuses I/O into one VPIO unit
-        // that can fail to init on Macs with a multichannel/aggregate default
-        // device (err -10875). Try it, and on failure rebuild without it.
-        if !buildAndStart(voiceProcessing: true) {
-            NSLog("TRINET: audio retry without voice processing")
-            engine.reset()
-            _ = buildAndStart(voiceProcessing: false)
+        startPlayback()
+        startCapture()
+    }
+
+    // Playback: player -> mixer -> speakers. No input node, so it's immune to
+    // the mic/VPIO format problems that broke the combined engine.
+    private func startPlayback() {
+        guard !playing else { return }
+        playEngine.attach(player)
+        // Connect through the main mixer; let the engine resample 16k mono ->
+        // whatever the speakers want (48k stereo here).
+        playEngine.connect(player, to: playEngine.mainMixerNode, format: wireFormat)
+        playEngine.prepare()
+        do {
+            try playEngine.start()
+            player.play()
+            playing = true
+            NSLog("TRINET: audio playback engine up (out \(playEngine.outputNode.outputFormat(forBus: 0)))")
+        } catch {
+            NSLog("TRINET: audio playback start failed: \(error)")
         }
     }
 
-    private func buildAndStart(voiceProcessing: Bool) -> Bool {
-        try? engine.inputNode.setVoiceProcessingEnabled(voiceProcessing)
-
-        engine.attach(player)
-        engine.connect(player, to: engine.mainMixerNode, format: wireFormat)
-
-        let inFmt = engine.inputNode.outputFormat(forBus: 0)
-        guard inFmt.sampleRate > 0 else {
-            NSLog("TRINET: audio input format unavailable")
-            return false
+    // Capture: mic tap -> convert to 16k mono -> packetize. If this can't start
+    // (odd input device), playback still works.
+    private func startCapture() {
+        guard !capturing else { return }
+        let inFmt = capEngine.inputNode.outputFormat(forBus: 0)
+        guard inFmt.sampleRate > 0, inFmt.channelCount > 0 else {
+            NSLog("TRINET: audio capture input format invalid (\(inFmt)) — mic disabled")
+            return
         }
         converter = AVAudioConverter(from: inFmt, to: wireFormat)
-        NSLog("TRINET: audio start in=\(Int(inFmt.sampleRate))Hz ch=\(inFmt.channelCount) vp=\(voiceProcessing)")
-
-        engine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: inFmt) { [weak self] buf, _ in
+        capEngine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: inFmt) { [weak self] buf, _ in
             guard let self = self, let conv = self.converter else { return }
             guard let out = AVAudioPCMBuffer(pcmFormat: self.wireFormat, frameCapacity: 4096) else { return }
             var served = false
@@ -64,22 +82,20 @@ final class AudioController {
             if self.txCount == 1 { NSLog("TRINET: audio tx first packet \(pkt.count)B") }
             self.onPacket?(pkt)
         }
-
+        capEngine.prepare()
         do {
-            try engine.start()
-            player.play()
-            started = true
-            return true
+            try capEngine.start()
+            capturing = true
+            NSLog("TRINET: audio capture engine up in=\(Int(inFmt.sampleRate))Hz ch=\(inFmt.channelCount)")
         } catch {
-            NSLog("TRINET: audio engine start failed (vp=\(voiceProcessing)): \(error)")
-            engine.inputNode.removeTap(onBus: 0)
-            return false
+            NSLog("TRINET: audio capture start failed: \(error) — mic disabled, playback still on")
+            capEngine.inputNode.removeTap(onBus: 0)
         }
     }
 
     // payload = Int16 LE samples (magic already stripped)
     func playPacket(_ d: Data) {
-        guard started else { return }
+        guard playing else { return }
         let n = d.count / 2
         guard n > 0, let buf = AVAudioPCMBuffer(pcmFormat: wireFormat, frameCapacity: AVAudioFrameCount(n)) else { return }
         buf.frameLength = AVAudioFrameCount(n)
@@ -98,10 +114,7 @@ final class AudioController {
     }
 
     func stop() {
-        guard started else { return }
-        engine.inputNode.removeTap(onBus: 0)
-        player.stop()
-        engine.stop()
-        started = false
+        if capturing { capEngine.inputNode.removeTap(onBus: 0); capEngine.stop(); capturing = false }
+        if playing { player.stop(); playEngine.stop(); playing = false }
     }
 }
