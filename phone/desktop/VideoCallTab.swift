@@ -3,9 +3,9 @@
 // VideoDecoder/MeshTransport) — BSD UDP :7000 both ways, SPS/PPS per keyframe,
 // forward-secret handshake.
 //
-// UI: soft neumorphic design — a single dark base tone, elements defined by
-// paired highlight/shadow so controls read as gently extruded, meters as
-// inset channels. Full-color video in a raised rounded frame.
+// UI: glassmorphism on pure black (#000) — frosted translucent panels
+// (.ultraThinMaterial), hairline light borders, soft depth shadows, a cool
+// accent. Full-color video behind glass chrome.
 import SwiftUI
 import AppKit
 import AVFoundation
@@ -13,55 +13,33 @@ import CoreImage
 import CoreMedia
 import CoreVideo
 
-// Neumorphic palette + soft light/shadow.
-enum Neu {
-    static let base = Color(red: 0.145, green: 0.155, blue: 0.180)  // dark slate
-    static let raised = Color(red: 0.165, green: 0.176, blue: 0.204)
-    static let light = Color.white.opacity(0.055)   // top-left highlight
-    static let dark = Color.black.opacity(0.55)      // bottom-right shadow
-    static let text = Color.white.opacity(0.92)
-    static let subtle = Color.white.opacity(0.42)
-    static let accent = Color(red: 0.40, green: 0.62, blue: 1.0)     // soft blue
+enum Glass {
+    static let bg = Color.black                       // #000
+    static let stroke = Color.white.opacity(0.14)     // hairline glass edge
+    static let strokeStrong = Color.white.opacity(0.28)
+    static let text = Color.white.opacity(0.95)
+    static let subtle = Color.white.opacity(0.5)
+    static let accent = Color(red: 0.36, green: 0.7, blue: 1.0)  // cool cyan-blue
     static func font(_ s: CGFloat, _ w: Font.Weight = .medium) -> Font {
         .system(size: s, weight: w, design: .rounded)
     }
 }
 
-// Extruded surface: fill + paired soft shadows.
-private struct Raised: ViewModifier {
-    var radius: CGFloat = 18
-    var pressed: Bool = false
+// Frosted-glass surface: translucent material + hairline edge + soft shadow.
+private struct GlassCard: ViewModifier {
+    var radius: CGFloat = 20
     func body(content: Content) -> some View {
-        content.background(
-            RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .fill(Neu.raised)
-                .shadow(color: pressed ? .clear : Neu.dark, radius: 7, x: 5, y: 5)
-                .shadow(color: pressed ? .clear : Neu.light, radius: 7, x: -5, y: -5)
-        )
+        content
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .stroke(Glass.stroke, lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.5), radius: 12, y: 6)
     }
 }
 private extension View {
-    func raised(_ r: CGFloat = 18, pressed: Bool = false) -> some View {
-        modifier(Raised(radius: r, pressed: pressed))
-    }
-}
-
-// Inset channel: base fill + inner-shadow-like edge, for meter tracks & fields.
-private struct InsetTrack: View {
-    var radius: CGFloat = 10
-    var body: some View {
-        RoundedRectangle(cornerRadius: radius, style: .continuous)
-            .fill(Neu.base)
-            .overlay(
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .stroke(
-                        LinearGradient(colors: [Neu.dark, Neu.light],
-                                       startPoint: .topLeading, endPoint: .bottomTrailing),
-                        lineWidth: 2.5)
-                    .blur(radius: 1.5)
-                    .mask(RoundedRectangle(cornerRadius: radius, style: .continuous))
-            )
-    }
+    func glass(_ r: CGFloat = 20) -> some View { modifier(GlassCard(radius: r)) }
 }
 
 struct VideoCallTab: View {
@@ -69,7 +47,7 @@ struct VideoCallTab: View {
 
     var body: some View {
         ZStack {
-            Neu.base.ignoresSafeArea()
+            Glass.bg.ignoresSafeArea()
             if call.isInCall {
                 InCallView(call: call)
             } else {
@@ -87,48 +65,40 @@ private struct StartCallView: View {
     var body: some View {
         VStack(spacing: 20) {
             ZStack {
-                Circle().fill(Neu.raised)
+                Circle().fill(.ultraThinMaterial)
+                    .overlay(Circle().stroke(Glass.stroke, lineWidth: 1))
                     .frame(width: 84, height: 84)
-                    .shadow(color: Neu.dark, radius: 8, x: 6, y: 6)
-                    .shadow(color: Neu.light, radius: 8, x: -6, y: -6)
-                Image(systemName: "video.fill")
-                    .font(.system(size: 32)).foregroundColor(Neu.accent)
+                Image(systemName: "video.fill").font(.system(size: 32)).foregroundColor(Glass.accent)
             }
 
-            Text("TRI-NET Video")
-                .font(Neu.font(26, .semibold)).foregroundColor(Neu.text)
+            Text("TRI-NET Video").font(Glass.font(26, .semibold)).foregroundColor(Glass.text)
             Text("Encrypted mesh calls · forward-secret")
-                .font(Neu.font(12)).foregroundColor(Neu.subtle)
+                .font(Glass.font(12)).foregroundColor(Glass.subtle)
 
-            // Peer field (inset)
             HStack(spacing: 8) {
-                Image(systemName: "person.fill").foregroundColor(Neu.subtle).font(.system(size: 12))
+                Image(systemName: "person.fill").foregroundColor(Glass.subtle).font(.system(size: 12))
                 TextField("Peer IP", text: $call.remoteIP)
-                    .textFieldStyle(.plain)
-                    .font(Neu.font(15)).foregroundColor(Neu.text)
+                    .textFieldStyle(.plain).font(Glass.font(15)).foregroundColor(Glass.text)
                     .frame(width: 180)
             }
             .padding(.horizontal, 16).padding(.vertical, 11)
-            .background(InsetTrack(radius: 14))
-            .frame(width: 260)
+            .glass(14).frame(width: 260)
 
             Text("You · \(call.localIP):\(call.port)")
-                .font(Neu.font(11)).foregroundColor(Neu.subtle)
+                .font(Glass.font(11)).foregroundColor(Glass.subtle)
 
             if !call.recentIPs.isEmpty {
                 HStack(spacing: 8) {
                     ForEach(call.recentIPs, id: \.self) { ip in
                         Button(ip) { call.remoteIP = ip }
-                            .buttonStyle(.plain)
-                            .font(Neu.font(11)).foregroundColor(Neu.subtle)
-                            .padding(.horizontal, 10).padding(.vertical, 6)
-                            .raised(10)
+                            .buttonStyle(.plain).font(Glass.font(11)).foregroundColor(Glass.subtle)
+                            .padding(.horizontal, 10).padding(.vertical, 6).glass(10)
                     }
                 }
             }
 
             HStack(spacing: 10) {
-                Image(systemName: "camera.fill").foregroundColor(Neu.subtle).font(.system(size: 12))
+                Image(systemName: "camera.fill").foregroundColor(Glass.subtle).font(.system(size: 12))
                 Picker("", selection: Binding(get: { call.selectedCameraID },
                                               set: { call.selectCamera($0) })) {
                     ForEach(call.cameras, id: \.uniqueID) { cam in
@@ -140,16 +110,13 @@ private struct StartCallView: View {
 
             Button(action: { call.startCall() }) {
                 Text("Start Call")
-                    .font(Neu.font(16, .semibold)).foregroundColor(.white)
+                    .font(Glass.font(16, .semibold)).foregroundColor(.white)
                     .frame(width: 200, height: 50)
-                    .background(
-                        RoundedRectangle(cornerRadius: 25, style: .continuous)
-                            .fill(Neu.accent)
-                            .shadow(color: Neu.accent.opacity(0.5), radius: 12, y: 5)
-                    )
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .overlay(Capsule().stroke(Glass.accent.opacity(0.8), lineWidth: 1.5))
+                    .shadow(color: Glass.accent.opacity(0.4), radius: 14, y: 5)
             }
-            .buttonStyle(.plain)
-            .padding(.top, 6)
+            .buttonStyle(.plain).padding(.top, 6)
         }
         .padding(30)
     }
@@ -163,37 +130,36 @@ private struct InCallView: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            // Video in a raised rounded frame (full color)
             ZStack(alignment: .topTrailing) {
+                // Full-color video behind a glass edge
                 MonitorRemoteVideo(decoder: call.decoder)
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .stroke(Neu.light, lineWidth: 1)
-                    )
-                    .shadow(color: Neu.dark, radius: 10, x: 6, y: 6)
-                    .shadow(color: Neu.light, radius: 10, x: -6, y: -6)
+                    .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(Glass.stroke, lineWidth: 1))
+                    .shadow(color: .black.opacity(0.6), radius: 14, y: 8)
 
                 // Status pill
                 HStack(spacing: 6) {
-                    Circle().fill(call.framesReceived > 0 ? Color.green : Neu.subtle)
+                    Circle().fill(call.framesReceived > 0 ? Glass.accent : Glass.subtle)
                         .frame(width: 7, height: 7)
                     Text(call.framesReceived > 0 ? "Secure" : "Connecting")
-                        .font(Neu.font(11, .semibold)).foregroundColor(Neu.text)
+                        .font(Glass.font(11, .semibold)).foregroundColor(Glass.text)
                 }
                 .padding(.horizontal, 12).padding(.vertical, 7)
-                .background(Capsule().fill(Neu.raised.opacity(0.9)))
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay(Capsule().stroke(Glass.stroke, lineWidth: 1))
                 .padding(12)
 
-                // Self preview PiP (raised)
+                // Self preview glass card
                 VStack {
                     Spacer().frame(height: 44)
                     if let s = call.previewSession {
                         MonitorCameraPreview(session: s)
                             .frame(width: 150, height: 112)
                             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            .shadow(color: Neu.dark, radius: 6, x: 4, y: 4)
-                            .shadow(color: Neu.light, radius: 6, x: -4, y: -4)
+                            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(Glass.strokeStrong, lineWidth: 1))
+                            .shadow(color: .black.opacity(0.5), radius: 8, y: 4)
                             .offset(pipOffset)
                             .gesture(DragGesture().onChanged { pipOffset = $0.translation })
                             .padding(.trailing, 12)
@@ -202,55 +168,48 @@ private struct InCallView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            // Meters + telemetry
-            HStack(spacing: 22) {
-                SoftMeter(label: "Mic", level: call.txLevel, muted: call.isMuted)
-                SoftMeter(label: "In", level: call.rxLevel, muted: false)
+            // Controls + meters in a glass bar
+            HStack(spacing: 18) {
+                GlassMeter(label: "Mic", level: call.txLevel, muted: call.isMuted)
+                GlassMeter(label: "In", level: call.rxLevel, muted: false)
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("↑\(call.framesSent)  ↓\(call.framesReceived)")
-                        .font(Neu.font(11)).foregroundColor(Neu.subtle)
-                    Text(call.status).font(Neu.font(11, .medium))
-                        .foregroundColor(call.framesReceived > 0 ? Neu.text : Neu.subtle)
+                        .font(Glass.font(11)).foregroundColor(Glass.subtle)
+                    Text(call.status).font(Glass.font(11, .medium))
+                        .foregroundColor(call.framesReceived > 0 ? Glass.text : Glass.subtle)
                 }
-            }
-            .padding(.horizontal, 6)
-
-            // Controls (soft round)
-            HStack(spacing: 16) {
-                SoftButton(system: call.isMuted ? "mic.slash.fill" : "mic.fill",
-                           active: call.isMuted, tint: .red) { call.isMuted.toggle() }
+                GlassButton(system: call.isMuted ? "mic.slash.fill" : "mic.fill", active: call.isMuted) { call.isMuted.toggle() }
                 Menu {
                     ForEach(call.cameras, id: \.uniqueID) { cam in
                         Button(cam.localizedName) { call.selectCamera(cam.uniqueID) }
                     }
                 } label: {
                     Image(systemName: "arrow.triangle.2.circlepath.camera.fill")
-                        .font(.system(size: 18)).foregroundColor(Neu.text)
-                        .frame(width: 54, height: 54).raised(27)
+                        .font(.system(size: 17)).foregroundColor(Glass.text)
+                        .frame(width: 50, height: 50)
+                        .background(.ultraThinMaterial, in: Circle())
+                        .overlay(Circle().stroke(Glass.stroke, lineWidth: 1))
                 }
-                .menuStyle(.borderlessButton).frame(width: 54)
-                SoftButton(system: call.cameraOff ? "video.slash.fill" : "video.fill",
-                           active: call.cameraOff, tint: .red) { call.cameraOff.toggle() }
-                Spacer()
+                .menuStyle(.borderlessButton).frame(width: 50)
+                GlassButton(system: call.cameraOff ? "video.slash.fill" : "video.fill", active: call.cameraOff) { call.cameraOff.toggle() }
                 Button(action: { call.endCall() }) {
-                    Image(systemName: "phone.down.fill")
-                        .font(.system(size: 20)).foregroundColor(.white)
-                        .frame(width: 60, height: 54)
-                        .background(RoundedRectangle(cornerRadius: 27, style: .continuous)
-                            .fill(Color.red)
-                            .shadow(color: Color.red.opacity(0.45), radius: 10, y: 4))
+                    Image(systemName: "phone.down.fill").font(.system(size: 18)).foregroundColor(.white)
+                        .frame(width: 56, height: 50)
+                        .background(Color.red.opacity(0.85), in: Capsule())
+                        .shadow(color: Color.red.opacity(0.5), radius: 10, y: 4)
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 6).padding(.bottom, 4)
+            .padding(.horizontal, 16).padding(.vertical, 12)
+            .glass(22)
         }
         .padding(16)
     }
 }
 
-// Soft horizontal audio meter: inset channel with an accent fill.
-private struct SoftMeter: View {
+// Glass audio meter: translucent track + glowing accent fill.
+private struct GlassMeter: View {
     let label: String
     let level: Float
     let muted: Bool
@@ -258,37 +217,36 @@ private struct SoftMeter: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(muted ? "\(label) · muted" : label)
-                .font(Neu.font(10, .medium))
-                .foregroundColor(muted ? Neu.subtle : Neu.text)
+                .font(Glass.font(10, .medium))
+                .foregroundColor(muted ? Glass.subtle : Glass.text)
             ZStack(alignment: .leading) {
-                InsetTrack(radius: 5).frame(width: 96, height: 8)
+                Capsule().fill(Color.white.opacity(0.08)).frame(width: 92, height: 8)
+                    .overlay(Capsule().stroke(Glass.stroke, lineWidth: 0.5))
                 if !muted {
                     Capsule()
-                        .fill(LinearGradient(colors: [Neu.accent.opacity(0.7), Neu.accent],
+                        .fill(LinearGradient(colors: [Glass.accent.opacity(0.7), Glass.accent],
                                              startPoint: .leading, endPoint: .trailing))
-                        .frame(width: max(3, 96 * CGFloat(min(1, level))), height: 8)
-                        .shadow(color: Neu.accent.opacity(0.6), radius: 4)
+                        .frame(width: max(3, 92 * CGFloat(min(1, level))), height: 8)
+                        .shadow(color: Glass.accent.opacity(0.7), radius: 5)
                 }
             }
         }
     }
 }
 
-// Soft round toggle button.
-private struct SoftButton: View {
+// Glass round toggle.
+private struct GlassButton: View {
     let system: String
     let active: Bool
-    let tint: Color
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: system)
-                .font(.system(size: 18))
-                .foregroundColor(active ? tint : Neu.text)
-                .frame(width: 54, height: 54)
-                .raised(27, pressed: active)
-                .overlay(active ? RoundedRectangle(cornerRadius: 27).stroke(tint.opacity(0.5), lineWidth: 1) : nil)
+            Image(systemName: system).font(.system(size: 17))
+                .foregroundColor(active ? .red : Glass.text)
+                .frame(width: 50, height: 50)
+                .background(.ultraThinMaterial, in: Circle())
+                .overlay(Circle().stroke(active ? Color.red.opacity(0.6) : Glass.stroke, lineWidth: 1))
         }
         .buttonStyle(.plain)
     }
@@ -302,13 +260,13 @@ private struct MonitorRemoteVideo: View {
 
     var body: some View {
         ZStack {
-            Neu.base
+            Color.black
             if let frame = decoder.currentFrame {
                 MonitorFrameView(imageBuffer: frame, frameId: decoder.frameCount)
             } else {
                 VStack(spacing: 12) {
                     ProgressView().controlSize(.large)
-                    Text("Waiting for video").font(Neu.font(13)).foregroundColor(Neu.subtle)
+                    Text("Waiting for video").font(Glass.font(13)).foregroundColor(Glass.subtle)
                 }
             }
         }
