@@ -10,7 +10,7 @@ struct HomeView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            Neu.base.ignoresSafeArea()
 
             if vm.phase == .live || vm.phase == .connecting {
                 CallScreen(vm: vm)
@@ -19,60 +19,67 @@ struct HomeView: View {
                 VStack(spacing: 22) {
                     // Header
                     HStack {
-                        Text("TRI-NET // SECURE LINK")
-                            .font(Mil.mono(16, .bold)).tracking(2)
-                            .foregroundColor(Mil.line)
+                        Text("TRI-NET Video")
+                            .font(Neu.font(24, .semibold))
+                            .foregroundColor(Neu.text)
                         Spacer()
                         Button(action: { showSettings = true }) {
-                            Image(systemName: "gearshape").foregroundColor(Mil.dim)
+                            Image(systemName: "gearshape.fill")
+                                .font(.system(size: 18)).foregroundColor(Neu.subtle)
+                                .frame(width: 42, height: 42)
+                                .background(Circle().fill(Neu.raised)
+                                    .shadow(color: Neu.dark, radius: 4, x: 3, y: 3)
+                                    .shadow(color: Neu.light, radius: 4, x: -3, y: -3))
                         }
                     }
                     .padding(.horizontal, 24)
 
-                    Text("ENCRYPTED MESH VIDEO — FWD-SECRET X25519 / CHACHA20")
-                        .font(Mil.mono(9)).tracking(1)
-                        .foregroundColor(Mil.dim)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 24)
+                    Text("Encrypted mesh calls · forward-secret")
+                        .font(Neu.font(12)).foregroundColor(Neu.subtle)
 
                     Spacer()
 
-                    // Establish-link button (tactical)
+                    // Big soft call button
                     Button(action: { vm.startCall() }) {
-                        Text("[ ESTABLISH LINK ]")
-                            .font(Mil.mono(18, .bold)).tracking(2)
-                            .foregroundColor(.black)
-                            .padding(.horizontal, 26).padding(.vertical, 16)
-                            .background(vm.cameraAuthorized ? Mil.line : Mil.faint)
+                        ZStack {
+                            Circle()
+                                .fill(vm.cameraAuthorized ? Neu.accent : Neu.raised)
+                                .frame(width: 128, height: 128)
+                                .shadow(color: vm.cameraAuthorized ? Neu.accent.opacity(0.5) : Neu.dark, radius: 16, y: 6)
+                            Image(systemName: "video.fill")
+                                .font(.system(size: 46))
+                                .foregroundColor(vm.cameraAuthorized ? .white : Neu.subtle)
+                        }
                     }
                     .disabled(!vm.cameraAuthorized)
 
-                    // Peer IP input
-                    VStack(spacing: 12) {
+                    // Peer IP input (inset field)
+                    VStack(spacing: 14) {
                         HStack {
-                            Text("PEER").font(Mil.mono(11, .bold)).foregroundColor(Mil.dim)
-                            TextField("MAC IP", text: $vm.remoteIP)
+                            Image(systemName: "person.fill").foregroundColor(Neu.subtle).font(.system(size: 13))
+                            TextField("Mac IP", text: $vm.remoteIP)
                                 .keyboardType(.decimalPad)
-                                .font(Mil.mono(16))
-                                .foregroundColor(Mil.line)
+                                .font(Neu.font(17))
+                                .foregroundColor(Neu.text)
                                 .multilineTextAlignment(.center)
                         }
-                        .padding(.horizontal, 16).padding(.vertical, 12)
-                        .overlay(Rectangle().stroke(Mil.faint, lineWidth: 1))
+                        .padding(.horizontal, 18).padding(.vertical, 14)
+                        .background(InsetTrack(radius: 16))
 
-                        Text("SELF \(vm.myIP)")
-                            .font(Mil.mono(12)).tracking(1)
-                            .foregroundColor(Mil.dim)
+                        Text("You · \(vm.myIP)")
+                            .font(Neu.font(12)).foregroundColor(Neu.subtle)
 
                         if !vm.recentIPs.isEmpty {
-                            HStack(spacing: 8) {
+                            HStack(spacing: 10) {
                                 ForEach(vm.recentIPs.prefix(3), id: \.self) { ip in
                                     Button(action: { vm.remoteIP = ip }) {
                                         Text(ip)
-                                            .font(Mil.mono(11))
-                                            .padding(.horizontal, 10).padding(.vertical, 5)
-                                            .overlay(Rectangle().stroke(Mil.faint, lineWidth: 1))
-                                            .foregroundColor(Mil.dim)
+                                            .font(Neu.font(11))
+                                            .padding(.horizontal, 12).padding(.vertical, 7)
+                                            .background(Capsule().fill(Neu.raised)
+                                                .shadow(color: Neu.dark, radius: 3, x: 2, y: 2)
+                                                .shadow(color: Neu.light, radius: 3, x: -2, y: -2))
+                                            .foregroundColor(Neu.subtle)
                                     }
                                 }
                             }
@@ -82,9 +89,9 @@ struct HomeView: View {
 
                     Spacer()
 
-                    Text(vm.cameraAuthorized ? "READY // AWAITING OPERATOR" : "OPTIC ACCESS REQUIRED")
-                        .font(Mil.mono(11, .bold)).tracking(1)
-                        .foregroundColor(vm.cameraAuthorized ? Mil.dim : Mil.line)
+                    Text(vm.cameraAuthorized ? "Tap to call" : "Camera access needed")
+                        .font(Neu.font(13, .medium))
+                        .foregroundColor(vm.cameraAuthorized ? Neu.subtle : Neu.accent)
                         .padding(.bottom, 40)
                 }
             }
@@ -127,14 +134,34 @@ struct RemoteVideoArea: View {
     }
 }
 
-// Tactical palette — grayscale HUD over a full-color video feed (mirrors the
-// macOS Monitor's Video Call tab).
-enum Mil {
-    static let line = Color.white.opacity(0.85)
-    static let dim = Color.white.opacity(0.45)
-    static let faint = Color.white.opacity(0.18)
-    static func mono(_ s: CGFloat, _ w: Font.Weight = .regular) -> Font {
-        .system(size: s, weight: w, design: .monospaced)
+// Neumorphic palette + soft light/shadow (mirrors the macOS Monitor).
+enum Neu {
+    static let base = Color(red: 0.135, green: 0.145, blue: 0.170)
+    static let raised = Color(red: 0.165, green: 0.176, blue: 0.204)
+    static let light = Color.white.opacity(0.06)
+    static let dark = Color.black.opacity(0.6)
+    static let text = Color.white.opacity(0.92)
+    static let subtle = Color.white.opacity(0.42)
+    static let accent = Color(red: 0.40, green: 0.62, blue: 1.0)
+    static func font(_ s: CGFloat, _ w: Font.Weight = .medium) -> Font {
+        .system(size: s, weight: w, design: .rounded)
+    }
+}
+
+// Inset channel for meter tracks & fields.
+struct InsetTrack: View {
+    var radius: CGFloat = 10
+    var body: some View {
+        RoundedRectangle(cornerRadius: radius, style: .continuous)
+            .fill(Neu.base)
+            .overlay(
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .stroke(LinearGradient(colors: [Neu.dark, Neu.light],
+                                           startPoint: .topLeading, endPoint: .bottomTrailing),
+                            lineWidth: 2.5)
+                    .blur(radius: 1.5)
+                    .mask(RoundedRectangle(cornerRadius: radius, style: .continuous))
+            )
     }
 }
 
@@ -144,135 +171,133 @@ struct CallScreen: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            Neu.base.ignoresSafeArea()
 
-            // Remote video full-screen, FULL COLOR. Only the HUD is monochrome.
+            // Remote video full-screen, FULL COLOR.
             RemoteVideoArea(decoder: vm.decoder, phase: vm.phase, remoteIP: vm.remoteIP)
                 .ignoresSafeArea()
                 .onTapGesture { withAnimation { showControls.toggle() } }
 
-            // HUD corner brackets over the whole feed
-            CornerBrackets().stroke(Mil.line, lineWidth: 1.5)
-                .padding(6).ignoresSafeArea().allowsHitTesting(false)
-
-            // Self camera PiP with bracket frame + SELF tag
+            // Self camera PiP — raised soft card
             VStack {
                 HStack {
                     Spacer()
                     CameraPreviewView(session: vm.camera.previewSession)
                         .frame(width: 104, height: 138)
-                        .overlay(CornerBrackets().stroke(Mil.line, lineWidth: 1.5))
-                        .overlay(alignment: .topLeading) {
-                            Text("SELF").font(Mil.mono(9, .bold))
-                                .foregroundColor(Mil.line)
-                                .padding(3).background(Color.black.opacity(0.6)).padding(2)
-                        }
-                        .padding(12)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .shadow(color: Neu.dark, radius: 6, x: 4, y: 4)
+                        .shadow(color: Neu.light, radius: 6, x: -4, y: -4)
+                        .padding(14)
                 }
                 Spacer()
             }
+            .padding(.top, 44)
 
             if showControls {
                 VStack(spacing: 0) {
-                    // Top status strip
+                    // Top status pill
                     HStack {
-                        Text("● REC").font(Mil.mono(12, .bold)).foregroundColor(Mil.line)
-                        Text("DOWNLINK \(vm.remoteIP)").font(Mil.mono(11)).foregroundColor(Mil.dim)
+                        HStack(spacing: 6) {
+                            Circle().fill(vm.framesReceived > 0 ? Color.green : Neu.subtle)
+                                .frame(width: 7, height: 7)
+                            Text(vm.framesReceived > 0 ? "Secure" : "Connecting")
+                                .font(Neu.font(12, .semibold)).foregroundColor(Neu.text)
+                        }
+                        .padding(.horizontal, 12).padding(.vertical, 7)
+                        .background(Capsule().fill(Neu.raised.opacity(0.9)))
                         Spacer()
-                        Text(vm.framesReceived > 0 ? "SECURE" : "NEG…")
-                            .font(Mil.mono(11, .bold)).foregroundColor(vm.framesReceived > 0 ? Mil.line : Mil.dim)
+                        Text(vm.remoteIP).font(Neu.font(11)).foregroundColor(Neu.subtle)
+                            .padding(.horizontal, 10).padding(.vertical, 6)
+                            .background(Capsule().fill(Neu.raised.opacity(0.9)))
                     }
-                    .padding(.horizontal, 14).padding(.vertical, 10)
-                    .background(Color.black.opacity(0.55))
+                    .padding(.horizontal, 16).padding(.top, 8)
 
                     Spacer()
 
-                    // Bottom: meters + telemetry
-                    VStack(spacing: 12) {
-                        HStack(alignment: .bottom, spacing: 20) {
-                            AudioMeter(label: "TX", level: vm.txLevel, muted: vm.isMuted)
-                            AudioMeter(label: "RX", level: vm.rxLevel, muted: false)
+                    // Meters + controls in a raised panel
+                    VStack(spacing: 16) {
+                        HStack(spacing: 22) {
+                            SoftMeter(label: "Mic", level: vm.txLevel, muted: vm.isMuted)
+                            SoftMeter(label: "In", level: vm.rxLevel, muted: false)
                             Spacer()
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text("TX \(vm.framesSent)  RX \(vm.framesReceived)")
-                                    .font(Mil.mono(11)).foregroundColor(Mil.dim)
-                                Text("FWD-SECRET").font(Mil.mono(10, .bold)).tracking(1).foregroundColor(Mil.line)
-                            }
+                            Text("↑\(vm.framesSent) ↓\(vm.framesReceived)")
+                                .font(Neu.font(11)).foregroundColor(Neu.subtle)
                         }
 
-                        HStack(spacing: 14) {
-                            MilButton(system: vm.isMuted ? "mic.slash" : "mic", on: !vm.isMuted, label: "MIC") { vm.isMuted.toggle() }
-                            MilButton(system: "arrow.triangle.2.circlepath.camera", on: true, label: "FLIP") { vm.camera.switchCamera() }
-                            MilButton(system: vm.cameraOff ? "video.slash" : "video", on: !vm.cameraOff, label: "CAM") { vm.cameraOff.toggle() }
+                        HStack(spacing: 18) {
+                            SoftButton(system: vm.isMuted ? "mic.slash.fill" : "mic.fill", active: vm.isMuted) { vm.isMuted.toggle() }
+                            SoftButton(system: "arrow.triangle.2.circlepath.camera.fill", active: false) { vm.camera.switchCamera() }
+                            SoftButton(system: vm.cameraOff ? "video.slash.fill" : "video.fill", active: vm.cameraOff) { vm.cameraOff.toggle() }
                             Spacer()
                             Button(action: { vm.stopCall() }) {
-                                Text("[ TERMINATE ]").font(Mil.mono(13, .bold)).tracking(1)
-                                    .foregroundColor(.black)
-                                    .padding(.horizontal, 14).padding(.vertical, 10)
-                                    .background(Mil.line)
+                                Image(systemName: "phone.down.fill")
+                                    .font(.system(size: 22)).foregroundColor(.white)
+                                    .frame(width: 66, height: 58)
+                                    .background(RoundedRectangle(cornerRadius: 29, style: .continuous)
+                                        .fill(Color.red)
+                                        .shadow(color: Color.red.opacity(0.45), radius: 10, y: 4))
                             }
                         }
                     }
-                    .padding(.horizontal, 14).padding(.vertical, 12)
-                    .background(Color.black.opacity(0.6))
+                    .padding(18)
+                    .background(
+                        RoundedRectangle(cornerRadius: 26, style: .continuous)
+                            .fill(Neu.raised)
+                            .shadow(color: Neu.dark, radius: 10, x: 6, y: 6)
+                            .shadow(color: Neu.light, radius: 10, x: -6, y: -6)
+                    )
+                    .padding(.horizontal, 12).padding(.bottom, 8)
                 }
             }
         }
     }
 }
 
-// Segmented monochrome audio meter (matches the Monitor's).
-struct AudioMeter: View {
+// Soft horizontal audio meter: inset channel with an accent fill.
+struct SoftMeter: View {
     let label: String
     let level: Float
     let muted: Bool
-    private let segments = 12
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(muted ? "\(label) MUTE" : label)
-                .font(Mil.mono(10, .bold)).tracking(1)
-                .foregroundColor(muted ? Mil.dim : Mil.line)
-            HStack(spacing: 2) {
-                ForEach(0..<segments, id: \.self) { i in
-                    let lit = !muted && Float(i) / Float(segments) < level
-                    Rectangle().fill(lit ? Mil.line : Mil.faint).frame(width: 7, height: 16)
+        VStack(alignment: .leading, spacing: 5) {
+            Text(muted ? "\(label) · muted" : label)
+                .font(Neu.font(10, .medium))
+                .foregroundColor(muted ? Neu.subtle : Neu.text)
+            ZStack(alignment: .leading) {
+                InsetTrack(radius: 5).frame(width: 92, height: 8)
+                if !muted {
+                    Capsule()
+                        .fill(LinearGradient(colors: [Neu.accent.opacity(0.7), Neu.accent],
+                                             startPoint: .leading, endPoint: .trailing))
+                        .frame(width: max(3, 92 * CGFloat(min(1, level))), height: 8)
+                        .shadow(color: Neu.accent.opacity(0.6), radius: 4)
                 }
             }
         }
     }
 }
 
-// Tactical toggle button.
-struct MilButton: View {
+// Soft round toggle button.
+struct SoftButton: View {
     let system: String
-    let on: Bool
-    let label: String
+    let active: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 3) {
-                Image(systemName: system).font(.system(size: 18))
-                Text(label).font(Mil.mono(9, .bold))
-            }
-            .foregroundColor(on ? Mil.line : Mil.dim)
-            .frame(width: 60, height: 52)
-            .overlay(Rectangle().stroke(on ? Mil.line : Mil.faint, lineWidth: 1))
+            Image(systemName: system)
+                .font(.system(size: 20))
+                .foregroundColor(active ? .red : Neu.text)
+                .frame(width: 58, height: 58)
+                .background(
+                    RoundedRectangle(cornerRadius: 29, style: .continuous)
+                        .fill(Neu.raised)
+                        .shadow(color: active ? .clear : Neu.dark, radius: 5, x: 4, y: 4)
+                        .shadow(color: active ? .clear : Neu.light, radius: 5, x: -4, y: -4)
+                )
+                .overlay(active ? RoundedRectangle(cornerRadius: 29).stroke(Color.red.opacity(0.5), lineWidth: 1) : nil)
         }
-    }
-}
-
-// L-shaped corner brackets around the frame.
-struct CornerBrackets: Shape {
-    var len: CGFloat = 26
-    func path(in r: CGRect) -> Path {
-        var p = Path()
-        p.move(to: CGPoint(x: r.minX, y: r.minY + len)); p.addLine(to: CGPoint(x: r.minX, y: r.minY)); p.addLine(to: CGPoint(x: r.minX + len, y: r.minY))
-        p.move(to: CGPoint(x: r.maxX - len, y: r.minY)); p.addLine(to: CGPoint(x: r.maxX, y: r.minY)); p.addLine(to: CGPoint(x: r.maxX, y: r.minY + len))
-        p.move(to: CGPoint(x: r.minX, y: r.maxY - len)); p.addLine(to: CGPoint(x: r.minX, y: r.maxY)); p.addLine(to: CGPoint(x: r.minX + len, y: r.maxY))
-        p.move(to: CGPoint(x: r.maxX - len, y: r.maxY)); p.addLine(to: CGPoint(x: r.maxX, y: r.maxY)); p.addLine(to: CGPoint(x: r.maxX, y: r.maxY - len))
-        return p
     }
 }
 
