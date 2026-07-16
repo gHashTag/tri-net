@@ -26,6 +26,9 @@ final class AudioController {
     var onRxLevel: ((Float) -> Void)?
     // Raw incoming 16k Int16 PCM (magic stripped) — for the call recorder.
     var onRxPCM: ((Data) -> Void)?
+    // Raw outgoing (local mic) 16k Int16 PCM — mixed into the recording so it
+    // captures both sides of the call, not just the remote party.
+    var onTxPCM: ((Data) -> Void)?
     private var playing = false
     private var capturing = false
     private var rxCount = 0
@@ -105,6 +108,7 @@ final class AudioController {
             self.txCount += 1
             if self.txCount == 1 { NSLog("TRINET: audio tx first packet \(pkt.count)B") }
             self.onPacket?(pkt)
+            if let txpcm = self.onTxPCM { txpcm(pkt.subdata(in: 2..<pkt.count)) }
         }
         capEngine.prepare()
         do {

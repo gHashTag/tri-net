@@ -263,6 +263,12 @@ class CallManager: ObservableObject {
             guard let self = self, self.isRecording else { return }
             self.recorder.appendAudio(pcm)
         }
+        // Outgoing (local mic) PCM → buffered and mixed into the recording so it
+        // captures both sides of the call.
+        audio.onTxPCM = { [weak self] pcm in
+            guard let self = self, self.isRecording else { return }
+            self.recorder.pushLocalAudio(pcm)
+        }
         // Off the main path: first touch of the mic can block ~60s on TCC
         // init, and audio must never hold up transport/video startup.
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.audio.start() }
