@@ -15,17 +15,40 @@ import CoreVideo
 
 enum Glass {
     static let bg = Color.black                       // #000
-    static let stroke = Color.white.opacity(0.14)     // hairline glass edge
-    static let strokeStrong = Color.white.opacity(0.28)
     static let text = Color.white.opacity(0.95)
-    static let subtle = Color.white.opacity(0.5)
-    static let accent = Color(red: 0.36, green: 0.7, blue: 1.0)  // cool cyan-blue
+    static let subtle = Color.white.opacity(0.55)
+    static let accent = Color.white                    // monochrome accent
     static func font(_ s: CGFloat, _ w: Font.Weight = .medium) -> Font {
         .system(size: s, weight: w, design: .rounded)
     }
+    // Specular edge: a light-refracting rim, brightest at the top-left, the
+    // single detail that reads a surface as physical glass.
+    static var specular: LinearGradient {
+        LinearGradient(colors: [.white.opacity(0.55), .white.opacity(0.12), .white.opacity(0.03)],
+                       startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
 }
 
-// Frosted-glass surface: translucent material + hairline edge + soft shadow.
+// #000 base with dim grayscale light pools. Frosted glass needs something
+// varied behind it to refract — a flat black field makes the blur invisible.
+// Monochrome: soft white "studio lights", so it reads black-and-white.
+private struct GlassBackdrop: View {
+    var body: some View {
+        ZStack {
+            Color.black
+            Circle().fill(.white).frame(width: 420).blur(radius: 130).opacity(0.14)
+                .offset(x: -170, y: -120)
+            Circle().fill(.white).frame(width: 380).blur(radius: 130).opacity(0.08)
+                .offset(x: 200, y: 140)
+            Circle().fill(.white).frame(width: 320).blur(radius: 120).opacity(0.06)
+                .offset(x: 120, y: -190)
+        }
+        .ignoresSafeArea()
+    }
+}
+
+// Frosted-glass surface: translucent material (blur + system saturation) +
+// specular rim + soft depth shadow.
 private struct GlassCard: ViewModifier {
     var radius: CGFloat = 20
     func body(content: Content) -> some View {
@@ -33,9 +56,9 @@ private struct GlassCard: ViewModifier {
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .stroke(Glass.stroke, lineWidth: 1)
+                    .strokeBorder(Glass.specular, lineWidth: 1)
             )
-            .shadow(color: .black.opacity(0.5), radius: 12, y: 6)
+            .shadow(color: .black.opacity(0.55), radius: 16, y: 8)
     }
 }
 private extension View {
@@ -47,7 +70,7 @@ struct VideoCallTab: View {
 
     var body: some View {
         ZStack {
-            Glass.bg.ignoresSafeArea()
+            GlassBackdrop()
             if call.isInCall {
                 InCallView(call: call)
             } else {
@@ -66,7 +89,7 @@ private struct StartCallView: View {
         VStack(spacing: 20) {
             ZStack {
                 Circle().fill(.ultraThinMaterial)
-                    .overlay(Circle().stroke(Glass.stroke, lineWidth: 1))
+                    .overlay(Circle().strokeBorder(Glass.specular, lineWidth: 1))
                     .frame(width: 84, height: 84)
                 Image(systemName: "video.fill").font(.system(size: 32)).foregroundColor(Glass.accent)
             }
@@ -135,7 +158,7 @@ private struct InCallView: View {
                 MonitorRemoteVideo(decoder: call.decoder)
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(Glass.stroke, lineWidth: 1))
+                        .strokeBorder(Glass.specular, lineWidth: 1))
                     .shadow(color: .black.opacity(0.6), radius: 14, y: 8)
 
                 // Status pill
@@ -147,7 +170,7 @@ private struct InCallView: View {
                 }
                 .padding(.horizontal, 12).padding(.vertical, 7)
                 .background(.ultraThinMaterial, in: Capsule())
-                .overlay(Capsule().stroke(Glass.stroke, lineWidth: 1))
+                .overlay(Capsule().strokeBorder(Glass.specular, lineWidth: 1))
                 .padding(12)
 
                 // Self preview glass card
@@ -158,7 +181,7 @@ private struct InCallView: View {
                             .frame(width: 150, height: 112)
                             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(Glass.strokeStrong, lineWidth: 1))
+                                .strokeBorder(Glass.specular, lineWidth: 1))
                             .shadow(color: .black.opacity(0.5), radius: 8, y: 4)
                             .offset(pipOffset)
                             .gesture(DragGesture().onChanged { pipOffset = $0.translation })
@@ -189,7 +212,7 @@ private struct InCallView: View {
                         .font(.system(size: 17)).foregroundColor(Glass.text)
                         .frame(width: 50, height: 50)
                         .background(.ultraThinMaterial, in: Circle())
-                        .overlay(Circle().stroke(Glass.stroke, lineWidth: 1))
+                        .overlay(Circle().strokeBorder(Glass.specular, lineWidth: 1))
                 }
                 .menuStyle(.borderlessButton).frame(width: 50)
                 GlassButton(system: call.cameraOff ? "video.slash.fill" : "video.fill", active: call.cameraOff) { call.cameraOff.toggle() }
@@ -221,7 +244,7 @@ private struct GlassMeter: View {
                 .foregroundColor(muted ? Glass.subtle : Glass.text)
             ZStack(alignment: .leading) {
                 Capsule().fill(Color.white.opacity(0.08)).frame(width: 92, height: 8)
-                    .overlay(Capsule().stroke(Glass.stroke, lineWidth: 0.5))
+                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.18), lineWidth: 0.5))
                 if !muted {
                     Capsule()
                         .fill(LinearGradient(colors: [Glass.accent.opacity(0.7), Glass.accent],
@@ -246,7 +269,7 @@ private struct GlassButton: View {
                 .foregroundColor(active ? .red : Glass.text)
                 .frame(width: 50, height: 50)
                 .background(.ultraThinMaterial, in: Circle())
-                .overlay(Circle().stroke(active ? Color.red.opacity(0.6) : Glass.stroke, lineWidth: 1))
+                .overlay(active ? AnyView(Circle().stroke(Color.red.opacity(0.6), lineWidth: 1)) : AnyView(Circle().strokeBorder(Glass.specular, lineWidth: 1)))
         }
         .buttonStyle(.plain)
     }

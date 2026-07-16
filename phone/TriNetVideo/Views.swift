@@ -10,7 +10,7 @@ struct HomeView: View {
 
     var body: some View {
         ZStack {
-            Neu.base.ignoresSafeArea()
+            GlassBackdrop()
 
             if vm.phase == .live || vm.phase == .connecting {
                 CallScreen(vm: vm)
@@ -28,7 +28,7 @@ struct HomeView: View {
                                 .font(.system(size: 18)).foregroundColor(Neu.subtle)
                                 .frame(width: 42, height: 42)
                                 .background(.ultraThinMaterial, in: Circle())
-                                .overlay(Circle().stroke(Neu.stroke, lineWidth: 1))
+                                .overlay(Circle().strokeBorder(Neu.specular, lineWidth: 1))
                         }
                     }
                     .padding(.horizontal, 24)
@@ -65,7 +65,7 @@ struct HomeView: View {
                         }
                         .padding(.horizontal, 18).padding(.vertical, 14)
                         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Neu.stroke, lineWidth: 1))
+                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Neu.specular, lineWidth: 1))
 
                         Text("You · \(vm.myIP)")
                             .font(Neu.font(12)).foregroundColor(Neu.subtle)
@@ -78,7 +78,7 @@ struct HomeView: View {
                                             .font(Neu.font(11))
                                             .padding(.horizontal, 12).padding(.vertical, 7)
                                             .background(.ultraThinMaterial, in: Capsule())
-                                            .overlay(Capsule().stroke(Neu.stroke, lineWidth: 1))
+                                            .overlay(Capsule().strokeBorder(Neu.specular, lineWidth: 1))
                                             .foregroundColor(Neu.subtle)
                                     }
                                 }
@@ -142,10 +142,33 @@ enum Neu {
     static let stroke = Color.white.opacity(0.14)
     static let strokeStrong = Color.white.opacity(0.28)
     static let text = Color.white.opacity(0.95)
-    static let subtle = Color.white.opacity(0.5)
-    static let accent = Color(red: 0.36, green: 0.7, blue: 1.0)
+    static let subtle = Color.white.opacity(0.55)
+    static let accent = Color.white                    // monochrome accent
     static func font(_ s: CGFloat, _ w: Font.Weight = .medium) -> Font {
         .system(size: s, weight: w, design: .rounded)
+    }
+    // Specular edge: light-refracting rim, brightest at top-left.
+    static var specular: LinearGradient {
+        LinearGradient(colors: [.white.opacity(0.55), .white.opacity(0.12), .white.opacity(0.03)],
+                       startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
+}
+
+// #000 base with dim grayscale light pools so frosted glass has something
+// varied to refract (a flat black field makes the blur invisible). Monochrome
+// soft white "studio lights" — reads black-and-white, stays near-black.
+struct GlassBackdrop: View {
+    var body: some View {
+        ZStack {
+            Color.black
+            Circle().fill(.white).frame(width: 380).blur(radius: 120).opacity(0.13)
+                .offset(x: -140, y: -220)
+            Circle().fill(.white).frame(width: 340).blur(radius: 120).opacity(0.07)
+                .offset(x: 160, y: 260)
+            Circle().fill(.white).frame(width: 300).blur(radius: 110).opacity(0.05)
+                .offset(x: 120, y: -60)
+        }
+        .ignoresSafeArea()
     }
 }
 
@@ -155,7 +178,7 @@ struct CallScreen: View {
 
     var body: some View {
         ZStack {
-            Neu.base.ignoresSafeArea()
+            GlassBackdrop()
 
             // Remote video full-screen, FULL COLOR.
             RemoteVideoArea(decoder: vm.decoder, phase: vm.phase, remoteIP: vm.remoteIP)
@@ -170,7 +193,7 @@ struct CallScreen: View {
                         .frame(width: 104, height: 138)
                         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(Neu.strokeStrong, lineWidth: 1))
+                            .strokeBorder(Neu.specular, lineWidth: 1))
                         .shadow(color: .black.opacity(0.5), radius: 8, y: 4)
                         .padding(14)
                 }
@@ -190,12 +213,12 @@ struct CallScreen: View {
                         }
                         .padding(.horizontal, 12).padding(.vertical, 7)
                         .background(.ultraThinMaterial, in: Capsule())
-                        .overlay(Capsule().stroke(Neu.stroke, lineWidth: 1))
+                        .overlay(Capsule().strokeBorder(Neu.specular, lineWidth: 1))
                         Spacer()
                         Text(vm.remoteIP).font(Neu.font(11)).foregroundColor(Neu.subtle)
                             .padding(.horizontal, 10).padding(.vertical, 6)
                             .background(.ultraThinMaterial, in: Capsule())
-                            .overlay(Capsule().stroke(Neu.stroke, lineWidth: 1))
+                            .overlay(Capsule().strokeBorder(Neu.specular, lineWidth: 1))
                     }
                     .padding(.horizontal, 16).padding(.top, 8)
 
@@ -227,7 +250,7 @@ struct CallScreen: View {
                     }
                     .padding(18)
                     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).stroke(Neu.stroke, lineWidth: 1))
+                    .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(Neu.specular, lineWidth: 1))
                     .shadow(color: .black.opacity(0.5), radius: 12, y: 6)
                     .padding(.horizontal, 12).padding(.bottom, 8)
                 }
@@ -249,7 +272,7 @@ struct SoftMeter: View {
                 .foregroundColor(muted ? Neu.subtle : Neu.text)
             ZStack(alignment: .leading) {
                 Capsule().fill(Color.white.opacity(0.08)).frame(width: 92, height: 8)
-                    .overlay(Capsule().stroke(Neu.stroke, lineWidth: 0.5))
+                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.18), lineWidth: 0.5))
                 if !muted {
                     Capsule()
                         .fill(LinearGradient(colors: [Neu.accent.opacity(0.7), Neu.accent],
@@ -275,7 +298,7 @@ struct SoftButton: View {
                 .foregroundColor(active ? .red : Neu.text)
                 .frame(width: 58, height: 58)
                 .background(.ultraThinMaterial, in: Circle())
-                .overlay(Circle().stroke(active ? Color.red.opacity(0.6) : Neu.stroke, lineWidth: 1))
+                .overlay(active ? AnyView(Circle().stroke(Color.red.opacity(0.6), lineWidth: 1)) : AnyView(Circle().strokeBorder(Neu.specular, lineWidth: 1)))
         }
     }
 }
