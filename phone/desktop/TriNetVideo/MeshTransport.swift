@@ -142,6 +142,8 @@ class MeshTransport {
     private let maxPayload = 1200
     private var fragSeqOut: UInt16 = 0
     private var fragBufs: [UInt16: (parts: [Data?], have: Int)] = [:]
+    // FEC parity per fragment group (XOR over padded cells, last-cell length).
+    private var fecBufs: [UInt16: (xor: [UInt8], lastLen: Int, total: Int)] = [:]
     private var sendErrCount = 0
 
     // MARK: forward-secret session (see MeshCrypto). Data is sealed under a
@@ -165,6 +167,24 @@ class MeshTransport {
             var pkt = Data([0xFA, 0xFB, UInt8(fragSeqOut & 0xFF), UInt8(fragSeqOut >> 8), UInt8(i), UInt8(total)])
             pkt.append(data.subdata(in: start..<end))
             rawSend(pkt)
+        }
+        // Forward error correction: one XOR-parity packet over all fragments
+        // (each cell padded to maxPayload). Lets the peer rebuild ANY single lost
+        // fragment without a keyframe request — additive, ignored by old peers.
+        if total >= 2 {
+            var xor = [UInt8](repeating: 0, count: maxPayload)
+            data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+                for i in 0..<total {
+                    let start = i * maxPayload
+                    let end = min(start + maxPayload, data.count)
+                    for k in 0..<(end - start) { xor[k] ^= raw[start + k] }
+                }
+            }
+            let lastLen = data.count - (total - 1) * maxPayload
+            var parity = Data([0xFA, 0xEC, UInt8(fragSeqOut & 0xFF), UInt8(fragSeqOut >> 8),
+                               UInt8(total), UInt8(lastLen & 0xFF), UInt8(lastLen >> 8)])
+            parity.append(contentsOf: xor)
+            rawSend(parity)
         }
     }
 
@@ -247,6 +267,15 @@ class MeshTransport {
     // Multi-slot: chunks of several NALs may interleave (video + a peer
     // restart, or future multi-stream), so partial buffers are keyed by seq.
     private func reassemble(_ d: Data) -> Data? {
+        // FEC parity packet: store it, then try to recover a single lost fragment.
+        if d.count > 7, d[0] == 0xFA, d[1] == 0xEC {
+            let seq = UInt16(d[2]) | (UInt16(d[3]) << 8)
+            let total = Int(d[4])
+            let lastLen = Int(d[5]) | (Int(d[6]) << 8)
+            guard total >= 2 else { return nil }
+            fecBufs[seq] = (Array(d[7...]), lastLen, total)
+            return tryFEC(seq)
+        }
         guard d.count > 6, d[0] == 0xFA, d[1] == 0xFB else { return d }
         let seq = UInt16(d[2]) | (UInt16(d[3]) << 8)
         let idx = Int(d[4])
@@ -259,11 +288,41 @@ class MeshTransport {
             entry.have += 1
         }
         if entry.have == total {
-            fragBufs.removeValue(forKey: seq)
+            fragBufs.removeValue(forKey: seq); fecBufs.removeValue(forKey: seq)
             return entry.parts.compactMap { $0 }.reduce(Data(), +)
         }
         fragBufs[seq] = entry
-        if fragBufs.count > 8 { fragBufs = fragBufs.filter { $0.key == seq } } // GC stale partials
+        if let recovered = tryFEC(seq) { return recovered }  // parity may already be here
+        if fragBufs.count > 8 {   // GC stale partials + their parity
+            fragBufs = fragBufs.filter { $0.key == seq }
+            fecBufs = fecBufs.filter { $0.key == seq }
+        }
+        return nil
+    }
+
+    // XOR-reconstruct exactly one missing fragment from parity + the rest.
+    private func tryFEC(_ seq: UInt16) -> Data? {
+        guard let fec = fecBufs[seq], var entry = fragBufs[seq],
+              entry.parts.count == fec.total else { return nil }
+        let missing = (0..<fec.total).filter { entry.parts[$0] == nil }
+        guard missing.count == 1 else { return nil }
+        let j = missing[0]
+        var rec = fec.xor                       // parity = XOR of all padded cells
+        for i in 0..<fec.total where i != j {
+            guard let part = entry.parts[i] else { return nil }
+            part.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+                for k in 0..<part.count { rec[k] ^= raw[k] }
+            }
+        }
+        let len = (j == fec.total - 1) ? fec.lastLen : maxPayload
+        guard len >= 0, len <= rec.count else { return nil }
+        entry.parts[j] = Data(rec.prefix(len))
+        entry.have += 1
+        if entry.have == fec.total {
+            fragBufs.removeValue(forKey: seq); fecBufs.removeValue(forKey: seq)
+            return entry.parts.compactMap { $0 }.reduce(Data(), +)
+        }
+        fragBufs[seq] = entry
         return nil
     }
 
