@@ -21,6 +21,7 @@ targets:
       - path: VideoCallTab.swift
       - path: TriNetVideo/CallManager.swift
       - path: TriNetVideo/CameraCapture.swift
+      - path: TriNetVideo/ScreenCapture.swift
       - path: TriNetVideo/MeshTransport.swift
       - path: TriNetVideo/VideoDecoder.swift
       - path: TriNetVideo/VideoEncoder.swift

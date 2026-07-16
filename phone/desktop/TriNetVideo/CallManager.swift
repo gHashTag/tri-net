@@ -4,6 +4,13 @@ import Combine
 import AVFoundation
 import CoreVideo
 
+struct ChatLine: Identifiable {
+    let id = UUID()
+    enum Who { case me, them }
+    let who: Who
+    let text: String
+}
+
 class CallManager: ObservableObject {
     @Published var isInCall = false
     @Published var isStarting = false
@@ -44,9 +51,61 @@ class CallManager: ObservableObject {
     let decoder = VideoDecoder()
     let transport = MeshTransport()
     let audio = AudioController()
+    private var screen: Any?  // ScreenCapture (macOS 12.3+), lazily created
 
     // Local preview
     @Published var previewSession: AVCaptureSession?
+    @Published var isScreenSharing = false
+
+    // Chat + reactions
+    @Published var chat: [ChatLine] = []
+    @Published var liveReaction: String?    // transient emoji overlay
+
+    func sendChat(_ text: String) {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return }
+        var d = Data([0xFB, 0xCA]); d.append(Data(t.utf8))
+        transport.send(d)
+        chat.append(ChatLine(who: .me, text: t))
+    }
+
+    func sendReaction(_ emoji: String) {
+        var d = Data([0xFE, 0xAC]); d.append(Data(emoji.utf8))
+        transport.send(d)
+        showReaction(emoji)
+    }
+
+    private var reactionTask: DispatchWorkItem?
+    func showReaction(_ emoji: String) {
+        liveReaction = emoji
+        reactionTask?.cancel()
+        let task = DispatchWorkItem { [weak self] in self?.liveReaction = nil }
+        reactionTask = task
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5, execute: task)
+    }
+
+    // Toggle the outgoing video source between camera and screen. Both feed the
+    // same encoder→transport path, so the peer just sees a new source.
+    func toggleScreenShare() {
+        if #available(macOS 12.3, *) {
+            if isScreenSharing {
+                (screen as? ScreenCapture)?.stop()
+                isScreenSharing = false
+            } else {
+                let sc = (screen as? ScreenCapture) ?? ScreenCapture()
+                screen = sc
+                sc.onNALUnit = { [weak self] nal in
+                    guard let self = self, self.isScreenSharing else { return }
+                    self.transport.send(nal)
+                    DispatchQueue.main.async { self.framesSent += 1 }
+                }
+                sc.start()
+                isScreenSharing = true  // camera guard stops sending its NALs
+            }
+        } else {
+            NSLog("TRINET: screen share needs macOS 12.3+")
+        }
+    }
 
     func startCall() {
         guard let p = UInt16(port) else { NSLog("TRINET: invalid port"); return }
@@ -61,9 +120,9 @@ class CallManager: ObservableObject {
             UserDefaults.standard.set(recentIPs, forKey: "recentIPs")
         }
 
-        // Camera → Encoder → Transport
+        // Camera → Encoder → Transport (suppressed while screen sharing)
         camera.onNALUnit = { [weak self] nal in
-            guard let self = self, !self.cameraOff else { return }
+            guard let self = self, !self.cameraOff, !self.isScreenSharing else { return }
             self.transport.send(nal)
             DispatchQueue.main.async { self.framesSent += 1 }
         }
@@ -73,15 +132,25 @@ class CallManager: ObservableObject {
             self?.transport.send(Data([0xFC, 0x00]))
         }
 
-        // Transport → audio player / PLI / Decoder → Display
+        // Transport → audio / PLI / chat / reaction / Decoder → Display
         transport.onReceive = { [weak self] data in
             guard let self = self else { return }
             if data.count == 2, data[0] == 0xFC { // Picture Loss Indication
                 self.camera.forceKeyframe()
                 return
             }
-            if data.count > 2, data[0] == 0xFD, data[1] == 0xAD {
+            if data.count > 2, data[0] == 0xFD, data[1] == 0xAD { // audio
                 self.audio.playPacket(data.subdata(in: 2..<data.count))
+                return
+            }
+            if data.count > 2, data[0] == 0xFB, data[1] == 0xCA { // chat text
+                let msg = String(decoding: data.subdata(in: 2..<data.count), as: UTF8.self)
+                DispatchQueue.main.async { self.chat.append(ChatLine(who: .them, text: msg)) }
+                return
+            }
+            if data.count > 2, data[0] == 0xFE, data[1] == 0xAC { // reaction emoji
+                let emoji = String(decoding: data.subdata(in: 2..<data.count), as: UTF8.self)
+                DispatchQueue.main.async { self.showReaction(emoji) }
                 return
             }
             self.decoder.feed(data)
@@ -120,6 +189,8 @@ class CallManager: ObservableObject {
     }
 
     func endCall() {
+        if #available(macOS 12.3, *) { (screen as? ScreenCapture)?.stop() }
+        isScreenSharing = false
         camera.stop()
         audio.stop()
         transport.disconnect()

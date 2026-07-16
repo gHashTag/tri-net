@@ -86,19 +86,33 @@ private struct StartCallView: View {
 private struct InCallView: View {
     @ObservedObject var call: CallManager
     @State private var pipOffset: CGSize = .zero
+    @State private var showChat = false
+    @State private var draft = ""
+    private let reactions = ["👍", "❤️", "😂", "👏", "🔥"]
 
     var body: some View {
         VStack(spacing: 12) {
-            // Video (full color) framed by a hairline
             ZStack(alignment: .topLeading) {
                 MonitorRemoteVideo(decoder: call.decoder)
                     .clipShape(RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: DS.radius, style: .continuous).stroke(DS.hairline, lineWidth: 1))
 
-                // Top-left status, top-right self preview
+                // Floating reaction
+                if let r = call.liveReaction {
+                    Text(r).font(.system(size: 90))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .transition(.scale.combined(with: .opacity))
+                        .allowsHitTesting(false)
+                }
+
                 HStack(alignment: .top) {
-                    StatusTag(text: call.framesReceived > 0 ? "Secure" : "Connecting", live: call.framesReceived > 0)
-                        .background(DS.ink.opacity(0.5), in: Capsule())
+                    VStack(alignment: .leading, spacing: 6) {
+                        StatusTag(text: call.framesReceived > 0 ? "Secure" : "Connecting", live: call.framesReceived > 0)
+                            .background(DS.ink.opacity(0.5), in: Capsule())
+                        if call.isScreenSharing {
+                            StatusTag(text: "Sharing Screen", live: true).background(DS.ink.opacity(0.5), in: Capsule())
+                        }
+                    }
                     Spacer()
                     if let s = call.previewSession {
                         MonitorCameraPreview(session: s)
@@ -110,17 +124,41 @@ private struct InCallView: View {
                     }
                 }
                 .padding(12)
+
+                // Chat panel (right overlay)
+                if showChat {
+                    HStack { Spacer(); ChatPanel(call: call, draft: $draft, close: { showChat = false }) }
+                        .padding(12)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .animation(.spring(response: 0.35), value: call.liveReaction)
+            .animation(.spring(response: 0.3), value: showChat)
+
+            // Reaction quick-row
+            HStack(spacing: 8) {
+                ForEach(reactions, id: \.self) { e in
+                    Button(e) { call.sendReaction(e) }
+                        .buttonStyle(.plain).font(.system(size: 18))
+                        .frame(width: 34, height: 34)
+                        .overlay(Circle().stroke(DS.hairline, lineWidth: 1))
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 4)
 
             // Control bar
-            HStack(spacing: 20) {
+            HStack(spacing: 16) {
                 Meter(label: "Mic", level: call.txLevel, muted: call.isMuted)
                 Meter(label: "In", level: call.rxLevel, muted: false)
                 Spacer()
                 Text("↑\(call.framesSent)  ↓\(call.framesReceived)")
                     .font(DS.mono(11)).foregroundColor(DS.faint)
                 IconPill(system: call.isMuted ? "mic.slash.fill" : "mic.fill", active: call.isMuted, tint: DS.danger) { call.isMuted.toggle() }
+                IconPill(system: call.isScreenSharing ? "rectangle.inset.filled.on.rectangle" : "rectangle.on.rectangle",
+                         active: call.isScreenSharing, tint: DS.live) { call.toggleScreenShare() }
+                IconPill(system: "bubble.left.and.bubble.right\(call.chat.isEmpty ? "" : ".fill")", active: showChat) { showChat.toggle() }
                 Menu {
                     ForEach(call.cameras, id: \.uniqueID) { cam in
                         Button(cam.localizedName) { call.selectCamera(cam.uniqueID) }
@@ -128,8 +166,7 @@ private struct InCallView: View {
                 } label: {
                     Image(systemName: "arrow.triangle.2.circlepath.camera")
                         .font(.system(size: 14)).foregroundColor(DS.text)
-                        .frame(width: 40, height: 40)
-                        .overlay(Circle().stroke(DS.hairlineStrong, lineWidth: 1))
+                        .frame(width: 40, height: 40).overlay(Circle().stroke(DS.hairlineStrong, lineWidth: 1))
                 }.menuStyle(.borderlessButton).frame(width: 44)
                 IconPill(system: call.cameraOff ? "video.slash.fill" : "video.fill", active: call.cameraOff, tint: DS.danger) { call.cameraOff.toggle() }
                 Button(action: { call.endCall() }) {
@@ -141,6 +178,50 @@ private struct InCallView: View {
             .dsCard(DS.radius)
         }
         .padding(14)
+    }
+}
+
+// Slide-in chat panel (glassless, DS card).
+private struct ChatPanel: View {
+    @ObservedObject var call: CallManager
+    @Binding var draft: String
+    let close: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                SectionLabel(text: "Chat")
+                Spacer()
+                Button(action: close) { Image(systemName: "xmark").font(.system(size: 11)).foregroundColor(DS.dim) }
+                    .buttonStyle(.plain)
+            }.padding(12)
+            Hairline()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(call.chat) { line in
+                        HStack {
+                            if line.who == .me { Spacer(minLength: 24) }
+                            Text(line.text).font(DS.ui(12)).foregroundColor(DS.text)
+                                .padding(.horizontal, 10).padding(.vertical, 6)
+                                .background(line.who == .me ? Color.white.opacity(0.10) : DS.surfaceHi, in: RoundedRectangle(cornerRadius: 10))
+                            if line.who == .them { Spacer(minLength: 24) }
+                        }
+                    }
+                }.padding(12)
+            }
+            Hairline()
+            HStack(spacing: 8) {
+                TextField("Message", text: $draft)
+                    .textFieldStyle(.plain).font(DS.ui(12)).foregroundColor(DS.text)
+                    .onSubmit { call.sendChat(draft); draft = "" }
+                Button(action: { call.sendChat(draft); draft = "" }) {
+                    Image(systemName: "arrow.up").font(.system(size: 12, weight: .bold)).foregroundColor(DS.onFill)
+                        .frame(width: 28, height: 28).background(DS.fill, in: Circle())
+                }.buttonStyle(.plain)
+            }.padding(10)
+        }
+        .frame(width: 260, height: 320)
+        .dsCard(DS.radius)
     }
 }
 
