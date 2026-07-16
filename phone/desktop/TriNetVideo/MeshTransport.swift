@@ -5,6 +5,7 @@
 // handles both directions, so the peer sees our source port = 7000.
 import Foundation
 import Darwin
+import CryptoKit
 
 class MeshTransport {
     private var fd: Int32 = -1
@@ -61,8 +62,9 @@ class MeshTransport {
                     if count == 1 || count % 500 == 0 {
                         NSLog("TRINET: rx #\(count) \(n)B")
                     }
-                    if let nal = self.reassemble(Data(bytes: buf, count: n)) {
-                        self.onReceive?(nal)
+                    if let plain = self.unseal(Data(bytes: buf, count: n)),
+                       let msg = self.reassemble(plain) {
+                        self.onReceive?(msg)
                     }
                 } else {
                     break // socket closed by disconnect() or error
@@ -80,10 +82,28 @@ class MeshTransport {
     // on receive. Raw NALs always start 00 00 00 01, so the magic is unambiguous.
     private let maxPayload = 1200
     private var fragSeqOut: UInt16 = 0
-    private var fragSeqIn: UInt16 = 0xFFFF
-    private var fragParts: [Data?] = []
-    private var fragHave = 0
+    private var fragBufs: [UInt16: (parts: [Data?], have: Int)] = [:]
     private var sendErrCount = 0
+
+    // MARK: encryption
+    // Every datagram is sealed with ChaCha20-Poly1305 (12B nonce + ct + 16B
+    // tag) under a pre-shared key — unauthenticated LAN packets are dropped.
+    // MVP: static PSK; key exchange belongs to the mesh layer (trios-mesh B').
+    private static let cryptoKey = SymmetricKey(data: SHA256.hash(data: Data("tri-net-psk-v1".utf8)))
+    private var dropCount = 0
+
+    // Decrypt + authenticate; nil for foreign/corrupt datagrams
+    private func unseal(_ d: Data) -> Data? {
+        guard let box = try? ChaChaPoly.SealedBox(combined: d),
+              let plain = try? ChaChaPoly.open(box, using: MeshTransport.cryptoKey) else {
+            dropCount += 1
+            if dropCount <= 3 || dropCount % 1000 == 0 {
+                NSLog("TRINET: dropped unauthenticated datagram \(d.count)B (#\(dropCount))")
+            }
+            return nil
+        }
+        return plain
+    }
 
     func send(_ data: Data) {
         guard fd >= 0 else { return }
@@ -104,45 +124,45 @@ class MeshTransport {
     }
 
     private func rawSend(_ data: Data) {
+        guard let sealed = try? ChaChaPoly.seal(data, using: MeshTransport.cryptoKey) else { return }
+        let wire = sealed.combined
         var p = peer
-        let sent = data.withUnsafeBytes { raw in
+        let sent = wire.withUnsafeBytes { raw in
             withUnsafePointer(to: &p) { pp in
                 pp.withMemoryRebound(to: sockaddr.self, capacity: 1) { s in
-                    sendto(fd, raw.baseAddress, data.count, 0, s, socklen_t(MemoryLayout<sockaddr_in>.size))
+                    sendto(fd, raw.baseAddress, wire.count, 0, s, socklen_t(MemoryLayout<sockaddr_in>.size))
                 }
             }
         }
         if sent < 0 {
             sendErrCount += 1
             if sendErrCount <= 5 || sendErrCount % 500 == 0 {
-                NSLog("TRINET: sendto(\(data.count)B) failed: \(String(cString: strerror(errno))) (#\(sendErrCount))")
+                NSLog("TRINET: sendto(\(wire.count)B) failed: \(String(cString: strerror(errno))) (#\(sendErrCount))")
             }
         }
     }
 
-    // Returns a complete NAL when the datagram finishes one, nil otherwise
+    // Returns a complete NAL when the datagram finishes one, nil otherwise.
+    // Multi-slot: chunks of several NALs may interleave (video + a peer
+    // restart, or future multi-stream), so partial buffers are keyed by seq.
     private func reassemble(_ d: Data) -> Data? {
         guard d.count > 6, d[0] == 0xFA, d[1] == 0xFB else { return d }
         let seq = UInt16(d[2]) | (UInt16(d[3]) << 8)
         let idx = Int(d[4])
         let total = Int(d[5])
         guard total > 0, idx < total else { return nil }
-        if seq != fragSeqIn || fragParts.count != total {
-            fragSeqIn = seq
-            fragParts = Array(repeating: nil, count: total)
-            fragHave = 0
+        var entry = fragBufs[seq] ?? (Array(repeating: nil, count: total), 0)
+        if entry.parts.count != total { entry = (Array(repeating: nil, count: total), 0) }
+        if entry.parts[idx] == nil {
+            entry.parts[idx] = d.subdata(in: 6..<d.count)
+            entry.have += 1
         }
-        if fragParts[idx] == nil {
-            fragParts[idx] = d.subdata(in: 6..<d.count)
-            fragHave += 1
+        if entry.have == total {
+            fragBufs.removeValue(forKey: seq)
+            return entry.parts.compactMap { $0 }.reduce(Data(), +)
         }
-        if fragHave == total {
-            let whole = fragParts.compactMap { $0 }.reduce(Data(), +)
-            fragSeqIn = 0xFFFF
-            fragParts = []
-            fragHave = 0
-            return whole
-        }
+        fragBufs[seq] = entry
+        if fragBufs.count > 8 { fragBufs = fragBufs.filter { $0.key == seq } } // GC stale partials
         return nil
     }
 

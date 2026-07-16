@@ -12,12 +12,14 @@
 		8EDD1E7105EA28C7B290C700 /* VideoDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2831FC425A30E3FBFA75BD40 /* VideoDecoder.swift */; };
 		8FB37216EA6E4DAA9752526F /* MeshTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF4870614578478C431D47B9 /* MeshTransport.swift */; };
 		A4B51FD9AC3F6A939BFE6083 /* RTIHeatmap.swift in Sources */ = {isa = PBXBuildFile; fileRef = A55D68653305B39F6D4E6C1F /* RTIHeatmap.swift */; };
+		C270D9DDE66C74E5DC1A30B3 /* AudioController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0445AEA738BFAA34619AA /* AudioController.swift */; };
 		C73AAD99E5A78718DEBAB8D8 /* CameraCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = BED4FD339A53B74B67C3AC3B /* CameraCapture.swift */; };
 		D71FF2DC1AF5071C5554087C /* CallManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE481AF1D2D340638A1ED080 /* CallManager.swift */; };
 		E00EF2E2E4936A31DF3F1B15 /* VideoCallTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 432A15C47C534F56D40856CC /* VideoCallTab.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		20B0445AEA738BFAA34619AA /* AudioController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioController.swift; sourceTree = "<group>"; };
 		2831FC425A30E3FBFA75BD40 /* VideoDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoDecoder.swift; sourceTree = "<group>"; };
 		2A55AB3C5EF91C2E49F7A086 /* TriNetMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriNetMonitor.swift; sourceTree = "<group>"; };
 		432A15C47C534F56D40856CC /* VideoCallTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoCallTab.swift; sourceTree = "<group>"; };
@@ -41,6 +43,7 @@
 		4990817AFEF5B22035759A7D /* TriNetVideo */ = {
 			isa = PBXGroup;
 			children = (
+				20B0445AEA738BFAA34619AA /* AudioController.swift */,
 				FE481AF1D2D340638A1ED080 /* CallManager.swift */,
 				BED4FD339A53B74B67C3AC3B /* CameraCapture.swift */,
 				AF4870614578478C431D47B9 /* MeshTransport.swift */,
@@ -116,6 +119,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C270D9DDE66C74E5DC1A30B3 /* AudioController.swift in Sources */,
 				D71FF2DC1AF5071C5554087C /* CallManager.swift in Sources */,
 				C73AAD99E5A78718DEBAB8D8 /* CameraCapture.swift in Sources */,
 				8FB37216EA6E4DAA9752526F /* MeshTransport.swift in Sources */,
@@ -267,6 +271,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "TRI-NET Monitor";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Mesh monitor";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Monitor mesh network devices";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Audio for mesh video calls";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -289,6 +294,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "TRI-NET Monitor";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Mesh monitor";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Monitor mesh network devices";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Audio for mesh video calls";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

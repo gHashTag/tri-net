@@ -23,6 +23,7 @@ targets:
       - path: TriNetVideo/MeshTransport.swift
       - path: TriNetVideo/VideoDecoder.swift
       - path: TriNetVideo/VideoEncoder.swift
+      - path: TriNetVideo/AudioController.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.trinet.monitor
@@ -30,6 +31,7 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: "TRI-NET Monitor"
         INFOPLIST_KEY_NSCameraUsageDescription: "Mesh monitor"
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Audio for mesh video calls"
         INFOPLIST_KEY_NSLocalNetworkUsageDescription: "Monitor mesh network devices"
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGNING_REQUIRED: NO

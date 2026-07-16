@@ -23,6 +23,7 @@ class StreamViewModel: ObservableObject {
     let camera = CameraController()
     let transport = BSDTransport()
     let decoder = H264Decoder()
+    let audio = AudioController()
 
     private var bytesSent = 0
     private var bytesRecv = 0
@@ -58,16 +59,27 @@ class StreamViewModel: ObservableObject {
         // UDP: send to remoteIP:7000, listen on 7000 (same port for both)
         transport.connect(host: remoteIP, port: 7000, recvPort: 7000)
 
-        // Incoming: UDP → H.264 decoder → display
+        // Incoming: UDP → audio player / H.264 decoder → display
         transport.onData = { [weak self] data in
             guard let self = self else { return }
             self.bytesRecv += data.count
+            if data.count > 2, data[0] == 0xFD, data[1] == 0xAD {
+                self.audio.playPacket(data.subdata(in: 2..<data.count))
+                return
+            }
             self.decoder.feed(data)
             DispatchQueue.main.async {
                 self.framesReceived = self.decoder.frameCount
                 if self.phase != .live { self.phase = .live }
             }
         }
+
+        // Outgoing audio: mic → 16k PCM → UDP (mute drops packets at source)
+        audio.onPacket = { [weak self] pkt in
+            guard let self = self, !self.isMuted else { return }
+            self.transport.send(pkt)
+        }
+        audio.start()
 
         // Outgoing: camera → H.264 → UDP
         camera.onFrame = { [weak self] h264Data, _ in
@@ -95,6 +107,7 @@ class StreamViewModel: ObservableObject {
     func stopCall() {
         camera.stop()
         camera.stopAll()
+        audio.stop()
         transport.disconnect()
         timer?.invalidate(); timer = nil
         phase = .idle

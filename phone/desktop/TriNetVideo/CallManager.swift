@@ -39,6 +39,7 @@ class CallManager: ObservableObject {
     let camera = CameraCapture()
     let decoder = VideoDecoder()
     let transport = MeshTransport()
+    let audio = AudioController()
 
     // Local preview
     @Published var previewSession: AVCaptureSession?
@@ -63,15 +64,26 @@ class CallManager: ObservableObject {
             DispatchQueue.main.async { self.framesSent += 1 }
         }
 
-        // Transport → Decoder → Display
+        // Transport → audio player / Decoder → Display
         transport.onReceive = { [weak self] data in
             guard let self = self else { return }
+            if data.count > 2, data[0] == 0xFD, data[1] == 0xAD {
+                self.audio.playPacket(data.subdata(in: 2..<data.count))
+                return
+            }
             self.decoder.feed(data)
-            DispatchQueue.main.async { 
+            DispatchQueue.main.async {
                 self.framesReceived = self.decoder.frameCount
                 if self.framesReceived > 0 { self.status = "Connected" }
             }
         }
+
+        // Outgoing audio: mic → 16k PCM → UDP (mute drops packets at source)
+        audio.onPacket = { [weak self] pkt in
+            guard let self = self, !self.isMuted else { return }
+            self.transport.send(pkt)
+        }
+        audio.start()
 
         // Start camera
         camera.start(device: cameras.first(where: { $0.uniqueID == selectedCameraID }))
@@ -87,6 +99,7 @@ class CallManager: ObservableObject {
 
     func endCall() {
         camera.stop()
+        audio.stop()
         transport.disconnect()
         isInCall = false
         status = "Idle"

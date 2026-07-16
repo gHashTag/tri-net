@@ -3,6 +3,7 @@ import SwiftUI
 import AVFoundation
 import VideoToolbox
 import Network
+import CryptoKit
 
 // MARK: - Camera Controller
 
@@ -379,8 +380,9 @@ class BSDTransport {
                     if count == 1 || count % 200 == 0 {
                         NSLog("TRINET: rx #\(count) \(n)B")
                     }
-                    if let nal = self.reassemble(Data(bytes: buf, count: n)) {
-                        self.onData?(nal)
+                    if let plain = self.unseal(Data(bytes: buf, count: n)),
+                       let msg = self.reassemble(plain) {
+                        self.onData?(msg)
                     }
                 } else {
                     break // socket closed by disconnect() or error
@@ -388,6 +390,13 @@ class BSDTransport {
             }
         }
     }
+
+    // MARK: encryption
+    // Every datagram is sealed with ChaCha20-Poly1305 (12B nonce + ct + 16B
+    // tag) under a pre-shared key — unauthenticated LAN packets are dropped.
+    // MVP: static PSK; key exchange belongs to the mesh layer (trios-mesh B').
+    private static let cryptoKey = SymmetricKey(data: SHA256.hash(data: Data("tri-net-psk-v1".utf8)))
+    private var dropCount = 0
 
     // MARK: application-level fragmentation
     // UDP datagrams are capped (~9KB default on Apple platforms) and anything
@@ -397,9 +406,7 @@ class BSDTransport {
     // 00 00 00 01, so the magic prefix is unambiguous.
     private let maxPayload = 1200
     private var fragSeqOut: UInt16 = 0
-    private var fragSeqIn: UInt16 = 0xFFFF
-    private var fragParts: [Data?] = []
-    private var fragHave = 0
+    private var fragBufs: [UInt16: (parts: [Data?], have: Int)] = [:]
 
     func send(_ data: Data) {
         guard fd >= 0 else { return }
@@ -420,39 +427,52 @@ class BSDTransport {
     }
 
     private func rawSend(_ data: Data) {
+        guard let sealed = try? ChaChaPoly.seal(data, using: BSDTransport.cryptoKey) else { return }
+        let wire = sealed.combined
         var p = peer
-        _ = data.withUnsafeBytes { raw in
+        _ = wire.withUnsafeBytes { raw in
             withUnsafePointer(to: &p) { pp in
                 pp.withMemoryRebound(to: sockaddr.self, capacity: 1) { s in
-                    sendto(fd, raw.baseAddress, data.count, 0, s, socklen_t(MemoryLayout<sockaddr_in>.size))
+                    sendto(fd, raw.baseAddress, wire.count, 0, s, socklen_t(MemoryLayout<sockaddr_in>.size))
                 }
             }
         }
     }
 
-    // Returns a complete NAL when the datagram finishes one, nil otherwise
+    // Decrypt + authenticate; nil for foreign/corrupt datagrams
+    private func unseal(_ d: Data) -> Data? {
+        guard let box = try? ChaChaPoly.SealedBox(combined: d),
+              let plain = try? ChaChaPoly.open(box, using: BSDTransport.cryptoKey) else {
+            dropCount += 1
+            if dropCount <= 3 || dropCount % 1000 == 0 {
+                NSLog("TRINET: dropped unauthenticated datagram \(d.count)B (#\(dropCount))")
+            }
+            return nil
+        }
+        return plain
+    }
+
+    // Returns a complete NAL when the datagram finishes one, nil otherwise.
+    // Multi-slot: chunks of several NALs may interleave (video + a peer
+    // restart, or future multi-stream), so partial buffers are keyed by seq.
     private func reassemble(_ d: Data) -> Data? {
         guard d.count > 6, d[0] == 0xFA, d[1] == 0xFB else { return d }
         let seq = UInt16(d[2]) | (UInt16(d[3]) << 8)
         let idx = Int(d[4])
         let total = Int(d[5])
         guard total > 0, idx < total else { return nil }
-        if seq != fragSeqIn || fragParts.count != total {
-            fragSeqIn = seq
-            fragParts = Array(repeating: nil, count: total)
-            fragHave = 0
+        var entry = fragBufs[seq] ?? (Array(repeating: nil, count: total), 0)
+        if entry.parts.count != total { entry = (Array(repeating: nil, count: total), 0) }
+        if entry.parts[idx] == nil {
+            entry.parts[idx] = d.subdata(in: 6..<d.count)
+            entry.have += 1
         }
-        if fragParts[idx] == nil {
-            fragParts[idx] = d.subdata(in: 6..<d.count)
-            fragHave += 1
+        if entry.have == total {
+            fragBufs.removeValue(forKey: seq)
+            return entry.parts.compactMap { $0 }.reduce(Data(), +)
         }
-        if fragHave == total {
-            let whole = fragParts.compactMap { $0 }.reduce(Data(), +)
-            fragSeqIn = 0xFFFF
-            fragParts = []
-            fragHave = 0
-            return whole
-        }
+        fragBufs[seq] = entry
+        if fragBufs.count > 8 { fragBufs = fragBufs.filter { $0.key == seq } } // GC stale partials
         return nil
     }
 
@@ -508,5 +528,131 @@ class VideoDisplayView: UIView {
         // to pre-layout zero bounds renders nothing
         layer.contents = cg
         layer.contentsGravity = .resizeAspect
+    }
+}
+
+// MARK: - Audio (capture -> 16kHz mono int16 PCM over UDP -> playback)
+// Wire format: [0xFD 0xAD] + little-endian Int16 samples (~20ms per packet,
+// fits one datagram — never fragmented). Voice processing gives echo
+// cancellation where the platform supports it.
+
+final class AudioController {
+    private let engine = AVAudioEngine()
+    private let player = AVAudioPlayerNode()
+    private var converter: AVAudioConverter?
+    private let wireFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32,
+                                           sampleRate: 16000, channels: 1, interleaved: false)!
+    var onPacket: ((Data) -> Void)?
+    private var started = false
+    private var rxCount = 0
+    private var txCount = 0
+
+    func start() {
+        guard !started else { return }
+        #if os(iOS)
+        let sess = AVAudioSession.sharedInstance()
+        try? sess.setCategory(.playAndRecord, mode: .videoChat,
+                              options: [.defaultToSpeaker, .allowBluetooth])
+        try? sess.setActive(true)
+        // Mic capture stays silent (no tap callbacks) without record
+        // permission — request it, then (re)start once granted
+        if sess.recordPermission == .undetermined {
+            sess.requestRecordPermission { [weak self] granted in
+                NSLog("TRINET: mic permission granted=\(granted)")
+                DispatchQueue.main.async { if granted, self?.started == false { self?.start() } }
+            }
+            return
+        } else if sess.recordPermission == .denied {
+            NSLog("TRINET: mic permission DENIED — outgoing audio disabled")
+        }
+        #endif
+        // Voice processing (echo cancellation) fuses I/O into one VPIO unit
+        // that can fail to init on some devices (err -10875). Try it, and on
+        // failure rebuild the graph without it.
+        if !buildAndStart(voiceProcessing: true) {
+            NSLog("TRINET: audio retry without voice processing")
+            engine.reset()
+            _ = buildAndStart(voiceProcessing: false)
+        }
+    }
+
+    private func buildAndStart(voiceProcessing: Bool) -> Bool {
+        try? engine.inputNode.setVoiceProcessingEnabled(voiceProcessing)
+
+        engine.attach(player)
+        engine.connect(player, to: engine.mainMixerNode, format: wireFormat)
+
+        let inFmt = engine.inputNode.outputFormat(forBus: 0)
+        guard inFmt.sampleRate > 0 else {
+            NSLog("TRINET: audio input format unavailable")
+            return false
+        }
+        converter = AVAudioConverter(from: inFmt, to: wireFormat)
+        NSLog("TRINET: audio start in=\(Int(inFmt.sampleRate))Hz ch=\(inFmt.channelCount) vp=\(voiceProcessing)")
+
+        engine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: inFmt) { [weak self] buf, _ in
+            guard let self = self, let conv = self.converter else { return }
+            guard let out = AVAudioPCMBuffer(pcmFormat: self.wireFormat, frameCapacity: 4096) else { return }
+            var served = false
+            var err: NSError?
+            conv.convert(to: out, error: &err) { _, status in
+                if served { status.pointee = .noDataNow; return nil }
+                served = true
+                status.pointee = .haveData
+                return buf
+            }
+            guard out.frameLength > 0, let ch = out.floatChannelData?[0] else { return }
+            var pkt = Data(capacity: Int(out.frameLength) * 2 + 2)
+            pkt.append(contentsOf: [0xFD, 0xAD])
+            for i in 0..<Int(out.frameLength) {
+                let v = Int16(max(-1.0, min(1.0, ch[i])) * 32767)
+                withUnsafeBytes(of: v.littleEndian) { pkt.append(contentsOf: $0) }
+            }
+            self.txCount += 1
+            if self.txCount == 1 { NSLog("TRINET: audio tx first packet \(pkt.count)B") }
+            self.onPacket?(pkt)
+        }
+
+        do {
+            try engine.start()
+            player.play()
+            started = true
+            return true
+        } catch {
+            NSLog("TRINET: audio engine start failed (vp=\(voiceProcessing)): \(error)")
+            engine.inputNode.removeTap(onBus: 0)
+            return false
+        }
+    }
+
+    // payload = Int16 LE samples (magic already stripped)
+    func playPacket(_ d: Data) {
+        guard started else { return }
+        let n = d.count / 2
+        guard n > 0, let buf = AVAudioPCMBuffer(pcmFormat: wireFormat, frameCapacity: AVAudioFrameCount(n)) else { return }
+        buf.frameLength = AVAudioFrameCount(n)
+        let ch = buf.floatChannelData![0]
+        d.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+            for i in 0..<n {
+                let lo = UInt16(raw[i * 2])
+                let hi = UInt16(raw[i * 2 + 1])
+                let v = Int16(bitPattern: lo | (hi << 8))
+                ch[i] = Float(v) / 32768.0
+            }
+        }
+        rxCount += 1
+        if rxCount == 1 { NSLog("TRINET: audio rx first packet \(d.count)B") }
+        player.scheduleBuffer(buf, completionHandler: nil)
+    }
+
+    func stop() {
+        guard started else { return }
+        engine.inputNode.removeTap(onBus: 0)
+        player.stop()
+        engine.stop()
+        started = false
+        #if os(iOS)
+        try? AVAudioSession.sharedInstance().setActive(false)
+        #endif
     }
 }

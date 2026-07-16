@@ -12,3 +12,7 @@ tests/fuzz/grammar_v2/out/
 .DS_Store
 **/.build/
 **/xcuserdata/
+
+# built app bundles
+phone/release/
+**/*.app/

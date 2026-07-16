@@ -127,6 +127,14 @@ private struct InCallView: View {
                     }
                     Spacer()
 
+                    Button(action: { call.isMuted.toggle() }) {
+                        Image(systemName: call.isMuted ? "mic.slash.fill" : "mic.fill")
+                            .font(.system(size: 15))
+                            .foregroundColor(call.isMuted ? .red : .primary)
+                            .frame(width: 40, height: 30)
+                    }
+                    .help("Mute microphone")
+
                     Menu {
                         ForEach(call.cameras, id: \.uniqueID) { cam in
                             Button(cam.localizedName) { call.selectCamera(cam.uniqueID) }
