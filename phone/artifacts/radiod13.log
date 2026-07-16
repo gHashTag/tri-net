@@ -1,0 +1,4 @@
+[radiod] identity: real key (node13.cfg.key), public 169a13964646d35a24e929693b18dba7f08da101c9583a14aadf4499e34ce90c
+[radiod] modulation: BPSK
+[radiod] node 13 on 2.4 GHz air — peers [12]
+[radiod] TX test -> 12: Dropped(NoRoute)

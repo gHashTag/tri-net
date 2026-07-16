@@ -1,0 +1,3 @@
+[radiod] identity: real key (node12.cfg.key), public f2f39d4f7ffb423cef4f7f643cc247811f49cf20fa41d92a5040dcf58fdb6e73
+[radiod] modulation: BPSK
+[radiod] node 12 on 2.4 GHz air — peers [13]
