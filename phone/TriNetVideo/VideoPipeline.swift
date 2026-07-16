@@ -595,9 +595,19 @@ final class AudioController {
     private let wireFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32,
                                            sampleRate: 16000, channels: 1, interleaved: false)!
     var onPacket: ((Data) -> Void)?
+    // Live audio levels (0...1) for the TX/RX meters.
+    var onTxLevel: ((Float) -> Void)?
+    var onRxLevel: ((Float) -> Void)?
     private var started = false
     private var rxCount = 0
     private var txCount = 0
+
+    // RMS -> perceptual 0...1 (sqrt gives a livelier meter than raw RMS)
+    static func level(_ sumSq: Float, _ n: Int) -> Float {
+        guard n > 0 else { return 0 }
+        let rms = (sumSq / Float(n)).squareRoot()
+        return min(1, rms * 3)
+    }
 
     func start() {
         guard !started else { return }
@@ -654,12 +664,17 @@ final class AudioController {
                 return buf
             }
             guard out.frameLength > 0, let ch = out.floatChannelData?[0] else { return }
-            var pkt = Data(capacity: Int(out.frameLength) * 2 + 2)
+            let n = Int(out.frameLength)
+            var sumSq: Float = 0
+            var pkt = Data(capacity: n * 2 + 2)
             pkt.append(contentsOf: [0xFD, 0xAD])
-            for i in 0..<Int(out.frameLength) {
-                let v = Int16(max(-1.0, min(1.0, ch[i])) * 32767)
+            for i in 0..<n {
+                let f = max(-1.0, min(1.0, ch[i]))
+                sumSq += f * f
+                let v = Int16(f * 32767)
                 withUnsafeBytes(of: v.littleEndian) { pkt.append(contentsOf: $0) }
             }
+            self.onTxLevel?(Self.level(sumSq, n))
             self.txCount += 1
             if self.txCount == 1 { NSLog("TRINET: audio tx first packet \(pkt.count)B") }
             self.onPacket?(pkt)
@@ -684,14 +699,18 @@ final class AudioController {
         guard n > 0, let buf = AVAudioPCMBuffer(pcmFormat: wireFormat, frameCapacity: AVAudioFrameCount(n)) else { return }
         buf.frameLength = AVAudioFrameCount(n)
         let ch = buf.floatChannelData![0]
+        var sumSq: Float = 0
         d.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
             for i in 0..<n {
                 let lo = UInt16(raw[i * 2])
                 let hi = UInt16(raw[i * 2 + 1])
                 let v = Int16(bitPattern: lo | (hi << 8))
-                ch[i] = Float(v) / 32768.0
+                let f = Float(v) / 32768.0
+                ch[i] = f
+                sumSq += f * f
             }
         }
+        onRxLevel?(Self.level(sumSq, n))
         rxCount += 1
         if rxCount == 1 { NSLog("TRINET: audio rx first packet \(d.count)B") }
         player.scheduleBuffer(buf, completionHandler: nil)

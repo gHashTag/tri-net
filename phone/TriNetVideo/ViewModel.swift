@@ -15,6 +15,9 @@ class StreamViewModel: ObservableObject {
     @Published var isMuted = false
     @Published var cameraOff = false
     @Published var recentIPs: [String] = []
+    // Live audio levels (0...1) for the TX/RX meters, peak-held with decay.
+    @Published var txLevel: Float = 0
+    @Published var rxLevel: Float = 0
 
     enum CallPhase: Equatable {
         case idle, connecting, live
@@ -87,6 +90,13 @@ class StreamViewModel: ObservableObject {
         audio.onPacket = { [weak self] pkt in
             guard let self = self, !self.isMuted else { return }
             self.transport.send(pkt)
+        }
+        // Audio levels -> meters (peak-hold with decay so bars don't flicker)
+        audio.onTxLevel = { [weak self] lvl in
+            DispatchQueue.main.async { self?.txLevel = max(lvl, (self?.txLevel ?? 0) * 0.8) }
+        }
+        audio.onRxLevel = { [weak self] lvl in
+            DispatchQueue.main.async { self?.rxLevel = max(lvl, (self?.rxLevel ?? 0) * 0.8) }
         }
         // Off the main path: first touch of the mic can block on permission /
         // session init, and audio must never hold up transport/video startup.

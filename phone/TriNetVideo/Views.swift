@@ -16,76 +16,63 @@ struct HomeView: View {
                 CallScreen(vm: vm)
                     .transition(.opacity)
             } else {
-                VStack(spacing: 24) {
+                VStack(spacing: 22) {
                     // Header
                     HStack {
-                        Text("TRI-NET")
-                            .font(.system(size: 28, weight: .heavy, design: .rounded))
-                            .foregroundColor(.white)
+                        Text("TRI-NET // SECURE LINK")
+                            .font(Mil.mono(16, .bold)).tracking(2)
+                            .foregroundColor(Mil.line)
                         Spacer()
                         Button(action: { showSettings = true }) {
-                            Image(systemName: "gearshape.fill")
-                                .font(.title2).foregroundColor(.gray)
+                            Image(systemName: "gearshape").foregroundColor(Mil.dim)
                         }
                     }
                     .padding(.horizontal, 24)
 
-                    Text("VIDEO CALL")
-                        .font(.system(size: 11, weight: .bold, design: .monospaced))
-                        .foregroundColor(.blue).tracking(4)
+                    Text("ENCRYPTED MESH VIDEO — FWD-SECRET X25519 / CHACHA20")
+                        .font(Mil.mono(9)).tracking(1)
+                        .foregroundColor(Mil.dim)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
 
                     Spacer()
 
-                    // Big call button
+                    // Establish-link button (tactical)
                     Button(action: { vm.startCall() }) {
-                        ZStack {
-                            Circle()
-                                .fill(LinearGradient(
-                                    colors: [Color.green, Color.green.opacity(0.7)],
-                                    startPoint: .topLeading, endPoint: .bottomTrailing
-                                ))
-                                .frame(width: 120, height: 120)
-                                .shadow(color: .green.opacity(0.4), radius: 20)
-
-                            Image(systemName: "video.fill")
-                                .font(.system(size: 48))
-                                .foregroundColor(.white)
-                        }
+                        Text("[ ESTABLISH LINK ]")
+                            .font(Mil.mono(18, .bold)).tracking(2)
+                            .foregroundColor(.black)
+                            .padding(.horizontal, 26).padding(.vertical, 16)
+                            .background(vm.cameraAuthorized ? Mil.line : Mil.faint)
                     }
                     .disabled(!vm.cameraAuthorized)
 
-                    // Remote IP input
-                    VStack(spacing: 10) {
+                    // Peer IP input
+                    VStack(spacing: 12) {
                         HStack {
-                            Image(systemName: "person.crop.circle.badge.questionmark")
-                                .foregroundColor(.gray)
-                            TextField("Enter Mac IP Address", text: $vm.remoteIP)
+                            Text("PEER").font(Mil.mono(11, .bold)).foregroundColor(Mil.dim)
+                            TextField("MAC IP", text: $vm.remoteIP)
                                 .keyboardType(.decimalPad)
-                                .font(.system(size: 18, design: .monospaced))
-                                .foregroundColor(.white)
+                                .font(Mil.mono(16))
+                                .foregroundColor(Mil.line)
                                 .multilineTextAlignment(.center)
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 14)
-                        .background(Color.white.opacity(0.08))
-                        .cornerRadius(14)
+                        .padding(.horizontal, 16).padding(.vertical, 12)
+                        .overlay(Rectangle().stroke(Mil.faint, lineWidth: 1))
 
-                        // Your IP for the other side
-                        Text("Your IP: \(vm.myIP)")
-                            .font(.system(size: 13, design: .monospaced))
-                            .foregroundColor(.cyan)
+                        Text("SELF \(vm.myIP)")
+                            .font(Mil.mono(12)).tracking(1)
+                            .foregroundColor(Mil.dim)
 
-                        // Recent IPs
                         if !vm.recentIPs.isEmpty {
                             HStack(spacing: 8) {
                                 ForEach(vm.recentIPs.prefix(3), id: \.self) { ip in
                                     Button(action: { vm.remoteIP = ip }) {
                                         Text(ip)
-                                            .font(.system(size: 12, design: .monospaced))
-                                            .padding(.horizontal, 12).padding(.vertical, 6)
-                                            .background(Color.blue.opacity(0.2))
-                                            .cornerRadius(10)
-                                            .foregroundColor(.blue)
+                                            .font(Mil.mono(11))
+                                            .padding(.horizontal, 10).padding(.vertical, 5)
+                                            .overlay(Rectangle().stroke(Mil.faint, lineWidth: 1))
+                                            .foregroundColor(Mil.dim)
                                     }
                                 }
                             }
@@ -95,9 +82,9 @@ struct HomeView: View {
 
                     Spacer()
 
-                    Text(vm.cameraAuthorized ? "Tap to call" : "Camera access needed")
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundColor(vm.cameraAuthorized ? .white : .orange)
+                    Text(vm.cameraAuthorized ? "READY // AWAITING OPERATOR" : "OPTIC ACCESS REQUIRED")
+                        .font(Mil.mono(11, .bold)).tracking(1)
+                        .foregroundColor(vm.cameraAuthorized ? Mil.dim : Mil.line)
                         .padding(.bottom, 40)
                 }
             }
@@ -140,109 +127,152 @@ struct RemoteVideoArea: View {
     }
 }
 
+// Tactical palette — grayscale HUD over a full-color video feed (mirrors the
+// macOS Monitor's Video Call tab).
+enum Mil {
+    static let line = Color.white.opacity(0.85)
+    static let dim = Color.white.opacity(0.45)
+    static let faint = Color.white.opacity(0.18)
+    static func mono(_ s: CGFloat, _ w: Font.Weight = .regular) -> Font {
+        .system(size: s, weight: w, design: .monospaced)
+    }
+}
+
 struct CallScreen: View {
     @ObservedObject var vm: StreamViewModel
     @State private var showControls = true
-    @State private var pipExpanded = false
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            // Remote video (full screen). Own subview observing the decoder
-            // directly — nested ObservableObjects don't propagate through vm.
+            // Remote video full-screen, FULL COLOR. Only the HUD is monochrome.
             RemoteVideoArea(decoder: vm.decoder, phase: vm.phase, remoteIP: vm.remoteIP)
                 .ignoresSafeArea()
                 .onTapGesture { withAnimation { showControls.toggle() } }
 
-            // Self camera PiP
+            // HUD corner brackets over the whole feed
+            CornerBrackets().stroke(Mil.line, lineWidth: 1.5)
+                .padding(6).ignoresSafeArea().allowsHitTesting(false)
+
+            // Self camera PiP with bracket frame + SELF tag
             VStack {
                 HStack {
                     Spacer()
                     CameraPreviewView(session: vm.camera.previewSession)
-                        .frame(width: pipExpanded ? 200 : 100, height: pipExpanded ? 150 : 75)
-                        .clipShape(RoundedRectangle(cornerRadius: pipExpanded ? 16 : 12))
-                        .overlay(RoundedRectangle(cornerRadius: pipExpanded ? 16 : 12)
-                            .stroke(.white.opacity(0.3), lineWidth: 2))
-                        .shadow(color: .black.opacity(0.5), radius: 8, y: 4)
-                        .padding(16)
-                        .onTapGesture { withAnimation(.spring()) { pipExpanded.toggle() } }
+                        .frame(width: 104, height: 138)
+                        .overlay(CornerBrackets().stroke(Mil.line, lineWidth: 1.5))
+                        .overlay(alignment: .topLeading) {
+                            Text("SELF").font(Mil.mono(9, .bold))
+                                .foregroundColor(Mil.line)
+                                .padding(3).background(Color.black.opacity(0.6)).padding(2)
+                        }
+                        .padding(12)
                 }
                 Spacer()
             }
 
-            // Floating controls
             if showControls {
-                VStack {
-                    // Top bar
+                VStack(spacing: 0) {
+                    // Top status strip
                     HStack {
-                        HStack(spacing: 6) {
-                            Circle().fill(Color.green).frame(width: 8, height: 8)
-                            Text("LIVE")
-                                .font(.system(size: 13, weight: .bold, design: .rounded))
-                                .foregroundColor(.green)
-                        }
+                        Text("● REC").font(Mil.mono(12, .bold)).foregroundColor(Mil.line)
+                        Text("DOWNLINK \(vm.remoteIP)").font(Mil.mono(11)).foregroundColor(Mil.dim)
                         Spacer()
-                        Text("↑\(vm.framesSent) ↓\(vm.framesReceived)")
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundColor(.gray)
+                        Text(vm.framesReceived > 0 ? "SECURE" : "NEG…")
+                            .font(Mil.mono(11, .bold)).foregroundColor(vm.framesReceived > 0 ? Mil.line : Mil.dim)
                     }
-                    .padding()
+                    .padding(.horizontal, 14).padding(.vertical, 10)
+                    .background(Color.black.opacity(0.55))
 
                     Spacer()
 
-                    // Bottom controls
-                    HStack(spacing: 40) {
-                        // Mute
-                        Button(action: { vm.isMuted.toggle() }) {
-                            ZStack {
-                                Circle()
-                                    .fill(vm.isMuted ? Color.red : Color.white.opacity(0.2))
-                                    .frame(width: 60, height: 60)
-                                Image(systemName: vm.isMuted ? "mic.slash.fill" : "mic.fill")
-                                    .font(.system(size: 22))
-                                    .foregroundColor(.white)
+                    // Bottom: meters + telemetry
+                    VStack(spacing: 12) {
+                        HStack(alignment: .bottom, spacing: 20) {
+                            AudioMeter(label: "TX", level: vm.txLevel, muted: vm.isMuted)
+                            AudioMeter(label: "RX", level: vm.rxLevel, muted: false)
+                            Spacer()
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text("TX \(vm.framesSent)  RX \(vm.framesReceived)")
+                                    .font(Mil.mono(11)).foregroundColor(Mil.dim)
+                                Text("FWD-SECRET").font(Mil.mono(10, .bold)).tracking(1).foregroundColor(Mil.line)
                             }
                         }
 
-                        // End call
-                        Button(action: { vm.stopCall() }) {
-                            ZStack {
-                                Circle().fill(Color.red).frame(width: 70, height: 70)
-                                Image(systemName: "phone.down.fill")
-                                    .font(.system(size: 26))
-                                    .foregroundColor(.white)
-                            }
-                        }
-
-                        // Flip front/back camera
-                        Button(action: { vm.camera.switchCamera() }) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.white.opacity(0.2))
-                                    .frame(width: 60, height: 60)
-                                Image(systemName: "arrow.triangle.2.circlepath.camera.fill")
-                                    .font(.system(size: 22))
-                                    .foregroundColor(.white)
-                            }
-                        }
-
-                        // Camera toggle
-                        Button(action: { vm.cameraOff.toggle() }) {
-                            ZStack {
-                                Circle()
-                                    .fill(vm.cameraOff ? Color.red : Color.white.opacity(0.2))
-                                    .frame(width: 60, height: 60)
-                                Image(systemName: vm.cameraOff ? "video.slash.fill" : "video.fill")
-                                    .font(.system(size: 22))
-                                    .foregroundColor(.white)
+                        HStack(spacing: 14) {
+                            MilButton(system: vm.isMuted ? "mic.slash" : "mic", on: !vm.isMuted, label: "MIC") { vm.isMuted.toggle() }
+                            MilButton(system: "arrow.triangle.2.circlepath.camera", on: true, label: "FLIP") { vm.camera.switchCamera() }
+                            MilButton(system: vm.cameraOff ? "video.slash" : "video", on: !vm.cameraOff, label: "CAM") { vm.cameraOff.toggle() }
+                            Spacer()
+                            Button(action: { vm.stopCall() }) {
+                                Text("[ TERMINATE ]").font(Mil.mono(13, .bold)).tracking(1)
+                                    .foregroundColor(.black)
+                                    .padding(.horizontal, 14).padding(.vertical, 10)
+                                    .background(Mil.line)
                             }
                         }
                     }
-                    .padding(.bottom, 40)
+                    .padding(.horizontal, 14).padding(.vertical, 12)
+                    .background(Color.black.opacity(0.6))
                 }
             }
         }
+    }
+}
+
+// Segmented monochrome audio meter (matches the Monitor's).
+struct AudioMeter: View {
+    let label: String
+    let level: Float
+    let muted: Bool
+    private let segments = 12
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(muted ? "\(label) MUTE" : label)
+                .font(Mil.mono(10, .bold)).tracking(1)
+                .foregroundColor(muted ? Mil.dim : Mil.line)
+            HStack(spacing: 2) {
+                ForEach(0..<segments, id: \.self) { i in
+                    let lit = !muted && Float(i) / Float(segments) < level
+                    Rectangle().fill(lit ? Mil.line : Mil.faint).frame(width: 7, height: 16)
+                }
+            }
+        }
+    }
+}
+
+// Tactical toggle button.
+struct MilButton: View {
+    let system: String
+    let on: Bool
+    let label: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 3) {
+                Image(systemName: system).font(.system(size: 18))
+                Text(label).font(Mil.mono(9, .bold))
+            }
+            .foregroundColor(on ? Mil.line : Mil.dim)
+            .frame(width: 60, height: 52)
+            .overlay(Rectangle().stroke(on ? Mil.line : Mil.faint, lineWidth: 1))
+        }
+    }
+}
+
+// L-shaped corner brackets around the frame.
+struct CornerBrackets: Shape {
+    var len: CGFloat = 26
+    func path(in r: CGRect) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: r.minX, y: r.minY + len)); p.addLine(to: CGPoint(x: r.minX, y: r.minY)); p.addLine(to: CGPoint(x: r.minX + len, y: r.minY))
+        p.move(to: CGPoint(x: r.maxX - len, y: r.minY)); p.addLine(to: CGPoint(x: r.maxX, y: r.minY)); p.addLine(to: CGPoint(x: r.maxX, y: r.minY + len))
+        p.move(to: CGPoint(x: r.minX, y: r.maxY - len)); p.addLine(to: CGPoint(x: r.minX, y: r.maxY)); p.addLine(to: CGPoint(x: r.minX + len, y: r.maxY))
+        p.move(to: CGPoint(x: r.maxX - len, y: r.maxY)); p.addLine(to: CGPoint(x: r.maxX, y: r.maxY)); p.addLine(to: CGPoint(x: r.maxX, y: r.maxY - len))
+        return p
     }
 }
 

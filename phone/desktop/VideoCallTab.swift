@@ -117,10 +117,8 @@ private struct InCallView: View {
 
     var body: some View {
         ZStack {
-            // Remote feed, desaturated to the tactical monochrome look
+            // Remote feed stays in full color; only the HUD is monochrome
             MonitorRemoteVideo(decoder: call.decoder)
-                .grayscale(1.0)
-                .contrast(1.08)
 
             // HUD corner brackets over the whole feed
             CornerBrackets()
@@ -193,7 +191,6 @@ private struct InCallView: View {
                     Spacer()
                     if let s = call.previewSession {
                         MonitorCameraPreview(session: s)
-                            .grayscale(1.0)
                             .frame(width: 150, height: 112)
                             .overlay(CornerBrackets().stroke(Mil.line, lineWidth: 1.5))
                             .overlay(alignment: .topLeading) {
