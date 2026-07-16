@@ -10,76 +10,62 @@ struct HomeView: View {
 
     var body: some View {
         ZStack {
-            GlassBackdrop()
+            DS.ink.ignoresSafeArea()
 
             if vm.phase == .live || vm.phase == .connecting {
                 CallScreen(vm: vm)
                     .transition(.opacity)
             } else {
                 VStack(spacing: 22) {
-                    // Header
                     HStack {
-                        Text("TRI-NET Video")
-                            .font(Neu.font(24, .semibold))
-                            .foregroundColor(Neu.text)
+                        Text("TRI-NET").font(DS.display(22, .bold)).tracking(1).foregroundColor(DS.text)
                         Spacer()
                         Button(action: { showSettings = true }) {
-                            Image(systemName: "gearshape.fill")
-                                .font(.system(size: 18)).foregroundColor(Neu.subtle)
-                                .frame(width: 42, height: 42)
-                                .background(.ultraThinMaterial, in: Circle())
-                                .overlay(Circle().strokeBorder(Neu.specular, lineWidth: 1))
+                            Image(systemName: "gearshape").font(.system(size: 18)).foregroundColor(DS.dim)
+                                .frame(width: 42, height: 42).overlay(Circle().stroke(DS.hairlineStrong, lineWidth: 1))
                         }
                     }
                     .padding(.horizontal, 24)
 
-                    Text("Encrypted mesh calls · forward-secret")
-                        .font(Neu.font(12)).foregroundColor(Neu.subtle)
+                    Text("Encrypted mesh · forward-secret")
+                        .font(DS.ui(13)).foregroundColor(DS.dim)
 
                     Spacer()
 
-                    // Big glass call button
+                    // Primary call button — the one white CTA
                     Button(action: { vm.startCall() }) {
                         ZStack {
-                            Circle()
-                                .fill(.ultraThinMaterial)
-                                .overlay(Circle().stroke(vm.cameraAuthorized ? Neu.accent.opacity(0.8) : Neu.stroke, lineWidth: 1.5))
+                            Circle().fill(vm.cameraAuthorized ? DS.fill : DS.surface)
+                                .overlay(Circle().stroke(vm.cameraAuthorized ? Color.clear : DS.hairlineStrong, lineWidth: 1))
                                 .frame(width: 128, height: 128)
-                                .shadow(color: vm.cameraAuthorized ? Neu.accent.opacity(0.5) : .black.opacity(0.4), radius: 16, y: 6)
-                            Image(systemName: "video.fill")
-                                .font(.system(size: 46))
-                                .foregroundColor(vm.cameraAuthorized ? Neu.accent : Neu.subtle)
+                            Image(systemName: "video.fill").font(.system(size: 46))
+                                .foregroundColor(vm.cameraAuthorized ? DS.onFill : DS.faint)
                         }
                     }
+                    .buttonStyle(.plain)
                     .disabled(!vm.cameraAuthorized)
 
-                    // Peer IP input (glass field)
+                    // Peer field
                     VStack(spacing: 14) {
                         HStack {
-                            Image(systemName: "person.fill").foregroundColor(Neu.subtle).font(.system(size: 13))
+                            SectionLabel(text: "Peer")
                             TextField("Mac IP", text: $vm.remoteIP)
-                                .keyboardType(.decimalPad)
-                                .font(Neu.font(17))
-                                .foregroundColor(Neu.text)
+                                .keyboardType(.decimalPad).font(DS.mono(16)).foregroundColor(DS.text)
                                 .multilineTextAlignment(.center)
                         }
                         .padding(.horizontal, 18).padding(.vertical, 14)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Neu.specular, lineWidth: 1))
+                        .background(DS.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(DS.hairline, lineWidth: 1))
 
-                        Text("You · \(vm.myIP)")
-                            .font(Neu.font(12)).foregroundColor(Neu.subtle)
+                        Text("SELF · \(vm.myIP)").font(DS.mono(12)).foregroundColor(DS.faint)
 
                         if !vm.recentIPs.isEmpty {
                             HStack(spacing: 10) {
                                 ForEach(vm.recentIPs.prefix(3), id: \.self) { ip in
                                     Button(action: { vm.remoteIP = ip }) {
-                                        Text(ip)
-                                            .font(Neu.font(11))
+                                        Text(ip).font(DS.mono(11)).foregroundColor(DS.dim)
                                             .padding(.horizontal, 12).padding(.vertical, 7)
-                                            .background(.ultraThinMaterial, in: Capsule())
-                                            .overlay(Capsule().strokeBorder(Neu.specular, lineWidth: 1))
-                                            .foregroundColor(Neu.subtle)
+                                            .overlay(Capsule().stroke(DS.hairline, lineWidth: 1))
                                     }
                                 }
                             }
@@ -90,8 +76,7 @@ struct HomeView: View {
                     Spacer()
 
                     Text(vm.cameraAuthorized ? "Tap to call" : "Camera access needed")
-                        .font(Neu.font(13, .medium))
-                        .foregroundColor(vm.cameraAuthorized ? Neu.subtle : Neu.accent)
+                        .font(DS.ui(13, .medium)).foregroundColor(vm.cameraAuthorized ? DS.dim : DS.text)
                         .padding(.bottom, 40)
                 }
             }
@@ -114,192 +99,191 @@ struct RemoteVideoArea: View {
 
     var body: some View {
         ZStack {
-            Color.black
+            DS.surface
             if decoder.frameCount > 0, let frame = decoder.currentFrame {
                 RemoteVideoDisplay(imageBuffer: frame, frameId: decoder.frameCount)
             } else {
-                VStack(spacing: 20) {
-                    ProgressView()
-                        .scaleEffect(1.5)
-                        .tint(.white)
-                    Text(phase == .connecting ? "Connecting..." : "Waiting for video")
-                        .font(.system(size: 18, weight: .medium, design: .rounded))
-                        .foregroundColor(.gray)
-                    Text("→ \(remoteIP)")
-                        .font(.system(size: 14, design: .monospaced))
-                        .foregroundColor(.secondary)
+                VStack(spacing: 14) {
+                    ProgressView().tint(DS.dim)
+                    Text(phase == .connecting ? "CONNECTING" : "WAITING FOR SIGNAL")
+                        .font(DS.mono(12, .medium)).tracking(1).foregroundColor(DS.dim)
+                    Text(remoteIP).font(DS.mono(11)).foregroundColor(DS.faint)
                 }
             }
         }
-    }
-}
-
-// Neumorphic palette + soft light/shadow (mirrors the macOS Monitor).
-// Glassmorphism palette on pure black (#000). "Neu" name kept so HomeView
-// refs stay valid; values are now glass tones (mirrors the macOS Monitor).
-enum Neu {
-    static let base = Color.black                     // #000
-    static let stroke = Color.white.opacity(0.14)
-    static let strokeStrong = Color.white.opacity(0.28)
-    static let text = Color.white.opacity(0.95)
-    static let subtle = Color.white.opacity(0.55)
-    static let accent = Color.white                    // monochrome accent
-    static func font(_ s: CGFloat, _ w: Font.Weight = .medium) -> Font {
-        .system(size: s, weight: w, design: .rounded)
-    }
-    // Specular edge: light-refracting rim, brightest at top-left.
-    static var specular: LinearGradient {
-        LinearGradient(colors: [.white.opacity(0.55), .white.opacity(0.12), .white.opacity(0.03)],
-                       startPoint: .topLeading, endPoint: .bottomTrailing)
-    }
-}
-
-// #000 base with dim grayscale light pools so frosted glass has something
-// varied to refract (a flat black field makes the blur invisible). Monochrome
-// soft white "studio lights" — reads black-and-white, stays near-black.
-struct GlassBackdrop: View {
-    var body: some View {
-        ZStack {
-            Color.black
-            Circle().fill(.white).frame(width: 380).blur(radius: 120).opacity(0.13)
-                .offset(x: -140, y: -220)
-            Circle().fill(.white).frame(width: 340).blur(radius: 120).opacity(0.07)
-                .offset(x: 160, y: 260)
-            Circle().fill(.white).frame(width: 300).blur(radius: 110).opacity(0.05)
-                .offset(x: 120, y: -60)
-        }
-        .ignoresSafeArea()
     }
 }
 
 struct CallScreen: View {
     @ObservedObject var vm: StreamViewModel
     @State private var showControls = true
+    @State private var showChat = false
+    @State private var draft = ""
+    private let reactions = ["👍", "❤️", "😂", "👏", "🔥"]
 
     var body: some View {
         ZStack {
-            GlassBackdrop()
+            DS.ink.ignoresSafeArea()
 
-            // Remote video full-screen, FULL COLOR.
             RemoteVideoArea(decoder: vm.decoder, phase: vm.phase, remoteIP: vm.remoteIP)
                 .ignoresSafeArea()
                 .onTapGesture { withAnimation { showControls.toggle() } }
 
-            // Self camera PiP — glass card
+            // Live reaction — big transient emoji, seen the moment the peer taps.
+            if let r = vm.liveReaction {
+                Text(r).font(.system(size: 120))
+                    .transition(.scale.combined(with: .opacity))
+                    .allowsHitTesting(false)
+            }
+
+            // Self camera PiP
             VStack {
                 HStack {
                     Spacer()
                     CameraPreviewView(session: vm.camera.previewSession)
                         .frame(width: 104, height: 138)
-                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .strokeBorder(Neu.specular, lineWidth: 1))
-                        .shadow(color: .black.opacity(0.5), radius: 8, y: 4)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(DS.hairlineStrong, lineWidth: 1))
                         .padding(14)
                 }
                 Spacer()
             }
             .padding(.top, 44)
 
-            if showControls {
+            // Chat panel
+            if showChat {
+                VStack { Spacer(); iChatPanel(vm: vm, draft: $draft, close: { showChat = false }) }
+                    .padding(12).transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+
+            if showControls && !showChat {
                 VStack(spacing: 0) {
-                    // Top glass pills
                     HStack {
-                        HStack(spacing: 6) {
-                            Circle().fill(vm.framesReceived > 0 ? Neu.accent : Neu.subtle)
-                                .frame(width: 7, height: 7)
-                            Text(vm.framesReceived > 0 ? "Secure" : "Connecting")
-                                .font(Neu.font(12, .semibold)).foregroundColor(Neu.text)
-                        }
-                        .padding(.horizontal, 12).padding(.vertical, 7)
-                        .background(.ultraThinMaterial, in: Capsule())
-                        .overlay(Capsule().strokeBorder(Neu.specular, lineWidth: 1))
+                        StatusTag(text: vm.framesReceived > 0 ? "Secure" : "Connecting", live: vm.framesReceived > 0)
+                            .background(DS.ink.opacity(0.5), in: Capsule())
                         Spacer()
-                        Text(vm.remoteIP).font(Neu.font(11)).foregroundColor(Neu.subtle)
-                            .padding(.horizontal, 10).padding(.vertical, 6)
-                            .background(.ultraThinMaterial, in: Capsule())
-                            .overlay(Capsule().strokeBorder(Neu.specular, lineWidth: 1))
+                        Text(vm.remoteIP).font(DS.mono(11)).foregroundColor(DS.faint)
                     }
                     .padding(.horizontal, 16).padding(.top, 8)
 
                     Spacer()
 
-                    // Meters + controls in a glass panel
-                    VStack(spacing: 16) {
-                        HStack(spacing: 22) {
-                            SoftMeter(label: "Mic", level: vm.txLevel, muted: vm.isMuted)
-                            SoftMeter(label: "In", level: vm.rxLevel, muted: false)
-                            Spacer()
-                            Text("↑\(vm.framesSent) ↓\(vm.framesReceived)")
-                                .font(Neu.font(11)).foregroundColor(Neu.subtle)
-                        }
-
-                        HStack(spacing: 18) {
-                            SoftButton(system: vm.isMuted ? "mic.slash.fill" : "mic.fill", active: vm.isMuted) { vm.isMuted.toggle() }
-                            SoftButton(system: "arrow.triangle.2.circlepath.camera.fill", active: false) { vm.camera.switchCamera() }
-                            SoftButton(system: vm.cameraOff ? "video.slash.fill" : "video.fill", active: vm.cameraOff) { vm.cameraOff.toggle() }
-                            Spacer()
-                            Button(action: { vm.stopCall() }) {
-                                Image(systemName: "phone.down.fill")
-                                    .font(.system(size: 22)).foregroundColor(.white)
-                                    .frame(width: 66, height: 58)
-                                    .background(Color.red.opacity(0.85), in: Capsule())
-                                    .shadow(color: Color.red.opacity(0.5), radius: 10, y: 4)
-                            }
+                    // Reaction row
+                    HStack(spacing: 10) {
+                        ForEach(reactions, id: \.self) { e in
+                            Button(e) { vm.sendReaction(e) }
+                                .buttonStyle(.plain).font(.system(size: 22))
+                                .frame(width: 42, height: 42)
+                                .overlay(Circle().stroke(DS.hairline, lineWidth: 1))
                         }
                     }
-                    .padding(18)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(Neu.specular, lineWidth: 1))
-                    .shadow(color: .black.opacity(0.5), radius: 12, y: 6)
+                    .padding(.bottom, 10)
+
+                    // Meters + controls
+                    VStack(spacing: 14) {
+                        HStack(spacing: 22) {
+                            iMeter(label: "Mic", level: vm.txLevel, muted: vm.isMuted)
+                            iMeter(label: "In", level: vm.rxLevel, muted: false)
+                            Spacer()
+                            Text("↑\(vm.framesSent) ↓\(vm.framesReceived)")
+                                .font(DS.mono(11)).foregroundColor(DS.faint)
+                        }
+                        HStack(spacing: 14) {
+                            iBtn(system: vm.isMuted ? "mic.slash.fill" : "mic.fill", active: vm.isMuted) { vm.isMuted.toggle() }
+                            iBtn(system: "arrow.triangle.2.circlepath.camera.fill", active: false) { vm.camera.switchCamera() }
+                            iBtn(system: vm.cameraOff ? "video.slash.fill" : "video.fill", active: vm.cameraOff) { vm.cameraOff.toggle() }
+                            iBtn(system: "bubble.left.and.bubble.right\(vm.chat.isEmpty ? "" : ".fill")", active: false) { withAnimation { showChat = true } }
+                            Spacer()
+                            Button(action: { vm.stopCall() }) {
+                                Image(systemName: "phone.down.fill").font(.system(size: 22)).foregroundColor(DS.onFill)
+                                    .frame(width: 66, height: 56).background(DS.danger, in: Capsule())
+                            }.buttonStyle(.plain)
+                        }
+                    }
+                    .padding(16)
+                    .background(DS.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(DS.hairline, lineWidth: 1))
                     .padding(.horizontal, 12).padding(.bottom, 8)
                 }
             }
         }
+        .animation(.spring(response: 0.35), value: vm.liveReaction)
+        .animation(.spring(response: 0.3), value: showChat)
     }
 }
 
-// Glass audio meter: translucent track + glowing accent fill.
-struct SoftMeter: View {
-    let label: String
-    let level: Float
-    let muted: Bool
-
+// iOS meter — flat segmented, DS tokens.
+private struct iMeter: View {
+    let label: String; let level: Float; let muted: Bool
+    private let segs = 12
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(muted ? "\(label) · muted" : label)
-                .font(Neu.font(10, .medium))
-                .foregroundColor(muted ? Neu.subtle : Neu.text)
-            ZStack(alignment: .leading) {
-                Capsule().fill(Color.white.opacity(0.08)).frame(width: 92, height: 8)
-                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.18), lineWidth: 0.5))
-                if !muted {
-                    Capsule()
-                        .fill(LinearGradient(colors: [Neu.accent.opacity(0.7), Neu.accent],
-                                             startPoint: .leading, endPoint: .trailing))
-                        .frame(width: max(3, 92 * CGFloat(min(1, level))), height: 8)
-                        .shadow(color: Neu.accent.opacity(0.7), radius: 5)
+            Text(muted ? "\(label) · muted" : label.uppercased())
+                .font(DS.mono(9, .medium)).tracking(0.5)
+                .foregroundColor(muted ? DS.faint : DS.dim)
+            HStack(spacing: 2) {
+                ForEach(0..<segs, id: \.self) { i in
+                    let lit = !muted && Float(i) / Float(segs) < level
+                    Capsule().fill(lit ? DS.fill : DS.hairline).frame(width: 5, height: 14)
                 }
             }
         }
     }
 }
 
-// Glass round toggle.
-struct SoftButton: View {
-    let system: String
-    let active: Bool
-    let action: () -> Void
-
+// iOS round control — DS hairline ring.
+private struct iBtn: View {
+    let system: String; let active: Bool; let action: () -> Void
     var body: some View {
         Button(action: action) {
-            Image(systemName: system)
-                .font(.system(size: 20))
-                .foregroundColor(active ? .red : Neu.text)
-                .frame(width: 58, height: 58)
-                .background(.ultraThinMaterial, in: Circle())
-                .overlay(active ? AnyView(Circle().stroke(Color.red.opacity(0.6), lineWidth: 1)) : AnyView(Circle().strokeBorder(Neu.specular, lineWidth: 1)))
+            Image(systemName: system).font(.system(size: 20))
+                .foregroundColor(active ? DS.danger : DS.text)
+                .frame(width: 56, height: 56)
+                .overlay(Circle().stroke(active ? DS.danger.opacity(0.6) : DS.hairlineStrong, lineWidth: 1))
+        }.buttonStyle(.plain)
+    }
+}
+
+// iOS chat panel — DS card sliding from the bottom.
+private struct iChatPanel: View {
+    @ObservedObject var vm: StreamViewModel
+    @Binding var draft: String
+    let close: () -> Void
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                SectionLabel(text: "Chat")
+                Spacer()
+                Button(action: close) { Image(systemName: "xmark").font(.system(size: 13)).foregroundColor(DS.dim) }
+            }.padding(12)
+            Hairline()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(vm.chat) { line in
+                        HStack {
+                            if line.who == .me { Spacer(minLength: 40) }
+                            Text(line.text).font(DS.ui(13)).foregroundColor(DS.text)
+                                .padding(.horizontal, 12).padding(.vertical, 7)
+                                .background(line.who == .me ? Color.white.opacity(0.10) : DS.surfaceHi, in: RoundedRectangle(cornerRadius: 12))
+                            if line.who == .them { Spacer(minLength: 40) }
+                        }
+                    }
+                }.padding(12)
+            }
+            Hairline()
+            HStack(spacing: 8) {
+                TextField("Message", text: $draft)
+                    .textFieldStyle(.plain).font(DS.ui(14)).foregroundColor(DS.text)
+                    .onSubmit { vm.sendChat(draft); draft = "" }
+                Button(action: { vm.sendChat(draft); draft = "" }) {
+                    Image(systemName: "arrow.up").font(.system(size: 14, weight: .bold)).foregroundColor(DS.onFill)
+                        .frame(width: 32, height: 32).background(DS.fill, in: Circle())
+                }
+            }.padding(12)
         }
+        .frame(height: 360)
+        .background(DS.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(DS.hairline, lineWidth: 1))
     }
 }
 
@@ -387,5 +371,52 @@ struct MetricPill: View {
         }
         .padding(.horizontal, 10).padding(.vertical, 6)
         .background(color.opacity(0.15)).cornerRadius(12)
+    }
+}
+
+// MARK: - Design System (grok-style, shared with the macOS Monitor via
+// desktop/DesignSystem.swift — embedded here because the iOS target compiles a
+// static file list, same pattern as MeshCrypto). See BRANDBOOK.md.
+enum DS {
+    static let ink = Color(red: 0.039, green: 0.039, blue: 0.039)      // #0a0a0a
+    static let surface = Color(red: 0.082, green: 0.082, blue: 0.082)  // #151515
+    static let surfaceHi = Color(red: 0.12, green: 0.12, blue: 0.12)
+    static let hairline = Color.white.opacity(0.10)
+    static let hairlineStrong = Color.white.opacity(0.20)
+    static let text = Color.white.opacity(0.95)
+    static let dim = Color.white.opacity(0.55)
+    static let faint = Color.white.opacity(0.32)
+    static let fill = Color.white
+    static let onFill = Color.black
+    static let live = Color(red: 0.30, green: 0.85, blue: 0.45)
+    static let danger = Color(red: 0.95, green: 0.35, blue: 0.35)
+    static func ui(_ s: CGFloat, _ w: Font.Weight = .regular) -> Font { .system(size: s, weight: w) }
+    static func mono(_ s: CGFloat, _ w: Font.Weight = .regular) -> Font { .system(size: s, weight: w, design: .monospaced) }
+    static func display(_ s: CGFloat, _ w: Font.Weight = .semibold) -> Font { .system(size: s, weight: w) }
+    static let radius: CGFloat = 12
+}
+
+struct Hairline: View {
+    var body: some View { Rectangle().fill(DS.hairline).frame(height: 1) }
+}
+
+struct StatusTag: View {
+    let text: String
+    var live: Bool = false
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle().fill(live ? DS.live : DS.faint).frame(width: 6, height: 6)
+            Text(text.uppercased()).font(DS.mono(10, .medium)).tracking(0.5)
+                .foregroundColor(live ? DS.text : DS.dim)
+        }
+        .padding(.horizontal, 10).padding(.vertical, 5)
+        .overlay(Capsule().stroke(DS.hairline, lineWidth: 1))
+    }
+}
+
+struct SectionLabel: View {
+    let text: String
+    var body: some View {
+        Text(text.uppercased()).font(DS.mono(10, .medium)).tracking(1.2).foregroundColor(DS.faint)
     }
 }

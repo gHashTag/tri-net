@@ -3,6 +3,13 @@ import SwiftUI
 import AVFoundation
 import Combine
 
+struct ChatLine: Identifiable {
+    let id = UUID()
+    enum Who { case me, them }
+    let who: Who
+    let text: String
+}
+
 class StreamViewModel: ObservableObject {
     @Published var phase: CallPhase = .idle
     @Published var remoteIP: String = UserDefaults.standard.string(forKey: "remoteIP") ?? "192.168.1.105"
@@ -18,6 +25,32 @@ class StreamViewModel: ObservableObject {
     // Live audio levels (0...1) for the TX/RX meters, peak-held with decay.
     @Published var txLevel: Float = 0
     @Published var rxLevel: Float = 0
+    // Chat + reactions (shown live on both ends)
+    @Published var chat: [ChatLine] = []
+    @Published var liveReaction: String?
+
+    func sendChat(_ text: String) {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return }
+        var d = Data([0xFB, 0xCA]); d.append(Data(t.utf8))
+        transport.send(d)
+        chat.append(ChatLine(who: .me, text: t))
+    }
+
+    func sendReaction(_ emoji: String) {
+        var d = Data([0xFE, 0xAC]); d.append(Data(emoji.utf8))
+        transport.send(d)
+        showReaction(emoji)
+    }
+
+    private var reactionTask: DispatchWorkItem?
+    func showReaction(_ emoji: String) {
+        liveReaction = emoji
+        reactionTask?.cancel()
+        let task = DispatchWorkItem { [weak self] in self?.liveReaction = nil }
+        reactionTask = task
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5, execute: task)
+    }
 
     enum CallPhase: Equatable {
         case idle, connecting, live
@@ -67,7 +100,7 @@ class StreamViewModel: ObservableObject {
             self?.transport.send(Data([0xFC, 0x00]))
         }
 
-        // Incoming: UDP → PLI / audio player / H.264 decoder → display
+        // Incoming: UDP → PLI / audio / chat / reaction / H.264 decoder → display
         transport.onData = { [weak self] data in
             guard let self = self else { return }
             self.bytesRecv += data.count
@@ -75,8 +108,18 @@ class StreamViewModel: ObservableObject {
                 self.camera.forceKeyframe()
                 return
             }
-            if data.count > 2, data[0] == 0xFD, data[1] == 0xAD {
+            if data.count > 2, data[0] == 0xFD, data[1] == 0xAD { // audio
                 self.audio.playPacket(data.subdata(in: 2..<data.count))
+                return
+            }
+            if data.count > 2, data[0] == 0xFB, data[1] == 0xCA { // chat
+                let msg = String(decoding: data.subdata(in: 2..<data.count), as: UTF8.self)
+                DispatchQueue.main.async { self.chat.append(ChatLine(who: .them, text: msg)) }
+                return
+            }
+            if data.count > 2, data[0] == 0xFE, data[1] == 0xAC { // reaction
+                let emoji = String(decoding: data.subdata(in: 2..<data.count), as: UTF8.self)
+                DispatchQueue.main.async { self.showReaction(emoji) }
                 return
             }
             self.decoder.feed(data)
