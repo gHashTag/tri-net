@@ -80,9 +80,15 @@ up at a time. It must be reconciled with a real link, not with arithmetic.
 Worth recording, because the failures were the useful part:
 
 1. **Attempt 1** burned the budget with 690 tiny datagrams in 11ms. The node's
-   UDP receive buffer silently ate 60% of them (the bridge read only 271), so the
-   limiter never engaged. *Separate finding: the node's rx buffer overflows under
-   burst and nothing reports it.*
+   UDP receive buffer ate 60% of them (the bridge read only 271), so the limiter
+   never engaged.
+
+   > **CORRECTION (v0.16).** This report originally added: *"Separate finding:
+   > the node's rx buffer overflows under burst and nothing reports it."* That is
+   > **false**. The kernel counts every one of these in `/proc/net/snmp` as
+   > `Udp: RcvbufErrors`, and always has — the 420 drops from this very attempt
+   > were sitting in that counter. Nothing was silent; I did not look. See
+   > `WAVE_REPORT_v0.16.md`.
 2. **Attempt 2** paced the burn — and the big NAL passed again. At that point the
    honest read was that I was trying to prove a claim about `frags_sent_this_sec`,
    **a counter printed nowhere**. The 1-second window rolls over on its own and I
@@ -166,11 +172,13 @@ whole app fragment **and then** the whole NAL — double all-or-nothing. The app
 XOR-FEC exists for exactly this and is currently gated off.
 
 ### 2. Measure what the node can actually carry (software, unblocked)
-`FRAG_RATE_PER_SEC = 800` is a guess, and attempt 1 above showed the node's UDP
-receive buffer overflows under burst with **nothing reporting it**. Before tuning
-a rate to a radio nobody has measured, measure the node: rx buffer ceiling, frag
-throughput, where loss actually starts. Cheap, and it turns two guesses into
-numbers.
+`FRAG_RATE_PER_SEC = 800` is a guess. Before tuning a rate to a radio nobody has
+measured, measure the node: ingress ceiling, frag throughput, where loss actually
+starts. Cheap, and it turns two guesses into numbers.
+
+> **Done in v0.16.** The node sustains 800 datagrams/s (8000 fragments/s,
+> ~4.8 Mbps) with zero loss — about 10x the rate limiter's own ceiling. The node
+> is not the bottleneck and never was.
 
 ### 3. The radio (blocked on you)
 Cold power cycle `.11` on dedicated power; bring `.13` back on the network. If a
