@@ -162,3 +162,22 @@ fn a_lost_fragment_is_reported_not_silently_truncated() {
     packets.remove(10);
     assert_eq!(reassemble(packets), None);
 }
+
+// ---- port separation (the spec declares three ports; the daemon used one) ----
+
+#[test]
+fn the_three_ports_are_distinct() {
+    // A node must demux the attached device's payload from a peer node's
+    // fragments. The daemon used to do that on `buf[0] == VSTREAM_TYPE`, which
+    // cannot work: the app seals every datagram with ChaChaPoly, whose
+    // .combined layout is nonce||ciphertext||tag with a RANDOM nonce, so one
+    // datagram in 256 starts with 0x08 and was swallowed as a mesh fragment.
+    // Demuxing by PORT is what the spec already prescribed. If two of these
+    // ever collide, that ambiguity comes straight back.
+    let ports = [vb::VIDEO_IN_PORT, vb::VIDEO_OUT_PORT, vb::MESH_PORT];
+    for (i, a) in ports.iter().enumerate() {
+        for b in &ports[i + 1..] {
+            assert_ne!(a, b, "ports must be distinct to demux by port");
+        }
+    }
+}
