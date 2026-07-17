@@ -99,6 +99,39 @@ that round-trips through **naked wire bytes** (buffer-to-buffer hides packet
 descriptions). Verify UI in the iOS Simulator (`simctl io ... screenshot`) rather
 than editing layout blind.
 
+## The mesh bridge (`src/bin/trios_meshd_video.rs`)
+
+The daemon carries **opaque** datagrams: the app seals them end-to-end, so the
+node cannot read the payload and must never assume it can. Every rule below was a
+real defect, and every one of them was silent.
+
+- **Demux by PORT, never by a magic byte.** The payload is ciphertext, and
+  `ChaChaPoly.combined` is nonce||ciphertext||tag with a RANDOM nonce, so the
+  first wire byte is uniformly distributed: `buf[0] == VSTREAM_TYPE` swallowed 1
+  datagram in 256 (~every 2.5s on a live call). The spec's `MESH_PORT` exists for
+  this. Any "unambiguous magic" claim dies the moment the channel is encrypted.
+- **Rate limiting must be blind to payload size.** `spent + nfrags > LIMIT`
+  drops whatever is biggest — which in H.264 is the IDR keyframe, the one frame
+  a decoder cannot resume without, while the P-frames referencing it pass. A PLI
+  storm then answers each drop with a bigger IDR. Decide admission *before*
+  looking at the size, then let the count run into debt.
+- **The node is a relay AND an endpoint.** One `dest` for both "next hop" and
+  "my device" only works on a linear test rig. Learn the device's address from
+  its ingress; never default it to `127.0.0.1` (send_to succeeds and the payload
+  silently never leaves the node).
+- **A length is knowable — never guess it from the payload.** Reassembly once
+  sized NALs by trimming trailing zeros; H.264 ends in 0x00 constantly. Record
+  the last fragment's length and compute it.
+- **`recv_from` does not report truncation.** It returns a short read. Size the
+  buffer to the largest payload you claim to support, or every I-frame is quietly
+  maimed and the log cheerfully prints the truncated size.
+- **Log the number the decision is made on.** The rate limiter's budget was
+  printed nowhere and drops printed only every 10th, so a dropped keyframe left
+  no trace and no experiment could see the counter it was trying to measure.
+  Instrument first — a probe against invisible state is the broken-ruler error.
+- **The radio's capacity has never been measured** (only one AD9361 has ever come
+  up at a time). `FRAG_RATE_PER_SEC` is a guess; treat it as one.
+
 ## Validation
 - `./bootstrap/target/release/t27c parse <file>` — 0=ok
 - `cargo build --release` — must compile
