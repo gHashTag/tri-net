@@ -52,7 +52,7 @@ final class AudioController {
     // is always enabled; SENDING waits until both ends run this build, because a
     // pre-Opus peer hands any unknown magic straight to its H.264 decoder (the
     // exact way the FEC parity froze video). Flip once the phone is updated.
-    static let opusEnabled = false
+    static let opusEnabled = true
     private let opus = OpusCodec()
 
     func start() {

@@ -150,7 +150,7 @@ class MeshTransport {
     private var fecBufs: [UInt16: (xor: [UInt8], lastLen: Int, total: Int)] = [:]
     // Send parity only when the peer is known to understand it (see send()).
     // Receiving parity is always safe, so only the send side is gated.
-    private let fecEnabled = false
+    private let fecEnabled = true
     private var sendErrCount = 0
 
     // MARK: forward-secret session (see MeshCrypto). Data is sealed under a

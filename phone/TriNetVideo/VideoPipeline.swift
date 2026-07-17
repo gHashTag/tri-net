@@ -541,7 +541,7 @@ class BSDTransport {
     private var fecBufs: [UInt16: (xor: [UInt8], lastLen: Int, total: Int)] = [:]
     // Send parity only when the peer is known to understand it (see send()).
     // Receiving parity is always safe, so only the send side is gated.
-    private let fecEnabled = false
+    private let fecEnabled = true
 
     func send(_ data: Data) {
         guard fd >= 0 else { return }
@@ -753,7 +753,7 @@ final class AudioController {
     // Opus: ~65B per 20ms instead of 642B (256 -> ~25 kbps). RECEIVE is always on;
     // SENDING waits until both ends run this build — a pre-Opus peer feeds unknown
     // magic straight to its H.264 decoder (how FEC parity froze video).
-    static let opusEnabled = false
+    static let opusEnabled = true
     private let opus = OpusCodec()
     private var started = false
     private var rxCount = 0
