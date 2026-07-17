@@ -57,9 +57,23 @@ looks like the app vanished. Logs no longer need that trick: `LogBus` tees stder
 into the in-app Log pane.
 
 ### Media invariants (each was a real, shipped bug)
+
+Working audio is tagged `phone-v0.13-audio-works` — return to it if audio breaks.
+Every rule below broke audio **silently**: no error, meters and counters healthy,
+the far end simply hears nothing. Do not "clean up" any of them.
+
+- **`converter.channelMap = [0]` when the input node has >1 channel.** Voice
+  processing RE-TUNES the input layout: a 3-channel built-in mic becomes a NINE
+  channel node. AVAudioConverter will not downmix an unlabelled 9->1 and yields
+  SILENCE — which Opus then faithfully encodes into 10-byte frames while every
+  counter looks fine. A 10B Opus frame means silence; a real one is ~40-60B.
+- **Emit only whole 20ms frames (320-sample accumulator).** The tap's buffer is
+  not a multiple of 320, and Opus cannot encode a partial frame: it declines and
+  the code falls back to raw PCM. Measured, the remainder was only 12% of packets
+  but **58% of audio bytes** — the fallback cost more than all the Opus saved.
 - **Audio datagrams must stay under `maxPayload` (1200B).** The capture tap hands
-  out whatever the device I/O buffer is (~100ms); slice to 20ms (320 samples).
-  An oversized audio packet silently enters the video fragmentation path.
+  out whatever the device I/O buffer is (~100ms). An oversized audio packet
+  silently enters the video fragmentation path.
 - **Never send raw PCM on a constrained link.** 16k x 16-bit = 256 kbps EACH WAY.
   Opus (AudioToolbox, no dependency) gives ~63B per 20ms = 24.7 kbps, and fits the
   mesh's 70-byte fragment.
@@ -68,8 +82,16 @@ into the in-app Log pane.
   mediaServicesWereReset) and rebuild, or the mic dies ~200ms in, forever.
   Install taps with `format: nil` — a format snapshot taken before voice
   processing settles is stale, and that race IS the ~200ms death.
+- **Voice processing goes on the CAPTURE engine only.** That is safe *because* the
+  engines are split: a VPIO failure (-10875 on this Mac) can cost the mic, never
+  the far end's audio. Do not merge the engines back.
 - **`0xFA` is reserved for the framing layer.** Drop unknown subtypes; never hand
   them to the H.264 decoder.
+- **Never fail silently in an audio path.** `guard let x = codec?.decode(f) else
+  { return }` dropped every packet with no log — indistinguishable from "the peer
+  isn't sending". Log the failure and count it.
+- **Log what WENT OUT, not the flag.** `opus=\(opusEnabled)` printed beside a 642B
+  raw packet claimed a 10x saving that never happened. Report the actual format.
 
 ### Verification
 No two-endpoint rig exists yet. Prove codecs with a standalone `swiftc` harness
