@@ -1,0 +1,187 @@
+// Video bridge protocol: phone ↔ mesh node video transport.
+// Defines frame format for H.264 NAL units split into mesh-sized fragments.
+// Phone sends raw H.264 Annex-B NAL units via UDP to mesh node.
+// Node fragments into VSTREAM packets for mesh transport.
+// Receiver reassembles and sends back to phone via UDP.
+// phi^2 + phi^-2 = 3
+
+module VideoBridge {
+    use base::types;
+
+    // ---- Fragment format ----
+    const VSTREAM_TYPE: u8 = 8;
+    const FRAG_HEADER_LEN: u8 = 5;
+    const MAX_FRAG_DATA: u8 = 70;
+
+    // ---- Packet type byte positions ----
+    const TYPE_OFFSET: u8 = 0;
+    const SEQ_LOW_OFFSET: u8 = 1;
+    const SEQ_HIGH_OFFSET: u8 = 2;
+    const FRAG_INDEX_OFFSET: u8 = 3;
+    const FRAG_COUNT_OFFSET: u8 = 4;
+
+    // ---- Network ports ----
+    const VIDEO_IN_PORT: u16 = 7000;
+    const VIDEO_OUT_PORT: u16 = 7001;
+    const MESH_PORT: u16 = 5000;
+
+    // Extract sequence number from fragment header (little-endian u16)
+    fn frag_seq(seq_lo: u8, seq_hi: u8) -> u16 {
+        let lo: u16 = seq_lo;
+        let hi: u16 = seq_hi;
+        return lo + (hi * 256);
+    }
+
+    // Split sequence into bytes
+    fn seq_lo(seq: u16) -> u8 {
+        let low: u16 = seq % 256;
+        return low;
+    }
+
+    fn seq_hi(seq: u16) -> u8 {
+        let high: u16 = seq / 256;
+        return high;
+    }
+
+    // Calculate number of fragments needed for a NAL unit of given size
+    fn fragment_count(nal_size: u16) -> u8 {
+        if (nal_size == 0) {
+            return 1;
+        }
+        let full_frags: u16 = nal_size / 70;
+        let remainder: u16 = nal_size % 70;
+        if (remainder > 0) {
+            return (full_frags + 1);
+        }
+        return full_frags;
+    }
+
+    // Total packet size for a fragment with given data length
+    fn packet_size(data_len: u8) -> u8 {
+        return FRAG_HEADER_LEN + data_len;
+    }
+
+    // Is this the last fragment?
+    fn is_last_fragment(frag_idx: u8, frag_count: u8) -> bool {
+        return (frag_idx + 1) == frag_count;
+    }
+
+    // Is this the first fragment?
+    fn is_first_fragment(frag_idx: u8) -> bool {
+        return frag_idx == 0;
+    }
+
+    // Data offset in a fragment packet (where payload starts)
+    fn data_offset() -> u8 {
+        return FRAG_HEADER_LEN;
+    }
+
+    // Maximum NAL unit size that fits in 255 fragments
+    fn max_nal_size() -> u16 {
+        return 17850;
+    }
+
+    // Check if a NAL unit size is within limits
+    fn nal_fits(nal_size: u16) -> bool {
+        return nal_size <= 17850;
+    }
+
+    // ---- TDD (L4) ----
+
+    test frag_seq_roundtrip {
+        assert(frag_seq(0xAB, 0xCD) == 52651, "0xAB + 0xCD*256 = 52651");
+    }
+
+    test frag_seq_zero {
+        assert(frag_seq(0, 0) == 0, "zero seq");
+    }
+
+    test frag_seq_max {
+        assert(frag_seq(255, 255) == 65535, "max u16");
+    }
+
+    test seq_lo_basic {
+        assert(seq_lo(256) == 0, "256 mod 256 = 0");
+    }
+
+    test seq_hi_basic {
+        assert(seq_hi(256) == 1, "256 / 256 = 1");
+    }
+
+    test seq_lo_hi_roundtrip {
+        let lo: u8 = seq_lo(12345);
+        let hi: u8 = seq_hi(12345);
+        assert(frag_seq(lo, hi) == 12345, "roundtrip preserves value");
+    }
+
+    test fragment_count_exact {
+        assert(fragment_count(70) == 1, "70 bytes = 1 fragment");
+    }
+
+    test fragment_count_remainder {
+        assert(fragment_count(100) == 2, "100 bytes = 2 fragments");
+    }
+
+    test fragment_count_zero {
+        assert(fragment_count(0) == 1, "0 bytes = 1 fragment");
+    }
+
+    test fragment_count_large {
+        assert(fragment_count(210) == 3, "210 bytes = 3 fragments");
+    }
+
+    test packet_size_basic {
+        assert(packet_size(70) == 75, "5 header + 70 data = 75");
+    }
+
+    test packet_size_empty {
+        assert(packet_size(0) == 5, "5 header + 0 data = 5");
+    }
+
+    test is_last_basic {
+        assert(is_last_fragment(2, 3) == true, "frag 2 of 3 is last");
+    }
+
+    test is_last_not_last {
+        assert(is_last_fragment(0, 3) == false, "frag 0 of 3 is not last");
+    }
+
+    test is_first_basic {
+        assert(is_first_fragment(0) == true, "frag 0 is first");
+    }
+
+    test is_first_not_first {
+        assert(is_first_fragment(1) == false, "frag 1 is not first");
+    }
+
+    test data_offset_value {
+        assert(data_offset() == 5, "payload starts at byte 5");
+    }
+
+    test max_nal_size_value {
+        assert(max_nal_size() == 17850, "255 * 70 = 17850");
+    }
+
+    test nal_fits_small {
+        assert(nal_fits(100) == true, "100 <= 17850");
+    }
+
+    test nal_fits_exact {
+        assert(nal_fits(17850) == true, "17850 <= 17850");
+    }
+
+    test nal_fits_too_large {
+        assert(nal_fits(17851) == false, "17851 > 17850");
+    }
+
+    // ---- invariants ----
+
+    invariant frag_header_is_5_bytes
+        assert FRAG_HEADER_LEN == 5
+
+    invariant max_data_is_70
+        assert MAX_FRAG_DATA == 70
+
+    invariant vstream_type_is_8
+        assert VSTREAM_TYPE == 8
+}
