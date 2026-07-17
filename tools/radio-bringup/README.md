@@ -165,3 +165,18 @@ demod further is the spiral the doctrine warns against -- stopped.
 Practical settings that worked for the strong steady tone (leave these for the
 next attempt): TX atten 0 dB, DDS scale 0.9, RX manual gain ~48-53 dB, sample
 rate >= 7.68 MSPS, and MASK +-250 kHz around DC in any tone search.
+
+
+## Measured: the shell-toggled DDS is the modulator wall (not the link, not the plan)
+
+Retried bytes with tones placed so the RECEIVED FSK lines land >1 MHz from DC
+(TX 1000/1500/2000 kHz -> received ~-2.0/-1.5/-1.0 MHz at the ~-3 MHz offset),
+manual RX gain 50, 7.68 MSPS. Still no clean decode. The tell: the marker tone
+during FSK toggling reads magnitude ~12, versus ~202 for a STEADY DDS tone at
+the same power -- a ~16x drop. Re-writing the DDS `frequency` attribute every
+0.35s does not produce a clean settled tone (likely a scale/enable glitch per
+write). So the modulator, not the channel or the frequency plan, is the wall.
+The fix is sample-accurate keying: the DMA/FPGA TX path. DATA_SEL already flips
+to 0x2 (DMA) during a buffer write, but the DMA stream does not reach the fabric
+TX on this MathWorks image -- that is an FPGA BITSTREAM change (load the ADI
+reference DMA-to-TX path, or the t27 BPSK core), not a runtime register poke.
