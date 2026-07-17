@@ -200,6 +200,18 @@ real defect, and every one of them was silent.
 - **`FRAG_RATE_PER_SEC=800` is a radio budget, not a link budget.** Over Ethernet
   it throttles a real call to 44% loss. The node does 8000 frags/s (v0.16). Set it
   to what the actual path carries.
+- **A shared mesh means the harness must expect company.** Once a live call
+  flows through the nodes, a probe's single `recv()` grabs whatever arrives
+  first — usually someone's audio frame — and reports a false regression. Probes
+  must skip foreign datagrams until their own payload arrives or the deadline
+  passes, and must take the delivery port as a parameter (production delivers to
+  7000, the old default was 7001).
+- **One reassembly map, one seq space.** Any new sender class (express, future
+  control) must claim its own slice of the u16 seq space in the spec
+  (video 0..32767, express 32768..65535). Two counters advancing at similar
+  rates WILL coexist within the reassembly GC window and splice payloads — and a
+  verification run at the wrong rate ratio will miss it (v0.19's did: 20 vs 50
+  per second kept same-seq arrivals outside the 2s GC window).
 - **The radio's capacity has never been measured** (only one AD9361 has ever come
   up at a time). `FRAG_RATE_PER_SEC` is a guess; treat it as one.
 
