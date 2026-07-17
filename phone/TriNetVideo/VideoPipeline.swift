@@ -1,6 +1,7 @@
 // VideoPipeline.swift — Camera + H.264 encode/decode + UDP transport (iOS)
 import SwiftUI
 import AVFoundation
+import AudioToolbox
 import VideoToolbox
 import Vision
 import CoreImage
@@ -713,6 +714,11 @@ final class AudioController {
     // Raw incoming / outgoing 16k Int16 PCM (magic stripped) — for the recorder.
     var onRxPCM: ((Data) -> Void)?
     var onTxPCM: ((Data) -> Void)?
+    // Opus: ~65B per 20ms instead of 642B (256 -> ~25 kbps). RECEIVE is always on;
+    // SENDING waits until both ends run this build — a pre-Opus peer feeds unknown
+    // magic straight to its H.264 decoder (how FEC parity froze video).
+    static let opusEnabled = false
+    private let opus = OpusCodec()
     private var started = false
     private var rxCount = 0
     private var txCount = 0
@@ -864,17 +870,24 @@ final class AudioController {
             var off = 0
             while off < n {
                 let m = min(chunk, n - off)
-                var pkt = Data(capacity: m * 2 + 2)
-                pkt.append(contentsOf: [0xFD, 0xAD])
+                var raw = Data(capacity: m * 2)
                 for i in off..<(off + m) {
                     let f = max(-1.0, min(1.0, ch[i]))
                     let v = Int16(f * 32767)
-                    withUnsafeBytes(of: v.littleEndian) { pkt.append(contentsOf: $0) }
+                    withUnsafeBytes(of: v.littleEndian) { raw.append(contentsOf: $0) }
+                }
+                var pkt: Data
+                if AudioController.opusEnabled, let frame = self.opus?.encode(raw) {
+                    pkt = Data([0xFD, 0xC0]); pkt.append(frame)   // ~65B
+                } else {
+                    pkt = Data([0xFD, 0xAD]); pkt.append(raw)     // 642B
                 }
                 self.txCount += 1
-                if self.txCount == 1 { NSLog("TRINET: audio tx first packet \(pkt.count)B") }
+                if self.txCount == 1 {
+                    NSLog("TRINET: audio tx first packet \(pkt.count)B opus=\(AudioController.opusEnabled)")
+                }
                 self.onPacket?(pkt)
-                if let txpcm = self.onTxPCM { txpcm(pkt.subdata(in: 2..<pkt.count)) }
+                if let txpcm = self.onTxPCM { txpcm(raw) }
                 off += m
             }
         }
@@ -889,6 +902,13 @@ final class AudioController {
             engine.inputNode.removeTap(onBus: 0)
             return false
         }
+    }
+
+    // One Opus frame off the wire -> PCM -> normal playback. Always accepted;
+    // receiving a better codec is never the risky direction.
+    func playOpus(_ frame: Data) {
+        guard let pcm = opus?.decode(frame) else { return }
+        playPacket(pcm)
     }
 
     // payload = Int16 LE samples (magic already stripped)
@@ -1211,5 +1231,82 @@ final class CallRecorder {
             self?.audioInput = nil; self?.audioFormat = nil
             DispatchQueue.main.async { done?(u) }
         }
+    }
+}
+
+// MARK: - Opus codec (iOS copy; see desktop/TriNetVideo/OpusCodec.swift)
+
+
+final class OpusCodec {
+    // Our wire PCM: 16k mono Int16 LE — the same bytes the transport carries.
+    static let wireRate = 16000.0
+    static let frameSamples = 320          // 20ms
+
+    private let pcmFmt = AVAudioFormat(commonFormat: .pcmFormatInt16,
+                                       sampleRate: OpusCodec.wireRate,
+                                       channels: 1, interleaved: true)!
+    private let opusFmt: AVAudioFormat
+    private let enc: AVAudioConverter
+    private let dec: AVAudioConverter
+
+    init?(bitrate: Int = 24000) {
+        var d = AudioStreamBasicDescription(
+            mSampleRate: 48000, mFormatID: kAudioFormatOpus, mFormatFlags: 0,
+            mBytesPerPacket: 0, mFramesPerPacket: 0, mBytesPerFrame: 0,
+            mChannelsPerFrame: 1, mBitsPerChannel: 0, mReserved: 0)
+        guard let of = AVAudioFormat(streamDescription: &d),
+              let e = AVAudioConverter(from: pcmFmt, to: of),
+              let x = AVAudioConverter(from: of, to: pcmFmt) else { return nil }
+        e.bitRate = bitrate
+        opusFmt = of; enc = e; dec = x
+    }
+
+    // 320-sample Int16 LE PCM -> one Opus frame (~63B). nil if the frame is short
+    // or the converter yields nothing this call.
+    func encode(_ pcm: Data) -> Data? {
+        let n = pcm.count / 2
+        guard n > 0, let src = AVAudioPCMBuffer(pcmFormat: pcmFmt, frameCapacity: AVAudioFrameCount(n)) else { return nil }
+        src.frameLength = AVAudioFrameCount(n)
+        pcm.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+            memcpy(src.int16ChannelData![0], raw.baseAddress!, n * 2)
+        }
+        let out = AVAudioCompressedBuffer(format: opusFmt, packetCapacity: 4, maximumPacketSize: 1500)
+        var fed = false
+        var err: NSError?
+        let st = enc.convert(to: out, error: &err) { _, s in
+            if fed { s.pointee = .noDataNow; return nil }
+            fed = true; s.pointee = .haveData; return src
+        }
+        guard st != .error, out.byteLength > 0 else { return nil }
+        return Data(bytes: out.data, count: Int(out.byteLength))
+    }
+
+    // One Opus frame off the wire -> Int16 LE PCM. The bytes arrive naked, so the
+    // packet description the encoder produced is gone and must be rebuilt here —
+    // without it the decoder silently returns nothing.
+    func decode(_ opus: Data) -> Data? {
+        guard !opus.isEmpty else { return nil }
+        let comp = AVAudioCompressedBuffer(format: opusFmt, packetCapacity: 1, maximumPacketSize: max(opus.count, 1500))
+        opus.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+            memcpy(comp.data, raw.baseAddress!, opus.count)
+        }
+        comp.byteLength = UInt32(opus.count)
+        comp.packetCount = 1
+        if let pd = comp.packetDescriptions {
+            pd[0] = AudioStreamPacketDescription(mStartOffset: 0,
+                                                 mVariableFramesInPacket: 0,
+                                                 mDataByteSize: UInt32(opus.count))
+        }
+        guard let out = AVAudioPCMBuffer(pcmFormat: pcmFmt,
+                                         frameCapacity: AVAudioFrameCount(OpusCodec.frameSamples * 6)) else { return nil }
+        var fed = false
+        var err: NSError?
+        let st = dec.convert(to: out, error: &err) { _, s in
+            if fed { s.pointee = .noDataNow; return nil }
+            fed = true; s.pointee = .haveData; return comp
+        }
+        guard st != .error, out.frameLength > 0 else { return nil }
+        let n = Int(out.frameLength)
+        return Data(bytes: out.int16ChannelData![0], count: n * 2)
     }
 }

@@ -202,8 +202,12 @@ class CallManager: ObservableObject {
                 self.pliCount += 1   // adaptive bitrate: PLI = loss signal
                 return
             }
-            if data.count > 2, data[0] == 0xFD, data[1] == 0xAD { // audio
+            if data.count > 2, data[0] == 0xFD, data[1] == 0xAD { // audio (raw PCM)
                 self.audio.playPacket(data.subdata(in: 2..<data.count))
+                return
+            }
+            if data.count > 2, data[0] == 0xFD, data[1] == 0xC0 { // audio (Opus)
+                self.audio.playOpus(data.subdata(in: 2..<data.count))
                 return
             }
             if data.count > 2, data[0] == 0xFB, data[1] == 0xCA { // chat text

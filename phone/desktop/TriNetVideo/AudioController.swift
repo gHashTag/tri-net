@@ -48,6 +48,13 @@ final class AudioController {
 
     private var observers: [NSObjectProtocol] = []
 
+    // Opus cuts each 20ms datagram from 642B to ~65B (256 -> ~25 kbps). RECEIVE
+    // is always enabled; SENDING waits until both ends run this build, because a
+    // pre-Opus peer hands any unknown magic straight to its H.264 decoder (the
+    // exact way the FEC parity froze video). Flip once the phone is updated.
+    static let opusEnabled = false
+    private let opus = OpusCodec()
+
     func start() {
         startPlayback()
         startCapture()
@@ -139,17 +146,26 @@ final class AudioController {
             var off = 0
             while off < n {
                 let m = min(chunk, n - off)
-                var pkt = Data(capacity: m * 2 + 2)
-                pkt.append(contentsOf: [0xFD, 0xAD])
+                // Raw 16k Int16 LE for this slice — what the recorder wants, and
+                // what the raw wire format carries verbatim.
+                var raw = Data(capacity: m * 2)
                 for i in off..<(off + m) {
                     let f = max(-1.0, min(1.0, ch[i]))
                     let v = Int16(f * 32767)
-                    withUnsafeBytes(of: v.littleEndian) { pkt.append(contentsOf: $0) }
+                    withUnsafeBytes(of: v.littleEndian) { raw.append(contentsOf: $0) }
+                }
+                var pkt: Data
+                if AudioController.opusEnabled, let frame = self.opus?.encode(raw) {
+                    pkt = Data([0xFD, 0xC0]); pkt.append(frame)   // ~65B
+                } else {
+                    pkt = Data([0xFD, 0xAD]); pkt.append(raw)     // 642B
                 }
                 self.txCount += 1
-                if self.txCount == 1 { NSLog("TRINET: audio tx first packet \(pkt.count)B") }
+                if self.txCount == 1 {
+                    NSLog("TRINET: audio tx first packet \(pkt.count)B opus=\(AudioController.opusEnabled)")
+                }
                 self.onPacket?(pkt)
-                if let txpcm = self.onTxPCM { txpcm(pkt.subdata(in: 2..<pkt.count)) }
+                if let txpcm = self.onTxPCM { txpcm(raw) }   // recorder always gets raw PCM
                 off += m
             }
         }
@@ -163,6 +179,19 @@ final class AudioController {
             capEngine.inputNode.removeTap(onBus: 0)
         }
     }
+
+    // One Opus frame off the wire (magic stripped) -> PCM -> normal playback.
+    // Always accepted regardless of opusEnabled: receiving a better codec is
+    // never the risky direction, only sending one is.
+    func playOpus(_ frame: Data) {
+        guard let pcm = opus?.decode(frame) else {
+            opusDecodeFails += 1
+            if opusDecodeFails <= 3 { NSLog("TRINET: opus decode failed (\(frame.count)B)") }
+            return
+        }
+        playPacket(pcm)
+    }
+    private var opusDecodeFails = 0
 
     // payload = Int16 LE samples (magic already stripped)
     func playPacket(_ d: Data) {

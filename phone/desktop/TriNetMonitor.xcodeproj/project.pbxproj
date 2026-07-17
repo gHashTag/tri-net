@@ -16,6 +16,7 @@
 		8FB37216EA6E4DAA9752526F /* MeshTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF4870614578478C431D47B9 /* MeshTransport.swift */; };
 		9883135C4EC8B3D8C9780D21 /* CallRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC01D2BB9D49E3653F739BC9 /* CallRecorder.swift */; };
 		A4B51FD9AC3F6A939BFE6083 /* RTIHeatmap.swift in Sources */ = {isa = PBXBuildFile; fileRef = A55D68653305B39F6D4E6C1F /* RTIHeatmap.swift */; };
+		B47AD84EFE1C6408179E2242 /* OpusCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAFD67D555791E79EA093151 /* OpusCodec.swift */; };
 		C270D9DDE66C74E5DC1A30B3 /* AudioController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0445AEA738BFAA34619AA /* AudioController.swift */; };
 		C73AAD99E5A78718DEBAB8D8 /* CameraCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = BED4FD339A53B74B67C3AC3B /* CameraCapture.swift */; };
 		D71FF2DC1AF5071C5554087C /* CallManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE481AF1D2D340638A1ED080 /* CallManager.swift */; };
@@ -40,6 +41,7 @@
 		AF4870614578478C431D47B9 /* MeshTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshTransport.swift; sourceTree = "<group>"; };
 		BED4FD339A53B74B67C3AC3B /* CameraCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraCapture.swift; sourceTree = "<group>"; };
 		EC01D2BB9D49E3653F739BC9 /* CallRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallRecorder.swift; sourceTree = "<group>"; };
+		FAFD67D555791E79EA093151 /* OpusCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpusCodec.swift; sourceTree = "<group>"; };
 		FE481AF1D2D340638A1ED080 /* CallManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -63,6 +65,7 @@
 				1512923CAB35C8933FA4CA5E /* LinkStatus.swift */,
 				34A698FD561A4D1344491A23 /* MeshCrypto.swift */,
 				AF4870614578478C431D47B9 /* MeshTransport.swift */,
+				FAFD67D555791E79EA093151 /* OpusCodec.swift */,
 				A9F379575CCFDE0476C19D25 /* ScreenCapture.swift */,
 				2831FC425A30E3FBFA75BD40 /* VideoDecoder.swift */,
 				72EFD27FFE9177F3C365221D /* VideoEncoder.swift */,
@@ -146,6 +149,7 @@
 				51DB04A269C0FF798682A49F /* LinkStatus.swift in Sources */,
 				7BC6C7C0D52EF3F427643504 /* MeshCrypto.swift in Sources */,
 				8FB37216EA6E4DAA9752526F /* MeshTransport.swift in Sources */,
+				B47AD84EFE1C6408179E2242 /* OpusCodec.swift in Sources */,
 				A4B51FD9AC3F6A939BFE6083 /* RTIHeatmap.swift in Sources */,
 				5EDE0262C99C16D7CC7A20A9 /* ScreenCapture.swift in Sources */,
 				16CC1C6D7EEBF2EE5C3F95A1 /* TriNetMonitor.swift in Sources */,
