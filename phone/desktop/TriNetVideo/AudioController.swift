@@ -44,6 +44,8 @@ final class AudioController {
     private var txCount = 0
     private var opusTx = 0
     private var pcmTx = 0
+    // Leftover samples between taps, so no frame is ever short (see the tap).
+    private var txAccum = [Float]()
 
     // RMS -> perceptual 0...1 (sqrt gives a livelier meter than raw RMS)
     static func level(_ sumSq: Float, _ n: Int) -> Float {
@@ -169,23 +171,23 @@ final class AudioController {
             var sumSq: Float = 0
             for i in 0..<n { let f = max(-1.0, min(1.0, ch[i])); sumSq += f * f }
             self.onTxLevel?(Self.level(sumSq, n))
-            // Slice into 20ms packets (320 samples @16k -> 642B). The tap hands us
-            // whatever the device I/O buffer is (~100ms here), and a single 3200B
-            // audio datagram exceeds maxPayload, so it used to be FRAGMENTED and
-            // then starved by the video-dominated reassembly table. Keeping every
-            // audio datagram under maxPayload restores the never-fragment invariant.
-            let chunk = 320
-            var off = 0
-            while off < n {
-                let m = min(chunk, n - off)
-                // Raw 16k Int16 LE for this slice — what the recorder wants, and
-                // what the raw wire format carries verbatim.
-                var raw = Data(capacity: m * 2)
-                for i in off..<(off + m) {
-                    let f = max(-1.0, min(1.0, ch[i]))
+            // Emit ONLY whole 20ms frames (320 samples @16k -> 642B raw).
+            //
+            // The tap hands us whatever the device I/O buffer is (~100ms), which is
+            // not a multiple of 320, so slicing it directly left a short remainder
+            // every time. Opus cannot encode a partial frame: it declined those and
+            // the code silently fell back to raw PCM. Measured on a live call that
+            // was [opus 2636 / pcm 364] — only 12% of packets, but 234KB of the
+            // 405KB sent, so the fallback ate MORE bandwidth than all the Opus.
+            // Carrying the remainder across taps makes every frame encodable.
+            for i in 0..<n { self.txAccum.append(max(-1.0, min(1.0, ch[i]))) }
+            while self.txAccum.count >= 320 {
+                var raw = Data(capacity: 320 * 2)
+                for f in self.txAccum.prefix(320) {
                     let v = Int16(f * 32767)
                     withUnsafeBytes(of: v.littleEndian) { raw.append(contentsOf: $0) }
                 }
+                self.txAccum.removeFirst(320)
                 // Report what ACTUALLY went out, never the flag. Opus can decline
                 // a buffer (the encoder primes before its first packet), and the
                 // code then falls back to raw PCM — logging `opus=true` there
@@ -206,7 +208,6 @@ final class AudioController {
                 }
                 self.onPacket?(pkt)
                 if let txpcm = self.onTxPCM { txpcm(raw) }   // recorder always gets raw PCM
-                off += m
             }
         }
         capEngine.prepare()
@@ -234,12 +235,18 @@ final class AudioController {
             if opusDecodeFails <= 3 { NSLog("TRINET: opus decode failed (\(frame.count)B)") }
             return
         }
-        playPacket(pcm)
+        opusRx += 1
+        playPacket(pcm, wire: "OPUS \(frame.count)B")
     }
+    private var opusRx = 0
+    private var pcmRx = 0
     private var opusDecodeFails = 0
 
-    // payload = Int16 LE samples (magic already stripped)
-    func playPacket(_ d: Data) {
+    // payload = Int16 LE samples (magic already stripped). `wire` says what
+    // ACTUALLY arrived: this logs the DECODED size, so an Opus frame and a raw
+    // packet both read as 640B here and the line could not tell them apart.
+    func playPacket(_ d: Data, wire: String? = nil) {
+        if wire == nil { pcmRx += 1 }
         guard playing else { return }
         let n = d.count / 2
         guard n > 0, let buf = AVAudioPCMBuffer(pcmFormat: wireFormat, frameCapacity: AVAudioFrameCount(n)) else { return }
@@ -260,7 +267,7 @@ final class AudioController {
         onRxPCM?(d)
         rxCount += 1
         if rxCount <= 2 || rxCount % 200 == 0 {
-            NSLog("TRINET: audio rx #\(rxCount) \(d.count)B engineRunning=\(playEngine.isRunning) playerPlaying=\(player.isPlaying) mixerVol=\(playEngine.mainMixerNode.outputVolume)")
+            NSLog("TRINET: audio rx #\(rxCount) wire=\(wire ?? "pcm \(d.count)B") [opus \(opusRx) / pcm \(pcmRx)] playing=\(player.isPlaying)")
         }
         // Track inter-packet gap to size the pre-roll adaptively.
         let now = CFAbsoluteTimeGetCurrent()
