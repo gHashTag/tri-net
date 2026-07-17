@@ -97,3 +97,35 @@ AI. Every block below is verified in iverilog and uses **zero DSP48E1** (yosys
 Together: a ternary radio (NCO -> spread -> despread -> correlate) and a ternary
 neural net share one multiplier-free MAC, all fitting in LUT fabric beside the
 AD9361 with the DSP block column left entirely free.
+
+## Streaming despreader P&R + the SSOT that fixes its clock
+
+- **`tern_corr_pn_stream.v`** -- the N=63 despreader with a narrow (53-pin) IO so
+  it place-and-routes. Verified (`tern_corr_pn_stream_tb.v`): aligned PN peaks at
+  N*A = 6300. Post-P&R on xc7z020: **0 DSP, 10484 LUT (9%)**, but **Fmax
+  3.87 MHz** -- the 63-wide sum is one combinational adder chain, the same
+  deep-path problem the GF16 correlator had. It fits trivially; it is slow until
+  the adder is a balanced tree.
+
+- **The balanced tree already exists in the SSOT.** `t27c gen-trit-stdlib` emits
+  the canonical ternary HW library -- `trit_multiply`, `trit27_parallel_multiply`,
+  **`adder_tree_27`** (a proper 27 -> 9 -> 3 -> 1 balanced tree), and
+  `trit27_dot_product`. Synthesised on xc7z020: **220 LUT, 0 DSP**. That
+  `adder_tree_27` is exactly the fix for the flat-sum Fmax above, and these hand-
+  written modules match the t27-generated primitives. Regenerate with:
+
+  ```
+  t27/target/release/t27c gen-trit-stdlib > trit_stdlib.v
+  ```
+
+  (The generated file is NOT committed here -- its SSOT is t27; this repo mirrors
+  the primitive, the spec owns it.)
+
+## Over-the-air PN (honest, partial) -- see ota/pn_over_air.md
+
+Arbitrary-waveform DMA transmit over the air is proven (a host-generated buffer
+fed continuously to `iio_writedev` on .13, received strong on .12). A PN-spread
+capture despreads with ~6.8x correct-vs-wrong-code discrimination over the air,
+but the full 63x sidelobe rejection / clean CDMA phase separation needs a proper
+acquisition front end (exact chip rate + carrier derotation). Not claimed as
+done. Details and numbers in `ota/pn_over_air.md`.
