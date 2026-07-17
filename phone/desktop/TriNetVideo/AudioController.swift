@@ -96,19 +96,30 @@ final class AudioController {
             guard out.frameLength > 0, let ch = out.floatChannelData?[0] else { return }
             let n = Int(out.frameLength)
             var sumSq: Float = 0
-            var pkt = Data(capacity: n * 2 + 2)
-            pkt.append(contentsOf: [0xFD, 0xAD])
-            for i in 0..<n {
-                let f = max(-1.0, min(1.0, ch[i]))
-                sumSq += f * f
-                let v = Int16(f * 32767)
-                withUnsafeBytes(of: v.littleEndian) { pkt.append(contentsOf: $0) }
-            }
+            for i in 0..<n { let f = max(-1.0, min(1.0, ch[i])); sumSq += f * f }
             self.onTxLevel?(Self.level(sumSq, n))
-            self.txCount += 1
-            if self.txCount == 1 { NSLog("TRINET: audio tx first packet \(pkt.count)B") }
-            self.onPacket?(pkt)
-            if let txpcm = self.onTxPCM { txpcm(pkt.subdata(in: 2..<pkt.count)) }
+            // Slice into 20ms packets (320 samples @16k -> 642B). The tap hands us
+            // whatever the device I/O buffer is (~100ms here), and a single 3200B
+            // audio datagram exceeds maxPayload, so it used to be FRAGMENTED and
+            // then starved by the video-dominated reassembly table. Keeping every
+            // audio datagram under maxPayload restores the never-fragment invariant.
+            let chunk = 320
+            var off = 0
+            while off < n {
+                let m = min(chunk, n - off)
+                var pkt = Data(capacity: m * 2 + 2)
+                pkt.append(contentsOf: [0xFD, 0xAD])
+                for i in off..<(off + m) {
+                    let f = max(-1.0, min(1.0, ch[i]))
+                    let v = Int16(f * 32767)
+                    withUnsafeBytes(of: v.littleEndian) { pkt.append(contentsOf: $0) }
+                }
+                self.txCount += 1
+                if self.txCount == 1 { NSLog("TRINET: audio tx first packet \(pkt.count)B") }
+                self.onPacket?(pkt)
+                if let txpcm = self.onTxPCM { txpcm(pkt.subdata(in: 2..<pkt.count)) }
+                off += m
+            }
         }
         capEngine.prepare()
         do {

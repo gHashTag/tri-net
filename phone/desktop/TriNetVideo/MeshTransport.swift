@@ -141,7 +141,11 @@ class MeshTransport {
     // on receive. Raw NALs always start 00 00 00 01, so the magic is unambiguous.
     private let maxPayload = 1200
     private var fragSeqOut: UInt16 = 0
-    private var fragBufs: [UInt16: (parts: [Data?], have: Int)] = [:]
+    // `tick` orders partial groups by arrival so GC can evict the OLDEST rather
+    // than everything but the current seq (see reassemble).
+    private var fragBufs: [UInt16: (parts: [Data?], have: Int, tick: UInt64)] = [:]
+    private var fragTick: UInt64 = 0
+    private let fragBufsCap = 24
     // FEC parity per fragment group (XOR over padded cells, last-cell length).
     private var fecBufs: [UInt16: (xor: [UInt8], lastLen: Int, total: Int)] = [:]
     // Send parity only when the peer is known to understand it (see send()).
@@ -296,8 +300,8 @@ class MeshTransport {
         let idx = Int(d[4])
         let total = Int(d[5])
         guard total > 0, idx < total else { return nil }
-        var entry = fragBufs[seq] ?? (Array(repeating: nil, count: total), 0)
-        if entry.parts.count != total { entry = (Array(repeating: nil, count: total), 0) }
+        var entry = fragBufs[seq] ?? (Array(repeating: nil, count: total), 0, 0)
+        if entry.parts.count != total { entry = (Array(repeating: nil, count: total), 0, 0) }
         if entry.parts[idx] == nil {
             entry.parts[idx] = d.subdata(in: 6..<d.count)
             entry.have += 1
@@ -306,11 +310,21 @@ class MeshTransport {
             fragBufs.removeValue(forKey: seq); fecBufs.removeValue(forKey: seq)
             return entry.parts.compactMap { $0 }.reduce(Data(), +)
         }
+        fragTick &+= 1
+        entry.tick = fragTick
         fragBufs[seq] = entry
         if let recovered = tryFEC(seq) { return recovered }  // parity may already be here
-        if fragBufs.count > 8 {   // GC stale partials + their parity
-            fragBufs = fragBufs.filter { $0.key == seq }
-            fecBufs = fecBufs.filter { $0.key == seq }
+        // GC by RECENCY, never "keep only the current seq". Audio and video
+        // fragments interleave, so wiping every other partial group silently
+        // destroyed in-flight audio groups the moment video filled the table —
+        // audio died while video kept flowing.
+        if fragBufs.count > fragBufsCap {
+            let keep = Set(fragBufs.sorted { $0.value.tick > $1.value.tick }
+                                   .prefix(fragBufsCap).map { $0.key })
+            let dropped = fragBufs.count - keep.count
+            fragBufs = fragBufs.filter { keep.contains($0.key) }
+            fecBufs = fecBufs.filter { keep.contains($0.key) }
+            NSLog("TRINET: frag GC dropped \(dropped) stale group(s)")
         }
         return nil
     }

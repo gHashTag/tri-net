@@ -495,7 +495,11 @@ class BSDTransport {
     // 00 00 00 01, so the magic prefix is unambiguous.
     private let maxPayload = 1200
     private var fragSeqOut: UInt16 = 0
-    private var fragBufs: [UInt16: (parts: [Data?], have: Int)] = [:]
+    // `tick` orders partial groups by arrival so GC can evict the OLDEST rather
+    // than everything but the current seq (see reassemble).
+    private var fragBufs: [UInt16: (parts: [Data?], have: Int, tick: UInt64)] = [:]
+    private var fragTick: UInt64 = 0
+    private let fragBufsCap = 24
     // FEC parity per fragment group (XOR over padded cells, last-cell length).
     private var fecBufs: [UInt16: (xor: [UInt8], lastLen: Int, total: Int)] = [:]
     // Send parity only when the peer is known to understand it (see send()).
@@ -583,8 +587,8 @@ class BSDTransport {
         let idx = Int(d[4])
         let total = Int(d[5])
         guard total > 0, idx < total else { return nil }
-        var entry = fragBufs[seq] ?? (Array(repeating: nil, count: total), 0)
-        if entry.parts.count != total { entry = (Array(repeating: nil, count: total), 0) }
+        var entry = fragBufs[seq] ?? (Array(repeating: nil, count: total), 0, 0)
+        if entry.parts.count != total { entry = (Array(repeating: nil, count: total), 0, 0) }
         if entry.parts[idx] == nil {
             entry.parts[idx] = d.subdata(in: 6..<d.count)
             entry.have += 1
@@ -593,11 +597,18 @@ class BSDTransport {
             fragBufs.removeValue(forKey: seq); fecBufs.removeValue(forKey: seq)
             return entry.parts.compactMap { $0 }.reduce(Data(), +)
         }
+        fragTick &+= 1
+        entry.tick = fragTick
         fragBufs[seq] = entry
         if let recovered = tryFEC(seq) { return recovered }  // parity may already be here
-        if fragBufs.count > 8 {   // GC stale partials + their parity
-            fragBufs = fragBufs.filter { $0.key == seq }
-            fecBufs = fecBufs.filter { $0.key == seq }
+        // GC by RECENCY, never "keep only the current seq" — audio and video
+        // fragments interleave, so wiping every other partial group silently
+        // destroyed in-flight audio groups once video filled the table.
+        if fragBufs.count > fragBufsCap {
+            let keep = Set(fragBufs.sorted { $0.value.tick > $1.value.tick }
+                                   .prefix(fragBufsCap).map { $0.key })
+            fragBufs = fragBufs.filter { keep.contains($0.key) }
+            fecBufs = fecBufs.filter { keep.contains($0.key) }
         }
         return nil
     }
@@ -770,19 +781,29 @@ final class AudioController {
             guard out.frameLength > 0, let ch = out.floatChannelData?[0] else { return }
             let n = Int(out.frameLength)
             var sumSq: Float = 0
-            var pkt = Data(capacity: n * 2 + 2)
-            pkt.append(contentsOf: [0xFD, 0xAD])
-            for i in 0..<n {
-                let f = max(-1.0, min(1.0, ch[i]))
-                sumSq += f * f
-                let v = Int16(f * 32767)
-                withUnsafeBytes(of: v.littleEndian) { pkt.append(contentsOf: $0) }
-            }
+            for i in 0..<n { let f = max(-1.0, min(1.0, ch[i])); sumSq += f * f }
             self.onTxLevel?(Self.level(sumSq, n))
-            self.txCount += 1
-            if self.txCount == 1 { NSLog("TRINET: audio tx first packet \(pkt.count)B") }
-            self.onPacket?(pkt)
-            if let txpcm = self.onTxPCM { txpcm(pkt.subdata(in: 2..<pkt.count)) }
+            // Slice into 20ms packets (320 samples @16k -> 642B). iOS hands us
+            // ~100ms buffers, and a single 3200B audio datagram exceeds maxPayload,
+            // so it used to be FRAGMENTED and then starved by the video-dominated
+            // reassembly table — audio died while video kept flowing.
+            let chunk = 320
+            var off = 0
+            while off < n {
+                let m = min(chunk, n - off)
+                var pkt = Data(capacity: m * 2 + 2)
+                pkt.append(contentsOf: [0xFD, 0xAD])
+                for i in off..<(off + m) {
+                    let f = max(-1.0, min(1.0, ch[i]))
+                    let v = Int16(f * 32767)
+                    withUnsafeBytes(of: v.littleEndian) { pkt.append(contentsOf: $0) }
+                }
+                self.txCount += 1
+                if self.txCount == 1 { NSLog("TRINET: audio tx first packet \(pkt.count)B") }
+                self.onPacket?(pkt)
+                if let txpcm = self.onTxPCM { txpcm(pkt.subdata(in: 2..<pkt.count)) }
+                off += m
+            }
         }
 
         do {
