@@ -24,8 +24,15 @@ use std::net::UdpSocket;
 use std::time::{Duration, Instant};
 use trios_mesh::video_bridge;
 
-const MAX_PACKET: usize = 1500;
+/// Outbound VSTREAM fragments are tiny (5B header + <=70B payload), but this
+/// buffer also receives INBOUND NALs from the phone, and an I-frame is 3-10 KB.
+/// It used to be 1500, which silently truncated every NAL above that: the log
+/// read "TX NAL 1500B" for a 9000B frame and the peer reassembled a maimed
+/// I-frame. recv_from does not error on truncation — it just hands back a short
+/// read — so nothing anywhere reported it. Sized to MAX_NAL, which is what the
+/// code already claimed to support.
 const MAX_NAL: usize = 65_535;
+const MAX_PACKET: usize = MAX_NAL;
 
 /// Congestion control: maximum fragments in flight before we throttle.
 /// Each VSTREAM fragment is ~75 bytes. At MAX_INFLIGHT=256 that's ~19 KB
@@ -41,6 +48,10 @@ struct ReassemblyState {
     expected_frags: u8,
     received: Vec<bool>,
     data: Vec<u8>,
+    /// Byte length of the FINAL fragment. The total NAL size is
+    /// (count-1)*MAX_FRAG_DATA + last_len — it cannot be inferred from the
+    /// buffer contents (see the emit path).
+    last_len: Option<usize>,
     last_update: Instant,
 }
 
@@ -118,6 +129,7 @@ fn main() {
                 expected_frags: frag_count,
                 received: vec![false; frag_count as usize],
                 data: vec![0u8; (frag_count as usize) * (video_bridge::MAX_FRAG_DATA as usize)],
+                last_len: None,
                 last_update: Instant::now(),
             });
             state.last_update = Instant::now();
@@ -127,33 +139,36 @@ fn main() {
             if (frag_idx as usize) < state.received.len() && offset + data_len <= state.data.len() {
                 state.data[offset..offset + data_len].copy_from_slice(frag_data);
                 state.received[frag_idx as usize] = true;
+                if video_bridge::is_last_fragment(frag_idx, frag_count) {
+                    state.last_len = Some(data_len);
+                }
             }
 
             // Check if all fragments arrived.
             let all_received = state.received.iter().all(|&r| r);
             if all_received {
-                // H-4 fix: compute total NAL size correctly.
-                // All fragments except the last are MAX_FRAG_DATA bytes.
-                // The last fragment's size = total data received - (count-1) * max.
-                // But we don't know which fragment arrived last. Instead,
-                // compute from the LAST fragment index (frag_count-1).
+                // Size the NAL from the LAST fragment's recorded length.
+                //
+                // This used to trim trailing zeros off the buffer as "a
+                // heuristic". H.264 NALs routinely end in 0x00, so that silently
+                // truncated real frames — a data-corruption bug no test caught
+                // because the fixtures happened not to end in zero. The length is
+                // knowable exactly; never guess it from the payload.
                 let max_data = video_bridge::MAX_FRAG_DATA as usize;
-                // Find the actual length of the last fragment by scanning
-                // backward from the end of the buffer.
-                let mut total = state.expected_frags as usize * max_data;
-                // Trim trailing zeros beyond the actual last fragment's data.
-                // The last fragment occupies [(count-1)*max .. (count-1)*max + last_len].
-                // We track per-fragment lengths to compute exactly.
-                // Since we copy each fragment at its offset, find the last
-                // nonzero byte position + 1 as a heuristic.
-                while total > 0 && state.data[total - 1] == 0 {
-                    total -= 1;
-                }
-                // Ensure at least the first fragment's data is included.
-                if total == 0 {
-                    total = data_len;
-                }
-                out_sock.send_to(&state.data[..total], ("127.0.0.1", out_port)).ok();
+                let count = state.expected_frags as usize;
+                let total = match state.last_len {
+                    Some(last) => (count - 1) * max_data + last,
+                    // Final fragment never arrived: `all_received` cannot be true
+                    // without it, so this is unreachable — but drop rather than
+                    // emit a guessed length.
+                    None => { reassembly.remove(&frag_seq); continue; }
+                };
+                // Emit to the CONFIGURED peer, not 127.0.0.1. The doc comment
+                // says "sends back to phone via UDP", but localhost means the
+                // reassembled NAL never left the node — a phone attached here
+                // could never receive video, and nothing reported it because
+                // send_to(127.0.0.1) succeeds.
+                out_sock.send_to(&state.data[..total], (dest.ip(), out_port)).ok();
                 println!(
                     "[video] REASSEMBLE seq={frag_seq} ({frag_count} frags, {total}B) t={:.1}s",
                     started.elapsed().as_secs_f32()
