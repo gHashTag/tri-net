@@ -49,3 +49,17 @@ layer runs on. Our `tern_mlp` proved the small-net inference; this proves the
 GEMM scales to tens of GOPS multiplier-free. Missing for a full transformer
 layer: CORDIC for RoPE (`../` non-MAC piece) and weight streaming from BRAM/DDR
 at scale.
+
+## Tiling: a big layer on a small engine (weight streaming)
+
+`tern_matvec_tiled.v` runs a layer with M neurons on a physical engine of only MT
+neurons, by reusing one MT-wide `tern_dot27` bank over M/MT tiles and streaming
+each tile's weights from a BRAM. This is how a modest array runs a real
+IGLA-Coder layer (M up to thousands) -- the standard NPU tiling every systolic
+accelerator uses.
+
+Verified (iverilog): M=32 neurons through an MT=4 engine (8 tiles) is **bit-exact
+vs the full matvec, 0 mismatches, 9 cycles**. Zero DSP (the inner MAC is the
+balanced-tree tern_dot27). The activation vector is held across tiles; only the
+weight tile streams -- so a 2048-neuron FFN up-projection runs on the same 4- or
+16-wide engine in M/MT cycles, weights fed from BRAM/DDR (t27 bram_weights).
