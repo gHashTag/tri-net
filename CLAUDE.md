@@ -115,6 +115,22 @@ real defect, and every one of them was silent.
   a decoder cannot resume without, while the P-frames referencing it pass. A PLI
   storm then answers each drop with a bigger IDR. Decide admission *before*
   looking at the size, then let the count run into debt.
+- **A budget is not a rate. PACE the fragments.** Enforcing only "N per second"
+  makes the AVERAGE right while the INSTANTANEOUS rate is ~100x the target: a
+  whole NAL leaves in under a millisecond and the link idles for the rest of the
+  second. Measured: a 138-packet NAL burst cost 44 packets at the peer's socket
+  buffer (~140 small packets), and a 480 kbps radio queue drops the same way. A
+  9000B I-frame paced at 800 frags/s takes 172ms — that is what 480 kbps costs,
+  not a bug.
+- **Parity trails its data on the wire.** Dropping a reassembly entry the moment
+  it is delivered lets a late parity re-create it, "repair" the payload out of
+  the parity alone (for a one-fragment group the parity IS the fragment) and
+  deliver a DUPLICATE. Keep entries until the GC sweeps them.
+- **Count repairs across the whole payload, not per packet.** `repair_groups`
+  runs per packet and each parity fixes its own group, so the last call returns
+  1 no matter how many were saved — a NAL rescued from 9 losses logged
+  "repaired 1". FEC exists to make loss survivable; a counter that hides the
+  loss by 9x defeats the point of having it.
 - **The node is a relay AND an endpoint.** One `dest` for both "next hop" and
   "my device" only works on a linear test rig. Learn the device's address from
   its ingress; never default it to `127.0.0.1` (send_to succeeds and the payload
@@ -133,9 +149,27 @@ real defect, and every one of them was silent.
   up at a time). `FRAG_RATE_PER_SEC` is a guess; treat it as one.
 
 ## Validation
-- `./bootstrap/target/release/t27c parse <file>` — 0=ok
-- `cargo build --release` — must compile
+- `../t27/target/release/t27c parse <file>` — 0=ok (dumps the whole AST to
+  stdout; redirect it). This path is what `build.rs` uses; there is no
+  `bootstrap/` directory in this repo, the compiler lives in the sibling `t27`
+  repo.
+- `cargo build --release` — must compile. **`build.rs` regenerates `gen/` from
+  `specs/` whenever t27c is present, and silently skips when it is not.**
 - `cargo test` — all tests pass
 - Smoke on hardware: deploy + run on P201Mini
+
+### gen/ is a trap — do not "clean up" a dirty gen/
+
+The committed contents of `gen/` **do not compile**. The local t27c has drifted
+from whatever produced them (it now emits `as u32` casts), so `cargo build`
+rewrites 68 tracked files on every fresh checkout and the tree is permanently
+dirty. `git checkout -- gen/` looks like tidying and **breaks the build**;
+recover by touching `specs/*.t27` and rebuilding. The `no-gen-edits` hook then
+forbids committing the working versions, so the contradiction cannot be resolved
+from inside this repo.
+
+16 of the 84 generated modules — including `video_bridge.rs`, which the whole
+mesh bridge depends on — are **untracked**, with no ignore rule. This repo builds
+only on a machine with the `t27` repo beside it.
 
 phi^2 + phi^-2 = 3 | TRINITY
