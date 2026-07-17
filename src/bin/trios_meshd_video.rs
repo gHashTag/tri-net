@@ -165,6 +165,11 @@ fn main() {
     // nothing is repaired. Exists so the parity's benefit can be A/B measured on
     // one binary and one link instead of argued from arithmetic.
     let fec_enabled = env::var("FEC").map(|v| v != "0").unwrap_or(true);
+    // RELAY mode: this node has no device; every mesh fragment it receives is
+    // forwarded as-is (cut-through, no reassembly) to the next hop, and its
+    // upstream rx-report carries the CHAIN MINIMUM -- see fb_chain_report.
+    let next_hop: Option<std::net::IpAddr> =
+        env::var("NEXT_HOP").ok().and_then(|s| s.parse().ok());
     // The hysteresis band. Overridable ONLY so it can be swept on hardware and
     // become a measured number instead of the guess it started as; the decision
     // itself stays in the spec.
@@ -249,7 +254,7 @@ fn main() {
             report_link(&device, video_rate, &load, &peer_rx, climb_below, back_off_at, started)
         });
         s.spawn(|| express(&audio_sock, peer_mesh, started));
-        s.spawn(|| downlink(&mesh_sock, &app_sock, &device, peer_mesh, &peer_rx, started));
+        s.spawn(|| downlink(&mesh_sock, &app_sock, &device, peer_mesh, next_hop, &peer_rx, started));
     });
 }
 
@@ -582,6 +587,7 @@ fn downlink(
     out_sock: &UdpSocket,
     device: &Mutex<Option<SocketAddr>>,
     peer_mesh: SocketAddr,
+    next_hop: Option<std::net::IpAddr>,
     peer_rx: &(AtomicU32, AtomicU32),
     started: Instant,
 ) {
@@ -591,6 +597,8 @@ fn downlink(
     // peer's ceiling can track what the link actually delivers.
     let mut frags_seen: u32 = 0;
     let mut last_report = Instant::now();
+    let mut dl_last_epoch = 0u32;
+    let mut dl_stale = 0u32;
 
     loop {
         let now = Instant::now();
@@ -598,8 +606,24 @@ fn downlink(
         reassembly.retain(|_, st| now.duration_since(st.last_update) < Duration::from_secs(2));
 
         // Tell the peer what we actually received from it in the last second.
+        // A relay reports the CHAIN MINIMUM: the bottleneck propagates upstream
+        // hop by hop, and the origin encoder ends up steered by the weakest
+        // link in the whole chain without any hop knowing the chain length.
         if now.duration_since(last_report) >= Duration::from_secs(1) {
-            let cnt = frags_seen.min(u16::MAX as u32) as u16;
+            let mut cnt = frags_seen.min(u16::MAX as u32) as u16;
+            if next_hop.is_some() {
+                let epoch = peer_rx.1.load(Ordering::Relaxed);
+                if epoch != dl_last_epoch {
+                    dl_last_epoch = epoch;
+                    dl_stale = 0;
+                } else {
+                    dl_stale += 1;
+                }
+                if dl_stale < 3 {
+                    let down = peer_rx.0.load(Ordering::Relaxed).min(u16::MAX as u32) as u16;
+                    cnt = video_bridge::fb_chain_report(cnt, down);
+                }
+            }
             let pkt = [
                 video_bridge::RX_REPORT_TYPE,
                 video_bridge::seq_lo(cnt),
@@ -637,6 +661,16 @@ fn downlink(
             continue;
         }
         frags_seen += 1;
+
+        // RELAY: forward the fragment untouched and move on. No reassembly, no
+        // device, no pacing (this path is Ethernet-fast today; a radio next hop
+        // would need its own pacer here).
+        if let Some(hop) = next_hop {
+            mesh_sock
+                .send_to(&rx_buf[..n], (hop, video_bridge::MESH_PORT))
+                .ok();
+            continue;
+        }
 
         let frag_seq = video_bridge::frag_seq(rx_buf[1], rx_buf[2]);
         let frag_idx = rx_buf[3]; // group_idx when is_parity

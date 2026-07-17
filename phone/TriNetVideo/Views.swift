@@ -378,6 +378,9 @@ struct NodeStatusCard: View {
     var body: some View {
         HStack(spacing: 6) {
             Circle().fill(Color.green).frame(width: 8, height: 8)
+            if !vm.linkInfo.isEmpty {
+                Text(vm.linkInfo).font(DS.mono(9)).foregroundColor(DS.faint)
+            }
             Text(vm.phase == .live ? "CONNECTED" : "IDLE")
                 .font(.system(size: 11, weight: .bold, design: .rounded))
                 .foregroundColor(.white)

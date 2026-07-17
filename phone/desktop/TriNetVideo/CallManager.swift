@@ -31,6 +31,8 @@ class CallManager: ObservableObject {
     @Published var txLevel: Float = 0
     @Published var rxLevel: Float = 0
     @Published var bitrateKbps: Int = 0
+    // The node's own view of the link, for the HUD. Empty on a direct call.
+    @Published var linkInfo = ""
 
     // Adaptive bitrate: sample the incoming PLI rate every 3s. Sustained PLIs
     // mean the peer is losing our video → back off; a clean window → recover.
@@ -245,6 +247,9 @@ class CallManager: ObservableObject {
             self.linkDrop = drop
             self.linkRate = rate
             self.linkSeenAt = Date()
+            let word = advice == CallManager.adviceBackOff ? "slow"
+                     : (advice == CallManager.adviceClimb ? "climb" : "hold")
+            self.linkInfo = "node \(util)% · loss \(drop)% · \(rate)/s · \(word)"
             if drop > 0 {
                 NSLog("%@", "TRINET: node is dropping \(drop)% of our payloads (util \(util)% of \(rate)/s)")
             }

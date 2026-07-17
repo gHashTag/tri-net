@@ -202,6 +202,18 @@ module VideoBridge {
         return delivered;
     }
 
+    // ---- Multi-hop chain report ----
+    // A relay hop reports UPSTREAM the minimum of what reached it and what its
+    // own downstream reported back. The bottleneck hop thereby propagates all
+    // the way to the origin encoder, hop by hop, without any hop knowing the
+    // chain's length.
+    fn fb_chain_report(received_here: u16, downstream_delivered: u16) -> u16 {
+        if (downstream_delivered < received_here) {
+            return downstream_delivered;
+        }
+        return received_here;
+    }
+
     // ---- Fragment-layer FEC ----
     // Reassembly is all-or-nothing: ONE lost 70-byte fragment destroys the
     // whole NAL, and an I-frame is 129 fragments. One XOR parity per group of
@@ -603,6 +615,18 @@ module VideoBridge {
     test effective_rate_boundary {
         assert(fb_effective_rate(700, 630, 700) == 700, "exactly 90% still counts as keeping up");
         assert(fb_effective_rate(700, 629, 700) == 629, "below 90% is loss");
+    }
+
+    test chain_report_takes_the_bottleneck {
+        assert(fb_chain_report(500, 200) == 200, "downstream is the bottleneck");
+    }
+
+    test chain_report_takes_local_when_downstream_keeps_up {
+        assert(fb_chain_report(300, 500) == 300, "this hop is the bottleneck");
+    }
+
+    test chain_report_equal {
+        assert(fb_chain_report(400, 400) == 400, "no bottleneck, same figure");
     }
 
     test fec_packet_size_value {

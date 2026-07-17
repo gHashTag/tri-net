@@ -134,7 +134,7 @@ class H264Encoder {
         )
         guard r == noErr, let s = s else { return false }
         session = s
-        maxBitrate = meshMode ? H264Encoder.meshBitrate : 200_000
+        maxBitrate = 200_000  // rate governed by the node's advice, not a mesh cap
         curBitrate = maxBitrate
         VTSessionSetProperty(s, key: kVTCompressionPropertyKey_AverageBitRate, value: curBitrate as CFNumber)
         VTSessionSetProperty(s, key: kVTCompressionPropertyKey_RealTime, value: kCFBooleanTrue)
@@ -207,7 +207,7 @@ class H264Encoder {
 
     private func applyCeiling() {
         guard let s = session else { return }
-        maxBitrate = meshMode ? H264Encoder.meshBitrate : 200_000
+        maxBitrate = 200_000  // rate governed by the node's advice, not a mesh cap
         curBitrate = min(curBitrate, maxBitrate)
         bitrateKbps = curBitrate / 1000
         VTSessionSetProperty(s, key: kVTCompressionPropertyKey_AverageBitRate, value: curBitrate as CFNumber)

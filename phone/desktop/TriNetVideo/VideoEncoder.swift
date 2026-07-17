@@ -105,12 +105,17 @@ class VideoEncoder {
     // Re-apply the ceiling; mesh mode is usually toggled after setup().
     private func applyCeiling() {
         guard let s = session else { return }
-        maxBitrate = meshMode ? VideoEncoder.meshBitrate
-                              : min(2_000_000, Int(width) * Int(height) * 2)
+        // Mesh mode no longer caps bitrate. The NODE steers the rate through
+        // link feedback measured on the real link; the 150k constant was a
+        // pre-feedback guess that only fought the ABR (watched live: the cap
+        // and the node advice pulling the encoder in opposite directions).
+        // Mesh mode still enforces the per-NAL ceiling in emit() — a NAL over
+        // 17850B is undeliverable at ANY bitrate, that part is wire format.
+        maxBitrate = min(2_000_000, Int(width) * Int(height) * 2)
         curBitrate = min(curBitrate, maxBitrate)
         bitrateKbps = curBitrate / 1000
         VTSessionSetProperty(s, key: kVTCompressionPropertyKey_AverageBitRate, value: curBitrate as CFNumber)
-        NSLog("TRINET: mesh mode \(meshMode ? "ON" : "off") — cap \(maxBitrate / 1000) kbps")
+        NSLog("%@", "TRINET: mesh mode \(meshMode ? "ON" : "off") — NAL ceiling only, rate governed by the node")
     }
 
     // Every NAL leaves through here so the mesh ceiling is enforced in ONE place.

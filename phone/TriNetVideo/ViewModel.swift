@@ -86,6 +86,8 @@ class StreamViewModel: ObservableObject {
     private var linkDrop = 0
     private var linkRate = 0
     private var linkSeenAt: Date?
+    // The node's own view of the link, for the HUD. Empty on a direct call.
+    @Published var linkInfo = ""
     // Mirrors ADVICE_* in specs/video_bridge.t27. Values only — no thresholds:
     // the node decides, we obey.
     private static let adviceBackOff: UInt8 = 1
@@ -97,6 +99,9 @@ class StreamViewModel: ObservableObject {
         linkDrop = drop
         linkRate = rate
         linkSeenAt = Date()
+        let word = advice == StreamViewModel.adviceBackOff ? "slow"
+                 : (advice == StreamViewModel.adviceClimb ? "climb" : "hold")
+        linkInfo = "node \(util)% · loss \(drop)% · \(rate)/s · \(word)"
         if drop > 0 {
             NSLog("%@", "TRINET: node is dropping \(drop)% of our payloads (util \(util)% of \(rate)/s)")
         }

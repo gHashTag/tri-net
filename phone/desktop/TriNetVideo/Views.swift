@@ -192,6 +192,11 @@ struct ActiveCallView: View {
                             Text(call.status)
                                 .font(.system(size: 10))
                                 .foregroundColor(call.framesReceived > 0 ? .green : .orange)
+                            if !call.linkInfo.isEmpty {
+                                Text(call.linkInfo)
+                                    .font(.system(size: 9, design: .monospaced))
+                                    .foregroundColor(.white.opacity(0.45))
+                            }
                         }
 
                         Spacer()
