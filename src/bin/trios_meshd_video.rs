@@ -48,12 +48,16 @@ const MAX_NAL: usize = 65_535;
 const MAX_PACKET: usize = MAX_NAL;
 
 /// Share of the fragment budget reserved for the latency-sensitive class.
-/// A call needs ~50 frags/s of Opus (one 63B frame every 20ms); 100 is double
-/// that. Audio does NOT queue behind video -- measured, a 20ms Opus frame stuck
+/// A SEALED audio packet is 85-92B (Opus frame + 2B magic + 28B ChaChaPoly),
+/// which is TWO fragments, not one: 50 pkts/s x 2 = 100 frags/s. The budget
+/// was exactly 100 -- zero headroom -- and the live call dropped audio at
+/// "budget=100/100" on ordinary jitter. 200 gives 2x headroom. The first
+/// budget forgot the crypto overhead and was sized to the plaintext.
+/// Audio does NOT queue behind video -- measured, a 20ms Opus frame stuck
 /// behind a 138-fragment keyframe waits 172ms, and audio tolerates ~30ms of
 /// jitter. The two classes have SEPARATE budgets that sum to the ceiling, so
-/// priority costs video 12% of its rate and can never over-commit the link.
-const AUDIO_RATE_PER_SEC: u32 = 100;
+/// priority can never over-commit the link.
+const AUDIO_RATE_PER_SEC: u32 = 200;
 
 /// RATE. Fragments/sec ceiling, ~75B each => 800/s is ~60 KB/s ~= 480 kbps.
 /// This is a GUESS at the radio's capacity, which has never been measured
