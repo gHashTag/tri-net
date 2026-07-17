@@ -160,6 +160,16 @@ real defect, and every one of them was silent.
   printed nowhere and drops printed only every 10th, so a dropped keyframe left
   no trace and no experiment could see the counter it was trying to measure.
   Instrument first — a probe against invisible state is the broken-ruler error.
+- **A rate must be MEASURED as a rate.** The link report published `spent` — the
+  admission window's counter, which subtracts the rate every second and is
+  therefore a sawtooth. Sampling it at an arbitrary instant produced
+  "util=44% drops=68%" in one report: two numbers that cannot both be true. The
+  control loop still converged, but only on the DROP signal — i.e. after loss,
+  which is exactly what the utilisation figure existed to prevent. Difference a
+  cumulative counter per second, as the drop figure already did. Measured, same
+  test: broken util converged in ~40s with 29% swing and 47-68% drops at every
+  back-off; a real rate converged in 18s with 0% swing and ZERO drops, backing
+  off preemptively at util=100%/drops=0%.
 - **Class is declared by PORT, never by inspecting the payload.** The node cannot
   tell audio from video -- both are sealed end-to-end. Audio behind a
   138-fragment keyframe waits 172ms for it to pace out (measured: p50 84ms alone,

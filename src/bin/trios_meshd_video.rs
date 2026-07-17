@@ -189,8 +189,17 @@ fn main() {
     // knows its load exactly; until now it had no way to say so, and the app
     // learned the link's capacity only by overrunning it (44% dropped on a live
     // call, silently).
+    // All three are CUMULATIVE; the reporter differences them per second.
+    //
+    // The first was `spent` -- the admission window's counter, which subtracts
+    // the rate every second and so is a sawtooth. Sampling it at an arbitrary
+    // instant gave a number that had nothing to do with the load: measured,
+    // "util=44% drops=68%" in the same report, two figures that cannot both be
+    // true. The loop still converged, but only because any drop overrides
+    // everything -- i.e. on the LATE signal, while the early one was noise. A
+    // rate must be measured as a rate.
     let load: (AtomicU32, AtomicU32, AtomicU32) =
-        (AtomicU32::new(0), AtomicU32::new(0), AtomicU32::new(0)); // spent, offered, dropped
+        (AtomicU32::new(0), AtomicU32::new(0), AtomicU32::new(0)); // frags_sent, offered, dropped
 
     let device: Mutex<Option<SocketAddr>> = Mutex::new(
         args.get(3)
@@ -310,7 +319,6 @@ fn uplink(
             );
             continue;
         }
-        load.0.store(spent, Ordering::Relaxed);
 
         seq = seq.wrapping_add(1);
         let max_data = video_bridge::MAX_FRAG_DATA as usize;
@@ -329,6 +337,7 @@ fn uplink(
 
             send_paced(app_sock, &pkt, peer_mesh);
             spent += 1;
+            load.0.fetch_add(1, Ordering::Relaxed);
         }
 
         // One XOR parity per group, so a single lost fragment does not destroy
@@ -362,6 +371,7 @@ fn uplink(
 
             send_paced(app_sock, &pkt, peer_mesh);
             spent += 1; // parity is not free; it pays from the same budget
+            load.0.fetch_add(1, Ordering::Relaxed);
         }
 
         println!(
@@ -384,15 +394,18 @@ fn report_link(
     started: Instant,
 ) {
     let sock = UdpSocket::bind("0.0.0.0:0").expect("bind feedback out");
+    let mut last_frags = 0u32;
     let mut last_offered = 0u32;
     let mut last_dropped = 0u32;
 
     loop {
         std::thread::sleep(Duration::from_secs(1));
 
-        let spent = load.0.load(Ordering::Relaxed);
+        let frags = load.0.load(Ordering::Relaxed);
         let offered = load.1.load(Ordering::Relaxed);
         let dropped = load.2.load(Ordering::Relaxed);
+        let d_frags = frags.saturating_sub(last_frags).min(u16::MAX as u32) as u16;
+        last_frags = frags;
         // Rates over the LAST second, not since boot: a cumulative average
         // would keep reporting an old overload long after it cleared.
         let d_offered = offered.saturating_sub(last_offered).min(u16::MAX as u32) as u16;
@@ -400,8 +413,7 @@ fn report_link(
         last_offered = offered;
         last_dropped = dropped;
 
-        let util = video_bridge::fb_util_pct(spent.min(u16::MAX as u32) as u16,
-                                             frag_rate.min(u16::MAX as u32) as u16);
+        let util = video_bridge::fb_util_pct(d_frags, frag_rate.min(u16::MAX as u32) as u16);
         let drop = video_bridge::fb_drop_pct(d_dropped, d_offered);
 
         let Some(dev) = *device.lock().unwrap() else { continue };
