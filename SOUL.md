@@ -44,8 +44,38 @@ No exceptions. A spec without tests is a draft, not a specification.
 - NEVER connect JTAG to working boards unnecessarily (U-Boot clear_reset_cause clears POR)
 - NEVER modify network config on boards with identical MAC (causes ARP collision)
 - SD boot is the safe path — it bypasses QSPI POR issues
+- BEFORE reflashing to "fix" a board, PROVE the images differ: md5 all four QSPI
+  partitions (fsbl-uboot, uboot-env, nvmfs, qspi-linux) AND the SD. Identical
+  images cannot explain divergent behaviour; reflashing them is a no-op that only
+  risks the POR damage above.
+- An AD9361 that probes but dies in `ad9361_rx_adc_setup` with `Division by zero`
+  read a ZERO clock rate. With identical firmware that is PHYSICAL (power rail,
+  seating, thermal) — never software. Cold-cycle the power: `reboot` does NOT
+  reset the RF power domain and will not clear a latched XO.
+- Board radio state is NOT stable across power events: a board showing only
+  `xadc` can return with the full AD9361 stack after a cold cycle, with zero
+  software change. Re-measure the inventory before concluding anything.
 
-## Article V: Identity
+## Article V: Radio Emission
+
+- NO over-the-air transmission. The radio link is proven on a CABLED channel
+  (SMA + 30-40 dB attenuator) or in simulation. OTA is a legal question, not an
+  engineering one: it needs explicit human confirmation, never an agent's.
+- One radio cannot form a link. Verify TWO healthy AD9361 nodes (probe
+  "successfully initialized", LO writable, no Calibration TIMEOUT) before
+  planning anything on air.
+
+## Article VI: Honest Reporting
+
+- The UI must state what the transport ACTUALLY is, measured, not branded. The
+  call is direct UDP over whatever interface the OS routes by; calling that
+  "mesh" while the radio subsystem is not in the path is a lie the code tells.
+- NEVER claim a wire change is "backward-compatible" without testing it against a
+  REAL old peer. A pre-existing receiver hands unknown magic straight to its
+  decoder; that untested claim froze video in production. Gate every new wire
+  format OFF until both ends are known to run the new build.
+
+## Article VII: Identity
 
 phi^2 + phi^-2 = 3 is the project anchor. It MUST appear in all constitutional artifacts.
 

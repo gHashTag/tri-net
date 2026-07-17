@@ -48,6 +48,30 @@ $T27C gen-rust specs/foo.t27  # generate Rust -> stdout
 - UART: FT2232H channel B (NOT A), 115200 8N1, root/analog
 - Boot switch position is IRRELEVANT for SD boot
 - SSH: `sshpass -p analog ssh -o PreferredAuthentications=password root@192.168.1.1N`
+- Boards get reflashed -> host keys change. Add `-o StrictHostKeyChecking=no
+  -o UserKnownHostsFile=/dev/null`. Quote EACH `-o` separately (an unquoted
+  options variable breaks ssh parsing). No scp server on busybox: upload with
+  `cat f | ssh ... 'cat > /root/f && chmod +x /root/f'`.
+
+### TRAP: "just reflash it" (added 2026-07-17)
+A board whose AD9361 is missing is NOT a flashing problem until proven so.
+Measured on .11 (no radio) vs .12 (radio): **all four QSPI partitions**
+(fsbl-uboot, uboot-env, nvmfs, qspi-linux = kernel+dtb+bitstream), the SD
+(BOOT.BIN, devicetree.dtb), the 54-var u-boot env, and the live DT
+(`adi,ad9364`, `2rx-2tx`, 40 MHz refclk) were **byte-identical**. Reflashing
+identical bytes is a no-op that only risks the POR damage in Article IV.
+- `ad9361_probe : enter` then `Division by zero` in `ad9361_rx_adc_setup` = the
+  driver read a ZERO clock rate. With identical firmware that is PHYSICAL.
+- **Radio state is not stable across power events**: .13 went from `xadc`-only to
+  the full AD9361 stack with zero software change. ALWAYS re-measure the
+  inventory before concluding. `reboot` does not reset the RF power domain — only
+  a cold cycle clears a latched XO.
+- Radio inventory check (do this FIRST):
+  `ls /sys/bus/iio/devices/*/name | xargs cat` -> need `ad9361-phy`;
+  `dmesg | grep -E "successfully initialized|Calibration TIMEOUT|Division by zero"`.
+  A Calibration TIMEOUT means marginal, not healthy. **Two** healthy nodes are
+  required for a link (SOUL Article V). OTA needs human confirmation; cabled
+  (SMA + 30-40 dB attenuator) or simulated only.
 
 ### Debugging Doctrine (Article VIII)
 1. Independent channel first (UART before network diagnosis)
@@ -206,5 +230,42 @@ requires clippy-clean codegen output — a different problem entirely.
 **Rule:** Before claiming "CI will pass" or "N errors", state all three:
 `(command, scope, policy)`. "26 errors" is meaningless without
 "`(cargo check, --lib, default)`" attached.
+
+phi^2 + phi^-2 = 3 | TRINITY
+
+## THE PHONE APP (`phone/`) — added 2026-07-17
+
+**The macOS product is TriNetMonitor: THREE tabs — Network | RTI Heatmap | Video
+Call** (`TriNetMonitor.swift`). That shell IS the product. Never ship a
+single-view build, never drop a tab. Regressions here are the most visible kind.
+
+- `desktop/project.yml` lists sources explicitly -> add new files there, then
+  `xcodegen generate`. Safe for the Mac (`CODE_SIGN_IDENTITY: "-"`).
+- The **iOS target compiles a STATIC file list — never regenerate it** (it breaks
+  signing: "No Account for Team"). Embed shared types into existing files
+  (MeshCrypto, DS, BackgroundBlur, OpusCodec all live inside VideoPipeline.swift).
+- **Launch with `open -n /Applications/TriNetMonitor.app`.** Running the binary
+  directly (`.../Contents/MacOS/TriNetMonitor`) yields a process with NO WINDOW —
+  it looks exactly like the app was deleted. Logs no longer justify that trick:
+  `LogBus` tees stderr into the in-app Log pane.
+
+### Media invariants (each was a real, shipped bug)
+| Rule | Why |
+|---|---|
+| Audio datagram < `maxPayload` (1200B) — slice the tap to 20ms/320 samples | the tap returns ~100ms device buffers -> 3200B -> silently fragmented |
+| Never raw PCM on a constrained link | 16k x 16bit = 256 kbps EACH WAY; Opus = 63B/20ms = 24.7 kbps and fits the mesh 70B fragment |
+| Observe `AVAudioEngineConfigurationChange` (+ iOS interruption/route/mediaServicesReset) and rebuild | the engine stops and drops EVERY tap; mic died ~200ms in, forever |
+| `installTap(format: nil)` | a format read before voice processing settles is stale — that race IS the 200ms death |
+| `0xFA` is reserved for framing; drop unknown subtypes | handing unknown magic to the H.264 decoder caused a PLI/keyframe storm |
+
+### Verification (no two-endpoint rig exists)
+- Prove codecs with a standalone `swiftc` harness that round-trips through
+  **naked wire bytes** — buffer-to-buffer hides packet descriptions and passes
+  when the real path would return silence.
+- Verify UI in the iOS Simulator (`simctl io <id> screenshot`), never edit layout
+  blind. Control bars: equal-width `maxWidth: .infinity` cells, <=6 primary
+  buttons (fixed widths overflow small phones).
+- **Never call a wire change "backward-compatible" without testing a REAL old
+  peer.** Gate new formats OFF until both ends run the new build.
 
 phi^2 + phi^-2 = 3 | TRINITY
