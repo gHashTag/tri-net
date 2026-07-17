@@ -75,3 +75,22 @@ smeared, so separating mesh nodes by 1-chip code-phase offsets needs
 chip-synchronous matched filtering (a timing-recovery loop), not just the coarse
 offset search. Honest state: OTA spread-spectrum PROVEN with real processing
 gain; fine CDMA phase separation is the next refinement.
+
+## Fine timing: fractional chip rate helps gain, NOT fine CDMA (capture-limited)
+
+Tried the next refinement -- fractional chip-rate search + chip-synchronous
+integrate-and-dump, refined around the correct alignment (chip rate 10.24
+samples/chip, offset 16226):
+
+- Raw processing gain improved: **peak/floor 22.8x -> 35.3x**.
+- But **1-chip CDMA stayed ~1.4x** (shift+1), and half-chip early/late is
+  1.1x/1.5x -- the fine code-phase resolution did NOT improve.
+
+Honest finding: on THIS capture the fine CDMA phase separation is
+**capture-limited, not timing-limited**. At ~10 RX samples/chip the chip edges
+are smeared and the SNR is moderate, so no offline timing loop recovers 1-chip
+node separation. The path to clean CDMA is a *fresh* capture with more
+samples/chip (don't let the DMA rate-mapping compress the chips) or an on-board
+chip-matched receiver -- not more offline processing of this file. The coarse
+acquisition result (22.8x gain, 99.4x vs a different code) stands as the proven
+OTA spread-spectrum; fine CDMA needs better data.
