@@ -160,6 +160,13 @@ real defect, and every one of them was silent.
   printed nowhere and drops printed only every 10th, so a dropped keyframe left
   no trace and no experiment could see the counter it was trying to measure.
   Instrument first — a probe against invisible state is the broken-ruler error.
+- **Verify the rig is UP before believing a number it produced.** Twice in one
+  session a harness reported a clean verdict from a daemon that was not running:
+  once because a 6-byte wire change was never redeployed to the boards, once
+  because zsh does not word-split an unquoted parameter (`set -- $BAND` gave
+  `CLIMB_BELOW="60 85"`, and the remote `sh` tried to execute `85`). Both times a
+  real-looking result was ready to report. Check the process, then read the
+  number.
 - **A rate must be MEASURED as a rate.** The link report published `spent` — the
   admission window's counter, which subtracts the rate every second and is
   therefore a sawtooth. Sampling it at an arbitrary instant produced
