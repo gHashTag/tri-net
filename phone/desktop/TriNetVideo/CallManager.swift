@@ -36,16 +36,46 @@ class CallManager: ObservableObject {
     // mean the peer is losing our video → back off; a clean window → recover.
     private var pliCount = 0
     private var abrTimer: Timer?
+    // The node's verdict on the link, if one is relaying for us. Nil on a direct
+    // peer-to-peer call: there is no node, so there is nothing to hear.
+    private var linkAdvice: UInt8?
+    private var linkUtil = 0
+    private var linkDrop = 0
+    private var linkRate = 0
+    private var linkSeenAt: Date?
+    // Mirrors ADVICE_* in specs/video_bridge.t27. Values only — no thresholds.
+    private static let adviceBackOff: UInt8 = 1
+    private static let adviceClimb: UInt8 = 2
+
     private func startABR() {
         abrTimer?.invalidate()
         abrTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
             guard let self = self, self.isInCall else { return }
-            if self.pliCount >= 3 { self.camera.nudgeBitrate(down: true) }
-            else if self.pliCount == 0 { self.camera.nudgeBitrate(down: false) }
+
+            // Prefer the NODE's report over PLI. PLI is the far end's decoder
+            // complaining — it only arrives once frames are already broken, and
+            // its absence makes us climb until we break them again. The node
+            // says what the link is doing before anything is lost.
+            let fresh = self.linkSeenAt.map { Date().timeIntervalSince($0) < 5 } ?? false
+            if fresh, let advice = self.linkAdvice {
+                if advice == CallManager.adviceBackOff {
+                    self.camera.nudgeBitrate(down: true)
+                    NSLog("TRINET: ABR down — node: util=\(self.linkUtil)% drops=\(self.linkDrop)% of \(self.linkRate)/s -> \(self.camera.bitrateKbps)kbps")
+                } else if advice == CallManager.adviceClimb {
+                    self.camera.nudgeBitrate(down: false)
+                }
+                // Anything else: hold. The node's hysteresis band, not ours.
+            } else {
+                // No node relaying (direct call): the old PLI loop is all there is.
+                if self.pliCount >= 3 { self.camera.nudgeBitrate(down: true) }
+                else if self.pliCount == 0 { self.camera.nudgeBitrate(down: false) }
+            }
             self.pliCount = 0
             self.bitrateKbps = self.camera.bitrateKbps
         }
     }
+
+
 
     // Honest link reporting + the app's own log, live in the UI.
     // Both are plain references — the views observe them directly.
@@ -206,6 +236,20 @@ class CallManager: ObservableObject {
         }
 
         // Transport → audio / PLI / chat / reaction / Decoder → Display
+        // The node tells us what the link is doing. Nothing else does: PLI only
+        // arrives once the far end's decoder is already broken.
+        transport.onLinkFeedback = { [weak self] advice, util, drop, rate in
+            guard let self = self else { return }
+            self.linkAdvice = advice
+            self.linkUtil = util
+            self.linkDrop = drop
+            self.linkRate = rate
+            self.linkSeenAt = Date()
+            if drop > 0 {
+                NSLog("TRINET: node is dropping \(drop)% of our payloads (util \(util)% of \(rate)/s)")
+            }
+        }
+
         transport.onReceive = { [weak self] data in
             guard let self = self else { return }
             if data.count == 2, data[0] == 0xFC { // Picture Loss Indication

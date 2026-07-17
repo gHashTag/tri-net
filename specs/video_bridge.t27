@@ -41,6 +41,99 @@ module VideoBridge {
     // the node never inspects the ciphertext to guess.
     const AUDIO_IN_PORT: u16 = 7002;
 
+    // ---- Link feedback ----
+    // The node knows its load exactly. The app does not, and adapts by watching
+    // PLI -- decoder feedback from the FAR end, which only arrives after frames
+    // are already broken, and which climbs back up whenever it sees none. So the
+    // encoder discovers the link's capacity by overrunning it, forever.
+    // Measured on a live call: the Mac offered ~2700 frags/s into a 700 frags/s
+    // budget and 44% of its packets were dropped with NOTHING telling it.
+    //
+    // The node reports its own state once a second to its attached device:
+    //   [FEEDBACK_TYPE][util_pct][drop_pct][rate_lo][rate_hi]
+    //
+    // This is PLAINTEXT and that is deliberate: it is local telemetry between a
+    // device and its own node, carries no payload bytes, and says nothing about
+    // content. It is not end-to-end data and must never carry any.
+    // The node sends its ADVICE, not just its numbers. t27c cannot generate
+    // Swift, so any threshold the app re-derived would be a second copy of this
+    // spec that silently drifts -- and the node and the encoder would disagree
+    // about what "full" means. The numbers ride along for the log and the UI;
+    // the advice is what the app obeys.
+    const FEEDBACK_PORT: u16 = 7003;
+    const FEEDBACK_TYPE: u8 = 10;
+    const FEEDBACK_LEN: u8 = 6;
+
+    const ADVICE_HOLD: u8 = 0;
+    const ADVICE_BACK_OFF: u8 = 1;
+    const ADVICE_CLIMB: u8 = 2;
+
+    // ---- Feedback byte positions ----
+    const FB_UTIL_OFFSET: u8 = 1;
+    const FB_DROP_OFFSET: u8 = 2;
+    const FB_RATE_LO_OFFSET: u8 = 3;
+    const FB_RATE_HI_OFFSET: u8 = 4;
+    const FB_ADVICE_OFFSET: u8 = 5;
+
+    // Budget used, as a percentage. Saturates at 100: the count runs into debt
+    // by design (a NAL is admitted whole once it starts), so raw spent/rate can
+    // exceed 1 and a percentage above 100 would only confuse the reader.
+    fn fb_util_pct(spent: u16, rate: u16) -> u8 {
+        if (rate == 0) {
+            return 100;
+        }
+        let scaled: u32 = spent;
+        let pct: u32 = (scaled * 100) / rate;
+        if (pct > 100) {
+            return 100;
+        }
+        return pct;
+    }
+
+    // Share of offered payloads the node had to drop, as a percentage.
+    //
+    // Both operands go through a TYPED let: t27c widens operands inside a typed
+    // `let` but not inside a bare `return`, so `return (scaled * 100) / offered`
+    // emits `u32 / u16` and does not compile. Keep the shape.
+    fn fb_drop_pct(dropped: u16, offered: u16) -> u8 {
+        if (offered == 0) {
+            return 0;
+        }
+        let scaled: u32 = dropped;
+        let total: u32 = offered;
+        let pct: u32 = (scaled * 100) / total;
+        return pct;
+    }
+
+    // Is the link asking the encoder to back off? Drops mean it is ALREADY too
+    // late; high utilisation means it is about to be. React to either.
+    fn fb_should_back_off(util_pct: u8, drop_pct: u8) -> bool {
+        if (drop_pct > 0) {
+            return true;
+        }
+        return util_pct >= 85;
+    }
+
+    // Is there room to climb? Deliberately far below the back-off threshold: a
+    // single margin makes the encoder oscillate across it forever.
+    fn fb_may_climb(util_pct: u8, drop_pct: u8) -> bool {
+        if (drop_pct > 0) {
+            return false;
+        }
+        return util_pct < 60;
+    }
+
+    // What the node tells the encoder to do. The ONLY place this is decided.
+    fn fb_advice(util_pct: u8, drop_pct: u8) -> u8 {
+        if (fb_should_back_off(util_pct, drop_pct)) {
+            return ADVICE_BACK_OFF;
+        }
+        if (fb_may_climb(util_pct, drop_pct)) {
+            return ADVICE_CLIMB;
+        }
+        return ADVICE_HOLD;
+    }
+
     // ---- Fragment-layer FEC ----
     // Reassembly is all-or-nothing: ONE lost 70-byte fragment destroys the
     // whole NAL, and an I-frame is 129 fragments. One XOR parity per group of
@@ -348,6 +441,73 @@ module VideoBridge {
         assert(fec_can_recover(2) == false, "one XOR cannot separate two losses");
     }
 
+    test fb_util_half {
+        assert(fb_util_pct(400, 800) == 50, "400 of 800 is half the budget");
+    }
+
+    test fb_util_saturates {
+        assert(fb_util_pct(900, 800) == 100, "debt must not report over 100%");
+    }
+
+    test fb_util_zero_rate {
+        assert(fb_util_pct(10, 0) == 100, "a zero-rate link is by definition full");
+    }
+
+    test fb_drop_none {
+        assert(fb_drop_pct(0, 300) == 0, "nothing dropped");
+    }
+
+    test fb_drop_the_measured_44 {
+        assert(fb_drop_pct(1055, 2392) == 44, "the live call's real numbers");
+    }
+
+    test fb_drop_nothing_offered {
+        assert(fb_drop_pct(0, 0) == 0, "an idle link is not a dropping link");
+    }
+
+    test fb_back_off_on_any_drop {
+        assert(fb_should_back_off(10, 1) == true, "a drop means it is already too late");
+    }
+
+    test fb_back_off_when_nearly_full {
+        assert(fb_should_back_off(85, 0) == true, "85% is about to be too late");
+    }
+
+    test fb_hold_when_comfortable {
+        assert(fb_should_back_off(70, 0) == false, "70% needs no action");
+    }
+
+    test fb_climb_only_when_clear {
+        assert(fb_may_climb(50, 0) == true, "half empty, climb");
+    }
+
+    test fb_no_climb_after_a_drop {
+        assert(fb_may_climb(10, 5) == false, "never climb into a link that just dropped");
+    }
+
+    test fb_advice_backs_off_on_drops {
+        assert(fb_advice(10, 3) == ADVICE_BACK_OFF, "any drop overrides everything");
+    }
+
+    test fb_advice_climbs_when_empty {
+        assert(fb_advice(20, 0) == ADVICE_CLIMB, "quiet link, climb");
+    }
+
+    test fb_advice_holds_in_the_band {
+        assert(fb_advice(70, 0) == ADVICE_HOLD, "60..85 is the hysteresis band");
+    }
+
+    test fb_advice_backs_off_when_full {
+        assert(fb_advice(95, 0) == ADVICE_BACK_OFF, "95% is full enough");
+    }
+
+    test fb_hysteresis_gap_exists {
+        // 60..85 is neither climb nor back off. Without that band the encoder
+        // oscillates across a single threshold forever.
+        assert(fb_may_climb(70, 0) == false, "70% must not climb");
+        assert(fb_should_back_off(70, 0) == false, "...nor back off: it holds");
+    }
+
     test fec_packet_size_value {
         assert(fec_packet_size() == 76, "6 header + 70 data = 76");
     }
@@ -374,4 +534,15 @@ module VideoBridge {
     // Class is declared by port, so the ports must not collide.
     invariant audio_port_differs_from_video
         assert AUDIO_IN_PORT != VIDEO_IN_PORT
+
+    invariant feedback_port_is_its_own
+        assert FEEDBACK_PORT != AUDIO_IN_PORT
+
+    // The hysteresis gap is the whole point: one threshold oscillates.
+    invariant feedback_carries_advice
+        assert FEEDBACK_LEN == 6
+
+    // The three verdicts must stay distinct or the app cannot tell them apart.
+    invariant advice_values_are_distinct
+        assert ADVICE_BACK_OFF != ADVICE_CLIMB
 }

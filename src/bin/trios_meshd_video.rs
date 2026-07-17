@@ -32,6 +32,7 @@
 use std::collections::HashMap;
 use std::env;
 use std::net::{SocketAddr, UdpSocket};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use trios_mesh::video_bridge;
@@ -184,6 +185,13 @@ fn main() {
     // 127.0.0.1 (as it once was) meant a reassembled payload never left the
     // node and the attached phone could never receive anything — silently,
     // because send_to(127.0.0.1) succeeds.
+    // What the uplink is actually doing, published for the reporter. The node
+    // knows its load exactly; until now it had no way to say so, and the app
+    // learned the link's capacity only by overrunning it (44% dropped on a live
+    // call, silently).
+    let load: (AtomicU32, AtomicU32, AtomicU32) =
+        (AtomicU32::new(0), AtomicU32::new(0), AtomicU32::new(0)); // spent, offered, dropped
+
     let device: Mutex<Option<SocketAddr>> = Mutex::new(
         args.get(3)
             .and_then(|a| a.split(':').next())
@@ -206,7 +214,11 @@ fn main() {
         s.spawn(|| {
             // Video pays for the reservation: the two budgets sum to frag_rate.
             let video_rate = frag_rate.saturating_sub(AUDIO_RATE_PER_SEC).max(1);
-            uplink(&app_sock, peer_mesh, &device, out_port, video_rate, fec_enabled, started)
+            uplink(&app_sock, peer_mesh, &device, out_port, video_rate, fec_enabled, &load, started)
+        });
+        s.spawn(|| {
+            let video_rate = frag_rate.saturating_sub(AUDIO_RATE_PER_SEC).max(1);
+            report_link(&device, video_rate, &load, started)
         });
         s.spawn(|| express(&audio_sock, peer_mesh, started));
         s.spawn(|| downlink(&mesh_sock, &app_sock, &device, started));
@@ -221,6 +233,7 @@ fn uplink(
     out_port: u16,
     frag_rate: u32,
     fec_enabled: bool,
+    load: &(AtomicU32, AtomicU32, AtomicU32),
     started: Instant,
 ) {
     let mut rx_buf = vec![0u8; MAX_PACKET];
@@ -275,6 +288,7 @@ fn uplink(
 
         let size = n.min(MAX_NAL);
         let nfrags = video_bridge::fragment_count(size as u16);
+        load.1.fetch_add(1, Ordering::Relaxed); // offered
 
         // Admission is decided BEFORE looking at the size. Testing
         // `spent + nfrags > rate` makes the BIGGEST payload the one that never
@@ -288,6 +302,7 @@ fn uplink(
         // debt and pay it back next window.
         if spent >= frag_rate {
             dropped += 1;
+            load.2.fetch_add(1, Ordering::Relaxed); // dropped
             println!(
                 "[video] DROP {size}B ({nfrags} frags) budget={spent}/{frag_rate} \
                  (dropped {dropped} total) t={:.1}s",
@@ -295,6 +310,7 @@ fn uplink(
             );
             continue;
         }
+        load.0.store(spent, Ordering::Relaxed);
 
         seq = seq.wrapping_add(1);
         let max_data = video_bridge::MAX_FRAG_DATA as usize;
@@ -353,6 +369,63 @@ fn uplink(
              budget={spent}/{frag_rate} t={:.1}s",
             started.elapsed().as_secs_f32()
         );
+    }
+}
+
+/// Tell the attached device what this link is doing, once a second.
+///
+/// PLAINTEXT and deliberately so: this is local telemetry between a device and
+/// its own node. It carries no payload bytes and says nothing about content. It
+/// must never carry any.
+fn report_link(
+    device: &Mutex<Option<SocketAddr>>,
+    frag_rate: u32,
+    load: &(AtomicU32, AtomicU32, AtomicU32),
+    started: Instant,
+) {
+    let sock = UdpSocket::bind("0.0.0.0:0").expect("bind feedback out");
+    let mut last_offered = 0u32;
+    let mut last_dropped = 0u32;
+
+    loop {
+        std::thread::sleep(Duration::from_secs(1));
+
+        let spent = load.0.load(Ordering::Relaxed);
+        let offered = load.1.load(Ordering::Relaxed);
+        let dropped = load.2.load(Ordering::Relaxed);
+        // Rates over the LAST second, not since boot: a cumulative average
+        // would keep reporting an old overload long after it cleared.
+        let d_offered = offered.saturating_sub(last_offered).min(u16::MAX as u32) as u16;
+        let d_dropped = dropped.saturating_sub(last_dropped).min(u16::MAX as u32) as u16;
+        last_offered = offered;
+        last_dropped = dropped;
+
+        let util = video_bridge::fb_util_pct(spent.min(u16::MAX as u32) as u16,
+                                             frag_rate.min(u16::MAX as u32) as u16);
+        let drop = video_bridge::fb_drop_pct(d_dropped, d_offered);
+
+        let Some(dev) = *device.lock().unwrap() else { continue };
+        let to = SocketAddr::new(dev.ip(), video_bridge::FEEDBACK_PORT);
+        let rate16 = frag_rate.min(u16::MAX as u32) as u16;
+        // The node decides; the app obeys. The numbers ride along only so the
+        // log and the UI can be honest about why.
+        let advice = video_bridge::fb_advice(util, drop);
+        let pkt = [
+            video_bridge::FEEDBACK_TYPE,
+            util,
+            drop,
+            video_bridge::seq_lo(rate16),
+            video_bridge::seq_hi(rate16),
+            advice,
+        ];
+        sock.send_to(&pkt, to).ok();
+
+        if advice == video_bridge::ADVICE_BACK_OFF {
+            println!(
+                "[link] BACK OFF: util={util}% drops={drop}% rate={frag_rate}/s -> {} t={:.1}s",
+                dev.ip(), started.elapsed().as_secs_f32()
+            );
+        }
     }
 }
 

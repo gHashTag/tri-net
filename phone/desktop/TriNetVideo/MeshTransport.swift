@@ -22,6 +22,71 @@ class MeshTransport {
     var onReceiveFrom: ((Data, String) -> Void)?
     var connected = false
 
+    // MARK: link feedback (see specs/video_bridge.t27)
+    //
+    // The node knows its load exactly; we do not. Without this the encoder finds
+    // the link's capacity by overrunning it and waiting for the FAR end's
+    // decoder to complain (PLI) — which only happens after frames are already
+    // broken. Measured on a live call: 44% of our packets dropped by the node,
+    // with nothing telling us.
+    //
+    // Plaintext by design: local telemetry from our own node, no payload bytes,
+    // nothing about content. Never put content here.
+    /// (advice, utilPct, dropPct, rate). `advice` is the node's VERDICT and the
+    /// only thing to act on — the thresholds live in specs/video_bridge.t27 and
+    /// nowhere else, because t27c cannot generate Swift and a second copy here
+    /// would drift until the node and the encoder disagreed about "full".
+    /// The numbers are for the log and the UI.
+    var onLinkFeedback: ((_ advice: UInt8, _ utilPct: Int, _ dropPct: Int, _ rate: Int) -> Void)?
+    private var fbFd: Int32 = -1
+    private let fbQueue = DispatchQueue(label: "mesh.fb", qos: .utility)
+    private static let feedbackPort: UInt16 = 7003
+    private static let feedbackType: UInt8 = 10
+    private static let feedbackLen = 6
+
+    private func startFeedbackListener() {
+        stopFeedbackListener()
+        fbFd = socket(AF_INET, SOCK_DGRAM, 0)
+        guard fbFd >= 0 else { return }
+        var on: Int32 = 1
+        setsockopt(fbFd, SOL_SOCKET, SO_REUSEADDR, &on, 4)
+        var addr = sockaddr_in()
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = MeshTransport.feedbackPort.bigEndian
+        addr.sin_addr.s_addr = 0
+        let bound = withUnsafePointer(to: &addr) { p in
+            p.withMemoryRebound(to: sockaddr.self, capacity: 1) { sp in
+                Foundation.bind(fbFd, sp, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+        if bound < 0 {
+            // Not fatal: a direct peer-to-peer call has no node to report, so
+            // silence here is normal. Say so rather than looking broken.
+            NSLog("TRINET: link feedback port busy — running without node telemetry")
+            close(fbFd); fbFd = -1
+            return
+        }
+        let fd = fbFd
+        fbQueue.async { [weak self] in
+            var buf = [UInt8](repeating: 0, count: 32)
+            while true {
+                guard let self = self, self.fbFd == fd else { break }
+                let n = recv(fd, &buf, buf.count, 0)
+                if n <= 0 { break }
+                guard n >= MeshTransport.feedbackLen,
+                      buf[0] == MeshTransport.feedbackType else { continue }
+                let util = Int(buf[1]), drop = Int(buf[2])
+                let rate = Int(buf[3]) | (Int(buf[4]) << 8)
+                let advice = buf[5]
+                DispatchQueue.main.async { self.onLinkFeedback?(advice, util, drop, rate) }
+            }
+        }
+    }
+
+    private func stopFeedbackListener() {
+        if fbFd >= 0 { close(fbFd); fbFd = -1 }
+    }
+
     // Conference mode: a group of >1 peers shares one static conference key
     // (HKDF of the PSK) instead of pairwise ephemeral handshakes — full-mesh
     // broadcast to 2-4 nodes, the right topology for a zero-server mesh.
@@ -37,6 +102,7 @@ class MeshTransport {
     func connect(peerHost: String, peerPort: UInt16, listenPort: UInt16) {
         disconnect()
         groupMode = false
+        startFeedbackListener()
 
         fd = socket(AF_INET, SOCK_DGRAM, 0)
         guard fd >= 0 else {
@@ -359,6 +425,7 @@ class MeshTransport {
         running = false
         handshakeTimer?.cancel(); handshakeTimer = nil
         if fd >= 0 { close(fd); fd = -1 }
+        stopFeedbackListener()
         connected = false
     }
 
