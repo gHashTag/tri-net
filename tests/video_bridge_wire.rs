@@ -309,3 +309,30 @@ fn fec_cannot_recover_two_losses_and_says_so() {
     assert!(!vb::fec_can_recover(2), "one XOR cannot separate two unknowns");
     assert!(!vb::fec_can_recover(16));
 }
+
+// ---- seq-space partition (video low half, express high half) ----
+
+#[test]
+fn seq_halves_are_disjoint_for_every_counter() {
+    // Both paths feed ONE reassembly map on the peer. At real call rates the
+    // two counters advance almost in step, so without the partition equal seqs
+    // coexist within the reassembly GC window and splice fragments of
+    // different payloads together.
+    for c in [0u16, 1, 100, 32767, 32768, 40000, u16::MAX] {
+        let v = vb::video_seq(c);
+        let e = vb::express_seq(c);
+        assert!(v < 32768, "video seq {v} escaped its half (counter {c})");
+        assert!(e >= 32768, "express seq {e} escaped its half (counter {c})");
+    }
+}
+
+// ---- adaptive ceiling (a saturated link states its own capacity) ----
+
+#[test]
+fn effective_rate_only_trusts_a_saturated_link() {
+    assert_eq!(vb::fb_effective_rate(0, 0, 700), 700, "idle says nothing");
+    assert_eq!(vb::fb_effective_rate(500, 495, 700), 700, "keeping up: no signal");
+    assert_eq!(vb::fb_effective_rate(700, 300, 700), 300, "lossy: capacity is what arrived");
+    assert_eq!(vb::fb_effective_rate(700, 630, 700), 700, "exactly 90% still keeps up");
+    assert_eq!(vb::fb_effective_rate(700, 629, 700), 629, "below 90% is loss");
+}

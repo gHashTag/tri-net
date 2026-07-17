@@ -154,6 +154,54 @@ module VideoBridge {
         return ADVICE_HOLD;
     }
 
+    // ---- Sequence space partition ----
+    // The video uplink and the express (audio) path each keep their own seq
+    // counter, but the peer reassembles BOTH from one map keyed by seq alone.
+    // On a real call they advance at nearly the same rate (~44 video NALs/s,
+    // ~50 audio frames/s), so equal seqs coexist within the reassembly GC
+    // window and splice fragments of different payloads together. Partition
+    // the u16 space instead: video owns 0..32767, express owns 32768..65535.
+    const SEQ_EXPRESS_BASE: u16 = 32768;
+
+    fn video_seq(counter: u16) -> u16 {
+        return counter % 32768;
+    }
+
+    fn express_seq(counter: u16) -> u16 {
+        return (counter % 32768) + 32768;
+    }
+
+    // ---- Link-delivery feedback (node to node) ----
+    // FRAG_RATE_PER_SEC is a CONFIGURED ceiling; a radio's real capacity moves
+    // with range and fading. Capacity below saturation is unmeasurable, but a
+    // saturated link states its own capacity: it is what actually ARRIVES. The
+    // receiving node reports once a second, on the mesh port, how many VSTREAM
+    // fragments it received:
+    //   [RX_REPORT_TYPE][cnt_lo][cnt_hi]
+    // Plaintext counters only -- no payload bytes, nothing about content, and
+    // it must never carry any.
+    const RX_REPORT_TYPE: u8 = 11;
+    const RX_REPORT_LEN: u8 = 3;
+
+    // The rate the encoder should be steered against. Delivered >= 90% of sent
+    // means the link is keeping up -- no capacity signal, trust the configured
+    // ceiling (measuring capacity below saturation is impossible). Real loss
+    // means the link has stated its throughput: what got through.
+    //
+    // All operands go through typed lets (t27c widens there, not in returns).
+    fn fb_effective_rate(sent: u16, delivered: u16, configured: u16) -> u16 {
+        if (sent == 0) {
+            return configured;
+        }
+        let s: u32 = sent;
+        let d: u32 = delivered;
+        let threshold: u32 = (s * 9) / 10;
+        if (d >= threshold) {
+            return configured;
+        }
+        return delivered;
+    }
+
     // ---- Fragment-layer FEC ----
     // Reassembly is all-or-nothing: ONE lost 70-byte fragment destroys the
     // whole NAL, and an I-frame is 129 fragments. One XOR parity per group of
@@ -528,6 +576,35 @@ module VideoBridge {
         assert(fb_should_back_off(70, 0, 85) == false, "...nor back off: it holds");
     }
 
+    test video_seq_stays_low {
+        assert(video_seq(40000) == 7232, "video wraps inside 0..32767");
+    }
+
+    test express_seq_stays_high {
+        assert(express_seq(0) == 32768, "express lives in the high half");
+    }
+
+    test seq_halves_never_collide {
+        assert(video_seq(100) != express_seq(100), "same counter, disjoint keys");
+    }
+
+    test effective_rate_idle_is_configured {
+        assert(fb_effective_rate(0, 0, 700) == 700, "an idle link says nothing");
+    }
+
+    test effective_rate_lossless_is_configured {
+        assert(fb_effective_rate(500, 495, 700) == 700, "keeping up: no signal");
+    }
+
+    test effective_rate_saturated_is_delivered {
+        assert(fb_effective_rate(700, 300, 700) == 300, "a lossy link states its capacity");
+    }
+
+    test effective_rate_boundary {
+        assert(fb_effective_rate(700, 630, 700) == 700, "exactly 90% still counts as keeping up");
+        assert(fb_effective_rate(700, 629, 700) == 629, "below 90% is loss");
+    }
+
     test fec_packet_size_value {
         assert(fec_packet_size() == 76, "6 header + 70 data = 76");
     }
@@ -571,4 +648,11 @@ module VideoBridge {
     // reopens and the loop will freeze in it (measured: ~25% link wasted).
     invariant no_dead_zone
         assert CLIMB_BELOW_PCT == BACK_OFF_AT_PCT
+
+    // The rx-report must not be mistaken for a fragment or a parity.
+    invariant rx_report_type_is_distinct
+        assert RX_REPORT_TYPE != VSTREAM_TYPE
+
+    invariant rx_report_differs_from_fec
+        assert RX_REPORT_TYPE != VSTREAM_FEC_TYPE
 }

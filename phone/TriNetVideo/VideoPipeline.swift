@@ -458,6 +458,9 @@ class BSDTransport {
     // nothing about content. Never put content here.
     var onLinkFeedback: ((_ advice: UInt8, _ utilPct: Int, _ dropPct: Int, _ rate: Int) -> Void)?
     private var fbFd: Int32 = -1
+    // A fresh report proves a NODE is relaying for us; used only to route audio.
+    private var lastFeedbackAt: Date?
+    private static let audioPort: UInt16 = 7002
     private let fbQueue = DispatchQueue(label: "mesh.fb", qos: .utility)
     private static let feedbackPort: UInt16 = 7003
     private static let feedbackType: UInt8 = 10
@@ -497,6 +500,7 @@ class BSDTransport {
                 let util = Int(buf[1]), drop = Int(buf[2])
                 let rate = Int(buf[3]) | (Int(buf[4]) << 8)
                 let advice = buf[5]
+                self.lastFeedbackAt = Date()
                 DispatchQueue.main.async { self.onLinkFeedback?(advice, util, drop, rate) }
             }
         }
@@ -654,6 +658,27 @@ class BSDTransport {
     private func rawSend(_ data: Data) {
         guard let wire = crypto.seal(data) else { return } // drop until session up
         rawSendWire(wire)
+    }
+
+    /// Audio to the node's express ingress (AUDIO_IN_PORT 7002) -- its own
+    /// budget, never paced, no parity duplicate. Mirrors the Mac transport.
+    /// Falls back to the normal path when no node report is fresh (direct call).
+    func sendAudio(_ data: Data) {
+        let viaNode = lastFeedbackAt.map { Date().timeIntervalSince($0) < 5 } ?? false
+        if !viaNode {
+            send(data)
+            return
+        }
+        guard fd >= 0, let wire = crypto.seal(data) else { return }
+        var addr = peer
+        addr.sin_port = BSDTransport.audioPort.bigEndian
+        _ = wire.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+            withUnsafePointer(to: &addr) { p in
+                p.withMemoryRebound(to: sockaddr.self, capacity: 1) { sp in
+                    sendto(fd, raw.baseAddress, wire.count, 0, sp, socklen_t(MemoryLayout<sockaddr_in>.size))
+                }
+            }
+        }
     }
 
     // Send bytes verbatim (handshake packets are already self-authenticating)

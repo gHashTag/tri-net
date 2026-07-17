@@ -39,6 +39,9 @@ class MeshTransport {
     /// The numbers are for the log and the UI.
     var onLinkFeedback: ((_ advice: UInt8, _ utilPct: Int, _ dropPct: Int, _ rate: Int) -> Void)?
     private var fbFd: Int32 = -1
+    // A fresh report proves a NODE is relaying for us; used only to route audio.
+    private var lastFeedbackAt: Date?
+    private static let audioPort: UInt16 = 7002
     private let fbQueue = DispatchQueue(label: "mesh.fb", qos: .utility)
     private static let feedbackPort: UInt16 = 7003
     private static let feedbackType: UInt8 = 10
@@ -78,6 +81,7 @@ class MeshTransport {
                 let util = Int(buf[1]), drop = Int(buf[2])
                 let rate = Int(buf[3]) | (Int(buf[4]) << 8)
                 let advice = buf[5]
+                self.lastFeedbackAt = Date()
                 DispatchQueue.main.async { self.onLinkFeedback?(advice, util, drop, rate) }
             }
         }
@@ -97,6 +101,31 @@ class MeshTransport {
             inputKeyMaterial: SymmetricKey(data: SHA256.hash(data: Data("tri-net-psk-v1".utf8))),
             salt: Data("trios-mesh/v1/conference".utf8),
             info: Data("group-aead".utf8), outputByteCount: 32))
+
+    /// Audio goes to the node's express ingress (AUDIO_IN_PORT 7002): its own
+    /// budget, never paced, so it cannot queue behind a keyframe -- and it skips
+    /// the parity duplicate (a parity over ONE fragment IS a copy; measured,
+    /// audio cost 100 frags/s of a 700/s budget on the video port, half of it
+    /// duplicates). Same sealing, different door. Only when a node has proven
+    /// itself with a fresh report: on a direct call the peer listens on the
+    /// main port alone, and this falls back to the normal path.
+    func sendAudio(_ data: Data) {
+        let viaNode = lastFeedbackAt.map { Date().timeIntervalSince($0) < 5 } ?? false
+        if groupMode || !viaNode {
+            send(data)
+            return
+        }
+        guard fd >= 0, let wire = crypto.seal(data) else { return }
+        var addr = peer
+        addr.sin_port = MeshTransport.audioPort.bigEndian
+        _ = wire.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+            withUnsafePointer(to: &addr) { p in
+                p.withMemoryRebound(to: sockaddr.self, capacity: 1) { sp in
+                    sendto(fd, raw.baseAddress, wire.count, 0, sp, socklen_t(MemoryLayout<sockaddr_in>.size))
+                }
+            }
+        }
+    }
 
     // 1-1 (ephemeral forward-secret) — unchanged path.
     func connect(peerHost: String, peerPort: UInt16, listenPort: UInt16) {

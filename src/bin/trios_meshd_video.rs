@@ -210,6 +210,12 @@ fn main() {
     let load: (AtomicU32, AtomicU32, AtomicU32) =
         (AtomicU32::new(0), AtomicU32::new(0), AtomicU32::new(0)); // frags_sent, offered, dropped
 
+    // What the PEER says it received from us in the last second (count, receipt
+    // epoch). A saturated link states its own capacity: it is what actually
+    // arrives. Capacity below saturation is unmeasurable, so a fresh lossless
+    // report means "trust the configured ceiling".
+    let peer_rx: (AtomicU32, AtomicU32) = (AtomicU32::new(0), AtomicU32::new(0));
+
     let device: Mutex<Option<SocketAddr>> = Mutex::new(
         args.get(3)
             .and_then(|a| a.split(':').next())
@@ -236,10 +242,10 @@ fn main() {
         });
         s.spawn(|| {
             let video_rate = frag_rate.saturating_sub(AUDIO_RATE_PER_SEC).max(1);
-            report_link(&device, video_rate, &load, climb_below, back_off_at, started)
+            report_link(&device, video_rate, &load, &peer_rx, climb_below, back_off_at, started)
         });
         s.spawn(|| express(&audio_sock, peer_mesh, started));
-        s.spawn(|| downlink(&mesh_sock, &app_sock, &device, started));
+        s.spawn(|| downlink(&mesh_sock, &app_sock, &device, peer_mesh, &peer_rx, started));
     });
 }
 
@@ -330,6 +336,12 @@ fn uplink(
         }
 
         seq = seq.wrapping_add(1);
+        // Video owns the LOW half of the seq space; express owns the high half.
+        // Both feed one reassembly map on the peer, and at real call rates
+        // (~44 NALs/s video, ~50 frames/s audio) equal seqs would coexist
+        // within the reassembly GC window and splice fragments of different
+        // payloads together.
+        let wire_seq = video_bridge::video_seq(seq);
         let max_data = video_bridge::MAX_FRAG_DATA as usize;
         for frag_idx in 0..nfrags {
             let offset = (frag_idx as usize) * max_data;
@@ -338,8 +350,8 @@ fn uplink(
 
             let mut pkt = Vec::with_capacity(video_bridge::FRAG_HEADER_LEN as usize + chunk.len());
             pkt.push(video_bridge::VSTREAM_TYPE);
-            pkt.push(video_bridge::seq_lo(seq));
-            pkt.push(video_bridge::seq_hi(seq));
+            pkt.push(video_bridge::seq_lo(wire_seq));
+            pkt.push(video_bridge::seq_hi(wire_seq));
             pkt.push(frag_idx);
             pkt.push(nfrags);
             pkt.extend_from_slice(chunk);
@@ -371,8 +383,8 @@ fn uplink(
 
             let mut pkt = Vec::with_capacity(video_bridge::fec_packet_size() as usize);
             pkt.push(video_bridge::VSTREAM_FEC_TYPE);
-            pkt.push(video_bridge::seq_lo(seq));
-            pkt.push(video_bridge::seq_hi(seq));
+            pkt.push(video_bridge::seq_lo(wire_seq));
+            pkt.push(video_bridge::seq_hi(wire_seq));
             pkt.push(group);
             pkt.push(nfrags);
             pkt.push(last_len as u8);
@@ -400,6 +412,7 @@ fn report_link(
     device: &Mutex<Option<SocketAddr>>,
     frag_rate: u32,
     load: &(AtomicU32, AtomicU32, AtomicU32),
+    peer_rx: &(AtomicU32, AtomicU32),
     climb_below: u8,
     back_off_at: u8,
     started: Instant,
@@ -408,6 +421,8 @@ fn report_link(
     let mut last_frags = 0u32;
     let mut last_offered = 0u32;
     let mut last_dropped = 0u32;
+    let mut last_epoch = 0u32;
+    let mut stale_ticks = 0u32;
 
     loop {
         std::thread::sleep(Duration::from_secs(1));
@@ -424,12 +439,30 @@ fn report_link(
         last_offered = offered;
         last_dropped = dropped;
 
-        let util = video_bridge::fb_util_pct(d_frags, frag_rate.min(u16::MAX as u32) as u16);
+        // The ceiling the encoder is steered against ADAPTS to what the peer
+        // actually received. Fresh lossless report or no report at all: the
+        // configured ceiling. Fresh lossy report: the link has stated its
+        // capacity, and it is what got through.
+        let epoch = peer_rx.1.load(Ordering::Relaxed);
+        if epoch != last_epoch {
+            last_epoch = epoch;
+            stale_ticks = 0;
+        } else {
+            stale_ticks += 1;
+        }
+        let configured = frag_rate.min(u16::MAX as u32) as u16;
+        let effective = if stale_ticks < 3 {
+            let delivered = peer_rx.0.load(Ordering::Relaxed).min(u16::MAX as u32) as u16;
+            video_bridge::fb_effective_rate(d_frags, delivered, configured)
+        } else {
+            configured
+        };
+        let util = video_bridge::fb_util_pct(d_frags, effective);
         let drop = video_bridge::fb_drop_pct(d_dropped, d_offered);
 
         let Some(dev) = *device.lock().unwrap() else { continue };
         let to = SocketAddr::new(dev.ip(), video_bridge::FEEDBACK_PORT);
-        let rate16 = frag_rate.min(u16::MAX as u32) as u16;
+        let rate16 = effective;
         // The node decides; the app obeys. The numbers ride along only so the
         // log and the UI can be honest about why.
         let advice = video_bridge::fb_advice(util, drop, climb_below, back_off_at);
@@ -445,7 +478,7 @@ fn report_link(
 
         if advice == video_bridge::ADVICE_BACK_OFF {
             println!(
-                "[link] BACK OFF: util={util}% drops={drop}% rate={frag_rate}/s -> {} t={:.1}s",
+                "[link] BACK OFF: util={util}% drops={drop}% rate={rate16}/s -> {} t={:.1}s",
                 dev.ip(), started.elapsed().as_secs_f32()
             );
         }
@@ -492,14 +525,15 @@ fn express(audio_sock: &UdpSocket, peer_mesh: SocketAddr, started: Instant) {
         let size = n.min(MAX_NAL);
         let nfrags = video_bridge::fragment_count(size as u16);
         seq = seq.wrapping_add(1);
+        let wire_seq = video_bridge::express_seq(seq);
         let max_data = video_bridge::MAX_FRAG_DATA as usize;
         for frag_idx in 0..nfrags {
             let offset = (frag_idx as usize) * max_data;
             let end = (offset + max_data).min(size);
             let mut pkt = Vec::with_capacity(video_bridge::FRAG_HEADER_LEN as usize + max_data);
             pkt.push(video_bridge::VSTREAM_TYPE);
-            pkt.push(video_bridge::seq_lo(seq));
-            pkt.push(video_bridge::seq_hi(seq));
+            pkt.push(video_bridge::seq_lo(wire_seq));
+            pkt.push(video_bridge::seq_hi(wire_seq));
             pkt.push(frag_idx);
             pkt.push(nfrags);
             pkt.extend_from_slice(&rx_buf[offset..end]);
@@ -524,21 +558,49 @@ fn downlink(
     mesh_sock: &UdpSocket,
     out_sock: &UdpSocket,
     device: &Mutex<Option<SocketAddr>>,
+    peer_mesh: SocketAddr,
+    peer_rx: &(AtomicU32, AtomicU32),
     started: Instant,
 ) {
     let mut rx_buf = vec![0u8; MAX_PACKET];
     let mut reassembly: HashMap<u16, ReassemblyState> = HashMap::new();
+    // Fragments received from the peer this second; reported back so the
+    // peer's ceiling can track what the link actually delivers.
+    let mut frags_seen: u32 = 0;
+    let mut last_report = Instant::now();
 
     loop {
         let now = Instant::now();
         // Drop stale partial payloads (older than 2s = their fragments are lost).
         reassembly.retain(|_, st| now.duration_since(st.last_update) < Duration::from_secs(2));
 
-        mesh_sock.set_read_timeout(Some(Duration::from_secs(5))).ok();
+        // Tell the peer what we actually received from it in the last second.
+        if now.duration_since(last_report) >= Duration::from_secs(1) {
+            let cnt = frags_seen.min(u16::MAX as u32) as u16;
+            let pkt = [
+                video_bridge::RX_REPORT_TYPE,
+                video_bridge::seq_lo(cnt),
+                video_bridge::seq_hi(cnt),
+            ];
+            mesh_sock.send_to(&pkt, peer_mesh).ok();
+            frags_seen = 0;
+            last_report = now;
+        }
+
+        mesh_sock.set_read_timeout(Some(Duration::from_secs(1))).ok();
         let n = match mesh_sock.recv_from(&mut rx_buf) {
             Ok((n, _)) => n,
             Err(_) => continue,
         };
+        // The peer's own rx-report: how much of OUR egress survived the link.
+        if n >= video_bridge::RX_REPORT_LEN as usize
+            && rx_buf[0] == video_bridge::RX_REPORT_TYPE
+        {
+            let cnt = video_bridge::frag_seq(rx_buf[1], rx_buf[2]) as u32;
+            peer_rx.0.store(cnt, Ordering::Relaxed);
+            peer_rx.1.fetch_add(1, Ordering::Relaxed);
+            continue;
+        }
         let is_parity = rx_buf[0] == video_bridge::VSTREAM_FEC_TYPE;
         let header = if is_parity {
             video_bridge::FEC_HEADER_LEN as usize
@@ -551,6 +613,7 @@ fn downlink(
         if n < header || (!is_parity && rx_buf[0] != video_bridge::VSTREAM_TYPE) {
             continue;
         }
+        frags_seen += 1;
 
         let frag_seq = video_bridge::frag_seq(rx_buf[1], rx_buf[2]);
         let frag_idx = rx_buf[3]; // group_idx when is_parity

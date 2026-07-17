@@ -314,7 +314,7 @@ class CallManager: ObservableObject {
         // Outgoing audio: mic → 16k PCM → UDP (mute drops packets at source)
         audio.onPacket = { [weak self] pkt in
             guard let self = self, !self.isMuted else { return }
-            self.transport.send(pkt)
+            self.transport.sendAudio(pkt)
         }
         // Audio levels -> meters (peak-hold with decay so bars don't flicker)
         audio.onTxLevel = { [weak self] lvl in
