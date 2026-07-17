@@ -432,6 +432,13 @@ fn report_link(
     // ramp-up -- observed as "rate=8/s" in a call's very first report, when the
     // encoder had just started and the report still described near-silence.
     let mut prev_sent: u16 = 0;
+    // Two unsynchronized 1s clocks (our send window, the peer's report window)
+    // drift in phase, so ~5% of comparisons on a LOSSLESS link still read as
+    // loss -- observed as "of 421..530/s" ceiling dips in a zero-drop call,
+    // each costing the encoder a pointless back-off. A real capacity drop
+    // persists across consecutive windows; a phase artifact does not. Require
+    // two lossy windows in a row before believing the link shrank.
+    let mut lossy_streak = 0u32;
 
     loop {
         std::thread::sleep(Duration::from_secs(1));
@@ -460,12 +467,18 @@ fn report_link(
             stale_ticks += 1;
         }
         let configured = frag_rate.min(u16::MAX as u32) as u16;
-        let effective = if stale_ticks < 3 {
+        let candidate = if stale_ticks < 3 {
             let delivered = peer_rx.0.load(Ordering::Relaxed).min(u16::MAX as u32) as u16;
             video_bridge::fb_effective_rate(prev_sent, delivered, configured)
         } else {
             configured
         };
+        if candidate < configured {
+            lossy_streak += 1;
+        } else {
+            lossy_streak = 0;
+        }
+        let effective = if lossy_streak >= 2 { candidate } else { configured };
         prev_sent = d_frags;
         let util = video_bridge::fb_util_pct(d_frags, effective);
         let drop = video_bridge::fb_drop_pct(d_dropped, d_offered);
