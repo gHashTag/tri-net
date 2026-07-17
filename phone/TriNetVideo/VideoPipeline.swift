@@ -57,6 +57,7 @@ class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         if encoder != nil {
             let enc = H264Encoder()
             enc.onFrame = { [weak self] data, isKey in self?.onFrame?(data, isKey) }
+        enc.meshMode = meshMode
             encoder = enc
         }
     }
@@ -77,12 +78,16 @@ class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         guard encoder == nil else { return }
         let enc = H264Encoder()
         enc.onFrame = { [weak self] data, isKey in self?.onFrame?(data, isKey) }
+        enc.meshMode = meshMode
         encoder = enc
         if !session.isRunning { startPreview() }
     }
 
     func forceKeyframe() { encoder?.forceKeyframe() }
     func nudgeBitrate(down: Bool) { encoder?.nudgeBitrate(down: down) }
+    // Held here too: the encoder is re-created on a camera switch and would
+    // otherwise silently revert to the Wi-Fi cap.
+    var meshMode = false { didSet { encoder?.meshMode = meshMode } }
     var bitrateKbps: Int { encoder?.bitrateKbps ?? 0 }
 
     // Virtual background: blur all but the person on the outgoing frame.
@@ -129,7 +134,8 @@ class H264Encoder {
         )
         guard r == noErr, let s = s else { return false }
         session = s
-        maxBitrate = 200_000; curBitrate = maxBitrate
+        maxBitrate = meshMode ? H264Encoder.meshBitrate : 200_000
+        curBitrate = maxBitrate
         VTSessionSetProperty(s, key: kVTCompressionPropertyKey_AverageBitRate, value: curBitrate as CFNumber)
         VTSessionSetProperty(s, key: kVTCompressionPropertyKey_RealTime, value: kCFBooleanTrue)
         VTSessionSetProperty(s, key: kVTCompressionPropertyKey_ProfileLevel, value: kVTProfileLevel_H264_Baseline_3_0 as CFString)
@@ -157,7 +163,7 @@ class H264Encoder {
             if let sp = spsPtr, spsSize > 0 {
                 var spsData = Data([0, 0, 0, 1])
                 spsData.append(Data(bytes: sp, count: spsSize))
-                onFrame?(spsData, true)
+                emit(spsData, key: true)
             }
             // PPS
             var ppsSize = 0
@@ -166,7 +172,7 @@ class H264Encoder {
             if let pp = ppsPtr, ppsSize > 0 {
                 var ppsData = Data([0, 0, 0, 1])
                 ppsData.append(Data(bytes: pp, count: ppsSize))
-                onFrame?(ppsData, true)
+                emit(ppsData, key: true)
             }
         }
 
@@ -184,12 +190,42 @@ class H264Encoder {
             if off + 4 + Int(nl) > total { break }
             var d = Data([0, 0, 0, 1])
             d.append(Data(bytes: p + off + 4, count: Int(nl)))
-            onFrame?(d, false)
+            emit(d, key: false)
             off += 4 + Int(nl)
         }
     }
 
     // Set by a peer Picture-Loss-Indication (0xFC): force the next frame to IDR
+    // MARK: mesh profile — mirrors desktop/TriNetVideo/VideoEncoder.swift.
+    // The bridge addresses fragments with a one-byte index carrying <=70B each,
+    // so max_nal_size = 255*70 = 17850 B (specs/video_bridge.t27): an I-frame
+    // above that is UNDELIVERABLE at any bitrate, not merely ugly.
+    static let meshMaxNAL = 17_850
+    static let meshBitrate = 150_000
+    private(set) var oversizedNALs = 0
+    var meshMode = false { didSet { applyCeiling() } }
+
+    private func applyCeiling() {
+        guard let s = session else { return }
+        maxBitrate = meshMode ? H264Encoder.meshBitrate : 200_000
+        curBitrate = min(curBitrate, maxBitrate)
+        bitrateKbps = curBitrate / 1000
+        VTSessionSetProperty(s, key: kVTCompressionPropertyKey_AverageBitRate, value: curBitrate as CFNumber)
+        NSLog("TRINET: mesh mode \(meshMode ? "ON" : "off") - cap \(maxBitrate / 1000) kbps")
+    }
+
+    // Every NAL leaves through here so the ceiling is enforced in ONE place.
+    private func emit(_ d: Data, key: Bool) {
+        if meshMode && d.count > H264Encoder.meshMaxNAL {
+            oversizedNALs += 1
+            if oversizedNALs <= 3 {
+                NSLog("TRINET: NAL \(d.count)B over mesh ceiling - undeliverable, backing off")
+            }
+            nudgeBitrate(down: true)
+        }
+        onFrame?(d, key)
+    }
+
     private var forceKeyframeNext = false
     func forceKeyframe() { forceKeyframeNext = true }
 

@@ -41,6 +41,14 @@ class StreamViewModel: ObservableObject {
         camera.blurBackground = isBlurred
     }
 
+    // Mesh profile: 150 kbps cap for the ~200-400 kbps half-duplex radio budget,
+    // and watches the 17850B per-NAL ceiling the bridge can address.
+    @Published var isMeshProfile = false
+    func toggleMeshProfile() {
+        isMeshProfile.toggle()
+        camera.meshMode = isMeshProfile
+    }
+
     // Call recording (video + mixed audio) → shareable .mov in Documents.
     @Published var isRecording = false
     @Published var shareFile: RecFile?

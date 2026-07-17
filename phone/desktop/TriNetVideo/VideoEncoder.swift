@@ -66,7 +66,7 @@ class VideoEncoder {
                 if let p = psPtr, size > 0 {
                     var d = Data([0, 0, 0, 1])
                     d.append(Data(bytes: p, count: size))
-                    onNALUnit?(d)
+                    emit(d, key: true)
                 }
             }
         }
@@ -83,9 +83,53 @@ class VideoEncoder {
             if off + 4 + Int(nl) > total { break }
             var d = Data([0, 0, 0, 1])
             d.append(Data(bytes: p + off + 4, count: Int(nl)))
-            onNALUnit?(d)
+            emit(d, key: isKeyframe)
             off += 4 + Int(nl)
         }
+    }
+
+    // MARK: mesh profile
+    //
+    // Two hard limits the radio path imposes, neither of which exists on Wi-Fi:
+    //  * throughput — the BPSK link is 1 Mbps raw (4 MSPS / SPS 4) and HALF-DUPLEX,
+    //    so a realistic two-way budget is ~200-400 kbps for BOTH directions.
+    //  * per-NAL ceiling — the bridge addresses fragments with a one-byte index
+    //    and carries <=70B each, so max_nal_size = 255*70 = 17850 B
+    //    (specs/video_bridge.t27). An I-frame above that is UNDELIVERABLE at any
+    //    bitrate: it cannot be expressed on the wire, so it is silently dropped.
+    static let meshMaxNAL = 17_850
+    static let meshBitrate = 150_000   // leaves room for Opus (~25 kbps each way)
+    private(set) var oversizedNALs = 0
+    var meshMode = false { didSet { applyCeiling() } }
+
+    // Re-apply the ceiling; mesh mode is usually toggled after setup().
+    private func applyCeiling() {
+        guard let s = session else { return }
+        maxBitrate = meshMode ? VideoEncoder.meshBitrate
+                              : min(2_000_000, Int(width) * Int(height) * 2)
+        curBitrate = min(curBitrate, maxBitrate)
+        bitrateKbps = curBitrate / 1000
+        VTSessionSetProperty(s, key: kVTCompressionPropertyKey_AverageBitRate, value: curBitrate as CFNumber)
+        NSLog("TRINET: mesh mode \(meshMode ? "ON" : "off") — cap \(maxBitrate / 1000) kbps")
+    }
+
+    // Every NAL leaves through here so the mesh ceiling is enforced in ONE place.
+    // A frame over the ceiling is not a quality problem, it is an undeliverable
+    // one, so react by backing the bitrate off rather than shipping it blind.
+    private var loggedFirstKey = false
+    private func emit(_ d: Data, key: Bool) {
+        if meshMode && d.count > VideoEncoder.meshMaxNAL {
+            oversizedNALs += 1
+            if oversizedNALs <= 3 || oversizedNALs % 50 == 0 {
+                NSLog("TRINET: NAL \(d.count)B over mesh ceiling \(VideoEncoder.meshMaxNAL)B (#\(oversizedNALs)) — undeliverable, backing off")
+            }
+            nudgeBitrate(down: true)
+        }
+        if key && !loggedFirstKey && d.count > 1000 {
+            loggedFirstKey = true
+            NSLog("TRINET: first keyframe \(d.count)B (mesh ceiling \(VideoEncoder.meshMaxNAL)B, mesh=\(meshMode))")
+        }
+        onNALUnit?(d)
     }
 
     // Set by a peer Picture-Loss-Indication (0xFC control packet): forces the

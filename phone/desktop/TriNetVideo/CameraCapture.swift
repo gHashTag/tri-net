@@ -58,12 +58,17 @@ class CameraCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         // Start encoder (its session is created lazily from the first frame)
         let enc = VideoEncoder()
         enc.onNALUnit = { [weak self] data in self?.onNALUnit?(data) }
+        enc.meshMode = meshMode   // survive encoder re-creation
         encoder = enc
     }
 
     func forceKeyframe() { encoder?.forceKeyframe() }
     func nudgeBitrate(down: Bool) { encoder?.nudgeBitrate(down: down) }
     var bitrateKbps: Int { encoder?.bitrateKbps ?? 0 }
+    // Mesh profile — held here too, because the encoder is re-created on a camera
+    // switch and would otherwise silently revert to the Wi-Fi bitrate cap.
+    var meshMode = false { didSet { encoder?.meshMode = meshMode } }
+    var oversizedNALs: Int { encoder?.oversizedNALs ?? 0 }
 
     // Virtual background: blur everything but the person on the outgoing frame.
     var blurBackground = false
@@ -81,6 +86,7 @@ class CameraCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         if encoder != nil {
             let enc = VideoEncoder()
             enc.onNALUnit = { [weak self] data in self?.onNALUnit?(data) }
+            enc.meshMode = meshMode   // must survive the switch, or the cap reverts
             encoder = enc
         }
     }

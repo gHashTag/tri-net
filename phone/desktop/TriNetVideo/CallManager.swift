@@ -85,6 +85,17 @@ class CallManager: ObservableObject {
         camera.blurBackground = isBlurred
     }
 
+    // Mesh profile: caps video at 150 kbps for the ~200-400 kbps half-duplex radio
+    // budget, and watches the 17850B per-NAL ceiling the bridge can address
+    // (255 fragments x 70B, specs/video_bridge.t27). Over Wi-Fi this is just a
+    // lower-quality mode; over the radio it is the difference between a call and
+    // silently undeliverable frames.
+    @Published var isMeshProfile = false
+    func toggleMeshProfile() {
+        isMeshProfile.toggle()
+        camera.meshMode = isMeshProfile
+    }
+
     func toggleRecording() {
         if isRecording {
             recorder.stop { [weak self] url in self?.lastRecordingPath = url?.path }

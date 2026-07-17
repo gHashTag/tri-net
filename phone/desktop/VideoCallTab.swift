@@ -177,6 +177,8 @@ private struct InCallView: View {
                 IconPill(system: "bubble.left.and.bubble.right\(call.chat.isEmpty ? "" : ".fill")", active: showChat) { showChat.toggle() }
                 IconPill(system: call.isRecording ? "record.circle.fill" : "record.circle", active: call.isRecording, tint: DS.danger) { call.toggleRecording() }
                 IconPill(system: call.isBlurred ? "person.crop.rectangle.badge.plus.fill" : "person.crop.rectangle", active: call.isBlurred, tint: DS.live) { call.toggleBlur() }
+                IconPill(system: call.isMeshProfile ? "antenna.radiowaves.left.and.right.circle.fill" : "antenna.radiowaves.left.and.right",
+                         active: call.isMeshProfile, tint: DS.live) { call.toggleMeshProfile() }
                 Menu {
                     ForEach(call.cameras, id: \.uniqueID) { cam in
                         Button(cam.localizedName) { call.selectCamera(cam.uniqueID) }
