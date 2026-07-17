@@ -89,3 +89,48 @@ tmpfs and the board cannot buffer a long capture):
 
 The Python demod (`bpsk_demod.py` slicing, plus a marker/data run-collapse) turns
 those into bits.
+
+
+## OTA byte transfer: link yes, bytes SNR-blocked without antennas
+
+Followed the tone milestone with a carrier-offset-tolerant FSK modem
+(`ota_demod.py`): marker-clocked 3-FSK on TX (marker 100k / bit0 300k / bit1
+600k via the DDS), demod by per-window mean instantaneous frequency from I/Q
+phase increments, auto-locating the three received tones (signed frequency, so a
+common carrier offset preserves marker<0<1 ordering -- no carrier recovery loop
+needed).
+
+Real .13 -> .12 capture, 1-byte payload 0x08, 2.5 MSPS:
+- The FSK tones ARE present over the air but SNR-starved: strongest received
+  line is the receiver's DC/LO-leakage spike (~23); the actual FSK tone sits at
+  ~4, near the noise floor. Narrowband energy detection over a long average
+  lifts a tone above noise (this is how the LINK was confirmed, 3->98), but
+  per-0.3s-symbol demod needs the tone well above noise per window, and it is
+  not. Decoded 0 bits.
+- Root cause: OPEN SMA ports (no antennas) -- only leakage coupling. This is a
+  hardware SNR wall, not a demod bug. Per debugging discipline: do NOT tune
+  thresholds around it.
+
+Unblocks, in order of value:
+1. Antennas on the TX/RX SMA ports (2.4 GHz whip, SMA male). Raises received
+   power by tens of dB -- the same modem should then decode.
+2. mwipcore/FPGA TX datapath: a strong, sample-accurate modulated signal instead
+   of weak shell-toggled DDS tones -- fixes both SNR and timing jitter at once.
+
+TX toggler (busybox sh, recorded here per no-shell-scripts hook):
+
+    A() { iio_attr -q -c cf-ad9361-dds-core-lpc "$1" "$2" "$3" >/dev/null 2>&1; }
+    echo 0 > /sys/kernel/debug/iio/iio:device0/loopback     # real emission
+    echo -10 > /sys/bus/iio/devices/iio:device0/out_voltage0_hardwaregain
+    A altvoltage0 scale 0.9; A altvoltage1 scale 0.9
+    M=100000; Z=300000; O=600000
+    for p in 1 2 3; do A altvoltage0 frequency $M; A altvoltage1 frequency $M; sleep 0.3; done
+    BITS=$(cat /tmp/otx_bits.txt); i=0
+    while [ $i -lt ${#BITS} ]; do
+      b=$(echo "$BITS" | cut -c$((i+1)))
+      A altvoltage0 frequency $M; A altvoltage1 frequency $M; sleep 0.3
+      [ "$b" = "1" ] && F=$O || F=$Z
+      A altvoltage0 frequency $F; A altvoltage1 frequency $F; sleep 0.3
+      i=$((i+1))
+    done
+    A altvoltage0 scale 0.0; A altvoltage1 scale 0.0
