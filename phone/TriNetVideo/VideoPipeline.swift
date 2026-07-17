@@ -856,6 +856,8 @@ final class AudioController {
         // Voice processing (echo cancellation) fuses I/O into one VPIO unit
         // that can fail to init on some devices (err -10875). Try it, and on
         // failure rebuild the graph without it.
+        // Opus was proven by harness on macOS and ASSUMED on iOS. Say it out loud.
+        NSLog("TRINET: opus codec \(opus == nil ? "UNAVAILABLE (falling back to raw PCM both ways)" : "ready") send=\(AudioController.opusEnabled)")
         if !buildAndStart(voiceProcessing: true) {
             NSLog("TRINET: audio retry without voice processing")
             engine.reset()
@@ -957,11 +959,26 @@ final class AudioController {
 
     // One Opus frame off the wire -> PCM -> normal playback. Always accepted;
     // receiving a better codec is never the risky direction.
+    // A silent `return` here dropped EVERY incoming Opus packet with no log, no
+    // meter, nothing — indistinguishable from the peer not sending at all. That
+    // is precisely how "no audio from the Mac" looked from this side.
     func playOpus(_ frame: Data) {
-        guard let pcm = opus?.decode(frame) else { return }
+        guard let codec = opus else {
+            opusDecodeFails += 1
+            if opusDecodeFails <= 3 { NSLog("TRINET: opus RX dropped — codec unavailable on this device") }
+            return
+        }
+        guard let pcm = codec.decode(frame) else {
+            opusDecodeFails += 1
+            if opusDecodeFails <= 3 || opusDecodeFails % 200 == 0 {
+                NSLog("TRINET: opus decode FAILED (\(frame.count)B) #\(opusDecodeFails) — audio dropped")
+            }
+            return
+        }
         opusRx += 1
         playPacket(pcm, wire: "OPUS \(frame.count)B")
     }
+    private var opusDecodeFails = 0
     private var opusRx = 0
     private var pcmRx = 0
 

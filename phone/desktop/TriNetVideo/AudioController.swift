@@ -155,6 +155,16 @@ final class AudioController {
         }
         vpActive = voiceProcessing
         converter = AVAudioConverter(from: inFmt, to: wireFormat)
+        // Voice processing RE-TUNES the input layout: this 3-channel built-in mic
+        // becomes a 9-channel node once VP is on. AVAudioConverter will not
+        // downmix an unlabelled 9->1 and silently produced SILENCE instead — the
+        // mic metered flat and Opus dutifully encoded it into 10-byte frames, so
+        // the far end heard nothing while every counter looked healthy. Take the
+        // first channel explicitly rather than trusting an implicit downmix.
+        if inFmt.channelCount > 1 {
+            converter?.channelMap = [0]
+            NSLog("TRINET: input is \(inFmt.channelCount)ch (voice processing re-tuned it) — taking channel 0")
+        }
         capEngine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: inFmt) { [weak self] buf, _ in
             guard let self = self, let conv = self.converter else { return }
             guard let out = AVAudioPCMBuffer(pcmFormat: self.wireFormat, frameCapacity: 4096) else { return }
