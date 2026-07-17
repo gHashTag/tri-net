@@ -427,6 +427,11 @@ fn report_link(
     let mut last_dropped = 0u32;
     let mut last_epoch = 0u32;
     let mut stale_ticks = 0u32;
+    // The peer's rx-report describes the PREVIOUS second's arrivals. Comparing
+    // it against the CURRENT second's sends reports phantom loss on every
+    // ramp-up -- observed as "rate=8/s" in a call's very first report, when the
+    // encoder had just started and the report still described near-silence.
+    let mut prev_sent: u16 = 0;
 
     loop {
         std::thread::sleep(Duration::from_secs(1));
@@ -457,10 +462,11 @@ fn report_link(
         let configured = frag_rate.min(u16::MAX as u32) as u16;
         let effective = if stale_ticks < 3 {
             let delivered = peer_rx.0.load(Ordering::Relaxed).min(u16::MAX as u32) as u16;
-            video_bridge::fb_effective_rate(d_frags, delivered, configured)
+            video_bridge::fb_effective_rate(prev_sent, delivered, configured)
         } else {
             configured
         };
+        prev_sent = d_frags;
         let util = video_bridge::fb_util_pct(d_frags, effective);
         let drop = video_bridge::fb_drop_pct(d_dropped, d_offered);
 

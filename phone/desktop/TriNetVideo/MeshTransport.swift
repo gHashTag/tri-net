@@ -42,6 +42,8 @@ class MeshTransport {
     // A fresh report proves a NODE is relaying for us; used only to route audio.
     private var lastFeedbackAt: Date?
     private static let audioPort: UInt16 = 7002
+    private var expressTx = 0
+    private var expressErrs = 0
     private let fbQueue = DispatchQueue(label: "mesh.fb", qos: .utility)
     private static let feedbackPort: UInt16 = 7003
     private static let feedbackType: UInt8 = 10
@@ -118,12 +120,25 @@ class MeshTransport {
         guard fd >= 0, let wire = crypto.seal(data) else { return }
         var addr = peer
         addr.sin_port = MeshTransport.audioPort.bigEndian
-        _ = wire.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+        // Never fail silently in an audio path: a discarded sendto result made
+        // vanishing audio indistinguishable from working audio -- the tx
+        // counter counts hand-offs, not deliveries.
+        let sent = wire.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
             withUnsafePointer(to: &addr) { p in
                 p.withMemoryRebound(to: sockaddr.self, capacity: 1) { sp in
                     sendto(fd, raw.baseAddress, wire.count, 0, sp, socklen_t(MemoryLayout<sockaddr_in>.size))
                 }
             }
+        }
+        if sent < 0 {
+            expressErrs += 1
+            if expressErrs % 100 == 1 {
+                NSLog("%@", "TRINET: audio express sendto FAILED: \(String(cString: strerror(errno))) (#\(expressErrs))")
+            }
+        } else {
+            expressTx += 1
+            if expressTx == 1 { NSLog("%@", "TRINET: audio express up -> :7002 (\(sent)B)") }
+            if expressTx % 2500 == 0 { NSLog("%@", "TRINET: audio express #\(expressTx)") }
         }
     }
 
