@@ -160,6 +160,16 @@ real defect, and every one of them was silent.
   printed nowhere and drops printed only every 10th, so a dropped keyframe left
   no trace and no experiment could see the counter it was trying to measure.
   Instrument first — a probe against invisible state is the broken-ruler error.
+- **Class is declared by PORT, never by inspecting the payload.** The node cannot
+  tell audio from video -- both are sealed end-to-end. Audio behind a
+  138-fragment keyframe waits 172ms for it to pace out (measured: p50 84ms alone,
+  182ms behind a keyframe, against ~30ms of jitter tolerance). `AUDIO_IN_PORT`
+  has its own socket, thread and budget, and is never paced. Budgets SUM to the
+  ceiling so priority cannot over-commit the link. Same principle as the magic
+  byte: the sender says what it is.
+- **`FRAG_RATE_PER_SEC=800` is a radio budget, not a link budget.** Over Ethernet
+  it throttles a real call to 44% loss. The node does 8000 frags/s (v0.16). Set it
+  to what the actual path carries.
 - **The radio's capacity has never been measured** (only one AD9361 has ever come
   up at a time). `FRAG_RATE_PER_SEC` is a guess; treat it as one.
 
