@@ -13,8 +13,11 @@ OTA is FORBIDDEN: SMA TX (board A) -> 30-40 dB attenuator -> SMA RX (board B).
     # nonzero bytes = RX capture alive
 
 ## 1. Match the radios (both boards)
-    iio_attr -q -c ad9361-phy altvoltage0 frequency 2400000000   # RX LO (B)
-    iio_attr -q -c ad9361-phy altvoltage1 frequency 2400000000   # TX LO (A)
+    # LO frequency attrs are RX_LO/TX_LO, NOT bare "frequency" (that silently
+    # no-ops via iio_attr). Write sysfs directly to be sure:
+    echo 2400000000 > /sys/bus/iio/devices/iio:device0/out_altvoltage0_RX_LO_frequency  # B
+    echo 2400000000 > /sys/bus/iio/devices/iio:device0/out_altvoltage1_TX_LO_frequency  # A
+    # verify: cat both back -- confirmed matched at 2.4 GHz on .12 and .13
     iio_attr -q -d ad9361-phy in_voltage_sampling_frequency 3000000
     iio_attr -q -c ad9361-phy voltage0 hardwaregain -30          # TX atten on A (start LOW)
     iio_attr -q -c ad9361-phy voltage0 gain_control_mode slow_attack  # on B
