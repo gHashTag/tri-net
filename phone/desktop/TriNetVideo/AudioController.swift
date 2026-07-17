@@ -7,9 +7,13 @@
 // this Mac (err -10875) — and because the graph was shared, the failure took
 // the *playback* path down with it. Splitting them means playback (a plain
 // player -> mixer -> speakers graph, no input) always starts, so incoming
-// audio is heard even if mic capture can't start. Trade-off: no hardware echo
-// cancellation on macOS (acceptable — the Mac is usually on headphones/the
-// far end handles AEC).
+// audio is heard even if mic capture can't start.
+//
+// Echo cancellation is now attempted on the CAPTURE engine only (see
+// startCapture). The split is what makes that safe: a VPIO failure can cost us
+// the mic, never the far end's audio, and it falls back to an unprocessed tap.
+// It matters because both ends often sit on one desk, where our speaker feeds
+// our own mic and the call howls. The log states AEC=ON/off — never assume it.
 import Foundation
 import AVFoundation
 
@@ -49,6 +53,8 @@ final class AudioController {
     }
 
     private var observers: [NSObjectProtocol] = []
+    // Did echo cancellation actually engage? Reported, never assumed.
+    private(set) var vpActive = false
 
     // Opus cuts each 20ms datagram from 642B to ~65B (256 -> ~25 kbps). RECEIVE
     // is always enabled; SENDING waits until both ends run this build, because a
@@ -98,7 +104,7 @@ final class AudioController {
             self.capEngine.inputNode.removeTap(onBus: 0)
             self.capEngine.stop()
             self.capturing = false
-            self.startCapture()
+            self.startCapture()   // re-attempts AEC
         })
         observers.append(nc.addObserver(forName: .AVAudioEngineConfigurationChange,
                                         object: playEngine, queue: .main) { [weak self] _ in
@@ -114,14 +120,38 @@ final class AudioController {
 
     // Capture: mic tap -> convert to 16k mono -> packetize. If this can't start
     // (odd input device), playback still works.
-    private func startCapture() {
+    //
+    // Echo cancellation: macOS had none, which is fine on headphones but howls the
+    // moment both ends sit on one desk — the far end's voice comes out our speaker,
+    // back into our mic, and round again. The original attempt fused mic and
+    // speaker into one VPIO unit that failed (-10875) and took PLAYBACK down with
+    // it, so it was abandoned. That risk is gone now that the engines are split:
+    // voice processing here can only ever cost us the mic, never the far end's
+    // audio, and a failure falls back to an unprocessed tap.
+    private func startCapture() { startCapture(voiceProcessing: true) }
+
+    private func startCapture(voiceProcessing: Bool) {
         guard !capturing else { return }
         capEngine.inputNode.removeTap(onBus: 0)   // idempotent on rebuild
+        if voiceProcessing {
+            do { try capEngine.inputNode.setVoiceProcessingEnabled(true) }
+            catch {
+                NSLog("TRINET: voice processing unavailable (\(error)) — capture without AEC")
+                return startCapture(voiceProcessing: false)
+            }
+        } else {
+            try? capEngine.inputNode.setVoiceProcessingEnabled(false)
+        }
+        // Read the format AFTER enabling VP: it re-tunes the input chain and a
+        // stale snapshot is what silently kills the tap.
         let inFmt = capEngine.inputNode.outputFormat(forBus: 0)
         guard inFmt.sampleRate > 0, inFmt.channelCount > 0 else {
-            NSLog("TRINET: audio capture input format invalid (\(inFmt)) — mic disabled")
+            NSLog("TRINET: audio capture input format invalid (\(inFmt)) vp=\(voiceProcessing)")
+            if voiceProcessing { return startCapture(voiceProcessing: false) }
+            NSLog("TRINET: mic disabled — playback still on")
             return
         }
+        vpActive = voiceProcessing
         converter = AVAudioConverter(from: inFmt, to: wireFormat)
         capEngine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: inFmt) { [weak self] buf, _ in
             guard let self = self, let conv = self.converter else { return }
@@ -183,10 +213,15 @@ final class AudioController {
         do {
             try capEngine.start()
             capturing = true
-            NSLog("TRINET: audio capture engine up in=\(Int(inFmt.sampleRate))Hz ch=\(inFmt.channelCount)")
+            NSLog("TRINET: audio capture engine up in=\(Int(inFmt.sampleRate))Hz ch=\(inFmt.channelCount) AEC=\(voiceProcessing ? "ON" : "off")")
         } catch {
-            NSLog("TRINET: audio capture start failed: \(error) — mic disabled, playback still on")
             capEngine.inputNode.removeTap(onBus: 0)
+            if voiceProcessing {
+                NSLog("TRINET: capture start failed with voice processing (\(error)) — retrying without AEC")
+                capEngine.reset()
+                return startCapture(voiceProcessing: false)
+            }
+            NSLog("TRINET: audio capture start failed: \(error) — mic disabled, playback still on")
         }
     }
 
