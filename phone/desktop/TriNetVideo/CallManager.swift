@@ -47,7 +47,13 @@ class CallManager: ObservableObject {
         }
     }
 
+    // Honest link reporting + the app's own log, live in the UI.
+    // Both are plain references — the views observe them directly.
+    let link = LinkStatus()
+    let log = LogBus.shared
+
     init() {
+        LogBus.shared.start()   // tee stderr (where every NSLog lands) into the UI
         localIP = MeshTransport.getLocalIP()
         // Load recent IPs from UserDefaults
         if let saved = UserDefaults.standard.array(forKey: "recentIPs") as? [String] {
@@ -294,6 +300,7 @@ class CallManager: ObservableObject {
         isStarting = false
         status = "Waiting for video..."
         startABR()
+        link.begin(peer: hosts.first ?? remoteIP)
     }
 
     func endCall() {
@@ -301,6 +308,7 @@ class CallManager: ObservableObject {
         isScreenSharing = false
         if isRecording { recorder.stop { [weak self] url in self?.lastRecordingPath = url?.path }; isRecording = false; recSink = nil }
         abrTimer?.invalidate(); abrTimer = nil
+        link.end()
         camera.stop()
         audio.stop()
         transport.disconnect()

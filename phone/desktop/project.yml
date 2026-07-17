@@ -29,6 +29,7 @@ targets:
       - path: TriNetVideo/VideoEncoder.swift
       - path: TriNetVideo/AudioController.swift
       - path: TriNetVideo/MeshCrypto.swift
+      - path: TriNetVideo/LinkStatus.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.trinet.monitor

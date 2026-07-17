@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		144EA8CA8611748CC2C6498E /* VideoEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72EFD27FFE9177F3C365221D /* VideoEncoder.swift */; };
 		16CC1C6D7EEBF2EE5C3F95A1 /* TriNetMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A55AB3C5EF91C2E49F7A086 /* TriNetMonitor.swift */; };
+		51DB04A269C0FF798682A49F /* LinkStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1512923CAB35C8933FA4CA5E /* LinkStatus.swift */; };
 		5EDE0262C99C16D7CC7A20A9 /* ScreenCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9F379575CCFDE0476C19D25 /* ScreenCapture.swift */; };
 		7BC6C7C0D52EF3F427643504 /* MeshCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34A698FD561A4D1344491A23 /* MeshCrypto.swift */; };
 		8EDD1E7105EA28C7B290C700 /* VideoDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2831FC425A30E3FBFA75BD40 /* VideoDecoder.swift */; };
@@ -24,6 +25,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		1512923CAB35C8933FA4CA5E /* LinkStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkStatus.swift; sourceTree = "<group>"; };
 		20B0445AEA738BFAA34619AA /* AudioController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioController.swift; sourceTree = "<group>"; };
 		227CBA24BA6F542237F2CD11 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 		2831FC425A30E3FBFA75BD40 /* VideoDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoDecoder.swift; sourceTree = "<group>"; };
@@ -58,6 +60,7 @@
 				FE481AF1D2D340638A1ED080 /* CallManager.swift */,
 				EC01D2BB9D49E3653F739BC9 /* CallRecorder.swift */,
 				BED4FD339A53B74B67C3AC3B /* CameraCapture.swift */,
+				1512923CAB35C8933FA4CA5E /* LinkStatus.swift */,
 				34A698FD561A4D1344491A23 /* MeshCrypto.swift */,
 				AF4870614578478C431D47B9 /* MeshTransport.swift */,
 				A9F379575CCFDE0476C19D25 /* ScreenCapture.swift */,
@@ -140,6 +143,7 @@
 				9883135C4EC8B3D8C9780D21 /* CallRecorder.swift in Sources */,
 				C73AAD99E5A78718DEBAB8D8 /* CameraCapture.swift in Sources */,
 				FA37124F072CB8ADC4B3905A /* DesignSystem.swift in Sources */,
+				51DB04A269C0FF798682A49F /* LinkStatus.swift in Sources */,
 				7BC6C7C0D52EF3F427643504 /* MeshCrypto.swift in Sources */,
 				8FB37216EA6E4DAA9752526F /* MeshTransport.swift in Sources */,
 				A4B51FD9AC3F6A939BFE6083 /* RTIHeatmap.swift in Sources */,

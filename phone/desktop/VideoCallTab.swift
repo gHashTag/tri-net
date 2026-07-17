@@ -37,7 +37,11 @@ private struct StartCallView: View {
         VStack(spacing: 18) {
             Text("Video Call").font(DS.display(28, .semibold)).tracking(-0.5)
                 .foregroundColor(DS.text)
-            Text("Encrypted mesh · forward-secret")
+            // Say what this actually is. The call is direct UDP between two IP
+            // peers over whatever interface the OS routes by (Wi-Fi today) — the
+            // radio mesh is a separate subsystem and is NOT in this path. The old
+            // "Encrypted mesh" line implied otherwise.
+            Text("Encrypted peer-to-peer · forward-secret")
                 .font(DS.ui(13)).foregroundColor(DS.dim)
 
             VStack(spacing: 12) {
@@ -123,6 +127,7 @@ private struct InCallView: View {
                         if call.isScreenSharing {
                             StatusTag(text: "Sharing Screen", live: true).background(DS.ink.opacity(0.5), in: Capsule())
                         }
+                        LinkBadge(link: call.link)
                     }
                     Spacer()
                     if let s = call.previewSession {
@@ -189,6 +194,10 @@ private struct InCallView: View {
             }
             .padding(.horizontal, 14).padding(.vertical, 12)
             .dsCard(DS.radius)
+
+            // Live telemetry, in the app. Everything below was already being
+            // logged; it was just invisible outside a terminal.
+            LogPane(bus: call.log)
         }
         .padding(14)
     }
@@ -351,5 +360,82 @@ private struct GroupGrid: View {
                 .padding(6)
             }
         }
+    }
+}
+
+// MARK: - Honest link badge
+// Shows the path the datagrams ACTUALLY leave by, measured from the routing
+// table. The app used to say "Encrypted mesh" while every byte went over plain
+// Wi-Fi; a badge that can lie is worse than no badge, so MESH lights up only for
+// a real radio path and otherwise states plainly what is carrying the call.
+struct LinkBadge: View {
+    @ObservedObject var link: LinkStatus
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: link.path.isMesh ? "antenna.radiowaves.left.and.right" : "wifi")
+                .font(.system(size: 9))
+                .foregroundColor(link.path.isMesh ? DS.live : DS.dim)
+            Text(link.path.label).font(DS.mono(10, .medium)).tracking(0.5)
+                .foregroundColor(link.path.isMesh ? DS.live : DS.text)
+            Text(link.path.detail).font(DS.mono(9)).foregroundColor(DS.faint)
+            if !link.path.isMesh {
+                Text("· \(link.meshNote)").font(DS.mono(9)).foregroundColor(DS.faint)
+            }
+        }
+        .padding(.horizontal, 10).padding(.vertical, 5)
+        .background(DS.ink.opacity(0.5), in: Capsule())
+        .overlay(Capsule().stroke(DS.hairline, lineWidth: 1))
+    }
+}
+
+// MARK: - Live log
+// Tails the app's own stderr (every existing NSLog) in real time. Until now this
+// telemetry was invisible unless the binary was launched from a terminal, which
+// is precisely why an audio failure went undiagnosed for so long.
+struct LogPane: View {
+    @ObservedObject var bus: LogBus
+    @State private var paused = false
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                SectionLabel(text: "Log")
+                Spacer()
+                Text("\(bus.lines.count)").font(DS.mono(9)).foregroundColor(DS.faint)
+                Button(action: { paused.toggle() }) {
+                    Image(systemName: paused ? "play.fill" : "pause.fill")
+                        .font(.system(size: 9)).foregroundColor(DS.dim)
+                }.buttonStyle(.plain)
+            }.padding(.horizontal, 10).padding(.vertical, 6)
+            Hairline()
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 1) {
+                        ForEach(Array(bus.lines.enumerated()), id: \.offset) { i, line in
+                            Text(line)
+                                .font(DS.mono(9))
+                                .foregroundColor(Self.tint(line))
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .id(i)
+                        }
+                    }.padding(.horizontal, 10).padding(.vertical, 6)
+                }
+                .onChange(of: bus.lines.count) { n in
+                    guard !paused, n > 0 else { return }
+                    withAnimation(.linear(duration: 0.1)) { proxy.scrollTo(n - 1, anchor: .bottom) }
+                }
+            }
+        }
+        .frame(height: 150)
+        .background(DS.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(DS.hairline, lineWidth: 1))
+    }
+
+    // Surface failures without hunting: errors red, milestones green.
+    private static func tint(_ l: String) -> Color {
+        let s = l.lowercased()
+        if s.contains("failed") || s.contains("error") || s.contains("denied") || s.contains("dropped") { return DS.danger }
+        if s.contains("first frame") || s.contains("established") || s.contains("engine up") || s.contains("rebuilt") { return DS.live }
+        return DS.dim
     }
 }
