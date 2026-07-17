@@ -47,3 +47,20 @@ multipliers (a few DSPs) or activation quantisation. So "0 DSP everywhere" is
 precise for the weight-heavy compute (projections + FFN); attention's QK^T / AV
 are the small, data-dependent exception. This is inherent to attention, not a
 gap in the design -- BitNet-class models likewise keep those products in int8.
+
+## Bit-serial divider + the ternary-attention verdict
+
+`tern_softmax_bitser.v` normalises with ONE bit-serial restoring divider (one
+subtract, 32 cycles/quotient, shared over N): bit-exact (max err 0.0000),
+**3918 LUT vs 28488 comb / 14433 seq (~7x smaller than combinational), 0 DSP**,
+~N*32 = 258-cycle latency. The divider is now a handful of registers; the
+remaining LUTs are the exp ROM + FSM.
+
+**Is fully-0-DSP attention viable? Measured: no.** Numpy check (T=16, d=32, 20
+trials): quantising Q,K to ternary AND the softmax weights to ternary gives
+cosine similarity **0.69** to the fp attention output; ternary Q,K only (fp
+softmax weights for AV) gives **0.825**. Both are large degradations. So
+attention's Q.K^T and weights.V genuinely need int8/higher precision (a few DSPs)
+-- ternarising them is too lossy, which is exactly why BitNet-class models keep
+them int8. The 0-DSP boundary (projections + FFN ternary, attention products not)
+is real, not removable by quantisation.
