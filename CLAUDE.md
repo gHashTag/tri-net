@@ -122,10 +122,25 @@ real defect, and every one of them was silent.
   buffer (~140 small packets), and a 480 kbps radio queue drops the same way. A
   9000B I-frame paced at 800 frags/s takes 172ms — that is what 480 kbps costs,
   not a bug.
+- **FEC groups must be INTERLEAVED, never contiguous.** A parity over 16 adjacent
+  fragments repairs one *isolated* loss — and no loss source here is isolated: a
+  full socket buffer drops consecutive arrivals, a fading radio drops consecutive
+  symbols. Measured, same NAL, same loss count, contiguous groups: 2 scattered
+  DELIVERED / **2 consecutive LOST**. Interleaved (group g = fragments g,
+  g+stride, g+2*stride...), 9 consecutive losses now deliver. Same overhead, same
+  packet count, only the index mapping. **Know what it costs:** interleaving does
+  not strengthen the parity, it MOVES the blind spot to "spaced exactly stride
+  apart" — a good trade only because nothing here produces periodic loss. Neither
+  layout survives more than ~stride/3 *random* losses; one-repair-per-group is
+  the ceiling.
 - **Parity trails its data on the wire.** Dropping a reassembly entry the moment
   it is delivered lets a late parity re-create it, "repair" the payload out of
   the parity alone (for a one-fragment group the parity IS the fragment) and
   deliver a DUPLICATE. Keep entries until the GC sweeps them.
+- **A harness that speaks the wire format must be updated with it.** The probes
+  compute parity themselves; after the layout changed they still spoke the old
+  one and their labels ("scattered") described the opposite of what they now did.
+  A test that lies about what it tested is worse than no test.
 - **Count repairs across the whole payload, not per packet.** `repair_groups`
   runs per packet and each parity fixes its own group, so the last call returns
   1 no matter how many were saved — a NAL rescued from 9 losses logged
