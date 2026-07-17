@@ -718,6 +718,7 @@ final class AudioController {
     private var txCount = 0
     private var vpEnabled = true
     private var observers: [NSObjectProtocol] = []
+    private var converterInFormat: AVAudioFormat?
 
     // RMS -> perceptual 0...1 (sqrt gives a livelier meter than raw RMS)
     static func level(_ sumSq: Float, _ n: Int) -> Float {
@@ -825,18 +826,22 @@ final class AudioController {
         if player.engine == nil { engine.attach(player) }
         engine.connect(player, to: engine.mainMixerNode, format: wireFormat)
 
-        // Re-read AFTER enabling voice processing — VP re-tunes the input chain
-        // and can change the format out from under a stale converter/tap.
-        let inFmt = engine.inputNode.outputFormat(forBus: 0)
-        guard inFmt.sampleRate > 0 else {
-            NSLog("TRINET: audio input format unavailable")
-            return false
-        }
-        converter = AVAudioConverter(from: inFmt, to: wireFormat)
-        NSLog("TRINET: audio start in=\(Int(inFmt.sampleRate))Hz ch=\(inFmt.channelCount) vp=\(voiceProcessing)")
-
-        engine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: inFmt) { [weak self] buf, _ in
-            guard let self = self, let conv = self.converter else { return }
+        NSLog("TRINET: audio start vp=\(voiceProcessing)")
+        // format: nil -> the framework uses the bus's CURRENT format. A snapshot
+        // from outputFormat(forBus:) is STALE: the Remote I/O -> voice-processing
+        // I/O switch is not finished when setVoiceProcessingEnabled returns, so
+        // the hardware re-negotiates format ~200ms after start. Pinning the tap to
+        // the pre-start snapshot is exactly why it died after ~2 buffers. This
+        // race cannot be won by ordering — only by reading the live format.
+        engine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: nil) { [weak self] buf, _ in
+            guard let self = self else { return }
+            // Rebuild the converter whenever the live input format changes.
+            if self.converterInFormat != buf.format {
+                self.converter = AVAudioConverter(from: buf.format, to: self.wireFormat)
+                self.converterInFormat = buf.format
+                NSLog("TRINET: audio tap format -> \(Int(buf.format.sampleRate))Hz ch=\(buf.format.channelCount)")
+            }
+            guard let conv = self.converter else { return }
             guard let out = AVAudioPCMBuffer(pcmFormat: self.wireFormat, frameCapacity: 4096) else { return }
             var served = false
             var err: NSError?
