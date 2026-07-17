@@ -498,6 +498,9 @@ class BSDTransport {
     private var fragBufs: [UInt16: (parts: [Data?], have: Int)] = [:]
     // FEC parity per fragment group (XOR over padded cells, last-cell length).
     private var fecBufs: [UInt16: (xor: [UInt8], lastLen: Int, total: Int)] = [:]
+    // Send parity only when the peer is known to understand it (see send()).
+    // Receiving parity is always safe, so only the send side is gated.
+    private let fecEnabled = false
 
     func send(_ data: Data) {
         guard fd >= 0 else { return }
@@ -517,7 +520,11 @@ class BSDTransport {
         }
         // Forward error correction: one XOR-parity packet over all fragments so
         // the peer can rebuild ANY single lost fragment without a keyframe.
-        if total >= 2 {
+        //
+        // OFF until BOTH ends run >= v0.9 — a pre-v0.9 receiver hands any unknown
+        // magic straight to its H.264 decoder (see MeshTransport.send), which
+        // caused a PLI/keyframe storm and frozen video.
+        if fecEnabled, total >= 2 {
             var xor = [UInt8](repeating: 0, count: maxPayload)
             data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
                 for i in 0..<total {
@@ -566,6 +573,11 @@ class BSDTransport {
             fecBufs[seq] = (Array(d[7...]), lastLen, total)
             return tryFEC(seq)
         }
+        // 0xFA is reserved for this framing layer (raw NALs start 00 00 00 01 and
+        // control packets use 0xFB..0xFE). Drop an unknown 0xFA subtype instead of
+        // returning it as a finished NAL — handing unknown magic to the decoder is
+        // exactly what made pre-v0.9 peers storm on FEC parity.
+        if d.count > 1, d[0] == 0xFA, d[1] != 0xFB { return nil }
         guard d.count > 6, d[0] == 0xFA, d[1] == 0xFB else { return d }
         let seq = UInt16(d[2]) | (UInt16(d[3]) << 8)
         let idx = Int(d[4])

@@ -144,6 +144,9 @@ class MeshTransport {
     private var fragBufs: [UInt16: (parts: [Data?], have: Int)] = [:]
     // FEC parity per fragment group (XOR over padded cells, last-cell length).
     private var fecBufs: [UInt16: (xor: [UInt8], lastLen: Int, total: Int)] = [:]
+    // Send parity only when the peer is known to understand it (see send()).
+    // Receiving parity is always safe, so only the send side is gated.
+    private let fecEnabled = false
     private var sendErrCount = 0
 
     // MARK: forward-secret session (see MeshCrypto). Data is sealed under a
@@ -170,8 +173,15 @@ class MeshTransport {
         }
         // Forward error correction: one XOR-parity packet over all fragments
         // (each cell padded to maxPayload). Lets the peer rebuild ANY single lost
-        // fragment without a keyframe request — additive, ignored by old peers.
-        if total >= 2 {
+        // fragment without a keyframe request.
+        //
+        // OFF until BOTH ends run >= v0.9. A pre-v0.9 receiver does NOT ignore an
+        // unknown magic: its reassemble() returns any non-0xFA-0xFB datagram as a
+        // finished NAL, so parity reached the H.264 decoder as garbage -> decode
+        // errors -> PLI -> keyframe storm -> frozen video. There is no safe way to
+        // probe an old peer either (any new magic chokes it the same way), so this
+        // stays a build-time gate rather than a negotiation.
+        if fecEnabled, total >= 2 {
             var xor = [UInt8](repeating: 0, count: maxPayload)
             data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
                 for i in 0..<total {
@@ -276,6 +286,11 @@ class MeshTransport {
             fecBufs[seq] = (Array(d[7...]), lastLen, total)
             return tryFEC(seq)
         }
+        // 0xFA is reserved for this framing layer (raw NALs start 00 00 00 01 and
+        // control packets use 0xFB..0xFE). Drop an unknown 0xFA subtype instead of
+        // returning it as a finished NAL — handing unknown magic to the decoder is
+        // exactly what made pre-v0.9 peers storm on FEC parity.
+        if d.count > 1, d[0] == 0xFA, d[1] != 0xFB { return nil }
         guard d.count > 6, d[0] == 0xFA, d[1] == 0xFB else { return d }
         let seq = UInt16(d[2]) | (UInt16(d[3]) << 8)
         let idx = Int(d[4])
