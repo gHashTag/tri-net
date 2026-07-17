@@ -174,7 +174,12 @@ fn the_three_ports_are_distinct() {
     // datagram in 256 starts with 0x08 and was swallowed as a mesh fragment.
     // Demuxing by PORT is what the spec already prescribed. If two of these
     // ever collide, that ambiguity comes straight back.
-    let ports = [vb::VIDEO_IN_PORT, vb::VIDEO_OUT_PORT, vb::MESH_PORT];
+    // AUDIO_IN_PORT joins them for the same reason: the node cannot tell audio
+    // from video (both are sealed), so the app declares the class by choosing a
+    // port. If two collide, the class is ambiguous and audio silently inherits
+    // the video pacer's head-of-line delay -- measured at p50 182ms behind a
+    // keyframe, against 3ms on its own port.
+    let ports = [vb::VIDEO_IN_PORT, vb::VIDEO_OUT_PORT, vb::MESH_PORT, vb::AUDIO_IN_PORT];
     for (i, a) in ports.iter().enumerate() {
         for b in &ports[i + 1..] {
             assert_ne!(a, b, "ports must be distinct to demux by port");

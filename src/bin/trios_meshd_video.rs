@@ -46,6 +46,14 @@ use trios_mesh::video_bridge;
 const MAX_NAL: usize = 65_535;
 const MAX_PACKET: usize = MAX_NAL;
 
+/// Share of the fragment budget reserved for the latency-sensitive class.
+/// A call needs ~50 frags/s of Opus (one 63B frame every 20ms); 100 is double
+/// that. Audio does NOT queue behind video -- measured, a 20ms Opus frame stuck
+/// behind a 138-fragment keyframe waits 172ms, and audio tolerates ~30ms of
+/// jitter. The two classes have SEPARATE budgets that sum to the ceiling, so
+/// priority costs video 12% of its rate and can never over-commit the link.
+const AUDIO_RATE_PER_SEC: u32 = 100;
+
 /// RATE. Fragments/sec ceiling, ~75B each => 800/s is ~60 KB/s ~= 480 kbps.
 /// This is a GUESS at the radio's capacity, which has never been measured
 /// (only one AD9361 has ever come up at a time). Override via env once a real
@@ -166,6 +174,12 @@ fn main() {
     let mesh_sock = UdpSocket::bind(("0.0.0.0", video_bridge::MESH_PORT)).expect("bind mesh");
     let peer_mesh = SocketAddr::new(peer_ip, video_bridge::MESH_PORT);
 
+    // CLASS BY PORT. The node cannot tell audio from video -- both are sealed
+    // and it must never read them. The app declares the class by choosing where
+    // to send, the same principle that replaced the magic byte.
+    let audio_sock =
+        UdpSocket::bind(("0.0.0.0", video_bridge::AUDIO_IN_PORT)).expect("bind audio listen");
+
     // The attached device announces itself by sending. Pinning this to
     // 127.0.0.1 (as it once was) meant a reassembled payload never left the
     // node and the attached phone could never receive anything — silently,
@@ -189,7 +203,12 @@ fn main() {
     );
 
     std::thread::scope(|s| {
-        s.spawn(|| uplink(&app_sock, peer_mesh, &device, out_port, frag_rate, fec_enabled, started));
+        s.spawn(|| {
+            // Video pays for the reservation: the two budgets sum to frag_rate.
+            let video_rate = frag_rate.saturating_sub(AUDIO_RATE_PER_SEC).max(1);
+            uplink(&app_sock, peer_mesh, &device, out_port, video_rate, fec_enabled, started)
+        });
+        s.spawn(|| express(&audio_sock, peer_mesh, started));
         s.spawn(|| downlink(&mesh_sock, &app_sock, &device, started));
     });
 }
@@ -334,6 +353,73 @@ fn uplink(
              budget={spent}/{frag_rate} t={:.1}s",
             started.elapsed().as_secs_f32()
         );
+    }
+}
+
+/// device -> mesh, latency-sensitive class. Its own socket, its own thread, its
+/// own budget: nothing here ever waits behind a keyframe. Payloads are expected
+/// to fit ONE fragment (a 63B Opus frame does); anything larger is fragmented
+/// like video but still never blocks on the video pacer.
+fn express(audio_sock: &UdpSocket, peer_mesh: SocketAddr, started: Instant) {
+    let mut rx_buf = vec![0u8; MAX_PACKET];
+    let mut seq: u16 = 0;
+    let mut spent: u32 = 0;
+    let mut window_start = Instant::now();
+    let mut dropped: u32 = 0;
+    let mut sent: u64 = 0;
+
+    loop {
+        let now = Instant::now();
+        if now.duration_since(window_start) >= Duration::from_secs(1) {
+            spent = spent.saturating_sub(AUDIO_RATE_PER_SEC).min(AUDIO_RATE_PER_SEC);
+            window_start = now;
+        }
+
+        audio_sock.set_read_timeout(Some(Duration::from_secs(5))).ok();
+        let (n, _) = match audio_sock.recv_from(&mut rx_buf) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+
+        // Admission before size, as everywhere else: a class that drops its
+        // biggest packets drops exactly what matters most.
+        if spent >= AUDIO_RATE_PER_SEC {
+            dropped += 1;
+            println!(
+                "[audio] DROP {n}B budget={spent}/{AUDIO_RATE_PER_SEC} (dropped {dropped} total) \
+                 t={:.1}s",
+                started.elapsed().as_secs_f32()
+            );
+            continue;
+        }
+
+        let size = n.min(MAX_NAL);
+        let nfrags = video_bridge::fragment_count(size as u16);
+        seq = seq.wrapping_add(1);
+        let max_data = video_bridge::MAX_FRAG_DATA as usize;
+        for frag_idx in 0..nfrags {
+            let offset = (frag_idx as usize) * max_data;
+            let end = (offset + max_data).min(size);
+            let mut pkt = Vec::with_capacity(video_bridge::FRAG_HEADER_LEN as usize + max_data);
+            pkt.push(video_bridge::VSTREAM_TYPE);
+            pkt.push(video_bridge::seq_lo(seq));
+            pkt.push(video_bridge::seq_hi(seq));
+            pkt.push(frag_idx);
+            pkt.push(nfrags);
+            pkt.extend_from_slice(&rx_buf[offset..end]);
+            // No pacing: this class is a trickle by construction and its budget
+            // is what bounds it. Waiting here is the whole problem.
+            audio_sock.send_to(&pkt, peer_mesh).ok();
+            spent += 1;
+        }
+        sent += 1;
+        if sent % 250 == 0 {
+            println!(
+                "[audio] {sent} payloads relayed, {dropped} dropped, budget={spent}/{AUDIO_RATE_PER_SEC} \
+                 t={:.1}s",
+                started.elapsed().as_secs_f32()
+            );
+        }
     }
 }
 

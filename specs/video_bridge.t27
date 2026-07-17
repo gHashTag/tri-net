@@ -29,6 +29,18 @@ module VideoBridge {
     const VIDEO_OUT_PORT: u16 = 7001;
     const MESH_PORT: u16 = 5000;
 
+    // Latency-sensitive ingress. A node CANNOT tell audio from video: both are
+    // sealed end-to-end and it must never try to read them. But audio behind a
+    // 138-fragment keyframe waits for all 138 to pace out. Measured on hardware,
+    // 20fps video + 50 Opus frames/s through one FIFO bridge:
+    //   audio, no keyframe in flight: p50 =  84ms
+    //   audio, KEYFRAME in flight   : p50 = 182ms
+    // Audio tolerates ~30ms of jitter, so that is an audible dropout every time
+    // a keyframe goes by. The app declares the class by CHOOSING A PORT -- the
+    // same principle that replaced the magic byte: the sender says what it is,
+    // the node never inspects the ciphertext to guess.
+    const AUDIO_IN_PORT: u16 = 7002;
+
     // ---- Fragment-layer FEC ----
     // Reassembly is all-or-nothing: ONE lost 70-byte fragment destroys the
     // whole NAL, and an I-frame is 129 fragments. One XOR parity per group of
@@ -358,4 +370,8 @@ module VideoBridge {
     // The parity header carries one extra byte (last_len) over a data header.
     invariant fec_header_is_one_longer
         assert FEC_HEADER_LEN == 6
+
+    // Class is declared by port, so the ports must not collide.
+    invariant audio_port_differs_from_video
+        assert AUDIO_IN_PORT != VIDEO_IN_PORT
 }
