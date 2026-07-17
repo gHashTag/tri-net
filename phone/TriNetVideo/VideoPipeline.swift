@@ -233,11 +233,14 @@ class H264Encoder {
     private var maxBitrate = 200_000
     private var curBitrate = 200_000
     private(set) var bitrateKbps = 0
+    // AIMD, tuned on hardware (see specs/video_bridge.t27 dead-zone note).
+    // Multiplicative decrease recovers fast; additive increase seeks the ceiling
+    // without oscillating. Matches the Mac encoder.
     func nudgeBitrate(down: Bool) {
         guard let s = session, maxBitrate > 0 else { return }
         let floor = max(80_000, maxBitrate / 8)
-        curBitrate = down ? max(floor, Int(Double(curBitrate) * 0.7))
-                          : min(maxBitrate, Int(Double(curBitrate) * 1.2))
+        curBitrate = down ? max(floor, Int(Double(curBitrate) * 0.9))
+                          : min(maxBitrate, curBitrate + 10_000)
         bitrateKbps = curBitrate / 1000
         VTSessionSetProperty(s, key: kVTCompressionPropertyKey_AverageBitRate, value: curBitrate as CFNumber)
     }

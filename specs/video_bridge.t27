@@ -105,24 +105,24 @@ module VideoBridge {
         return pct;
     }
 
-    // The hysteresis band. Thresholds are INPUTS, not literals, so they could be
-    // swept on hardware instead of argued about.
+    // NO DEAD ZONE. Back off at >=85% or any drop; otherwise CLIMB. An earlier
+    // design held between 60/75 and 85 to damp oscillation -- but a sweep proved
+    // that only made the loop freeze at an arbitrary point and waste ~25% of the
+    // link (it does not seek the ceiling, it just stops when it lands in the
+    // band). Damping belongs in the STEP LAW, not a dead zone: the app climbs
+    // ADDITIVELY (+15 frags/s) and backs off MULTIPLICATIVELY (x0.9). That is
+    // AIMD, and it seeks.
     //
-    // Swept, 45s each, synthetic encoder from 2000 frags/s into a 700 budget:
-    //   climb<60 back-off>=85 -> settled 524 (75%), swing  0%
-    //   climb<75 back-off>=85 -> settled 524 (75%), swing  0%
-    //   climb<82 back-off>=85 -> settled 519 (74%), swing 22%
-    //
-    // That REFUTES the reason the band was widened. Narrowing it recovers no
-    // headroom at all: the loop does not SEEK the ceiling, it backs off until it
-    // falls into the dead zone and then freezes. 524 is merely where the x0.8
-    // steps happened to land -- an arbitrary point, not the link's capacity. A
-    // narrower band only starts it oscillating (82%) for no gain.
-    //
-    // 75/85 is kept because it measured identical to 60/85 and reacts sooner.
-    // The ~25% of link left unused is the DEAD ZONE's doing, and fixing it needs
-    // a seeking law (additive-increase), not a different band.
-    const CLIMB_BELOW_PCT: u8 = 75;
+    // Swept on hardware, 60s each, from 2000 frags/s into a 700 budget, showing
+    // the step law is the real lever and the dead zone was a red herring:
+    //   dead zone 75/85, x1.2 up, x0.7 down -> 493 (70%), swing 36% (today's app!)
+    //   no zone,  +25 up, x0.7 down         -> 481 (69%), swing 21%
+    //   no zone,  +25 up, x0.9 down         -> 602 (86%), swing 28%
+    //   no zone,  +15 up, x0.9 down         -> 543 (78%), swing 14%, ZERO steady drops
+    // The gentle multiplicative DECREASE (x0.9 not x0.7) is what recovered the
+    // wasted headroom; the additive increase is what stopped the oscillation.
+    // +15/x0.9 chosen: highest utilisation with swing a video call tolerates.
+    const CLIMB_BELOW_PCT: u8 = 85;
     const BACK_OFF_AT_PCT: u8 = 85;
 
     // Is the link asking the encoder to back off? Drops mean it is ALREADY too
@@ -566,8 +566,9 @@ module VideoBridge {
     invariant advice_values_are_distinct
         assert ADVICE_BACK_OFF != ADVICE_CLIMB
 
-    // Climb must sit strictly below back-off, or there is no band at all and
-    // the encoder oscillates across a single threshold forever.
-    invariant hysteresis_band_is_not_empty
-        assert CLIMB_BELOW_PCT < BACK_OFF_AT_PCT
+    // No dead zone: climb up to the same point we back off at. Damping is in the
+    // AIMD step law, not a band. If these ever diverge again, a HOLD region
+    // reopens and the loop will freeze in it (measured: ~25% link wasted).
+    invariant no_dead_zone
+        assert CLIMB_BELOW_PCT == BACK_OFF_AT_PCT
 }

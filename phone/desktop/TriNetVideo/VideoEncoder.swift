@@ -142,11 +142,16 @@ class VideoEncoder {
     private var maxBitrate = 1_000_000
     private var curBitrate = 1_000_000
     private(set) var bitrateKbps: Int = 0
+    // AIMD, tuned on hardware (see specs/video_bridge.t27 dead-zone note).
+    // Multiplicative DECREASE recovers fast from congestion; ADDITIVE INCREASE
+    // seeks the ceiling without oscillating. The old x1.2/x0.7 swung 36% and sat
+    // at 70% of the link; +10 kbps / x0.9 settles near 80% and holds, with zero
+    // steady-state loss. (Swept in frags/s as +15/x0.9; ~15 frags/s = ~10 kbps.)
     func nudgeBitrate(down: Bool) {
         guard let s = session, maxBitrate > 0 else { return }
         let floor = max(120_000, maxBitrate / 8)
-        curBitrate = down ? max(floor, Int(Double(curBitrate) * 0.7))
-                          : min(maxBitrate, Int(Double(curBitrate) * 1.2))
+        curBitrate = down ? max(floor, Int(Double(curBitrate) * 0.9))
+                          : min(maxBitrate, curBitrate + 10_000)
         bitrateKbps = curBitrate / 1000
         VTSessionSetProperty(s, key: kVTCompressionPropertyKey_AverageBitRate, value: curBitrate as CFNumber)
     }
