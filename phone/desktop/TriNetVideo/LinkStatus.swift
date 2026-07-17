@@ -8,6 +8,7 @@
 import Foundation
 import Combine
 import Darwin
+import CoreWLAN
 
 // MARK: - Live log
 
@@ -16,7 +17,9 @@ import Darwin
 final class LogBus: ObservableObject {
     static let shared = LogBus()
     @Published private(set) var lines: [String] = []
-    private let cap = 400
+    // Deep enough to hold a whole call: the pane is read by an agent after the
+    // fact, and a call that logs every 500th packet still outruns a short buffer.
+    private let cap = 4000
     private var pipeRead: Int32 = -1
     private var origStderr: Int32 = -1
     private let q = DispatchQueue(label: "trinet.logbus")
@@ -38,18 +41,38 @@ final class LogBus: ObservableObject {
 
     private func readLoop() {
         var buf = [UInt8](repeating: 0, count: 4096)
-        var pending = ""
+        // Accumulate BYTES, not decoded strings: a 4096-byte read can split a
+        // multi-byte UTF-8 character across chunks, and decoding each chunk
+        // separately turns that character into U+FFFD forever. Decode only whole
+        // lines, once their bytes are all here.
+        var pending = Data()
         while true {
             let n = read(pipeRead, &buf, buf.count)
             guard n > 0 else { break }
             if origStderr >= 0 { _ = write(origStderr, buf, n) }   // tee to real stderr
-            pending += String(decoding: buf[0..<n], as: UTF8.self)
-            while let nl = pending.firstIndex(of: "\n") {
-                let line = String(pending[pending.startIndex..<nl])
-                pending = String(pending[pending.index(after: nl)...])
+            pending.append(contentsOf: buf[0..<n])
+            while let nl = pending.firstIndex(of: 0x0A) {
+                let line = String(decoding: pending[pending.startIndex..<nl], as: UTF8.self)
+                pending = pending[pending.index(after: nl)...]
                 publish(line)
             }
         }
+    }
+
+    // The full buffer as one pasteable block, headed by the facts a reader would
+    // otherwise have to ask for. Every wrong turn in this project started with a
+    // log whose build, codec or link was assumed rather than stated.
+    func transcript() -> String {
+        let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        let head = """
+        === TRI-NET Monitor log ===
+        app: \(v) (\(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"))
+        macOS: \(ProcessInfo.processInfo.operatingSystemVersionString)
+        opus send: \(AudioController.opusEnabled)   mesh NAL ceiling: \(VideoEncoder.meshMaxNAL)B
+        lines: \(lines.count) (buffer holds \(cap))
+        ===========================
+        """
+        return head + "\n" + lines.joined(separator: "\n")
     }
 
     private func publish(_ raw: String) {
@@ -108,7 +131,7 @@ final class LinkStatus: ObservableObject {
         self.peer = peer
         refresh()
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
+        timer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             self?.refresh()
         }
     }
@@ -131,45 +154,42 @@ final class LinkStatus: ObservableObject {
         if p != path { DispatchQueue.main.async { self.path = p } }
     }
 
-    // `route get` is the source of truth for which interface a datagram leaves by.
+    // Which interface would carry a datagram to `host`: the one whose subnet
+    // contains it (that IS the route for a peer on the local network).
+    //
+    // Resolved with getifaddrs, NOT by shelling out to `route`. Spawning `route`
+    // every few seconds printed "arp: writing to routing socket: Operation not
+    // permitted" into our own stderr, and since LogBus tees stderr into the Log
+    // pane, the 400-line buffer filled with that noise and evicted every real
+    // diagnostic. The observability tool became the thing it was built to fix.
     static func interface(toward host: String) -> String {
-        let t = Process()
-        t.executableURL = URL(fileURLWithPath: "/sbin/route")
-        t.arguments = ["-n", "get", host]
-        let pipe = Pipe()
-        t.standardOutput = pipe
-        t.standardError = Pipe()
-        guard (try? t.run()) != nil else { return "" }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        t.waitUntilExit()
-        let out = String(decoding: data, as: UTF8.self)
-        for line in out.split(separator: "\n") {
-            let f = line.split(separator: ":", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
-            if f.count == 2, f[0] == "interface" { return f[1] }
-        }
-        return ""
-    }
+        var target = in_addr()
+        guard inet_pton(AF_INET, host, &target) == 1 else { return "" }
+        var head: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&head) == 0, let first = head else { return "" }
+        defer { freeifaddrs(head) }
 
-    private static func isWiFi(_ iface: String) -> Bool {
-        let t = Process()
-        t.executableURL = URL(fileURLWithPath: "/usr/sbin/networksetup")
-        t.arguments = ["-listallhardwareports"]
-        let pipe = Pipe()
-        t.standardOutput = pipe
-        t.standardError = Pipe()
-        guard (try? t.run()) != nil else { return false }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        t.waitUntilExit()
-        let out = String(decoding: data, as: UTF8.self)
-        // "Hardware Port: Wi-Fi\nDevice: en0"
-        var lastPortWasWiFi = false
-        for line in out.split(separator: "\n") {
-            if line.hasPrefix("Hardware Port:") { lastPortWasWiFi = line.contains("Wi-Fi") }
-            if line.hasPrefix("Device:"), lastPortWasWiFi,
-               line.replacingOccurrences(of: "Device:", with: "").trimmingCharacters(in: .whitespaces) == iface {
-                return true
+        var loopback = ""
+        var ptr: UnsafeMutablePointer<ifaddrs>? = first
+        while let cur = ptr {
+            defer { ptr = cur.pointee.ifa_next }
+            let flags = Int32(cur.pointee.ifa_flags)
+            guard flags & IFF_UP != 0,
+                  let sa = cur.pointee.ifa_addr, sa.pointee.sa_family == UInt8(AF_INET),
+                  let nm = cur.pointee.ifa_netmask else { continue }
+            let name = String(cString: cur.pointee.ifa_name)
+            let addr = sa.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee.sin_addr.s_addr }
+            let mask = nm.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee.sin_addr.s_addr }
+            if (addr & mask) == (target.s_addr & mask) {
+                if flags & IFF_LOOPBACK != 0 { loopback = name; continue }
+                return name
             }
         }
-        return false
+        return loopback   // only claim loopback if nothing real matched
+    }
+
+    // Wi-Fi is asked of CoreWLAN directly — again, no subprocess.
+    private static func isWiFi(_ iface: String) -> Bool {
+        CWWiFiClient.shared().interface(withName: iface) != nil
     }
 }

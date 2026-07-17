@@ -758,6 +758,8 @@ final class AudioController {
     private var started = false
     private var rxCount = 0
     private var txCount = 0
+    private var opusTx = 0
+    private var pcmTx = 0
     private var vpEnabled = true
     private var observers: [NSObjectProtocol] = []
     private var converterInFormat: AVAudioFormat?
@@ -912,15 +914,23 @@ final class AudioController {
                     let v = Int16(f * 32767)
                     withUnsafeBytes(of: v.littleEndian) { raw.append(contentsOf: $0) }
                 }
+                // Report what ACTUALLY went out, never the flag. Opus can decline
+                // a buffer (the encoder primes before its first packet), and the
+                // code then falls back to raw PCM — logging `opus=true` there
+                // claimed a 10x saving that never happened.
                 var pkt: Data
+                var sentOpus = false
                 if AudioController.opusEnabled, let frame = self.opus?.encode(raw) {
                     pkt = Data([0xFD, 0xC0]); pkt.append(frame)   // ~65B
+                    sentOpus = true
+                    self.opusTx += 1
                 } else {
                     pkt = Data([0xFD, 0xAD]); pkt.append(raw)     // 642B
+                    self.pcmTx += 1
                 }
                 self.txCount += 1
-                if self.txCount == 1 {
-                    NSLog("TRINET: audio tx first packet \(pkt.count)B opus=\(AudioController.opusEnabled)")
+                if self.txCount <= 2 || self.txCount % 500 == 0 {
+                    NSLog("TRINET: audio tx #\(self.txCount) \(pkt.count)B sent=\(sentOpus ? "OPUS" : "pcm") [opus \(self.opusTx) / pcm \(self.pcmTx)]")
                 }
                 self.onPacket?(pkt)
                 if let txpcm = self.onTxPCM { txpcm(raw) }

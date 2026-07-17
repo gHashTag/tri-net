@@ -397,12 +397,35 @@ struct LinkBadge: View {
 struct LogPane: View {
     @ObservedObject var bus: LogBus
     @State private var paused = false
+    @State private var copied = false
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
+            HStack(spacing: 10) {
                 SectionLabel(text: "Log")
                 Spacer()
                 Text("\(bus.lines.count)").font(DS.mono(9)).foregroundColor(DS.faint)
+                // Copy the WHOLE buffer, not the visible slice — the point is to
+                // hand a complete session to someone (or something) that can read
+                // it. Prefixed with the environment, because a log without the
+                // build and link it came from invites the wrong conclusion.
+                Button(action: {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(bus.transcript(), forType: .string)
+                    copied = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { copied = false }
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                            .font(.system(size: 9))
+                        Text(copied ? "Copied" : "Copy")
+                            .font(DS.mono(9, .medium))
+                    }
+                    .foregroundColor(copied ? DS.live : DS.dim)
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .overlay(Capsule().stroke(copied ? DS.live.opacity(0.5) : DS.hairline, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .help("Copy the full log to the clipboard")
                 Button(action: { paused.toggle() }) {
                     Image(systemName: paused ? "play.fill" : "pause.fill")
                         .font(.system(size: 9)).foregroundColor(DS.dim)
