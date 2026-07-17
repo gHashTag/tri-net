@@ -439,8 +439,73 @@ class BSDTransport {
     var onData: ((Data) -> Void)?
     var isReady = false
 
+    // MARK: link feedback (see specs/video_bridge.t27)
+    //
+    // The node knows its load exactly; we do not. Without this the encoder finds
+    // the link's capacity by overrunning it and waiting for the FAR end's
+    // decoder to complain (PLI) — which only happens after frames are already
+    // broken, and whose absence makes us climb until we break them again.
+    //
+    // `advice` is the node's VERDICT and the only thing to act on: the
+    // thresholds live in the spec and nowhere else, because t27c cannot generate
+    // Swift and a second copy here would drift until the node and the encoder
+    // disagreed about "full". The numbers are for the log.
+    //
+    // Plaintext by design: local telemetry from our own node, no payload bytes,
+    // nothing about content. Never put content here.
+    var onLinkFeedback: ((_ advice: UInt8, _ utilPct: Int, _ dropPct: Int, _ rate: Int) -> Void)?
+    private var fbFd: Int32 = -1
+    private let fbQueue = DispatchQueue(label: "mesh.fb", qos: .utility)
+    private static let feedbackPort: UInt16 = 7003
+    private static let feedbackType: UInt8 = 10
+    private static let feedbackLen = 6
+
+    private func startFeedbackListener() {
+        stopFeedbackListener()
+        fbFd = socket(AF_INET, SOCK_DGRAM, 0)
+        guard fbFd >= 0 else { return }
+        var on: Int32 = 1
+        setsockopt(fbFd, SOL_SOCKET, SO_REUSEADDR, &on, 4)
+        var addr = sockaddr_in()
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = BSDTransport.feedbackPort.bigEndian
+        addr.sin_addr.s_addr = 0
+        let r = withUnsafePointer(to: &addr) { p in
+            p.withMemoryRebound(to: sockaddr.self, capacity: 1) { s in
+                Darwin.bind(fbFd, s, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+        guard r == 0 else {
+            // Not fatal: a direct peer-to-peer call has no node to report, so
+            // silence here is normal. Say so rather than looking broken.
+            NSLog("TRINET: link feedback port busy — running without node telemetry")
+            close(fbFd); fbFd = -1
+            return
+        }
+        let fd = fbFd
+        fbQueue.async { [weak self] in
+            var buf = [UInt8](repeating: 0, count: 32)
+            while true {
+                guard let self = self, self.fbFd == fd else { break }
+                let n = recv(fd, &buf, buf.count, 0)
+                if n <= 0 { break }
+                guard n >= BSDTransport.feedbackLen,
+                      buf[0] == BSDTransport.feedbackType else { continue }
+                let util = Int(buf[1]), drop = Int(buf[2])
+                let rate = Int(buf[3]) | (Int(buf[4]) << 8)
+                let advice = buf[5]
+                DispatchQueue.main.async { self.onLinkFeedback?(advice, util, drop, rate) }
+            }
+        }
+    }
+
+    private func stopFeedbackListener() {
+        if fbFd >= 0 { close(fbFd); fbFd = -1 }
+    }
+
     func connect(host: String, port: UInt16, recvPort: UInt16) {
         disconnect()
+        startFeedbackListener()
 
         fd = socket(AF_INET, SOCK_DGRAM, 0)
         guard fd >= 0 else {
@@ -681,6 +746,7 @@ class BSDTransport {
         handshakeTimer?.cancel(); handshakeTimer = nil
         if fd >= 0 { close(fd); fd = -1 }
         isReady = false
+        stopFeedbackListener()
     }
 
     deinit { disconnect() }

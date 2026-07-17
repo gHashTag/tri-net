@@ -105,30 +105,50 @@ module VideoBridge {
         return pct;
     }
 
+    // The hysteresis band. Thresholds are INPUTS, not literals, so they could be
+    // swept on hardware instead of argued about.
+    //
+    // Swept, 45s each, synthetic encoder from 2000 frags/s into a 700 budget:
+    //   climb<60 back-off>=85 -> settled 524 (75%), swing  0%
+    //   climb<75 back-off>=85 -> settled 524 (75%), swing  0%
+    //   climb<82 back-off>=85 -> settled 519 (74%), swing 22%
+    //
+    // That REFUTES the reason the band was widened. Narrowing it recovers no
+    // headroom at all: the loop does not SEEK the ceiling, it backs off until it
+    // falls into the dead zone and then freezes. 524 is merely where the x0.8
+    // steps happened to land -- an arbitrary point, not the link's capacity. A
+    // narrower band only starts it oscillating (82%) for no gain.
+    //
+    // 75/85 is kept because it measured identical to 60/85 and reacts sooner.
+    // The ~25% of link left unused is the DEAD ZONE's doing, and fixing it needs
+    // a seeking law (additive-increase), not a different band.
+    const CLIMB_BELOW_PCT: u8 = 75;
+    const BACK_OFF_AT_PCT: u8 = 85;
+
     // Is the link asking the encoder to back off? Drops mean it is ALREADY too
     // late; high utilisation means it is about to be. React to either.
-    fn fb_should_back_off(util_pct: u8, drop_pct: u8) -> bool {
+    fn fb_should_back_off(util_pct: u8, drop_pct: u8, back_off_at: u8) -> bool {
         if (drop_pct > 0) {
             return true;
         }
-        return util_pct >= 85;
+        return util_pct >= back_off_at;
     }
 
-    // Is there room to climb? Deliberately far below the back-off threshold: a
-    // single margin makes the encoder oscillate across it forever.
-    fn fb_may_climb(util_pct: u8, drop_pct: u8) -> bool {
+    // Is there room to climb? Must sit BELOW the back-off threshold: with a
+    // single margin the encoder oscillates across it forever.
+    fn fb_may_climb(util_pct: u8, drop_pct: u8, climb_below: u8) -> bool {
         if (drop_pct > 0) {
             return false;
         }
-        return util_pct < 60;
+        return util_pct < climb_below;
     }
 
     // What the node tells the encoder to do. The ONLY place this is decided.
-    fn fb_advice(util_pct: u8, drop_pct: u8) -> u8 {
-        if (fb_should_back_off(util_pct, drop_pct)) {
+    fn fb_advice(util_pct: u8, drop_pct: u8, climb_below: u8, back_off_at: u8) -> u8 {
+        if (fb_should_back_off(util_pct, drop_pct, back_off_at)) {
             return ADVICE_BACK_OFF;
         }
-        if (fb_may_climb(util_pct, drop_pct)) {
+        if (fb_may_climb(util_pct, drop_pct, climb_below)) {
             return ADVICE_CLIMB;
         }
         return ADVICE_HOLD;
@@ -466,46 +486,46 @@ module VideoBridge {
     }
 
     test fb_back_off_on_any_drop {
-        assert(fb_should_back_off(10, 1) == true, "a drop means it is already too late");
+        assert(fb_should_back_off(10, 1, 85) == true, "a drop means it is already too late");
     }
 
     test fb_back_off_when_nearly_full {
-        assert(fb_should_back_off(85, 0) == true, "85% is about to be too late");
+        assert(fb_should_back_off(85, 0, 85) == true, "85% is about to be too late");
     }
 
     test fb_hold_when_comfortable {
-        assert(fb_should_back_off(70, 0) == false, "70% needs no action");
+        assert(fb_should_back_off(70, 0, 85) == false, "70% needs no action");
     }
 
     test fb_climb_only_when_clear {
-        assert(fb_may_climb(50, 0) == true, "half empty, climb");
+        assert(fb_may_climb(50, 0, 60) == true, "half empty, climb");
     }
 
     test fb_no_climb_after_a_drop {
-        assert(fb_may_climb(10, 5) == false, "never climb into a link that just dropped");
+        assert(fb_may_climb(10, 5, 60) == false, "never climb into a link that just dropped");
     }
 
     test fb_advice_backs_off_on_drops {
-        assert(fb_advice(10, 3) == ADVICE_BACK_OFF, "any drop overrides everything");
+        assert(fb_advice(10, 3, 75, 85) == ADVICE_BACK_OFF, "any drop overrides everything");
     }
 
     test fb_advice_climbs_when_empty {
-        assert(fb_advice(20, 0) == ADVICE_CLIMB, "quiet link, climb");
+        assert(fb_advice(20, 0, 75, 85) == ADVICE_CLIMB, "quiet link, climb");
     }
 
     test fb_advice_holds_in_the_band {
-        assert(fb_advice(70, 0) == ADVICE_HOLD, "60..85 is the hysteresis band");
+        assert(fb_advice(70, 0, 75, 85) == ADVICE_HOLD, "60..85 is the hysteresis band");
     }
 
     test fb_advice_backs_off_when_full {
-        assert(fb_advice(95, 0) == ADVICE_BACK_OFF, "95% is full enough");
+        assert(fb_advice(95, 0, 75, 85) == ADVICE_BACK_OFF, "95% is full enough");
     }
 
     test fb_hysteresis_gap_exists {
         // 60..85 is neither climb nor back off. Without that band the encoder
         // oscillates across a single threshold forever.
-        assert(fb_may_climb(70, 0) == false, "70% must not climb");
-        assert(fb_should_back_off(70, 0) == false, "...nor back off: it holds");
+        assert(fb_may_climb(70, 0, 60) == false, "70% must not climb");
+        assert(fb_should_back_off(70, 0, 85) == false, "...nor back off: it holds");
     }
 
     test fec_packet_size_value {
@@ -545,4 +565,9 @@ module VideoBridge {
     // The three verdicts must stay distinct or the app cannot tell them apart.
     invariant advice_values_are_distinct
         assert ADVICE_BACK_OFF != ADVICE_CLIMB
+
+    // Climb must sit strictly below back-off, or there is no band at all and
+    // the encoder oscillates across a single threshold forever.
+    invariant hysteresis_band_is_not_empty
+        assert CLIMB_BELOW_PCT < BACK_OFF_AT_PCT
 }

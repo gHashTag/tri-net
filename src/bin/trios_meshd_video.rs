@@ -161,6 +161,15 @@ fn main() {
     // nothing is repaired. Exists so the parity's benefit can be A/B measured on
     // one binary and one link instead of argued from arithmetic.
     let fec_enabled = env::var("FEC").map(|v| v != "0").unwrap_or(true);
+    // The hysteresis band. Overridable ONLY so it can be swept on hardware and
+    // become a measured number instead of the guess it started as; the decision
+    // itself stays in the spec.
+    let climb_below: u8 = env::var("CLIMB_BELOW")
+        .ok().and_then(|s| s.parse().ok())
+        .unwrap_or(video_bridge::CLIMB_BELOW_PCT);
+    let back_off_at: u8 = env::var("BACK_OFF_AT")
+        .ok().and_then(|s| s.parse().ok())
+        .unwrap_or(video_bridge::BACK_OFF_AT_PCT);
 
     // PORTS. The device's payload and the peer's fragments MUST arrive on
     // different ports. This used to be one socket that told them apart by
@@ -227,7 +236,7 @@ fn main() {
         });
         s.spawn(|| {
             let video_rate = frag_rate.saturating_sub(AUDIO_RATE_PER_SEC).max(1);
-            report_link(&device, video_rate, &load, started)
+            report_link(&device, video_rate, &load, climb_below, back_off_at, started)
         });
         s.spawn(|| express(&audio_sock, peer_mesh, started));
         s.spawn(|| downlink(&mesh_sock, &app_sock, &device, started));
@@ -391,6 +400,8 @@ fn report_link(
     device: &Mutex<Option<SocketAddr>>,
     frag_rate: u32,
     load: &(AtomicU32, AtomicU32, AtomicU32),
+    climb_below: u8,
+    back_off_at: u8,
     started: Instant,
 ) {
     let sock = UdpSocket::bind("0.0.0.0:0").expect("bind feedback out");
@@ -421,7 +432,7 @@ fn report_link(
         let rate16 = frag_rate.min(u16::MAX as u32) as u16;
         // The node decides; the app obeys. The numbers ride along only so the
         // log and the UI can be honest about why.
-        let advice = video_bridge::fb_advice(util, drop);
+        let advice = video_bridge::fb_advice(util, drop, climb_below, back_off_at);
         let pkt = [
             video_bridge::FEEDBACK_TYPE,
             util,

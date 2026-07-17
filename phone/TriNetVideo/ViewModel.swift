@@ -75,15 +75,51 @@ class StreamViewModel: ObservableObject {
         }
     }
 
-    // Adaptive bitrate: sample incoming PLI rate every 3s.
+    // Adaptive bitrate. Driven by the NODE's verdict when a node is relaying for
+    // us, and only by PLI when none is — PLI is the far end's decoder
+    // complaining, which arrives once frames are already broken and whose
+    // absence makes us climb until we break them again.
     private var pliCount = 0
     private var abrTimer: Timer?
+    private var linkAdvice: UInt8?
+    private var linkUtil = 0
+    private var linkDrop = 0
+    private var linkRate = 0
+    private var linkSeenAt: Date?
+    // Mirrors ADVICE_* in specs/video_bridge.t27. Values only — no thresholds:
+    // the node decides, we obey.
+    private static let adviceBackOff: UInt8 = 1
+    private static let adviceClimb: UInt8 = 2
+
+    func noteLinkFeedback(advice: UInt8, util: Int, drop: Int, rate: Int) {
+        linkAdvice = advice
+        linkUtil = util
+        linkDrop = drop
+        linkRate = rate
+        linkSeenAt = Date()
+        if drop > 0 {
+            NSLog("TRINET: node is dropping \(drop)% of our payloads (util \(util)% of \(rate)/s)")
+        }
+    }
+
     func startABR() {
         abrTimer?.invalidate()
         abrTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
             guard let self = self, self.phase == .live else { return }
-            if self.pliCount >= 3 { self.camera.nudgeBitrate(down: true) }
-            else if self.pliCount == 0 { self.camera.nudgeBitrate(down: false) }
+            let fresh = self.linkSeenAt.map { Date().timeIntervalSince($0) < 5 } ?? false
+            if fresh, let advice = self.linkAdvice {
+                if advice == StreamViewModel.adviceBackOff {
+                    self.camera.nudgeBitrate(down: true)
+                    NSLog("TRINET: ABR down — node: util=\(self.linkUtil)% drops=\(self.linkDrop)% of \(self.linkRate)/s")
+                } else if advice == StreamViewModel.adviceClimb {
+                    self.camera.nudgeBitrate(down: false)
+                }
+                // Anything else: hold. The node's hysteresis band, not ours.
+            } else {
+                // No node relaying (direct call): the PLI loop is all there is.
+                if self.pliCount >= 3 { self.camera.nudgeBitrate(down: true) }
+                else if self.pliCount == 0 { self.camera.nudgeBitrate(down: false) }
+            }
             self.pliCount = 0
         }
     }
@@ -161,6 +197,10 @@ class StreamViewModel: ObservableObject {
         }
 
         // Incoming: UDP → PLI / audio / chat / reaction / H.264 decoder → display
+        transport.onLinkFeedback = { [weak self] advice, util, drop, rate in
+            self?.noteLinkFeedback(advice: advice, util: util, drop: drop, rate: rate)
+        }
+
         transport.onData = { [weak self] data in
             guard let self = self else { return }
             self.bytesRecv += data.count
