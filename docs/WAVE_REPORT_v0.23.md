@@ -96,3 +96,19 @@ link.
 
 **Recommendation: 1.** It is a minute and it closes the loop the last five waves
 built, on the product rather than a model. Then 2 is the final guess to retire.
+
+## Addendum: verified on the product
+
+The call was restarted with the AIMD build. The app's log caught the descent —
+552 -> 497 -> 447 -> 403 -> 362 -> 326 kbps, exact x0.9 steps — and the node
+confirms the equilibrium: **zero drops in the last 300 admission decisions**,
+utilisation oscillating 85-98% with `drops=0%` in every report. The AIMD sawtooth,
+on the product, at the radio budget. The percent signs in the log are also
+correct now.
+
+One discovery from the live traffic mix: every audio packet costs TWO fragments
+(`TX 58B -> 1 frag + 1 parity` — a parity over one fragment IS a copy), and audio
+still rides the video port at 50 pkts/s = 100 frags/s, a seventh of the whole
+budget, half of it duplicates. The express port (7002) is built and measured but
+the app does not use it yet. Moving audio there returns ~14% of the video budget
+and takes audio out of video's queue — one destination change per platform.
