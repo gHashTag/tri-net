@@ -1,17 +1,17 @@
 `default_nettype none
 
-// tern_dot27 -- ZeroDSP 27-wide ternary dot product (the edge-AI MAC primitive).
+// tern_dot27 -- ZeroDSP K-wide ternary dot product (the edge-AI MAC primitive).
 //
-// One 27-trit TernaryWord of weights (t27/specs/fpga/mac.t27: MAC_WIDTH = 27)
-// times a vector of 27 signed activations, accumulated. Because the weights are
-// ternary {-1,0,+1} the products are sign-selects, so a whole BitNet-class dot
-// product is a signed adder tree: ZERO DSP. This is the same op the radio
-// despreader runs, pointed at neural-net inference instead of a matched filter
-// -- the ternary MAC is one primitive serving both the mesh's PHY and its
-// on-board AI. Weight code: 2'b01=+1, 2'b10=-1, else 0.
+// One vector of K ternary weights {-1,0,+1} times K signed activations,
+// accumulated. Ternary weights make each product a sign-select, so the whole
+// dot product is a signed ADDER TREE: zero DSP. The terms are summed by an
+// explicit BALANCED binary tree (depth ceil(log2 K), not a K-long chain), which
+// is what lifts the Fmax of every consumer (tern_matvec, tern_mlp) -- the C3
+// balanced-tree fix, generalised to any K and made synthesizable with a flat
+// node array (constant generate bounds; a data-dependent while-loop does not
+// synthesize). Weight code: 2'b01=+1, 2'b10=-1, else 0.
 //
-// SSOT for the format: t27/specs/numeric/tf3.t27 (ternary weights),
-// t27/specs/fpga/mac.t27 (the 27-trit ZeroDSP MAC).
+// SSOT: t27/specs/numeric/tf3.t27, t27/specs/igla/race/ternary_mac.t27.
 module tern_dot27 #(
     parameter integer K   = 27,   // trits / activations per dot
     parameter integer W   = 8,    // signed activation width (int8)
@@ -21,25 +21,32 @@ module tern_dot27 #(
     input  wire [K*2-1:0]        wts,   // K packed ternary weights
     output wire signed [ACC-1:0] dot
 );
-    integer i;
-    reg signed [ACC-1:0] acc;
-    reg signed [W-1:0]   ai;
-    reg        [1:0]     wi;
+    localparam integer LEV = (K <= 1) ? 1 : $clog2(K);
+    localparam integer P   = 1 << LEV;         // padded leaf count (power of two)
 
-    always @(*) begin
-        acc = {ACC{1'b0}};
-        for (i = 0; i < K; i = i + 1) begin
-            ai = act[i*W +: W];
-            wi = wts[i*2 +: 2];
-            case (wi)
-                2'b01: acc = acc + {{(ACC-W){ai[W-1]}}, ai};
-                2'b10: acc = acc - {{(ACC-W){ai[W-1]}}, ai};
-                default: acc = acc;
-            endcase
+    // flat binary tree: node[1] is the root; node[i] children are 2i and 2i+1;
+    // leaves live at node[P .. 2P-1].
+    wire signed [ACC-1:0] node [1:2*P-1];
+    genvar g;
+    generate
+        // leaves: sign-selected terms (0 for padding beyond K)
+        for (g = 0; g < P; g = g + 1) begin : g_leaf
+            if (g < K) begin : real_leaf
+                wire signed [ACC-1:0] ax = {{(ACC-W){act[g*W+W-1]}}, act[g*W +: W]};
+                assign node[P+g] = (wts[g*2 +: 2] == 2'b01) ?  ax :
+                                   (wts[g*2 +: 2] == 2'b10) ? -ax :
+                                                               {ACC{1'b0}};
+            end else begin : pad_leaf
+                assign node[P+g] = {ACC{1'b0}};
+            end
         end
-    end
+        // internal nodes: balanced pairwise sums
+        for (g = 1; g < P; g = g + 1) begin : g_node
+            assign node[g] = node[2*g] + node[2*g+1];
+        end
+    endgenerate
 
-    assign dot = acc;
+    assign dot = node[1];
 endmodule
 
 `default_nettype wire
