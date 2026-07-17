@@ -1356,3 +1356,72 @@ final class OpusCodec {
         return Data(bytes: out.int16ChannelData![0], count: n * 2)
     }
 }
+
+// MARK: - Live log (iOS)
+// The phone has been a black box all along: every diagnosis had to be inferred
+// from what the Mac received, which is how "the mic dies after 2 buffers" took so
+// many passes. Same trick as the Mac (desktop/TriNetVideo/LinkStatus.swift):
+// dup2 our own stderr into a pipe so every existing NSLog shows up in-app, and
+// hand the whole buffer to the clipboard on demand.
+final class LogBus: ObservableObject {
+    static let shared = LogBus()
+    @Published private(set) var lines: [String] = []
+    private let cap = 4000
+    private var pipeRead: Int32 = -1
+    private var origStderr: Int32 = -1
+    private let q = DispatchQueue(label: "trinet.logbus.ios")
+    private var started = false
+
+    func start() {
+        guard !started else { return }
+        started = true
+        var fds: [Int32] = [0, 0]
+        guard pipe(&fds) == 0 else { return }
+        pipeRead = fds[0]
+        origStderr = dup(STDERR_FILENO)
+        dup2(fds[1], STDERR_FILENO)
+        close(fds[1])
+        setvbuf(stderr, nil, _IOLBF, 0)
+        q.async { [weak self] in self?.readLoop() }
+    }
+
+    private func readLoop() {
+        var buf = [UInt8](repeating: 0, count: 4096)
+        // Accumulate BYTES: a read can split a multi-byte UTF-8 char, and
+        // decoding each chunk alone turns it into U+FFFD permanently.
+        var pending = Data()
+        while true {
+            let n = read(pipeRead, &buf, buf.count)
+            guard n > 0 else { break }
+            if origStderr >= 0 { _ = write(origStderr, buf, n) }
+            pending.append(contentsOf: buf[0..<n])
+            while let nl = pending.firstIndex(of: 0x0A) {
+                let line = String(decoding: pending[pending.startIndex..<nl], as: UTF8.self)
+                pending = pending[pending.index(after: nl)...]
+                publish(line)
+            }
+        }
+    }
+
+    // Headed by the facts a reader would otherwise have to ask for.
+    func transcript() -> String {
+        let head = """
+        === TRI-NET iPhone log ===
+        iOS: \(UIDevice.current.systemVersion) \(UIDevice.current.model)
+        opus send: \(AudioController.opusEnabled)   mesh NAL ceiling: \(H264Encoder.meshMaxNAL)B
+        lines: \(lines.count) (buffer holds \(cap))
+        ==========================
+        """
+        return head + "\n" + lines.joined(separator: "\n")
+    }
+
+    private func publish(_ raw: String) {
+        var s = raw
+        if let r = s.range(of: "] "), s.hasPrefix("20") { s = String(s[r.upperBound...]) }
+        guard !s.isEmpty else { return }
+        DispatchQueue.main.async {
+            self.lines.append(s)
+            if self.lines.count > self.cap { self.lines.removeFirst(self.lines.count - self.cap) }
+        }
+    }
+}

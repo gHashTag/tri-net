@@ -130,6 +130,7 @@ struct CallScreen: View {
     @ObservedObject var vm: StreamViewModel
     @State private var showControls = true
     @State private var showChat = false
+    @State private var showLog = false
     @State private var draft = ""
     private let reactions = ["👍", "❤️", "😂", "👏", "🔥"]
 
@@ -168,6 +169,11 @@ struct CallScreen: View {
                     .padding(12).transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
+            if showLog {
+                VStack { Spacer(); iLogPanel(bus: LogBus.shared, close: { showLog = false }) }
+                    .padding(12).transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+
             if showControls && !showChat {
                 VStack(spacing: 0) {
                     HStack(spacing: 10) {
@@ -184,6 +190,13 @@ struct CallScreen: View {
                             }
                             .padding(.horizontal, 10).padding(.vertical, 5)
                             .overlay(Capsule().stroke(vm.isRecording ? DS.danger.opacity(0.5) : DS.hairline, lineWidth: 1))
+                        }.buttonStyle(.plain)
+                        Button(action: { withAnimation { showLog.toggle() } }) {
+                            Image(systemName: "text.alignleft")
+                                .font(.system(size: 11))
+                                .foregroundColor(showLog ? DS.text : DS.dim)
+                                .padding(.horizontal, 8).padding(.vertical, 5)
+                                .overlay(Capsule().stroke(DS.hairline, lineWidth: 1))
                         }.buttonStyle(.plain)
                         Text(vm.remoteIP).font(DS.mono(11)).foregroundColor(DS.faint)
                     }
@@ -445,5 +458,65 @@ struct SectionLabel: View {
     let text: String
     var body: some View {
         Text(text.uppercased()).font(DS.mono(10, .medium)).tracking(1.2).foregroundColor(DS.faint)
+    }
+}
+
+// iOS log panel — the phone's own telemetry, copyable. Without this the phone is
+// a black box and every diagnosis is an inference from what the Mac received.
+private struct iLogPanel: View {
+    @ObservedObject var bus: LogBus
+    let close: () -> Void
+    @State private var copied = false
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                SectionLabel(text: "Log")
+                Spacer()
+                Text("\(bus.lines.count)").font(DS.mono(9)).foregroundColor(DS.faint)
+                Button(action: {
+                    UIPasteboard.general.string = bus.transcript()
+                    copied = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { copied = false }
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: copied ? "checkmark" : "doc.on.doc").font(.system(size: 9))
+                        Text(copied ? "Copied" : "Copy").font(DS.mono(9, .medium))
+                    }
+                    .foregroundColor(copied ? DS.live : DS.dim)
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .overlay(Capsule().stroke(copied ? DS.live.opacity(0.5) : DS.hairline, lineWidth: 1))
+                }.buttonStyle(.plain)
+                Button(action: close) {
+                    Image(systemName: "xmark").font(.system(size: 11)).foregroundColor(DS.dim)
+                }.buttonStyle(.plain)
+            }.padding(10)
+            Hairline()
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 1) {
+                        ForEach(Array(bus.lines.enumerated()), id: \.offset) { i, line in
+                            Text(line).font(DS.mono(8))
+                                .foregroundColor(Self.tint(line))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .id(i)
+                        }
+                    }.padding(10)
+                }
+                .onChange(of: bus.lines.count) { n in
+                    guard n > 0 else { return }
+                    withAnimation(.linear(duration: 0.1)) { proxy.scrollTo(n - 1, anchor: .bottom) }
+                }
+            }
+        }
+        .frame(height: 300)
+        .background(DS.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(DS.hairline, lineWidth: 1))
+    }
+
+    private static func tint(_ l: String) -> Color {
+        let s = l.lowercased()
+        if s.contains("failed") || s.contains("error") || s.contains("denied") || s.contains("division") { return DS.danger }
+        if s.contains("first frame") || s.contains("established") || s.contains("engine up") || s.contains("rebuilt") { return DS.live }
+        return DS.dim
     }
 }
