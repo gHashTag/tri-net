@@ -107,12 +107,18 @@ AD9361 with the DSP block column left entirely free.
   deep-path problem the GF16 correlator had. It fits trivially; it is slow until
   the adder is a balanced tree.
 
-- **The balanced tree already exists in the SSOT.** `t27c gen-trit-stdlib` emits
-  the canonical ternary HW library -- `trit_multiply`, `trit27_parallel_multiply`,
-  **`adder_tree_27`** (a proper 27 -> 9 -> 3 -> 1 balanced tree), and
-  `trit27_dot_product`. Synthesised on xc7z020: **220 LUT, 0 DSP**. That
-  `adder_tree_27` is exactly the fix for the flat-sum Fmax above, and these hand-
-  written modules match the t27-generated primitives. Regenerate with:
+- **`tern_corr_pn_tree.v` -- the fix, applied.** Same N=63 despreader but the 63
+  sign-selected terms sum through an explicit BALANCED adder tree (64 -> 32 -> 16
+  -> 8 -> 4 -> 2 -> 1, depth 6 instead of 63). Verified identical (peak 6300).
+  Post-P&R on xc7z020: **0 DSP, 9497 LUT (8%), Fmax 45.38 MHz** -- a **~12x**
+  jump from the flat 3.87 MHz, and now **above the full 30.72 MSPS chip rate**.
+  Depth, not resources, was the whole problem.
+
+- **The same balanced tree is in the SSOT.** `t27c gen-trit-stdlib` emits the
+  canonical ternary HW library -- `trit_multiply`, `trit27_parallel_multiply`,
+  **`adder_tree_27`** (a 27 -> 9 -> 3 -> 1 balanced tree), and
+  `trit27_dot_product` (**220 LUT, 0 DSP**). Our tree mirrors that SSOT pattern.
+  Regenerate the library with:
 
   ```
   t27/target/release/t27c gen-trit-stdlib > trit_stdlib.v
@@ -120,6 +126,23 @@ AD9361 with the DSP block column left entirely free.
 
   (The generated file is NOT committed here -- its SSOT is t27; this repo mirrors
   the primitive, the spec owns it.)
+
+## A real loadable bitstream, 100% open flow
+
+The ternary correlator goes all the way to a loadable **xc7z020 bitstream** with
+no Vivado anywhere: `yosys -> nextpnr-xilinx --fasm -> fasm2frames ->
+xc7frames2bit` (all in `regymm/openxc7`) produced a **4,045,664-byte `.bit`** --
+the correct full-configuration size for a Zynq-7020. The open deploy path reaches
+a real bitstream for the exact chip on the P201Mini.
+
+Honest boundary (NOT done): the `.bit` is generated, but it is not loaded on a
+board. Two reasons, both real: (1) the correlator's ports auto-place to physical
+FPGA pins -- to be driven by the Zynq PS over AXI it needs the PS7/AXI-GP
+boundary the ADI reference design provides, which openXC7 does not wire up for
+us; (2) loading any PL image on .13 disconnects the live AD9361 datapath, so the
+working radio node is not overwritten without explicit go-ahead (reversible by
+reboot to SD-boot). The bitstream flow is proven; on-board load + PS-AXI
+integration is the remaining bring-up.
 
 ## Over-the-air PN (honest, partial) -- see ota/pn_over_air.md
 
