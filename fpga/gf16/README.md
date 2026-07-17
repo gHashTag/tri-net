@@ -29,8 +29,10 @@ are the verified realization, copied so the modem can sim/synth standalone.
   CLARA erratum prescribes.
 - `iverilog` unit tests: gf16_mul 14/14, gf16_dot4 6/6.
 - `yosys synth_xilinx` (7-series): `gf16_mul` = 1 DSP48E1 + 13 CARRY4 + ~127 LUT;
-  `gf16_dot4` (the 4-tap correlator MAC) = 4 DSP48E1 + LUTs. Full P&R needs
-  `nextpnr-xilinx` (not installed here) but synthesis maps cleanly.
+  `gf16_dot4` (the 4-tap correlator MAC) = 4 DSP48E1 + LUTs.
+- **Full `nextpnr-xilinx` place-and-route now runs** for the real radio FPGA
+  (`xc7z020clg400`, chipdb built from prjxray-db in `regymm/openxc7`): see the
+  streaming core section below for measured post-P&R numbers.
 
 ## How this connects to bytes-over-radio
 
@@ -63,6 +65,39 @@ IS demodulation. iverilog (open-source, no Vivado):
 
 This is the numeric core of the FPGA modem that replaces the jittery
 shell-toggled DDS: correlate received I/Q against reference tones, pick the peak.
+
+## The streaming demod core (gf16_corr8_stream) + measured P&R
+
+`gf16_corr8_stream` is the PL-side modem core: one GF16 sample enters per clock,
+the correlation of the last 8 samples against 8 reference taps leaves one clock
+later. Taps load through a small write port (an AXI-Lite config bank in a real
+image). This shape has a sane IO footprint (56 pins, not the flat correlator's
+272) so it actually places on the xc7z020, and the taps are runtime registers so
+the 8 multipliers are real (yosys cannot fold them away and lie about cost).
+
+Verified in `iverilog` (`gf16_corr8_stream_tb.v`): loading cosine taps and
+sliding a matched burst through the stream peaks the registered output at
+**4.007** on alignment ("streaming demod works"). All-ones sanity: corr = 8.0.
+
+**Measured `nextpnr-xilinx` post-place-and-route on `xc7z020clg400-1`:**
+
+- Resources (yosys `synth_xilinx`): **8 DSP48E1**, ~3138 LUT, 273 FF, 315 CARRY4,
+  56 IO. On the xc7z020 that is **~5.9% LUT, 3.6% DSP, 0.26% FF** -- the modem
+  core fits beside the AD9361 datapath with enormous headroom.
+- Timing (nextpnr STA): **Fmax = 14.29 MHz**. The single-cycle combinational
+  path (8 GF16 multiplies + a 3-level GF16 add tree between the input and output
+  registers) is deep. That clears the DECIMATED demod rate used in the live test
+  (7.68 MSPS) but NOT the full 30.72 MSPS -- full-rate needs the multiply/add
+  tree pipelined. Honest number, actionable next step.
+
+## Live over-the-air demod through this exact RTL (ota/)
+
+`ota/` feeds REAL antenna-to-antenna samples (board .13 TX a 1 MHz tone, board
+.12 RX at 30.72 MSPS, received tone at +0.96 MHz, SNR ~47 dB) through
+`gf16_corr8_stream`. Matched taps vs the real tone give RMS |corr| 2.30; a
+mismatched (3x) reference gives 0.155 (~15x separation) and the TX-off capture
+gives 0.55 (~4x). The correlator we synthesize demodulates the air. See
+`ota/README.md` for the capture commands and the full table.
 
 ## The Zynq path is OPEN with open-source tools (correcting the skill)
 
