@@ -98,7 +98,7 @@ class StreamViewModel: ObservableObject {
         linkRate = rate
         linkSeenAt = Date()
         if drop > 0 {
-            NSLog("TRINET: node is dropping \(drop)% of our payloads (util \(util)% of \(rate)/s)")
+            NSLog("%@", "TRINET: node is dropping \(drop)% of our payloads (util \(util)% of \(rate)/s)")
         }
     }
 
@@ -110,7 +110,7 @@ class StreamViewModel: ObservableObject {
             if fresh, let advice = self.linkAdvice {
                 if advice == StreamViewModel.adviceBackOff {
                     self.camera.nudgeBitrate(down: true)
-                    NSLog("TRINET: ABR down — node: util=\(self.linkUtil)% drops=\(self.linkDrop)% of \(self.linkRate)/s")
+                    NSLog("%@", "TRINET: ABR down — node: util=\(self.linkUtil)% drops=\(self.linkDrop)% of \(self.linkRate)/s")
                 } else if advice == StreamViewModel.adviceClimb {
                     self.camera.nudgeBitrate(down: false)
                 }

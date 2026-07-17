@@ -90,6 +90,12 @@ the far end simply hears nothing. Do not "clean up" any of them.
 - **Never fail silently in an audio path.** `guard let x = codec?.decode(f) else
   { return }` dropped every packet with no log — indistinguishable from "the peer
   isn't sending". Log the failure and count it.
+- **`NSLog` treats its first argument as a FORMAT STRING.** An interpolated
+  Swift string containing `%` is a format-string bug: `NSLog("util=\(u)% drops=\(d)%")`
+  renders as `util=100 0rops=0` because `% d` is a valid printf specifier and eats
+  what follows. The counters stay honest; only the log lies — which is worse,
+  because the log is what you read. Pass the message as an argument:
+  `NSLog("%@", "util=\(u)% ...")`.
 - **Log what WENT OUT, not the flag.** `opus=\(opusEnabled)` printed beside a 642B
   raw packet claimed a 10x saving that never happened. Report the actual format.
 

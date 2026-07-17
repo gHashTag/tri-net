@@ -60,7 +60,7 @@ class CallManager: ObservableObject {
             if fresh, let advice = self.linkAdvice {
                 if advice == CallManager.adviceBackOff {
                     self.camera.nudgeBitrate(down: true)
-                    NSLog("TRINET: ABR down — node: util=\(self.linkUtil)% drops=\(self.linkDrop)% of \(self.linkRate)/s -> \(self.camera.bitrateKbps)kbps")
+                    NSLog("%@", "TRINET: ABR down — node: util=\(self.linkUtil)% drops=\(self.linkDrop)% of \(self.linkRate)/s -> \(self.camera.bitrateKbps)kbps")
                 } else if advice == CallManager.adviceClimb {
                     self.camera.nudgeBitrate(down: false)
                 }
@@ -246,7 +246,7 @@ class CallManager: ObservableObject {
             self.linkRate = rate
             self.linkSeenAt = Date()
             if drop > 0 {
-                NSLog("TRINET: node is dropping \(drop)% of our payloads (util \(util)% of \(rate)/s)")
+                NSLog("%@", "TRINET: node is dropping \(drop)% of our payloads (util \(util)% of \(rate)/s)")
             }
         }
 
