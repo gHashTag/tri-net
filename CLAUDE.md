@@ -166,6 +166,13 @@ real defect, and every one of them was silent.
   printed nowhere and drops printed only every 10th, so a dropped keyframe left
   no trace and no experiment could see the counter it was trying to measure.
   Instrument first — a probe against invisible state is the broken-ruler error.
+- **Measure the law the PRODUCT runs, not a stand-in.** v0.21 reported the ABR
+  converged at 0% swing; that used the harness's own x0.8/x1.1 step, while the
+  app ships x0.7/x1.2 and actually swings 36%. A control-loop measurement is only
+  as valid as its fidelity to the real step law. And congestion control lives in
+  the STEP LAW (AIMD: additive up, multiplicative down), not in a hysteresis
+  dead zone -- the zone only makes the loop freeze at an arbitrary point and
+  waste ~25% of the link.
 - **Verify the rig is UP before believing a number it produced.** Twice in one
   session a harness reported a clean verdict from a daemon that was not running:
   once because a 6-byte wire change was never redeployed to the boards, once
