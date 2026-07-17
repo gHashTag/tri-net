@@ -83,3 +83,20 @@ mechanical.
 Two full radios are waiting for it. TX of `.13` into RX of `.12` is a real
 radio hop the moment the cable exists — the first "интернет из воздуха" link,
 legally, on the bench.
+
+## Addendum (later that night): the blackout that proved the theory
+
+Attempting to fix `.12`'s stuck ENSM with the sanctioned warm `reboot` took
+**all three boards** down: `.13` (which was up, fdd, loopback-verified minutes
+earlier) vanished mid-command, `.12` never returned, `.11` was already dark.
+One board's boot inrush browns out the shared supply for the rest. This is the
+strongest evidence yet that the entire radio lottery -- CHIP_ID 0x0, wandering
+radios, boards dying during experiments -- is ONE problem: power.
+
+Written while dark, for the next power-up:
+- `tools/radio-bringup/LINK_RUNBOOK.md` -- per-board sanity checklist, matched
+  radio settings for the cabled link, the DATA_SEL debugfs lever for the TX DMA
+  blocker (prepared, unexecuted -- the board went dark seconds before the first
+  register read), and the power discipline learned tonight.
+
+The next session starts with a checklist, not archaeology.
