@@ -58,12 +58,23 @@ No exceptions. A spec without tests is a draft, not a specification.
 
 ## Article V: Radio Emission
 
-- NO over-the-air transmission. The radio link is proven on a CABLED channel
-  (SMA + 30-40 dB attenuator) or in simulation. OTA is a legal question, not an
-  engineering one: it needs explicit human confirmation, never an agent's.
+- OTA is a legal question, not an engineering one: it needs explicit human
+  confirmation, never an agent's. The owner confirmed the project operates on
+  ALLOWED frequencies (2026-07-17), so over-the-air is permitted here. Until that
+  confirmation the default was a CABLED channel (SMA + 30-40 dB attenuator) or
+  simulation; the cable is still the cleaner channel for FIRST proving a modem
+  (known path loss, no multipath/interference) even though OTA is allowed.
+- FIRST OTA HOP DONE (2026-07-17): a low-power 2.4 GHz DDS tone from .13 was
+  received by .12 over the air (spectral peak 3 -> 98 at the offset, gone when TX
+  off). No cable, no loopback. Real emission, board to board.
+- Independent crystals => a carrier frequency offset between any two boards (the
+  tone landed ~0.5 MHz off). A real OTA modem MUST recover carrier + timing; the
+  digital-loopback demod that skipped both does NOT work over the air.
 - One radio cannot form a link. Verify TWO healthy AD9361 nodes (probe
   "successfully initialized", LO writable, no Calibration TIMEOUT) before
   planning anything on air.
+- Power the boards from CHARGERS (5V/2A+), not the computer's USB bus: bus power
+  (0.5-0.9A) starves the AD9361 (~1.5A peak) and IS the "wandering radio" lottery.
 
 ## Article VI: Honest Reporting
 
