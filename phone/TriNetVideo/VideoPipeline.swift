@@ -716,6 +716,8 @@ final class AudioController {
     private var started = false
     private var rxCount = 0
     private var txCount = 0
+    private var vpEnabled = true
+    private var observers: [NSObjectProtocol] = []
 
     // RMS -> perceptual 0...1 (sqrt gives a livelier meter than raw RMS)
     static func level(_ sumSq: Float, _ n: Int) -> Float {
@@ -724,8 +726,69 @@ final class AudioController {
         return min(1, rms * 3)
     }
 
+    // AVAudioEngine STOPS and drops every installed tap when the audio graph is
+    // reconfigured (route settling into .defaultToSpeaker, voice processing
+    // re-tuning the I/O, an interruption, media services resetting). Nothing here
+    // observed that, so the mic tap died a couple of buffers after the call
+    // started and never came back — audio silently gone for the whole call while
+    // video kept flowing. Rebuild the graph whenever that happens.
+    private func installObservers() {
+        guard observers.isEmpty else { return }
+        let nc = NotificationCenter.default
+        observers.append(nc.addObserver(forName: .AVAudioEngineConfigurationChange,
+                                        object: engine, queue: .main) { [weak self] _ in
+            NSLog("TRINET: audio engine configuration change -> rebuild")
+            self?.rebuild()
+        })
+        #if os(iOS)
+        observers.append(nc.addObserver(forName: AVAudioSession.interruptionNotification,
+                                        object: nil, queue: .main) { [weak self] note in
+            guard let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
+            if type == .ended {
+                NSLog("TRINET: audio interruption ended -> rebuild")
+                self?.rebuild()
+            } else {
+                NSLog("TRINET: audio interruption began")
+            }
+        })
+        observers.append(nc.addObserver(forName: AVAudioSession.mediaServicesWereResetNotification,
+                                        object: nil, queue: .main) { [weak self] _ in
+            NSLog("TRINET: media services reset -> rebuild")
+            self?.rebuild()
+        })
+        observers.append(nc.addObserver(forName: AVAudioSession.routeChangeNotification,
+                                        object: nil, queue: .main) { [weak self] _ in
+            guard let self = self, self.started, !self.engine.isRunning else { return }
+            NSLog("TRINET: route change left engine stopped -> rebuild")
+            self.rebuild()
+        })
+        #endif
+    }
+
+    // Tear the capture graph down and stand it back up. Safe to call repeatedly.
+    private func rebuild() {
+        guard started else { return }
+        started = false
+        engine.inputNode.removeTap(onBus: 0)
+        engine.stop()
+        #if os(iOS)
+        let sess = AVAudioSession.sharedInstance()
+        try? sess.setCategory(.playAndRecord, mode: .videoChat,
+                              options: [.defaultToSpeaker, .allowBluetooth])
+        try? sess.setActive(true)
+        #endif
+        if !buildAndStart(voiceProcessing: vpEnabled) {
+            engine.reset()
+            _ = buildAndStart(voiceProcessing: false)
+        }
+        rxCount = 0   // re-arm the jitter pre-roll
+        NSLog("TRINET: audio rebuilt (running=\(engine.isRunning))")
+    }
+
     func start() {
         guard !started else { return }
+        installObservers()
         #if os(iOS)
         let sess = AVAudioSession.sharedInstance()
         try? sess.setCategory(.playAndRecord, mode: .videoChat,
@@ -754,11 +817,16 @@ final class AudioController {
     }
 
     private func buildAndStart(voiceProcessing: Bool) -> Bool {
+        // Idempotent: rebuild() re-enters here after a configuration change.
+        engine.inputNode.removeTap(onBus: 0)
         try? engine.inputNode.setVoiceProcessingEnabled(voiceProcessing)
+        vpEnabled = voiceProcessing
 
-        engine.attach(player)
+        if player.engine == nil { engine.attach(player) }
         engine.connect(player, to: engine.mainMixerNode, format: wireFormat)
 
+        // Re-read AFTER enabling voice processing — VP re-tunes the input chain
+        // and can change the format out from under a stale converter/tap.
         let inFmt = engine.inputNode.outputFormat(forBus: 0)
         guard inFmt.sampleRate > 0 else {
             NSLog("TRINET: audio input format unavailable")
@@ -846,6 +914,8 @@ final class AudioController {
     }
 
     func stop() {
+        observers.forEach { NotificationCenter.default.removeObserver($0) }
+        observers.removeAll()
         guard started else { return }
         engine.inputNode.removeTap(onBus: 0)
         player.stop()
