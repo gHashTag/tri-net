@@ -59,9 +59,68 @@ struct ReassemblyState {
     data: Vec<u8>,
     /// Byte length of the FINAL fragment. The total size is
     /// (count-1)*MAX_FRAG_DATA + last_len — it cannot be inferred from the
-    /// buffer contents (see the emit path).
+    /// buffer contents (see the emit path). Carried by the last fragment AND
+    /// by every parity, so losing the last fragment does not cost the length.
     last_len: Option<usize>,
+    /// XOR parity per group. A group missing exactly one fragment is repairable.
+    parity: HashMap<u8, Vec<u8>>,
+    /// Groups repaired so far for this payload. Accumulated, because
+    /// repair_groups runs per packet and each parity repairs its own group: the
+    /// final call's return value is 1 no matter how many the parity actually
+    /// saved, so reporting it made a 9-loss NAL read as a 1-loss NAL.
+    repaired: u32,
+    /// Already delivered. The entry outlives delivery until the GC sweeps it,
+    /// because parity trails its data fragments on the wire: dropping the entry
+    /// at delivery let a late parity re-create it from scratch, "repair" the
+    /// whole NAL out of the parity alone (for a one-fragment group the parity
+    /// IS the fragment) and deliver a DUPLICATE.
+    done: bool,
     last_update: Instant,
+}
+
+/// Repair every group that is missing exactly one fragment.
+///
+/// Reassembly is all-or-nothing, so without this ONE lost 70-byte packet
+/// destroys a whole NAL — and an I-frame is 129 packets. The XOR is over cells
+/// padded to MAX_FRAG_DATA, which is why `data` is zero-initialised: a short
+/// final fragment leaves the same zero padding the sender XORed over.
+fn repair_groups(state: &mut ReassemblyState) -> u32 {
+    let max_data = video_bridge::MAX_FRAG_DATA as usize;
+    let count = state.expected_frags;
+    let mut repaired = 0;
+
+    for group in 0..video_bridge::fec_group_count(count) {
+        let Some(par) = state.parity.get(&group) else { continue };
+        let first = video_bridge::fec_group_first(group) as usize;
+        let len = video_bridge::fec_group_len(group, count) as usize;
+
+        let mut missing = None;
+        let mut missing_count: u8 = 0;
+        for i in first..first + len {
+            if !state.received[i] {
+                missing_count += 1;
+                missing = Some(i);
+            }
+        }
+        if !video_bridge::fec_can_recover(missing_count) {
+            continue; // 0 = nothing to do; 2+ = one XOR cannot separate them
+        }
+        let lost = missing.expect("fec_can_recover(1) implies one missing index");
+
+        let mut cell = par.clone();
+        for i in first..first + len {
+            if i == lost {
+                continue;
+            }
+            for b in 0..max_data {
+                cell[b] ^= state.data[i * max_data + b];
+            }
+        }
+        state.data[lost * max_data..lost * max_data + max_data].copy_from_slice(&cell);
+        state.received[lost] = true;
+        repaired += 1;
+    }
+    repaired
 }
 
 fn main() {
@@ -88,6 +147,10 @@ fn main() {
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(DEFAULT_FRAG_RATE_PER_SEC);
+    // Sender-side kill switch. A receiver needs no flag: no parity arrives, so
+    // nothing is repaired. Exists so the parity's benefit can be A/B measured on
+    // one binary and one link instead of argued from arithmetic.
+    let fec_enabled = env::var("FEC").map(|v| v != "0").unwrap_or(true);
 
     // PORTS. The device's payload and the peer's fragments MUST arrive on
     // different ports. This used to be one socket that told them apart by
@@ -116,15 +179,16 @@ fn main() {
     let started = Instant::now();
     println!(
         "[video] bridge {listen_addr} <-> peer {peer_mesh} | device port {out_port} \
-         (device: {}) | rate {frag_rate} frags/s",
+         (device: {}) | rate {frag_rate} frags/s | FEC {}",
         match *device.lock().unwrap() {
             Some(d) => format!("pinned {}", d.ip()),
             None => "awaiting ingress".to_string(),
-        }
+        },
+        if fec_enabled { "on" } else { "OFF" }
     );
 
     std::thread::scope(|s| {
-        s.spawn(|| uplink(&app_sock, peer_mesh, &device, out_port, frag_rate, started));
+        s.spawn(|| uplink(&app_sock, peer_mesh, &device, out_port, frag_rate, fec_enabled, started));
         s.spawn(|| downlink(&mesh_sock, &app_sock, &device, started));
     });
 }
@@ -136,6 +200,7 @@ fn uplink(
     device: &Mutex<Option<SocketAddr>>,
     out_port: u16,
     frag_rate: u32,
+    fec_enabled: bool,
     started: Instant,
 ) {
     let mut rx_buf = vec![0u8; MAX_PACKET];
@@ -143,6 +208,24 @@ fn uplink(
     let mut spent: u32 = 0;
     let mut window_start = Instant::now();
     let mut dropped: u32 = 0;
+
+    // PACING. A per-second budget alone makes the AVERAGE rate right while the
+    // INSTANTANEOUS rate is ~100x the target: the whole NAL leaves in under a
+    // millisecond and the link idles for the rest of the second. Measured: a
+    // 138-packet NAL burst cost 44 packets at the peer's socket buffer
+    // (RcvbufErrors), and a 480 kbps radio queue would drop the same way. Space
+    // fragments one token apart so the wire sees the rate we actually promised.
+    let slot = Duration::from_secs_f64(1.0 / frag_rate as f64);
+    let mut next_slot = Instant::now();
+    let mut send_paced = |sock: &UdpSocket, pkt: &[u8], to: SocketAddr| {
+        let now = Instant::now();
+        if next_slot > now {
+            std::thread::sleep(next_slot - now);
+        }
+        sock.send_to(pkt, to).ok();
+        // max(now) so an idle link does not bank credit and then blast.
+        next_slot = next_slot.max(now) + slot;
+    };
 
     loop {
         let now = Instant::now();
@@ -208,12 +291,43 @@ fn uplink(
             pkt.push(nfrags);
             pkt.extend_from_slice(chunk);
 
-            app_sock.send_to(&pkt, peer_mesh).ok();
+            send_paced(app_sock, &pkt, peer_mesh);
             spent += 1;
         }
 
+        // One XOR parity per group, so a single lost fragment does not destroy
+        // the NAL. The parity is over cells padded to max_data — the same
+        // padding a receiver's zero-initialised buffer reproduces.
+        let last_len = size - (nfrags as usize - 1) * max_data;
+        let ngroups = if fec_enabled { video_bridge::fec_group_count(nfrags) } else { 0 };
+        for group in 0..ngroups {
+            let first = video_bridge::fec_group_first(group) as usize;
+            let len = video_bridge::fec_group_len(group, nfrags) as usize;
+
+            let mut xor = vec![0u8; max_data];
+            for i in first..first + len {
+                let offset = i * max_data;
+                let end = (offset + max_data).min(size);
+                for (b, byte) in rx_buf[offset..end].iter().enumerate() {
+                    xor[b] ^= byte;
+                }
+            }
+
+            let mut pkt = Vec::with_capacity(video_bridge::fec_packet_size() as usize);
+            pkt.push(video_bridge::VSTREAM_FEC_TYPE);
+            pkt.push(video_bridge::seq_lo(seq));
+            pkt.push(video_bridge::seq_hi(seq));
+            pkt.push(group);
+            pkt.push(nfrags);
+            pkt.push(last_len as u8);
+            pkt.extend_from_slice(&xor);
+
+            send_paced(app_sock, &pkt, peer_mesh);
+            spent += 1; // parity is not free; it pays from the same budget
+        }
+
         println!(
-            "[video] TX {size}B -> {nfrags} frags (seq={seq}) from {from} \
+            "[video] TX {size}B -> {nfrags} frags + {ngroups} parity (seq={seq}) from {from} \
              budget={spent}/{frag_rate} t={:.1}s",
             started.elapsed().as_secs_f32()
         );
@@ -240,38 +354,67 @@ fn downlink(
             Ok((n, _)) => n,
             Err(_) => continue,
         };
-        if n < video_bridge::FRAG_HEADER_LEN as usize || rx_buf[0] != video_bridge::VSTREAM_TYPE {
-            continue; // not ours; the mesh port carries VSTREAM only
+        let is_parity = rx_buf[0] == video_bridge::VSTREAM_FEC_TYPE;
+        let header = if is_parity {
+            video_bridge::FEC_HEADER_LEN as usize
+        } else {
+            video_bridge::FRAG_HEADER_LEN as usize
+        };
+        // The mesh port carries VSTREAM only. An unknown type is dropped rather
+        // than guessed at — a peer running an older daemon simply ignores parity
+        // instead of feeding it to reassembly as data.
+        if n < header || (!is_parity && rx_buf[0] != video_bridge::VSTREAM_TYPE) {
+            continue;
         }
 
         let frag_seq = video_bridge::frag_seq(rx_buf[1], rx_buf[2]);
-        let frag_idx = rx_buf[3];
+        let frag_idx = rx_buf[3]; // group_idx when is_parity
         let frag_count = rx_buf[4];
-        let data_len = n - video_bridge::FRAG_HEADER_LEN as usize;
-        let frag_data = &rx_buf[video_bridge::FRAG_HEADER_LEN as usize..n];
+        if frag_count == 0 {
+            continue;
+        }
+        let data_len = n - header;
+        let payload = &rx_buf[header..n];
 
         let state = reassembly.entry(frag_seq).or_insert_with(|| ReassemblyState {
             expected_frags: frag_count,
             received: vec![false; frag_count as usize],
             data: vec![0u8; (frag_count as usize) * (video_bridge::MAX_FRAG_DATA as usize)],
             last_len: None,
+            parity: HashMap::new(),
+            repaired: 0,
+            done: false,
             last_update: Instant::now(),
         });
         state.last_update = Instant::now();
+        if state.done {
+            continue; // already delivered; this is a trailing parity
+        }
         state.expected_frags = frag_count; // in case the first fragment was lost
 
-        let offset = (frag_idx as usize) * (video_bridge::MAX_FRAG_DATA as usize);
-        if (frag_idx as usize) < state.received.len() && offset + data_len <= state.data.len() {
-            state.data[offset..offset + data_len].copy_from_slice(frag_data);
-            state.received[frag_idx as usize] = true;
-            if video_bridge::is_last_fragment(frag_idx, frag_count) {
-                state.last_len = Some(data_len);
+        if is_parity {
+            // Every parity carries last_len, so losing the final fragment does
+            // not also cost the NAL's length.
+            state.last_len = Some(rx_buf[5] as usize);
+            state.parity.insert(frag_idx, payload.to_vec());
+        } else {
+            let offset = (frag_idx as usize) * (video_bridge::MAX_FRAG_DATA as usize);
+            if (frag_idx as usize) < state.received.len() && offset + data_len <= state.data.len() {
+                state.data[offset..offset + data_len].copy_from_slice(payload);
+                state.received[frag_idx as usize] = true;
+                if video_bridge::is_last_fragment(frag_idx, frag_count) {
+                    state.last_len = Some(data_len);
+                }
             }
         }
 
+        state.repaired += repair_groups(state);
         if !state.received.iter().all(|&r| r) {
             continue;
         }
+        state.done = true;
+        let repaired = state.repaired;
+        let ngroups = video_bridge::fec_group_count(frag_count);
 
         // Size the payload from the LAST fragment's recorded length.
         //
@@ -295,8 +438,16 @@ fn downlink(
         match *device.lock().unwrap() {
             Some(dev) => {
                 out_sock.send_to(&state.data[..total], dev).ok();
+                // Report repairs: a silent FEC is indistinguishable from no loss,
+                // and then nobody knows whether the link is healthy or the parity
+                // is carrying it.
+                let fec = if repaired > 0 {
+                    format!(" [FEC repaired {repaired} of {ngroups} groups]")
+                } else {
+                    String::new()
+                };
                 println!(
-                    "[video] RX seq={frag_seq} ({frag_count} frags, {total}B) -> {dev} t={:.1}s",
+                    "[video] RX seq={frag_seq} ({frag_count} frags, {total}B) -> {dev}{fec} t={:.1}s",
                     started.elapsed().as_secs_f32()
                 );
             }
@@ -305,6 +456,5 @@ fn downlink(
                 started.elapsed().as_secs_f32()
             ),
         }
-        reassembly.remove(&frag_seq);
     }
 }

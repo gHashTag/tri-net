@@ -181,3 +181,108 @@ fn the_three_ports_are_distinct() {
         }
     }
 }
+
+// ---- fragment-layer FEC ----
+
+#[test]
+fn fec_group_math_matches_the_spec() {
+    assert_eq!(vb::fec_group_of(0), 0);
+    assert_eq!(vb::fec_group_of(15), 0, "15 is the last index of group 0");
+    assert_eq!(vb::fec_group_of(16), 1);
+    assert_eq!(vb::fec_group_count(0), 0, "no fragments, no parity");
+    assert_eq!(vb::fec_group_count(32), 2, "exactly two full groups");
+    assert_eq!(vb::fec_group_count(33), 3, "the leftover needs its own parity");
+    assert_eq!(vb::fec_group_count(129), 9, "a 9000B I-frame");
+    assert_eq!(vb::fec_packet_size(), 76, "6 header + 70 data");
+}
+
+#[test]
+fn fec_groups_tile_every_nal_exactly_once() {
+    // Every fragment must belong to exactly one group, and the groups must
+    // cover the NAL with no gap and no overlap -- otherwise a fragment is
+    // either unprotected or XORed into two parities.
+    for count in 1u8..=255 {
+        let groups = vb::fec_group_count(count);
+        let mut covered = 0usize;
+        for g in 0..groups {
+            let first = vb::fec_group_first(g) as usize;
+            let len = vb::fec_group_len(g, count) as usize;
+            assert_eq!(first, covered, "group {g} of {count} must start where the last ended");
+            assert!(len > 0, "group {g} of {count} covers nothing");
+            for i in first..first + len {
+                assert_eq!(vb::fec_group_of(i as u8), g, "fragment {i} claims another group");
+            }
+            covered += len;
+        }
+        assert_eq!(covered, count as usize, "groups must cover all {count} fragments");
+    }
+}
+
+#[test]
+fn fec_group_index_never_reaches_the_u8_shift_overflow() {
+    // fec_group_first is generated as `group_idx << 4`, which silently yields 0
+    // at group 16 (16*16 = 256 does not fit u8). frag_count is u8, so the
+    // highest reachable group is 15 -> 240. If FEC_GROUP or the fragment
+    // ceiling ever changes, this is where it breaks.
+    let highest = vb::fec_group_count(255) - 1;
+    assert_eq!(highest, 15, "255 fragments must not need a 17th group");
+    assert_eq!(vb::fec_group_first(highest), 240);
+    assert_eq!(vb::fec_group_first(16), 0, "documents the overflow that must stay unreachable");
+}
+
+#[test]
+fn fec_recovers_any_single_lost_fragment() {
+    // The property the whole feature exists for: reassembly is all-or-nothing,
+    // so one lost 70-byte packet used to destroy a whole NAL. Rebuild each
+    // fragment in turn from its group's parity, exactly as the daemon does.
+    let max_data = vb::MAX_FRAG_DATA as usize;
+    let nal: Vec<u8> = (0..9000u32).map(|i| (i.wrapping_mul(31) & 0xFF) as u8).collect();
+    let count = vb::fragment_count(nal.len() as u16);
+    assert_eq!(count, 129, "9000B is the I-frame case");
+
+    // Sender: cells padded to max_data, one XOR parity per group.
+    let cell = |i: usize| -> Vec<u8> {
+        let start = i * max_data;
+        let end = (start + max_data).min(nal.len());
+        let mut c = vec![0u8; max_data];
+        c[..end - start].copy_from_slice(&nal[start..end]);
+        c
+    };
+    let parity: Vec<Vec<u8>> = (0..vb::fec_group_count(count))
+        .map(|g| {
+            let first = vb::fec_group_first(g) as usize;
+            let len = vb::fec_group_len(g, count) as usize;
+            let mut xor = vec![0u8; max_data];
+            for i in first..first + len {
+                for (b, byte) in cell(i).iter().enumerate() {
+                    xor[b] ^= byte;
+                }
+            }
+            xor
+        })
+        .collect();
+
+    for lost in 0..count as usize {
+        let g = vb::fec_group_of(lost as u8);
+        let first = vb::fec_group_first(g) as usize;
+        let len = vb::fec_group_len(g, count) as usize;
+        let mut rebuilt = parity[g as usize].clone();
+        for i in first..first + len {
+            if i == lost {
+                continue;
+            }
+            for (b, byte) in cell(i).iter().enumerate() {
+                rebuilt[b] ^= byte;
+            }
+        }
+        assert_eq!(rebuilt, cell(lost), "fragment {lost} was not recovered from group {g}");
+    }
+}
+
+#[test]
+fn fec_cannot_recover_two_losses_and_says_so() {
+    assert!(vb::fec_can_recover(1));
+    assert!(!vb::fec_can_recover(0), "nothing missing is not a repair");
+    assert!(!vb::fec_can_recover(2), "one XOR cannot separate two unknowns");
+    assert!(!vb::fec_can_recover(16));
+}
