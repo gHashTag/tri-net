@@ -134,3 +134,34 @@ TX toggler (busybox sh, recorded here per no-shell-scripts hook):
       i=$((i+1))
     done
     A altvoltage0 scale 0.0; A altvoltage1 scale 0.0
+
+
+## CORRECTION: antennas ARE present, link is STRONG, the earlier "SNR wall" was mine
+
+The user confirmed each board has two antennas (TX + RX). Re-measured with a
+STEADY tone at full TX power (0 dB atten):
+
+    RX RMS 615, peak sample 1111 (no clip), received tone magnitude 202 at -2.5 MHz
+
+That is a STRONG over-the-air link, not the "SNR wall" reported above. Two of my
+own mistakes made it look weak before:
+1. Sample rate 2.5 MSPS -> Nyquist +-1.25 MHz, but the two crystals differ by
+   ~3 MHz, so the received tone landed at -2.5 MHz and ALIASED out of band.
+   Fixed by capturing at 7.68 / 30.72 MSPS so the offset tone stays in band.
+2. TX at -10 dB attenuation; full power (0 dB) is ~10 dB louder.
+
+So NO attenuator and NO distance are needed -- antennas + close together is the
+strong, easy case. (Distance/attenuation only matter for a direct cable, to
+protect RX, or for a real range test.)
+
+Bytes over the air still did NOT decode cleanly, but the cause is now isolated to
+the MODULATOR, not the link: shell `iio_attr` frequency toggling is slow and
+glitchy, so the FSK symbols are not clean, and the receiver's DC/LO-leakage spike
+dominates any window near baseband. The strong steady tone proves the channel; a
+clean modulator (DMA/FPGA sample-accurate keying, or at least a DDS driven with
+a proper frequency plan away from DC) is what remains. Chasing the shell-FSK
+demod further is the spiral the doctrine warns against -- stopped.
+
+Practical settings that worked for the strong steady tone (leave these for the
+next attempt): TX atten 0 dB, DDS scale 0.9, RX manual gain ~48-53 dB, sample
+rate >= 7.68 MSPS, and MASK +-250 kHz around DC in any tone search.
