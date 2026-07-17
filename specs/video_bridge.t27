@@ -32,8 +32,20 @@ module VideoBridge {
     // ---- Fragment-layer FEC ----
     // Reassembly is all-or-nothing: ONE lost 70-byte fragment destroys the
     // whole NAL, and an I-frame is 129 fragments. One XOR parity per group of
-    // FEC_GROUP fragments recovers any single loss within that group, at
+    // ~FEC_GROUP fragments recovers any single loss within that group, at
     // 1/FEC_GROUP overhead.
+    //
+    // GROUPS ARE INTERLEAVED, NOT CONTIGUOUS. Group g holds fragments
+    // g, g+stride, g+2*stride, ... where stride = the number of groups.
+    // Contiguous groups (g = idx/16) only survive ISOLATED loss, and neither
+    // loss source this system has is isolated: a full socket buffer drops
+    // consecutive arrivals, and a fading radio drops consecutive symbols.
+    // Measured on hardware with contiguous groups, 9000B NAL, same loss count:
+    //   2 scattered -> DELIVERED   2 consecutive -> LOST
+    //   8 scattered -> DELIVERED   8 consecutive -> LOST
+    // Interleaving spreads a burst of up to `stride` consecutive losses across
+    // `stride` different groups: one each, every one repairable. Same overhead,
+    // same packet count, only the index mapping changes.
     //
     // Parity wire format (6-byte header, then XOR over the group's cells each
     // padded to MAX_FRAG_DATA):
@@ -51,12 +63,8 @@ module VideoBridge {
     const FEC_COUNT_OFFSET: u8 = 4;
     const FEC_LAST_LEN_OFFSET: u8 = 5;
 
-    // Which parity group a fragment belongs to
-    fn fec_group_of(frag_idx: u8) -> u8 {
-        return frag_idx / 16;
-    }
-
-    // How many parity packets a NAL of frag_count fragments needs
+    // How many parity packets a NAL of frag_count fragments needs. This is also
+    // the interleave stride and therefore the longest burst FEC can absorb.
     fn fec_group_count(frag_count: u8) -> u8 {
         if (frag_count == 0) {
             return 0;
@@ -69,19 +77,32 @@ module VideoBridge {
         return full;
     }
 
-    // First fragment index covered by a group
-    fn fec_group_first(group_idx: u8) -> u8 {
-        return group_idx * 16;
+    // Distance between consecutive fragments of the same group.
+    fn fec_stride(frag_count: u8) -> u8 {
+        return fec_group_count(frag_count);
     }
 
-    // How many fragments a group actually covers (the last group is short)
+    // Which parity group a fragment belongs to
+    fn fec_group_of(frag_idx: u8, frag_count: u8) -> u8 {
+        let stride: u8 = fec_group_count(frag_count);
+        return frag_idx % stride;
+    }
+
+    // First fragment index covered by a group. Interleaved, so the group index
+    // IS its first fragment.
+    fn fec_group_first(group_idx: u8) -> u8 {
+        return group_idx;
+    }
+
+    // How many fragments a group covers: the count of indices below frag_count
+    // that are congruent to group_idx modulo the stride.
     fn fec_group_len(group_idx: u8, frag_count: u8) -> u8 {
-        let first: u8 = group_idx * 16;
-        let remaining: u8 = frag_count - first;
-        if (remaining < 16) {
-            return remaining;
+        if (group_idx >= frag_count) {
+            return 0;
         }
-        return 16;
+        let stride: u8 = fec_group_count(frag_count);
+        let span: u8 = frag_count - group_idx - 1;
+        return ((span / stride) + 1);
     }
 
     // A group is recoverable iff EXACTLY one of its fragments is missing:
@@ -247,15 +268,20 @@ module VideoBridge {
     // ---- FEC tests ----
 
     test fec_group_of_first {
-        assert(fec_group_of(0) == 0, "fragment 0 is in group 0");
+        assert(fec_group_of(0, 129) == 0, "fragment 0 is in group 0");
     }
 
-    test fec_group_of_boundary {
-        assert(fec_group_of(15) == 0, "fragment 15 is still group 0");
+    test fec_group_of_interleaved {
+        assert(fec_group_of(1, 129) == 1, "the NEXT fragment is in the NEXT group");
     }
 
-    test fec_group_of_next {
-        assert(fec_group_of(16) == 1, "fragment 16 starts group 1");
+    test fec_group_of_wraps_by_stride {
+        assert(fec_group_of(9, 129) == 0, "129 frags = 9 groups, so 9 rejoins group 0");
+    }
+
+    test fec_group_of_burst_spreads {
+        assert(fec_group_of(20, 129) == 2, "20 mod 9 = 2");
+        assert(fec_group_of(21, 129) == 3, "consecutive fragments land in DIFFERENT groups");
     }
 
     test fec_group_count_exact {
@@ -278,16 +304,20 @@ module VideoBridge {
         assert(fec_group_count(129) == 9, "a 9000B I-frame needs 9 parities");
     }
 
-    test fec_group_first_basic {
-        assert(fec_group_first(2) == 32, "group 2 starts at fragment 32");
+    test fec_group_first_is_the_index {
+        assert(fec_group_first(2) == 2, "interleaved: group 2 starts at fragment 2");
     }
 
-    test fec_group_len_full {
-        assert(fec_group_len(0, 129) == 16, "a full group covers 16");
+    test fec_group_len_interleaved {
+        assert(fec_group_len(0, 129) == 15, "frags 0,9,...,126 = 15 of them");
     }
 
-    test fec_group_len_last_short {
-        assert(fec_group_len(8, 129) == 1, "129 = 8 full groups + 1 leftover");
+    test fec_group_len_short_group {
+        assert(fec_group_len(8, 129) == 14, "frags 8,17,...,125 = 14 of them");
+    }
+
+    test fec_stride_is_the_burst_we_survive {
+        assert(fec_stride(129) == 9, "9 groups = 9 consecutive losses absorbed");
     }
 
     test fec_group_len_single {

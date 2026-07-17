@@ -89,14 +89,15 @@ fn repair_groups(state: &mut ReassemblyState) -> u32 {
     let count = state.expected_frags;
     let mut repaired = 0;
 
+    let stride = video_bridge::fec_stride(count) as usize;
     for group in 0..video_bridge::fec_group_count(count) {
         let Some(par) = state.parity.get(&group) else { continue };
         let first = video_bridge::fec_group_first(group) as usize;
-        let len = video_bridge::fec_group_len(group, count) as usize;
 
+        // Interleaved: the group is fragments first, first+stride, first+2*stride...
         let mut missing = None;
         let mut missing_count: u8 = 0;
-        for i in first..first + len {
+        for i in (first..count as usize).step_by(stride) {
             if !state.received[i] {
                 missing_count += 1;
                 missing = Some(i);
@@ -108,7 +109,7 @@ fn repair_groups(state: &mut ReassemblyState) -> u32 {
         let lost = missing.expect("fec_can_recover(1) implies one missing index");
 
         let mut cell = par.clone();
-        for i in first..first + len {
+        for i in (first..count as usize).step_by(stride) {
             if i == lost {
                 continue;
             }
@@ -300,12 +301,14 @@ fn uplink(
         // padding a receiver's zero-initialised buffer reproduces.
         let last_len = size - (nfrags as usize - 1) * max_data;
         let ngroups = if fec_enabled { video_bridge::fec_group_count(nfrags) } else { 0 };
+        let stride = video_bridge::fec_stride(nfrags) as usize;
         for group in 0..ngroups {
             let first = video_bridge::fec_group_first(group) as usize;
-            let len = video_bridge::fec_group_len(group, nfrags) as usize;
 
+            // Interleaved, so a burst of up to `stride` consecutive losses lands
+            // one-per-group and every one of them stays repairable.
             let mut xor = vec![0u8; max_data];
-            for i in first..first + len {
+            for i in (first..nfrags as usize).step_by(stride) {
                 let offset = i * max_data;
                 let end = (offset + max_data).min(size);
                 for (b, byte) in rx_buf[offset..end].iter().enumerate() {

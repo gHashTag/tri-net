@@ -186,9 +186,9 @@ fn the_three_ports_are_distinct() {
 
 #[test]
 fn fec_group_math_matches_the_spec() {
-    assert_eq!(vb::fec_group_of(0), 0);
-    assert_eq!(vb::fec_group_of(15), 0, "15 is the last index of group 0");
-    assert_eq!(vb::fec_group_of(16), 1);
+    assert_eq!(vb::fec_group_of(0, 129), 0);
+    assert_eq!(vb::fec_group_of(1, 129), 1, "interleaved: the next fragment is the next group");
+    assert_eq!(vb::fec_group_of(9, 129), 0, "129 frags = 9 groups, so 9 rejoins group 0");
     assert_eq!(vb::fec_group_count(0), 0, "no fragments, no parity");
     assert_eq!(vb::fec_group_count(32), 2, "exactly two full groups");
     assert_eq!(vb::fec_group_count(33), 3, "the leftover needs its own parity");
@@ -204,14 +204,17 @@ fn fec_groups_tile_every_nal_exactly_once() {
     for count in 1u8..=255 {
         let groups = vb::fec_group_count(count);
         let mut covered = 0usize;
+        let stride = vb::fec_stride(count) as usize;
         for g in 0..groups {
             let first = vb::fec_group_first(g) as usize;
             let len = vb::fec_group_len(g, count) as usize;
-            assert_eq!(first, covered, "group {g} of {count} must start where the last ended");
             assert!(len > 0, "group {g} of {count} covers nothing");
-            for i in first..first + len {
-                assert_eq!(vb::fec_group_of(i as u8), g, "fragment {i} claims another group");
+            let mut seen = 0;
+            for i in (first..count as usize).step_by(stride) {
+                assert_eq!(vb::fec_group_of(i as u8, count), g, "fragment {i} claims another group");
+                seen += 1;
             }
+            assert_eq!(seen, len, "group {g} of {count}: fec_group_len disagrees with the stride walk");
             covered += len;
         }
         assert_eq!(covered, count as usize, "groups must cover all {count} fragments");
@@ -219,15 +222,31 @@ fn fec_groups_tile_every_nal_exactly_once() {
 }
 
 #[test]
-fn fec_group_index_never_reaches_the_u8_shift_overflow() {
-    // fec_group_first is generated as `group_idx << 4`, which silently yields 0
-    // at group 16 (16*16 = 256 does not fit u8). frag_count is u8, so the
-    // highest reachable group is 15 -> 240. If FEC_GROUP or the fragment
-    // ceiling ever changes, this is where it breaks.
-    let highest = vb::fec_group_count(255) - 1;
-    assert_eq!(highest, 15, "255 fragments must not need a 17th group");
-    assert_eq!(vb::fec_group_first(highest), 240);
-    assert_eq!(vb::fec_group_first(16), 0, "documents the overflow that must stay unreachable");
+fn fec_absorbs_a_burst_as_long_as_the_stride() {
+    // The property interleaving exists for, and the one contiguous groups did
+    // NOT have. Measured on hardware before this change, same 9000B NAL:
+    //   2 scattered -> DELIVERED, 2 CONSECUTIVE -> LOST.
+    // Both loss sources here are bursty (a full socket buffer drops consecutive
+    // arrivals; a fading radio drops consecutive symbols), so isolated-loss
+    // protection protected against nothing real.
+    for count in 2u8..=255 {
+        let stride = vb::fec_stride(count) as usize;
+        let burst = stride.min(count as usize);
+        for start in 0..count as usize - burst + 1 {
+            // A run of `stride` consecutive fragments must hit `stride` distinct
+            // groups -- one loss each, every one repairable.
+            let mut groups: Vec<u8> = (start..start + burst)
+                .map(|i| vb::fec_group_of(i as u8, count))
+                .collect();
+            groups.sort_unstable();
+            let distinct = groups.len();
+            groups.dedup();
+            assert_eq!(
+                groups.len(), distinct,
+                "count={count}: a {burst}-fragment burst at {start} put two losses in one group"
+            );
+        }
+    }
 }
 
 #[test]
@@ -248,12 +267,12 @@ fn fec_recovers_any_single_lost_fragment() {
         c[..end - start].copy_from_slice(&nal[start..end]);
         c
     };
+    let stride = vb::fec_stride(count) as usize;
     let parity: Vec<Vec<u8>> = (0..vb::fec_group_count(count))
         .map(|g| {
             let first = vb::fec_group_first(g) as usize;
-            let len = vb::fec_group_len(g, count) as usize;
             let mut xor = vec![0u8; max_data];
-            for i in first..first + len {
+            for i in (first..count as usize).step_by(stride) {
                 for (b, byte) in cell(i).iter().enumerate() {
                     xor[b] ^= byte;
                 }
@@ -263,11 +282,10 @@ fn fec_recovers_any_single_lost_fragment() {
         .collect();
 
     for lost in 0..count as usize {
-        let g = vb::fec_group_of(lost as u8);
+        let g = vb::fec_group_of(lost as u8, count);
         let first = vb::fec_group_first(g) as usize;
-        let len = vb::fec_group_len(g, count) as usize;
         let mut rebuilt = parity[g as usize].clone();
-        for i in first..first + len {
+        for i in (first..count as usize).step_by(stride) {
             if i == lost {
                 continue;
             }
