@@ -687,6 +687,9 @@ final class AudioController {
     // Live audio levels (0...1) for the TX/RX meters.
     var onTxLevel: ((Float) -> Void)?
     var onRxLevel: ((Float) -> Void)?
+    // Raw incoming / outgoing 16k Int16 PCM (magic stripped) — for the recorder.
+    var onRxPCM: ((Data) -> Void)?
+    var onTxPCM: ((Data) -> Void)?
     private var started = false
     private var rxCount = 0
     private var txCount = 0
@@ -767,6 +770,7 @@ final class AudioController {
             self.txCount += 1
             if self.txCount == 1 { NSLog("TRINET: audio tx first packet \(pkt.count)B") }
             self.onPacket?(pkt)
+            if let txpcm = self.onTxPCM { txpcm(pkt.subdata(in: 2..<pkt.count)) }
         }
 
         do {
@@ -800,6 +804,7 @@ final class AudioController {
             }
         }
         onRxLevel?(Self.level(sumSq, n))
+        onRxPCM?(d)
         rxCount += 1
         if rxCount == 1 { NSLog("TRINET: audio rx first packet \(d.count)B") }
         player.scheduleBuffer(buf, completionHandler: nil)
@@ -933,5 +938,170 @@ final class BackgroundBlur {
               let outBuf = out else { return pb }
         ci.render(blend, to: outBuf)
         return outBuf
+    }
+}
+
+// MARK: - Call Recorder (iOS)
+// Records the decoded remote video + a single AAC audio track that MIXES the
+// incoming (remote) and local-mic PCM, so a recording carries both voices.
+// Mirrors desktop/CallRecorder.swift (proven by harness); saves to Documents so
+// the file is reachable via the share sheet / Files. Embedded here because the
+// iOS target compiles a static file list (same pattern as MeshCrypto/DS).
+final class CallRecorder {
+    private var writer: AVAssetWriter?
+    private var input: AVAssetWriterInput?
+    private var adaptor: AVAssetWriterInputPixelBufferAdaptor?
+    private var audioInput: AVAssetWriterInput?
+    private var audioFormat: CMAudioFormatDescription?
+    private var startTime: CFTimeInterval = 0
+    private var started = false
+    private(set) var recording = false
+    private(set) var url: URL?
+
+    func start() {
+        guard !recording else { return }
+        let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        let name = "TRI-NET-\(Int(CFAbsoluteTimeGetCurrent())).mov"
+        let out = dir.appendingPathComponent(name)
+        try? FileManager.default.removeItem(at: out)
+        guard let w = try? AVAssetWriter(outputURL: out, fileType: .mov) else {
+            NSLog("TRINET: recorder writer init failed"); return
+        }
+        writer = w
+        url = out
+        recording = true
+        started = false
+        micLock.lock(); micFifo.removeAll(keepingCapacity: true); micLock.unlock()
+        NSLog("TRINET: recording → \(out.path)")
+    }
+
+    func append(_ pb: CVImageBuffer) {
+        guard recording, let w = writer else { return }
+        if !started {
+            let width = CVPixelBufferGetWidth(pb)
+            let height = CVPixelBufferGetHeight(pb)
+            let settings: [String: Any] = [
+                AVVideoCodecKey: AVVideoCodecType.h264,
+                AVVideoWidthKey: width, AVVideoHeightKey: height
+            ]
+            let inp = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
+            inp.expectsMediaDataInRealTime = true
+            let adp = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: inp, sourcePixelBufferAttributes: nil)
+            guard w.canAdd(inp) else { NSLog("TRINET: recorder can't add input"); recording = false; return }
+            w.add(inp)
+            let aSettings: [String: Any] = [
+                AVFormatIDKey: kAudioFormatMPEG4AAC,
+                AVSampleRateKey: 16000, AVNumberOfChannelsKey: 1,
+                AVEncoderBitRateKey: 32000
+            ]
+            let aInp = AVAssetWriterInput(mediaType: .audio, outputSettings: aSettings)
+            aInp.expectsMediaDataInRealTime = true
+            if w.canAdd(aInp) { w.add(aInp); audioInput = aInp }
+            w.startWriting()
+            w.startSession(atSourceTime: .zero)
+            input = inp; adaptor = adp
+            startTime = CFAbsoluteTimeGetCurrent()
+            started = true
+        }
+        guard let adp = adaptor, let inp = input, inp.isReadyForMoreMediaData else { return }
+        let t = CMTime(seconds: CFAbsoluteTimeGetCurrent() - startTime, preferredTimescale: 600)
+        adp.append(pb, withPresentationTime: t)
+    }
+
+    private var micFifo = [Int16]()
+    private let micLock = NSLock()
+    private let micFifoCap = 3200   // 200ms @ 16k
+
+    func pushLocalAudio(_ pcm: Data) {
+        guard recording else { return }
+        let n = pcm.count / 2
+        guard n > 0 else { return }
+        micLock.lock()
+        pcm.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+            for i in 0..<n {
+                let lo = UInt16(raw[i * 2]); let hi = UInt16(raw[i * 2 + 1])
+                micFifo.append(Int16(bitPattern: lo | (hi << 8)))
+            }
+        }
+        if micFifo.count > micFifoCap { micFifo.removeFirst(micFifo.count - micFifoCap) }
+        micLock.unlock()
+    }
+
+    private var audioAppendCount = 0
+    func appendAudio(_ rxPcm: Data) {
+        guard recording, started, let aInp = audioInput else { return }
+        guard aInp.isReadyForMoreMediaData else { return }
+        let n = rxPcm.count / 2
+        guard n > 0 else { return }
+        micLock.lock()
+        let take = min(n, micFifo.count)
+        let mic = Array(micFifo.prefix(take))
+        if take > 0 { micFifo.removeFirst(take) }
+        micLock.unlock()
+        var pcm = Data(count: rxPcm.count)
+        rxPcm.withUnsafeBytes { (rx: UnsafeRawBufferPointer) in
+            pcm.withUnsafeMutableBytes { (out: UnsafeMutableRawBufferPointer) in
+                for i in 0..<n {
+                    let rlo = UInt16(rx[i * 2]); let rhi = UInt16(rx[i * 2 + 1])
+                    let r = Int(Int16(bitPattern: rlo | (rhi << 8)))
+                    let m = i < take ? Int(mic[i]) : 0
+                    var s = (r * 4 + m * 4) / 5
+                    if s > 32767 { s = 32767 } else if s < -32768 { s = -32768 }
+                    let u = UInt16(bitPattern: Int16(s))
+                    out[i * 2] = UInt8(u & 0xff)
+                    out[i * 2 + 1] = UInt8(u >> 8)
+                }
+            }
+        }
+        if audioFormat == nil {
+            var asbd = AudioStreamBasicDescription(
+                mSampleRate: 16000, mFormatID: kAudioFormatLinearPCM,
+                mFormatFlags: kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked,
+                mBytesPerPacket: 2, mFramesPerPacket: 1, mBytesPerFrame: 2,
+                mChannelsPerFrame: 1, mBitsPerChannel: 16, mReserved: 0)
+            var fmt: CMAudioFormatDescription?
+            CMAudioFormatDescriptionCreate(allocator: kCFAllocatorDefault, asbd: &asbd,
+                layoutSize: 0, layout: nil, magicCookieSize: 0, magicCookie: nil,
+                extensions: nil, formatDescriptionOut: &fmt)
+            audioFormat = fmt
+        }
+        guard let fmt = audioFormat else { return }
+        var block: CMBlockBuffer?
+        let bytes = pcm.count
+        guard CMBlockBufferCreateWithMemoryBlock(allocator: kCFAllocatorDefault, memoryBlock: nil,
+            blockLength: bytes, blockAllocator: kCFAllocatorDefault, customBlockSource: nil,
+            offsetToData: 0, dataLength: bytes, flags: 0, blockBufferOut: &block) == kCMBlockBufferNoErr,
+            let bb = block else { return }
+        pcm.withUnsafeBytes { raw in
+            _ = CMBlockBufferReplaceDataBytes(with: raw.baseAddress!, blockBuffer: bb, offsetIntoDestination: 0, dataLength: bytes)
+        }
+        var sb: CMSampleBuffer?
+        let t = CMTime(seconds: CFAbsoluteTimeGetCurrent() - startTime, preferredTimescale: 16000)
+        var timing = CMSampleTimingInfo(duration: CMTime(value: 1, timescale: 16000),
+            presentationTimeStamp: t, decodeTimeStamp: .invalid)
+        var sizeN = 2
+        _ = CMSampleBufferCreateReady(allocator: kCFAllocatorDefault, dataBuffer: bb, formatDescription: fmt,
+            sampleCount: n, sampleTimingEntryCount: 1, sampleTimingArray: &timing,
+            sampleSizeEntryCount: 1, sampleSizeArray: &sizeN, sampleBufferOut: &sb)
+        if let s = sb {
+            _ = aInp.append(s)
+            audioAppendCount += 1
+            if audioAppendCount <= 2 { NSLog("TRINET: rec audio append #\(audioAppendCount)") }
+        }
+    }
+
+    func stop(_ done: ((URL?) -> Void)? = nil) {
+        guard recording else { done?(nil); return }
+        recording = false
+        let u = url
+        input?.markAsFinished()
+        audioInput?.markAsFinished()
+        writer?.finishWriting { [weak self] in
+            NSLog("TRINET: recording saved \(u?.path ?? "?")")
+            self?.writer = nil; self?.input = nil; self?.adaptor = nil
+            self?.audioInput = nil; self?.audioFormat = nil
+            DispatchQueue.main.async { done?(u) }
+        }
     }
 }

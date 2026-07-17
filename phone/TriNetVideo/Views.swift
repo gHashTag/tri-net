@@ -87,7 +87,19 @@ struct HomeView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView(vm: vm)
         }
+        .sheet(item: $vm.shareFile) { f in
+            ShareSheet(items: [f.url])
+        }
     }
+}
+
+// Wraps UIActivityViewController so a finished recording can be saved/sent.
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+    func updateUIViewController(_ vc: UIActivityViewController, context: Context) {}
 }
 
 // MARK: - Call Screen (FaceTime style)
@@ -158,10 +170,21 @@ struct CallScreen: View {
 
             if showControls && !showChat {
                 VStack(spacing: 0) {
-                    HStack {
+                    HStack(spacing: 10) {
                         StatusTag(text: vm.framesReceived > 0 ? "Secure" : "Connecting", live: vm.framesReceived > 0)
                             .background(DS.ink.opacity(0.5), in: Capsule())
                         Spacer()
+                        // Record toggle — kept out of the bottom bar so the six
+                        // primary controls stay one row on every iPhone.
+                        Button(action: { vm.toggleRecording() }) {
+                            HStack(spacing: 5) {
+                                Circle().fill(vm.isRecording ? DS.danger : DS.faint).frame(width: 7, height: 7)
+                                Text(vm.isRecording ? "REC" : "Rec").font(DS.mono(10, .medium)).tracking(0.5)
+                                    .foregroundColor(vm.isRecording ? DS.danger : DS.dim)
+                            }
+                            .padding(.horizontal, 10).padding(.vertical, 5)
+                            .overlay(Capsule().stroke(vm.isRecording ? DS.danger.opacity(0.5) : DS.hairline, lineWidth: 1))
+                        }.buttonStyle(.plain)
                         Text(vm.remoteIP).font(DS.mono(11)).foregroundColor(DS.faint)
                     }
                     .padding(.horizontal, 16).padding(.top, 8)

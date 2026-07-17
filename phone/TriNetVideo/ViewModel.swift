@@ -10,6 +10,12 @@ struct ChatLine: Identifiable {
     let text: String
 }
 
+// Wraps a saved recording URL so it can drive a SwiftUI share sheet.
+struct RecFile: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
 class StreamViewModel: ObservableObject {
     @Published var phase: CallPhase = .idle
     @Published var remoteIP: String = UserDefaults.standard.string(forKey: "remoteIP") ?? "192.168.1.105"
@@ -33,6 +39,32 @@ class StreamViewModel: ObservableObject {
     func toggleBlur() {
         isBlurred.toggle()
         camera.blurBackground = isBlurred
+    }
+
+    // Call recording (video + mixed audio) → shareable .mov in Documents.
+    @Published var isRecording = false
+    @Published var shareFile: RecFile?
+    private let recorder = CallRecorder()
+    private var recSink: AnyCancellable?
+
+    func toggleRecording() {
+        if isRecording {
+            recorder.stop { [weak self] url in
+                DispatchQueue.main.async {
+                    if let u = url { self?.shareFile = RecFile(url: u) }
+                }
+            }
+            isRecording = false
+            recSink = nil
+        } else {
+            recorder.start()
+            isRecording = recorder.recording
+            // Append every decoded remote frame to the recording.
+            recSink = decoder.$currentFrame.sink { [weak self] buf in
+                guard let self = self, self.isRecording, let b = buf else { return }
+                self.recorder.append(b)
+            }
+        }
     }
 
     // Adaptive bitrate: sample incoming PLI rate every 3s.
@@ -162,6 +194,15 @@ class StreamViewModel: ObservableObject {
         audio.onRxLevel = { [weak self] lvl in
             DispatchQueue.main.async { self?.rxLevel = max(lvl, (self?.rxLevel ?? 0) * 0.8) }
         }
+        // Incoming + local mic PCM → recorder (mixed) while recording.
+        audio.onRxPCM = { [weak self] pcm in
+            guard let self = self, self.isRecording else { return }
+            self.recorder.appendAudio(pcm)
+        }
+        audio.onTxPCM = { [weak self] pcm in
+            guard let self = self, self.isRecording else { return }
+            self.recorder.pushLocalAudio(pcm)
+        }
         // Off the main path: first touch of the mic can block on permission /
         // session init, and audio must never hold up transport/video startup.
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.audio.start() }
@@ -192,6 +233,13 @@ class StreamViewModel: ObservableObject {
     }
 
     func stopCall() {
+        if isRecording {
+            recorder.stop { [weak self] url in
+                DispatchQueue.main.async { if let u = url { self?.shareFile = RecFile(url: u) } }
+            }
+            isRecording = false
+            recSink = nil
+        }
         camera.stop()
         camera.stopAll()
         audio.stop()
