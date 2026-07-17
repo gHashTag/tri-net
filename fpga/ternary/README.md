@@ -65,3 +65,35 @@ received samples (those stay full int16 from the ADC). That is the correct
 split: a matched filter's *code* is ternary, its *input* is the analog signal.
 Carrier/timing recovery is still open (SOUL Article V) -- this matched a fixed
 code at the measured tone bin.
+
+## The ZeroDSP building blocks around it
+
+The sign-select MAC is one primitive; it builds the whole modem AND the on-board
+AI. Every block below is verified in iverilog and uses **zero DSP48E1** (yosys
+`synth_xilinx`, xc7z020):
+
+- **`tern_nco.v` -- ternary NCO + BPSK modulator (TX side).** Phase accumulator ->
+  8-phase ternary carrier sign(cos), BPSK-modulated by a data bit. No sine ROM,
+  no multiplier. `tern_loop_tb.v` closes a full TX->RX loop against
+  `tern_corr8_stream`: the correlation peak's SIGN follows the data bit
+  (data=1 -> +600, data=0 -> -600 at the alignment phase) -- BPSK demod.
+  P&R: 61 LUT, 0 DSP, **Fmax 148 MHz**.
+
+- **`tern_pn_lfsr.v` + `tern_corr_pn.v` -- spread spectrum.** A length-63
+  m-sequence (x^6+x^5+1) and an N-tap ZeroDSP despreader. `tern_pn_tb.v`:
+  period = 63, autocorrelation peaks at **+63*A** on alignment and sits at
+  **-A** for every nonzero shift -- a **63x (~18 dB) processing gain** that
+  survives jammers and separates mesh nodes by code phase (CDMA). The 63-tap
+  despreader is **0 DSP** (~4268 LUT) where a naive design would burn 63
+  multipliers.
+
+- **`tern_dot27.v` + `tern_matvec.v` -- on-board edge AI.** The same sign-select
+  MAC as a BitNet-class layer: M neurons x K=27 ternary weights x int8
+  activations (t27 27-trit `MAC_WIDTH`). `tern_matvec_tb.v` is bit-exact vs a
+  software reference over 20x4 random trials. A 4x27 layer = 108 MACs at
+  **0 DSP** (~4516 LUT); a naive layer would need 108 of the chip's 220 DSP48E1.
+  One ternary primitive serves both the mesh PHY and its inference.
+
+Together: a ternary radio (NCO -> spread -> despread -> correlate) and a ternary
+neural net share one multiplier-free MAC, all fitting in LUT fabric beside the
+AD9361 with the DSP block column left entirely free.
