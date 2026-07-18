@@ -614,4 +614,20 @@ smoke/DEPIN_STREAMING_4NODE_2026-07-18.md).** A 4th P201Mini joined at .10.
   if a large FPGA is intended (e.g. to host the DSSS PL without the P201Mini cold-cycle risk)
   it is not on the subnet yet.
 
+**2-HOP RADIO RELAY -- byte-exact "internet from the air" (2026-07-18q,
+smoke/DEPIN_2HOP_RELAY_2026-07-18.md).** Bytes crossed .13 ->(air)-> .12 ->(air)-> .10 over
+TWO radio hops, no Ethernet, byte-exact.
+- **`otarelay`**: a node relays entirely on-chip -- demod capture -> recover set -> print hop
+  receipt (STDERR) -> re-emit regenerated DBPSK IQ (STDOUT) piped into iio_writedev. The
+  coverage seal was IDENTICAL at origin, hop-1 (.12) and hop-2 (.10): 0x9DBE2510 (reproduced
+  x3) -- cryptographic proof the payload survived two hops untampered, trusting no relay.
+- Sequenced store-and-forward on ONE 2.4 GHz channel: .13 TX, .12 captures+relays, then .13
+  TX OFF and .12 re-transmits, .10 RX. Concurrent hops need frequency-division or a TDD
+  schedule.
+- **MAJORITY FILTER (real bug found):** dedup-BY-VALUE turns any single bit-errored frame into
+  a phantom "distinct" payload that changes the coverage seal (got distinct=5, seal mismatch).
+  A one-off bit error decodes to a unique wrong value seen ONCE; every real cyclic payload is
+  seen many times. `ota_recover_set` now counts occurrences and keeps only payloads seen >= 2
+  times -- backs both `otarxset` and `otarelay`. This is what makes the hop robust.
+
 phi^2 + phi^-2 = 3 | TRINITY
