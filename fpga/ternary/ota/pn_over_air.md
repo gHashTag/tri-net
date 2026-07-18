@@ -3,6 +3,36 @@
 An honest record of pushing a real PN-spread waveform through the AD9361 and
 despreading the capture. Two claims, kept separate.
 
+## RESOLVED (hardware): a clean byte over the air, BER=0
+
+The "clean byte over the air" that three offline attempts (single-preamble,
+multi-frame, M^2) stalled at 3-6/8 is now **done on real hardware** -- board .11
+TX -> board .12 RX, 2.4 GHz, antenna to antenna. The offline attempts failed for
+one reason: they were decoding old captures that had no proper frame structure,
+using ad-hoc per-frame carrier guesses. The fix was to DESIGN the frame and
+control the transmitter:
+
+- **Frame:** a long known preamble (Barker-13 symbols, each spread by PN-63 =
+  **819 chips**) + 8 data symbols carrying byte **0xA5** + guard, 16 samples/chip,
+  BPSK on a +3 MHz IF subcarrier, transmitted hardware-cyclically
+  (`iio_writedev -c`, no CPU busy-loop).
+- **Receiver (host DSP):** (1) M^2-power coarse carrier -- estimate **+3.0022 MHz**
+  vs the +3.000 MHz TX IF, the 2.2 kHz being the real oscillator offset between
+  the two boards; (2) matched-filter acquisition against the 819-chip preamble --
+  peak/mean **89.6x**, razor sharp; (3) coherent detection using the preamble
+  correlation as the channel phase reference, despread each data symbol, slice.
+- **Result:** **5 of 5** independently-acquired frames decoded **0xA5 exactly,
+  BER=0** (majority 5/5).
+- **Negative control:** TX off -> capture RMS drops 302 -> 13 (noise floor) and
+  preamble lock collapses 89.6x -> 4.2x (no frame). So the clean byte was
+  genuinely carried by the radio link, not a loopback or processing artifact.
+
+The lesson the three offline waves pointed to -- "this is a receiver-SYNCHRONIZER
+problem, not a limit of the ternary PHY" -- held exactly: a proper long-preamble
+matched filter + M^2 carrier + coherent detection recovers the byte cleanly on
+the first real capture. Everything below this section is the earlier honest record
+of getting here.
+
 ## Proven: arbitrary-waveform DMA transmit over the air
 
 The AD9361 TX path plays back arbitrary I/Q, not just DDS tones. Generating a

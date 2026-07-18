@@ -176,8 +176,10 @@ integration is the remaining bring-up.
 ## Over-the-air PN (honest, partial) -- see ota/pn_over_air.md
 
 Arbitrary-waveform DMA transmit over the air is proven (a host-generated buffer
-fed continuously to `iio_writedev` on .13, received strong on .12). A PN-spread
-capture despreads with ~6.8x correct-vs-wrong-code discrimination over the air,
-but the full 63x sidelobe rejection / clean CDMA phase separation needs a proper
-acquisition front end (exact chip rate + carrier derotation). Not claimed as
-done. Details and numbers in `ota/pn_over_air.md`.
+fed to `iio_writedev`, received strong on another board). And a **clean byte
+(0xA5) now crosses the air at BER=0** on real hardware: board .11 TX -> .12 RX,
+2.4 GHz, a DSSS-BPSK frame with a 819-chip Barker/PN preamble, decoded by an
+M^2 carrier estimate + long-preamble matched filter + coherent detection --
+**5/5 frames exact**, with a TX-off negative control (preamble lock 89.6x -> 4.2x)
+proving it is the link, not an artifact. Details and numbers in
+`ota/pn_over_air.md`.
