@@ -21,3 +21,6 @@ path = "src/bin/xfmr.rs"
 [[bin]]
 name = "lm"
 path = "src/bin/lm.rs"
+[[bin]]
+name = "lm2"
+path = "src/bin/lm2.rs"

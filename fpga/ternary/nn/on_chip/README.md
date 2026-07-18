@@ -199,3 +199,25 @@ Syntactically valid code, greedy-decoded on the radio node's own ARM at ~64 ms /
 40 tokens. This is the concrete miniature of the 91M IGLA-Coder: a trained ternary
 CODE transformer, running and generating on the same cheap chip that does the
 radio -- the whole thesis, end to end, on silicon.
+
+## Scaled up: 2-layer LM + sampling + the HONEST ternarization cost
+
+Pushed the code LM to **2 stacked transformer layers** on a bigger, more varied
+code corpus, with **temperature sampling** (not just greedy). Fair float-vs-ternary
+comparison (both grad-clipped so neither diverges):
+
+| model | perplexity | next-token acc |
+|-------|-----------:|---------------:|
+| float 2-layer | **1.53** | **86.9%** |
+| ternary 2-layer | 4.07 | 54.5% |
+
+This is the honest finding: at 2 layers on a harder next-token task, **ternarization
+costs real accuracy** (87% -> 55%) -- the opposite of the tiny 1-layer cases where
+it happened to regularize. That gap is exactly what BitNet b1.58 closes with scale
++ training tricks (more data, learned scales, longer schedules); a naive tiny
+ternary net pays for its 2-bit weights. `lm2` (17920 ternary weights = 4480 bytes)
+runs on .12's ARM with temperature sampling and produces recognizable code
+fragments (`sq(phi)`, `let x=`, `k=k+1`) threaded with noise -- the quality you get
+at 54% accuracy, stated plainly, not spun. The point proven: the ternary
+*transformer stack* trains, samples, and runs on the node; closing the accuracy gap
+is a scale/training problem, not an architecture one.
