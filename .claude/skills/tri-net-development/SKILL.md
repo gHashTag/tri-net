@@ -296,4 +296,40 @@ mirror the milestone tables in `fpga/ternary/nn/on_chip/README.md` and the
 `fpga/ternary/README.md` headline table. When a claim in the repo docs changes,
 the pitch changes with it.
 
+## STRATEGIC CONTEXT: SSI / IEC 61499 / ITU-T Network 2030 (added 2026-07-18)
+
+TRI-NET is not just a drone-mesh -- it is a working silicon instance of the
+compute+telecom convergence that a real Russian government track is asking for.
+This context frames every milestone; keep it in mind when reporting or planning.
+
+**The external opportunity.** A.L. Balyberdin (rutel@mail.ru, Novosibirsk,
+Verilog/FPGA engineer) is building a DataFlow compute paradigm + deterministic
+network for ITU-T SG-13 "Network 2030" and sovereign open ACS/APCS (АСУ ТП).
+A signed PAO Rostelecom letter (RF gov order 3339-P) makes him an EXPERT in the
+inter-industry working group for a sovereign OPEN industrial-control data bus (OCF)
+-- with Rostelecom, NPC Elvis, Exara Group and others, under ITU-T SG-13, ISO/IEC
+29181, GOST 58210. He specs an ASU_TP_SOM module: RISC-V compute + 4-port SSI
+network controller + 80 programmable I/O pins on one 50x30mm module, IEC 61499
+function blocks, ternary {0, 1, no-data} semantics, "wave of detonation" over a
+mesh with per-node local memory (no RAM bottleneck), all sovereign + open.
+
+**Why it maps 1:1 to what we built.** The week's tri-net work IS a hardware
+instance of that paradigm: one Zynq-7020 = his ASU_TP_SOM (compute + radio/mesh +
+PL I/O on one die); ternary sign-select {-1,0,+1} 0-DSP MAC = his {0,1,no-data}
+firing rule; systolic wavefront + BER=0 DSSS link + Costas/timing recovery = his
+SSI deterministic channel + FIFO+PLL clock recovery (ADC->DAC scenario);
+weight-stationary PEs = his "no RAM bottleneck"; AI-driven CSMA MAC = IEC 61499
+event-triggered function block; fully OPEN FPGA flow (no Vivado) = the sovereignty
+requirement, with the loadable PS7 bitstream proving SoM-class integration.
+
+**The living brief** (Russian): docs/integration/tri-net-asutp.html ->
+https://claude.ai/code/artifact/3db909af-a869-45a1-9a8c-da9dbb565962 -- update it
+(same-URL republish) when a milestone changes a parallel or number, same rule as
+the pitch. We hold the ALU/radio/AI + open-flow + reproducibility layer; he holds
+the SSI network fabric + the polyhedral "large-cycle extraction" math (his stage 5,
+5+ years). Complementary, NOT a code merge -- "100% integration" = the parallels +
+concrete bridges + plan in the brief, plus buildable pieces (semantics bridge,
+ADC->DAC clock recovery on our timing-recovery path, AI over SSI). Never send email
+or make external commitments on the user's behalf.
+
 phi^2 + phi^-2 = 3 | TRINITY

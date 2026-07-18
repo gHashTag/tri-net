@@ -1,0 +1,156 @@
+<title>TRI-NET × Сеть-2030 / АСУ ТП — параллели и план интеграции</title>
+<style>
+  :root{
+    --bg:#eceee8; --surface:#f7f8f4; --surface-2:#e6e9e0; --line:#d2d6cc;
+    --ink:#171a1c; --muted:#565d64; --faint:#868d92;
+    --accent:#1663a3; --accent-2:#0e7c86; --gold:#9a7320;
+    --neg:#b3342a; --zero:#8a9099; --pos:#2c8257;
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#0d1114; --surface:#151b20; --surface-2:#1c242b; --line:#2a333c;
+    --ink:#e6eaed; --muted:#98a1ab; --faint:#6b747d;
+    --accent:#5aa6e0; --accent-2:#46bcc8; --gold:#d8ab4c; --neg:#e0685c; --pos:#54b487;}}
+  :root[data-theme="light"]{--bg:#eceee8;--surface:#f7f8f4;--surface-2:#e6e9e0;--line:#d2d6cc;--ink:#171a1c;--muted:#565d64;--faint:#868d92;--accent:#1663a3;--accent-2:#0e7c86;--gold:#9a7320;--neg:#b3342a;--pos:#2c8257;}
+  :root[data-theme="dark"]{--bg:#0d1114;--surface:#151b20;--surface-2:#1c242b;--line:#2a333c;--ink:#e6eaed;--muted:#98a1ab;--faint:#6b747d;--accent:#5aa6e0;--accent-2:#46bcc8;--gold:#d8ab4c;--neg:#e0685c;--pos:#54b487;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.62;-webkit-font-smoothing:antialiased;font-size:16px}
+  .wrap{max-width:900px;margin:0 auto;padding:0 24px}
+  section{padding:52px 0;border-top:1px solid var(--line)}
+  section:first-of-type{border-top:none}
+  h1,h2,h3{line-height:1.16;text-wrap:balance;margin:0}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:600}
+  .muted{color:var(--muted)} code,.mono{font-family:var(--mono);font-size:.92em}
+  a{color:var(--accent);text-decoration:none;border-bottom:1px solid transparent} a:hover{border-bottom-color:var(--accent)}
+  .hero{padding:70px 0 54px}
+  .hero h1{font-family:var(--serif);font-size:clamp(30px,5.2vw,50px);font-weight:600;letter-spacing:-.01em}
+  .hero .lede{font-size:clamp(17px,2.2vw,20px);color:var(--muted);max-width:64ch;margin:22px 0 0}
+  .stakes{margin-top:26px;padding:16px 20px;background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:0 10px 10px 0;font-size:14.5px}
+  .stakes b{color:var(--ink)}
+  h2.sec{font-family:var(--mono);font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);font-weight:600;margin-bottom:24px}
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{width:100%;border-collapse:collapse;font-size:14px;min-width:600px}
+  th,td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);font-weight:600}
+  tbody tr:last-child td{border-bottom:none}
+  td.a{color:var(--muted);width:44%} td.b{color:var(--ink);width:56%}
+  td.b b{color:var(--pos)}
+  .prim{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px}
+  .pcard{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+  .pcard h3{font-size:16px;font-weight:640;margin-bottom:8px} .pcard p{margin:0;font-size:14px;color:var(--muted)}
+  .pcard .im{font-family:var(--serif);font-style:italic;color:var(--accent-2);font-size:14.5px;margin:8px 0 0}
+  ul.feat{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:16px}
+  ul.feat li{padding-left:0}
+  .fh{font-weight:640;color:var(--ink)} .fi{font-family:var(--serif);font-style:italic;color:var(--accent-2)} .fm{color:var(--muted);font-size:14.5px}
+  .num{font-family:var(--mono);color:var(--pos);font-weight:600}
+  ol.plan{padding-left:0;list-style:none;counter-reset:p;display:flex;flex-direction:column;gap:14px}
+  ol.plan li{padding-left:44px;position:relative;color:var(--muted);font-size:15px}
+  ol.plan li::before{counter-increment:p;content:counter(p);position:absolute;left:0;top:0;width:28px;height:28px;border-radius:7px;background:var(--surface-2);color:var(--accent);font-family:var(--mono);font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line)}
+  ol.plan b{color:var(--ink)}
+  ul.weak{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:13px}
+  ul.weak li{padding-left:24px;position:relative;color:var(--muted);font-size:14.5px}
+  ul.weak li::before{content:"▲";position:absolute;left:0;color:var(--neg);font-size:11px;top:4px}
+  ul.weak b{color:var(--ink)}
+  footer{padding:40px 0 56px;border-top:1px solid var(--line);display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px}
+  .phi{font-family:var(--mono);color:var(--gold);font-size:14px}
+  .fmut{font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+  @media(max-width:680px){.prim{grid-template-columns:1fr}section{padding:40px 0}}
+</style>
+
+<div class="wrap">
+
+  <header class="hero">
+    <div class="eyebrow">Trinity S³AI · внутренний бриф · 2026-07-18</div>
+    <h1>Наш кремний уже отвечает на запрос Сети&nbsp;2030 и суверенной АСУ&nbsp;ТП.</h1>
+    <p class="lede">А.Л. Балыбердин специфицирует модуль <span class="mono">ASU_TP_SOM</span> — вычислитель +
+      детерминированная сеть ССИ + I/O на одном чипе, троичная семантика, МЭК&nbsp;61499, открыто и суверенно.
+      За эту неделю мы построили <b>работающий кремниевый экземпляр ровно этой парадигмы</b>: радио и
+      обученный ИИ на одном Zynq-7020, троичный примитив 0&nbsp;DSP, детерминированный тракт, полностью
+      открытый флоу без Vivado. Это не смежные проекты — это <em>два слоя одной архитектуры</em>.</p>
+    <div class="stakes"><b>Ставки высокие.</b> Письмо ПАО «Ростелеком» (расп. Правительства РФ 3339-Р):
+      Балыбердин включён экспертом в межотраслевую ТРГ по <b>суверенной открытой АСУ ТП</b> (шина OCF) —
+      с Ростелекомом, НПЦ «Элвис», ГК Exara и др., под стандарты МСЭ-Т SG-13 «Сети 2030», ISO/IEC 29181,
+      ГОСТ 58210. Наш открытый радио-ИИ стек ложится в этот контур без переделок.</div>
+  </header>
+
+  <section>
+    <h2 class="sec">Параллели · требование Балыбердина/МСЭ-Т&nbsp;↔&nbsp;что мы доказали на кремнии</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Он специфицирует / МСЭ-Т требует</th><th>TRI-NET доказал вживую (неделя, коммиты)</th></tr></thead>
+      <tbody>
+        <tr><td class="a">Один модуль <span class="mono">ASU_TP_SOM</span> = вычислитель + сеть + I/O на одном чипе (конвергенция вычислений и связи — ядро SG-13)</td><td class="b">Радио (AD9361) + обученный ИИ (троичный трансформер) на <b>одном Zynq-7020, одновременно, вживую</b>. Конвергенция не в плане — на кремнии.</td></tr>
+        <tr><td class="a">Троичность как семантика <span class="mono">{0, 1, нет-данных}</span> — команда не исполняется, пока не пришли все операнды</td><td class="b">Троичный sign-select MAC <span class="mono">{−1, 0, +1}</span>, <b>0 DSP</b> — один примитив и в радио-деспредере, и в нейросети. «Нет-данных»/ноль = пропуск в MAC.</td></tr>
+        <tr><td class="a">Сеть ССИ = полностью детерминированная, гарантия скорости и постоянства задержки; виртуальный канал = цепочка FIFO, ациклический DAG</td><td class="b">Систолический массив (weight-stationary, детерминированная волна, 0 DSP) + DSSS-линк по эфиру <b>BER=0</b> + восстановление такта (M²+Costas+timing) — это FIFO+ФАПЧ его сценария АЦП→ЦАП.</td></tr>
+        <tr><td class="a">«Волна детонации» по mesh; у каждого модуля своя локальная память → нет «бутылочного горлышка» ОП</td><td class="b">Систолическая волна по PE — каждый PE держит веса локально. Наш честный <b>memory-bound анализ</b> (23 МБ/токен) = ровно та стена, которую dataflow снимает.</td></tr>
+        <tr><td class="a">МЭК 61499: функциональные блоки, активация по событию / прерыванию (Event Execution Control)</td><td class="b">ИИ-CSMA-MAC: событие (сенсинг эфира обученной моделью) → действие (<b>передать / ждать</b>). Event-driven медиа-доступ, не фиксированный порог.</td></tr>
+        <tr><td class="a">Суверенно, без западных поставщиков, открытый тулчейн, RISC-V, IDE 4diac</td><td class="b">Полностью <b>открытый FPGA-флоу без Vivado</b> (yosys→nextpnr→prjxray) → загружаемый PS7-битстрим xc7z020 <b>4.05 МБ, 308 МГц</b>. RISC-V-совместимо.</td></tr>
+        <tr><td class="a">ИИ нуждается в ~10²² экв.оп/с; технологическое наследие минимально → мгновенно перейдёт на новое железо</td><td class="b">Троичный примитив 0&nbsp;DSP = путь к плотности; <b>обученная модель уже работает на ARM узла</b> (99.8% сенсинг сети, троичный код-LM генерирует код).</td></tr>
+        <tr><td class="a">4-портовый контроллер ССИ + 80 программируемых ног в модуле</td><td class="b">3-узловой mesh на P201Mini (Zynq-7020 + AD9361): CDMA два узла в одной полосе, релей A→B→C, PL-фабрика = те самые программируемые ноги.</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2 class="sec">Один примитив, понятными образами</h2>
+    <div class="prim">
+      <div class="pcard"><h3>Троичный вес = светофор для умножения</h3>
+        <p>Умножить на <span class="mono">{−1,0,+1}</span> — не арифметика, а выбор: пропустить <span class="mono">+x</span>, инвертировать <span class="mono">−x</span>, или стоп <span class="mono">0</span>. Ни одного DSP-умножителя.</p>
+        <p class="im">Это и есть балыбердинское «нет-данных» = красный свет: узел молчит, пока операнд не пришёл.</p></div>
+      <div class="pcard"><h3>Систолическая волна = волна на стадионе</h3>
+        <p>Данные катятся фронтом по решётке процессоров; каждое «кресло» (PE) срабатывает один раз, когда волна проходит, читая из своей локальной памяти.</p>
+        <p class="im">Дословно его «волна детонации по сети ССИ» — только у нас на одном чипе, а у него между модулями в здании.</p></div>
+      <div class="pcard"><h3>Стена памяти = одна касса на супермаркет</h3>
+        <p>Классический процессор гоняет всё через одну общую ОП — очередь у единственной кассы. Наш замер: 23 МБ весов на токен упираются в DDR.</p>
+        <p class="im">Dataflow даёт каждому ряду свою кассу (локальная память PE) — очередь исчезает. Это его главный тезис.</p></div>
+      <div class="pcard"><h3>CDMA-меш = коктейльная вечеринка</h3>
+        <p>Много узлов говорят в одной полосе; слушатель выделяет своего по «коду» (как язык собеседника в шуме). Доказано: два узла, BER=0 каждый.</p>
+        <p class="im">Детерминированное разделение без взаимного влияния клиентов — прямое требование ССИ.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sec">Отчёт за неделю · что построено (с образами)</h2>
+    <ul class="feat">
+      <li><span class="fh">Радио заговорило.</span> Чистый байт, затем читаемый текст <span class="mono">«TRINET ternary OTA link»</span> по реальному эфиру 2.4&nbsp;ГГц, <span class="num">BER=0 / 576 бит</span>. Приёмник: M²-оценка несущей + согласованный фильтр по 819-чиповой преамбуле + Costas. <span class="fi">Образ: сначала научились держать ноту (несущую), потом — слоги (символы), потом — слово без единой ошибки.</span></li>
+      <li><span class="fh">Два узла в одной полосе (CDMA).</span> .11 и .13 передают одновременно; .12 разделяет по коду, <span class="num">BER=0</span> каждый. Охарактеризован near-far эффект. <span class="fi">Образ: вечеринка — оба говорят разом, но каждый на своём «языке-коде», и слушатель понимает обоих.</span></li>
+      <li><span class="fh">Радио И ИИ на одном чипе.</span> AD9361 ловит эфир на PL, троичный классификатор считает на ARM того же кристалла — не симуляция, живое радио не тронуто. <span class="fi">Образ: одно ухо слышит, тот же мозг тут же понимает — на одном «нейроне» за $100.</span></li>
+      <li><span class="fh">Обученная модель сети.</span> 5 классов эфира (шум / глушилка / узел-A / узел-B / чужой широкополосный), собранных С РЕАЛЬНОГО эфира; float 99.8% <span class="num">= троичная 99.8%</span>, вся модель <span class="num">52 байта</span>. <span class="fi">Образ: узел научился по «голосу» эфира понимать, кто говорит и свободен ли канал.</span></li>
+      <li><span class="fh">ИИ стал медиа-доступом (CSMA).</span> Узел слушает моделью → «чисто → передаю», «занято (глушилка/узел-B) → жду». Вживую 3/3. <span class="fi">Образ: вежливый собеседник — не перебивает, ждёт паузы. Это МЭК-61499-событие «канал свободен».</span></li>
+      <li><span class="fh">Троичный трансформер и код-LM на ARM.</span> Self-attention + FFN, все веса <span class="mono">{−1,0,+1}</span>; генерирует валидный код (<span class="mono">fn main(){let x=phi*phi+1;}</span>) на самом узле. <span class="fi">Образ: архитектура 91M IGLA-Coder в спичечном коробке — та же голова, что у больших моделей.</span></li>
+      <li><span class="fh">Открытый флоу до кремния.</span> PS7-периферал целиком через yosys→nextpnr→fasm2frames→xc7frames2bit → загружаемый битстрим <span class="num">4.05 МБ @ 308 МГц</span>, без Vivado. <span class="fi">Образ: суверенный путь «спека → кремний» без единой западной проприетарной кнопки.</span></li>
+      <li><span class="fh">Честная цена троичности измерена.</span> На 2 слоях троичность теряет точность (float 87% vs ternary 55%) — тот разрыв, что BitNet закрывает масштабом. <span class="fi">Образ: показали не только где летает, но и где пока падает — карта без прикрас.</span></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2 class="sec">Слабые места (IGLA-аудит, честно)</h2>
+    <ul class="weak">
+      <li><b>Троичность на 2+ слоях теряет точность</b> (87→55%). Нужны BitNet-приёмы (масштаб данных, learned scale, длинный QAT) — иначе «настоящая» кодовая модель на узле не дотянет.</li>
+      <li><b>91M IGLA-Coder — пока архитектура + бюджет</b>, не обученный прогон. Мостик к нему (обученный троичный трансформер в миниатюре) есть, полного обучения нет.</li>
+      <li><b>Радио — стендовая пара</b>, антенна-в-антенну. Дальность/многолучёвка/N-узловой эфирный меш не измерены. Клок-recovery для АЦП→ЦАП (сценарий Балыбердина) в железе ещё не собран.</li>
+      <li><b>PS7-битстрим собран, но не прошит</b> на кремний с реальными пинами + PS-софтом — деструктивный шаг под физическим присутствием.</li>
+      <li><b>Мы держим ALU/радио-слой, не сетевой fabric ССИ и не polyhedral-математику ЯПФ</b> (этап 5 Балыбердина) — это его 5 лет работы, наша сторона комплементарна, не дублирует.</li>
+      <li><b>gen/ репозитория tri-net перманентно «грязный»</b> (t27c дрейфанул), сборка только рядом с t27 — техдолг тулчейна.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2 class="sec">Декомпозированный план интеграции (наш слой ↔ его слой)</h2>
+    <ol class="plan">
+      <li><b>Мост семантики.</b> Формально свести троичность <span class="mono">{−1,0,+1}</span> ↔ ССИ <span class="mono">{0,1,нет-данных}</span>: наш sign-select MAC как исполнительный элемент функционального блока МЭК-61499, «0» = его firing-gate.</li>
+      <li><b>ASU_TP_SOM на нашем железе.</b> P201Mini (Zynq-7020) как прототип SoM: RISC-V soft-core (или ARM PS) + наш детерминированный радио/mesh как контроллер ССИ + PL-ноги = 80 I/O. Открытый флоу компилирует и функциональные блоки, и ССИ-контроллер.</li>
+      <li><b>Клок-recovery по сценарию АЦП→ЦАП.</b> Собрать его FIFO(4)+ФАПЧ-от-50% на нашем тракте восстановления такта (Costas/timing) → детерминированное восстановление исходной частоты выборки. Прямая приёмка AC-2.</li>
+      <li><b>ИИ-слой поверх ССИ.</b> Наш обученный троичный сенсинг/классификатор как «интеллект узла» для маршрутизации, детекции аномалий, приоритезации (coordinated service SG-13).</li>
+      <li><b>Суверенная воспроизводимость.</b> Наш открытый битстрим + φ-anchor/SHA-цепочка как R-TT reproducibility для его прототипа: инвестор/госзаказчик видит криптопривязку spec→bitstream.</li>
+      <li><b>Совместный интерфейс.</b> Два fabric-слоя: его ССИ = inter-PE внутри slice; наш TRI MESH (радио/эфир) = inter-node между модулями в здании. Общий UNI/NNI по ИК-13 — точка совместной разработки.</li>
+    </ol>
+  </section>
+
+  <footer class="wrap">
+    <span class="phi">φ² + φ⁻² = 3 &nbsp;|&nbsp; TRINITY S³AI</span>
+    <span class="fmut">внутренний бриф · параллели TRI-NET ↔ Сеть-2030 / АСУ ТП · не официальный документ Ростелекома</span>
+  </footer>
+
+</div>
