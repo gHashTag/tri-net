@@ -164,14 +164,21 @@ xc7frames2bit` (all in `regymm/openxc7`) produced a **4,045,664-byte `.bit`** --
 the correct full-configuration size for a Zynq-7020. The open deploy path reaches
 a real bitstream for the exact chip on the P201Mini.
 
-Honest boundary (NOT done): the `.bit` is generated, but it is not loaded on a
-board. Two reasons, both real: (1) the correlator's ports auto-place to physical
-FPGA pins -- to be driven by the Zynq PS over AXI it needs the PS7/AXI-GP
-boundary the ADI reference design provides, which openXC7 does not wire up for
-us; (2) loading any PL image on .13 disconnects the live AD9361 datapath, so the
-working radio node is not overwritten without explicit go-ahead (reversible by
-reboot to SD-boot). The bitstream flow is proven; on-board load + PS-AXI
-integration is the remaining bring-up.
+Honest boundary (characterized on hardware): the **load mechanism is present** --
+each P201Mini exposes the Linux FPGA Manager (`/sys/class/fpga_manager/fpga0`,
+state `operating`), the standard Zynq PL-reconfiguration path (write a bitstream
+to `/lib/firmware`, echo it to `fpga0/firmware`). So loading a `.bit` on the
+silicon is mechanically possible. What actually blocks a USEFUL on-board demo is
+narrower and precise: (1) the correlator's top-level ports auto-place to physical
+FPGA pins -- to be driven by the Zynq PS over AXI it needs the PS7/AXI-GP boundary
+the ADI reference design provides, which openXC7 does not wire up, so a loaded
+`.bit` has nothing driving it; (2) loading any full PL image replaces the ADI
+bitstream and disconnects the live AD9361 datapath, so flashing a working radio
+node for a core the PS cannot even reach is a destructive no-op (avoided by
+discipline; reversible only by reboot to SD-boot). So the blocker is the PS7/AXI
+integration -- a bounded block-design task -- NOT the bitstream flow (proven to a
+loadable `.bit`) and NOT the load path (confirmed present). That is the remaining
+bring-up, stated exactly.
 
 ## Over-the-air PN (honest, partial) -- see ota/pn_over_air.md
 
