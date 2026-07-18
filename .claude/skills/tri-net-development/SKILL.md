@@ -887,4 +887,23 @@ smoke/DEPIN_RRC_LINKGUARD_DSSS_2026-07-19.md).** ("все три": all host bit-
   Physical (antenna/thermal/bench), not code -- persists across waves. OTA re-run pending a stable
   bench; features are host bit-exact + ARM-deployed.
 
+**RRC MATCHED FILTER + DSSS/CDMA + SELF-DIAGNOSING BENCH (2026-07-19,
+smoke/DEPIN_RRCMF_CDMA_SELFDIAG_2026-07-19.md).** ("все три"; bench RECOVERED the link on HW.)
+- **Self-diagnosing bench (ota_linksweep.sh) RECOVERED the "dead" link.** Swept TX+RX LO x RX gain,
+  scored by `linkq` cp. The degradation was WEAK SIGNAL, not a dead antenna: fixed gain 60 (prior
+  waves) sat below lock; **RX gain 71 at 2.400/2.460 GHz -> cp 0.52-0.65 LINK OK**. Marginal+fading
+  though (cp bounces 0.17-0.65), below the 0.9 per-frame threshold -> plain OTA decode still
+  unreliable, DSSS shows a gain TREND under fade but not clean. **Max TX power (0 dB) made it WORSE
+  (PA distortion)** -- -5 dB better. Auto-gain/freq recovery is the deliverable.
+- **Full RRC modem = TX shaping + RX MATCHED FILTER.** `rrcber`: mix subcarrier->DC, RRC matched
+  filter (`ota_conv_real` + `ota_rrc_taps`), **sample at symbol CENTRES then differential-detect
+  symbol-to-symbol** (a per-sample ota_db is WRONG for a shaped pulse -- it varies within a symbol).
+  Clean: t0=309 sync=63/63 BER=0/32 "deadbeef" (zero-ISI: root-RC x root-RC = RC). GOTCHA: emit the
+  FULL filtered length from ota_gen_bits_rrc (incl. RRC tail) or the RX timing search collapses to
+  t0=0 (group delay pushes symbols past a truncated end).
+- **DSSS + code division (`cdma <N> <hexA> <hexB> [sigma]`).** Two senders, DIFFERENT PN codes
+  (`dsss_code_seed(n, seed)`), SAME band, SAME time; RX despreads each by its code (soft
+  integrate-and-dump), the other code averages to noise. Both BER=0/32 clean AND at sigma=3000
+  (N=31). Complement of the FDD channelizer: many hidden senders in ONE band.
+
 phi^2 + phi^-2 = 3 | TRINITY
