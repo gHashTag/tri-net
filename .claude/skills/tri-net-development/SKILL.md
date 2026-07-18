@@ -439,4 +439,15 @@ peak at 3072 ~ 5120*0.6 hints at resampling). Closing needs AD9361 TX-chain conf
 reverse-engineering or the PL DSSS PHY -- stop hammering it; deliver elsewhere per the
 debugging doctrine.
 
+**Full DePIN round + adaptive depth (2026-07-18g,
+smoke/DEPIN_ROUND_ADAPTIVE_2026-07-18.md).** C: `round` mode ran a full multi-node,
+multi-epoch payout on node .12 ARM over three REAL measured links (.13->.11/.12 at TX
+-10/-30/-50 => 34/18/6 dB): node0 60000B@34dB->713 $TRI, node1 45000B@18dB->258, node2
+24000B@6dB->27, paid<=pool. B: `tri_ilv.t27` gains `choose_depth(max_burst)` (clamp
+DEPTH_CAP=64) + `depth_survives`; relayfec3 burst=12 -> fixed D=8 accepts 48/64,
+adaptive D=12 accepts 48/48. **A stays flash-gated:** the OTA close needs the PL DSSS
+PHY (destructive flash + user presence) or AD9361 TX-datapath RE; do NOT keep
+attempting host modems (same TX non-periodicity). When the user says "прошивай" AND is
+at the board: stage the DSSS bitstream, cold-cycle per Art IV.
+
 phi^2 + phi^-2 = 3 | TRINITY
