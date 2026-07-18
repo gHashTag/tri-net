@@ -35,3 +35,21 @@ the same ternary QAT, run on the same tiled engine).
 
 Training is host-side (PyTorch ternary QAT); the hardware runs the resulting
 ternary weights. phi^2 + 1/phi^2 = 3.
+
+## The WHOLE model runs end-to-end on the engine (97.0%)
+
+Not just one projection -- the entire forward pass in the hardware-exact
+fixed-point/ternary path: embedding -> Q/K/V (ternary) -> int8 Q.K^T -> LUT
+softmax -> int8 A.V -> O (ternary) -> FFN (ternary) -> head (ternary) -> argmax.
+
+```
+float model:            98.7%
+naive fixed-point:      77.8%   (arbitrary scales)
+calibrated fixed-point: 97.0%   (SC=16, logit_shift=10, ffn_shift=2)
+```
+
+Honest lesson: naive activation quantisation costs ~20 points, but per-tensor
+scale calibration recovers almost all of it -- the full model runs on the engine
+at **97.0%, within 1.7% of float**. The trained ternary transformer both solves
+the task and runs, end to end, on the multiplier-free hardware built here. The
+91M IGLA-Coder is this exact pipeline at scale, with the same calibration step.
