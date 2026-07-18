@@ -558,4 +558,38 @@ Proof-of-Relay receipt over the RADIO-delivered bytes -- no host in the loop.
   path); the receipt it feeds IS t27. Burst mode (one frame/capture) forced by the RX
   overrun bound.
 
+**MULTI-FRAME throughput + FEC-over-air + averaging gain (2026-07-18o,
+smoke/DEPIN_RADIO_ABC_2026-07-18.md).** Added an on-node TX generator to relay_meter
+(`otatx`/`otatxfec`, bit-compatible with dbpsk.py) so TX and RX are the same binary, plus
+three RX modes. All three closed on iron (.13->.12, no flash).
+- **A `otarxmulti`:** lock the preamble ONCE, then STEP by the known frame length -- up to
+  9 back-to-back frames from one capture (72 bytes, ONE aggregated receipt, BER=0),
+  ~384 kbps sustained vs the old ~48 kbps burst. RX overrun ceiling is ~64K samples (4x the
+  old 16384), so bigger captures = more frames; ~1/3 captures still miss on acquisition.
+- **B `otarxfec`:** TX 5 frames whose XOR == 0 (4 data + 1 parity via t27 `fec_parity4`).
+  ANY erased frame == XOR of the other four, so recovery works regardless of the cyclic
+  capture rotation; rebuilt bit-exact via `fec_parity4` over survivors, verified over air.
+- **C `otarxavg`:** fold M cyclic copies, average the differential statistic. At -45 dB TX
+  single-copy BER hit 14/64; 8-9x averaging -> BER=0 (reproduced). At -50 dB averaging
+  can't help -- the PREAMBLE LOCK fails first, which is exactly where the DSSS PL gain
+  (flash-gated) is needed. Software preview of processing gain.
+
+**HARDWARE-RADIO GOTCHAS THAT COST TIME THIS WAVE (all broken-ruler-class):**
+- **`timeout` DOES NOT EXIST in macOS zsh.** A prior wave's "ssh daemon down" verdict was
+  self-inflicted: the ssh wrapper died on missing `timeout`, not the boards. Never diagnose
+  reachability through a wrapper that itself fails. Rely on ssh's own `-o ConnectTimeout`.
+- **The AD9361 TX LO powers DOWN (TXpd->1) when the cyclic writer is (re)started or killed.**
+  A powered-down carrier makes RX see only noise (corr ~0.13, garbage bytes) -- the RX signal
+  lies about a "link failure" that is really a dead transmitter. FIX: force
+  `echo 0 > out_altvoltage1_TX_LO_powerdown` AFTER the writer is up, right before RX.
+- **`ps -A | grep -c iio_writedev` OVER-COUNTS**: the remote command's own text contains the
+  string, so grep matches the ssh process running it. Count real writers via
+  `/proc/PID/comm == iio_writedev`. Multiple writers on the one DMA channel corrupt TX; get
+  to exactly one before measuring (identity-before-shared-medium).
+- **Greedy global-argmax multi-frame search jumps a full pattern-period under noise** (locks
+  the same frame every period instead of the neighbour). Acquire once, then step -- modem
+  framing. On the host (noiseless) the greedy bug is invisible; it only bites over the air.
+- Detached cyclic writer: `setsid sh -c '... < file >log 2>&1' </dev/null >/dev/null 2>&1 &`
+  in its OWN ssh call (backgrounding inside a captured ssh swallows the step's stdout).
+
 phi^2 + phi^-2 = 3 | TRINITY
