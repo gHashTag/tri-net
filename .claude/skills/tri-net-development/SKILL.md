@@ -533,4 +533,29 @@ differential demod + PN-preamble correlation. The PL DSSS flash is NO LONGER req
 to demo OTA; the whole DePIN chain can run over real radio. Next: long streams /
 throughput; hardened on-node modem.
 
+**RADIO-DePIN LOOP ON THE NODE + throughput + BER curve (2026-07-18n,
+smoke/DEPIN_RADIO_RECEIPT_2026-07-18.md).** The OTA link is now wired to the DePIN
+stack ENTIRELY on the node ARM -- first fully-radio DePIN on silicon. Ported the host
+DBPSK demod to Rust (`relay_meter otarx <key> <epoch> <nbytes>`, BER=0 vs the Python
+reference): `iio_readdev -s 16384 -b 16384 cf-ad9361-lpc voltage0 voltage1 | relay_meter
+otarx ...` on .12 captures the air, demods (BER=0), and mints the t27 tri_depin
+Proof-of-Relay receipt over the RADIO-delivered bytes -- no host in the loop.
+- **Restrict the preamble search to positions where the WHOLE frame fits**, else the
+  correlator locks onto a late partial frame (corr 0.998 but truncated payload). Guard:
+  `need = 63*OSF + (npay-1)*OSF + OSF/2 + 1; for s in 0..=(m-need)`.
+- **Throughput scales with payload** because the 63-symbol PN preamble is amortised:
+  8-byte frame ~48 kbps, 23-byte frame ~576 kbps (symbol rate 30.72 MHz/OSF40 =
+  768 ksym/s). Honest caveat: a 9920-sample frame in a 16384-sample capture leaves little
+  start margin -- 2 of 3 captures missed the full frame. Streaming RX + multi-frame
+  reassembly is the real throughput next step.
+- **BER-vs-TX-power is a real link-quality curve** (8-byte frame, on-node demod, sweeping
+  .13 TX gain): 0/64 errors at -10/-20/-30 dB, then a CLIFF -- 34/64 at -40, 36/64 at -50
+  (corr_peak collapses 1.0 -> 0.1). This IS the physical basis of the SNR-weighted DePIN
+  reward: above threshold a node delivers clean bytes and earns; below it delivers
+  nothing. The receipt the radio feeds is the SAME one the full chain (signature,
+  settlement, Merkle, ledger, slashing, SHA-256 claim) already consumes.
+- Boundary: the DSP demod is scratchpad Rust in relay_meter (not the repo t27 critical
+  path); the receipt it feeds IS t27. Burst mode (one frame/capture) forced by the RX
+  overrun bound.
+
 phi^2 + phi^-2 = 3 | TRINITY
