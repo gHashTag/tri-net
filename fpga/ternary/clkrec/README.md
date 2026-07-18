@@ -68,3 +68,19 @@ blocks are no longer separate pieces -- they are one deterministic IEC 61499 nod
 image. What remains (honest): the .bit is generated, not flashed on silicon with the
 board's real EMIO map + a PS program (the destructive on-board step), and the SSI
 inter-node fabric proper is Balyberdin's side.
+
+## ЯПФ dataflow cascade (Balyberdin's tiered-parallel form) -- `yapf_cascade.v`
+
+Two tiers of ternary function blocks. Tier-1 blocks a,b fire when THEIR operands
+arrive; their results + confirm events become the operands + firing gate of tier-2
+block c -- so c cannot fire until BOTH tier-1 nodes have produced data. This is the
+"wave of detonation": dataflow ordering enforced by the {no-data} firing gate, not a
+program counter. Verified (iverilog): tier-1a=6, tier-1b=4, tier-2=6+4=10 --
+
+```
+[1] only tier-1a fired : cnf_c=0   (wave not complete -- tier-2 waits for tier-1b)
+[2] both tiers fired   : cnf_c=1  yc=10   (wave complete, composed ternary MAC exact)
+```
+
+Post-P&R on xc7z020 (open flow): **Fmax 607 MHz**. A ternary tiered-parallel form
+running as a data-driven wave through the DAG -- Balyberdin's ЯПФ, in hardware.
