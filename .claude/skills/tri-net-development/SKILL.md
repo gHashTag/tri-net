@@ -662,4 +662,18 @@ relay now runs CONCURRENTLY with the source on a different frequency (pipelined,
   transmits continuously. The one-$100-chip full relay (listen one band, forward another,
   concurrently) is the key enabler.
 
+**FDD channel-spacing sweep + live source (2026-07-18t,
+smoke/DEPIN_FDD_SWEEP_LIVE_2026-07-18.md).** ("все три" -- 1 & 2 done, 3 still blocked.)
+- **Min separation ~20 MHz on one chip**: .12 RX@2.40 while TX@(2.40+delta) an interferer, sweep
+  delta -- clean (5/5, hears .13) at delta>=20 MHz, desensed (4/5, wrong seal) at delta<=15 MHz.
+  RX rf_bandwidth=18 MHz (half=9 MHz) + roll-off explains it.
+- **The desense is ANALOG, not digital**: narrowing `in_voltage_rf_bandwidth` to 4 MHz did NOT
+  help at delta=5 MHz -- .12 decoded its OWN interferer (own TX saturates the shared RX front-end
+  before the digital filter). Tighter packing needs an external duplexer / separate antennas, not
+  a narrower digital filter. Set the channel plan from this, not from the digital BW.
+- **Live changing source works**: .13 cycled TICK=01/02/03, each relayed .13->.12->.10 over the
+  FDD pipeline and recovered intact at .10. The mesh carries live content, not a static string.
+- **DSSS-on-big-FPGA still blocked**: re-scan found no big FPGA on net/USB; needs Vivado+ADI-HDL
+  or a bigger board. Gate satisfied, artifact/tooling absent (unchanged).
+
 phi^2 + phi^-2 = 3 | TRINITY
