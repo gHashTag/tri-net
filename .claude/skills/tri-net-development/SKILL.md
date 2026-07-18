@@ -839,4 +839,32 @@ smoke/DEPIN_ANTIREPLAY_WIDEBAND_2026-07-18.md).** ("все три": 1&2 done OTA
     add a LOCAL `>/dev/null 2>&1 &` on the ssh.
 - Frame length ota_frame_len(16)=7680 complex; cyclic TX `-b 46080` (6 frames) / `-b 15360` (2).
 
+**SLIDING WINDOW + 3-SOURCE CHANNELIZER + PROCESSING-GAIN (2026-07-19,
+smoke/DEPIN_WINDOW_CHANNELIZER_2026-07-19.md).** ("все три": all 3 host bit-exact; OTA deferred.)
+- **RFC 6479 sliding replay window** replaces the monotone `min_epoch`. State `(high, bitmap64)`;
+  bit i = "seq high-i seen". Accept if it advances the window OR is in-window with a clear bit
+  (reorder-tolerant); drop if bit set (replay) or older than window. `otarxwin <key> <win_high>
+  <win_bitmap_hex> <nframes> <msg_len>` prints accepted/dup/old and the EVOLVED WINSTATE so a 2nd
+  run chains it. otatxcoded's epoch field is now a per-frame incrementing SEQ. Host: fresh->6 accept
+  1/1; reorder (seed high=105 bm=0)->6 accept; replay (seed high=105 bm=0x3F)->0 accept dup=6. Same
+  high, different bitmap => window distinguishes "seen" from "merely old" (a counter can't).
+- **Complex band-pass channelizer** (`ota_fir_bp`: heterodyne subcarrier->DC, Kaiser LPF,
+  heterodyne back) rejects the NEGATIVE-freq image of a lower neighbour (the DBPSK subcarrier is
+  one-sided at +768 kHz, so a lower band mirrors onto -732 kHz -- a symmetric LPF/boxcar can't
+  separate it). `otarxwide <key> <min_epoch> <nframes> <msg_len> <cutoff_hz> <ntaps> <mix...>`;
+  ntaps=0 -> boxcar. 3 sources @2 MHz spacing (ncoded=4) -> 1/1 host; 1 band -> 0/1.
+- **HONEST WAVEFORM LIMIT:** DBPSK main lobe is +-768 kHz (symbol rate = subcarrier) -> channels
+  closer than ~2 MHz physically overlap; denser needs TX RRC pulse shaping (next-Wave). At robust
+  ncoded the RLNC redundancy masks boxcar-vs-bandpass, so don't over-claim the filter's edge.
+- **Coherent processing-gain preview** (`otafoldc`): average M cyclic copies of the RAW IQ BEFORE
+  the differential detector (signal by amplitude, noise by power) -> ~10*log10(M). Host, sigma=5000
+  (~-7 dB SNR): M=1 BER=33/64 -> M=32 BER=1/64. Averaging `db` (post-differential, as otarxavg
+  does) does NOT give clean gain -- must average raw IQ. Host harness only.
+- **OTA LINK DEGRADED mid-session** -- the SAME rig that decoded 1/1 hours earlier (and carried the
+  prior wave) read rms ~20 (noise) with TX at 0 dB / full power; the prior wave's own script also
+  gave 0/1. Physical drift (antenna/thermal/bench), NOT code: decoder honestly said no-signal, the
+  IQ-power probe confirmed. Deferred OTA re-run rather than report a number on a noise-floor link.
+- **zsh gotcha (again):** unquoted `$VAR` is NOT word-split in zsh -- `otatx $Ps` passed one giant
+  arg -> hex panic. Use `${=Ps}` (or explicit args).
+
 phi^2 + phi^-2 = 3 | TRINITY
