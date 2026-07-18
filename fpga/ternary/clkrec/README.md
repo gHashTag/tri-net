@@ -113,7 +113,7 @@ Change config -> change the whole computation graph, no re-synthesis. Verified
 ```
 [topology 1: y3=(ext0+ext1)+(ext2+ext3)] yout=18   (a 2-tier tree)
 [topology 2: y3=ext2 - (ext0+ext1)]      yout=0    (reconfigured, same fabric)
-[topology 3: y3=ext0 - ext2]             yout=-3   (reconfigured again)
+[topology 3: y3=(ext2+ext3)-(ext0+ext1)] yout=2    (reconfigured again)
 ```
 
 Three different dataflow graphs, three correct results, one unchanged bitstream --

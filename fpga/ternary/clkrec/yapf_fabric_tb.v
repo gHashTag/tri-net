@@ -21,13 +21,16 @@ module yapf_fabric_tb;
                 {4'b0101,3'd1,3'd0} };  // b0 = ext0 + ext1
         run; $display("[topology 1: y3=(ext0+ext1)+(ext2+ext3)] yout=%0d (expect 18)", yout);
         // TOPOLOGY 2 (reconfigure, same bitstream): y3 = ext2 - y0 = 8 - 8 = 0
-        cfg = { {4'b1001,3'd4,3'd2},    // b3 = +ext2 - y0
+        //   w nibble = {w0[9:8], w1[7:6]}; w0 pairs sel0, w1 pairs sel1 (see fabric).
+        //   +ext2 on sel0, -y0 on sel1  =>  w0=+1(01), w1=-1(10)  =>  nibble 0110.
+        cfg = { {4'b0110,3'd4,3'd2},    // b3 = +ext2 - y0
                 { 10'd0 },
                 {4'b0101,3'd3,3'd2},
                 {4'b0101,3'd1,3'd0} };
         run; $display("[topology 2: y3=ext2 - (ext0+ext1)]   yout=%0d (expect 0)", yout);
         // TOPOLOGY 3: deeper -- y3 = y1 - y0 = 10 - 8 = 2
-        cfg = { {4'b1001,3'd4,3'd5},    // b3 = +y1 - y0
+        //   +y1 on sel0, -y0 on sel1  =>  w0=+1(01), w1=-1(10)  =>  nibble 0110.
+        cfg = { {4'b0110,3'd4,3'd5},    // b3 = +y1 - y0
                 { 10'd0 },
                 {4'b0101,3'd3,3'd2},
                 {4'b0101,3'd1,3'd0} };
