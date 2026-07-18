@@ -94,3 +94,23 @@ samples/chip (don't let the DMA rate-mapping compress the chips) or an on-board
 chip-matched receiver -- not more offline processing of this file. The coarse
 acquisition result (22.8x gain, 99.4x vs a different code) stands as the proven
 OTA spread-spectrum; fine CDMA needs better data.
+
+## SOLVED: the DMA-TX rate bug was the channel count
+
+The earlier "tone at 11 MHz" rate compression that blocked clean captures for
+several sessions had a simple cause: `iio_writedev cf-ad9361-dds-core-lpc` WITHOUT
+naming channels enables ALL FOUR scan elements (voltage0..3 = TX1 I/Q + TX2 I/Q),
+so a 2-channel I/Q buffer is read as 4-channel interleaved -> wrong sample
+mapping -> the tone lands at the wrong frequency.
+
+**Fix: name exactly the two channels** -> `iio_writedev -c -b N
+cf-ad9361-dds-core-lpc voltage0 voltage1`. With that, a 2.00 MHz designed tone is
+received at **+1.972 MHz, SNR 41 dB** -- correct frequency, no compression.
+Arbitrary-waveform DMA-TX over the air now works at the right rate.
+
+A clean PN capture (63 chips x 32 samples/chip, seamless cyclic) then despreads
+with the fine 1-chip CDMA discrimination up from **1.4x to ~2.0x** (correct chip
+rate = sharper chips). Not yet clean CDMA -- the remaining limit is SNR /
+indoor multipath, not the rate bug. But the TX blocker that stalled the radio for
+sessions is gone: clean, correct-rate captures are now possible, which is the
+foundation the fine-CDMA and two-node link work needed.
