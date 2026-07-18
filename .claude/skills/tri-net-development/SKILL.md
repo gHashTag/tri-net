@@ -487,4 +487,17 @@ A: dmesg on .12/.13 shows NO DMA underrun/overflow -> OTA non-periodicity is a S
 sample-mapping/timing issue, not a loud underrun (with config-read: all 30.72 MHz, FIR
 off). Still flash-gated; stop attempting host modems.
 
+**Challenge game + canonical claim (2026-07-18k,
+smoke/DEPIN_CHALLENGE_CLAIM_2026-07-18.md).** C: `tri_challenge.t27` -- decentralized
+dispute (no trusted settler): any node challenges another's receipt, anyone re-meters
+the stream for truth, the loser forfeits its bond to the winner. 6 invariants.
+`challenge` mode on .12 ARM: lying defender slashed 100->0 (challenger 100->200), honest
+defender wins. B: `claim` mode emits the canonical on-chain claim (state_root +
+node_id/balance/idx + Merkle proof) a contract consumes -> ACCEPT mints 2108 $TRI.
+**HONEST: the hash is mix32; a real Solana/EVM chain needs sha256/keccak -- implementing
+sha256 in t27 (all u32 add/rot/xor/shr, no multiply; 64 rounds unrolled, no loops/arrays
+so ~hundreds of lets) is the dedicated next step.** t27c LESSON: gen-rust SILENTLY DROPS
+tuple-returning functions (typecheck passes, fn absent from gen) -- split into scalars;
+verify by counting `pub fn` in gen output. A: OTA still flash-gated (no radio this wave).
+
 phi^2 + phi^-2 = 3 | TRINITY
