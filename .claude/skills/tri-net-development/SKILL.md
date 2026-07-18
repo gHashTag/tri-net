@@ -474,4 +474,17 @@ receipt -> integrity gate + FEC + interleaver -> SNR-weighted payout -> Merkle r
 root -> append-only ledger state chain. Next non-blocked steps: account-state Merkle
 tree with per-node inclusion proofs; slashing (bond forfeited on a mismatched receipt).
 
+**Account proof + slashing (2026-07-18j, smoke/DEPIN_ACCOUNT_SLASH_2026-07-18.md).**
+B: `tri_merkle.t27` gains `account_leaf(node_id, balance)` -- the ledger state is a
+Merkle tree over balances; a node proves its OWN $TRI with an inclusion proof (account
+mode on .12 ARM: root 0x7268C646, proves 2108, forged 999999 rejected). C:
+`tri_slash.t27` -- bond + `settle_or_slash` (honest +reward; mismatched receipt -> bond
+forfeited, saturating at 0), 6 invariants (slash mode on ARM: honest 1713, cheat 900 <
+1000). **The full DePIN stack is now on t27+ARM:** signed Proof-of-Relay receipt ->
+integrity gate + FEC + interleaver -> SNR-weighted payout -> Merkle round root ->
+append-only ledger state chain -> Merkle account (balance proof) -> bond/slashing.
+A: dmesg on .12/.13 shows NO DMA underrun/overflow -> OTA non-periodicity is a SILENT
+sample-mapping/timing issue, not a loud underrun (with config-read: all 30.72 MHz, FIR
+off). Still flash-gated; stop attempting host modems.
+
 phi^2 + phi^-2 = 3 | TRINITY
