@@ -500,4 +500,19 @@ so ~hundreds of lets) is the dedicated next step.** t27c LESSON: gen-rust SILENT
 tuple-returning functions (typecheck passes, fn absent from gen) -- split into scalars;
 verify by counting `pub fn` in gen output. A: OTA still flash-gated (no radio this wave).
 
+**SHA-256 in t27 + on-chain verifier (2026-07-18l,
+smoke/DEPIN_SHA256_ONCHAIN_2026-07-18.md).** B (flagship): `specs/tri_sha256.t27` -- a
+REAL SHA-256, single 512-bit block, fully unrolled (t27 has no loops/arrays; one
+function computes all 8 H words, returns `which`). Pure u32 add/rot/xor/shr, no
+multiply. Verified BIT-EXACT vs sha256("abc") (all 8 words) through the golden pipeline.
+768 lines, authored via a one-shot text generator (scratchpad/gen_sha256.py -- NOT
+committed; the .t27 is the artifact). C: `sha256demo` runs the real SHA-256 on node .12
+ARM (sha256("abc") correct; sha256-Merkle parent matches a python reference; inclusion
+proof VALID, forgery REJECTED). Reference contract: `docs/onchain/verify_claim.md`
+(Anchor/Rust; Solana computes sha256 natively; EVM uses keccak256 -- same structure).
+DePIN stack is now chain-ready end-to-end. Last integration step: widen the on-node
+Merkle from 32-bit mix32 nodes to 256-bit SHA-256 nodes (primitive is ready). A: OTA
+flash-gated. NOTE: .13's TX LO was found powered up at wave end (reset?) -- always
+re-check ALL boards' TXpd at cleanup, not just the ones you touched.
+
 phi^2 + phi^-2 = 3 | TRINITY
