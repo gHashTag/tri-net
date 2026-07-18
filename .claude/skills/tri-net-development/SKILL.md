@@ -693,4 +693,19 @@ smoke/DEPIN_LIVE_STREAM_2026-07-18.md).** A real telemetry/file stream, not a re
 - The capture always landed ~seq 1500 because the ssh-to-capture latency is ~constant (~250 ms
   into a 667 ms stream); not a bug.
 
+**INTERLEAVED STREAMING FEC over the air (2026-07-18v,
+smoke/DEPIN_STREAM_FEC_2026-07-18.md).** Heals the raw-FER drops: rate-4/5, t27 fec_parity4.
+- `otatxstreamfec <ndata>` / `otarxstreamfec <key> <epoch> <nframes>`. Data value = f(seq) =
+  seq*2654435761 (non-trivial parity + verifiable recovery). Every 4 data frames -> 1 parity =
+  `fec_parity4` of the four values; a block that loses ONE data frame is rebuilt from parity + 3
+  survivors. Parity frames marked by seq >= 0xC000.
+- **Interleaved in super-blocks of 20** (column-major TX) so a burst <=20 hits <=1 frame/block
+  AND each block's data+parity land in one RX capture. Over the air: healed **40 dropped frames
+  in one capture (358/400 -> 398/400, ~90% -> 99.5%)**; remaining drops are blocks with >=2
+  losses (single-parity limit). 20% overhead.
+- **Metric gotcha:** a windowed capture must contain a FULL period or the interleave makes
+  out-of-window frames look like drops. Fix: stream a repeated period and capture ~1 period
+  (seq_run must be the full [0..ndata-1]); DON'T capture >=2 periods or the duplicate copies mask
+  the drops (the good copy wins) and hide the FEC benefit.
+
 phi^2 + phi^-2 = 3 | TRINITY
