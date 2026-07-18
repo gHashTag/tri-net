@@ -41,6 +41,13 @@ module TriMerkle {
         return hpair(a, b);
     }
 
+    // Account leaf: (node id, accumulated $TRI balance). The ledger state root is a
+    // Merkle tree over these, so a node proves its OWN balance with a logarithmic
+    // inclusion proof -- no need to ship the whole ledger (Helium's account model).
+    fn account_leaf(node_id: u32, balance: u32) -> u32 {
+        return hpair(mix32(node_id ^ M_C), mix32(balance ^ rotl(node_id, 7)));
+    }
+
     // Build the round root from 8 receipt leaves.
     fn merkle_root8(l0: u32, l1: u32, l2: u32, l3: u32, l4: u32, l5: u32, l6: u32, l7: u32) -> u32 {
         let p0: u32 = hpair(l0, l1);
@@ -152,5 +159,26 @@ module TriMerkle {
         s1 = hpair(l0, l1);
         s2 = hpair(hpair(l4, l5), hpair(l6, l7));
         assert(merkle_verify8(l3, l7, s1, s2, 3, root) == false, "wrong sibling s0 rejected");
+    }
+
+    // A node proves its OWN $TRI balance with an inclusion proof against the ledger
+    // state root -- and cannot claim a balance it does not have.
+    test account_balance_proof {
+        a0 = account_leaf(0, 2108);
+        a1 = account_leaf(1, 971);
+        a2 = account_leaf(2, 350);
+        a3 = account_leaf(3, 1500);
+        a4 = account_leaf(4, 88);
+        a5 = account_leaf(5, 640);
+        a6 = account_leaf(6, 12);
+        a7 = account_leaf(7, 4096);
+        state_root = merkle_root8(a0, a1, a2, a3, a4, a5, a6, a7);
+        // node0 proves balance 2108 (idx 0): s0=a1, s1=hpair(a2,a3), s2=hpair(hpair(a4,a5),hpair(a6,a7))
+        s1 = hpair(a2, a3);
+        s2 = hpair(hpair(a4, a5), hpair(a6, a7));
+        assert(merkle_verify8(a0, a1, s1, s2, 0, state_root) == true, "node0 proves 2108 $TRI");
+        // node0 cannot claim a fatter balance
+        forged = account_leaf(0, 999999);
+        assert(merkle_verify8(forged, a1, s1, s2, 0, state_root) == false, "forged balance rejected");
     }
 }
