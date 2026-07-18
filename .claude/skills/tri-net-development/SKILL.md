@@ -422,4 +422,21 @@ at any buffer); use a DATA signal + frame-period autocorrelation, and a TX-OFF
 capture to rule out ambient interference.** Next: AD9361 TX FIR/rate config, or the
 PL DSSS PHY.
 
+**Live SNR->reward + OTA further diagnosis (2026-07-18f).** C-live
+(smoke/DEPIN_LIVE_SNR_REWARD_2026-07-18.md): measured real link SNR on .13->.12 (tone
++ iio_readdev: 34 dB @ TX -10, 5 dB @ TX -50) and ran the verified chain
+`snr_to_quality`->`reward_weighted` (tri_settle.t27, 17 invariants) on node .12 ARM --
+same 10000 bytes, strong link earns 939 $TRI, weak 60, dead (2 dB) 0. Helium-class
+Proof-of-Coverage live. **t27c i32 narrowing bug (again):** a signed `i32 <=` compare
+is narrowed to u32, so a negative dB would read as huge and pay a dead link -- keep
+SNR inputs UNSIGNED (caller clamps <0 to 0). Same family as the u64==0 bug; read the
+generated Rust. OTA (A) further diagnosis, STILL not closed: ruled out streaming gaps
+(single contiguous -b 61440 buffer -> autocorr still ~0.01) and RX adaptive tracking
+(bbdc/rfdc/quadrature off -> no change). Band clean, signal strong (~48 dB), demod
+loopback-proven -- the RX data frame just isn't periodic at the frame length, so it is
+a TX-datapath sample-mapping issue (AD9361 TX interpolation/FIR, weak spurious autocorr
+peak at 3072 ~ 5120*0.6 hints at resampling). Closing needs AD9361 TX-chain config
+reverse-engineering or the PL DSSS PHY -- stop hammering it; deliver elsewhere per the
+debugging doctrine.
+
 phi^2 + phi^-2 = 3 | TRINITY
