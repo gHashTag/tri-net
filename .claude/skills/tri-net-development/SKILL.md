@@ -462,4 +462,16 @@ off) -- OTA non-periodicity is DMA/buffer-level, not a rate/FIR resample; still
 flash-gated. **Lesson: `grep -E "iio_"` matched the system daemon `iiod` and killed it
 (restarted `/usr/sbin/iiod -D -n 3 -F /dev/iio_ffs`); use `[i]iod` near system procs.**
 
+**Persistent $TRI ledger (2026-07-18i, smoke/DEPIN_LEDGER_2026-07-18.md).** Weak
+point: per-round settlement + Merkle round-root are stateless (no lasting balance
+record). `specs/tri_ledger.t27`: `balance_add` (saturating accumulation) +
+`state_step(prev, round_root, epoch)` chains each round's Merkle root into an evolving
+ledger STATE ROOT (blockchain-style, order-sensitive, tamper-evident) + `verify_chain3`.
+6 invariants. `ledger` mode on node .12 ARM, 3 rounds (round0 = the real 0x12CE67F1
+Merkle root): balance 713->1403->2108 $TRI, state root 0x64102268; tampering round0 ->
+0x885A0E62 (caught). The full DePIN chain is now on silicon: signed Proof-of-Relay
+receipt -> integrity gate + FEC + interleaver -> SNR-weighted payout -> Merkle round
+root -> append-only ledger state chain. Next non-blocked steps: account-state Merkle
+tree with per-node inclusion proofs; slashing (bond forfeited on a mismatched receipt).
+
 phi^2 + phi^-2 = 3 | TRINITY
