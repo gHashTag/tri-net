@@ -515,4 +515,22 @@ Merkle from 32-bit mix32 nodes to 256-bit SHA-256 nodes (primitive is ready). A:
 flash-gated. NOTE: .13's TX LO was found powered up at wave end (reset?) -- always
 re-check ALL boards' TXpd at cleanup, not just the ones you touched.
 
+**OTA CLOSED -- byte over the air, BER=0 (2026-07-18m,
+smoke/DEPIN_OTA_CLOSED_2026-07-18.md).** The flagship is done NON-DESTRUCTIVELY (NO PL
+FLASH) with the host DBPSK modem. Two 8-byte payloads TX'd .13->.12 at 2.4 GHz, both
+BER=0; single-board loopback BER=0 too. **ROOT CAUSE of ALL prior OTA failures: RX
+OVERRUN.** A large `iio_readdev -s 131072` overruns the PS's RX DMA drain (30.72 MSa/s
+too fast to keep up); dropped samples destroy the data frame's periodicity, while a
+narrowband TONE survives -- which is why tones always "worked" and data never did.
+Found by elimination: ruled out cross-board clock offset (single-board loopback fails
+identically), chunk gaps/cyclic boundary (one `-b 102400` transfer fails), and PROVED
+buffer TX works (1 MHz tone -> 1.001 MHz, 82% power). **THE FIX / RECIPE:** TX
+`iio_writedev -c -b 5120 cf-ad9361-dds-core-lpc voltage0 voltage1 < frame.iq` (kill any
+prior writer + `sleep 1` first -- stale DMA breaks the next TX); RX `iio_readdev
+-s 16384 -b 16384 cf-ad9361-lpc voltage0 voltage1` -- **SMALL buffer to avoid overrun**
+(THE whole bug); DBPSK on a 768 kHz subcarrier (fs/OSF, survives the DC-block);
+differential demod + PN-preamble correlation. The PL DSSS flash is NO LONGER required
+to demo OTA; the whole DePIN chain can run over real radio. Next: long streams /
+throughput; hardened on-node modem.
+
 phi^2 + phi^-2 = 3 | TRINITY
