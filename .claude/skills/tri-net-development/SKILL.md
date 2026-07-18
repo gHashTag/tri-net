@@ -772,6 +772,21 @@ smoke/DEPIN_RLNC_MULTISRC_2026-07-18.md).** The multipath gain of network coding
   4-subset trivially agrees with itself, so a genuine over-determined solution needs >=1 MORE frame
   -- this is what rejects an under-determined single source). A per-frame CRC would make single
   source a clean 0/3 (the residual .13 1/3 is a garbage frame giving a false 5th agreement).
+
+**PER-FRAME CRC hardens the coded stack (2026-07-18aa,
+smoke/DEPIN_RLNC_CRC_2026-07-18.md).** Added the t27 crc16 (CCITT, poly 0x1021, init 0xFFFF) to
+every K=4 coded frame: payload 12 B = `g:u16 | cv[4] | value:u32 | crc16:u16` over the first 10 B.
+`ota_read_frames4` DROPS any CRC-failing frame (returns the drop count) -- a corrupt coded frame
+is a wrong linear equation and must never reach the GF(256) solver.
+- **This let the decoder DELETE its RANSAC/>=5-threshold crutches** -- with CRC-clean frames it's
+  a plain rank-4 solve on the distinct coding vectors (`rlnc_solve4` on cv-deduped rows).
+- Over the air .13+.11->.10: single sources now fail CLEANLY 0/3 (crc_dropped=1 each) -- last
+  wave's residual .13 1/3 false-accept is GONE -- and BOTH still decode 3/3 (crc_dropped=2) ->
+  exact "MULTI-SOURCE RLNC OVER AIR .11+.13". Same result, now correct-by-construction not by a
+  majority heuristic. crc_dropped>0 every capture confirms the CRC rejects real OTA-corrupt frames.
+- Frame length grew to ota_frame_len(12)=6400 complex; cyclic TX `-b 57600` (9 frames) worked.
+- Boundary: CRC-16 has ~1/65536 undetected-error rate; +2 B/frame overhead. A safety-critical
+  link wants a wider CRC or an authenticated MAC.
 - DSSS-on-big-FPGA still blocked (no big FPGA on net/USB).
 
 phi^2 + phi^-2 = 3 | TRINITY
