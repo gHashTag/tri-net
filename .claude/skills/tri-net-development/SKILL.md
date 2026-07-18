@@ -630,4 +630,16 @@ TWO radio hops, no Ethernet, byte-exact.
   seen many times. `ota_recover_set` now counts occurrences and keeps only payloads seen >= 2
   times -- backs both `otarxset` and `otarelay`. This is what makes the hop robust.
 
+**ORDERED MESSAGE across 2 hops (2026-07-18r, smoke/DEPIN_MSG_RELAY_2026-07-18.md).** The relay
+now carries an ARBITRARY ORDERED message, not a deduped set.
+- **Ordered framing**: each 8-byte payload = `seq:u16 LE ++ 6-byte chunk`. `otatxmsg` splits a
+  message into ceil(len/6) numbered frames; `ota_recover_msg` majority-votes the data PER seq
+  slot (a bit error in one copy of chunk k can't corrupt it -- the right chunk k is seen many
+  times) and reassembles in seq order; `otarxmsg`/`otarelaymsg` are the RX/relay modes.
+- A readable sentence "TRINET mesh hop .13>.12>.10 OK!" (31 B, 6 chunks) crossed
+  .13->(air)->.12->(air)->.10 byte-exact, message-seal 0x37A9A9F6 IDENTICAL at origin/hop-1/hop-2
+  (x3). Real arbitrary-data multi-hop, not just coverage attestation.
+- Boundary: fixed test string in a cyclic buffer (a live changing source is the next step); RX
+  is told the message length (a length header in seq=0 is a small follow-on).
+
 phi^2 + phi^-2 = 3 | TRINITY
