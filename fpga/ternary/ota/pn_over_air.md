@@ -114,3 +114,24 @@ rate = sharper chips). Not yet clean CDMA -- the remaining limit is SNR /
 indoor multipath, not the rate bug. But the TX blocker that stalled the radio for
 sessions is gone: clean, correct-rate captures are now possible, which is the
 foundation the fine-CDMA and two-node link work needed.
+
+## First DSSS-BPSK byte over the air (with the fixed TX): signal proven, decode partial
+
+With the DMA-TX fix, transmitted a real frame -- preamble PN + 8 data symbols
+(byte 0xA5), each bit spread by +/-PN-63 -- over the air, .13 -> .12.
+
+- **The signal is clearly received**: at full TX power the preamble correlation
+  is 14195 (10x the weak-power 1500) -- the spread-spectrum byte is unambiguously
+  on the air and despreads strongly.
+- **Bit decode is partial**: 6/8 bits at low power, and the errors are NOT random
+  and NOT SNR-limited -- at full power the first ~4 bits invert. That signature is
+  a **residual carrier frequency offset**: the constellation phase drifts ~pi
+  across the 9-symbol frame and crosses the decision boundary mid-frame.
+
+Honest finding: the physical link works (transmit + strong despread), but clean
+BER=0 needs a proper **carrier-frequency estimate** -- a single 63-chip preamble
+is too short to pin the frequency, so the phase drifts across the frame. The fix
+is a longer-baseline estimator (correlate the preamble across the cyclic
+repetitions) or a tracking loop / differential-coherent demod -- real receiver
+DSP, a bounded next step, not an SNR or TX problem. Bytes are on the air; the
+receiver's carrier recovery is what stands between 6/8 and 8/8.
