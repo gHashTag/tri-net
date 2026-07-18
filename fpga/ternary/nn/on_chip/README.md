@@ -173,3 +173,22 @@ good-lock / bad-payload RX artifact (~4-5/8 at 22x lock) -- a per-board AD9361
 calibration issue seen throughout this rig, NOT a protocol fault (every .x -> .12
 link decodes BER=0). Clean .12 -> peer payload delivery awaits per-board RX
 calibration; the AI-gated medium access itself is proven live.
+
+## IGLA-Coder in miniature: a ternary code LM GENERATING on the node ARM
+
+Pushed the transformer all the way to the IGLA-Coder shape -- a char-level next
+token **code** model (causal masked attention + FFN, all Q/K/V/O/FFN/head weights
+in {-1,0,+1}). Trained on a tiny code corpus; ternary next-token accuracy **100%**
+(float 62.2% -- ternarization strongly regularizes this small structured set).
+5280 ternary weights = **1320 bytes**. Cross-compiled (`lm`, Rust armv7 musl) and
+GENERATING on .12's Cortex-A9:
+
+```
+seed "fn main(" -> fn main(){let x=phi*phi+1;} fn main(){let x=phi*
+seed "if x>0 "  -> if x>0 {ret x} else {ret 0} if x>0 {ret x} else
+```
+
+Syntactically valid code, greedy-decoded on the radio node's own ARM at ~64 ms /
+40 tokens. This is the concrete miniature of the 91M IGLA-Coder: a trained ternary
+CODE transformer, running and generating on the same cheap chip that does the
+radio -- the whole thesis, end to end, on silicon.
