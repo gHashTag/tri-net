@@ -808,4 +808,35 @@ smoke/DEPIN_AUTH_FDD_2026-07-18.md).** ("все три": 1&2 done, 3 blocked.)
 - Frame length ota_frame_len(14)=7040 complex; cyclic TX `-b 63360` (9 frames).
 - DSSS-on-big-FPGA still blocked (no big FPGA on net/USB).
 
+**ANTI-REPLAY (epoch under MAC) + WIDE-BAND single-radio dual-source (2026-07-18cd,
+smoke/DEPIN_ANTIREPLAY_WIDEBAND_2026-07-18.md).** ("все три": 1&2 done OTA, 3 DSSS blocked.)
+- **Epoch under the MAC kills replay.** Frame is now 16 B: `g:u16 | cv[4] | value:u32 |
+  epoch:u16 | mac32:u32`; mac32 = first word of SHA-256(key || first 12 B) so the epoch is
+  AUTHENTICATED (forger cannot edit it). `ota_read_frames4(key, min_epoch, ...)` drops any frame
+  with `epoch < min_epoch` and returns a `replay` count. Fresh (epoch>=window) decodes; a captured
+  authentic old frame is stale-dropped.
+- **Un-foolable OTA proof = decode ONE capture two ways.** .13 sends epoch=5, captured once;
+  `min_epoch=0` -> 1/1 (proves frames good+authentic), `min_epoch=10` -> 0/1 `replay_dropped=24`
+  (same bits, freshness window is what rejects). Avoids the broken-ruler trap of "0/1 might just be
+  no lock".
+- **Wide-band channelizer = digital mix + boxcar LPF.** `ota_mix` multiplies by e^{-j2pi(f/fs)n}
+  to slew a band to baseband; `ota_boxcar(.,.,16)` nulls the adjacent band at +/-3.84 MHz (passband
+  droop ~2.4 dB). `otarxrlnc2 ... <min_epoch> <mix1> <mix2>` demods the SAME capture at two offsets
+  and merges. .13@2.400 + .11@2.404 transmit AT ONCE, .10 ONE capture @2.402, mix +/-2 MHz -> 1/1;
+  band A alone (mix2=0) -> 0/1 (2 of 4 coded frames). One antenna, two concurrent senders.
+- **HARDWARE GOTCHAS THAT COST THE WAVE (broken-ruler, all silent):**
+  - **busybox has NO `pkill`** (returns 127, swallowed by `2>/dev/null`). Every "stop TX" was a
+    no-op -> stuck `iio_writedev` orphans held the DDS/DMA -> after the first clean run NO board
+    radiated, yet the decoder honestly reported 0/1. **Use `killall`**; verify writers=0 via
+    `/proc/*/comm`.
+  - **AGC (`slow_attack`) confounds the IQ-power probe** -- RMS FALLS when a strong TX appears
+    (AGC cuts gain). Use **manual RX gain** (`in_voltage0_gain_control_mode=manual`,
+    `in_voltage0_hardwaregain=40..60`) so power is a truthful independent instrument and demod is
+    deterministic.
+  - **A `nohup`-detached writer streams unreliably.** Run the writer in a **live foreground ssh**
+    backgrounded from the host; guarantees streaming during the capture. And a `P=$(launch_tx)`
+    command-substitution HANGS if the backgrounded ssh keeps the substitution's stdout pipe open --
+    add a LOCAL `>/dev/null 2>&1 &` on the ssh.
+- Frame length ota_frame_len(16)=7680 complex; cyclic TX `-b 46080` (6 frames) / `-b 15360` (2).
+
 phi^2 + phi^-2 = 3 | TRINITY
