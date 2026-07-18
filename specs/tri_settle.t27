@@ -8,6 +8,8 @@ module TriSettle {
     use base::types;
 
     const PPM: u32 = 1000000; // parts-per-million fixed-point for shares
+    const SNR_FLOOR: u32 = 3;  // dB below which a link is too weak to earn
+    const SNR_CEIL:  u32 = 40; // dB above which link quality saturates
 
     // Fold one epoch's verified byte count into the running round total.
     // Saturating so an overflow can never wrap the round total DOWNWARD.
@@ -172,5 +174,55 @@ module TriSettle {
         big = (4294967296 as u64);                    // 2^32; as u32 this would be 0
         r = reward_weighted(1000000, 1000, big, 1000); // contrib=1e9 -> ~232 units
         assert(r > (0 as u64), "large total not read as zero");
+    }
+
+    // ---- SNR -> link-quality mapping (measured on hardware; WAVE f) ----
+    // Turn a node's measured link SNR (dB) into the quality weight reward_weighted
+    // uses. A link below the floor is too weak to be worth paying for (dead -> 0);
+    // above the ceiling it saturates. Piecewise-linear in dB, integer, monotone.
+    // Measured on .13->.12: strong link 34 dB -> 31, weak link 5 dB -> 2.
+
+    // snr_db is the measured SNR in dB, ALREADY CLAMPED to >= 0 by the caller (a
+    // negative-SNR link is below the floor and clamps to 0 -> quality 0). Kept
+    // unsigned on purpose: t27c narrows a signed `i32 <=` compare to u32, which would
+    // read a negative dB as a huge value and pay a dead link. (t27c bug, same family
+    // as the u64==0 narrowing; logged.)
+    fn snr_to_quality(snr_db: u32) -> u32 {
+        if (snr_db <= SNR_FLOOR) {
+            return 0;
+        } else if (snr_db >= SNR_CEIL) {
+            return SNR_CEIL - SNR_FLOOR;
+        } else {
+            return snr_db - SNR_FLOOR;
+        }
+    }
+
+    // A link at or below the floor earns nothing (matches "dead link no reward").
+    test snr_quality_floor {
+        assert(snr_to_quality(1) == 0, "1 dB unusable");
+        assert(snr_to_quality(3) == 0, "at floor unusable");
+    }
+
+    // The two real measured links: strong 34 dB and weak 5 dB.
+    test snr_quality_measured {
+        assert(snr_to_quality(34) == 31, "strong link (.13->.12 -10 dB)");
+        assert(snr_to_quality(5) == 2, "weak link (.13->.12 -50 dB)");
+        assert(snr_to_quality(34) > snr_to_quality(5), "stronger link -> higher quality");
+    }
+
+    // Saturates above the ceiling (no unbounded reward for an extreme SNR).
+    test snr_quality_ceiling {
+        assert(snr_to_quality(100) == 37, "saturates at CEIL-FLOOR");
+        assert(snr_to_quality(40) == 37, "at ceiling");
+    }
+
+    // End-to-end: the strong-coverage node out-earns the weak one for the SAME bytes.
+    test snr_drives_reward {
+        qa = snr_to_quality(34);
+        qb = snr_to_quality(5);
+        wt = round_add_weighted(round_add_weighted(0, 10000, qa), 10000, qb);
+        ra = reward_weighted(10000, qa, wt, 1000);
+        rb = reward_weighted(10000, qb, wt, 1000);
+        assert(ra > rb, "better coverage earns more $TRI");
     }
 }
