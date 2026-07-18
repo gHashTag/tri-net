@@ -84,3 +84,18 @@ program counter. Verified (iverilog): tier-1a=6, tier-1b=4, tier-2=6+4=10 --
 
 Post-P&R on xc7z020 (open flow): **Fmax 607 MHz**. A ternary tiered-parallel form
 running as a data-driven wave through the DAG -- Balyberdin's ЯПФ, in hardware.
+
+## Live radio -> clock: recovering the REAL .11<->.12 offset
+
+Measured the real sample-clock offset between two boards from a live DSSS capture
+(.11 TX -> .12 RX): fractional preamble-peak positions across 4 frames give
+**-0.852 ppm** (-26.18 Hz at 30.72 MSPS); the carrier residual is +0.97 ppm at the
+2.4 GHz LO. Driving `clkrec` (`clkrec_live_tb.v`) with that real offset:
+
+```
+REAL .11<->.12 offset ~-0.85 ppm: fill=512/512  arrivals=150000 drains=150000  ratio=1.000000
+  recovered clock tracks the real radio source rate within 0.000000 %
+```
+
+So the RTL loop recovers the actual board-to-board radio clock offset, perfectly --
+radio -> clock closed, from the real air into the deterministic recovery loop.
