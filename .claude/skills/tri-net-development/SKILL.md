@@ -406,4 +406,20 @@ autocorrelation is the TX-liveness check before blaming the demod.** Naive rect 
 is the wrong tool through the AD9361 filters anyway; use the PL DSSS PHY (Loop24,
 BER=0). See smoke/OTA_MODEM_ATTEMPT_2026-07-18.md.
 
+**Interleaver + OTA subcarrier (2026-07-18e).** `specs/tri_ilv.t27` -- depth-D block
+interleaver (`ilv_tx_pos`/`ilv_orig`/`ilv_codeword`) spreads consecutive datagrams
+across D codewords so a fading burst <=D leaves <=1 error per codeword -> single-
+erasure FEC recovers. `relayfec3` on ARM, burst=8: no-interleave 48/64 vs interleaved
+64/64. OTA modem findings (smoke/DEPIN_INTERLEAVE_OTA_2026-07-18.md): the AD9361
+BLOCKS DC, so rectangular DBPSK near baseband dies -- put data on a **768 kHz
+subcarrier** (= 1 cycle/symbol = fs/OSF, transparent to the OSF-lag differential
+detector); loopback through a simulated DC-notch gives BER=0. Band is CLEAN here (TX
+off -> RX RMS 7). Still blocked: RX data frame non-periodic (autocorr ~0.03 at frame
+length despite matched 30.72 MHz rates) = a TX buffer-playout issue (AD9361 TX-chain
+interpolation/FIR, or iio_writedev streaming underrun), NOT the DSP. **Diagnostic
+that cracked it: a TONE proves nothing about buffer periodicity (a tone is periodic
+at any buffer); use a DATA signal + frame-period autocorrelation, and a TX-OFF
+capture to rule out ambient interference.** Next: AD9361 TX FIR/rate config, or the
+PL DSSS PHY.
+
 phi^2 + phi^-2 = 3 | TRINITY
