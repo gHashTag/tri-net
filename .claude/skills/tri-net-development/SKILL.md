@@ -268,4 +268,32 @@ single-view build, never drop a tab. Regressions here are the most visible kind.
 - **Never call a wire change "backward-compatible" without testing a REAL old
   peer.** Gate new formats OFF until both ends run the new build.
 
+## THE INVESTOR PITCH ARTIFACT (keep it current) — added 2026-07-18
+
+There is ONE living pitch page for TRI-NET. It is in Russian, self-contained
+HTML, and its source of truth lives in the repo:
+
+- **Source:** `docs/pitch/tri-net-pitch.html`
+- **Published (stable) URL:** https://claude.ai/code/artifact/2d7ed62c-592f-45a0-867c-2b76ebb6627a
+
+**After any milestone that changes what the project can claim** (a new hardware
+result, a corrected number, a boundary crossed or newly honest), UPDATE this
+pitch — do not create a second one:
+
+1. Edit `docs/pitch/tri-net-pitch.html` (Russian text; keep the existing design
+   system, CSS variables, and both light/dark themes intact).
+2. Republish to the SAME URL: call the Artifact tool with
+   `file_path` = the repo file (or copy it to the session scratchpad first and
+   publish that), and pass `url: "https://claude.ai/code/artifact/2d7ed62c-592f-45a0-867c-2b76ebb6627a"`
+   so it redeploys in place instead of minting a new link. Keep the `📡` favicon
+   and a stable `<title>` across redeploys.
+3. Commit the source change to the repo.
+
+**Rules for the pitch content:** every number must be a real, verified result
+(no projections stated as facts); keep the honest "What is NOT done" section
+current -- it is a feature, not a weakness, for a technical/investor audience;
+mirror the milestone tables in `fpga/ternary/nn/on_chip/README.md` and the
+`fpga/ternary/README.md` headline table. When a claim in the repo docs changes,
+the pitch changes with it.
+
 phi^2 + phi^-2 = 3 | TRINITY

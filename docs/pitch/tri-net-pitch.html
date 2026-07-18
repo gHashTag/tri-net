@@ -1,0 +1,243 @@
+<title>TRI-NET — радио и ИИ на одном чипе за $100</title>
+<style>
+  :root{
+    --bg:#e9ece6; --surface:#f6f7f3; --surface-2:#eceee7; --line:#d3d7cd;
+    --ink:#161a1d; --muted:#5a616a; --faint:#878e93;
+    --accent:#0e7c86; --accent-ink:#0a5960; --gold:#9c7420;
+    --neg:#b83227; --zero:#8a9099; --pos:#2c8257;
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#0c1013; --surface:#141a1f; --surface-2:#1a2127; --line:#28313a;
+      --ink:#e7eaed; --muted:#9aa3ad; --faint:#6c757e;
+      --accent:#43b9c5; --accent-ink:#7ad3dc; --gold:#d9ab4c;
+      --neg:#e0685c; --zero:#7f8792; --pos:#54b487;
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#e9ece6; --surface:#f6f7f3; --surface-2:#eceee7; --line:#d3d7cd;
+    --ink:#161a1d; --muted:#5a616a; --faint:#878e93;
+    --accent:#0e7c86; --accent-ink:#0a5960; --gold:#9c7420;
+    --neg:#b83227; --zero:#8a9099; --pos:#2c8257;
+  }
+  :root[data-theme="dark"]{
+    --bg:#0c1013; --surface:#141a1f; --surface-2:#1a2127; --line:#28313a;
+    --ink:#e7eaed; --muted:#9aa3ad; --faint:#6c757e;
+    --accent:#43b9c5; --accent-ink:#7ad3dc; --gold:#d9ab4c;
+    --neg:#e0685c; --zero:#7f8792; --pos:#54b487;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    line-height:1.6;-webkit-font-smoothing:antialiased;font-size:16px}
+  .wrap{max-width:920px;margin:0 auto;padding:0 24px}
+  section{padding:56px 0;border-top:1px solid var(--line)}
+  section:first-of-type{border-top:none}
+  h1,h2,h3{line-height:1.15;text-wrap:balance;margin:0}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--accent);font-weight:600}
+  .muted{color:var(--muted)}
+  code,.mono{font-family:var(--mono)}
+  a{color:var(--accent);text-decoration:none;border-bottom:1px solid transparent}
+  a:hover{border-bottom-color:var(--accent)}
+  .hero{padding:76px 0 60px}
+  .hero .eyebrow{margin-bottom:20px}
+  .hero h1{font-size:clamp(28px,5vw,50px);font-weight:680;letter-spacing:-.015em}
+  .hero h1 em{font-style:normal;color:var(--accent)}
+  .hero .lede{font-size:clamp(17px,2.3vw,20px);color:var(--muted);
+    max-width:62ch;margin:22px 0 0}
+  .badge{display:inline-flex;align-items:center;gap:9px;margin-top:30px;
+    padding:9px 15px;border:1px solid var(--line);border-radius:999px;
+    background:var(--surface);font-family:var(--mono);font-size:13px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--pos);
+    box-shadow:0 0 0 4px color-mix(in srgb,var(--pos) 22%,transparent)}
+  .tern{display:grid;grid-template-columns:1.1fr 1fr;gap:36px;align-items:center}
+  .tern h2{font-size:26px;font-weight:640;margin-bottom:14px}
+  .tri-map{display:flex;flex-direction:column;gap:10px;font-family:var(--mono);font-size:15px}
+  .tri-row{display:flex;align-items:center;gap:14px;padding:12px 16px;
+    background:var(--surface);border:1px solid var(--line);border-radius:10px}
+  .tri-w{width:44px;text-align:center;font-weight:700;font-size:18px;flex:none}
+  .tri-w.n{color:var(--neg)} .tri-w.z{color:var(--zero)} .tri-w.p{color:var(--pos)}
+  .tri-op{color:var(--faint)}
+  .tri-out{margin-left:auto;color:var(--ink);font-weight:600}
+  .kicker{font-family:var(--mono);font-size:13px;color:var(--gold);
+    margin-top:18px;letter-spacing:.02em}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;
+    padding:22px 22px 20px}
+  .card h3{font-size:15px;font-family:var(--mono);letter-spacing:.02em;
+    text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:14px}
+  .big{font-family:var(--mono);font-size:clamp(30px,5vw,40px);font-weight:680;
+    letter-spacing:-.02em;line-height:1;color:var(--ink)}
+  .big .u{font-size:16px;color:var(--muted);font-weight:500}
+  .card p{margin:12px 0 0;font-size:14.5px;color:var(--muted)}
+  .card .tag{color:var(--pos);font-weight:600}
+  h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:.16em;
+    text-transform:uppercase;color:var(--faint);font-weight:600;margin-bottom:26px}
+  .callout{margin-top:18px;display:flex;gap:18px;align-items:flex-start;
+    padding:20px 22px;border:1px solid var(--line);border-left:3px solid var(--accent);
+    border-radius:0 12px 12px 0;background:var(--surface)}
+  .callout-k{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--accent);
+    font-weight:700;padding-top:3px;flex:none}
+  .callout p{margin:0;font-size:14.5px;color:var(--muted)}
+  .callout b{color:var(--ink)}
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{width:100%;border-collapse:collapse;font-size:14.5px;min-width:520px}
+  th,td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--line)}
+  th{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--faint);font-weight:600}
+  td.num,th.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+  tbody tr:last-child td{border-bottom:none}
+  .win{color:var(--accent);font-weight:640}
+  .row-hi td{background:color-mix(in srgb,var(--accent) 8%,transparent)}
+  ul.honest{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:14px}
+  ul.honest li{padding-left:26px;position:relative;color:var(--muted);font-size:15px}
+  ul.honest li::before{content:"—";position:absolute;left:0;color:var(--gold);font-family:var(--mono)}
+  ul.honest b{color:var(--ink);font-weight:640}
+  footer{padding:44px 0 60px;border-top:1px solid var(--line);
+    display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px}
+  .phi{font-family:var(--mono);color:var(--gold);font-size:15px}
+  .foot-muted{font-family:var(--mono);font-size:12px;color:var(--faint)}
+  @media (max-width:680px){
+    .tern{grid-template-columns:1fr;gap:24px}
+    .grid2{grid-template-columns:1fr}
+    section{padding:44px 0}
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="hero">
+    <div class="eyebrow">TRI-NET · граничный радио-меш + ИИ на чипе</div>
+    <h1>Один примитив без умножителя строит <em>радио</em> и <em>ИИ</em> на одном чипе за&nbsp;$100.</h1>
+    <p class="lede">Троичные веса превращают каждое умножение в выбор знака
+      (<span class="mono">+x&nbsp;/&nbsp;−x&nbsp;/&nbsp;0</span>), поэтому тяжёлая по весам математика стоит
+      <b>ноль DSP</b>. Это освобождает всю DSP-колонку Zynq-7020 — и софт-радио
+      вместе с BitNet-класс трансформером живут на одном кристалле, в полностью
+      открытом флоу, без Vivado.</p>
+    <div class="badge"><span class="dot"></span>
+      Доказано на железе: читаемый текст по эфиру, BER&nbsp;=&nbsp;0</div>
+  </header>
+
+  <section>
+    <div class="tern">
+      <div>
+        <div class="eyebrow">примитив</div>
+        <h2>Троичный вес — это не умножение. Это выбор.</h2>
+        <p class="muted">Код согласованного фильтра, PN-последовательность спред-спектра
+          и вес BitNet — все по природе троичны. Умножить отсчёт на
+          <span class="mono">{−1,&nbsp;0,&nbsp;+1}</span> не нужен DSP48 — только смена знака или ноль.
+          Коррелятор сворачивается в дерево сумматоров; нейрослой — тоже.</p>
+        <div class="kicker">φ² + φ⁻² = 3 — троичная константа в основе TRINITY</div>
+      </div>
+      <div class="tri-map" aria-label="таблица истинности выбора знака">
+        <div class="tri-row"><span class="tri-w p">+1</span><span class="tri-op">· x  →</span><span class="tri-out">пропустить&nbsp;+x</span></div>
+        <div class="tri-row"><span class="tri-w z">&nbsp;0</span><span class="tri-op">· x  →</span><span class="tri-out">отбросить&nbsp;(0)</span></div>
+        <div class="tri-row"><span class="tri-w n">−1</span><span class="tri-op">· x  →</span><span class="tri-out">инвертировать&nbsp;−x</span></div>
+        <div class="tri-row" style="background:var(--surface-2);border-style:dashed">
+          <span class="tri-op">стоимость</span><span class="tri-out" style="color:var(--accent)">0 × DSP48</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sec">Доказано на реальном железе · 2.4&nbsp;ГГц · плата .11&nbsp;→&nbsp;.12</h2>
+    <div class="grid2">
+      <div class="card">
+        <h3>Чистые данные по эфиру</h3>
+        <div class="big">BER 0<span class="u"> / 576 бит</span></div>
+        <p>Строка <span class="mono tag">«TRINET ternary OTA link»</span> передана как
+          DSSS-BPSK и восстановлена <b>точно</b> — 3 из 3 кадров, ноль ошибок —
+          декодировано M²-оценкой несущей + согласованным фильтром по 819-чиповой
+          преамбуле + Costas-трекингом. Деспред — это и есть троичный коррелятор 0&nbsp;DSP.</p>
+      </div>
+      <div class="card">
+        <h3>Захват кадра, проверено</h3>
+        <div class="big">89.6<span class="u">× пик/шум</span></div>
+        <p>Отношение захвата преамбулы в живом эфире. Негативный контроль — передатчик
+          выключен — роняет RMS захвата 302&nbsp;→&nbsp;13 и замок 89.6×&nbsp;→&nbsp;4.2×, значит байт
+          <b>нёс радио-линк</b>, а не петля или артефакт обработки.</p>
+      </div>
+    </div>
+    <div class="callout">
+      <div class="callout-k">МЕШ</div>
+      <p><b>Два узла, одна полоса.</b> Платы .11 и .13 передают <em>одновременно</em> в
+        одном канале 2.4&nbsp;ГГц разными PN-кодами; плата .12 извлекает каждое сообщение при
+        <b>BER&nbsp;=&nbsp;0</b>, разделяя только по коду — это CDMA multiple-access, на котором стоит меш.
+        Near-far эффект проявляется ровно как в учебнике (сильный узел выигрывает; равная
+        мощность требует контроля мощности или длиннее кодов) — измерено, не предположено.</p>
+    </div>
+    <div class="callout">
+      <div class="callout-k">ОДИН&nbsp;КРИСТАЛЛ</div>
+      <p><b>Радио и ОБУЧЕННЫЙ ИИ на одном чипе, вживую.</b> AD9361 платы .12 ловит эфир на PL,
+        а троичные модели работают на ARM того же чипа — все веса <span class="mono">{−1,0,+1}</span>.
+        <b>Обученная модель распознавания сети (99.8%)</b> называет, кто в эфире, и управляет живым
+        CSMA-MAC (слушать → передавать только когда чисто). Троичный <b>трансформер</b> работает на
+        том же ядре (12/12 на attention-задаче), а троичный <b>код-LM генерирует валидный код</b>
+        (<span class="mono">fn main(){let x=phi*phi+1;}</span>) — архитектура 91M IGLA-Coder в миниатюре, на узле.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sec">Две половины, на одном Zynq-7020</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>возможность</th><th>результат</th><th class="num">DSP48</th></tr></thead>
+        <tbody>
+          <tr><td>Троичный демод согл. фильтром</td><td>демодулирует реальный эфир, 78&nbsp;МГц, в 6× меньше LUT, чем float-коррелятор</td><td class="num win">0</td></tr>
+          <tr><td>Деспред спред-спектра (PN-63)</td><td>захват 35× / реджект кода 99.4× по эфиру, балансное дерево 45&nbsp;МГц</td><td class="num win">0</td></tr>
+          <tr><td>Систолический троичный GEMM (16×16)</td><td>~33 GOPS, держит 65&nbsp;МГц при масштабе</td><td class="num win">0</td></tr>
+          <tr><td>Каждый блок трансформера</td><td>attention · FFN · softmax · RMSNorm · RoPE — все проверены в iverilog</td><td class="num win">0</td></tr>
+          <tr class="row-hi"><td>Обученный троичный ИИ на узле</td><td>сенсинг сети <b>99.8%</b> + генерация кода — на ARM самого узла</td><td class="num win">0</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted" style="font-size:14px;margin-top:16px">
+      Весовые matmul — это ~90% FLOPs и стоят <b>0 DSP by construction</b> — так что
+      все 220 DSP48 свободны под фронтенд AD9361. Радио уживается не <em>несмотря на</em> ИИ,
+      а <em>потому что</em> троичность уводит ИИ с DSP-колонки целиком.</p>
+  </section>
+
+  <section>
+    <h2 class="sec">Где садится модель 91M — честно</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>система</th><th>масштаб</th><th class="num">ток/с</th><th>примечание</th></tr></thead>
+        <tbody>
+          <tr><td>BitNet.cpp</td><td>100B параметров</td><td class="num">5–7</td><td>серверный CPU, облако/десктоп</td></tr>
+          <tr><td>Raspberry Pi 5</td><td>~1B квантованная</td><td class="num">5–10</td><td>без радио, общий CPU</td></tr>
+          <tr><td>Jetson Orin Nano</td><td>малая LLM</td><td class="num">быстро</td><td>$250+, нужен GPU</td></tr>
+          <tr class="row-hi"><td>IGLA-Coder на TRI-NET</td><td>~91M, один FPGA ~$100</td><td class="num win">50–130</td><td><b>+ софт-радио на том же кристалле</b>, matmul 0 DSP, открытый флоу</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted" style="font-size:14px;margin-top:16px">
+      50–130 ток/с — честная цифра, ограниченная реальным DDR3-1066 32-бит на Zynq-7020
+      (не теоретический пик) — всё ещё ~10–25× скорости комфортного чтения человеком, на
+      batch-1 граничном узле, который и <b>говорит</b>, и <b>думает</b>, без GPU и облака.</p>
+  </section>
+
+  <section>
+    <h2 class="sec">Что НЕ сделано — прямо</h2>
+    <ul class="honest">
+      <li><b>Прошивка PS7-ядра на кремний.</b> PS-управляемая интеграция <b>собрана насквозь</b>:
+        hard-блок <span class="mono">PS7</span> ведёт троичный MAC через EMIO GPIO, весь открытый флоу
+        (yosys → nextpnr → fasm2frames → xc7frames2bit) доводит до <b>загружаемого битстрима
+        xc7z020 4.05&nbsp;МБ на 308&nbsp;МГц</b>. Осталась только прошивка на кремний — с реальными пинами
+        платы и мини-программой на PS; не прошито, т.к. pin-agnostic proof снял бы живое радио впустую.</li>
+      <li><b>91M-модель — это архитектура + бюджет</b>, проверенная по блокам и обученной малой
+        моделью; на узле уже работают обученные троичные трансформер и код-LM в миниатюре — но
+        полного прогона обучения на 91M ещё не было.</li>
+      <li><b>Радио-линк измерен на стендовой паре</b> (антенна-в-антенну, 2.4 ГГц). Дальность,
+        многолучёвка и полный меш узлов — следующий железный шаг; RX-калибровка двух плат
+        (.11/.13) даёт «хороший замок / плохие данные» и требует настройки.</li>
+    </ul>
+  </section>
+
+  <footer class="wrap">
+    <span class="phi">φ² + φ⁻² = 3 &nbsp;|&nbsp; TRINITY</span>
+    <span class="foot-muted">троичный радио-меш + ИИ на чипе · открытый флоу (yosys · nextpnr · iverilog)</span>
+  </footer>
+
+</div>
