@@ -172,16 +172,19 @@ PL-reconfiguration path. And -- correcting an earlier, too-pessimistic claim --
 yosys `PS7` blackbox (`techlibs/xilinx/cells_xtra.v`), the prjxray-db `zynq7`
 PS-interface tiles (`PSS0..PSS4`, `INT_INTERFACE_PSS_L`, `BRKH_INT_PSS`), and
 nextpnr-xilinx carries the `PS7_PS7` BEL, `PSS_ALTO_CORE`, and PS7 input tie-off
-logic. So a PS-driven design is **supported by the open toolchain** -- you
-instantiate `PS7` in the top level, wire its `M_AXI_GP` / `S_AXI_HP` / EMIO to the
-ternary core, constrain it, and run yosys -> nextpnr -> bitstream. What is NOT done
-is that integration itself (there is no bundled end-to-end PS7 example in the
-image, so it is unimplemented work, not a proven-turnkey path), and flashing a
-working radio node for a pin-only core would disconnect the live AD9361 datapath
-for zero gain (a destructive no-op, avoided by discipline; reversible by reboot).
-Net: on-chip PS-driven load is a **bounded integration task the open flow
-supports**, not a toolchain wall -- the earlier "openXC7 does not wire up PS7/AXI"
-was wrong.
+logic. A PS-driven design is not just supported -- it is **built end to end**: see
+[`ps7/`](ps7/), where `ps7_tern.v` instantiates the `PS7` hard block driving a
+ternary sign-select MAC over EMIO GPIO, and the fully open flow (yosys ->
+nextpnr-xilinx -> fasm2frames -> xc7frames2bit) produces a **loadable 4,045,670-byte
+xc7z020 bitstream** at **308 MHz**. So the earlier "openXC7 does not wire up
+PS7/AXI" was simply wrong -- the open flow ships the yosys `PS7` blackbox, the
+prjxray-db `zynq7` PSS interface tiles, and the nextpnr `PS7_PS7` BEL, and they
+carry a PS-driven ternary peripheral all the way to a bitstream. What remains is
+only the on-silicon bring-up: this proof design uses auto-placed pins and has no
+PS-side test program, so it is not flashed (loading a pin-agnostic core would take
+the live radio down for a non-verifiable no-op). Constraining to the board's real
+pins + a small PS program (devmem / gpio sysfs) is the focused next step; the flow
+that was in doubt is proven.
 
 ## Over-the-air PN (honest, partial) -- see ota/pn_over_air.md
 
