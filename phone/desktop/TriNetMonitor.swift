@@ -478,16 +478,36 @@ class MeshMonitorEngine: ObservableObject {
 
         var deviceNodes: [MeshNode] = []
 
-        for (i, ip) in deviceIPs.enumerated() {
-            scanProgress = "Checking \(ip)..."
-            let result = await NetworkScanner.scanDevice(host: ip, ports: probePorts)
+        // Probe ALL devices in PARALLEL. The old sequential loop awaited each
+        // device in turn, so every dead host stalled the pass on its full
+        // timeout chain -- 16 devices took minutes and the UI showed stale
+        // "Online" states the whole time. A TaskGroup bounds the pass to the
+        // slowest single probe (~2s) no matter how many hosts are down.
+        let ipsSnapshot = deviceIPs
+        let ports = probePorts
+        scanProgress = "Probing \(ipsSnapshot.count) devices in parallel..."
+        var results: [String: (online: Bool, rttMs: Int)] = [:]
+        await withTaskGroup(of: (String, (online: Bool, rttMs: Int)).self) { group in
+            for ip in ipsSnapshot {
+                group.addTask {
+                    (ip, await NetworkScanner.scanDevice(host: ip, ports: ports))
+                }
+            }
+            for await (ip, res) in group { results[ip] = res }
+        }
+        // One ARP snapshot for the whole pass (the old code spawned an ARP
+        // lookup per device inside the loop).
+        let arpSnapshot = NetworkScanner.getARPDevices()
+
+        for (i, ip) in ipsSnapshot.enumerated() {
+            let result = results[ip] ?? (online: false, rttMs: 0)
 
             let nodeId = i + 1
             let wasOnline = prevStatus[nodeId] == .online
             let isOnline = result.online
 
             // Get MAC and identify device type
-            let macInfo = NetworkScanner.getARPDevices().first(where: { $0.ip == ip })
+            let macInfo = arpSnapshot.first(where: { $0.ip == ip })
             let macStr = macInfo?.mac ?? "?"
             let (dtype, drole) = NetworkScanner.identifyDevice(mac: macStr, ip: ip)
 
