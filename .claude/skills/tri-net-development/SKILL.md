@@ -357,7 +357,20 @@ cation (on-node AI), Ubiquitous Connectivity (mesh) -- and Hyper-Reliable Low-
 Latency partially (deterministic clkrec). ITU-**T** SG-13 does the network
 architecture side (Network 2030). The $TRI token and open sovereign flow are a
 COMPLEMENTARY layer on top of the standard, NOT part of the standard -- say so; do
-not claim the token is "in 6G". Next real step for $TRI: wire the accumulator into
-the live forwarding path of the mesh daemon + sign the epoch seal (not done yet).
+not claim the token is "in 6G".
+
+**$TRI A+B+C proven on hardware (2026-07-18b, smoke/DEPIN_ABC_HW_2026-07-18.md).**
+(A) Real network relay: node .13 serves the payload via `busybox httpd`, node .12
+fetches over the wired net via `wget` and meters the received stream -- the boards
+have NO `nc`/`socat`/python/`/dev/tcp`, only `wget`+`httpd`, so HTTP is the only
+board-to-board transport. (B) `epoch_seal` is signed with Ed25519 (ed25519-dalek,
+cross-compiled armv7 musl); verifiers use the PUBLIC key only (no shared secret).
+Ed25519 is a crate PRIMITIVE (fine, like the mesh's ChaCha/X25519) -- the seal it
+signs is still t27. (C) `specs/tri_settle.t27`: round aggregation + proportional
+pool split (u64, floor div => no over-issuance), 8 invariants. Next real step:
+the RF/over-the-air leg (raise the .13->.12 radio link, meter what the radio
+forwarded) and wiring into the live mesh daemon; secure key storage; on-chain
+issuance. Board hygiene: after httpd, `killall httpd` misses it (busybox name is
+`busybox`) -- kill by pid; always leave TX LO pd=1.
 
 phi^2 + phi^-2 = 3 | TRINITY
