@@ -1,0 +1,100 @@
+// TRI-NET DePIN settlement aggregator -- turns per-epoch Proof-of-Relay receipts
+// (from tri_depin) into a node's $TRI reward for a payout round. A round is a set
+// of epochs; each node's verified total_bytes are summed, and the round's token
+// pool is split proportionally to metered bytes. Pure arithmetic, verifiable, so a
+// settlement contract (or any auditor) can recompute every payout.
+
+module TriSettle {
+    use base::types;
+
+    const PPM: u32 = 1000000; // parts-per-million fixed-point for shares
+
+    // Fold one epoch's verified byte count into the running round total.
+    // Saturating so an overflow can never wrap the round total DOWNWARD.
+    fn round_add(round_total: u32, epoch_bytes: u32) -> u32 {
+        let sum: u32 = round_total + epoch_bytes;
+        if (sum < round_total) {
+            return 0xFFFFFFFF; // saturate
+        } else {
+            return sum;
+        }
+    }
+
+    // A node's share of the round, in parts-per-million. Zero-guarded so an empty
+    // round (no bytes relayed by anyone) pays nobody instead of dividing by zero.
+    fn reward_share_ppm(node_bytes: u32, round_bytes: u32) -> u32 {
+        if (round_bytes == 0) {
+            return 0;
+        } else {
+            let scaled: u64 = (node_bytes as u64) * (PPM as u64);
+            return (scaled / (round_bytes as u64)) as u32;
+        }
+    }
+
+    // A node's actual token units from a round pool, = pool * node_bytes / round_bytes.
+    // u64 intermediate avoids overflow; floor division means the sum of all nodes'
+    // units never exceeds the pool (no over-issuance). Zero-guarded.
+    fn reward_units(node_bytes: u32, round_bytes: u32, pool: u32) -> u64 {
+        if (round_bytes == 0) {
+            return 0;
+        } else {
+            let num: u64 = (pool as u64) * (node_bytes as u64);
+            return num / (round_bytes as u64);
+        }
+    }
+
+    // ---- Tests / invariants ----
+
+    // Proportionality: twice the bytes -> twice the share.
+    test share_proportional {
+        half    = reward_share_ppm(100, 200);
+        quarter = reward_share_ppm(50, 200);
+        assert(half == 500000, "half");
+        assert(quarter == 250000, "quarter");
+        assert(half == quarter + quarter, "2x bytes = 2x share");
+    }
+
+    // A node that relayed the whole round gets the whole share.
+    test share_full {
+        assert(reward_share_ppm(200, 200) == PPM, "full share");
+    }
+
+    // Empty round / zero node -> zero share, no divide-by-zero.
+    test share_zero_guard {
+        assert(reward_share_ppm(5, 0) == 0, "empty round pays nobody");
+        assert(reward_share_ppm(0, 200) == 0, "no work no share");
+    }
+
+    // No free mint: a node that relayed nothing earns nothing.
+    test units_no_free_mint {
+        assert(reward_units(0, 200, 1000) == 0, "no free mint");
+    }
+
+    // Proportional units from a pool.
+    test units_proportional {
+        assert(reward_units(100, 200, 1000) == 500, "half of pool");
+    }
+
+    // Conservation: with floor division, the sum of all nodes' units never exceeds
+    // the pool (the protocol can never issue more than the round's pool).
+    test units_conservation {
+        a = reward_units(100, 300, 1000); // 333
+        b = reward_units(200, 300, 1000); // 666
+        assert(a == 333, "node a");
+        assert(b == 666, "node b");
+        assert(a + b <= (1000 as u64), "sum <= pool");
+    }
+
+    // Round accumulation grows monotonically and saturates.
+    test round_monotonic {
+        r0 = round_add(0, 19974);
+        r1 = round_add(r0, 40000);
+        assert(r1 > r0, "monotonic");
+        assert(r0 == 19974, "epoch1");
+        assert(r1 == 59974, "epoch1+2");
+    }
+
+    test round_saturates {
+        assert(round_add(0xFFFFFF00, 0x0000FFFF) == 0xFFFFFFFF, "saturates");
+    }
+}
