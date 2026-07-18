@@ -708,4 +708,17 @@ smoke/DEPIN_STREAM_FEC_2026-07-18.md).** Heals the raw-FER drops: rate-4/5, t27 
   (seq_run must be the full [0..ndata-1]); DON'T capture >=2 periods or the duplicate copies mask
   the drops (the good copy wins) and hide the FEC benefit.
 
+**DOUBLE-PARITY / GF(256) FEC -- recover 2 losses per block (2026-07-18w,
+smoke/DEPIN_STREAM_FEC2_2026-07-18.md).** `otatxstreamfec2` / `otarxstreamfec2`, rate 4/6.
+- Each block of 4 data gets TWO parities: p0 = XOR (`fec_parity4`, seq 0xC000+g); p1 =
+  sum alpha^i * d_i over GF(256), alpha=2 -> coeffs [1,2,4,8] (seq 0xD000+g). Two lost data frames
+  (positions a,b) recover per byte by solving `[1 1; alpha^a alpha^b][d_a;d_b]=[y0;y1]` with the
+  t27 rlnc_decode `solve_2x2`/`gf_mul`/`gf_inv` (GF(256), reduction poly 0x1B). Embedded those
+  three inline like fec_parity4.
+- Host-verified: dropping 2 frames of the SAME block healed both, seal matched clean bit-exact.
+- Over the air: heal2 fired 1-4 blocks/capture; best captures 384/384 drops_left=0 (two-loss
+  blocks that single parity could NOT fix last wave). 33% overhead (rate 4/6). Remaining drops =
+  blocks with >=3 losses or a lost parity frame.
+- Entry point to full RLNC (`rlnc_coding.t27`): more independent parities -> survive more losses.
+
 phi^2 + phi^-2 = 3 | TRINITY
