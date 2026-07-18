@@ -50,3 +50,21 @@ multiplier-free compute (`+x/-x/0`). Compose `clkrec` (recovered clock / SSI tim
 -> `req` -> `fb61499` (event-triggered ternary compute) and you have the core of an
 IEC 61499 node -- deterministic timing + firing-gated ternary function blocks -- in
 the open flow on one Zynq-7020. That is the ASU_TP_SOM in miniature.
+
+## Assembled node: ASU_TP_SOM in one loadable bitstream
+
+`asutp_som.v` composes the whole node on one Zynq-7020: **PS7** (compute + control)
+drives, via **EMIO GPIO** (the SSI virtual-channel interface, Linux /sys/class/gpio),
+the operands / weights / arrival strobe of the **fb61499** IEC 61499 ternary function
+block; **clkrec** recovers a deterministic clock whose ticks are the block's firing
+events; the PS reads back the result, the event and the FIFO fill. This is
+Balyberdin's ASU_TP_SOM -- compute + deterministic SSI timing + firing-gated ternary
+function blocks + I/O -- on one chip.
+
+Through the fully open flow (yosys -> nextpnr-xilinx -> fasm2frames -> xc7frames2bit,
+no Vivado): routing complete, **Fmax 106.37 MHz** on xc7z020, and a loadable
+**`asutp_som.bit` = 4,045,665 bytes** (correct full xc7z020 config size). The RTL
+blocks are no longer separate pieces -- they are one deterministic IEC 61499 node
+image. What remains (honest): the .bit is generated, not flashed on silicon with the
+board's real EMIO map + a PS program (the destructive on-board step), and the SSI
+inter-node fabric proper is Balyberdin's side.
