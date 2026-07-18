@@ -154,3 +154,14 @@ receiver engineering, a bounded project, not a 15-minute pass. Stopping the
 ad-hoc receiver chase here (debugging discipline: several attempts, no
 convergence -> the method, not the parameters, is the limit). The clean link is a
 focused receiver task for a dedicated session.
+
+## M-squared carrier estimator: also 3/8 -- boundary confirmed from 3 methods
+
+Also tried the textbook M^2-power carrier estimator (square the BPSK-DSSS -> tone
+at 2*fc). Best decode still 3/8, and for the strong capture the squared spectrum
+peaks at DC (noise/LO-leakage dominates the weak 2*fc tone). Three independent
+methods now -- single-preamble reference, multi-frame coherent, and M^2-power --
+all land 3-6/8 on these captures. The boundary is confirmed: **offline processing
+of these captures cannot reach BER=0**; a clean byte needs a real-time
+synchronized receiver AND cleaner RF (less indoor multipath, higher SNR). Not
+chasing further offline -- this is the spiral debugging discipline warns against.
