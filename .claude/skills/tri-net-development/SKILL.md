@@ -721,4 +721,20 @@ smoke/DEPIN_STREAM_FEC2_2026-07-18.md).** `otatxstreamfec2` / `otarxstreamfec2`,
   blocks with >=3 losses or a lost parity frame.
 - Entry point to full RLNC (`rlnc_coding.t27`): more independent parities -> survive more losses.
 
+**FULL RLNC + ADAPTIVE REDUNDANCY over the air (2026-07-18x,
+smoke/DEPIN_RLNC_ADAPTIVE_2026-07-18.md).** ("все три": 1&2 done, 3 blocked.)
+- `otatxrlnc <ngen> <R>` / `otarxrlnc <key> <epoch> <nframes> <R>`. Generation K=8: 8 systematic
+  data + R coded (random GF(256) combos, t27 rlnc_coding `coding_vector`/`coeff_at`). The RX
+  builds the coding matrix per generation (data->unit rows, coded->their vectors) and Gaussian-
+  eliminates over GF(256) (`rlnc_solve`, using t27 gf_mul/gf_inv); any 8 independent rows recover
+  all 8 -- ANY R losses in ANY positions (data OR coded).
+- Host-verified: dropping 3 data frames of a gen recovered all 8, seal matched clean bit-exact.
+- Over the air (K=8, R=5, 48 gens): **15 lossy generations fully recovered -> 384/384 = 100%
+  delivery, failed=0** (reproduced ~14/capture). Losses in arbitrary positions -- beyond fixed
+  single/double parity. Decode ~9 s on the ARM (offline batch; real-time needs PL/lower rate).
+- **ADAPTIVE R:** the RX measures frame-delivery p (~92-94%) and computes R_rec =
+  ceil(K(1-p)/p)+1 = 2; ran R=5, can drop to R=2 (overhead 38%->20%). Closed loop: measure the
+  channel, size the code. (window-edge generation with <8 frames -> 1 honest failed.)
+- DSSS-on-big-FPGA still blocked (no big FPGA on net/USB).
+
 phi^2 + phi^-2 = 3 | TRINITY
