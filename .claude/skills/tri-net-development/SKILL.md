@@ -338,7 +338,14 @@ traffic over the radio), Helium Proof-of-Coverage style. The on-node substrate i
 `specs/tri_depin.t27` (Proof-of-Relay): a tamper-evident / order-sensitive / size-
 bound / identity-bound / epoch-bound accumulator over forwarded-packet receipts,
 from which a settlement layer mints $TRI. Multiply-free (T27 has no `*`) xorshift+
-shift-add mixer. 12 invariants; seal diffusion 15.91/32 bits. **This is accounting
+shift-add mixer. 14 invariants; seal diffusion 15.91/32 bits. The seal BINDS
+total_bytes (a wave fix -- otherwise a node presents an honest acc/seal but claims
+inflated bytes, since reward is paid on total_bytes). **Proven on real hardware
+(2026-07-18, smoke/DEPIN_RELAY_HW_2026-07-18.md):** an armv7 musl meter (t27c
+gen-rust in a thin wrapper, cargo zigbuild) run on node .12 mints a receipt over a
+real file; x86 host and a 2nd ARM node (.13) recompute the seal BIT-EXACT;
+byte-inflation and 1-byte content tamper both rejected. Cross-arch bit-exactness is
+the settlement property. **This is accounting
 logic, so it MUST live in a `.t27` spec through the golden pipeline -- never hand-
 write it in Rust/Python (repo law + the `no-handwritten-logic` hook enforces it).**
 Verify pattern (no `.sh` -- the `no-shell-scripts` hook forbids new shell scripts):
