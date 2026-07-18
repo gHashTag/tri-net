@@ -450,4 +450,16 @@ PHY (destructive flash + user presence) or AD9361 TX-datapath RE; do NOT keep
 attempting host modems (same TX non-periodicity). When the user says "прошивай" AND is
 at the board: stage the DSSS bitstream, cold-cycle per Art IV.
 
+**Merkle commitment + 3-node relay + OTA config-read (2026-07-18h,
+smoke/DEPIN_MERKLE_RELAY_2026-07-18.md).** B: `specs/tri_merkle.t27` -- a Merkle
+commitment over the payout round (Helium model: publish one root, claim a reward by an
+inclusion proof; forged reward + wrong sibling rejected; tamper-evident root). depth-3
+8-leaf unrolled (t27 has no loops); 6 invariants. `merkle` mode on node .12 ARM: root
+0x12CE67F1, node0 proof VALID, forged 999999 $TRI REJECTED. C: live 3-node relay
+.11->.12->.13 over HTTP (httpd+wget) -- both relay receipts bit-exact (acc 0xBB6CEDC1).
+A: RTFM config-read ruled out configured resampling (TX/RX/DDS all 30.72 MHz, FIR
+off) -- OTA non-periodicity is DMA/buffer-level, not a rate/FIR resample; still
+flash-gated. **Lesson: `grep -E "iio_"` matched the system daemon `iiod` and killed it
+(restarted `/usr/sbin/iiod -D -n 3 -F /dev/iio_ffs`); use `[i]iod` near system procs.**
+
 phi^2 + phi^-2 = 3 | TRINITY
