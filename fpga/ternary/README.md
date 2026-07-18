@@ -12,7 +12,7 @@
 |--------|---------------------------------------------------------------------------|
 | radio  | ternary demod **0 DSP / 78 MHz**, demodulates real air, OTA spread-spectrum **35x gain / 99.4x** code-reject, real xc7z020 bitstream via open flow |
 | AI     | every transformer block **0 DSP**, systolic GEMM **33 GOPS**, a **trained** ternary transformer runs end-to-end on the engine at **97%** |
-| system | 91M IGLA-Coder on one chip (23 MB DDR, 170-565 tok/s memory-bound) + a mesh |
+| system | 91M IGLA-Coder on one chip (23 MB DDR, ~50-130 tok/s real DDR-bound) + a mesh |
 
 **Read the story:** [`LAYER.md`](LAYER.md) (a full transformer layer) ·
 [`MODEL.md`](MODEL.md) (the 91M model on one chip) · [`SYSTEM.md`](SYSTEM.md)

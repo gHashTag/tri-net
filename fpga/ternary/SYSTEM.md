@@ -28,8 +28,8 @@ field mesh.
 - **RF classification** (tone / spread / noise, 12/12 on live captures) ->
   spectrum awareness, jammer detection.
 - **Routing / link-quality** decisions from a tiny ternary net (~us latency).
-- **Local inference** -- the 91M coding/RF model at ~170-565 tok/s (memory-bound),
-  in the compute the model isn't using while it waits on DDR.
+- **Local inference** -- the 91M coding/RF model at ~50-130 tok/s (real DDR-bound
+  on a 32-bit DDR3-1066 Zynq-7020), on DSPs the radio also never needs.
 
 ## vs alternatives
 
