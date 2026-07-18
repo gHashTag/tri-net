@@ -592,4 +592,26 @@ three RX modes. All three closed on iron (.13->.12, no flash).
 - Detached cyclic writer: `setsid sh -c '... < file >log 2>&1' </dev/null >/dev/null 2>&1 &`
   in its OWN ssh call (backgrounding inside a captured ssh swallows the step's stdout).
 
+**STREAMING RX + 4-NODE PROOF-OF-COVERAGE (2026-07-18p,
+smoke/DEPIN_STREAMING_4NODE_2026-07-18.md).** A 4th P201Mini joined at .10.
+- **The RX overrun was ENTIRELY the demod-in-the-pipe, not the DMA.** `iio_readdev -s N -b N
+  ... > /tmp/cap.iq` (tmpfs = RAM speed) then demod the FILE offline has ZERO overrun at
+  `-s 4194304` (128x the old ~32K ceiling). Decouple capture from compute -- that is the
+  streaming fix. 4 MB (~34 ms) -> 203 frames ~99% clean; 16 MB (~136 ms) -> 815 frames 92%
+  clean, one running receipt. ~384 kbps sustained. Batch demod (~3 s/16 MB on ARM), not
+  real-time -- the CAPTURE is gapless, which is what the air link needs.
+- **A fixed frame grid (`start0 + k*flen`) WALKS OFF over long streams**: the two boards'
+  30.72 MHz clocks differ ~10 ppm, so ~160 samples (>3 frames) of drift over 16 M samples
+  breaks a fixed grid (0/819 clean). FIX: track from the ACTUAL locked position
+  (`expected = start + flen`) + a WIDE re-acquire when corr dips (self-heal). Then lock holds
+  across 800+ frames. On the host (no drift) the fixed grid looks fine -- drift only bites OTA.
+- **Multi-witness Proof-of-Coverage** (`otarxset`): recover frames, dedup+sort payloads, seal
+  over the CANONICAL sorted set so the seal is capture-phase-INDEPENDENT. .13 broadcast, and
+  .10/.11/.12 each independently produced the IDENTICAL seal 0xCDB1F3B1 -- three nodes
+  cryptographically attest the same coverage (Helium-class PoC, real radio). This is how the
+  network rewards multi-confirmed coverage instead of a single self-report.
+- The new host at .10 identifies as a P201Mini (`hostname pzp201mini`), NOT a bigger FPGA --
+  if a large FPGA is intended (e.g. to host the DSSS PL without the P201Mini cold-cycle risk)
+  it is not on the subnet yet.
+
 phi^2 + phi^-2 = 3 | TRINITY
