@@ -787,6 +787,25 @@ is a wrong linear equation and must never reach the GF(256) solver.
 - Frame length grew to ota_frame_len(12)=6400 complex; cyclic TX `-b 57600` (9 frames) worked.
 - Boundary: CRC-16 has ~1/65536 undetected-error rate; +2 B/frame overhead. A safety-critical
   link wants a wider CRC or an authenticated MAC.
+
+**AUTHENTICATED FRAME (keyed MAC) + concurrent FDD sources (2026-07-18ab,
+smoke/DEPIN_AUTH_FDD_2026-07-18.md).** ("все три": 1&2 done, 3 blocked.)
+- **Keyed MAC = first word of SHA-256(key || frame10) via the embedded t27 tri_sha256.** Frame is
+  now 14 B: `g:u16 | cv[4] | value:u32 | mac32:u32`. `ota_pl4(key,...)` signs, `ota_read_frames4
+  (key,...)` DROPS any frame whose MAC fails. **Do NOT use the repo `hmac_md5` -- it's a stub XOR
+  (key^msg), trivially forgeable.** For a fixed-length frame, SHA-256(key||frame) truncated is a
+  secure MAC against forgery.
+- Over the air: a forger node (wrong key) had EVERY frame rejected (mac_dropped=73 copies, 0/3) --
+  a node without the key cannot inject into the coded mesh; genuine sources (key K) decode 3/3.
+  Authenticity, not just integrity -- the SSI / IEC-61499 / ASU-TP control-command story.
+- **The MAC has no nonce -> no replay protection** by itself (a captured valid frame can be
+  re-sent). Production adds a nonce/sequence (full HMAC-SHA256 / Poly1305). Coding vectors being
+  unique per frame limits useful replays.
+- **Concurrent FDD sources:** .13 @ 2.40 GHz and .11 @ 2.45 GHz transmit AT THE SAME TIME; .10
+  tunes its RX to each band in turn (both on air throughout) and decodes 3/3. Frequency-division
+  multi-access -- multiple simultaneous senders. (One RX can't grab two 5 MHz-separated bands in a
+  single capture; wide-band or 2-RX is the next step.)
+- Frame length ota_frame_len(14)=7040 complex; cyclic TX `-b 63360` (9 frames).
 - DSSS-on-big-FPGA still blocked (no big FPGA on net/USB).
 
 phi^2 + phi^-2 = 3 | TRINITY
