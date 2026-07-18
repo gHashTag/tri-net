@@ -642,4 +642,24 @@ now carries an ARBITRARY ORDERED message, not a deduped set.
 - Boundary: fixed test string in a cyclic buffer (a live changing source is the next step); RX
   is told the message length (a length header in seq=0 is a small follow-on).
 
+**CONCURRENT FDD 2-HOP PIPELINE (2026-07-18s, smoke/DEPIN_FDD_PIPELINE_2026-07-18.md).** The
+relay now runs CONCURRENTLY with the source on a different frequency (pipelined, not baton-passed).
+- **The AD9361 RX_LO and TX_LO are INDEPENDENT PLLs in `fdd` ensm_mode** (`cat ensm_mode` ==
+  fdd; also `pinctrl_fdd_indep` available). One chip does RX @ 2.40 GHz AND TX @ 2.45 GHz at the
+  SAME time. Sysfs: `out_altvoltage0_RX_LO_frequency` (RX), `out_altvoltage1_TX_LO_frequency`
+  (TX) -- both under the ad9361-phy device, both "out_altvoltage".
+- **ISOLATION proven:** .12 recovered the full message on 2.40 (5/5) WHILE its own 2.45 TX ran --
+  a board's own TX does not blind its RX with 50 MHz of separation. **HOP-2 LIVE:** .10 (RX 2.45)
+  recovered the relay WHILE .13 still TX'd on 2.40. Both hops concurrent, seal 0xE0AA4F5D
+  identical origin/hop-1/hop-2.
+- **GOTCHA:** an early "RX pulled to 2.45" scare -- setting one LO appeared to drag the other.
+  It did NOT persist; re-setting RX_LO=2.40 right before the capture held. Always read the LO
+  back immediately before RX; the retune settles.
+- **Marginal SNR needs more votes:** .13->.12 at 5 message-periods gave 3/5 chunks; 20 periods
+  (`-s 524288`) gave 5/5. The per-slot majority vote fills in as copies accumulate -- capture
+  bigger when a chunk is missing rather than assuming a link fault.
+- FDD pipelining removes the baton-passing 1/N throughput loss: each hop on its own frequency
+  transmits continuously. The one-$100-chip full relay (listen one band, forward another,
+  concurrently) is the key enabler.
+
 phi^2 + phi^-2 = 3 | TRINITY
