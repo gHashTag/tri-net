@@ -906,4 +906,20 @@ smoke/DEPIN_RRCMF_CDMA_SELFDIAG_2026-07-19.md).** ("все три"; bench RECOVE
   integrate-and-dump), the other code averages to noise. Both BER=0/32 clean AND at sigma=3000
   (N=31). Complement of the FDD channelizer: many hidden senders in ONE band.
 
+**SELECTION COMBINING + RLNC-over-CDMA + CLOSED-LOOP ADAPT (2026-07-19,
+smoke/DEPIN_SELCOMB_CDMARLNC_ADAPT_2026-07-19.md).** ("все три"; adaptation loop runs on HW.)
+- **Selection combining (`otarxbest <hex> <nbytes>`)** for a fading link: find the frame phase, score
+  EVERY cyclic copy by preamble correlation (`ota_corr_at`), decode the BEST copy (the one in a good
+  fade). Host 20 copies -> best_cp=1.000 BER=0/32. Beats first-lock-then-step on an intermittent link.
+- **Closed-loop link adaptation (linkadapt.sh) ON HARDWARE:** auto-selects RX gain by `linkq` cp
+  (swept 40/55/64/71 -> chose 71), then logs cp TELEMETRY once/sec: cp swung 0.114-0.560 over 8 s,
+  crossing LINK OK at t5. The fading is MEASURED, not asserted -- and catchable. No human in the loop.
+- **RLNC coded frames over CDMA (`cdmarlnc <N> [sigma]`):** each source spreads its MAC'd K=4 coded
+  frames with a DIFFERENT PN code, same band/time; RX despreads by code, MAC-verifies, GF(256)-solves.
+  codeA alone 2 frames -> 0/1; A+B 4 frames -> 1/1 "TRINET-WIDEBAND!" clean AND at sigma=2000/4000.
+  DSSS range x CDMA multi-access x RLNC multipath in one primitive.
+- **OTA link is fading + non-stationary** (telemetry cp 0.11-0.56; the sweep's 0.647 was a lucky
+  good fade). Selection combining is the right tool but a clean OTA byte needs a good fade DURING the
+  capture. Don't keep hammering OTA -- the link is the variable; the telemetry now shows how it varies.
+
 phi^2 + phi^-2 = 3 | TRINITY
