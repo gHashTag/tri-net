@@ -33,6 +33,20 @@ matched filter + M^2 carrier + coherent detection recovers the byte cleanly on
 the first real capture. Everything below this section is the earlier honest record
 of getting here.
 
+### Extended: readable text over the air, BER=0 over 576 bits
+
+Scaling one byte to a real message: TX a frame carrying the 24-char string
+**"TRINET ternary OTA link "** (192 payload symbols) after the same 819-chip
+preamble, .11 -> .12, 2.4 GHz. The receiver adds a decision-directed **Costas
+loop** on top of the preamble acquisition (initial phase from the preamble, then
+tracks the residual ~2.3 kHz oscillator offset across the 6.83 ms frame). Result:
+**3 of 3 acquired frames recover the exact text, 0 bit errors over 576 bits
+(BER = 0)**. The despread itself -- `vdot(received, PN)` with PN in {-1,+1} -- IS
+the 0-DSP ternary sign-select correlator, so the ternary primitive is literally
+what pulls the text off the air. This turns "a clean byte" into a **measured
+radio link**: preamble sync + M^2 carrier + Costas tracking + ternary despread,
+carrying readable data end to end on real hardware.
+
 ## Proven: arbitrary-waveform DMA transmit over the air
 
 The AD9361 TX path plays back arbitrary I/Q, not just DDS tones. Generating a
