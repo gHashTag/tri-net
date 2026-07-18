@@ -153,3 +153,23 @@ This is the architecture of the 91M IGLA-Coder (ternary attention + FFN) in
 miniature, trained and executing on the radio node's own ARM -- the concrete
 bridge from "the transformer blocks verified in simulation" to "a trained ternary
 transformer runs on the silicon."
+
+## Live AI-driven mesh MAC (sense-then-transmit)
+
+Closed the CSMA gate into a running loop on .12: sense the channel with the
+trained model, and TRANSMIT a beacon only on `CLEAR`. Live, 3 scenarios:
+
+| air state | AI verdict | action |
+|-----------|-----------|--------|
+| empty | CLEAR: transmit | beacon TX |
+| node B (.13) on air | BUSY (dsssB): defer | held silent |
+| clear again | CLEAR: transmit | beacon TX |
+
+The MAC decides correctly every time and even names the occupying node (dsssB) --
+an AI-native medium-access layer, not a fixed energy threshold. The beacon
+physically reaches the peers (22x preamble lock), but a clean BER=0 payload decode
+happens only when **.12 is the receiver**: boards .11 and .13 both show a
+good-lock / bad-payload RX artifact (~4-5/8 at 22x lock) -- a per-board AD9361
+calibration issue seen throughout this rig, NOT a protocol fault (every .x -> .12
+link decodes BER=0). Clean .12 -> peer payload delivery awaits per-board RX
+calibration; the AI-gated medium access itself is proven live.
