@@ -8,11 +8,8 @@ use std::io::{self, Read};
 const FS: f32 = 30.72e6;
 const F_IF: f32 = 3.0e6;
 const SPC: usize = 16;
-fn main() {
-    let mut buf = Vec::new();
-    io::stdin().read_to_end(&mut buf).unwrap();
+fn classify(buf: &[u8]) -> (usize, [f32; 8]) {
     let n = buf.len() / 4;
-    if n < 2048 { println!("class=?? (need samples)"); return; }
     let mut re = vec![0f32; n];
     let mut im = vec![0f32; n];
     for i in 0..n {
@@ -53,7 +50,7 @@ fn main() {
             }
             let c = (sr*sr+si*si).sqrt()/(en.sqrt()*nr + 1e-9);
             if c > best { best = c; }
-            o += 16;
+            o += 32;
         }
         best
     };
@@ -75,8 +72,31 @@ fn main() {
         for j in 0..16 { let q = W2[k*16+j]; if q>0 {acc+=h[j];} else if q<0 {acc-=h[j];} }
         z[k] = A2*acc + B2[k];
     }
-    let names = ["noise","tone","dsssA","dsssB","wide"];
     let (mut bi, mut bv) = (0usize, z[0]);
     for k in 1..5 { if z[k] > bv { bv = z[k]; bi = k; } }
-    println!("feats[flip={:.3} ac1={:.2} pA={:.2} pB={:.2}] -> class={}", flip, x[1], x[4], x[5], names[bi]);
+    (bi, x)
+}
+
+// Majority-of-3 voting: split the capture into 3 blocks, classify each,
+// take the majority (ties -> the highest-vote earliest class). One marginal
+// window can no longer flip the verdict.
+fn main() {
+    let mut buf = Vec::new();
+    io::stdin().read_to_end(&mut buf).unwrap();
+    let names = ["noise","tone","dsssA","dsssB","wide"];
+    let n = buf.len() / 4;
+    if n < 2048 { println!("class=?? (need samples)"); return; }
+    let nb = if n >= 3*8192 { 3 } else { 1 };
+    let blk = (n / nb) * 4;
+    let mut votes = [0usize; 5];
+    let mut lastf = [0f32; 8];
+    for b in 0..nb {
+        let (c, f) = classify(&buf[b*blk..(b+1)*blk]);
+        votes[c] += 1; lastf = f;
+    }
+    let (mut bi, mut bv) = (0usize, votes[0]);
+    for k in 1..5 { if votes[k] > bv { bv = votes[k]; bi = k; } }
+    println!("votes[{} {} {} {} {}] feats[flip={:.3} pA={:.2} pB={:.2}] -> class={}",
+             votes[0], votes[1], votes[2], votes[3], votes[4],
+             lastf[0], lastf[4], lastf[5], names[bi]);
 }

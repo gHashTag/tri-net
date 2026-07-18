@@ -113,3 +113,23 @@ searches).
   discipline applied to dataset building. It caught both failures above and one
   wrong verifier threshold (wide's chance-correlation is ~0.35 vs 63-chip codes,
   not <0.22).
+
+## Closed into a network action: majority voting + a CSMA gate (3 nodes live)
+
+Two follow-ons, verified on all three boards (.11 and .13 as transmitters, .12
+sensing):
+- **`ternnet` majority-of-3 voting** splits each capture into 3 blocks and takes
+  the majority class. It fixed the one boundary miss: live on fresh air, now
+  **5/5 classes exact** (noise / tone / dsssA / dsssB / wide), the previously
+  marginal dsssA reading pA=0.96 with a clean 3-0 vote.
+- **`csma`** closes the classifier into an actual radio-card decision: sense the
+  channel, then `class=noise -> "CLEAR: transmit"`, anything else ->
+  `"BUSY (<class>): defer"`. Live: empty air -> CLEAR, an occupied channel
+  (jammer / another node) -> BUSY+defer, cleared again -> CLEAR. The AI is now a
+  transmit gate, not just a label.
+
+`.13` was recovered as node B (password was the standard `analog`; after its cold
+cycle it had booted with TX LO 2450 vs the mesh's 2400 -- the same identity
+mismatch as .11, fixed by one write), giving a real 3-node rig: node A and node B
+each transmit their own PN code and .12's trained ternary model names who is on
+the air.

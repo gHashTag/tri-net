@@ -12,3 +12,6 @@ strip = true
 [[bin]]
 name = "ternnet"
 path = "src/bin/ternnet.rs"
+[[bin]]
+name = "csma"
+path = "src/bin/csma.rs"
