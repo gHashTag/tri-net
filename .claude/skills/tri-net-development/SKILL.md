@@ -373,4 +373,21 @@ forwarded) and wiring into the live mesh daemon; secure key storage; on-chain
 issuance. Board hygiene: after httpd, `killall httpd` misses it (busybox name is
 `busybox`) -- kill by pid; always leave TX LO pd=1.
 
+**Lossy-channel integrity gate + real RF measurement (2026-07-18c,
+smoke/DEPIN_LOSSY_RF_2026-07-18.md).** Weak point: over radio the forwarded bytes
+carry bit errors, so a bit-exact receipt punishes honest relays and can't tell a
+channel error from cheating (lossy decode-and-forward relay problem). Fix in
+`tri_depin.t27`: `relay_absorb_verified` / `bytes_add_verified` -- meter a datagram
+only if its recomputed digest matches the carried digest; drop corrupt ones. 18
+invariants; `relayfec` mode on node ARM: BER0 -> receipt matches clean, BER1000ppm
+-> corrupt datagrams dropped, only verified bytes metered. **RF measurement recipe
+(works):** streaming devs `cf-ad9361-lpc` (RX) / `cf-ad9361-dds-core-lpc` (TX,
+iio:device2). Noise floor: `iio_readdev -s 8192 cf-ad9361-lpc voltage0 voltage1 > f`,
+pull raw (NO grep -- corrupts binary), RMS in numpy. Tone: TX board set TX LO,
+`out_altvoltage1_TX_LO_powerdown=0`, DDS `out_altvoltage0_TX1_I_F1_{frequency,scale,
+raw}` + `out_altvoltage2_TX1_Q_F1_*` (raw=1 enables). Measured .13->.12 = 47.4 dB SNR
+(BER~0). ALWAYS after: DDS raw=0 + TX LO pd=1 on the TX board (retry -- .13 flakes on
+dropbear). Next: full OTA byte transfer through the modem; pair the gate with the
+repo's interleaved XOR-FEC to recover (not just drop) corrupt datagrams.
+
 phi^2 + phi^-2 = 3 | TRINITY
