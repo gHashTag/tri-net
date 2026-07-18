@@ -71,6 +71,35 @@ module TriDepin {
         }
     }
 
+    // ---- Lossy-channel integrity gate (WAVE 2026-07-18c) ----
+    // Over a real radio link the forwarded bytes carry bit errors (BER > 0); a
+    // bit-exact receipt would punish an honest relay for the channel's errors and
+    // could not tell a channel error from cheating. Resolution: the relay meters a
+    // datagram ONLY if the digest it recomputes over the received bytes matches the
+    // digest the datagram carries. A channel-corrupted datagram (mismatch) is
+    // dropped -- not metered -- so the receipt covers exactly the bytes the node
+    // correctly received and forwarded. Honest under loss: no penalty for dropped
+    // datagrams (they just are not counted), no false reward for corrupted ones.
+
+    // Absorb a datagram into the accumulator only if its recomputed digest matches
+    // the carried digest; otherwise leave the accumulator unchanged (drop).
+    fn relay_absorb_verified(acc: u32, computed_digest: u32, expected_digest: u32, nbytes: u32) -> u32 {
+        if (computed_digest == expected_digest) {
+            return relay_absorb(acc, computed_digest, nbytes);
+        } else {
+            return acc;
+        }
+    }
+
+    // Count a datagram's bytes only if it passed the integrity check.
+    fn bytes_add_verified(total: u32, nbytes: u32, computed_digest: u32, expected_digest: u32) -> u32 {
+        if (computed_digest == expected_digest) {
+            return bytes_add(total, nbytes);
+        } else {
+            return total;
+        }
+    }
+
     // ---- Tests / invariants ----
 
     // Determinism: same forwarding history -> same accumulator (a verifier can
@@ -184,5 +213,43 @@ module TriDepin {
         m1 = mix32(0x00000001);
         assert(m0 != m1, "one-bit input differs");
         assert(mix32(0x80000000) != mix32(0x00000000), "high bit differs");
+    }
+
+    // Integrity gate accepts an intact datagram (digests match): accumulator moves.
+    test verified_accepts_intact {
+        clean = relay_absorb_verified(TRI_GENESIS, 0xABCD1234, 0xABCD1234, 200);
+        plain = relay_absorb(TRI_GENESIS, 0xABCD1234, 200);
+        assert(clean == plain, "intact datagram metered normally");
+        assert(clean != TRI_GENESIS, "accumulator advanced");
+    }
+
+    // Integrity gate drops a corrupted datagram (digest mismatch): accumulator and
+    // byte meter both unchanged -- no false reward, no penalty confusion.
+    test verified_drops_corrupt {
+        acc  = relay_absorb_verified(TRI_GENESIS, 0xDEADBEEF, 0xABCD1234, 200);
+        tot  = bytes_add_verified(0, 200, 0xDEADBEEF, 0xABCD1234);
+        assert(acc == TRI_GENESIS, "corrupt datagram dropped from acc");
+        assert(tot == 0, "corrupt datagram not counted");
+    }
+
+    // Honest under loss: a stream whose middle datagram is corrupted meters EXACTLY
+    // the same as the clean stream with that datagram removed. The receipt reflects
+    // what the node correctly forwarded, nothing more, nothing less.
+    test verified_lossy_equals_clean_subset {
+        // clean subset: datagram1 then datagram3 (datagram2 corrupted, skipped)
+        subset = relay_absorb(relay_absorb(TRI_GENESIS, 0x11110001, 70), 0x33330003, 90);
+        // full stream through the gate: d1 ok, d2 corrupt (digest mismatch), d3 ok
+        s1 = relay_absorb_verified(TRI_GENESIS, 0x11110001, 0x11110001, 70);
+        s2 = relay_absorb_verified(s1, 0x22220002, 0x2222FFFF, 80); // corrupted -> dropped
+        s3 = relay_absorb_verified(s2, 0x33330003, 0x33330003, 90);
+        assert(s3 == subset, "lossy stream == clean subset");
+    }
+
+    // Byte meter under loss counts only verified datagrams.
+    test verified_bytes_only_clean {
+        b1 = bytes_add_verified(0, 70, 0x11110001, 0x11110001);   // ok  -> +70
+        b2 = bytes_add_verified(b1, 80, 0x22220002, 0x2222FFFF);  // bad -> +0
+        b3 = bytes_add_verified(b2, 90, 0x33330003, 0x33330003);  // ok  -> +90
+        assert(b3 == 160, "only 70+90 counted, corrupted 80 excluded");
     }
 }
