@@ -99,3 +99,24 @@ REAL .11<->.12 offset ~-0.85 ppm: fill=512/512  arrivals=150000 drains=150000  r
 
 So the RTL loop recovers the actual board-to-board radio clock offset, perfectly --
 radio -> clock closed, from the real air into the deterministic recovery loop.
+
+## Loadable-topology ЯПФ fabric -- `yapf_fabric.v`
+
+Balyberdin's "load the map of interconnections" / "edit the connection structure
+during operation": a fabric of ternary function blocks whose interconnect is
+PROGRAMMED at runtime by config registers (what the PS writes over EMIO), not baked
+into the bitstream. Each block picks its two operands from a shared source set
+{external inputs, block outputs} by config, and computes a ternary sign-select MAC.
+Change config -> change the whole computation graph, no re-synthesis. Verified
+(iverilog), ext=[5,3,8,2], SAME bitstream, three loaded topologies:
+
+```
+[topology 1: y3=(ext0+ext1)+(ext2+ext3)] yout=18   (a 2-tier tree)
+[topology 2: y3=ext2 - (ext0+ext1)]      yout=0    (reconfigured, same fabric)
+[topology 3: y3=ext0 - ext2]             yout=-3   (reconfigured again)
+```
+
+Three different dataflow graphs, three correct results, one unchanged bitstream --
+the DataFlow topology is loaded, exactly as Balyberdin's ССИ node loads its
+interconnect map. This closes the "static topology" gap: the node is now
+programmable at the graph level, not just parameterisable.
