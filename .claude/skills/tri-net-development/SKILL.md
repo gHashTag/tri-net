@@ -737,4 +737,22 @@ smoke/DEPIN_RLNC_ADAPTIVE_2026-07-18.md).** ("все три": 1&2 done, 3 blocke
   channel, size the code. (window-edge generation with <8 frames -> 1 honest failed.)
 - DSSS-on-big-FPGA still blocked (no big FPGA on net/USB).
 
+**RLNC RECODE AT THE RELAY -- message across 2 hops without the relay decoding (2026-07-18y,
+smoke/DEPIN_RLNC_RECODE_2026-07-18.md).** The canonical network-coding win, over real radio.
+- Frames carry their coding vector EXPLICITLY: K=4, payload 10 B = `g:u16 | cv[4] | value:u32`.
+  Source `otatxrlnc2 <hex_msg> <R>` (4 data unit-vectors + R coded); relay `otarecode <nframes>
+  <M>` mixes received coded frames into M fresh random GF(256) combinations WITHOUT decoding
+  (new_cv=sum beta_k cv_k, new_value=sum beta_k value_k); dest `otarxrlnc2 <key> <e> <nf> <msg_len>`
+  Gaussian-solves (rlnc_solve4) any >=4 independent-cv frames -> the message.
+- Over the air .13->.12->.10: readable "TRINET RLNC RECODE .13>.12>.10 OVER AIR OK!" decoded 3/3
+  at .10 from the RELAY'S recoded frames -- .12 never saw the plaintext. Multipath/multicast gain
+  + a privacy property (the relay can't read the traffic).
+- **HARD-WON DEBUG:** OTA read pure noise -- NOT RF. Causes: (a) a non-cyclic source stream that
+  finished before the ssh-sequenced capture (the stream must outlast ssh latency, or loop), and
+  (b) a MISSING input file (`/tmp/t.iq`) made iio_writedev exit instantly (writers=0). Fix: a
+  transceiver reset (`echo sleep > ensm_mode; echo fdd > ensm_mode`) cleared a stale DDS state,
+  and a CYCLIC source (`-b 138240` = one full period) kept the signal continuously on air. ALWAYS
+  confirm the writer stays alive (writers=1) AND the input file exists before blaming RF; a
+  known-good otatx/otarx (corr=1.000) isolates RF from framing.
+
 phi^2 + phi^-2 = 3 | TRINITY
