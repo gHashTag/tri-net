@@ -11,6 +11,8 @@
 module TriInterleave {
     use base::types;
 
+    const DEPTH_CAP: u32 = 64; // max interleaver depth (bounds latency + memory)
+
     // Original (codeword-major) index -> transmit position. Element o sits at
     // (row = o/W, col = o%W); read column-major => t = col*D + row.
     fn ilv_tx_pos(o: u32, depth: u32, width: u32) -> u32 {
@@ -26,6 +28,25 @@ module TriInterleave {
     // Which codeword (FEC group) an original index belongs to.
     fn ilv_codeword(o: u32, width: u32) -> u32 {
         return o / width;
+    }
+
+    // Adaptive depth: pick an interleaver depth that survives a measured burst of
+    // `max_burst` datagrams -- depth must be >= max_burst (so a burst spreads to <=1
+    // error per codeword), clamped to DEPTH_CAP (bounded latency/memory). A depth
+    // below the burst would leave >=2 errors in some codeword and FEC would fail.
+    fn choose_depth(max_burst: u32) -> u32 {
+        if (max_burst == 0) {
+            return 1;
+        } else if (max_burst >= DEPTH_CAP) {
+            return DEPTH_CAP;
+        } else {
+            return max_burst;
+        }
+    }
+
+    // Does depth D survive a burst of length B? (survivable iff D >= B, up to the cap.)
+    fn depth_survives(depth: u32, burst: u32) -> bool {
+        return depth >= burst;
     }
 
     // ---- Tests / invariants ----
@@ -67,5 +88,24 @@ module TriInterleave {
         assert(ilv_tx_pos(4, 8, 4) != ilv_tx_pos(5, 8, 4), "distinct 4,5");
         assert(ilv_tx_pos(0, 8, 4) == 0, "o0 -> t0");
         assert(ilv_tx_pos(4, 8, 4) == 1, "o4(row1,col0) -> t1");
+    }
+
+    // Adaptive depth matches the measured burst, and the chosen depth survives it.
+    test choose_depth_matches_burst {
+        assert(choose_depth(5) == 5, "burst 5 -> depth 5");
+        assert(choose_depth(12) == 12, "burst 12 -> depth 12");
+        assert(depth_survives(choose_depth(12), 12), "chosen depth survives its burst");
+    }
+
+    // A fixed depth below the burst fails; the adaptive choice fixes it.
+    test choose_depth_beats_fixed {
+        assert(depth_survives(8, 12) == false, "fixed depth 8 fails a burst of 12");
+        assert(depth_survives(choose_depth(12), 12) == true, "adaptive depth survives 12");
+    }
+
+    // Clamped to the cap; a zero burst still yields a valid depth of 1.
+    test choose_depth_bounds {
+        assert(choose_depth(0) == 1, "no burst -> depth 1");
+        assert(choose_depth(1000) == DEPTH_CAP, "huge burst clamps to cap");
     }
 }
