@@ -332,4 +332,25 @@ concrete bridges + plan in the brief, plus buildable pieces (semantics bridge,
 ADC->DAC clock recovery on our timing-recovery path, AI over SSI). Never send email
 or make external commitments on the user's behalf.
 
+**$TRI DePIN + the 6G framing (added 2026-07-18).** The user's thesis: TRI-NET is a
+DePIN -- node holders earn a $TRI token for real physical work (relaying mesh
+traffic over the radio), Helium Proof-of-Coverage style. The on-node substrate is
+`specs/tri_depin.t27` (Proof-of-Relay): a tamper-evident / order-sensitive / size-
+bound / identity-bound / epoch-bound accumulator over forwarded-packet receipts,
+from which a settlement layer mints $TRI. Multiply-free (T27 has no `*`) xorshift+
+shift-add mixer. 12 invariants; seal diffusion 15.91/32 bits. **This is accounting
+logic, so it MUST live in a `.t27` spec through the golden pipeline -- never hand-
+write it in Rust/Python (repo law + the `no-handwritten-logic` hook enforces it).**
+Verify pattern (no `.sh` -- the `no-shell-scripts` hook forbids new shell scripts):
+`t27c gen-rust specs/<x>.t27 > g.rs`, append Rust `#[test]` mirrors of the spec's
+test blocks, `rustc --test -O g.rs` (release = production wrapping semantics), run.
+Honest 6G answer: ITU-**R** IMT-2030 (Jun 2023) has 6 scenarios; TRI-NET fits 3
+directly -- Integrated Sensing & Communication (our RF-sensing/RTI), AI & Communi-
+cation (on-node AI), Ubiquitous Connectivity (mesh) -- and Hyper-Reliable Low-
+Latency partially (deterministic clkrec). ITU-**T** SG-13 does the network
+architecture side (Network 2030). The $TRI token and open sovereign flow are a
+COMPLEMENTARY layer on top of the standard, NOT part of the standard -- say so; do
+not claim the token is "in 6G". Next real step for $TRI: wire the accumulator into
+the live forwarding path of the mesh daemon + sign the epoch seal (not done yet).
+
 phi^2 + phi^-2 = 3 | TRINITY
