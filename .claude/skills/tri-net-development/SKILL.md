@@ -867,4 +867,24 @@ smoke/DEPIN_WINDOW_CHANNELIZER_2026-07-19.md).** ("все три": all 3 host bi
 - **zsh gotcha (again):** unquoted `$VAR` is NOT word-split in zsh -- `otatx $Ps` passed one giant
   arg -> hex panic. Use `${=Ps}` (or explicit args).
 
+**RRC SHAPING + LINK GUARD + TRUE DSSS (2026-07-19,
+smoke/DEPIN_RRC_LINKGUARD_DSSS_2026-07-19.md).** ("все три": all host bit-exact; guard demo'd on HW.)
+- **`linkq <floor>` = honest link guard.** Finds best DBPSK-preamble correlation, reports
+  normalized `cp` (1.0=lock, ~0=none), exits non-zero if cp<floor. **rms lies, correlation doesn't:**
+  host noise cp=0.08 at rms=25772 (HIGHER than clean rms=2199 cp=1.0) -> LINK DEGRADED. Run it
+  BEFORE a decode so a dead link is reported as such, not as 0/1 (the broken-ruler lesson as a tool).
+- **RRC pulse shaping** (`ota_gen_bits_rrc`, `ota_rrc_taps`, `rrc`): replaces rectangular NRZ; ACLR
+  (`aclr <spacing> [beta] [span]`) measured rect vs RRC beta=0.25: @1.5MHz -15.1 vs -29.9 dB, @2MHz
+  -18.1 vs **-51.5 dB** (33 dB cleaner). The transmit-side fix for dense channels (sinc skirt ~1/f
+  vs RRC's fast rolloff). Main lobe (1+beta)*Rs/2.
+- **True DSSS** (`dsstx <hex> <N>` / `dssrx <hex> <N>`): spreads a UNIQUE payload by an N-chip PN
+  (bit=1 inverts code), despreads by integrate-and-dump on the SOFT differential (`ota_db_soft`,
+  `ota_find_soft`) then correlates N chips vs code. gain ~10log10(N). Host sigma=4000: N=1 BER 5/32
+  (broken) -> N=7 BER 0/32 "deadbeef"; sigma=6000 needs N=31. **Key: SOFT differential -- the hard
+  ota_db saturates each sample to +-1 and caps gain; ota_db_soft keeps magnitude.** Distinct from
+  last wave's averaging-of-repeats preview.
+- **OTA link STILL degraded** (guard-confirmed on HW: cp 0.075-0.154 at TX -5 dB across gains).
+  Physical (antenna/thermal/bench), not code -- persists across waves. OTA re-run pending a stable
+  bench; features are host bit-exact + ARM-deployed.
+
 phi^2 + phi^-2 = 3 | TRINITY
