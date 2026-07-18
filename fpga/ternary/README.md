@@ -1,4 +1,33 @@
-# Ternary ZeroDSP matched filter -- the compact radio demod
+# The ternary heart of TRI-NET
+
+> **One multiplier-free primitive (sign-select MAC) builds BOTH a radio and an AI
+> transformer on one ~$100 Zynq-7020**, in a fully open flow (yosys/nextpnr/
+> iverilog/prjxray, no Vivado). Ternary weights turn every multiply into
+> `+x / -x / 0`, so the weight-heavy compute costs **zero DSP**, freeing the DSP
+> column so radio and AI coexist on the same cheap chip.
+
+**Headline results (all built + verified here):**
+
+| half   | result                                                                    |
+|--------|---------------------------------------------------------------------------|
+| radio  | ternary demod **0 DSP / 78 MHz**, demodulates real air, OTA spread-spectrum **35x gain / 99.4x** code-reject, real xc7z020 bitstream via open flow |
+| AI     | every transformer block **0 DSP**, systolic GEMM **33 GOPS**, a **trained** ternary transformer runs end-to-end on the engine at **97%** |
+| system | 91M IGLA-Coder on one chip (23 MB DDR, 170-565 tok/s memory-bound) + a mesh |
+
+**Read the story:** [`LAYER.md`](LAYER.md) (a full transformer layer) ·
+[`MODEL.md`](MODEL.md) (the 91M model on one chip) · [`SYSTEM.md`](SYSTEM.md)
+(the internet-from-the-air mesh) · [`nn/TRAINED_MODEL.md`](nn/TRAINED_MODEL.md)
+(a trained model that solves a task, 97%).
+
+**Blocks (each a subdir with its own README):** `systolic/` (GEMM + tiling) ·
+`cordic/` (RoPE sin/cos) · `ffn/` · `softmax/` (3 divider variants) · `norm/`
+(RMSNorm) · `attn/` (DSP budget) · `nn/` (RF classifier + trained transformer) ·
+`axi/` (Zynq PS bridge) · `ota/` (over-the-air). This file below is the radio
+matched-filter core. `phi^2 + 1/phi^2 = 3`.
+
+---
+
+## Ternary ZeroDSP matched filter -- the compact radio demod
 
 The GF16 correlator (`../gf16/`) spends **8 DSP48E1** because every tap is a full
 float multiply. But a matched filter's reference is a *code*, and a code is
