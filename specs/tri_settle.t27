@@ -97,4 +97,67 @@ module TriSettle {
     test round_saturates {
         assert(round_add(0xFFFFFF00, 0x0000FFFF) == 0xFFFFFFFF, "saturates");
     }
+
+    // ---- Link-quality-weighted reward (Helium-class Proof-of-Coverage, WAVE d) ----
+    // Flat proportional-to-bytes pays a node on a terrible link the same per byte as
+    // one on a great link -- so nobody is rewarded for extending good coverage. Weight
+    // each node's contribution by a link-quality score (derived from the measured SNR:
+    // e.g. quality = clamp(SNR_dB) so 47 dB -> high, 3 dB -> low). Effective
+    // contribution = bytes * quality; the pool is split by weighted contribution.
+
+    // One node's weighted contribution to the round (u64 to hold bytes*quality).
+    fn weighted_contrib(node_bytes: u32, quality: u32) -> u64 {
+        return (node_bytes as u64) * (quality as u64);
+    }
+
+    // Fold a node's weighted contribution into the round's weighted total.
+    fn round_add_weighted(wtotal: u64, node_bytes: u32, quality: u32) -> u64 {
+        return wtotal + weighted_contrib(node_bytes, quality);
+    }
+
+    // A node's token units = pool * (bytes*quality) / weighted_total. Two-stage
+    // scaling (ppm first) keeps every intermediate inside u64. Zero-guarded; floor
+    // division keeps the sum of all nodes' units within the pool.
+    fn reward_weighted(node_bytes: u32, quality: u32, weighted_total: u64, pool: u32) -> u64 {
+        if (weighted_total == 0) {
+            return 0;
+        } else {
+            let contrib: u64 = (node_bytes as u64) * (quality as u64);
+            let ppm: u64 = (contrib * 1000000) / weighted_total;
+            return ((pool as u64) * ppm) / 1000000;
+        }
+    }
+
+    // A better link earns more from the SAME bytes.
+    test weighted_quality_rewards_coverage {
+        // node A: 1000 bytes @ quality 47 (47 dB link, ours); node B: 1000 bytes @ 10
+        wt = round_add_weighted(round_add_weighted(0, 1000, 47), 1000, 10);
+        a = reward_weighted(1000, 47, wt, 1000);
+        b = reward_weighted(1000, 10, wt, 1000);
+        assert(a > b, "better link earns more per byte");
+        assert(wt == (57000 as u64), "weighted total = 47000 + 10000");
+    }
+
+    // Equal quality collapses to flat proportional-by-bytes.
+    test weighted_equal_quality_is_proportional {
+        wt = round_add_weighted(round_add_weighted(0, 100, 5), 200, 5);
+        a = reward_weighted(100, 5, wt, 1000); // 100/300 of pool
+        b = reward_weighted(200, 5, wt, 1000); // 200/300 of pool
+        assert(a == 333, "third");
+        assert(b == 666, "two thirds");
+    }
+
+    // Conservation: weighted units never exceed the pool.
+    test weighted_conservation {
+        wt = round_add_weighted(round_add_weighted(0, 1000, 47), 500, 30);
+        a = reward_weighted(1000, 47, wt, 10000);
+        b = reward_weighted(500, 30, wt, 10000);
+        assert(a + b <= (10000 as u64), "sum <= pool");
+    }
+
+    // No free mint: zero quality (dead link) earns nothing.
+    test weighted_zero_quality {
+        wt = round_add_weighted(0, 1000, 47);
+        assert(reward_weighted(1000, 0, wt, 1000) == 0, "dead link no reward");
+    }
 }
