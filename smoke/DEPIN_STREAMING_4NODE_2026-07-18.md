@@ -52,9 +52,31 @@ Zynq-7020, ad9361-phy) -- a 4th radio node, not a larger FPGA. If a bigger FPGA 
 for the network (e.g. for the DSSS PL PHY without the P201Mini cold-cycle risk), it is not on
 this subnet yet -- its address/interface is needed to bring it in.
 
-## Flash gate honored
+## C -- DSSS flash: authorized, but no artifact exists (RTL verified instead)
 
-The PL DSSS-PHY flash stays gated on an explicit "прошивай" WITH the user physically at the
-board (destructive Art IV cold-cycle). "все три" is not that trigger; C was not flashed.
+The user explicitly authorized the flash ("прошивай") and confirmed physical presence, so the
+safety gate is satisfied. But the flash still did NOT proceed, for a different reason:
+
+- **There is no loadable DSSS bitstream anywhere** -- no `.bit`/`.bin`/`.fasm`/`.frames` in the
+  repo or on any board (`/root/*.bit` empty, `/lib/firmware` empty). The DSSS work is Verilog
+  SOURCE (`tern_corr_pn_stream.v`, `tern_pn_lfsr.v`) plus post-P&R numbers only.
+- The boards load the PL via `fpga_manager` (state "operating"), and the CURRENT PL provides
+  the AD9361 radio datapath. A standalone despreader bitstream would REPLACE it and kill the
+  radio -- breaking a working node for zero gain. Doctrine: destructive tools last, never on
+  the last working unit, no mutation while blind.
+- What WAS done (non-destructive, pre-flash verification the doctrine requires): the DSSS
+  despreader RTL was simulated (iverilog) -- `peak=6300 = N*A`, full despread gain on
+  alignment, "STREAMING PN DESPREADER OK". The block that would go into the bitstream is sound.
+
+The real remaining task is to BUILD a radio-preserving bitstream (integrate the despreader into
+the AD9361 datapath via Vivado/ADI-HDL), verify it on real OTA samples, and only then flash the
+sacrificial 4th node .10 -- a dedicated FPGA-build wave, not a ready 5-minute flash.
+
+## Big FPGA -- not found
+
+The user connected "a big FPGA for the network" but does not know its address. A full sweep
+found only .1 (router), .10/.11/.12/.13 (four P201Minis), and the host (.105) -- one subnet,
+no other host; no USB/JTAG FPGA on the Mac either. The new host .10 is a P201Mini, not a bigger
+FPGA. If a large FPGA exists it is not on this network/USB yet.
 
 Boards left clean: writers=0, TX LO pd=1 on .10/.11/.12/.13, IQ files removed.
