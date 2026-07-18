@@ -166,13 +166,20 @@ trained model, and TRANSMIT a beacon only on `CLEAR`. Live, 3 scenarios:
 | clear again | CLEAR: transmit | beacon TX |
 
 The MAC decides correctly every time and even names the occupying node (dsssB) --
-an AI-native medium-access layer, not a fixed energy threshold. The beacon
-physically reaches the peers (22x preamble lock), but a clean BER=0 payload decode
-happens only when **.12 is the receiver**: boards .11 and .13 both show a
-good-lock / bad-payload RX artifact (~4-5/8 at 22x lock) -- a per-board AD9361
-calibration issue seen throughout this rig, NOT a protocol fault (every .x -> .12
-link decodes BER=0). Clean .12 -> peer payload delivery awaits per-board RX
-calibration; the AI-gated medium access itself is proven live.
+an AI-native medium-access layer, not a fixed energy threshold.
+
+**Bidirectional mesh, and a corrected misdiagnosis.** At first the beacon reached
+peers only at 22x lock with a garbled 4-5/8 payload, and this was wrongly blamed on
+a ".11/.13 RX artifact." Direct measurement disproved it: .12 and .13 have
+identical RX front-ends (DC ~0, IQ imbalance ~0, same spurs), and **.13 decodes
+.11 at BER=0, 80x lock**. The real root cause was that **board .12's TX LO was
+stuck at 2450 MHz** -- the same reboot default that hit .11 and .13, but .12's TX
+LO was never fixed because .12 had only ever been a *receiver* until the beacon
+test. Setting .12 TX LO to 2400 (verified) restored it: **.12 -> .13 now decodes
+0xA5 at BER=0, 79x lock** (up from 22x). The mesh is clean in both directions; the
+CSMA node both senses and transmits cleanly. Lesson: an identity/config mismatch
+on a path never exercised before will masquerade as a hardware fault -- check the
+config of the newly-used direction before blaming the silicon.
 
 ## IGLA-Coder in miniature: a ternary code LM GENERATING on the node ARM
 
