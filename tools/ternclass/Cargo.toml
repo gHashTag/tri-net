@@ -9,3 +9,6 @@ path = "src/main.rs"
 opt-level = "z"
 lto = true
 strip = true
+[[bin]]
+name = "ternnet"
+path = "src/bin/ternnet.rs"

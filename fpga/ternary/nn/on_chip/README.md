@@ -73,3 +73,43 @@ and scrambles the phase, so keep TX/RX gains in the linear range (a receiver-gai
 concern, not a classifier flaw). It is a small hand-set net -- a spectrum-awareness
 detector -- not the trained transformer; the point it proves is the shared ternary
 primitive running AI on the radio node's own silicon.
+
+## TRAINED model on the chip: 5-class network sensing, learned from its own air
+
+`tools/ternclass` now also ships **`ternnet`** -- not hand-set rules but a model
+TRAINED on a labeled dataset collected over this very link (.11 TX -> .12 RX,
+2.4 GHz): 960 windows, 5 classes x 2 TX power levels, split at CAPTURE level
+(train and test never share a capture). Classes map to real mesh-network tasks:
+
+| class | network meaning |
+|-------|-----------------|
+| noise | channel clear -> OK to transmit (CSMA) |
+| tone  | narrowband interferer / jammer |
+| dsssA | mesh node A is talking (its PN code) |
+| dsssB | mesh node B is talking (its PN code) |
+| wide  | foreign wideband signal (uncoded chips) |
+
+Distinguishing dsssA / dsssB / wide is the genuinely learned part: random chips
+show ~0.35 chance-correlation against any 63-chip code, a matching code shows
+0.7-0.9 -- the net learns that boundary from data.
+
+**Results:** float MLP 99.8% test == **ternary MLP 99.8% test** (zero loss from
+ternarization; every weight in {-1,0,+1}; 208 weights = **52 bytes**). Live on
+fresh air, on the board's ARM PS: **9/10 correct** across all 5 classes (the one
+miss: a 0.53 ms window catching a weak stretch of the dsssA correlation, feature
+0.54 in the boundary zone -- majority-of-3 voting is the known fix). Latency
+273 ms / 16384 samples on the Cortex-A9 (dominated by the two PN correlation
+searches).
+
+**Hard lessons this milestone forced (all real, all fixed):**
+- Board .11 CRASHED mid-collection -> first dataset was garbage-labeled; a model
+  trained on it scored exactly chance (20%). GIGO, caught by feature
+  instrumentation, not by loss curves.
+- After the cold recovery cycle the board booted with default **TX LO 2450 MHz**
+  vs the receiver's 2400 -> zero signal; classic identity mismatch, found by
+  reading the radio config, fixed with one write.
+- The collection loop now VERIFIES every capture (noise floor sane, code
+  structure visible for the labeled class) before accepting it -- the rig-check
+  discipline applied to dataset building. It caught both failures above and one
+  wrong verifier threshold (wide's chance-correlation is ~0.35 vs 63-chip codes,
+  not <0.22).
