@@ -676,4 +676,21 @@ smoke/DEPIN_FDD_SWEEP_LIVE_2026-07-18.md).** ("все три" -- 1 & 2 done, 3 s
 - **DSSS-on-big-FPGA still blocked**: re-scan found no big FPGA on net/USB; needs Vivado+ADI-HDL
   or a bigger board. Gate satisfied, artifact/tooling absent (unchanged).
 
+**CONTINUOUS EVOLVING STREAM + the raw-FER finding (2026-07-18u,
+smoke/DEPIN_LIVE_STREAM_2026-07-18.md).** A real telemetry/file stream, not a repeating buffer.
+- `otatxstream <nframes> [start]` / `otarxstream <key> <epoch> <nframes>`: each frame payload =
+  `seq:u16 ++ 6-byte ASCII "{:06}" of seq` (self-verifying). .13 generated 4000 UNIQUE frames
+  (82 MB, ~15 s on ARM) and streamed once via `iio_writedev -b 51200` with NO `-c` (non-cyclic,
+  ~667 ms, never repeats). .12 caught a live run DEEP in the stream (seq 1560..1659) and
+  reassembled by seq, verifying each value == its seq. Best 99/100.
+- **iio_writedev is non-cyclic WITHOUT `-c`**; with a big file + modest `-b` it loops reading
+  stdin and streams the whole file continuously (a giant single `-b` fails the DMA alloc).
+- **STREAMING EXPOSES THE RAW LINK FER.** Cyclic buffers let the RX majority-vote over repeats,
+  hiding per-frame errors; a single-pass stream has no repeats, so the raw frame-error rate
+  shows through -- 1% on a good capture, up to ~40% on a bad one (SNR varies). Not a regression:
+  the true link quality majority-voting was masking. A real stream needs per-frame FEC
+  (`tri_fec` interleaved) or a repeat factor -- the robustness next step.
+- The capture always landed ~seq 1500 because the ssh-to-capture latency is ~constant (~250 ms
+  into a 667 ms stream); not a bug.
+
 phi^2 + phi^-2 = 3 | TRINITY
