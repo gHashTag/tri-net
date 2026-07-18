@@ -164,21 +164,24 @@ xc7frames2bit` (all in `regymm/openxc7`) produced a **4,045,664-byte `.bit`** --
 the correct full-configuration size for a Zynq-7020. The open deploy path reaches
 a real bitstream for the exact chip on the P201Mini.
 
-Honest boundary (characterized on hardware): the **load mechanism is present** --
-each P201Mini exposes the Linux FPGA Manager (`/sys/class/fpga_manager/fpga0`,
-state `operating`), the standard Zynq PL-reconfiguration path (write a bitstream
-to `/lib/firmware`, echo it to `fpga0/firmware`). So loading a `.bit` on the
-silicon is mechanically possible. What actually blocks a USEFUL on-board demo is
-narrower and precise: (1) the correlator's top-level ports auto-place to physical
-FPGA pins -- to be driven by the Zynq PS over AXI it needs the PS7/AXI-GP boundary
-the ADI reference design provides, which openXC7 does not wire up, so a loaded
-`.bit` has nothing driving it; (2) loading any full PL image replaces the ADI
-bitstream and disconnects the live AD9361 datapath, so flashing a working radio
-node for a core the PS cannot even reach is a destructive no-op (avoided by
-discipline; reversible only by reboot to SD-boot). So the blocker is the PS7/AXI
-integration -- a bounded block-design task -- NOT the bitstream flow (proven to a
-loadable `.bit`) and NOT the load path (confirmed present). That is the remaining
-bring-up, stated exactly.
+Honest boundary (characterized on hardware AND in the toolchain): the **load
+mechanism is present** -- each P201Mini exposes the Linux FPGA Manager
+(`/sys/class/fpga_manager/fpga0`, state `operating`), the standard Zynq
+PL-reconfiguration path. And -- correcting an earlier, too-pessimistic claim --
+**the open flow DOES support the Zynq PS7 hard block**: `regymm/openxc7` ships the
+yosys `PS7` blackbox (`techlibs/xilinx/cells_xtra.v`), the prjxray-db `zynq7`
+PS-interface tiles (`PSS0..PSS4`, `INT_INTERFACE_PSS_L`, `BRKH_INT_PSS`), and
+nextpnr-xilinx carries the `PS7_PS7` BEL, `PSS_ALTO_CORE`, and PS7 input tie-off
+logic. So a PS-driven design is **supported by the open toolchain** -- you
+instantiate `PS7` in the top level, wire its `M_AXI_GP` / `S_AXI_HP` / EMIO to the
+ternary core, constrain it, and run yosys -> nextpnr -> bitstream. What is NOT done
+is that integration itself (there is no bundled end-to-end PS7 example in the
+image, so it is unimplemented work, not a proven-turnkey path), and flashing a
+working radio node for a pin-only core would disconnect the live AD9361 datapath
+for zero gain (a destructive no-op, avoided by discipline; reversible by reboot).
+Net: on-chip PS-driven load is a **bounded integration task the open flow
+supports**, not a toolchain wall -- the earlier "openXC7 does not wire up PS7/AXI"
+was wrong.
 
 ## Over-the-air PN (honest, partial) -- see ota/pn_over_air.md
 

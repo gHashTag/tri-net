@@ -47,6 +47,37 @@ what pulls the text off the air. This turns "a clean byte" into a **measured
 radio link**: preamble sync + M^2 carrier + Costas tracking + ternary despread,
 carrying readable data end to end on real hardware.
 
+### Multi-node CDMA on ONE band (mesh multiple-access), on hardware
+
+Two nodes share a single 2.4 GHz channel, separated only by PN code: board .11
+transmits with m-sequence code A (x^6+x^5+1) carrying "NODE-A", board .13
+transmits simultaneously with code B (x^6+x+1) carrying "NODE-B". Board .12
+captures the SUM. The M^2 spectrum shows a single shared carrier (the two boards'
+LOs sit within ~1 kHz -- likely a shared reference), and each node's message is
+extracted at **BER=0** by its own code from the combined capture (`NODE-B` decodes
+perfectly *through* code A's interference when B dominates; `NODE-A` decodes
+perfectly when balanced toward A). This is the DSSS mesh multiple-access primitive
+proven on air. The **near-far effect** was also characterized honestly: with
+63-chip codes (~12 dB cross-correlation separation) the dominant node decodes
+cleanly but equal-power co-channel users are mutually marginal -- the classic CDMA
+power-control requirement (shifting a TX gain by a few dB flips which node
+decodes). The standard fixes -- longer/Gold codes, power control, or successive
+interference cancellation -- are the documented path to N equal-power nodes.
+
+### Link margin on a bench: what a bench can and cannot show
+
+At operating power the .11 -> .12 link is BER=0 with ~76x preamble lock; with the
+transmitter off the band is quiet (capture RMS ~7, no bursts). A clean
+BER-vs-power SENSITIVITY curve, however, did NOT come out of a software TX-gain
+sweep on this two-antenna bench: at low signal levels the **decision-directed
+Costas loop frays** (the 819-chip preamble still locks at 57-91x, but the 63-chip
+payload symbols slice to ~50% once carrier tracking loses the weak signal), and
+occasional transients contaminate individual captures. The honest reading: the
+link works cleanly at operating power and the noise floor is characterized, but a
+precise sensitivity/range curve needs calibrated attenuators (or a cabled/shielded
+path) and a non-decision-directed carrier-recovery front end -- a bench with
+software gain steps is the wrong instrument for that particular number.
+
 ## Proven: arbitrary-waveform DMA transmit over the air
 
 The AD9361 TX path plays back arbitrary I/Q, not just DDS tones. Generating a
