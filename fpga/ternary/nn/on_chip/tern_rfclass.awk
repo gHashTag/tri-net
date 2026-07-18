@@ -29,20 +29,16 @@ END {
   energy = sa/n                      # mean |I|+|Q|
   fneg   = cneg/(n-1)                # fraction of phase reversals (chip flips)
 
-  # quantize features to signed small ints for the ternary MAC
-  # f0 = is-there-signal   (energy well above the ~7 noise floor)
-  # f1 = are-there-chip-flips (phase reversals => spread, not a pure tone)
-  f0 = (energy > 20) ? 4 : ((energy > 12) ? 1 : -4)
-  f1 = (fneg > 0.02) ? 4 : ((fneg > 0.005) ? 1 : -4)
+  # The phase-flip rate alone separates the three classes and is INVARIANT to
+  # signal level (a drifting noise floor no longer confuses it):
+  #   noise ~0.5-0.8 (random) | tone ~0.000 (smooth) | spread ~0.03 (chip edges).
+  fhi = (fneg > 0.15) ? 4 : -4    # many flips -> noise
+  flo = (fneg < 0.005) ? 4 : -4   # ~no flips  -> tone
 
   # layer 1: 3 hidden neurons, ternary weights (sign-select MAC, 0 DSP)
-  # rows = neurons, cols = [f0,f1]; encode the 3 class detectors
-  # h_noise  = -f0        (fires when NO signal)
-  # h_tone   = +f0 - f1   (signal AND smooth)
-  # h_spread = +f0 + f1   (signal AND rough)
-  hn = sel(-1,f0) + sel(0,f1)
-  ht = sel( 1,f0) + sel(-1,f1)
-  hs = sel( 1,f0) + sel( 1,f1)
+  hn = sel( 1,fhi)                 # noise:  many flips
+  ht = sel( 1,flo)                 # tone:   no flips
+  hs = sel(-1,fhi) + sel(-1,flo)   # spread: some but not many
 
   # argmax over the 3 ternary-MAC scores
   cls="noise"; best=hn

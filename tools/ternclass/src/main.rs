@@ -23,11 +23,14 @@ fn main() {
     }
     let energy = sa as f64 / n as f64;
     let fneg = cneg as f64 / (n - 1) as f64;
-    let f0 = if energy > 20.0 { 4 } else if energy > 12.0 { 1 } else { -4 };
-    let f1 = if fneg > 0.02 { 4 } else if fneg > 0.005 { 1 } else { -4 };
-    let hn = sel(-1, f0) + sel(0, f1);
-    let ht = sel(1, f0) + sel(-1, f1);
-    let hs = sel(1, f0) + sel(1, f1);
+    // The phase-flip rate alone separates the three classes and is INVARIANT to
+    // signal level (so a drifting noise floor no longer confuses it):
+    //   noise ~0.5-0.7 (random) | tone ~0.000 (smooth) | spread ~0.03 (chip edges).
+    let fhi = if fneg > 0.15 { 4 } else { -4 }; // many flips  -> noise
+    let flo = if fneg < 0.005 { 4 } else { -4 }; // ~no flips   -> tone
+    let hn = sel(1, fhi);                       // noise:  many flips
+    let ht = sel(1, flo);                       // tone:   no flips
+    let hs = sel(-1, fhi) + sel(-1, flo);       // spread: some but not many
     let (mut best, mut cls) = (hn, "noise");
     if ht > best { best = ht; cls = "tone"; }
     if hs > best { cls = "spread"; }

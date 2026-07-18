@@ -64,5 +64,12 @@ trained ternary model on the same PS. Build with
 `cargo zigbuild --release --target armv7-unknown-linux-musleabihf`.
 
 Note: the on-chip demo needs the RX in MANUAL gain -- in AGC (`slow_attack`) the
-front end amplifies the noise floor to signal levels and the energy feature loses
-its meaning (measured: noise read energy 223 under AGC vs 8 under manual).
+front end amplifies the noise floor to signal levels. The classifier keys on the
+**phase-flip rate**, which is invariant to signal level (noise ~0.5-0.8, tone
+~0.000, spread ~0.03), so it survives a drifting noise floor -- verified **9/9
+across 3 runs x 3 conditions** in the linear range. Its one real sensitivity is
+RX **saturation**: an overdriven signal (energy in the thousands) clips the ADC
+and scrambles the phase, so keep TX/RX gains in the linear range (a receiver-gain
+concern, not a classifier flaw). It is a small hand-set net -- a spectrum-awareness
+detector -- not the trained transformer; the point it proves is the shared ternary
+primitive running AI on the radio node's own silicon.
