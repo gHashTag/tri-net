@@ -1,0 +1,96 @@
+// TRI-NET DePIN challenge game: decentralized dispute resolution, so no TRUSTED
+// settlement is needed to catch a lying node. Any node (the challenger) may dispute
+// another node's (the defender's) claimed receipt seal by posting a bond and its own
+// independently computed seal. The dispute is resolved by ANYONE re-metering the same
+// relayed stream to get the truth seal; the party whose seal disagrees with the truth
+// LOSES and forfeits its bond to the winner. This makes challenging a liar profitable
+// and challenging an honest node costly -- so honest receipts survive and false
+// receipts are caught, without a trusted arbiter.
+
+module TriChallenge {
+    use base::types;
+
+    const DEFENDER_HONEST: u32 = 1; // defender's seal matches truth -> challenger loses
+    const DEFENDER_LIED:   u32 = 2; // defender's seal disagrees with truth -> defender loses
+
+    // A dispute is only valid if the two parties actually disagree.
+    fn is_valid_challenge(defender_seal: u32, challenger_seal: u32) -> bool {
+        return defender_seal != challenger_seal;
+    }
+
+    // Resolve by comparing the defender's seal to the independently recomputed truth.
+    // If the defender matches the truth, the challenge fails (the challenger was wrong
+    // or frivolous); otherwise the defender lied.
+    fn resolve(defender_seal: u32, truth_seal: u32) -> u32 {
+        if (defender_seal == truth_seal) {
+            return DEFENDER_HONEST;
+        } else {
+            return DEFENDER_LIED;
+        }
+    }
+
+    // Settle bonds after a verdict: the loser forfeits its whole bond to the winner
+    // (conservation -- total bond is transferred, not burned). Split into two scalar
+    // functions because t27c's gen-rust silently drops tuple-returning functions.
+    fn defender_bond_after(verdict: u32, defender_bond: u32, challenger_bond: u32) -> u32 {
+        if (verdict == DEFENDER_HONEST) {
+            return defender_bond + challenger_bond; // wins the challenger's bond
+        } else {
+            return 0;                               // slashed
+        }
+    }
+
+    fn challenger_bond_after(verdict: u32, defender_bond: u32, challenger_bond: u32) -> u32 {
+        if (verdict == DEFENDER_HONEST) {
+            return 0;                               // frivolous/wrong -> slashed
+        } else {
+            return challenger_bond + defender_bond; // wins the defender's bond
+        }
+    }
+
+    // ---- Tests / invariants ----
+
+    // A dispute requires genuine disagreement (can't challenge an identical seal).
+    test challenge_needs_disagreement {
+        assert(is_valid_challenge(0x6EAC3F90, 0xDEADBEEF) == true, "different seals -> valid");
+        assert(is_valid_challenge(0x6EAC3F90, 0x6EAC3F90) == false, "same seal -> no dispute");
+    }
+
+    // Defender honest: challenger challenged a truthful receipt -> challenger loses.
+    test honest_defender_wins {
+        v = resolve(0x6EAC3F90, 0x6EAC3F90); // defender == truth
+        assert(v == DEFENDER_HONEST, "defender honest");
+    }
+
+    // Defender lied: its seal disagrees with the recomputed truth -> defender loses.
+    test lying_defender_slashed {
+        v = resolve(0xBADBAD00, 0x6EAC3F90); // defender != truth
+        assert(v == DEFENDER_LIED, "defender lied");
+    }
+
+    // Bond conservation + direction, honest defender: challenger's bond goes to defender.
+    test bonds_honest_defender {
+        da = defender_bond_after(DEFENDER_HONEST, 100, 100);
+        ca = challenger_bond_after(DEFENDER_HONEST, 100, 100);
+        assert(da == 200, "defender gains challenger's bond");
+        assert(ca == 0, "challenger loses its bond");
+        assert(da + ca == 200, "total bond conserved");
+    }
+
+    // Bond conservation + direction, lying defender: defender's bond goes to challenger
+    // (so catching a liar is profitable -> incentive to police the network).
+    test bonds_lying_defender {
+        da = defender_bond_after(DEFENDER_LIED, 100, 100);
+        ca = challenger_bond_after(DEFENDER_LIED, 100, 100);
+        assert(da == 0, "defender is slashed");
+        assert(ca == 200, "challenger gains defender's bond");
+        assert(da + ca == 200, "total bond conserved");
+    }
+
+    // Griefing is unprofitable: challenging an honest node costs the challenger its bond.
+    test griefing_unprofitable {
+        v = resolve(0x11223344, 0x11223344); // honest defender
+        ca = challenger_bond_after(v, 100, 100);
+        assert(ca < 100, "frivolous challenger ends with less than it posted");
+    }
+}
