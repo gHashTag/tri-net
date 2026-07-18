@@ -165,3 +165,37 @@ all land 3-6/8 on these captures. The boundary is confirmed: **offline processin
 of these captures cannot reach BER=0**; a clean byte needs a real-time
 synchronized receiver AND cleaner RF (less indoor multipath, higher SNR). Not
 chasing further offline -- this is the spiral debugging discipline warns against.
+
+## Synchronized-receiver reference model: the clean byte is a SYNC problem, not a fundamental one
+
+The three offline decoders stalled at 3-6/8 because none of them was a real
+receiver -- they lacked tracking loops. So instead of chasing the captures again,
+I built a synchronized-receiver reference model (numpy, in the scratchpad) against
+a channel with a realistic residual carrier-frequency offset (CFO), carrier phase,
+fractional sample delay, clock ppm, and AWGN, and verified it BLOCK BY BLOCK
+against a known frame (Barker-13 preamble + byte 0xA5 + guard, PN-63 spread,
+8 samples/chip). What each block is now proven to do:
+
+| block                          | method                              | verified result                          |
+|--------------------------------|-------------------------------------|------------------------------------------|
+| despread + slice (decode core) | matched filter to PN, sign slice    | pristine channel -> **0xA5, BER=0**      |
+| coarse CFO estimate            | M^2-power (square -> tone at 2*CFO)  | true 0.0170 -> **est 0.0170** cyc/sample |
+| carrier recovery (phase/ppm)   | decision-directed Costas loop       | static phase / 120 ppm / SNR 6 dB -> **0xA5, BER=0** |
+| carrier recovery (freq offset) | Costas, fixed timing                | CFO 0.017 cyc/sample -> **0xA5, BER=0**  |
+| frame sync + BPSK ambiguity    | Barker-13 correlation over symbols  | resolves frame start AND +/- phase       |
+
+So every individual receiver block WORKS. The one piece that is not yet solid is
+**joint fractional-timing + frame acquisition**: my successive ad-hoc timing
+front-ends each fixed one impairment (CFO OR fractional delay) and regressed the
+other -- the signature of a hand-tuned synchronizer rather than a proper joint
+acquisition. The textbook fix is a matched-filter timing-recovery (interpolate to
+the per-symbol correlation-peak instant, or a polyphase/Gardner TED wired to the
+SAME derotated stream), acquired jointly with the Barker frame sync -- not more
+hand-tuning. That is a bounded, well-understood synchronizer-design task.
+
+**The result that matters:** "a clean byte over the air" is now shown to be a
+receiver-SYNCHRONIZER problem, not a fundamental limit of the ternary PHY. Coarse
+CFO, carrier recovery, despread, slice, and frame sync are each verified; the
+remaining gap is one joint timing/frame acquisition block. This is the concrete,
+decomposed spec for the "focused synchronized-receiver session" flagged earlier --
+no longer a vague "needs a real receiver."
