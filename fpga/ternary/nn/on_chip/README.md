@@ -44,3 +44,25 @@ is the *co-existence and the shared primitive on one die*, on hardware.
 
 `tern_rfclass.awk` is a hardware bring-up utility (runs on the busybox PS), not
 part of the golden .t27 pipeline.
+
+## Native version: the same net as a cross-compiled ARM binary
+
+`../../../../tools/ternclass/` is the same ternary classifier in Rust, cross-compiled
+to `armv7-unknown-linux-musleabihf` (static musl, 337 KB) and deployed to the PS.
+It reads the raw `iio_readdev` byte stream directly (no `od`), so the whole
+pipeline is just `iio_readdev | ternclass` on the board:
+
+| air condition | energy | flips | class (native binary) |
+|---------------|-------:|------:|-----------------------|
+| noise         | 8.3    | 0.557 | **noise** (correct)   |
+| tone          | 536.7  | 0.000 | **tone** (correct)    |
+| spread        | 571.0  | 0.031 | **spread** (correct)  |
+
+3/3 correct, **~10 ms latency for 8192 samples** on the Cortex-A9. This is the
+awk demo upgraded to real compiled code -- the step toward running the actual
+trained ternary model on the same PS. Build with
+`cargo zigbuild --release --target armv7-unknown-linux-musleabihf`.
+
+Note: the on-chip demo needs the RX in MANUAL gain -- in AGC (`slow_attack`) the
+front end amplifies the noise floor to signal levels and the energy feature loses
+its meaning (measured: noise read energy 223 under AGC vs 8 under manual).
