@@ -133,3 +133,23 @@ cycle it had booted with TX LO 2450 vs the mesh's 2400 -- the same identity
 mismatch as .11, fixed by one write), giving a real 3-node rig: node A and node B
 each transmit their own PN code and .12's trained ternary model names who is on
 the air.
+
+## Bridge to IGLA-Coder: a TRAINED ternary TRANSFORMER on the node silicon
+
+The same dataset -> QAT -> weights -> ARM pipeline, extended from an MLP to a real
+**transformer** -- 1 self-attention head (softmax) + FFN, EVERY projection weight
+(Q, K, V, O, FFN, head) in {-1,0,+1}. Task chosen so attention is genuinely
+required: a positional lookup (token 0 selects a position; the answer is the value
+there -- the model must attend from the query to the selected position).
+
+- **Training:** float transformer 96.0% test vs **ternary transformer 100.0%
+  test** (ternarization here acts as a regularizer). 2176 ternary weights
+  (1252 nonzero) = **544 bytes**; float embeddings 224 params.
+- **On the chip:** `xfmr` (Rust, armv7 musl) reproduces the exact forward
+  (embed+pos, QK^T/sqrt(d) softmax attention, A*V, O-proj, FFN, classify) and runs
+  on .12's Cortex-A9: **12/12 fresh cases correct**, ~2 ms/inference.
+
+This is the architecture of the 91M IGLA-Coder (ternary attention + FFN) in
+miniature, trained and executing on the radio node's own ARM -- the concrete
+bridge from "the transformer blocks verified in simulation" to "a trained ternary
+transformer runs on the silicon."

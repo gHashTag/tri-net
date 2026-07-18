@@ -15,3 +15,6 @@ path = "src/bin/ternnet.rs"
 [[bin]]
 name = "csma"
 path = "src/bin/csma.rs"
+[[bin]]
+name = "xfmr"
+path = "src/bin/xfmr.rs"
