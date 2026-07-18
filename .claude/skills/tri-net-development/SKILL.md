@@ -390,4 +390,20 @@ raw}` + `out_altvoltage2_TX1_Q_F1_*` (raw=1 enables). Measured .13->.12 = 47.4 d
 dropbear). Next: full OTA byte transfer through the modem; pair the gate with the
 repo's interleaved XOR-FEC to recover (not just drop) corrupt datagrams.
 
+**FEC recovery + quality-weighted reward + OTA attempt (2026-07-18d).** B:
+`specs/tri_fec.t27` -- XOR single-erasure recovery (parity XOR survivors, re-checked
+by digest); `relayfec2` mode recovers one corrupt datagram per K=4 group instead of
+dropping (ARM @ 50 permille BER: recovered 3). C: `tri_settle.t27` gains
+link-quality-weighted reward (contribution = bytes*quality from SNR, Helium-class
+PoC). **t27c codegen bug found + worked around:** a `u64 == <literal>` compare is
+NARROWED to u32, so `weighted_total == 0` misreads any 2^32 multiple as zero -- test
+both u32 halves (`(x>>32) as u32`, `x as u32`) instead; verify by reading the
+generated Rust, not just the green tests. A (OTA modem): built + loopback-validated
+(BER=0) a CFO-immune differential-BPSK demod, but the live link failed -- root-caused
+by frame-period autocorrelation ~0.03 (should be ~1), so `iio_writedev -c` is NOT
+putting the periodic frame on air (TX-cyclic bring-up, not the DSP). **Frame-period
+autocorrelation is the TX-liveness check before blaming the demod.** Naive rect DBPSK
+is the wrong tool through the AD9361 filters anyway; use the PL DSSS PHY (Loop24,
+BER=0). See smoke/OTA_MODEM_ATTEMPT_2026-07-18.md.
+
 phi^2 + phi^-2 = 3 | TRINITY
