@@ -135,3 +135,22 @@ is a longer-baseline estimator (correlate the preamble across the cyclic
 repetitions) or a tracking loop / differential-coherent demod -- real receiver
 DSP, a bounded next step, not an SNR or TX problem. Bytes are on the air; the
 receiver's carrier recovery is what stands between 6/8 and 8/8.
+
+## Clean byte NOT reached: it needs a real synchronized receiver, not offline patches
+
+Tried a multi-frame coherent carrier estimator (sum the preamble across the
+cyclic frame repetitions for a long baseline). It did not reach BER=0 -- still
+5-6/8 -- and, tellingly, the acquisition parameters are INCONSISTENT across
+attempts (carrier -298 / -148 / -50 kHz, spc 17 / 18 / 19). That inconsistency
+says the problem is broader than carrier frequency: frame timing sync and
+multipath ISI are also in play, and a short capture (~2 frame repetitions) is too
+little baseline.
+
+Honest boundary: the physical link is proven (bytes despread strongly on the
+air), but a CLEAN byte needs a proper **synchronized DSSS receiver** -- frame
+detection, a carrier tracking loop (Costas/FLL), and symbol-timing recovery
+(early-late) working together -- not ad-hoc offline correlation. That is real
+receiver engineering, a bounded project, not a 15-minute pass. Stopping the
+ad-hoc receiver chase here (debugging discipline: several attempts, no
+convergence -> the method, not the parameters, is the limit). The clean link is a
+focused receiver task for a dedicated session.
