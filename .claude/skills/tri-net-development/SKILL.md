@@ -755,4 +755,23 @@ smoke/DEPIN_RLNC_RECODE_2026-07-18.md).** The canonical network-coding win, over
   confirm the writer stays alive (writers=1) AND the input file exists before blaming RF; a
   known-good otatx/otarx (corr=1.000) isolates RF from framing.
 
+**MULTI-SOURCE RLNC -- two senders decode what neither can alone (2026-07-18z,
+smoke/DEPIN_RLNC_MULTISRC_2026-07-18.md).** The multipath gain of network coding.
+- `otatxcoded <hex_msg> <src_id> <ncoded>`: one source's PURE coded frames, coding vectors
+  MDS/Vandermonde `[1, x, x^2, x^3]` with x UNIQUE per frame across sources (x = src*16+j+1) --
+  any 4 distinct-x frames are independent (guaranteed, unlike the LCG `random_coeff` which was
+  RANK-DEFICIENT for some generations -- don't use it for coding vectors). `otarxrlnc2` takes a
+  2nd capture file and MERGES frame lists (demod each SEPARATELY -- IQ-concat creates
+  boundary-garbage that mis-tracks the whole 2nd file).
+- Over the air .13+.11->.10 (3 coded/source): .11 alone 0/3, .13 alone 1/3 (message unreadable),
+  BOTH 3/3 -> exact "MULTI-SOURCE RLNC OVER AIR .11+.13". Coded frames are fungible: the RX doesn't
+  care which sender a frame came from.
+- **Decoder robustness (each was needed for OTA):** (1) dedup rows by cv + majority-vote the value
+  (a cyclic capture gives many copies; clean beats bit-errored); (2) RANSAC solve -- try 4-subsets,
+  keep the solution the MOST frames agree with; (3) accept only if **>=5 agree** (the solving
+  4-subset trivially agrees with itself, so a genuine over-determined solution needs >=1 MORE frame
+  -- this is what rejects an under-determined single source). A per-frame CRC would make single
+  source a clean 0/3 (the residual .13 1/3 is a garbage frame giving a false 5th agreement).
+- DSSS-on-big-FPGA still blocked (no big FPGA on net/USB).
+
 phi^2 + phi^-2 = 3 | TRINITY
