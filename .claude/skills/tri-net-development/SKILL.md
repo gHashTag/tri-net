@@ -936,4 +936,22 @@ smoke/DEPIN_TRIGGER_MESHBUDGET_2026-07-19.md).** ("все три"; trigger runs 
 - **RLNC-over-CDMA OTA harder than single link** (both sources need a good fade in the SAME capture);
   host-proven, OTA awaits stable bench. otatrig is the tool to catch the window.
 
+**FADE PHYSICS + CLEAN OTA BYTE CAUGHT (2026-07-19,
+smoke/DEPIN_FADEPHYSICS_CLEANBYTE_2026-07-19.md).** ("все три"; OTA gap CLOSED for single source.)
+- **Fade profile (`fadeprofile <nbytes>`) on HW:** cyclic TX, one long capture, score cp per frame
+  (local re-search per copy for clock drift). Measures the channel physics: **lag-1 autocorr 0.58-
+  0.96 => SLOW fade** (antenna/thermal, NOT fast multipath) -> good moments are long RUNS of
+  decodable frames. 3 runs: mean cp 0.18/0.98/0.71; **run2 = 98% frames decodable (126/129)**. Good
+  windows exist and last. dt = flen/fs = 125us/frame.
+- **CLEAN OTA BYTE CAUGHT:** acting on the physics, `otarxbest` (selection combining) over the
+  recovered link (2.400 GHz, gain 71) -> **try1 copies=130 best_cp=1.000 BER=0/32 recv=deadbeef**.
+  The multi-wave OTA gap is CLOSED for a single source. Chain: linkq guard -> sweep found gain 71 ->
+  fadeprofile read the slow fade -> selection combining caught a cp~1.0 frame.
+- **Whole-stack report artifact:** docs/report/tri-net-stack.html (new URL 1b5cd504) -- every claim
+  tagged PROVEN-OTA / host / projection. Security, PHY, robustness, coding, capacity in one page.
+- **DEPLOY GOTCHA:** a stale ARM binary silently makes a new mode print nothing (unknown arg ->
+  usage to stderr, swallowed by 2>/dev/null). After adding a mode, VERIFY md5 on the board and that
+  the mode exists (`<mode> < /dev/null`) before blaming the RF. The concurrent-ssh race (backgrounded
+  TX ssh + foreground RX ssh) also intermittently eats output -- retry, or run RX in one ssh call.
+
 phi^2 + phi^-2 = 3 | TRINITY

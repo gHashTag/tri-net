@@ -1,0 +1,130 @@
+<title>TRI-NET — DePIN радио-стек: доклад</title>
+<style>
+  :root{
+    --bg:#f5f7fa; --panel:#ffffff; --ink:#141b26; --muted:#5c6b80; --line:#e2e7ee;
+    --proven:#128a4a; --provenbg:#e3f5ea; --host:#a9741a; --hostbg:#faf0dc; --proj:#5c6b80; --projbg:#eef1f5;
+    --accent:#0f7d5c; --shadow:0 1px 2px rgba(20,27,38,.06),0 6px 20px rgba(20,27,38,.06);
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#0a0e15; --panel:#121a26; --ink:#dde4ee; --muted:#8593a8; --line:#22303f;
+      --proven:#3ddc84; --provenbg:#0f2a1c; --host:#f2b84b; --hostbg:#2c2411; --proj:#8593a8; --projbg:#1a2432;
+      --accent:#3ddc84; --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 28px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0a0e15; --panel:#121a26; --ink:#dde4ee; --muted:#8593a8; --line:#22303f;
+    --proven:#3ddc84; --provenbg:#0f2a1c; --host:#f2b84b; --hostbg:#2c2411; --proj:#8593a8; --projbg:#1a2432;
+    --accent:#3ddc84; --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 28px rgba(0,0,0,.35);
+  }
+  :root[data-theme="light"]{
+    --bg:#f5f7fa; --panel:#ffffff; --ink:#141b26; --muted:#5c6b80; --line:#e2e7ee;
+    --proven:#128a4a; --provenbg:#e3f5ea; --host:#a9741a; --hostbg:#faf0dc; --proj:#5c6b80; --projbg:#eef1f5;
+    --accent:#0f7d5c; --shadow:0 1px 2px rgba(20,27,38,.06),0 6px 20px rgba(20,27,38,.06);
+  }
+  *{box-sizing:border-box}
+  .wrap{max-width:1000px;margin:0 auto;padding:clamp(20px,4vw,52px) clamp(16px,4vw,32px);
+    font-family:var(--sans);color:var(--ink);background:var(--bg);line-height:1.55;
+    font-feature-settings:"cv11";-webkit-font-smoothing:antialiased}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin:0 0 10px}
+  h1{font-size:clamp(28px,5vw,44px);line-height:1.05;margin:0 0 14px;letter-spacing:-.02em;text-wrap:balance;font-weight:680}
+  .lede{font-size:clamp(16px,2.2vw,19px);color:var(--muted);max-width:64ch;margin:0 0 26px}
+  .headline{display:flex;flex-wrap:wrap;gap:14px;margin:0 0 34px}
+  .stat{flex:1 1 190px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 18px 16px;box-shadow:var(--shadow)}
+  .stat .n{font-family:var(--mono);font-size:clamp(22px,3.4vw,30px);font-weight:640;letter-spacing:-.02em;color:var(--ink);font-variant-numeric:tabular-nums}
+  .stat .n.win{color:var(--proven)}
+  .stat .l{font-size:13px;color:var(--muted);margin-top:4px}
+  .legend{display:flex;flex-wrap:wrap;gap:8px 16px;margin:0 0 30px;font-size:12.5px;color:var(--muted)}
+  .legend b{display:inline-flex;align-items:center;gap:6px;font-weight:500;color:var(--ink)}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .d-proven{background:var(--proven)} .d-host{background:var(--host)} .d-proj{background:var(--proj)}
+  h2{font-size:13px;font-family:var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--muted);
+    margin:34px 0 14px;padding-bottom:9px;border-bottom:1px solid var(--line)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 16px;box-shadow:var(--shadow)}
+  .card .t{font-weight:620;font-size:14.5px;margin:0 0 3px;display:flex;align-items:center;gap:8px}
+  .card .m{font-family:var(--mono);font-size:12.5px;color:var(--muted);margin:6px 0 0;font-variant-numeric:tabular-nums}
+  .tag{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;
+    padding:2px 7px;border-radius:20px;white-space:nowrap}
+  .t-proven{color:var(--proven);background:var(--provenbg)} .t-host{color:var(--host);background:var(--hostbg)} .t-proj{color:var(--proj);background:var(--projbg)}
+  .desc{font-size:13.5px;color:var(--muted);margin:5px 0 0}
+  .boundary{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--host);
+    border-radius:12px;padding:16px 18px;margin:30px 0 0;box-shadow:var(--shadow)}
+  .boundary h3{margin:0 0 8px;font-size:14px}
+  .boundary ul{margin:0;padding-left:18px;font-size:13.5px;color:var(--muted)}
+  .boundary li{margin:5px 0}
+  footer{margin:38px 0 0;padding-top:18px;border-top:1px solid var(--line);display:flex;justify-content:space-between;
+    flex-wrap:wrap;gap:8px;font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .phi{color:var(--accent)}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">TRI-NET · DePIN радио-меш · доклад стека</p>
+  <h1>«Интернет из воздуха» на четырёх платах: что доказано, что на стенде, что проекция</h1>
+  <p class="lede">Троичный радио-меш + сетевое кодирование + $TRI-DePIN на 4× P201Mini (Zynq-7020 + AD9361).
+    Каждое утверждение помечено честно: доказано по воздуху, бит-в-бит на host, или проекция.</p>
+
+  <div class="headline">
+    <div class="stat"><div class="n win">BER=0</div><div class="l">чистый байт пойман по воздуху («deadbeef», best_cp=1.000)</div></div>
+    <div class="stat"><div class="n">1.64 Мбит/с</div><div class="l">агрегат доказан OTA — 3 одновременные FDD-полосы</div></div>
+    <div class="stat"><div class="n">9.85 Мбит/с</div><div class="l">проекция — 18 RRC-полос, 72 код+частотных слота</div></div>
+  </div>
+
+  <div class="legend">
+    <span>Легенда:</span>
+    <b><span class="dot d-proven"></span>доказано по воздуху (OTA)</b>
+    <b><span class="dot d-host"></span>бит-в-бит на host + ARM</b>
+    <b><span class="dot d-proj"></span>проекция / заблокировано</b>
+  </div>
+
+  <h2>Безопасность</h2>
+  <div class="grid">
+    <div class="card"><div class="t">Keyed SHA-256 MAC <span class="tag t-proven">OTA</span></div><p class="desc">Подпись кадра через t27-tri_sha256. Фальсификатор с чужим ключом отвергнут полностью.</p><p class="m">mac_dropped=73/73 · 0/3</p></div>
+    <div class="card"><div class="t">Anti-replay (эпоха под MAC) <span class="tag t-proven">OTA</span></div><p class="desc">Эпоха внутри подписи. Один захват, два порога: свежий принят, повтор отвергнут.</p><p class="m">min_epoch=10 → replay_dropped=24</p></div>
+    <div class="card"><div class="t">Скользящее окно RFC 6479 <span class="tag t-host">host</span></div><p class="desc">Терпит переупорядочивание, режет повтор; отличает «видел» от «старее».</p><p class="m">reorder 6/6 · replay dup=6 → 0/1</p></div>
+    <div class="card"><div class="t">ChaCha20-Poly1305 / Noise-XX <span class="tag t-proven">mesh</span></div><p class="desc">Сквозное шифрование датаграмм + forward-secret handshake (trios-mesh).</p><p class="m">X25519 → HKDF → AEAD</p></div>
+  </div>
+
+  <h2>Физический слой</h2>
+  <div class="grid">
+    <div class="card"><div class="t">DBPSK-модем <span class="tag t-proven">OTA</span></div><p class="desc">Дифф-детектор, преамбула PN-63, поднесущая 768 кГц. Чистый байт по воздуху.</p><p class="m">BER=0 · 768 кбод</p></div>
+    <div class="card"><div class="t">Wide-band: 2 источника <span class="tag t-proven">OTA</span></div><p class="desc">Два FDD-источника одновременно, один захват, цифровой каналайзер ±2 МГц.</p><p class="m">.13+.11 → .10 · 3/3</p></div>
+    <div class="card"><div class="t">3 источника из 1 захвата <span class="tag t-host">host</span></div><p class="desc">Комплексный band-pass режет зеркало соседа снизу; 3 источника @2 МГц.</p><p class="m">1/1 (ncoded=4)</p></div>
+    <div class="card"><div class="t">RRC-формовка + матч-фильтр <span class="tag t-host">host</span></div><p class="desc">Сужает спектр; ACLR −51 дБ на 2 МГц; ноль-ISI на приёме.</p><p class="m">ACLR −18→−51 дБ · BER=0</p></div>
+    <div class="card"><div class="t">DSSS процессинг-гейн <span class="tag t-host">host</span></div><p class="desc">Спред уникального payload N-чипами, мягкий деспредер. ~10·log₁₀(N).</p><p class="m">N=7 → BER=0 при σ где N=1 сломан</p></div>
+    <div class="card"><div class="t">CDMA — код-разделение <span class="tag t-host">host</span></div><p class="desc">Два отправителя в одной полосе, разные PN-коды, деспред по коду.</p><p class="m">оба BER=0 · σ=3000</p></div>
+  </div>
+
+  <h2>Устойчивость и адаптация</h2>
+  <div class="grid">
+    <div class="card"><div class="t">Selection combining <span class="tag t-proven">OTA</span></div><p class="desc">Из сотен циклических копий взять лучшую по корреляции — поймал чистый байт.</p><p class="m">130 копий → best_cp=1.000 → BER=0</p></div>
+    <div class="card"><div class="t">Замкнутая адаптация <span class="tag t-proven">HW</span></div><p class="desc">Узел сам выбирает усиление по cp и логирует качество во времени.</p><p class="m">авто-выбор g71 · телеметрия cp 0.11–0.56</p></div>
+    <div class="card"><div class="t">Физика фейдинга <span class="tag t-proven">HW</span></div><p class="desc">Измерено: медленный фейдинг (lag1 0.58–0.96), длинные удачные окна.</p><p class="m">run2: 98% кадров декодируемы</p></div>
+    <div class="card"><div class="t">Честный страж линка <span class="tag t-proven">HW</span></div><p class="desc">Метрика — корреляция, не rms; мёртвый линк помечен, а не выдан за 0/1.</p><p class="m">cp, не rms · порог 0.5</p></div>
+  </div>
+
+  <h2>Сетевое кодирование ($TRI DePIN)</h2>
+  <div class="grid">
+    <div class="card"><div class="t">RLNC + адаптивная избыточность <span class="tag t-proven">OTA</span></div><p class="desc">GF(256), K=8; узел мерит канал и кроит R под него (38%→20% overhead).</p><p class="m">384/384 · failed=0</p></div>
+    <div class="card"><div class="t">Перекодирование на релее <span class="tag t-proven">OTA</span></div><p class="desc">Релей формирует новые GF-комбинации без декода; приватность в подарок.</p><p class="m">.13→.12→.10 · 3/3</p></div>
+    <div class="card"><div class="t">Мультиисточник RLNC <span class="tag t-proven">OTA</span></div><p class="desc">Кадры взаимозаменяемы; слабый путь добирается от другого источника.</p><p class="m">по одному 0/3 · вместе 3/3</p></div>
+    <div class="card"><div class="t">RLNC поверх CDMA <span class="tag t-host">host</span></div><p class="desc">Кодированные кадры несёт код-разделение; деспред по коду + решение поля.</p><p class="m">A один 0/1 · A+B 1/1</p></div>
+  </div>
+
+  <div class="boundary">
+    <h3>Честная граница</h3>
+    <ul>
+      <li><b>DSSS-деспредер в PL / real-time демод</b> — заблокированы на Vivado + ADI-HDL или большом FPGA (нет на сети/USB). Демод пока на ARM (host-темп).</li>
+      <li><b>Проекция ёмкости</b> (9.85 Мбит/с, 72 слота) опирается на измеренный ACLR −51 дБ, но требует подтверждения RRC-плотности на стабильном линке.</li>
+      <li><b>Радиолинк маргинальный/фейдинг</b> — восстановлен на RX-усилении 71 @ 2.400/2.460 ГГц; чистый одиночный байт пойман, мультиисточник OTA — следующее удачное окно.</li>
+      <li><b>On-chain токеномика</b> $TRI пока оффчейн (канонический sha256-клейм готов, контракт не задеплоен).</li>
+    </ul>
+  </div>
+
+  <footer>
+    <span class="phi">φ² + φ⁻² = 3 · TRINITY</span>
+    <span>4× P201Mini · Zynq-7020 + AD9361 · открытый флоу (yosys · nextpnr · iverilog)</span>
+  </footer>
+</div>
