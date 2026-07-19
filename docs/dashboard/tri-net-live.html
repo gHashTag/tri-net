@@ -1,0 +1,116 @@
+<title>TRI-NET — живой дашборд сети</title>
+<style>
+  :root{
+    --bg:#f4f6f9; --panel:#ffffff; --ink:#131a26; --muted:#5c6b80; --line:#e3e8ef;
+    --ok:#128a4a; --okbg:#e4f6ea; --warn:#a9741a; --warnbg:#faf0da; --bad:#c0392b; --badbg:#fbe6e3;
+    --accent:#0f7d5c; --hub:#2563c9; --shadow:0 1px 2px rgba(20,27,38,.05),0 8px 24px rgba(20,27,38,.06);
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace; --sans:ui-sans-serif,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#090d14; --panel:#111925; --ink:#dde4ee; --muted:#8593a8; --line:#212f3e;
+    --ok:#3ddc84; --okbg:#0e281b; --warn:#f2b84b; --warnbg:#2b2310; --bad:#ff6b63; --badbg:#2c1513;
+    --accent:#3ddc84; --hub:#5b9bff; --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.4);}}
+  :root[data-theme="dark"]{--bg:#090d14;--panel:#111925;--ink:#dde4ee;--muted:#8593a8;--line:#212f3e;--ok:#3ddc84;--okbg:#0e281b;--warn:#f2b84b;--warnbg:#2b2310;--bad:#ff6b63;--badbg:#2c1513;--accent:#3ddc84;--hub:#5b9bff;}
+  :root[data-theme="light"]{--bg:#f4f6f9;--panel:#ffffff;--ink:#131a26;--muted:#5c6b80;--line:#e3e8ef;--ok:#128a4a;--okbg:#e4f6ea;--warn:#a9741a;--warnbg:#faf0da;--bad:#c0392b;--badbg:#fbe6e3;--accent:#0f7d5c;--hub:#2563c9;}
+  *{box-sizing:border-box}
+  .wrap{max-width:1040px;margin:0 auto;padding:clamp(18px,4vw,44px) clamp(14px,4vw,30px);font-family:var(--sans);color:var(--ink);background:var(--bg);line-height:1.5}
+  .top{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:10px;margin-bottom:6px}
+  .live{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);display:inline-flex;align-items:center;gap:7px}
+  .live::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 0 var(--accent);animation:p 2s infinite}
+  @keyframes p{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 60%,transparent)}70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
+  @media (prefers-reduced-motion:reduce){.live::before{animation:none}}
+  h1{font-size:clamp(24px,4vw,34px);margin:2px 0 2px;letter-spacing:-.02em;font-weight:680;text-wrap:balance}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 22px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)}
+  .kpi .v{font-family:var(--mono);font-size:clamp(20px,3vw,26px);font-weight:640;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .kpi .k{font-size:12.5px;color:var(--muted);margin-top:2px}
+  .kpi .v.g{color:var(--ok)}
+  h2{font-family:var(--mono);font-size:12px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin:26px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  .nodes{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+  .node{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:15px 16px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+  .node.hub{border-color:color-mix(in srgb,var(--hub) 45%,var(--line))}
+  .node .rail{position:absolute;left:0;top:0;bottom:0;width:3px}
+  .r-ok{background:var(--ok)} .r-bad{background:var(--bad)} .r-hub{background:var(--hub)}
+  .node .id{font-family:var(--mono);font-weight:640;font-size:15px}
+  .node .role{font-size:12px;color:var(--muted);margin-bottom:10px}
+  .pill{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;padding:2px 8px;border-radius:20px;margin-left:6px}
+  .p-ok{color:var(--ok);background:var(--okbg)} .p-bad{color:var(--bad);background:var(--badbg)} .p-hub{color:var(--hub);background:color-mix(in srgb,var(--hub) 14%,transparent)}
+  .row{display:flex;justify-content:space-between;font-size:13px;margin:5px 0;font-variant-numeric:tabular-nums}
+  .row .lbl{color:var(--muted)} .row .val{font-family:var(--mono)}
+  .bar{height:6px;border-radius:6px;background:var(--line);overflow:hidden;margin:3px 0 9px}
+  .bar > i{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,var(--warn),var(--ok))}
+  .foot{margin-top:26px;padding-top:16px;border-top:1px solid var(--line);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .note{font-size:12.5px;color:var(--muted);margin:14px 2px 0}
+  .phi{color:var(--accent)}
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <span class="live">live · proof-of-coverage раунд</span>
+    <span style="font-family:var(--mono);font-size:12px;color:var(--muted)">пул 1000 $TRI · корень 0x72058E11</span>
+  </div>
+  <h1>TRI-NET — живой дашборд сети</h1>
+  <p class="sub">4× P201Mini (Zynq-7020 + AD9361). Покрытие каждого узла ощущено по воздуху, оплачено $TRI и запечатано в леджер — цифры с реальных OTA-прогонов.</p>
+
+  <div class="kpis">
+    <div class="kpi"><div class="v">3 / 3</div><div class="k">узла-передатчика активны</div></div>
+    <div class="kpi"><div class="v g">2</div><div class="k">покрытие подтверждено OTA</div></div>
+    <div class="kpi"><div class="v g">1000</div><div class="k">$TRI отчеканено за раунд</div></div>
+    <div class="kpi"><div class="v">1.64 Мбит/с</div><div class="k">агрегат (3 полосы, доказано)</div></div>
+    <div class="kpi"><div class="v bad" style="color:var(--bad)">−200</div><div class="k">$TRI слэш лжецу</div></div>
+  </div>
+
+  <h2>Узлы сети</h2>
+  <div class="nodes">
+    <div class="node hub"><span class="rail r-hub"></span>
+      <div class="id">.10 <span class="pill p-hub">RX-хаб</span></div>
+      <div class="role">приёмник · сенсинг · расчёт · леджер</div>
+      <div class="row"><span class="lbl">усиление</span><span class="val">71 dB (авто-выбор)</span></div>
+      <div class="row"><span class="lbl">роль</span><span class="val">радио→ИИ→$TRI</span></div>
+      <div class="row"><span class="lbl">радио→ИИ сенсинг</span><span class="val">7/7 OTA</span></div>
+    </div>
+    <div class="node"><span class="rail r-ok"></span>
+      <div class="id">.13 <span class="pill p-ok">покрыт</span></div>
+      <div class="role">передатчик · 2.400 ГГц · честный</div>
+      <div class="row"><span class="lbl">качество (cp)</span><span class="val">1.000</span></div>
+      <div class="bar"><i style="width:100%"></i></div>
+      <div class="row"><span class="lbl">BER</span><span class="val">0 / 128</span></div>
+      <div class="row"><span class="lbl">награда</span><span class="val" style="color:var(--ok)">+500 $TRI</span></div>
+      <div class="row"><span class="lbl">RF-отпечаток</span><span class="val">CFO подпись</span></div>
+    </div>
+    <div class="node"><span class="rail r-ok"></span>
+      <div class="id">.11 <span class="pill p-ok">покрыт</span></div>
+      <div class="role">передатчик · 2.404 ГГц · честный</div>
+      <div class="row"><span class="lbl">качество (cp)</span><span class="val">0.98</span></div>
+      <div class="bar"><i style="width:98%"></i></div>
+      <div class="row"><span class="lbl">BER</span><span class="val">0 / 128</span></div>
+      <div class="row"><span class="lbl">награда</span><span class="val" style="color:var(--ok)">+500 $TRI</span></div>
+      <div class="row"><span class="lbl">RF-отпечаток</span><span class="val">CFO подпись</span></div>
+    </div>
+    <div class="node"><span class="rail r-bad"></span>
+      <div class="id">.12 <span class="pill p-bad">слэш</span></div>
+      <div class="role">заявил покрытие · не подтверждён</div>
+      <div class="row"><span class="lbl">качество (cp)</span><span class="val">— (не в эфире)</span></div>
+      <div class="bar"><i style="width:6%;background:var(--bad)"></i></div>
+      <div class="row"><span class="lbl">заявка</span><span class="val">covered=1</span></div>
+      <div class="row"><span class="lbl">измерено сетью</span><span class="val">actual=0</span></div>
+      <div class="row"><span class="lbl">итог</span><span class="val" style="color:var(--bad)">−200 $TRI (слэш)</span></div>
+    </div>
+  </div>
+
+  <p class="note"><b>Как читать:</b> награда узла = его байты × подтверждённое покрытие, доля пула (сумма ≤ пул). Ложная заявка покрытия ловится по эфирному измерению и штрафуется — врать дороже, чем простаивать. Атрибуция «кто в эфире» — по RF-отпечатку (сдвиг несущей кварца), стойка к подмене.</p>
+
+  <h2>Стек под капотом (метки: доказано-OTA / host / проекция)</h2>
+  <div class="nodes">
+    <div class="node"><div class="id" style="font-size:14px">Безопасность</div><div class="role">keyed MAC · anti-replay · окно</div><div class="row"><span class="lbl">форджер OTA</span><span class="val">0/3 отвергнут</span></div></div>
+    <div class="node"><div class="id" style="font-size:14px">Кодирование</div><div class="role">RLNC · перекодирование · CDMA</div><div class="row"><span class="lbl">мультиисточник OTA</span><span class="val">1/1</span></div></div>
+    <div class="node"><div class="id" style="font-size:14px">Устойчивость</div><div class="role">selection combining · адаптация</div><div class="row"><span class="lbl">чистый байт OTA</span><span class="val">BER=0</span></div></div>
+    <div class="node"><div class="id" style="font-size:14px">Ёмкость</div><div class="role">FDD × CDMA × RLNC</div><div class="row"><span class="lbl">проекция</span><span class="val">9.85 Мбит/с</span></div></div>
+  </div>
+
+  <div class="foot">
+    <span class="phi">φ² + φ⁻² = 3 · TRINITY</span>
+    <span>полный доклад стека · открытый флоу (yosys · nextpnr · iverilog)</span>
+  </div>
+</div>

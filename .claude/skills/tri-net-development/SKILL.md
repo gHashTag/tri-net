@@ -1000,4 +1000,23 @@ smoke/DEPIN_ROUND_CMDCLASS_SCHED_2026-07-19.md).** ("все три"; DePIN scale
 - **`schedgain <nbytes>`:** always-tx vs predicted-good-tx delivery from the cp series. Good window ->
   both 100%, 0 wasted. Gain shows in fade troughs; forecastability = the slow-fade autocorr.
 
+**RF FINGERPRINT + SLASHING + DASHBOARD (2026-07-19,
+smoke/DEPIN_FINGERPRINT_SLASH_DASHBOARD_2026-07-19.md).** ("все три"; fingerprint OTA fade-blocked.)
+- **`rffinger [label]` = transmitter RF fingerprint via fine CFO.** Each AD9361 crystal has a unique
+  offset; estimate it from the preamble: complex differential d=x[k+OSF]conj(x[k]) has phase
+  2*pi*CFO/(fs/OSF); remove the known PN, average over 63 syms, arg -> CFO Hz. Host recovers injected
+  +30k/-12k/+6k/+48k EXACTLY. **NEEDS a good fade window** (cp high) -- a trough gives garbage that
+  WRAPS at +-384 kHz (half subcarrier). This session's OTA was a trough -> per-node CFO clustering
+  deferred. (mixsum <hz> <file> = inject a known CFO for host testing.)
+- **`depinslash <pool> <stake> <bytes:claimed:actual ...>` = honesty enforcement.** claimed&&actual
+  -> reward; claimed&&!actual -> SLASHED (-stake). Host: 2 honest +500, liar -200. **COUPLING
+  INSIGHT:** OTA slashing needs to attribute a decoded signal to a NODE -- a bare RX cannot (a
+  kill/killall race counted a still-on .13 against .11). Attribution = the RF fingerprint, so opt 1
+  and opt 2 are ONE mechanism.
+- **Live dashboard** (docs/dashboard/tri-net-live.html, URL 6469fc1c): per-node coverage/cp/$TRI,
+  slashed liar, aggregate, stack summary with proven-OTA/host/projection tags. Numbers trace to
+  earlier OTA runs.
+- **RF LINK NON-STATIONARY:** good windows come and go (session-to-session). If OTA is a trough,
+  catch loops fail and CFO/decode are garbage -- don't force it, note it, the slow fade returns.
+
 phi^2 + phi^-2 = 3 | TRINITY
