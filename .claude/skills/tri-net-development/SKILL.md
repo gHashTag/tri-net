@@ -1125,4 +1125,23 @@ smoke/DEPIN_RELAY_OTA_RTI_2026-07-19.md).** ("все три"; multi-hop cycle cl
   is drift-robust. OTA (baseline drift 1400->590 + body dips): ADAPTIVE Pd=1.00 Pfa=0.08 vs FIXED
   Pd=1.00 Pfa=0.25.
 
+**RTI HEATMAP TAB IN THE macOS APP (2026-07-19, smoke/RTI_HEATMAP_APP_2026-07-19.md).**
+- **The TriNetMonitor RTI Heatmap tab is a REAL renderer** (`phone/desktop/RTIHeatmap.swift`):
+  `RTIEngine` binds UDP :6000, draws a Bresenham line between two boards' grid positions per packet
+  `[33,frm,to,0,val]` weighted by val/255, accumulates onto a 30x30 field decaying 0.9x/0.5s;
+  crossing shadowed links light the cell. It just had NO data source and only 3 nodes.
+- **4 boards at the corners** (.13 TL, .11 TR, .12 BL, .10 BR): .13<->.10 main diagonal, .11<->.12
+  anti-diagonal cross at centre -> shadowing that pair lights the centre. Matches the 4-link
+  tomography geometry.
+- **Feed via scratchpad `rtifeed <host:port> <frm:to:drop ...>`** -> UDP packets. Fed the real OTA
+  drops -> a clean X crossing at centre, verified on-screen (LIVE 544, Pkts:544).
+- **Build the desktop app with real Xcode:** `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+  xcodebuild -project TriNetMonitor.xcodeproj -scheme TriNetMonitor -configuration Release` (CLT alone
+  errors). `open -n .../TriNetMonitor.app`. **Only ONE process binds :6000** -- kill stray instances
+  or the tab shows "bind fail"/Pkts:0.
+- **Parallel agent active on this repo:** big uncommitted working tree (specs/*.t27, src/*.rs,
+  phone/TriNetVideo/*.swift, docs/CROSS_AGENT_INTEGRATION.md untracked). Work SURGICALLY -- stage only
+  your own files by explicit path, verify the staged count, never `git add -A`. A stale
+  `.git/index.lock` once mass-staged 9639 files; `git reset HEAD` + remove the lock recovers.
+
 phi^2 + phi^-2 = 3 | TRINITY
