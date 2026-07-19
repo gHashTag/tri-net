@@ -922,4 +922,18 @@ smoke/DEPIN_SELCOMB_CDMARLNC_ADAPT_2026-07-19.md).** ("все три"; adaptatio
   good fade). Selection combining is the right tool but a clean OTA byte needs a good fade DURING the
   capture. Don't keep hammering OTA -- the link is the variable; the telemetry now shows how it varies.
 
+**EVENT-TRIGGERED OTA + MESH BUDGET (2026-07-19,
+smoke/DEPIN_TRIGGER_MESHBUDGET_2026-07-19.md).** ("все три"; trigger runs on HW, honest by design.)
+- **Event-triggered decode (`otatrig <hex> <nbytes> <cp_thresh>`):** full-search the capture for the
+  best preamble, decode ONLY if cp >= thresh (a good fade), else exit 3 "waiting". On HW: thresh 0.45
+  fired at cp=0.516 (BER 20/32 -- 0.516 is NOT clean, threshold too low); thresh 0.85 -> 30 tries all
+  "waiting", caught=0, ZERO garbage. Honest by construction: never fabricates a decode. Clean byte
+  needs cp>=~0.85; this fading link peaks ~0.56, so it correctly waits. Mechanism proven, link is the
+  limit. Don't lower the threshold to force a "catch" -- that just emits garbage.
+- **Mesh capacity budget (`meshbudget`):** PROVEN 768 kbaud raw, 684 kbit/s net @64B, 3 FDD bands
+  @2MHz -> 1.64 Mbit/s aggregate. PROJECTED (from measured ACLR -51 dB) 18 RRC bands @1MHz -> 9.85
+  Mbit/s, 72 code+freq slots. Clearly labels proven-OTA vs projected. Use these numbers in the pitch.
+- **RLNC-over-CDMA OTA harder than single link** (both sources need a good fade in the SAME capture);
+  host-proven, OTA awaits stable bench. otatrig is the tool to catch the window.
+
 phi^2 + phi^-2 = 3 | TRINITY
