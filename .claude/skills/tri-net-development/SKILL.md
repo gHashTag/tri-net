@@ -1033,4 +1033,19 @@ smoke/DEPIN_FINGERPRINT_OTA_RELAY_2026-07-19.md).** ("все три"; fade recov
 - **Live dashboard refreshed** (docs/dashboard/tri-net-live.html, URL 6469fc1c) with the real CFO
   fingerprints + a multi-hop economics panel.
 
+**LIVE 2-HOP RELAY $TRI OTA + RICHER FINGERPRINT + RTI (2026-07-19,
+smoke/DEPIN_RELAY_OTA_RTI_2026-07-19.md).** ("все три"; multi-hop cycle closed live.)
+- **Live 2-hop relay OTA .13->.12->.10 + settle:** both hops decoded BER=0 in good windows, then
+  depinrelay paid origin .13 700 $TRI / relay .12 300 $TRI (carry-fee) / dest .10 0, ledger committed.
+  A node earns $TRI for CARRYING others' traffic -> the mesh grows bottom-up. (Store-and-forward:
+  catch hop1 .13->.12, then .12 re-TXs, catch hop2 .12->.10.)
+- **Richer fingerprint (rffinger + amp/gimb/dc), HONEST LIMIT:** amplitude, I/Q gain imbalance, DC
+  leak are near-identical across nodes -- dominated by the COMMON RX (.10), add no TX discrimination.
+  Only CFO is TX-specific (tens of Hz): .11(-44)/.13(+25) separable, .12(-65) overlaps .11. These
+  P201Minis are RF-INDISTINGUISHABLE except partial CFO -> a spoofer with an identical board can't be
+  caught by fingerprint alone; use the keyed MAC (crypto identity) for real attribution.
+- **`rtisense <nbytes> [thresh]` = presence sensing seed:** per-frame envelope CV; steady link low CV
+  (OTA 0.001-0.007 -> quiet, no false alarm), a moving body / fade raises it past thresh (0.15). One
+  link = presence; N links = tomographic localization. Positive (real motion) demo needs bench access.
+
 phi^2 + phi^-2 = 3 | TRINITY
