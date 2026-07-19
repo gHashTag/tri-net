@@ -42,48 +42,119 @@ class RTIEngine: ObservableObject {
     // the frequency-selective fading; the spread of |H| ACROSS bins is a finer motion cue than mean RSS.
     var csiHist: [Int: [Double]] = [:]     // per-link recent cross-bin spread
     @Published var csiDelta = 0.0          // live CSI motion metric (envelope-CSI proxy for 802.11bf)
+    // Complex CSI phase (option C): per-link previous cross-bin phase-difference vector. The cross-bin
+    // difference cancels the common CFO/timing offset between two independent oscillators, so its
+    // temporal change is a CFO-robust micro-motion cue (sub-cm sensitivity at 2.4 GHz).
+    var csiPhasePrev: [Int: [Double]] = [:]
+    @Published var csiPhase = 0.0
 
-    // --- RADAR: extract a discrete target contact from the field (detection, not raw returns) ---
-    // The backprojection peaks where shadowed links cross; the target = confidence-weighted centroid
-    // of the hottest voxels, reported only above a detection threshold. A short trail = its track.
+    // --- RADAR: MULTI-TARGET tracker with a constant-velocity smoother (option A) ---
+    // The field is scanned for up to K separated peaks (greedy non-max suppression); each detection is
+    // associated to an existing TRACK (nearest within a gate) and fused with an alpha-beta filter (the
+    // steady-state Kalman for a constant-velocity target): it SMOOTHS the jitter and PREDICTS the
+    // position while a detection is missing (coasting), so the radar can follow 2-3 people at once and
+    // does not blink out on a single dropped frame.
     struct Contact { var x: Double; var y: Double; var z: Double; var conf: Double }
-    @Published var target: Contact? = nil
-    @Published var trail: [Contact] = []
-    private var wasLocked = false
-    private func lostContact() {
-        if wasLocked { NSLog("%@", "RTI: contact LOST"); wasLocked = false }
-        target = nil
-    }
-    private func extractTarget() {
-        // Combined evidence: static occupancy (vox) OR live MOTION (mvox, weighted a touch higher --
-        // a moving body is the radar's real target). Find the single strongest voxel = the return.
-        var rawPeak: Float = 0, pi = 0, pj = 0, pk = 0
-        for k in 0..<gz { for j in 0..<gy { for i in 0..<gx {
-            let c = max(vox[k*gx*gy + j*gx + i], mvox[k*gx*gy + j*gx + i]*1.2)
-            if c > rawPeak { rawPeak = c; pi = i; pj = j; pk = k }
-        }}}
-        guard rawPeak > 0.45 else { lostContact(); return }          // nothing above noise
-        // A radar reports ONE contact: centroid only over the strongest LOBE (voxels near the peak and
-        // above 0.55*peak), so a bimodal reconstruction locks the nearest strong return instead of
-        // averaging two lobes into empty space. Spatial gating is what makes it read like a radar.
-        let thr = rawPeak * 0.55
-        let rr = 3.0   // gate radius in cells around the peak
-        var sx = 0.0, sy = 0.0, sz = 0.0, sw = 0.0
-        for k in 0..<gz { for j in 0..<gy { for i in 0..<gx {
-            let v = Double(max(vox[k*gx*gy + j*gx + i], mvox[k*gx*gy + j*gx + i]*1.2))
-            if Float(v) >= thr {
-                let dcell = (Double(i-pi)*Double(i-pi) + Double(j-pj)*Double(j-pj) + Double(k-pk)*Double(k-pk)).squareRoot()
-                if dcell <= rr {
+    struct Track: Identifiable { var id: Int; var x: Double; var y: Double; var z: Double
+        var vx: Double; var vy: Double; var vz: Double; var conf: Double; var hits: Int; var misses: Int
+        var trail: [Contact] }
+    @Published var target: Contact? = nil          // strongest confirmed track (primary readout)
+    @Published var trail: [Contact] = []           // primary track's history
+    @Published var contacts: [Track] = []          // all confirmed tracks (for multi-blip render)
+    private var tracks: [Track] = []
+    private var nextTrackId = 1
+
+    // greedy non-max suppression: up to maxK separated peak-centroids of the combined field
+    private func detectPeaks(_ maxK: Int) -> [Contact] {
+        let n = vox.count
+        var field = [Float](repeating: 0, count: n)
+        var gmax: Float = 0
+        for i in 0..<n { let c = max(vox[i], mvox[i]*1.2); field[i] = c; if c > gmax { gmax = c } }
+        guard gmax > 0.45 else { return [] }
+        let floor = gmax * 0.62
+        var out: [Contact] = []
+        for _ in 0..<maxK {
+            var pk: Float = 0, pi = 0, pj = 0, pkk = 0
+            for k in 0..<gz { for j in 0..<gy { for i in 0..<gx {
+                let idx = k*gx*gy + j*gx + i; if field[idx] > pk { pk = field[idx]; pi = i; pj = j; pkk = k } } } }
+            if pk < floor { break }
+            let thr = pk * 0.6
+            var sx = 0.0, sy = 0.0, sz = 0.0, sw = 0.0
+            for k in 0..<gz { for j in 0..<gy { for i in 0..<gx {
+                let idx = k*gx*gy + j*gx + i; let v = Double(field[idx])
+                let dc = (Double(i-pi)*Double(i-pi)+Double(j-pj)*Double(j-pj)+Double(k-pkk)*Double(k-pkk)).squareRoot()
+                if field[idx] >= thr && dc <= 3.0 {
                     sx += ((Double(i)+0.5)/Double(gx))*v; sy += ((Double(j)+0.5)/Double(gy))*v
                     sz += ((Double(k)+0.5)/Double(gz))*v; sw += v
                 }
+            }}}
+            if sw > 0 { out.append(Contact(x: sx/sw, y: sy/sw, z: sz/sw, conf: Double(pk))) }
+            // suppress a neighbourhood around this peak so the next iteration finds a DIFFERENT target
+            for k in 0..<gz { for j in 0..<gy { for i in 0..<gx {
+                let dc = (Double(i-pi)*Double(i-pi)+Double(j-pj)*Double(j-pj)+Double(k-pkk)*Double(k-pkk)).squareRoot()
+                if dc <= 3.5 { field[k*gx*gy + j*gx + i] = 0 } } } }
+        }
+        return out
+    }
+
+    private func extractTargets() {
+        // predict every track forward (constant velocity) -- this is the coast during a missing frame
+        for i in tracks.indices { tracks[i].x += tracks[i].vx; tracks[i].y += tracks[i].vy; tracks[i].z += tracks[i].vz }
+        let dets = detectPeaks(3)
+        var used = Set<Int>()
+        let alpha = 0.55, beta = 0.20, gate = 0.30
+        for i in tracks.indices {
+            var best = -1; var bd = gate
+            for (di, d) in dets.enumerated() where !used.contains(di) {
+                let dd = ((d.x-tracks[i].x)*(d.x-tracks[i].x)+(d.y-tracks[i].y)*(d.y-tracks[i].y)+(d.z-tracks[i].z)*(d.z-tracks[i].z)).squareRoot()
+                if dd < bd { bd = dd; best = di }
             }
-        }}}
-        guard sw > 0 else { lostContact(); return }
-        let c = Contact(x: sx/sw, y: sy/sw, z: sz/sw, conf: Double(rawPeak))
-        target = c
-        trail.append(c); if trail.count > 24 { trail.removeFirst() }
-        if !wasLocked { NSLog("%@", String(format: "RTI: CONTACT LOCKED  x=%.2f y=%.2f height=%.2f conf=%.1f", c.x, c.y, c.z, c.conf)); wasLocked = true }
+            if best >= 0 {
+                used.insert(best); let d = dets[best]
+                let rx = d.x-tracks[i].x, ry = d.y-tracks[i].y, rz = d.z-tracks[i].z   // innovation
+                tracks[i].x += alpha*rx; tracks[i].vx += beta*rx
+                tracks[i].y += alpha*ry; tracks[i].vy += beta*ry
+                tracks[i].z += alpha*rz; tracks[i].vz += beta*rz
+                tracks[i].conf = d.conf; tracks[i].hits += 1; tracks[i].misses = 0
+                tracks[i].trail.append(Contact(x: tracks[i].x, y: tracks[i].y, z: tracks[i].z, conf: tracks[i].conf))
+                if tracks[i].trail.count > 20 { tracks[i].trail.removeFirst() }
+            } else { tracks[i].misses += 1 }
+        }
+        // unmatched detections seed new tracks
+        for (di, d) in dets.enumerated() where !used.contains(di) {
+            tracks.append(Track(id: nextTrackId, x: d.x, y: d.y, z: d.z, vx: 0, vy: 0, vz: 0,
+                                conf: d.conf, hits: 1, misses: 0,
+                                trail: [Contact(x: d.x, y: d.y, z: d.z, conf: d.conf)]))
+            NSLog("%@", String(format: "RTI: TRACK #%d LOCKED  x=%.2f y=%.2f height=%.2f", nextTrackId, d.x, d.y, d.z))
+            nextTrackId += 1
+        }
+        // clamp velocity (bound the coast) and cull dead tracks
+        let vmax = 0.14
+        for i in tracks.indices {
+            tracks[i].vx = max(-vmax, min(vmax, tracks[i].vx))
+            tracks[i].vy = max(-vmax, min(vmax, tracks[i].vy))
+            tracks[i].vz = max(-vmax, min(vmax, tracks[i].vz))
+        }
+        // merge tracks that have converged onto the same body (keep the more-established one)
+        var mi = 0
+        while mi < tracks.count {
+            var mj = mi + 1
+            while mj < tracks.count {
+                let dd = ((tracks[mi].x-tracks[mj].x)*(tracks[mi].x-tracks[mj].x)+(tracks[mi].y-tracks[mj].y)*(tracks[mi].y-tracks[mj].y)+(tracks[mi].z-tracks[mj].z)*(tracks[mi].z-tracks[mj].z)).squareRoot()
+                if dd < 0.20 {
+                    if tracks[mj].hits > tracks[mi].hits { tracks[mi] = tracks[mj] }
+                    tracks.remove(at: mj)
+                } else { mj += 1 }
+            }
+            mi += 1
+        }
+        for t in tracks where t.misses > 6 { NSLog("%@", String(format: "RTI: TRACK #%d LOST", t.id)) }
+        tracks.removeAll { $0.misses > 6 }
+        // publish confirmed tracks (survived >=3 frames, still fresh) -- strongest is the primary
+        let confirmed = tracks.filter { $0.hits >= 3 && $0.misses <= 2 }.sorted { $0.conf > $1.conf }
+        contacts = confirmed
+        if let p = confirmed.first { target = Contact(x: p.x, y: p.y, z: p.z, conf: p.conf); trail = p.trail }
+        else { target = nil }
     }
     private func d3(_ ax: Double,_ ay: Double,_ az: Double,_ bx: Double,_ by: Double,_ bz: Double) -> Double {
         let dx = ax-bx, dy = ay-by, dz = az-bz; return (dx*dx+dy*dy+dz*dz).squareRoot()
@@ -128,8 +199,8 @@ class RTIEngine: ObservableObject {
                 for i in self.vox.indices { self.vox[i] *= 0.86 }
                 for i in self.mvox.indices { self.mvox[i] *= 0.90 }   // motion persists a touch longer
                 self.motionEnergy *= 0.82                             // decay stale motion (was frozen -> lied)
-                self.csiDelta *= 0.82
-                self.extractTarget()          // radar detection: pull the contact from the field
+                self.csiDelta *= 0.82; self.csiPhase *= 0.82
+                self.extractTargets()         // radar detection + multi-target tracking
             }
         }
     }
@@ -208,6 +279,27 @@ class RTIEngine: ObservableObject {
                 DispatchQueue.main.async { self.csiDelta = 0.7*self.csiDelta + 0.3*csi }
                 if csi > 0.12 { self.backproject3d(frm, to, csi, motion: true) }   // CSI feeds the same motion field
                 DispatchQueue.main.async { self.pktCount += 1; self.lastMsg = "CSI \(self.pktCount)" }
+            } else if n >= 4 && buf[0] == 37 {
+                // Complex CSI PHASE [37, frm, to, nb, p0..] -- per-subcarrier phase (0..255 -> 0..2pi).
+                let frm = Int(buf[1]), to = Int(buf[2]); let nb = min(Int(buf[3]), n-4)
+                guard nb >= 2 else { usleep(2000); continue }
+                var ph = [Double](repeating: 0, count: nb)
+                for i in 0..<nb { ph[i] = Double(buf[4+i]) / 255.0 * 2.0 * Double.pi }
+                // cross-bin phase differences -- the common CFO/timing phase cancels here
+                var d = [Double](repeating: 0, count: nb-1)
+                for i in 0..<nb-1 { var x = ph[i+1]-ph[i]; while x > Double.pi { x -= 2*Double.pi }; while x < -Double.pi { x += 2*Double.pi }; d[i] = x }
+                let key = frm*1000 + to
+                var mv = 0.0
+                if let prev = self.csiPhasePrev[key], prev.count == d.count {
+                    var s = 0.0
+                    for i in 0..<d.count { var e = d[i]-prev[i]; while e > Double.pi { e -= 2*Double.pi }; while e < -Double.pi { e += 2*Double.pi }; s += abs(e) }
+                    mv = s/Double(d.count)                 // mean circular change of the phase-diff vector
+                }
+                self.csiPhasePrev[key] = d
+                let phm = min(1.0, mv/0.6)                 // 0.6 rad avg change ~ strong micro-motion
+                DispatchQueue.main.async { self.csiPhase = 0.7*self.csiPhase + 0.3*phm }
+                if phm > 0.15 { self.backproject3d(frm, to, phm, motion: true) }
+                DispatchQueue.main.async { self.pktCount += 1; self.lastMsg = "CSIφ \(self.pktCount)" }
             } else if n >= 5 && buf[0] == 34 {
                 // self-localization: a board's MEASURED position [34, id, x, y, z] (0..255 -> 0..1)
                 let id = Int(buf[1])
@@ -226,8 +318,8 @@ class RTIEngine: ObservableObject {
         for y in 0..<30 { for x in 0..<30 { self.grid[y][x] = 0 } }
         for i in self.vox.indices { self.vox[i] = 0 }
         for i in self.mvox.indices { self.mvox[i] = 0 }
-        self.target = nil; self.trail.removeAll(); self.pktCount = 0
-        self.motionEnergy = 0; self.csiDelta = 0
+        self.target = nil; self.trail.removeAll(); self.contacts.removeAll(); self.tracks.removeAll(); self.pktCount = 0
+        self.motionEnergy = 0; self.csiDelta = 0; self.csiPhase = 0
     } }
 }
 
@@ -253,19 +345,22 @@ struct RTIHeatmapView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .overlay(alignment: .topLeading) {
                         VStack(alignment: .leading, spacing: 3) {
-                            if let t = e.target {
-                                Text("● CONTACT LOCKED").font(.system(size: 12, weight: .bold)).foregroundColor(.red)
-                                Text(String(format: "X %.2f  Y %.2f", t.x, t.y)).font(.system(size: 11, design: .monospaced)).foregroundColor(.orange)
-                                Text(String(format: "HEIGHT %.2f  conf %.1f", t.z, t.conf)).font(.system(size: 11, design: .monospaced)).foregroundColor(.orange)
-                            } else {
+                            if e.contacts.isEmpty {
                                 Text("○ SCANNING…").font(.system(size: 12, weight: .bold)).foregroundColor(.green)
                                 Text("no contact").font(.system(size: 11, design: .monospaced)).foregroundColor(.gray)
+                            } else {
+                                Text("● \(e.contacts.count) CONTACT\(e.contacts.count > 1 ? "S" : "") TRACKED").font(.system(size: 12, weight: .bold)).foregroundColor(.red)
+                                ForEach(e.contacts) { c in
+                                    Text(String(format: "#%d  X %.2f Y %.2f H %.2f%@", c.id, c.x, c.y, c.z, c.misses > 0 ? "  ~pred" : ""))
+                                        .font(.system(size: 11, design: .monospaced)).foregroundColor(c.misses > 0 ? .yellow : .orange)
+                                }
                             }
                             // motion detector (VRTI: RSS variance) + CSI channel metric
                             Divider().frame(width: 130)
                             Text(e.motionEnergy > 0.22 ? "▲ MOTION" : "· still").font(.system(size: 11, weight: .bold)).foregroundColor(e.motionEnergy > 0.22 ? .yellow : .gray)
                             Text(String(format: "motion %.2f", e.motionEnergy)).font(.system(size: 10, design: .monospaced)).foregroundColor(.gray)
-                            Text(String(format: "CSI Δ %.2f", e.csiDelta)).font(.system(size: 10, design: .monospaced)).foregroundColor(e.csiDelta > 0.2 ? .cyan : .gray)
+                            Text(String(format: "CSI|H| %.2f", e.csiDelta)).font(.system(size: 10, design: .monospaced)).foregroundColor(e.csiDelta > 0.2 ? .cyan : .gray)
+                            Text(String(format: "CSI\u{03C6} %.2f", e.csiPhase)).font(.system(size: 10, design: .monospaced)).foregroundColor(e.csiPhase > 0.2 ? .cyan : .gray)
                         }.padding(10)
                     }
                     .background(Color.black)

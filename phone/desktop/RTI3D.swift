@@ -31,6 +31,8 @@ struct RTI3DView: NSViewRepresentable {
         private let targetNode = SCNNode()
         private let dropLine = SCNNode()
         private let ring = SCNNode()
+        private var extraBlips: [SCNNode] = []     // secondary target blips (multi-target)
+        private var trackLabels: [SCNNode] = []    // per-track "#id" labels
         private var timer: Timer?
 
         init(_ e: RTIEngine) { self.e = e; build() }
@@ -117,12 +119,27 @@ struct RTI3DView: NSViewRepresentable {
             ring.runAction(.repeatForever(.sequence([.scale(to: 1.6, duration: 1.0), .scale(to: 1.0, duration: 0.0)])))
             scene.rootNode.addChildNode(ring)
 
-            // track pool
+            // track pool (fading trail of the PRIMARY target)
             for _ in 0..<24 {
                 let s = SCNSphere(radius: 0.035)
                 let m = SCNMaterial(); m.diffuse.contents = NSColor.systemYellow; m.emission.contents = NSColor.systemYellow
                 s.materials = [m]; let n = SCNNode(geometry: s); n.opacity = 0
                 trailNodes.append(n); scene.rootNode.addChildNode(n)
+            }
+
+            // SECONDARY track blips + per-track id labels (multi-target: 2-3 people at once)
+            for _ in 0..<2 {
+                let s = SCNSphere(radius: 0.09)
+                let m = SCNMaterial(); m.diffuse.contents = NSColor.systemOrange; m.emission.contents = NSColor.systemOrange
+                s.materials = [m]; let n = SCNNode(geometry: s); n.opacity = 0
+                n.runAction(.repeatForever(.sequence([.scale(to: 1.3, duration: 0.6), .scale(to: 0.85, duration: 0.6)])))
+                extraBlips.append(n); scene.rootNode.addChildNode(n)
+            }
+            for _ in 0..<3 {
+                let t = SCNText(string: "", extrusionDepth: 0.2)
+                t.font = NSFont.boldSystemFont(ofSize: 2); t.firstMaterial?.diffuse.contents = NSColor.white
+                let tn = SCNNode(geometry: t); tn.scale = SCNVector3(0.05, 0.05, 0.05); tn.opacity = 0
+                tn.constraints = [SCNBillboardConstraint()]; trackLabels.append(tn); scene.rootNode.addChildNode(tn)
             }
 
             // camera
@@ -181,6 +198,23 @@ struct RTI3DView: NSViewRepresentable {
                 ring.position = SCNVector3(p.x, floorY + 0.01, p.z); ring.opacity = 0.9
             } else {
                 targetNode.opacity = 0; dropLine.opacity = 0; ring.opacity = 0
+            }
+            // multi-target: secondary blips (contacts beyond the primary) + per-track "#id" labels
+            let cs = e.contacts
+            for bi in extraBlips.indices {
+                let ci = bi + 1                       // contacts[0] is the primary (targetNode)
+                if ci < cs.count {
+                    extraBlips[bi].position = pos(cs[ci].x, cs[ci].y, cs[ci].z)
+                    extraBlips[bi].opacity = cs[ci].misses > 0 ? 0.4 : 0.95   // dim while coasting (predicted)
+                } else { extraBlips[bi].opacity = 0 }
+            }
+            for li in trackLabels.indices {
+                if li < cs.count {
+                    let c = cs[li]; let p = pos(c.x, c.y, c.z)
+                    (trackLabels[li].geometry as? SCNText)?.string = "#\(c.id)"
+                    trackLabels[li].position = SCNVector3(p.x + 0.1, p.y + 0.12, p.z)
+                    trackLabels[li].opacity = 1
+                } else { trackLabels[li].opacity = 0 }
             }
             // track
             let tr = e.trail
