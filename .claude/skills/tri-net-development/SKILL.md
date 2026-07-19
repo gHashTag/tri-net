@@ -985,4 +985,19 @@ smoke/DEPIN_FULLCYCLE_MODCLASS_FORECAST_2026-07-19.md).** ("все три"; flag
   decodability. Within a good window trivially 100%; the real forecastability metric is fadeprofile's
   lag-1 autocorr 0.58-0.96. A node can schedule TX into predicted good windows.
 
+**DePIN ROUND OTA + COMMAND RECOGNITION + SCHEDULING (2026-07-19,
+smoke/DEPIN_ROUND_CMDCLASS_SCHED_2026-07-19.md).** ("все три"; DePIN scales node->network OTA.)
+- **`depinround <pool> <bytes:covered ...>` = full PoC round:** $TRI split across COVERED nodes by
+  bytes (sum<=pool) + a ledger state-root. Driven by OTA: .10 sensed .13 AND .11 covered (caught each
+  BER=0), settled 500 $TRI each, paid=1000<=pool, ledger_root=0x72058E11. Uncovered node -> 0 $TRI.
+- **`cmdclass <recv_hex>` = error-tolerant control command:** ternary-correlate the received 16-B
+  command vs codewords {GRANT,DENY,ALERT}, max score = action. OTA GRANT caught BER=0 -> GRANT
+  (128/128); host 1-bit-error -> still GRANT (126/128). IEC-61499 event over radio.
+- **rfclassify POWER GATE fixes the LO-leak confound:** mm=mean|x|; floor (400, arg[3]) gates TONE.
+  OTA 3/3: DBPSK mm=2177, TONE mm=2291, truly-empty mm=174<400 -> NOISE. **GOTCHA:** leaving a TX LO
+  powered (txpd=0) with no stream leaks an UNMODULATED CARRIER (mm~2064) -- correctly a TONE, not
+  empty. For a true "no signal" test set txpd=1 on ALL boards first.
+- **`schedgain <nbytes>`:** always-tx vs predicted-good-tx delivery from the cp series. Good window ->
+  both 100%, 0 wasted. Gain shows in fade troughs; forecastability = the slow-fade autocorr.
+
 phi^2 + phi^-2 = 3 | TRINITY
