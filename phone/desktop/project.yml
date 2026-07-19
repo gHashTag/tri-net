@@ -18,6 +18,7 @@ targets:
       - path: DesignSystem.swift
       - path: TriNetMonitor.swift
       - path: RTIHeatmap.swift
+      - path: RTI3D.swift
       - path: VideoCallTab.swift
       - path: TriNetVideo/CallManager.swift
       - path: TriNetVideo/CameraCapture.swift

@@ -14,6 +14,32 @@ class RTIEngine: ObservableObject {
     // .13<->.10 is the main diagonal, .11<->.12 the anti-diagonal (both cross the centre);
     // shadowing a crossing pair lights the intersection cell -> radio tomography.
     let np = [(13, 4, 4), (11, 26, 4), (12, 4, 26), (10, 26, 26)]
+
+    // --- 3D voxel field: radio tomography in SPACE (not just a floor view) ---
+    // Ellipsoid-weight backprojection (Wilson & Patwari RTI): each link (a,b) deposits its RSS
+    // attenuation into the voxels inside the ellipsoid |a-p|+|p-b|-|a-b| < lambda, weighted 1/sqrt(|a-b|).
+    // The four boards sit at TWO heights so the z-axis is observable (else all links are coplanar).
+    let gx = 12, gy = 12, gz = 6
+    @Published var vox = [Float](repeating: 0, count: 12*12*6)
+    let np3d: [(id: Int, x: Double, y: Double, z: Double)] = [
+        (13, 0.15, 0.15, 0.80), (11, 0.85, 0.15, 0.20),
+        (12, 0.15, 0.85, 0.20), (10, 0.85, 0.85, 0.80)]
+    private func d3(_ ax: Double,_ ay: Double,_ az: Double,_ bx: Double,_ by: Double,_ bz: Double) -> Double {
+        let dx = ax-bx, dy = ay-by, dz = az-bz; return (dx*dx+dy*dy+dz*dz).squareRoot()
+    }
+    private func backproject3d(_ frm: Int,_ to: Int,_ v: Double) {
+        guard let a = np3d.first(where: { $0.id == frm }), let b = np3d.first(where: { $0.id == to }) else { return }
+        let dab = d3(a.x,a.y,a.z, b.x,b.y,b.z)
+        let w = Float(v / dab.squareRoot())
+        let lam = 0.14
+        var upd: [(Int, Float)] = []
+        for k in 0..<gz { for j in 0..<gy { for i in 0..<gx {
+            let px = (Double(i)+0.5)/Double(gx), py = (Double(j)+0.5)/Double(gy), pz = (Double(k)+0.5)/Double(gz)
+            let excess = d3(a.x,a.y,a.z, px,py,pz) + d3(px,py,pz, b.x,b.y,b.z) - dab
+            if excess < lam { upd.append((k*gx*gy + j*gx + i, w)) }
+        }}}
+        DispatchQueue.main.async { for (idx, add) in upd { self.vox[idx] = min(3.0, self.vox[idx] + add) } }
+    }
     
     func go() {
         guard !run else { return }
@@ -31,7 +57,10 @@ class RTIEngine: ObservableObject {
         DispatchQueue.main.async { self.listening = true; self.lastMsg = "Ready :6000" }
         DispatchQueue.global().async { self.recv() }
         Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
-            DispatchQueue.main.async { for y in 0..<30 { for x in 0..<30 { self.grid[y][x] *= 0.9 } } }
+            DispatchQueue.main.async {
+                for y in 0..<30 { for x in 0..<30 { self.grid[y][x] *= 0.9 } }
+                for i in self.vox.indices { self.vox[i] *= 0.88 }
+            }
         }
     }
     
@@ -55,6 +84,7 @@ class RTIEngine: ObservableObject {
                     for (x,y) in pts { if x>=0&&x<30&&y>=0&&y<30 { self.grid[y][x] = min(1.0, self.grid[y][x]+v) } }
                     self.pktCount += 1; self.lastMsg = "LIVE \(self.pktCount)"
                 }
+                self.backproject3d(frm, to, v)      // 3D voxel tomography from the same packet
             } else { usleep(15000) }
         }
     }
@@ -64,16 +94,29 @@ class RTIEngine: ObservableObject {
 
 struct RTIHeatmapView: View {
     @ObservedObject var e: RTIEngine
-    
+    @State private var threeD = true          // 3D volumetric view is the default — presence in SPACE
+
     var body: some View {
         VStack(spacing: 4) {
             HStack {
                 Text("RTI HEATMAP").font(DS.display(15, .semibold)).tracking(0.5).foregroundColor(DS.text)
+                Picker("", selection: $threeD) {
+                    Text("3D").tag(true)
+                    Text("2D floor").tag(false)
+                }.pickerStyle(.segmented).frame(width: 150).labelsHidden()
                 Spacer()
                 Text(e.lastMsg).font(.caption).foregroundColor(e.listening ? .green : .orange)
             }.padding(8)
-            
-            // 30x30 grid of colored rectangles
+
+            if threeD {
+                // 3D volumetric radio tomography (orbit with the mouse)
+                RTI3DView(e: e)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.black)
+                    .cornerRadius(8)
+                    .padding(8)
+            } else {
+            // 30x30 grid of colored rectangles (floor view)
             GeometryReader { geo in
                 let cw = geo.size.width / 30
                 let ch = geo.size.height / 30
@@ -104,6 +147,7 @@ struct RTIHeatmapView: View {
             .background(Color.black)
             .cornerRadius(8)
             .padding(8)
+            }
             
             HStack {
                 Text("Pkts: \(e.pktCount)").font(.caption).foregroundColor(.green)
