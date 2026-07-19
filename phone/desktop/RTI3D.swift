@@ -60,6 +60,17 @@ struct RTI3DView: NSViewRepresentable {
                 }
             }
 
+            // radar SWEEP arm on the floor (rotates around the centre)
+            let sweep = SCNNode(); sweep.position = SCNVector3(0, floorY + 0.006, 0)
+            let arm = SCNBox(width: 0.9, height: 0.004, length: 0.02, chamferRadius: 0)
+            let am = SCNMaterial(); am.diffuse.contents = NSColor(red:0.15,green:0.95,blue:0.35,alpha:0.55)
+            am.emission.contents = NSColor(red:0.15,green:0.85,blue:0.3,alpha:1); am.writesToDepthBuffer = false
+            arm.materials = [am]
+            let armNode = SCNNode(geometry: arm); armNode.position = SCNVector3(0.45, 0, 0)
+            sweep.addChildNode(armNode)
+            sweep.runAction(.repeatForever(.rotateBy(x: 0, y: CGFloat.pi*2, z: 0, duration: 3.5)))
+            scene.rootNode.addChildNode(sweep)
+
             // node markers + labels
             for n in e.np3d {
                 let sph = SCNSphere(radius: 0.06)

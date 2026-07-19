@@ -28,6 +28,7 @@ class RTIEngine: ObservableObject {
         (13, 0.15, 0.15, 0.80), (11, 0.85, 0.15, 0.20),
         (12, 0.15, 0.85, 0.20), (10, 0.85, 0.85, 0.80)]
     @Published var localized = false
+    var baseRss: [Int: Double] = [:]       // per-link quiet-baseline RSS for VRTI change detection
 
     // --- RADAR: extract a discrete target contact from the field (detection, not raw returns) ---
     // The backprojection peaks where shadowed links cross; the target = confidence-weighted centroid
@@ -122,6 +123,29 @@ class RTIEngine: ObservableObject {
                     self.pktCount += 1; self.lastMsg = "LIVE \(self.pktCount)"
                 }
                 self.backproject3d(frm, to, v)      // 3D voxel tomography from the same packet
+            } else if n >= 5 && buf[0] == 35 {
+                // REAL radio: raw link RSS [35, frm, to, rss_hi, rss_lo]. Learn a quiet baseline per
+                // link (EWMA when the signal is near its baseline) and detect a DROP below it -- a
+                // real body shadowing the link. This is VRTI: the map reacts to actual RF, not a feed.
+                let frm = Int(buf[1]), to = Int(buf[2])
+                let rss = Double(Int(buf[3]) << 8 | Int(buf[4]))
+                let key = frm*1000 + to
+                let base = self.baseRss[key] ?? rss
+                if rss >= base*0.82 { self.baseRss[key] = 0.15*rss + 0.85*base }   // quiet -> track baseline
+                let drop = max(0.0, min(1.0, (base - rss)/max(1.0, base)))
+                if drop > 0.15 {
+                    // draw the shadowed link onto the 2D floor + backproject in 3D
+                    let ax = np.first(where: { $0.0 == frm })?.1 ?? 10, ay = np.first(where: { $0.0 == frm })?.2 ?? 15
+                    let bx = np.first(where: { $0.0 == to })?.1 ?? 20, by = np.first(where: { $0.0 == to })?.2 ?? 15
+                    var x0=ax, y0=ay; let x1=bx, y1=by
+                    let dx=abs(x1-x0), dy=abs(y1-y0); let sx = x0<x1 ?1:-1, sy = y0<y1 ?1:-1
+                    var err=dx-dy, pts:[(Int,Int)]=[]
+                    while true { pts.append((x0,y0)); if x0==x1 && y0==y1 {break}; let e2=2*err; if e2 > (-dy){err-=dy; x0+=sx}; if e2<dx{err+=dx; y0+=sy} }
+                    DispatchQueue.main.async { for (x,y) in pts { if x>=0&&x<30&&y>=0&&y<30 { self.grid[y][x]=min(1.0,self.grid[y][x]+drop) } }; self.pktCount += 1; self.lastMsg = "LIVE \(self.pktCount)" }
+                    self.backproject3d(frm, to, drop)
+                } else {
+                    DispatchQueue.main.async { self.pktCount += 1 }
+                }
             } else if n >= 5 && buf[0] == 34 {
                 // self-localization: a board's MEASURED position [34, id, x, y, z] (0..255 -> 0..1)
                 let id = Int(buf[1])
