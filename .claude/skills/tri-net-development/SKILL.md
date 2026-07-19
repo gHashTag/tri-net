@@ -1088,4 +1088,22 @@ smoke/DEPIN_RELAY_OTA_RTI_2026-07-19.md).** ("все три"; multi-hop cycle cl
   RSS to track (gain 71 clipped the strong end and masked small shadows; gain 45 gave the clean
   curve). Biological positive (real body) still bench-gated; surrogate = TX-side path attenuation.
 
+**TWO-LINK RTI LOCALIZE + BLIND-RELAY + RTI ROC OTA (2026-07-19, smoke/DEPIN_LOCALIZE_BLINDRELAY_ROC_2026-07-19.md).**
+- **TX HARDWAREGAIN SET BEFORE sleep->fdd IS RESET BY THE TRANSITION -- the attenuation silently
+  never applies.** A "shadowed" link then reads the SAME (or higher) RSS as its baseline; only channel
+  non-stationarity shows. **Set the TX gain on the LIVE DDS (after launch), and read it back**
+  (`echo -35 > out_voltage0_hardwaregain; cat ...` -> `-35.000000`) to confirm. Proven single-TX
+  sweep at RX gain 45: -5:1453 -15:502 -25:449 -35:38. Corollary: measure each link/level with ONE
+  persistent TX and step the gain live -- a kill-and-restart-per-measurement resets the gain.
+- **`rtilocalize <rssA> <rssB> <baseA> <baseB> [frac]` = two-link localization.** Shared RX .12, two
+  anchors (.13=link A, .11=link B). Real OTA: A 1460->52 (x28), B 2610->209 (x12); classifies
+  NONE / region A / region B / BOTH correctly. One link = presence, two links = WHERE.
+- **`depinpath <carry> <stake> <att:del ...>` = blind-relay per-hop attribution.** Each hop's RECEIVER
+  attests WHO sent (each sender signs with its own key); the path is reconstructed from per-hop
+  attributions. OTA 3-hop: hop1->node#0, hop2->node#1, hop3->node#2, full_path_proven=true, paid=300,
+  root=0xD3D8EAA6. Composition of attribution (wave 14) + 3-hop (wave 15).
+- **`rtiroc <base_csv> <body_csv>` = RTI threshold calibration + ROC.** AUC = Mann-Whitney (not a
+  naive pfa-trapezoid, which mis-scores tied thresholds). OTA: baseline mean=1298 sig=288, body
+  159-763 -> AUC=0.984, auto(mean-3sig)=435 -> Pd=0.88 Pfa=0.00. Presence sensing gets a number.
+
 phi^2 + phi^-2 = 3 | TRINITY
