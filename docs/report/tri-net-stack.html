@@ -67,7 +67,7 @@
     Каждое утверждение помечено честно: доказано по воздуху, бит-в-бит на host, или проекция.</p>
 
   <div class="headline">
-    <div class="stat"><div class="n win">BER=0/128</div><div class="l">фраза «TRINET-OTA-LIVE!» поймана по воздуху + мультиисточник 1/1 + радио→ИИ 7/7</div></div>
+    <div class="stat"><div class="n win">BER=0/128</div><div class="l">полный DePIN-цикл по воздуху: радио→ИИ→чек→$TRI отчеканено=1000 на одном узле</div></div>
     <div class="stat"><div class="n">1.64 Мбит/с</div><div class="l">агрегат доказан OTA — 3 одновременные FDD-полосы</div></div>
     <div class="stat"><div class="n">9.85 Мбит/с</div><div class="l">проекция — 18 RRC-полос, 72 код+частотных слота</div></div>
   </div>
@@ -113,6 +113,15 @@
     <div class="card"><div class="t">VSA RF-ID (признаки) <span class="tag t-host">host</span></div><p class="desc">Пик/огибающая/спектр на реальных OTA-захватах → классификация несущей.</p><p class="m">&gt;90% · 27-бинные признаки</p></div>
     <div class="card"><div class="t">Троичный трансформер на чипе <span class="tag t-host">host</span></div><p class="desc">BitNet-класс: слой IGLA-Coder бит-в-бит на движке, softmax/RMSNorm 0 DSP.</p><p class="m">50–130 tok/s · xc7z020</p></div>
     <div class="card"><div class="t">Радио + ИИ одновременно <span class="tag t-proj">кремний</span></div><p class="desc">AD9361-радио и обученный троичный ИИ на одном Zynq-7020 вживую — конвергенция вычислений и связи (ядро SG-13).</p><p class="m">один чип · открытый флоу</p></div>
+    <div class="card"><div class="t">Распознавание модуляции <span class="tag t-proven">OTA</span></div><p class="desc">Троичный классификатор DBPSK / TONE / NOISE с CFO-стойкой дифф-когерентностью; наш DBPSK узнаётся в эфире.</p><p class="m">host 3/3 · DBPSK OTA надёжно</p></div>
+  </div>
+
+  <h2>$TRI DePIN — полный цикл на узле</h2>
+  <div class="grid">
+    <div class="card"><div class="t">Сенсинг→чек→$TRI ПО ВОЗДУХУ <span class="tag t-proven">OTA</span></div><p class="desc">Один захват на RX-чипе: декод BER=0 → ИИ-покрытие → Proof-of-Relay чек → чеканка $TRI. На шуме — 0 (нет покрытия → нет награды).</p><p class="m">$TRI отчеканено=1000 · воспроизв.</p></div>
+    <div class="card"><div class="t">Proof-of-Relay + расчёт <span class="tag t-proven">ARM</span></div><p class="desc">Подделко-стойкий аккумулятор байтов; расчётный слой делит пул $TRI по покрытию (Helium-класс PoC).</p><p class="m">14 инвариантов · Ed25519</p></div>
+    <div class="card"><div class="t">Merkle-леджер + слэшинг <span class="tag t-proven">ARM</span></div><p class="desc">Баланс копится в state-root; лог-пруф забирает награду; за читерский чек — потеря залога.</p><p class="m">корень 0x64102268 · челлендж-игра</p></div>
+    <div class="card"><div class="t">On-chain клейм (sha256) <span class="tag t-proj">контракт</span></div><p class="desc">Узел шлёт calldata: state-root + баланс + Merkle-пруф → контракт чеканит. Настоящий t27-SHA-256.</p><p class="m">эталон sha256("abc") бит-в-бит</p></div>
   </div>
 
   <h2>Сетевое кодирование ($TRI DePIN)</h2>

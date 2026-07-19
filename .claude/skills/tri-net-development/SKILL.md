@@ -969,4 +969,20 @@ smoke/DEPIN_MSG_MULTI_RADIOAI_OTA_2026-07-19.md).** ("все три"; three OTA 
   loop (capture -> best-copy / decode -> repeat until a good window lands) turns a marginal link into
   a working one. `otarxbest` (selection combining) and the good-window loop are the tools.
 
+**FULL DePIN CYCLE OTA + MODULATION RECOGNITION + FORECAST (2026-07-19,
+smoke/DEPIN_FULLCYCLE_MODCLASS_FORECAST_2026-07-19.md).** ("все три"; flagship economic loop closed.)
+- **`depinota` = full DePIN cycle on the RX node, over the air:** selection-combining decode -> AI
+  coverage verdict -> Proof-of-Relay receipt (`meter`) -> mint $TRI (`reward_units`) -- ONLY if
+  covered AND BER=0. OTA good window: cp=1.000 BER=0/128 -> SIGNAL -> receipt -> **$TRI minted=1000**
+  (reproduced). Noise -> minted=0 (no coverage/bad data -> no reward). Sensing->proof->token on chip.
+- **Modulation recognition (`rfclassify` 3-class):** added CFO-ROBUST feature `dcoh = |mean(d)| /
+  mean(|d|)`, d=x[k+OSF]conj(x[k]) -- tone's differential is a constant vector (dcoh~1), DBPSK flips
+  (mid), noise ~0. Host 3/3 (DBPSK/TONE/NOISE); OTA our DBPSK recognised reliably. **HONEST LO-LEAK
+  ARTIFACT:** TX-off at gain 71 classifies as TONE not NOISE -- the RX's own LO leakage is a coherent
+  carrier (dcoh~0.99); tone-vs-noise OTA needs a power/RSSI gate. (`gentone <nsamp>` = pure subcarrier
+  tone for testing; a fixed-bin DFT `conc` feature FAILS OTA because CFO shifts the tone off the bin.)
+- **`cppredict`:** the slow fade is forecastable -- ternary persistence+trend predictor of next-frame
+  decodability. Within a good window trivially 100%; the real forecastability metric is fadeprofile's
+  lag-1 autocorr 0.58-0.96. A node can schedule TX into predicted good windows.
+
 phi^2 + phi^-2 = 3 | TRINITY
