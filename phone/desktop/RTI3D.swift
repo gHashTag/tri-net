@@ -27,6 +27,7 @@ struct RTI3DView: NSViewRepresentable {
         let scene = SCNScene()
         private var voxNodes: [SCNNode] = []
         private var trailNodes: [SCNNode] = []
+        private var nodeMarkers: [(id: Int, sphere: SCNNode, label: SCNNode)] = []
         private let targetNode = SCNNode()
         private let dropLine = SCNNode()
         private let ring = SCNNode()
@@ -71,6 +72,7 @@ struct RTI3DView: NSViewRepresentable {
                 let tn = SCNNode(geometry: t); tn.scale = SCNVector3(0.05, 0.05, 0.05)
                 tn.position = SCNVector3(node.position.x + 0.08, node.position.y + 0.08, node.position.z)
                 tn.constraints = [SCNBillboardConstraint()]; scene.rootNode.addChildNode(tn)
+                nodeMarkers.append((n.id, node, tn))
             }
 
             // dim voxel "returns" pool
@@ -127,6 +129,14 @@ struct RTI3DView: NSViewRepresentable {
         }
 
         private func refresh() {
+            // node markers follow the MEASURED (self-localized) positions
+            for m in nodeMarkers {
+                if let n = e.np3d.first(where: { $0.id == m.id }) {
+                    let p = pos(n.x, n.y, n.z)
+                    m.sphere.position = p
+                    m.label.position = SCNVector3(p.x + 0.08, p.y + 0.08, p.z)
+                }
+            }
             // faint raw returns (context only) -- keep the extracted contact the star of the show
             let vox = e.vox
             for idx in voxNodes.indices where idx < vox.count {

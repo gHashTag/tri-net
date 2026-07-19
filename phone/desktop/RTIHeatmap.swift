@@ -21,9 +21,13 @@ class RTIEngine: ObservableObject {
     // The four boards sit at TWO heights so the z-axis is observable (else all links are coplanar).
     let gx = 12, gy = 12, gz = 6
     @Published var vox = [Float](repeating: 0, count: 12*12*6)
-    let np3d: [(id: Int, x: Double, y: Double, z: Double)] = [
+    // Node positions are MEASURED, not assumed: they start as a placeholder but are overwritten by
+    // self-localization packets ([34,id,x,y,z]) once the boards range each other and solve MDS. An
+    // assumed geometry makes the whole RTI map wrong -- the boards must locate themselves first.
+    @Published var np3d: [(id: Int, x: Double, y: Double, z: Double)] = [
         (13, 0.15, 0.15, 0.80), (11, 0.85, 0.15, 0.20),
         (12, 0.15, 0.85, 0.20), (10, 0.85, 0.85, 0.80)]
+    @Published var localized = false
 
     // --- RADAR: extract a discrete target contact from the field (detection, not raw returns) ---
     // The backprojection peaks where shadowed links cross; the target = confidence-weighted centroid
@@ -31,10 +35,14 @@ class RTIEngine: ObservableObject {
     struct Contact { var x: Double; var y: Double; var z: Double; var conf: Double }
     @Published var target: Contact? = nil
     @Published var trail: [Contact] = []
+    private var wasLocked = false
     private func extractTarget() {
         var peak: Float = 0
         for v in vox { if v > peak { peak = v } }
-        guard peak > 0.85 else { target = nil; return }          // detection threshold
+        guard peak > 0.85 else {
+            if wasLocked { NSLog("%@", "RTI: contact LOST"); wasLocked = false }
+            target = nil; return
+        }                                                         // detection threshold
         let thr = peak * 0.62
         var sx = 0.0, sy = 0.0, sz = 0.0, sw = 0.0
         for k in 0..<gz { for j in 0..<gy { for i in 0..<gx {
@@ -48,6 +56,7 @@ class RTIEngine: ObservableObject {
         let c = Contact(x: sx/sw, y: sy/sw, z: sz/sw, conf: Double(peak))
         target = c
         trail.append(c); if trail.count > 24 { trail.removeFirst() }
+        if !wasLocked { NSLog("%@", String(format: "RTI: CONTACT LOCKED  x=%.2f y=%.2f height=%.2f conf=%.1f", c.x, c.y, c.z, c.conf)); wasLocked = true }
     }
     private func d3(_ ax: Double,_ ay: Double,_ az: Double,_ bx: Double,_ by: Double,_ bz: Double) -> Double {
         let dx = ax-bx, dy = ay-by, dz = az-bz; return (dx*dx+dy*dy+dz*dz).squareRoot()
@@ -79,6 +88,8 @@ class RTIEngine: ObservableObject {
         let r = withUnsafePointer(to: &a) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(s, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) } }
         guard r == 0 else { DispatchQueue.main.async { self.lastMsg = "bind fail" }; return }
         let f = fcntl(s, F_GETFL, 0); _ = fcntl(s, F_SETFL, f | O_NONBLOCK)
+        LogBus.shared.start()                 // tee stderr into the shared Log pane (copyable)
+        NSLog("%@", "RTI: listening on :6000  nodes=\(np3d.map { $0.id })")
         DispatchQueue.main.async { self.listening = true; self.lastMsg = "Ready :6000" }
         DispatchQueue.global().async { self.recv() }
         Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { _ in
@@ -111,6 +122,16 @@ class RTIEngine: ObservableObject {
                     self.pktCount += 1; self.lastMsg = "LIVE \(self.pktCount)"
                 }
                 self.backproject3d(frm, to, v)      // 3D voxel tomography from the same packet
+            } else if n >= 5 && buf[0] == 34 {
+                // self-localization: a board's MEASURED position [34, id, x, y, z] (0..255 -> 0..1)
+                let id = Int(buf[1])
+                let x = Double(buf[2])/255.0, y = Double(buf[3])/255.0, z = Double(buf[4])/255.0
+                DispatchQueue.main.async {
+                    if let k = self.np3d.firstIndex(where: { $0.id == id }) { self.np3d[k] = (id, x, y, z) }
+                    else { self.np3d.append((id, x, y, z)) }
+                    self.localized = true
+                }
+                NSLog("%@", String(format: "SELF-LOC: node .%d at (%.2f, %.2f, %.2f)  [measured, MDS]", id, x, y, z))
             } else { usleep(15000) }
         }
     }
@@ -196,6 +217,12 @@ struct RTIHeatmapView: View {
                 Spacer()
                 Button("Clear") { e.clear() }.font(.caption)
             }.padding(8)
+
+            // copyable log (same shared LogBus + Copy-All as the call screen)
+            Hairline()
+            LogPane(bus: LogBus.shared)
+                .frame(height: 150)
+                .background(DS.ink)
         }
         .background(DS.ink)
         .onAppear { e.go() }
