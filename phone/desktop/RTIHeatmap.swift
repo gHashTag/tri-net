@@ -58,10 +58,13 @@ class RTIEngine: ObservableObject {
     struct Contact { var x: Double; var y: Double; var z: Double; var conf: Double }
     struct Track: Identifiable { var id: Int; var x: Double; var y: Double; var z: Double
         var vx: Double; var vy: Double; var vz: Double; var conf: Double; var hits: Int; var misses: Int
-        var trail: [Contact]; var ghost: Bool = false }
-    // Vital signs (option C): a chest wall moving with breathing periodically modulates the CSI phase.
-    // We buffer the (CFO-robust) phase signal over time and look for a peak in the breathing band.
-    var csiPhaseSeries: [(t: Double, v: Double)] = []
+        var trail: [Contact]; var ghost: Bool = false
+        var bpm: Double = 0; var hr: Double = 0; var vconf: Double = 0 }
+    // Vital signs: a chest wall moving with breathing/heartbeat periodically modulates the CSI phase.
+    // We buffer the (CFO-robust) phase signal PER LINK and attribute it to the nearest tracked person.
+    var csiPhaseSeries: [(t: Double, v: Double)] = []              // global (strongest link) fallback
+    var csiLinkSeries: [Int: [(t: Double, v: Double)]] = [:]       // per-link phase history (key frm*100+to)
+    var activeLinks: [Int: Double] = [:]                          // recently-shadowed links -> last-seen time (JPDA)
     @Published var breathBpm = 0.0
     @Published var vitalConf = 0.0
     @Published var target: Contact? = nil          // strongest confirmed track (primary readout)
@@ -158,55 +161,83 @@ class RTIEngine: ObservableObject {
         tracks.removeAll { $0.misses > 6 }
         // publish confirmed tracks (survived >=3 frames, still fresh) -- strongest is the primary
         var confirmed = tracks.filter { $0.hits >= 3 && $0.misses <= 2 }.sorted { $0.conf > $1.conf }
-        // Option A -- ghost suppression: an RTI CROSSING GHOST (two bodies each shadow one link, the
-        // OTHER crossing lights up) sits BETWEEN two real targets, ON the line joining them -- it is the
-        // MIDDLE of a collinear triple. Overlap can make it as strong as the reals, so we flag by
-        // geometry, not by amplitude. (Full disambiguation = JPDA shadow-evidence explaining-away.)
-        for i in confirmed.indices {
-            for a in confirmed.indices where a != i {
-                for b in confirmed.indices where b != i && b > a {
-                    if segDist(confirmed[i], confirmed[a], confirmed[b]) < 0.10 { confirmed[i].ghost = true }
-                }
+        // Option B -- JPDA "explaining away": assign each recently-shadowed link to the track NEAREST
+        // its path. A track that OWNS no link is fully explained by the others -> a phantom (the RTI
+        // crossing ghost). This resolves N people (even collinear) -- each real body owns its own links;
+        // only a true crossing ghost owns none.
+        let now = CACurrentMediaTime()
+        var owned = [Int](repeating: 0, count: confirmed.count)
+        var anyLink = false
+        for (lk, t) in activeLinks where now - t < 2.5 {
+            guard let na = np3d.first(where: { $0.id == lk/100 }), let nb = np3d.first(where: { $0.id == lk%100 }) else { continue }
+            anyLink = true
+            var best = -1; var bd = 0.26
+            for i in confirmed.indices {
+                let d = distPointSeg(confirmed[i].x, confirmed[i].y, confirmed[i].z, na.x, na.y, na.z, nb.x, nb.y, nb.z)
+                if d < bd { bd = d; best = i }
+            }
+            if best >= 0 { owned[best] += 1 }
+        }
+        if anyLink && confirmed.count > 1 { for i in confirmed.indices where owned[i] == 0 { confirmed[i].ghost = true } }
+        // Option A -- per-person vitals: attribute the nearest shadowed link's CSI-phase series to each
+        // real track and extract its respiration (0.12-0.5 Hz) and cardiac (0.8-2.0 Hz) rates.
+        for i in confirmed.indices where !confirmed[i].ghost {
+            if let lk = nearestActiveLink(confirmed[i]), let ser = csiLinkSeries[lk] {
+                let v = vitalOfSeries(ser); confirmed[i].bpm = v.resp; confirmed[i].hr = v.card; confirmed[i].vconf = v.conf
             }
         }
         contacts = confirmed
         if let p = confirmed.first(where: { !$0.ghost }) { target = Contact(x: p.x, y: p.y, z: p.z, conf: p.conf); trail = p.trail }
         else { target = nil }
     }
-    // distance from track p to the segment (a,b), and only "between" a and b counts (projection in [0,1])
-    private func segDist(_ p: Track, _ a: Track, _ b: Track) -> Double {
-        let dx = b.x-a.x, dy = b.y-a.y, dz = b.z-a.z
-        let L2 = dx*dx+dy*dy+dz*dz
+    // distance from point p to the segment (a,b) in 3D
+    private func distPointSeg(_ px: Double,_ py: Double,_ pz: Double,_ ax: Double,_ ay: Double,_ az: Double,_ bx: Double,_ by: Double,_ bz: Double) -> Double {
+        let dx = bx-ax, dy = by-ay, dz = bz-az; let L2 = dx*dx+dy*dy+dz*dz
         if L2 < 1e-9 { return 9 }
-        let t = ((p.x-a.x)*dx + (p.y-a.y)*dy + (p.z-a.z)*dz) / L2
-        if t < 0.15 || t > 0.85 { return 9 }        // not between -> not a crossing ghost
-        let cx = a.x+t*dx, cy = a.y+t*dy, cz = a.z+t*dz
-        return ((p.x-cx)*(p.x-cx)+(p.y-cy)*(p.y-cy)+(p.z-cz)*(p.z-cz)).squareRoot()
+        let t = max(0, min(1, ((px-ax)*dx+(py-ay)*dy+(pz-az)*dz)/L2))
+        let cx = ax+t*dx, cy = ay+t*dy, cz = az+t*dz
+        return ((px-cx)*(px-cx)+(py-cy)*(py-cy)+(pz-cz)*(pz-cz)).squareRoot()
+    }
+    // the active shadowed link whose path passes closest to this track (its likely vital source)
+    private func nearestActiveLink(_ p: Track) -> Int? {
+        let now = CACurrentMediaTime(); var best: Int? = nil; var bd = 0.42
+        for (lk, t) in activeLinks where now - t < 3.0 {
+            guard let na = np3d.first(where: { $0.id == lk/100 }), let nb = np3d.first(where: { $0.id == lk%100 }) else { continue }
+            let d = distPointSeg(p.x, p.y, p.z, na.x, na.y, na.z, nb.x, nb.y, nb.z)
+            if d < bd { bd = d; best = lk }
+        }
+        return best
     }
 
-    // Option C vital signs: scan the CSI-phase time-series for a periodic peak in the breathing band.
-    // Irregular (packet-driven) sampling -> a direct DFT over the actual timestamps (Lomb-style), so we
-    // don't need a fixed sample rate. Peak-to-average power = confidence; peak frequency x60 = breaths/min.
-    private func computeVital() {
-        let s = csiPhaseSeries
-        guard s.count >= 16 else { breathBpm = 0; vitalConf = 0; return }
+    // Option C vital signs: scan a CSI-phase series for a periodic peak in a band. Irregular
+    // (packet-driven) sampling -> a direct DFT over the ACTUAL timestamps (Lomb-style), no fixed rate.
+    private func bandPeak(_ s: [(t: Double, v: Double)], _ f0: Double, _ f1: Double, _ df: Double) -> (bpm: Double, ratio: Double) {
+        guard s.count >= 16 else { return (0, 0) }
         let t0 = s[0].t; let ts = s.map { $0.t - t0 }
-        guard let span = ts.last, span > 8 else { return }     // need >=8s of history
+        guard let span = ts.last, span > 8 else { return (0, 0) }
         let mean = s.map { $0.v }.reduce(0,+)/Double(s.count)
         let v = s.map { $0.v - mean }                          // detrend (remove DC)
         var bestF = 0.0, bestP = 0.0, totP = 0.0; var nb = 0
-        var f = 0.12
-        while f <= 0.60 {                                       // 7.2 .. 36 breaths/min
+        var f = f0
+        while f <= f1 {
             var re = 0.0, im = 0.0
             for k in 0..<v.count { let a = 2*Double.pi*f*ts[k]; re += v[k]*Foundation.cos(a); im += v[k]*Foundation.sin(a) }
             let p = re*re + im*im; totP += p; nb += 1
             if p > bestP { bestP = p; bestF = f }
-            f += 0.01
+            f += df
         }
-        let avg = totP/Double(max(1, nb))
-        let ratio = bestP/max(1e-9, avg)                       // peak-to-average power ratio
-        breathBpm = bestF*60
-        vitalConf = min(1.0, ratio/8.0)
+        return (bestF*60, bestP/max(1e-9, totP/Double(max(1, nb))))
+    }
+    // respiration (0.12-0.5 Hz = 7-30 br/min) + cardiac (0.8-2.0 Hz = 48-120 bpm) from one series
+    private func vitalOfSeries(_ s: [(t: Double, v: Double)]) -> (resp: Double, card: Double, conf: Double) {
+        let r = bandPeak(s, 0.12, 0.50, 0.01)
+        let c = bandPeak(s, 0.80, 2.00, 0.02)
+        let card = c.ratio > 6.0 ? c.bpm : 0     // only report a heartbeat if its peak is really periodic
+        return (r.bpm, card, min(1.0, r.ratio/8.0))
+    }
+    private func computeVital() {
+        let v = vitalOfSeries(csiPhaseSeries)
+        breathBpm = v.resp; vitalConf = v.conf
     }
     private func d3(_ ax: Double,_ ay: Double,_ az: Double,_ bx: Double,_ by: Double,_ bz: Double) -> Double {
         let dx = ax-bx, dy = ay-by, dz = az-bz; return (dx*dx+dy*dy+dz*dz).squareRoot()
@@ -274,8 +305,10 @@ class RTIEngine: ObservableObject {
                 let sx = x0<x1 ?1:-1, sy = y0<y1 ?1:-1
                 var err = dx-dy, pts: [(Int,Int)] = []
                 while true { pts.append((x0,y0)); if x0==x1 && y0==y1 {break}; let e2=2*err; if e2 > (-dy) {err -= dy; x0 += sx}; if e2 < dx {err += dx; y0 += sy} }
+                let nowT = CACurrentMediaTime()
                 DispatchQueue.main.async {
                     for (x,y) in pts { if x>=0&&x<30&&y>=0&&y<30 { self.grid[y][x] = min(1.0, self.grid[y][x]+v) } }
+                    self.activeLinks[frm*100+to] = nowT           // shadowed link (JPDA evidence)
                     self.pktCount += 1; self.lastMsg = "LIVE \(self.pktCount)"
                 }
                 self.backproject3d(frm, to, v)      // 3D voxel tomography from the same packet
@@ -311,7 +344,8 @@ class RTIEngine: ObservableObject {
                     DispatchQueue.main.async { for (x,y) in pts { if x>=0&&x<30&&y>=0&&y<30 { self.grid[y][x]=min(1.0,self.grid[y][x]+drop) } } }
                     self.backproject3d(frm, to, drop)
                 }
-                DispatchQueue.main.async { self.pktCount += 1; self.lastMsg = "LIVE \(self.pktCount)" }
+                let act = motion > 0.12 || drop > 0.15; let nowT = CACurrentMediaTime()
+                DispatchQueue.main.async { if act { self.activeLinks[frm*100+to] = nowT }; self.pktCount += 1; self.lastMsg = "LIVE \(self.pktCount)" }
             } else if n >= 4 && buf[0] == 36 {
                 // Option C -- CSI: [36, frm, to, nb, b0..b_{nb-1}] = per-subcarrier |H| envelope (0..255).
                 // A moving body reshapes the frequency-selective fading; the change of the |H| SHAPE
@@ -352,11 +386,15 @@ class RTIEngine: ObservableObject {
                 let phm = min(1.0, mv/0.6)                 // 0.6 rad avg change ~ strong micro-motion
                 // vital-signs signal: the mean cross-bin phase (CFO-robust) sampled over time
                 let meanD = d.reduce(0,+)/Double(d.count)
-                let now = CACurrentMediaTime()
+                let now = CACurrentMediaTime(); let lk = frm*100 + to
                 DispatchQueue.main.async {
                     self.csiPhase = 0.7*self.csiPhase + 0.3*phm
                     self.csiPhaseSeries.append((now, meanD))
                     while let f = self.csiPhaseSeries.first, now - f.t > 40 { self.csiPhaseSeries.removeFirst() }
+                    var ls = self.csiLinkSeries[lk] ?? []; ls.append((now, meanD))
+                    while let f = ls.first, now - f.t > 40 { ls.removeFirst() }
+                    self.csiLinkSeries[lk] = ls
+                    self.activeLinks[lk] = now                    // a link carrying live CSI is "present"
                 }
                 if phm > 0.15 { self.backproject3d(frm, to, phm, motion: true) }
                 DispatchQueue.main.async { self.pktCount += 1; self.lastMsg = "CSIφ \(self.pktCount)" }
@@ -380,7 +418,8 @@ class RTIEngine: ObservableObject {
         for i in self.mvox.indices { self.mvox[i] = 0 }
         self.target = nil; self.trail.removeAll(); self.contacts.removeAll(); self.tracks.removeAll(); self.pktCount = 0
         self.motionEnergy = 0; self.csiDelta = 0; self.csiPhase = 0
-        self.csiPhaseSeries.removeAll(); self.breathBpm = 0; self.vitalConf = 0
+        self.csiPhaseSeries.removeAll(); self.csiLinkSeries.removeAll(); self.activeLinks.removeAll()
+        self.breathBpm = 0; self.vitalConf = 0
     } }
 }
 
@@ -413,8 +452,10 @@ struct RTIHeatmapView: View {
                                 let people = e.contacts.filter { !$0.ghost }.count
                                 Text("● \(people) PERSON\(people == 1 ? "" : "S")").font(.system(size: 12, weight: .bold)).foregroundColor(.red)
                                 ForEach(e.contacts) { c in
-                                    Text(String(format: "#%d  X %.2f Y %.2f H %.2f%@", c.id, c.x, c.y, c.z, c.ghost ? "  ghost" : (c.misses > 0 ? "  ~pred" : "")))
-                                        .font(.system(size: 11, design: .monospaced)).foregroundColor(c.ghost ? .gray : (c.misses > 0 ? .yellow : .orange))
+                                    let vital = (!c.ghost && c.vconf > 0.5) ? String(format: "  \u{2665}%.0fbr%@", c.bpm, c.hr > 0 ? String(format: " %.0fhr", c.hr) : "") : ""
+                                    let tag = c.ghost ? "  ghost" : (c.misses > 0 ? "  ~pred" : "")
+                                    Text(String(format: "#%d  X %.2f Y %.2f H %.2f%@%@", c.id, c.x, c.y, c.z, tag, vital))
+                                        .font(.system(size: 11, design: .monospaced)).foregroundColor(c.ghost ? .gray : (c.vconf > 0.5 ? .pink : (c.misses > 0 ? .yellow : .orange)))
                                 }
                             }
                             // motion detector (VRTI: RSS variance) + CSI channel metric
