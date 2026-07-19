@@ -210,19 +210,11 @@ class NetworkScanner {
         }
     }
 
-    // Full scan: ICMP ping first (to refresh ARP), then ARP check
+    // Full scan: an ICMP ping is the honest liveness test. (We used to `arp -d` the entry first to
+    // force a fresh resolve, but that needs root -- non-root it just fails with "writing to routing
+    // socket: Operation not permitted" on every host, spamming the log for nothing. ping already ARPs.)
     static func scanDevice(host: String, ports: [Int]) async -> (online: Bool, rttMs: Int) {
-        // Step 1: Delete stale ARP entry
-        let delTask = Process()
-        delTask.executableURL = URL(fileURLWithPath: "/usr/sbin/arp")
-        delTask.arguments = ["-d", host]
-        try? delTask.run()
-        delTask.waitUntilExit()
-
-        // Step 2: ICMP ping to force ARP refresh
-        let pingResult = await icmpPing(host: host, timeout: 1.5)
-
-        return pingResult
+        return await icmpPing(host: host, timeout: 1.5)
     }
 
     // Real ICMP ping — the ONLY reliable way to know if host is alive
@@ -230,7 +222,10 @@ class NetworkScanner {
         return await withCheckedContinuation { continuation in
             let task = Process()
             task.executableURL = URL(fileURLWithPath: "/sbin/ping")
-            task.arguments = ["-c", "1", "-t", String(Int(timeout)), host]
+            // `-W <ms>` is the PER-PACKET reply wait; the old `-t 1` was a whole-process 1s deadline that
+            // false-flagged a live host as offline whenever ARP resolution ate the second. `-c 1 -W`.
+            let waitMs = max(1200, Int(timeout * 1000))
+            task.arguments = ["-c", "1", "-W", String(waitMs), host]
 
             let pipe = Pipe()
             task.standardOutput = pipe
