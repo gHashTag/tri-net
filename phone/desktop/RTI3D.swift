@@ -148,11 +148,16 @@ struct RTI3DView: NSViewRepresentable {
                     m.label.position = SCNVector3(p.x + 0.08, p.y + 0.08, p.z)
                 }
             }
-            // faint raw returns (context only) -- keep the extracted contact the star of the show
+            // the HEATMAP: the tomographic field itself, coloured blue->red, prominent again
             let vox = e.vox
             for idx in voxNodes.indices where idx < vox.count {
                 let val = min(1.0, Double(vox[idx]))
-                voxNodes[idx].opacity = val < 0.55 ? 0 : CGFloat(0.03 + val*0.06)
+                let node = voxNodes[idx]
+                if val < 0.22 { node.opacity = 0; continue }
+                node.opacity = CGFloat(0.14 + val*0.5)
+                let c = Coord.heat(val)
+                node.geometry?.firstMaterial?.diffuse.contents = c
+                node.geometry?.firstMaterial?.emission.contents = c
             }
             // target contact
             if let t = e.target {
@@ -176,6 +181,15 @@ struct RTI3DView: NSViewRepresentable {
                     trailNodes[i].opacity = CGFloat(max(0, 0.6 - Double(i)*0.028))
                 } else { trailNodes[i].opacity = 0 }
             }
+        }
+
+        // smooth heatmap colour: blue -> cyan -> green -> yellow -> red
+        static func heat(_ v: Double) -> NSColor {
+            let t = max(0, min(1, v))
+            if t < 0.25 { return NSColor(red: 0.1, green: 0.3 + t*2.0, blue: 0.95, alpha: 1) }
+            if t < 0.5  { return NSColor(red: 0.1, green: 0.85, blue: 0.9 - (t-0.25)*3.2, alpha: 1) }
+            if t < 0.75 { return NSColor(red: 0.1 + (t-0.5)*3.4, green: 0.9, blue: 0.1, alpha: 1) }
+            return NSColor(red: 0.95, green: 0.9 - (t-0.75)*3.2, blue: 0.1, alpha: 1)
         }
     }
 }

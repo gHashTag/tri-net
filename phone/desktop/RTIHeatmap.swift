@@ -28,7 +28,12 @@ class RTIEngine: ObservableObject {
         (13, 0.15, 0.15, 0.80), (11, 0.85, 0.15, 0.20),
         (12, 0.15, 0.85, 0.20), (10, 0.85, 0.85, 0.80)]
     @Published var localized = false
-    var baseRss: [Int: Double] = [:]       // per-link quiet-baseline RSS for VRTI change detection
+    var baseRss: [Int: Double] = [:]       // per-link quiet-baseline RSS
+    // VRTI (variance-based RTI): a MOVING body makes a link's RSS FLUCTUATE. Per-link recent-RSS
+    // window -> variance -> a motion image. This detects MOTION, not just a static shadow -- the
+    // approach that works through walls (Wilson & Patwari, "See-Through Walls", 2009).
+    var rssHist: [Int: [Double]] = [:]
+    @Published var motionEnergy = 0.0      // total motion right now (for the MOTION indicator)
 
     // --- RADAR: extract a discrete target contact from the field (detection, not raw returns) ---
     // The backprojection peaks where shadowed links cross; the target = confidence-weighted centroid
@@ -132,8 +137,17 @@ class RTIEngine: ObservableObject {
                 let key = frm*1000 + to
                 let base = self.baseRss[key] ?? rss
                 if rss >= base*0.82 { self.baseRss[key] = 0.15*rss + 0.85*base }   // quiet -> track baseline
-                let drop = max(0.0, min(1.0, (base - rss)/max(1.0, base)))
-                if drop > 0.15 {
+                // VRTI: window of recent RSS -> std -> MOTION (a moving body fluctuates the link)
+                var h = self.rssHist[key] ?? []; h.append(rss); if h.count > 8 { h.removeFirst() }
+                self.rssHist[key] = h
+                let m = h.reduce(0,+)/Double(h.count)
+                let sd = (h.map { ($0-m)*($0-m) }.reduce(0,+)/Double(h.count)).squareRoot()
+                let motion = min(1.0, sd/max(1.0, base*0.13))
+                let drop = max(0.0, min(1.0, (base - rss)/max(1.0, base)))    // static shadow (occupancy)
+                let sig = max(motion, drop*0.65)                              // motion dominates
+                DispatchQueue.main.async { self.motionEnergy = 0.6*self.motionEnergy + 0.4*motion }
+                if sig > 0.15 {
+                    let drop = sig    // shadow this link's path by the combined motion+occupancy signal
                     // draw the shadowed link onto the 2D floor + backproject in 3D
                     let ax = np.first(where: { $0.0 == frm })?.1 ?? 10, ay = np.first(where: { $0.0 == frm })?.2 ?? 15
                     let bx = np.first(where: { $0.0 == to })?.1 ?? 20, by = np.first(where: { $0.0 == to })?.2 ?? 15
@@ -197,27 +211,35 @@ struct RTIHeatmapView: View {
                                 Text("○ SCANNING…").font(.system(size: 12, weight: .bold)).foregroundColor(.green)
                                 Text("no contact").font(.system(size: 11, design: .monospaced)).foregroundColor(.gray)
                             }
+                            // motion detector (VRTI: RSS variance)
+                            Divider().frame(width: 130)
+                            Text(e.motionEnergy > 0.22 ? "▲ MOTION" : "· still").font(.system(size: 11, weight: .bold)).foregroundColor(e.motionEnergy > 0.22 ? .yellow : .gray)
+                            Text(String(format: "motion %.2f", e.motionEnergy)).font(.system(size: 10, design: .monospaced)).foregroundColor(.gray)
                         }.padding(10)
                     }
                     .background(Color.black)
                     .cornerRadius(8)
                     .padding(8)
             } else {
-            // 30x30 grid of colored rectangles (floor view)
+            // smooth 2D floor heatmap (blurred field -> a continuous tomographic image, not blocks)
             GeometryReader { geo in
                 let cw = geo.size.width / 30
                 let ch = geo.size.height / 30
                 ZStack {
                     Color.black
-                    ForEach(0..<30, id: \.self) { y in
-                        ForEach(0..<30, id: \.self) { x in
-                            let v = e.grid[y][x]
-                            Rectangle()
-                                .fill(v > 0.02 ? col(v) : Color.clear)
-                                .frame(width: cw, height: ch)
-                                .position(x: CGFloat(x)*cw+cw/2, y: CGFloat(y)*ch+ch/2)
+                    // the field, blurred into a smooth heatmap
+                    ZStack {
+                        ForEach(0..<30, id: \.self) { y in
+                            ForEach(0..<30, id: \.self) { x in
+                                let v = e.grid[y][x]
+                                Rectangle()
+                                    .fill(v > 0.02 ? col(v) : Color.clear)
+                                    .frame(width: cw*1.6, height: ch*1.6)
+                                    .position(x: CGFloat(x)*cw+cw/2, y: CGFloat(y)*ch+ch/2)
+                            }
                         }
-                    }
+                    }.blur(radius: max(cw, ch)*1.1)
+                    // node markers on top (sharp)
                     ForEach(0..<e.np.count, id: \.self) { i in
                         let n = e.np[i]
                         Text("\(n.0)")
@@ -252,10 +274,14 @@ struct RTIHeatmapView: View {
         .onAppear { e.go() }
     }
     
+    // smooth perceptual heatmap: blue -> cyan -> green -> yellow -> red
     func col(_ v: Double) -> Color {
-        if v < 0.2 { return Color(red: 0.1, green: 0.3, blue: 0.9) }
-        if v < 0.4 { return Color(red: 0.1, green: 0.8, blue: 0.2) }
-        if v < 0.6 { return Color(red: 0.9, green: 0.9, blue: 0.1) }
-        return Color(red: 0.9, green: 0.1, blue: 0.1)
+        let t = max(0, min(1, v))
+        let r, g, b: Double
+        if t < 0.25 { r = 0.1; g = 0.3 + t*2.0; b = 0.95 }
+        else if t < 0.5 { r = 0.1; g = 0.85; b = 0.9 - (t-0.25)*3.2 }
+        else if t < 0.75 { r = 0.1 + (t-0.5)*3.4; g = 0.9; b = 0.1 }
+        else { r = 0.95; g = 0.9 - (t-0.75)*3.2; b = 0.1 }
+        return Color(red: r, green: g, blue: b)
     }
 }
