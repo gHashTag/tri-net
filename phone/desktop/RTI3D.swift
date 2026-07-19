@@ -33,7 +33,7 @@ struct RTI3DView: NSViewRepresentable {
         private let ring = SCNNode()
         private var extraBlips: [SCNNode] = []     // secondary target blips (multi-target)
         private var trackLabels: [SCNNode] = []    // per-track "#id" labels
-        private let zoneNode = SCNNode()           // perimeter restricted-zone marker
+        private var zoneNodes: [SCNNode] = []      // perimeter restricted-zone markers (pool)
         private var timer: Timer?
 
         init(_ e: RTIEngine) { self.e = e; build() }
@@ -143,15 +143,13 @@ struct RTI3DView: NSViewRepresentable {
                 tn.constraints = [SCNBillboardConstraint()]; trackLabels.append(tn); scene.rootNode.addChildNode(tn)
             }
 
-            // perimeter restricted zone: a translucent floor slab over [zoneX0..X1] x [zoneY0..Y1]
-            let zw = CGFloat((e.zoneX1 - e.zoneX0) * 2.0), zl = CGFloat((e.zoneY1 - e.zoneY0) * 2.0)
-            let slab = SCNBox(width: zw, height: 0.02, length: zl, chamferRadius: 0)
-            let zm = SCNMaterial(); zm.diffuse.contents = NSColor(red: 0.15, green: 0.8, blue: 0.3, alpha: 0.18)
-            zm.emission.contents = NSColor(red: 0.1, green: 0.5, blue: 0.2, alpha: 1); zm.isDoubleSided = true
-            slab.materials = [zm]; zoneNode.geometry = slab
-            let zcx = (e.zoneX0 + e.zoneX1)/2, zcy = (e.zoneY0 + e.zoneY1)/2
-            zoneNode.position = SCNVector3((zcx-0.5)*2.0, floorY + 0.02, (zcy-0.5)*2.0)
-            scene.rootNode.addChildNode(zoneNode)
+            // perimeter restricted-zone slabs (pool of up to 6; positioned from e.zones each refresh)
+            for _ in 0..<6 {
+                let slab = SCNBox(width: 0.2, height: 0.02, length: 0.2, chamferRadius: 0)
+                let zm = SCNMaterial(); zm.isDoubleSided = true; slab.materials = [zm]
+                let n = SCNNode(geometry: slab); n.opacity = 0
+                zoneNodes.append(n); scene.rootNode.addChildNode(n)
+            }
 
             // camera
             let cam = SCNCamera(); cam.zNear = 0.01
@@ -168,10 +166,21 @@ struct RTI3DView: NSViewRepresentable {
         }
 
         private func refresh() {
-            // perimeter zone glows RED on a breach, green when clear
+            // perimeter zones: each slab sized/positioned from e.zones; glows RED on a breach
+            let zones = e.zones
             let zc: NSColor = e.alarm ? NSColor(red: 0.95, green: 0.15, blue: 0.15, alpha: 0.32) : NSColor(red: 0.15, green: 0.8, blue: 0.3, alpha: 0.16)
-            zoneNode.geometry?.firstMaterial?.diffuse.contents = zc
-            zoneNode.geometry?.firstMaterial?.emission.contents = e.alarm ? NSColor(red: 0.8, green: 0.1, blue: 0.1, alpha: 1) : NSColor(red: 0.1, green: 0.5, blue: 0.2, alpha: 1)
+            let ze: NSColor = e.alarm ? NSColor(red: 0.8, green: 0.1, blue: 0.1, alpha: 1) : NSColor(red: 0.1, green: 0.5, blue: 0.2, alpha: 1)
+            for i in zoneNodes.indices {
+                if i < zones.count {
+                    let z = zones[i]
+                    zoneNodes[i].geometry = SCNBox(width: CGFloat(z.x1-z.x0)*2.0, height: 0.02, length: CGFloat(z.y1-z.y0)*2.0, chamferRadius: 0)
+                    zoneNodes[i].geometry?.firstMaterial?.isDoubleSided = true
+                    zoneNodes[i].geometry?.firstMaterial?.diffuse.contents = zc
+                    zoneNodes[i].geometry?.firstMaterial?.emission.contents = ze
+                    zoneNodes[i].position = SCNVector3((CGFloat((z.x0+z.x1)/2)-0.5)*2.0, floorY + 0.02, (CGFloat((z.y0+z.y1)/2)-0.5)*2.0)
+                    zoneNodes[i].opacity = 1
+                } else { zoneNodes[i].opacity = 0 }
+            }
             // node markers follow the MEASURED (self-localized) positions
             for m in nodeMarkers {
                 if let n = e.np3d.first(where: { $0.id == m.id }) {

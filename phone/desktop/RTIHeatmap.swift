@@ -67,11 +67,23 @@ class RTIEngine: ObservableObject {
     var activeLinks: [Int: Double] = [:]                          // recently-shadowed links -> last-seen time (JPDA)
     @Published var breathBpm = 0.0
     @Published var vitalConf = 0.0
-    // Perimeter security (product demo): a restricted zone; a tracked PERSON entering it raises an alarm
-    // and the event is logged (copyable). Zone near the .11 corner in normalized floor coords.
-    let zoneX0 = 0.60, zoneX1 = 0.92, zoneY0 = 0.08, zoneY1 = 0.40
+    // Perimeter security (product demo): one or more restricted zones; a tracked PERSON entering any of
+    // them raises an alarm and the event is logged (copyable). Zones are drawn on the 2D floor and can
+    // be exported as an incident report. First zone defaults near the .11 corner.
+    struct ZoneRect: Identifiable { let id = UUID(); var x0: Double; var y0: Double; var x1: Double; var y1: Double
+        func contains(_ x: Double, _ y: Double) -> Bool { x >= x0 && x <= x1 && y >= y0 && y <= y1 } }
+    @Published var zones: [ZoneRect] = [ZoneRect(x0: 0.60, y0: 0.08, x1: 0.92, y1: 0.40)]
     @Published var alarm = false
     private var inZoneIds = Set<Int>()
+    func addZone(_ z: ZoneRect) { DispatchQueue.main.async { self.zones.append(z) } }
+    func clearZones() { DispatchQueue.main.async { self.zones.removeAll(); self.alarm = false; self.inZoneIds.removeAll() } }
+    // Incident report: the intrusion events pulled out of the shared log, ready to copy/share.
+    func exportIncidents() -> String {
+        let lines = LogBus.shared.transcript().split(separator: "\n").map(String.init)
+            .filter { $0.contains("INTRUSION") || $0.contains("left the zone") }
+        let header = "TRI-NET RTI RADAR -- INTRUSION INCIDENT REPORT\nzones: \(zones.count)\n----\n"
+        return header + (lines.isEmpty ? "(no incidents)" : lines.joined(separator: "\n"))
+    }
     @Published var target: Contact? = nil          // strongest confirmed track (primary readout)
     @Published var trail: [Contact] = []           // primary track's history
     @Published var contacts: [Track] = []          // all confirmed tracks (for multi-blip render)
@@ -197,7 +209,7 @@ class RTIEngine: ObservableObject {
         // Option C -- perimeter alarm: a real person inside the restricted zone breaches it; log entry/exit.
         var breach = false; var nowIn = Set<Int>()
         for t in confirmed where !t.ghost {
-            if t.x >= zoneX0 && t.x <= zoneX1 && t.y >= zoneY0 && t.y <= zoneY1 {
+            if zones.contains(where: { $0.contains(t.x, t.y) }) {
                 nowIn.insert(t.id); breach = true
                 if !inZoneIds.contains(t.id) { NSLog("%@", String(format: "ALARM: INTRUSION track #%d entered zone at x=%.2f y=%.2f", t.id, t.x, t.y)) }
             }
@@ -441,6 +453,8 @@ class RTIEngine: ObservableObject {
 struct RTIHeatmapView: View {
     @ObservedObject var e: RTIEngine
     @State private var threeD = true          // 3D volumetric view is the default — presence in SPACE
+    @State private var dragStart: CGPoint? = nil   // drawing a new perimeter zone on the 2D floor
+    @State private var dragNow: CGPoint? = nil
 
     var body: some View {
         VStack(spacing: 4) {
@@ -513,6 +527,20 @@ struct RTIHeatmapView: View {
                             }
                         }
                     }.blur(radius: max(cw, ch)*1.1)
+                    // perimeter zones (drag to draw a new one; red when breached)
+                    ForEach(e.zones) { z in
+                        Rectangle()
+                            .strokeBorder(e.alarm ? Color.red : Color.green, lineWidth: 1.5)
+                            .background(Rectangle().fill((e.alarm ? Color.red : Color.green).opacity(0.12)))
+                            .frame(width: CGFloat(z.x1-z.x0)*geo.size.width, height: CGFloat(z.y1-z.y0)*geo.size.height)
+                            .position(x: CGFloat((z.x0+z.x1)/2)*geo.size.width, y: CGFloat((z.y0+z.y1)/2)*geo.size.height)
+                    }
+                    // in-progress drag rectangle
+                    if let a = dragStart, let b = dragNow {
+                        Rectangle().strokeBorder(Color.yellow, lineWidth: 1.5)
+                            .frame(width: abs(b.x-a.x), height: abs(b.y-a.y))
+                            .position(x: (a.x+b.x)/2, y: (a.y+b.y)/2)
+                    }
                     // node markers on top (sharp)
                     ForEach(0..<e.np.count, id: \.self) { i in
                         let n = e.np[i]
@@ -525,6 +553,18 @@ struct RTIHeatmapView: View {
                             .position(x: CGFloat(n.1)*cw, y: CGFloat(n.2)*ch)
                     }
                 }
+                .contentShape(Rectangle())
+                .gesture(DragGesture(minimumDistance: 8)
+                    .onChanged { v in if dragStart == nil { dragStart = v.startLocation }; dragNow = v.location }
+                    .onEnded { v in
+                        let a = dragStart ?? v.startLocation, b = v.location
+                        let x0 = min(a.x, b.x)/geo.size.width, x1 = max(a.x, b.x)/geo.size.width
+                        let y0 = min(a.y, b.y)/geo.size.height, y1 = max(a.y, b.y)/geo.size.height
+                        if x1-x0 > 0.03 && y1-y0 > 0.03 {
+                            e.addZone(RTIEngine.ZoneRect(x0: Double(x0), y0: Double(y0), x1: Double(x1), y1: Double(y1)))
+                        }
+                        dragStart = nil; dragNow = nil
+                    })
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.black)
@@ -534,7 +574,13 @@ struct RTIHeatmapView: View {
             
             HStack {
                 Text("Pkts: \(e.pktCount)").font(.caption).foregroundColor(.green)
+                Text("· zones \(e.zones.count)").font(.caption).foregroundColor(e.alarm ? .red : .gray)
                 Spacer()
+                Button("Export incidents") {
+                    let s = e.exportIncidents()
+                    NSPasteboard.general.clearContents(); NSPasteboard.general.setString(s, forType: .string)
+                }.font(.caption)
+                Button("Clear zones") { e.clearZones() }.font(.caption)
                 Button("Clear") { e.clear() }.font(.caption)
             }.padding(8)
 
