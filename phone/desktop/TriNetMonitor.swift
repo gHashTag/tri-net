@@ -415,6 +415,7 @@ class MeshMonitorEngine: ObservableObject {
     func start() {
         guard !isMonitoring else { return }
         isMonitoring = true
+        LogBus.shared.start()   // ensure the shared log is capturing (in case only this tab is opened)
         logEvent(.scan, node: 0, desc: "Monitor started — scanning \(deviceIPs.count) devices")
         scanNetwork()
         // Scan every 3 seconds
@@ -612,6 +613,7 @@ class MeshMonitorEngine: ObservableObject {
         let event = NetworkEvent(timestamp: Date(), type: type, node: node, description: desc)
         events.insert(event, at: 0)
         if events.count > 100 { events.removeLast() }
+        NSLog("%@", "NET: \(desc)")   // tee into the shared LogBus so the styled Log pane shows scan events
     }
 
     // MARK: - Health
@@ -1168,20 +1170,12 @@ struct EventLogView: View {
     @ObservedObject var engine: MeshMonitorEngine
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text("EVENT LOG").font(.system(size: 12, weight: .bold)).padding(.horizontal)
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 1) {
-                    ForEach(engine.events.prefix(30)) { event in
-                        LogRow(event: event)
-                    }
-                }
-                .padding(.horizontal)
-            }
-        }
-        .padding(.vertical, 4)
-        .background(DS.ink)
+        // Same styled, copyable, persistent log component as the Video Call and RTI tabs (LogBus.shared):
+        // header + Copy / Log file / pause + monospace scroll. Network scan events are teed into it via
+        // NSLog (see logEvent), so they show here alongside the rest of the app's log.
+        _ = engine   // kept so the call site stays unchanged
+        return LogPane(bus: LogBus.shared)
+            .background(DS.ink)
     }
 }
 
