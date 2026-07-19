@@ -34,6 +34,14 @@ class RTIEngine: ObservableObject {
     // approach that works through walls (Wilson & Patwari, "See-Through Walls", 2009).
     var rssHist: [Int: [Double]] = [:]
     @Published var motionEnergy = 0.0      // total motion right now (for the MOTION indicator)
+    // Option B -- a SEPARATE motion voxel field. Each link's RSS VARIANCE is backprojected here, so
+    // where moving-link ellipsoids cross the motion peaks: a MOVING POINT in space, not a scalar.
+    // Decays slower than the occupancy field so a slow real (TDM) feed still sustains a lock.
+    @Published var mvox = [Float](repeating: 0, count: 12*12*6)
+    // Option C -- CSI (per-subcarrier channel response, not just one scalar RSS). A moving body reshapes
+    // the frequency-selective fading; the spread of |H| ACROSS bins is a finer motion cue than mean RSS.
+    var csiHist: [Int: [Double]] = [:]     // per-link recent cross-bin spread
+    @Published var csiDelta = 0.0          // live CSI motion metric (envelope-CSI proxy for 802.11bf)
 
     // --- RADAR: extract a discrete target contact from the field (detection, not raw returns) ---
     // The backprojection peaks where shadowed links cross; the target = confidence-weighted centroid
@@ -42,24 +50,37 @@ class RTIEngine: ObservableObject {
     @Published var target: Contact? = nil
     @Published var trail: [Contact] = []
     private var wasLocked = false
+    private func lostContact() {
+        if wasLocked { NSLog("%@", "RTI: contact LOST"); wasLocked = false }
+        target = nil
+    }
     private func extractTarget() {
-        var peak: Float = 0
-        for v in vox { if v > peak { peak = v } }
-        guard peak > 0.85 else {
-            if wasLocked { NSLog("%@", "RTI: contact LOST"); wasLocked = false }
-            target = nil; return
-        }                                                         // detection threshold
-        let thr = peak * 0.62
+        // Combined evidence: static occupancy (vox) OR live MOTION (mvox, weighted a touch higher --
+        // a moving body is the radar's real target). Find the single strongest voxel = the return.
+        var rawPeak: Float = 0, pi = 0, pj = 0, pk = 0
+        for k in 0..<gz { for j in 0..<gy { for i in 0..<gx {
+            let c = max(vox[k*gx*gy + j*gx + i], mvox[k*gx*gy + j*gx + i]*1.2)
+            if c > rawPeak { rawPeak = c; pi = i; pj = j; pk = k }
+        }}}
+        guard rawPeak > 0.45 else { lostContact(); return }          // nothing above noise
+        // A radar reports ONE contact: centroid only over the strongest LOBE (voxels near the peak and
+        // above 0.55*peak), so a bimodal reconstruction locks the nearest strong return instead of
+        // averaging two lobes into empty space. Spatial gating is what makes it read like a radar.
+        let thr = rawPeak * 0.55
+        let rr = 3.0   // gate radius in cells around the peak
         var sx = 0.0, sy = 0.0, sz = 0.0, sw = 0.0
         for k in 0..<gz { for j in 0..<gy { for i in 0..<gx {
-            let v = Double(vox[k*gx*gy + j*gx + i])
+            let v = Double(max(vox[k*gx*gy + j*gx + i], mvox[k*gx*gy + j*gx + i]*1.2))
             if Float(v) >= thr {
-                sx += ((Double(i)+0.5)/Double(gx))*v; sy += ((Double(j)+0.5)/Double(gy))*v
-                sz += ((Double(k)+0.5)/Double(gz))*v; sw += v
+                let dcell = (Double(i-pi)*Double(i-pi) + Double(j-pj)*Double(j-pj) + Double(k-pk)*Double(k-pk)).squareRoot()
+                if dcell <= rr {
+                    sx += ((Double(i)+0.5)/Double(gx))*v; sy += ((Double(j)+0.5)/Double(gy))*v
+                    sz += ((Double(k)+0.5)/Double(gz))*v; sw += v
+                }
             }
         }}}
-        guard sw > 0 else { target = nil; return }
-        let c = Contact(x: sx/sw, y: sy/sw, z: sz/sw, conf: Double(peak))
+        guard sw > 0 else { lostContact(); return }
+        let c = Contact(x: sx/sw, y: sy/sw, z: sz/sw, conf: Double(rawPeak))
         target = c
         trail.append(c); if trail.count > 24 { trail.removeFirst() }
         if !wasLocked { NSLog("%@", String(format: "RTI: CONTACT LOCKED  x=%.2f y=%.2f height=%.2f conf=%.1f", c.x, c.y, c.z, c.conf)); wasLocked = true }
@@ -67,7 +88,7 @@ class RTIEngine: ObservableObject {
     private func d3(_ ax: Double,_ ay: Double,_ az: Double,_ bx: Double,_ by: Double,_ bz: Double) -> Double {
         let dx = ax-bx, dy = ay-by, dz = az-bz; return (dx*dx+dy*dy+dz*dz).squareRoot()
     }
-    private func backproject3d(_ frm: Int,_ to: Int,_ v: Double) {
+    private func backproject3d(_ frm: Int,_ to: Int,_ v: Double, motion: Bool = false) {
         guard let a = np3d.first(where: { $0.id == frm }), let b = np3d.first(where: { $0.id == to }) else { return }
         let dab = d3(a.x,a.y,a.z, b.x,b.y,b.z)
         let w = Float(v / dab.squareRoot())
@@ -78,7 +99,10 @@ class RTIEngine: ObservableObject {
             let excess = d3(a.x,a.y,a.z, px,py,pz) + d3(px,py,pz, b.x,b.y,b.z) - dab
             if excess < lam { upd.append((k*gx*gy + j*gx + i, w)) }
         }}}
-        DispatchQueue.main.async { for (idx, add) in upd { self.vox[idx] = min(3.0, self.vox[idx] + add) } }
+        DispatchQueue.main.async {
+            if motion { for (idx, add) in upd { self.mvox[idx] = min(3.0, self.mvox[idx] + add) } }
+            else      { for (idx, add) in upd { self.vox[idx]  = min(3.0, self.vox[idx]  + add) } }
+        }
     }
     
     func go() {
@@ -102,6 +126,9 @@ class RTIEngine: ObservableObject {
             DispatchQueue.main.async {
                 for y in 0..<30 { for x in 0..<30 { self.grid[y][x] *= 0.9 } }
                 for i in self.vox.indices { self.vox[i] *= 0.86 }
+                for i in self.mvox.indices { self.mvox[i] *= 0.90 }   // motion persists a touch longer
+                self.motionEnergy *= 0.82                             // decay stale motion (was frozen -> lied)
+                self.csiDelta *= 0.82
                 self.extractTarget()          // radar detection: pull the contact from the field
             }
         }
@@ -142,24 +169,45 @@ class RTIEngine: ObservableObject {
                 self.rssHist[key] = h
                 let m = h.reduce(0,+)/Double(h.count)
                 let sd = (h.map { ($0-m)*($0-m) }.reduce(0,+)/Double(h.count)).squareRoot()
-                let motion = min(1.0, sd/max(1.0, base*0.13))
+                let motion = min(1.0, sd/max(1.0, base*0.13))                 // VRTI: variance -> motion
                 let drop = max(0.0, min(1.0, (base - rss)/max(1.0, base)))    // static shadow (occupancy)
-                let sig = max(motion, drop*0.65)                              // motion dominates
-                DispatchQueue.main.async { self.motionEnergy = 0.6*self.motionEnergy + 0.4*motion }
-                if sig > 0.15 {
-                    let drop = sig    // shadow this link's path by the combined motion+occupancy signal
-                    // draw the shadowed link onto the 2D floor + backproject in 3D
+                DispatchQueue.main.async { self.motionEnergy = 0.7*self.motionEnergy + 0.3*motion }
+                // Option B -- real VRTI LOCALIZATION: backproject the per-link VARIANCE into the motion
+                // field so where moving-link ellipsoids cross, the motion peaks -> a MOVING point in
+                // space (extracted by the radar), not just a scalar energy bar.
+                if motion > 0.12 { self.backproject3d(frm, to, motion, motion: true) }
+                // static occupancy still lights the 2D floor + the occupancy field
+                if drop > 0.15 {
                     let ax = np.first(where: { $0.0 == frm })?.1 ?? 10, ay = np.first(where: { $0.0 == frm })?.2 ?? 15
                     let bx = np.first(where: { $0.0 == to })?.1 ?? 20, by = np.first(where: { $0.0 == to })?.2 ?? 15
                     var x0=ax, y0=ay; let x1=bx, y1=by
                     let dx=abs(x1-x0), dy=abs(y1-y0); let sx = x0<x1 ?1:-1, sy = y0<y1 ?1:-1
                     var err=dx-dy, pts:[(Int,Int)]=[]
                     while true { pts.append((x0,y0)); if x0==x1 && y0==y1 {break}; let e2=2*err; if e2 > (-dy){err-=dy; x0+=sx}; if e2<dx{err+=dx; y0+=sy} }
-                    DispatchQueue.main.async { for (x,y) in pts { if x>=0&&x<30&&y>=0&&y<30 { self.grid[y][x]=min(1.0,self.grid[y][x]+drop) } }; self.pktCount += 1; self.lastMsg = "LIVE \(self.pktCount)" }
+                    DispatchQueue.main.async { for (x,y) in pts { if x>=0&&x<30&&y>=0&&y<30 { self.grid[y][x]=min(1.0,self.grid[y][x]+drop) } } }
                     self.backproject3d(frm, to, drop)
-                } else {
-                    DispatchQueue.main.async { self.pktCount += 1 }
                 }
+                DispatchQueue.main.async { self.pktCount += 1; self.lastMsg = "LIVE \(self.pktCount)" }
+            } else if n >= 4 && buf[0] == 36 {
+                // Option C -- CSI: [36, frm, to, nb, b0..b_{nb-1}] = per-subcarrier |H| envelope (0..255).
+                // A moving body reshapes the frequency-selective fading; the change of the |H| SHAPE
+                // across bins (not just its mean) is a finer motion cue -- the 802.11bf-style feature,
+                // here as an envelope-CSI proxy computed from a wideband probe on the AD9361.
+                let frm = Int(buf[1]), to = Int(buf[2]); let nb = min(Int(buf[3]), n-4)
+                guard nb >= 2 else { usleep(2000); continue }
+                var bins = [Double](repeating: 0, count: nb)
+                for i in 0..<nb { bins[i] = Double(buf[4+i]) }
+                let bm = bins.reduce(0,+)/Double(nb)
+                let spread = (bins.map { ($0-bm)*($0-bm) }.reduce(0,+)/Double(nb)).squareRoot()  // cross-bin |H| spread
+                let key = frm*1000 + to
+                var ch = self.csiHist[key] ?? []; ch.append(spread); if ch.count > 8 { ch.removeFirst() }
+                self.csiHist[key] = ch
+                let cm = ch.reduce(0,+)/Double(ch.count)
+                let csd = (ch.map { ($0-cm)*($0-cm) }.reduce(0,+)/Double(ch.count)).squareRoot()  // temporal change of the shape
+                let csi = min(1.0, csd/max(1.0, bm*0.08))
+                DispatchQueue.main.async { self.csiDelta = 0.7*self.csiDelta + 0.3*csi }
+                if csi > 0.12 { self.backproject3d(frm, to, csi, motion: true) }   // CSI feeds the same motion field
+                DispatchQueue.main.async { self.pktCount += 1; self.lastMsg = "CSI \(self.pktCount)" }
             } else if n >= 5 && buf[0] == 34 {
                 // self-localization: a board's MEASURED position [34, id, x, y, z] (0..255 -> 0..1)
                 let id = Int(buf[1])
@@ -177,7 +225,9 @@ class RTIEngine: ObservableObject {
     func clear() { DispatchQueue.main.async {
         for y in 0..<30 { for x in 0..<30 { self.grid[y][x] = 0 } }
         for i in self.vox.indices { self.vox[i] = 0 }
+        for i in self.mvox.indices { self.mvox[i] = 0 }
         self.target = nil; self.trail.removeAll(); self.pktCount = 0
+        self.motionEnergy = 0; self.csiDelta = 0
     } }
 }
 
@@ -211,10 +261,11 @@ struct RTIHeatmapView: View {
                                 Text("○ SCANNING…").font(.system(size: 12, weight: .bold)).foregroundColor(.green)
                                 Text("no contact").font(.system(size: 11, design: .monospaced)).foregroundColor(.gray)
                             }
-                            // motion detector (VRTI: RSS variance)
+                            // motion detector (VRTI: RSS variance) + CSI channel metric
                             Divider().frame(width: 130)
                             Text(e.motionEnergy > 0.22 ? "▲ MOTION" : "· still").font(.system(size: 11, weight: .bold)).foregroundColor(e.motionEnergy > 0.22 ? .yellow : .gray)
                             Text(String(format: "motion %.2f", e.motionEnergy)).font(.system(size: 10, design: .monospaced)).foregroundColor(.gray)
+                            Text(String(format: "CSI Δ %.2f", e.csiDelta)).font(.system(size: 10, design: .monospaced)).foregroundColor(e.csiDelta > 0.2 ? .cyan : .gray)
                         }.padding(10)
                     }
                     .background(Color.black)

@@ -148,14 +148,24 @@ struct RTI3DView: NSViewRepresentable {
                     m.label.position = SCNVector3(p.x + 0.08, p.y + 0.08, p.z)
                 }
             }
-            // the HEATMAP: the tomographic field itself, coloured blue->red, prominent again
-            let vox = e.vox
-            for idx in voxNodes.indices where idx < vox.count {
-                let val = min(1.0, Double(vox[idx]))
+            // the HEATMAP: the tomographic field, occupancy (vox) OR motion (mvox), coloured blue->red.
+            // Option A applied to the DISPLAY too: subtract the field's own diffuse floor and rectify,
+            // so the map shows a SHARP localized blob where links cross -- not a saturated ball of
+            // overlapping ellipsoid tubes (RTI's multipath artefact). This is what makes it read "real".
+            let vox = e.vox, mvox = e.mvox
+            let nn = min(voxNodes.count, min(vox.count, mvox.count))
+            var comb = [Double](repeating: 0, count: voxNodes.count)
+            var mean = 0.0, peak = 0.0
+            for idx in 0..<nn { let c = Double(max(vox[idx], mvox[idx])); comb[idx] = c; mean += c; if c > peak { peak = c } }
+            mean /= Double(max(1, nn))
+            let span = max(0.001, peak - mean)
+            for idx in voxNodes.indices where idx < comb.count {
+                let val = max(0.0, comb[idx] - mean*1.15) / span
                 let node = voxNodes[idx]
-                if val < 0.22 { node.opacity = 0; continue }
-                node.opacity = CGFloat(0.14 + val*0.5)
-                let c = Coord.heat(val)
+                if val < 0.18 { node.opacity = 0; continue }
+                let vv = min(1.0, val)
+                node.opacity = CGFloat(0.18 + vv*0.55)
+                let c = Coord.heat(vv)
                 node.geometry?.firstMaterial?.diffuse.contents = c
                 node.geometry?.firstMaterial?.emission.contents = c
             }
