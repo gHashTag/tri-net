@@ -204,8 +204,13 @@ struct RTI3DView: NSViewRepresentable {
             for bi in extraBlips.indices {
                 let ci = bi + 1                       // contacts[0] is the primary (targetNode)
                 if ci < cs.count {
-                    extraBlips[bi].position = pos(cs[ci].x, cs[ci].y, cs[ci].z)
-                    extraBlips[bi].opacity = cs[ci].misses > 0 ? 0.4 : 0.95   // dim while coasting (predicted)
+                    let c = cs[ci]
+                    extraBlips[bi].position = pos(c.x, c.y, c.z)
+                    // ghosts (RTI crossing phantoms) render dim GREY, real people bright orange
+                    let col: NSColor = c.ghost ? NSColor(white: 0.5, alpha: 1) : NSColor.systemOrange
+                    extraBlips[bi].geometry?.firstMaterial?.diffuse.contents = col
+                    extraBlips[bi].geometry?.firstMaterial?.emission.contents = col
+                    extraBlips[bi].opacity = c.ghost ? 0.3 : (c.misses > 0 ? 0.4 : 0.95)
                 } else { extraBlips[bi].opacity = 0 }
             }
             for li in trackLabels.indices {

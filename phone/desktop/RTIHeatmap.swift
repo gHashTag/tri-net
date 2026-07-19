@@ -1,5 +1,6 @@
 import SwiftUI
 import Darwin
+import QuartzCore
 
 // Simple ObservableObject with BSD UDP receiver
 class RTIEngine: ObservableObject {
@@ -57,7 +58,12 @@ class RTIEngine: ObservableObject {
     struct Contact { var x: Double; var y: Double; var z: Double; var conf: Double }
     struct Track: Identifiable { var id: Int; var x: Double; var y: Double; var z: Double
         var vx: Double; var vy: Double; var vz: Double; var conf: Double; var hits: Int; var misses: Int
-        var trail: [Contact] }
+        var trail: [Contact]; var ghost: Bool = false }
+    // Vital signs (option C): a chest wall moving with breathing periodically modulates the CSI phase.
+    // We buffer the (CFO-robust) phase signal over time and look for a peak in the breathing band.
+    var csiPhaseSeries: [(t: Double, v: Double)] = []
+    @Published var breathBpm = 0.0
+    @Published var vitalConf = 0.0
     @Published var target: Contact? = nil          // strongest confirmed track (primary readout)
     @Published var trail: [Contact] = []           // primary track's history
     @Published var contacts: [Track] = []          // all confirmed tracks (for multi-blip render)
@@ -151,10 +157,56 @@ class RTIEngine: ObservableObject {
         for t in tracks where t.misses > 6 { NSLog("%@", String(format: "RTI: TRACK #%d LOST", t.id)) }
         tracks.removeAll { $0.misses > 6 }
         // publish confirmed tracks (survived >=3 frames, still fresh) -- strongest is the primary
-        let confirmed = tracks.filter { $0.hits >= 3 && $0.misses <= 2 }.sorted { $0.conf > $1.conf }
+        var confirmed = tracks.filter { $0.hits >= 3 && $0.misses <= 2 }.sorted { $0.conf > $1.conf }
+        // Option A -- ghost suppression: an RTI CROSSING GHOST (two bodies each shadow one link, the
+        // OTHER crossing lights up) sits BETWEEN two real targets, ON the line joining them -- it is the
+        // MIDDLE of a collinear triple. Overlap can make it as strong as the reals, so we flag by
+        // geometry, not by amplitude. (Full disambiguation = JPDA shadow-evidence explaining-away.)
+        for i in confirmed.indices {
+            for a in confirmed.indices where a != i {
+                for b in confirmed.indices where b != i && b > a {
+                    if segDist(confirmed[i], confirmed[a], confirmed[b]) < 0.10 { confirmed[i].ghost = true }
+                }
+            }
+        }
         contacts = confirmed
-        if let p = confirmed.first { target = Contact(x: p.x, y: p.y, z: p.z, conf: p.conf); trail = p.trail }
+        if let p = confirmed.first(where: { !$0.ghost }) { target = Contact(x: p.x, y: p.y, z: p.z, conf: p.conf); trail = p.trail }
         else { target = nil }
+    }
+    // distance from track p to the segment (a,b), and only "between" a and b counts (projection in [0,1])
+    private func segDist(_ p: Track, _ a: Track, _ b: Track) -> Double {
+        let dx = b.x-a.x, dy = b.y-a.y, dz = b.z-a.z
+        let L2 = dx*dx+dy*dy+dz*dz
+        if L2 < 1e-9 { return 9 }
+        let t = ((p.x-a.x)*dx + (p.y-a.y)*dy + (p.z-a.z)*dz) / L2
+        if t < 0.15 || t > 0.85 { return 9 }        // not between -> not a crossing ghost
+        let cx = a.x+t*dx, cy = a.y+t*dy, cz = a.z+t*dz
+        return ((p.x-cx)*(p.x-cx)+(p.y-cy)*(p.y-cy)+(p.z-cz)*(p.z-cz)).squareRoot()
+    }
+
+    // Option C vital signs: scan the CSI-phase time-series for a periodic peak in the breathing band.
+    // Irregular (packet-driven) sampling -> a direct DFT over the actual timestamps (Lomb-style), so we
+    // don't need a fixed sample rate. Peak-to-average power = confidence; peak frequency x60 = breaths/min.
+    private func computeVital() {
+        let s = csiPhaseSeries
+        guard s.count >= 16 else { breathBpm = 0; vitalConf = 0; return }
+        let t0 = s[0].t; let ts = s.map { $0.t - t0 }
+        guard let span = ts.last, span > 8 else { return }     // need >=8s of history
+        let mean = s.map { $0.v }.reduce(0,+)/Double(s.count)
+        let v = s.map { $0.v - mean }                          // detrend (remove DC)
+        var bestF = 0.0, bestP = 0.0, totP = 0.0; var nb = 0
+        var f = 0.12
+        while f <= 0.60 {                                       // 7.2 .. 36 breaths/min
+            var re = 0.0, im = 0.0
+            for k in 0..<v.count { let a = 2*Double.pi*f*ts[k]; re += v[k]*Foundation.cos(a); im += v[k]*Foundation.sin(a) }
+            let p = re*re + im*im; totP += p; nb += 1
+            if p > bestP { bestP = p; bestF = f }
+            f += 0.01
+        }
+        let avg = totP/Double(max(1, nb))
+        let ratio = bestP/max(1e-9, avg)                       // peak-to-average power ratio
+        breathBpm = bestF*60
+        vitalConf = min(1.0, ratio/8.0)
     }
     private func d3(_ ax: Double,_ ay: Double,_ az: Double,_ bx: Double,_ by: Double,_ bz: Double) -> Double {
         let dx = ax-bx, dy = ay-by, dz = az-bz; return (dx*dx+dy*dy+dz*dz).squareRoot()
@@ -201,6 +253,7 @@ class RTIEngine: ObservableObject {
                 self.motionEnergy *= 0.82                             // decay stale motion (was frozen -> lied)
                 self.csiDelta *= 0.82; self.csiPhase *= 0.82
                 self.extractTargets()         // radar detection + multi-target tracking
+                self.computeVital()           // breathing-rate estimate from the CSI-phase time-series
             }
         }
     }
@@ -297,7 +350,14 @@ class RTIEngine: ObservableObject {
                 }
                 self.csiPhasePrev[key] = d
                 let phm = min(1.0, mv/0.6)                 // 0.6 rad avg change ~ strong micro-motion
-                DispatchQueue.main.async { self.csiPhase = 0.7*self.csiPhase + 0.3*phm }
+                // vital-signs signal: the mean cross-bin phase (CFO-robust) sampled over time
+                let meanD = d.reduce(0,+)/Double(d.count)
+                let now = CACurrentMediaTime()
+                DispatchQueue.main.async {
+                    self.csiPhase = 0.7*self.csiPhase + 0.3*phm
+                    self.csiPhaseSeries.append((now, meanD))
+                    while let f = self.csiPhaseSeries.first, now - f.t > 40 { self.csiPhaseSeries.removeFirst() }
+                }
                 if phm > 0.15 { self.backproject3d(frm, to, phm, motion: true) }
                 DispatchQueue.main.async { self.pktCount += 1; self.lastMsg = "CSIφ \(self.pktCount)" }
             } else if n >= 5 && buf[0] == 34 {
@@ -320,6 +380,7 @@ class RTIEngine: ObservableObject {
         for i in self.mvox.indices { self.mvox[i] = 0 }
         self.target = nil; self.trail.removeAll(); self.contacts.removeAll(); self.tracks.removeAll(); self.pktCount = 0
         self.motionEnergy = 0; self.csiDelta = 0; self.csiPhase = 0
+        self.csiPhaseSeries.removeAll(); self.breathBpm = 0; self.vitalConf = 0
     } }
 }
 
@@ -349,10 +410,11 @@ struct RTIHeatmapView: View {
                                 Text("○ SCANNING…").font(.system(size: 12, weight: .bold)).foregroundColor(.green)
                                 Text("no contact").font(.system(size: 11, design: .monospaced)).foregroundColor(.gray)
                             } else {
-                                Text("● \(e.contacts.count) CONTACT\(e.contacts.count > 1 ? "S" : "") TRACKED").font(.system(size: 12, weight: .bold)).foregroundColor(.red)
+                                let people = e.contacts.filter { !$0.ghost }.count
+                                Text("● \(people) PERSON\(people == 1 ? "" : "S")").font(.system(size: 12, weight: .bold)).foregroundColor(.red)
                                 ForEach(e.contacts) { c in
-                                    Text(String(format: "#%d  X %.2f Y %.2f H %.2f%@", c.id, c.x, c.y, c.z, c.misses > 0 ? "  ~pred" : ""))
-                                        .font(.system(size: 11, design: .monospaced)).foregroundColor(c.misses > 0 ? .yellow : .orange)
+                                    Text(String(format: "#%d  X %.2f Y %.2f H %.2f%@", c.id, c.x, c.y, c.z, c.ghost ? "  ghost" : (c.misses > 0 ? "  ~pred" : "")))
+                                        .font(.system(size: 11, design: .monospaced)).foregroundColor(c.ghost ? .gray : (c.misses > 0 ? .yellow : .orange))
                                 }
                             }
                             // motion detector (VRTI: RSS variance) + CSI channel metric
@@ -361,6 +423,12 @@ struct RTIHeatmapView: View {
                             Text(String(format: "motion %.2f", e.motionEnergy)).font(.system(size: 10, design: .monospaced)).foregroundColor(.gray)
                             Text(String(format: "CSI|H| %.2f", e.csiDelta)).font(.system(size: 10, design: .monospaced)).foregroundColor(e.csiDelta > 0.2 ? .cyan : .gray)
                             Text(String(format: "CSI\u{03C6} %.2f", e.csiPhase)).font(.system(size: 10, design: .monospaced)).foregroundColor(e.csiPhase > 0.2 ? .cyan : .gray)
+                            // vital signs (option C): breathing rate from the CSI-phase spectrum
+                            if e.vitalConf > 0.5 {
+                                Text(String(format: "\u{2665} BREATHING %.0f bpm", e.breathBpm)).font(.system(size: 11, weight: .bold)).foregroundColor(.pink)
+                            } else {
+                                Text("\u{2665} vitals —").font(.system(size: 10, design: .monospaced)).foregroundColor(.gray)
+                            }
                         }.padding(10)
                     }
                     .background(Color.black)
