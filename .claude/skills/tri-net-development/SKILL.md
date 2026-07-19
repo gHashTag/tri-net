@@ -1144,4 +1144,19 @@ smoke/DEPIN_RELAY_OTA_RTI_2026-07-19.md).** ("все три"; multi-hop cycle cl
   your own files by explicit path, verify the staged count, never `git add -A`. A stale
   `.git/index.lock` once mass-staged 9639 files; `git reset HEAD` + remove the lock recovers.
 
+**3D RTI TOMOGRAPHY IN THE APP (2026-07-19, docs/RTI_3D_DESIGN.md, phone/desktop/RTI3D.swift).**
+- **3D RTI = ellipsoid backprojection into a voxel field.** For link (a,b), a voxel p gets weight
+  `1/sqrt(|a-b|)` iff `|a-p|+|p-b|-|a-b| < lambda` (the 3D Fresnel ellipsoid). Real-time = backproject
+  `x=Wᵀy`; sharper = regularized inverse `(WᵀW+C⁻¹)⁻¹Wᵀy` (precompute for fixed geometry). Motion =
+  VRTI (per-link RSS variance, no baseline needed).
+- **Z-axis is only observable if nodes have VERTICAL DIVERSITY** (>=2 heights) -- else all links are
+  coplanar and height smears. The 4 boards are placed at two heights (.13/.10 high, .11/.12 low).
+  4 corner nodes = coarse blob; ~12-20 nodes = sub-metre 3D in the literature.
+- **Render with SceneKit** (`SCNView` via `NSViewRepresentable`, `allowsCameraControl=true`): voxels
+  as small `SCNBox`, a Timer updates opacity + emission color per frame; `writesToDepthBuffer=false` +
+  `.dualLayer` for the volumetric look; billboard `SCNText` node labels; wireframe `SCNBox`
+  (`fillMode=.lines`) frame. RealityKit/Metal are overkill for ~1000 voxels. `RTIEngine` computes the
+  voxel field from the same UDP link packets; `RTI3DView` renders it; a 3D/2D toggle in the RTI tab.
+  Verified on-screen: two crossing diagonals -> beams crossing inside the cube.
+
 phi^2 + phi^-2 = 3 | TRINITY
