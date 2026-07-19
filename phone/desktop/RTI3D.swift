@@ -33,6 +33,7 @@ struct RTI3DView: NSViewRepresentable {
         private let ring = SCNNode()
         private var extraBlips: [SCNNode] = []     // secondary target blips (multi-target)
         private var trackLabels: [SCNNode] = []    // per-track "#id" labels
+        private let zoneNode = SCNNode()           // perimeter restricted-zone marker
         private var timer: Timer?
 
         init(_ e: RTIEngine) { self.e = e; build() }
@@ -142,6 +143,16 @@ struct RTI3DView: NSViewRepresentable {
                 tn.constraints = [SCNBillboardConstraint()]; trackLabels.append(tn); scene.rootNode.addChildNode(tn)
             }
 
+            // perimeter restricted zone: a translucent floor slab over [zoneX0..X1] x [zoneY0..Y1]
+            let zw = CGFloat((e.zoneX1 - e.zoneX0) * 2.0), zl = CGFloat((e.zoneY1 - e.zoneY0) * 2.0)
+            let slab = SCNBox(width: zw, height: 0.02, length: zl, chamferRadius: 0)
+            let zm = SCNMaterial(); zm.diffuse.contents = NSColor(red: 0.15, green: 0.8, blue: 0.3, alpha: 0.18)
+            zm.emission.contents = NSColor(red: 0.1, green: 0.5, blue: 0.2, alpha: 1); zm.isDoubleSided = true
+            slab.materials = [zm]; zoneNode.geometry = slab
+            let zcx = (e.zoneX0 + e.zoneX1)/2, zcy = (e.zoneY0 + e.zoneY1)/2
+            zoneNode.position = SCNVector3((zcx-0.5)*2.0, floorY + 0.02, (zcy-0.5)*2.0)
+            scene.rootNode.addChildNode(zoneNode)
+
             // camera
             let cam = SCNCamera(); cam.zNear = 0.01
             let camNode = SCNNode(); camNode.camera = cam
@@ -157,6 +168,10 @@ struct RTI3DView: NSViewRepresentable {
         }
 
         private func refresh() {
+            // perimeter zone glows RED on a breach, green when clear
+            let zc: NSColor = e.alarm ? NSColor(red: 0.95, green: 0.15, blue: 0.15, alpha: 0.32) : NSColor(red: 0.15, green: 0.8, blue: 0.3, alpha: 0.16)
+            zoneNode.geometry?.firstMaterial?.diffuse.contents = zc
+            zoneNode.geometry?.firstMaterial?.emission.contents = e.alarm ? NSColor(red: 0.8, green: 0.1, blue: 0.1, alpha: 1) : NSColor(red: 0.1, green: 0.5, blue: 0.2, alpha: 1)
             // node markers follow the MEASURED (self-localized) positions
             for m in nodeMarkers {
                 if let n = e.np3d.first(where: { $0.id == m.id }) {

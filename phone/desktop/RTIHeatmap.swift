@@ -67,6 +67,11 @@ class RTIEngine: ObservableObject {
     var activeLinks: [Int: Double] = [:]                          // recently-shadowed links -> last-seen time (JPDA)
     @Published var breathBpm = 0.0
     @Published var vitalConf = 0.0
+    // Perimeter security (product demo): a restricted zone; a tracked PERSON entering it raises an alarm
+    // and the event is logged (copyable). Zone near the .11 corner in normalized floor coords.
+    let zoneX0 = 0.60, zoneX1 = 0.92, zoneY0 = 0.08, zoneY1 = 0.40
+    @Published var alarm = false
+    private var inZoneIds = Set<Int>()
     @Published var target: Contact? = nil          // strongest confirmed track (primary readout)
     @Published var trail: [Contact] = []           // primary track's history
     @Published var contacts: [Track] = []          // all confirmed tracks (for multi-blip render)
@@ -189,6 +194,16 @@ class RTIEngine: ObservableObject {
         contacts = confirmed
         if let p = confirmed.first(where: { !$0.ghost }) { target = Contact(x: p.x, y: p.y, z: p.z, conf: p.conf); trail = p.trail }
         else { target = nil }
+        // Option C -- perimeter alarm: a real person inside the restricted zone breaches it; log entry/exit.
+        var breach = false; var nowIn = Set<Int>()
+        for t in confirmed where !t.ghost {
+            if t.x >= zoneX0 && t.x <= zoneX1 && t.y >= zoneY0 && t.y <= zoneY1 {
+                nowIn.insert(t.id); breach = true
+                if !inZoneIds.contains(t.id) { NSLog("%@", String(format: "ALARM: INTRUSION track #%d entered zone at x=%.2f y=%.2f", t.id, t.x, t.y)) }
+            }
+        }
+        for id in inZoneIds where !nowIn.contains(id) { NSLog("%@", String(format: "track #%d left the zone", id)) }
+        inZoneIds = nowIn; alarm = breach
     }
     // distance from point p to the segment (a,b) in 3D
     private func distPointSeg(_ px: Double,_ py: Double,_ pz: Double,_ ax: Double,_ ay: Double,_ az: Double,_ bx: Double,_ by: Double,_ bz: Double) -> Double {
@@ -419,7 +434,7 @@ class RTIEngine: ObservableObject {
         self.target = nil; self.trail.removeAll(); self.contacts.removeAll(); self.tracks.removeAll(); self.pktCount = 0
         self.motionEnergy = 0; self.csiDelta = 0; self.csiPhase = 0
         self.csiPhaseSeries.removeAll(); self.csiLinkSeries.removeAll(); self.activeLinks.removeAll()
-        self.breathBpm = 0; self.vitalConf = 0
+        self.breathBpm = 0; self.vitalConf = 0; self.alarm = false; self.inZoneIds.removeAll()
     } }
 }
 
@@ -445,6 +460,10 @@ struct RTIHeatmapView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .overlay(alignment: .topLeading) {
                         VStack(alignment: .leading, spacing: 3) {
+                            if e.alarm {
+                                Text("⚠ INTRUSION ALARM").font(.system(size: 13, weight: .heavy)).foregroundColor(.white)
+                                    .padding(.horizontal, 6).padding(.vertical, 2).background(Color.red).cornerRadius(4)
+                            }
                             if e.contacts.isEmpty {
                                 Text("○ SCANNING…").font(.system(size: 12, weight: .bold)).foregroundColor(.green)
                                 Text("no contact").font(.system(size: 11, design: .monospaced)).foregroundColor(.gray)
