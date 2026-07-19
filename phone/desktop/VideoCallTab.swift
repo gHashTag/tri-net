@@ -426,6 +426,17 @@ struct LogPane: View {
                 }
                 .buttonStyle(.plain)
                 .help("Copy the full log to the clipboard")
+                Button(action: { bus.revealLog() }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "folder").font(.system(size: 9))
+                        Text("Log file").font(DS.mono(9, .medium))
+                    }
+                    .foregroundColor(DS.dim)
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .overlay(Capsule().stroke(DS.hairline, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .help("Reveal the persistent log file (~/Library/Logs/TriNetMonitor/monitor.log) in Finder")
                 Button(action: { paused.toggle() }) {
                     Image(systemName: paused ? "play.fill" : "pause.fill")
                         .font(.system(size: 9)).foregroundColor(DS.dim)

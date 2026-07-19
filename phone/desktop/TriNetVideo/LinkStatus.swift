@@ -9,6 +9,7 @@ import Foundation
 import Combine
 import Darwin
 import CoreWLAN
+import AppKit
 
 // MARK: - Live log
 
@@ -25,10 +26,31 @@ final class LogBus: ObservableObject {
     private let q = DispatchQueue(label: "trinet.logbus")
     private var started = false
 
+    // Persistent log FILE, so the detailed log survives quitting (the in-memory `lines` does not).
+    // Standard macOS location -> visible in Console.app and Finder.
+    let logURL: URL = {
+        let dir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Logs/TriNetMonitor", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("monitor.log")
+    }()
+    var logPath: String { logURL.path }
+    private var logFH: FileHandle?
+    private let tsFmt: DateFormatter = { let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"; return f }()
+    private func appendFile(_ s: String) {
+        guard let fh = logFH else { return }
+        if let d = "\(tsFmt.string(from: Date())) \(s)\n".data(using: .utf8) { try? fh.write(contentsOf: d) }
+    }
+
     // Keep writing to the real stderr too, so a terminal launch still shows logs.
     func start() {
         guard !started else { return }
         started = true
+        // open the persistent log file (append)
+        if !FileManager.default.fileExists(atPath: logURL.path) { FileManager.default.createFile(atPath: logURL.path, contents: nil) }
+        logFH = try? FileHandle(forWritingTo: logURL)
+        try? logFH?.seekToEnd()
+        appendFile("=== TRI-NET Monitor session start === log: \(logURL.path)")
         var fds: [Int32] = [0, 0]
         guard pipe(&fds) == 0 else { return }
         pipeRead = fds[0]
@@ -80,10 +102,18 @@ final class LogBus: ObservableObject {
         var s = raw
         if let r = s.range(of: "] "), s.hasPrefix("20") { s = String(s[r.upperBound...]) }
         guard !s.isEmpty else { return }
+        appendFile(s)                                  // persist every line to the log FILE
         DispatchQueue.main.async {
             self.lines.append(s)
             if self.lines.count > self.cap { self.lines.removeFirst(self.lines.count - self.cap) }
         }
+    }
+
+    // Reveal the persistent log file in Finder (also dumps the current in-memory transcript to it first).
+    func revealLog() {
+        appendFile("--- transcript snapshot ---")
+        for l in lines { appendFile(l) }
+        NSWorkspace.shared.activateFileViewerSelecting([logURL])
     }
 }
 
