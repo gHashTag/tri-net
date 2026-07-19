@@ -249,7 +249,16 @@ class NetworkScanner {
 
             task.terminationHandler = { _ in
                 let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-                let rtt = Int(Date().timeIntervalSince(startTime) * 1000)
+                // Parse the REAL ICMP round-trip from ping's "time=X ms". The process wall-clock
+                // (Date()-startTime) is dominated by spawn + the -W timeout and reads ~1000ms for a
+                // sub-millisecond LAN hop -- that was the bogus "RTT 1,100ms" (and the ETX derived from it).
+                var rtt = 0
+                if let r = output.range(of: "time=") {
+                    let tail = output[r.upperBound...]
+                    let num = tail.prefix(while: { $0.isNumber || $0 == "." })
+                    rtt = Int((Double(num) ?? 0).rounded())
+                }
+                _ = startTime  // (kept for reference; RTT now comes from ping, not wall-clock)
 
                 // Check for "X packets received" or "bytes from"
                 if output.contains("bytes from") || (task.terminationStatus == 0) {
@@ -450,7 +459,10 @@ class MeshMonitorEngine: ObservableObject {
         // Discover ALL devices from ARP table (skip self, gateway, multicast)
         let arpDevices = NetworkScanner.getARPDevices()
         var allIPs = Set(deviceIPs)
-        let skipIPs: Set<String> = ["192.168.1.105", "192.168.1.1", "224.0.0.251", "0.0.0.0"]
+        // .10 is skipped: the stock board init adds 192.168.1.10 as a SECONDARY IP to every board, so it
+        // resolves (by ARP race) to whichever board answers -- it is not a distinct node. Counting it
+        // showed a phantom "TRI Board .10" with the same MAC as .11.
+        let skipIPs: Set<String> = ["192.168.1.105", "192.168.1.1", "224.0.0.251", "0.0.0.0", "192.168.1.10"]
         for (ip, mac) in arpDevices {
             if !allIPs.contains(ip) && !skipIPs.contains(ip) {
                 deviceIPs.append(ip)
@@ -511,7 +523,8 @@ class MeshMonitorEngine: ObservableObject {
                 logEvent(.nodeOnline, node: nodeId, desc: "\(ip) is ONLINE (RTT: \(result.rttMs)ms)")
             } else if !isOnline && wasOnline {
                 logEvent(.nodeOffline, node: nodeId, desc: "\(ip) went OFFLINE")
-                logEvent(.healing, node: 0, desc: "Route recalculation triggered — node \(nodeId) lost")
+                // (No "route recalculation" -- there is no mesh routing running to recalculate. Claiming
+                // it was theatre. This is a plain LAN ping scan; report only what happened: a host left.)
             }
 
             prevStatus[nodeId] = isOnline ? .online : .offline
@@ -534,7 +547,11 @@ class MeshMonitorEngine: ObservableObject {
             let x = centerX + radius * cos(angle)
             let y = centerY + radius * sin(angle)
 
-            let etx = isOnline ? max(1.0, Double(result.rttMs) / 50.0) : 0
+            // ETX is a MESH routing metric (expected transmissions per hop). No mesh daemon is running
+            // here, so there is nothing measuring it -- the old `rttMs/50` was a fake gradient (and with
+            // the broken RTT it read 22.0). Honest value: 1.0 = "directly reachable", 0 = offline. A real
+            // ETX will only appear once the mesh daemon feeds it.
+            let etx = isOnline ? 1.0 : 0
 
             let node = MeshNode(
                 id: nodeId, ip: ip,
@@ -556,22 +573,13 @@ class MeshMonitorEngine: ObservableObject {
 
         var finalNodes: [MeshNode] = [monitorNode] + deviceNodes
 
-        // Build links between online adjacent nodes
+        // Links = what the Monitor can REACH (each online device is one hop from us over the LAN). We do
+        // NOT invent device<->device links: the old code connected each device to the PREVIOUS one in
+        // list order, drawing a "mesh" that does not exist. The only real edge is Monitor->device.
         var newLinks: [MeshLink] = []
         let onlineDevices = deviceNodes.filter { $0.status != .offline }
-        for i in 0..<onlineDevices.count {
-            let a = onlineDevices[i]
-            newLinks.append(MeshLink(
-                id: "0-\(a.id)", from: 0, to: a.id,
-                etx: a.etx, isActive: true
-            ))
-            if i > 0 {
-                let prev = onlineDevices[i-1]
-                newLinks.append(MeshLink(
-                    id: "\(prev.id)-\(a.id)", from: prev.id, to: a.id,
-                    etx: (prev.etx + a.etx) / 2, isActive: true
-                ))
-            }
+        for a in onlineDevices {
+            newLinks.append(MeshLink(id: "0-\(a.id)", from: 0, to: a.id, etx: a.etx, isActive: true))
         }
 
         // Update packet counters for online nodes
