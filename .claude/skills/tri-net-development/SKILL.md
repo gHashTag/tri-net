@@ -1048,4 +1048,18 @@ smoke/DEPIN_RELAY_OTA_RTI_2026-07-19.md).** ("все три"; multi-hop cycle cl
   (OTA 0.001-0.007 -> quiet, no false alarm), a moving body / fade raises it past thresh (0.15). One
   link = presence; N links = tomographic localization. Positive (real motion) demo needs bench access.
 
+**CRYPTO ATTRIBUTION OTA (2026-07-19, smoke/DEPIN_CRYPTO_ATTRIB_2026-07-19.md).** ("все три".)
+- **`depinattest <key_csv> <nframes>` = crypto attribution** -- the fix for RF-indistinguishable
+  boards. Read coded frames; for each, try every node's key on the MAC; the verifying key attributes
+  it to that node. Host: legit .13(A0A03333) -> tally=[0,0,6] node#2; spoofer(DEAD9999) -> [0,0,0]
+  unattributed=6 NONE. **OTA: legit .13 -> tally=[0,0,30] attributed to node #2** (over the air). A
+  spoofer with an identical board can't borrow the key -> trust the signature, not the signal.
+- **3-hop relay OTA partial:** got 2 of 3 hops (.12->.11, .11->.10 BER=0; hop1 in a trough). 3-hop
+  economics host-proven (2 relays split 150 each); the 2-hop full cycle was OTA-proven last wave.
+  Non-stationary fade -> three good windows rarely align in one run.
+- **Report v2** (docs/report/tri-net-stack.html): added crypto-attribution + OTA-relay + RTI cards.
+- **Concurrent-ssh race is CHRONIC:** an inline backgrounded-TX + foreground-RX ssh intermittently
+  eats the RX stdout. Use a SCRIPT FILE (like fadeprof.sh/finger2.sh/attest2.sh), or a function that
+  keeps the RX loop in ONE ssh call, and retry.
+
 phi^2 + phi^-2 = 3 | TRINITY

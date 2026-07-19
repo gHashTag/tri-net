@@ -124,6 +124,9 @@
     <div class="card"><div class="t">Proof-of-Relay + расчёт <span class="tag t-proven">ARM</span></div><p class="desc">Подделко-стойкий аккумулятор байтов; расчётный слой делит пул $TRI по покрытию (Helium-класс PoC).</p><p class="m">14 инвариантов · Ed25519</p></div>
     <div class="card"><div class="t">Merkle-леджер + слэшинг <span class="tag t-proven">ARM</span></div><p class="desc">Баланс копится в state-root; лог-пруф забирает награду; за читерский чек — потеря залога.</p><p class="m">корень 0x64102268 · челлендж-игра</p></div>
     <div class="card"><div class="t">On-chain клейм (sha256) <span class="tag t-proj">контракт</span></div><p class="desc">Узел шлёт calldata: state-root + баланс + Merkle-пруф → контракт чеканит. Настоящий t27-SHA-256.</p><p class="m">эталон sha256("abc") бит-в-бит</p></div>
+    <div class="card"><div class="t">Крипто-атрибуция узла <span class="tag t-proven">OTA</span></div><p class="desc">.10 пробует ключ каждого узла на MAC кадра; верный ключ атрибутирует покрытие тому узлу. Платы RF-неразличимы → идентичность криптографическая, не по отпечатку.</p><p class="m">легит → node #2 (30/30) · спуфер → NONE</p></div>
+    <div class="card"><div class="t">2-хоп релей + carry-fee <span class="tag t-proven">OTA</span></div><p class="desc">Релей несёт чужой трафик по эфиру и зарабатывает $TRI — стимул расширять меш снизу вверх.</p><p class="m">релей .12 → 300 $TRI (эфир)</p></div>
+    <div class="card"><div class="t">RTI-сенсинг присутствия <span class="tag t-proven">HW</span></div><p class="desc">Коэф. вариации огибающей: стабильный линк «пусто», тело/движение — «disturbance». Радио-томография поверх сети.</p><p class="m">стабильно CV≈0.001 → пусто</p></div>
   </div>
 
   <h2>Сетевое кодирование ($TRI DePIN)</h2>
