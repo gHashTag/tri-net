@@ -70,18 +70,25 @@ class RTIEngine: ObservableObject {
     // Perimeter security (product demo): one or more restricted zones; a tracked PERSON entering any of
     // them raises an alarm and the event is logged (copyable). Zones are drawn on the 2D floor and can
     // be exported as an incident report. First zone defaults near the .11 corner.
-    struct ZoneRect: Identifiable { let id = UUID(); var x0: Double; var y0: Double; var x1: Double; var y1: Double
+    struct ZoneRect: Identifiable, Codable { var id = UUID(); var name: String; var x0: Double; var y0: Double; var x1: Double; var y1: Double
         func contains(_ x: Double, _ y: Double) -> Bool { x >= x0 && x <= x1 && y >= y0 && y <= y1 } }
-    @Published var zones: [ZoneRect] = [ZoneRect(x0: 0.60, y0: 0.08, x1: 0.92, y1: 0.40)]
+    @Published var zones: [ZoneRect] = [ZoneRect(name: "Zone 1", x0: 0.60, y0: 0.08, x1: 0.92, y1: 0.40)]
     @Published var alarm = false
+    @Published var soundOn = true
     private var inZoneIds = Set<Int>()
-    func addZone(_ z: ZoneRect) { DispatchQueue.main.async { self.zones.append(z) } }
+    private var zoneSeq = 1
+    func addZone(_ z: ZoneRect) { DispatchQueue.main.async { self.zoneSeq += 1; var zz = z; zz.name = "Zone \(self.zoneSeq)"; self.zones.append(zz) } }
     func clearZones() { DispatchQueue.main.async { self.zones.removeAll(); self.alarm = false; self.inZoneIds.removeAll() } }
+    // persist / restore zone configs across launches (a saved "site layout")
+    func saveZones() { if let d = try? JSONEncoder().encode(zones) { UserDefaults.standard.set(d, forKey: "rti.zones") } }
+    func loadZones() { if let d = UserDefaults.standard.data(forKey: "rti.zones"), let z = try? JSONDecoder().decode([ZoneRect].self, from: d) {
+        DispatchQueue.main.async { self.zones = z; self.zoneSeq = z.count } } }
     // Incident report: the intrusion events pulled out of the shared log, ready to copy/share.
     func exportIncidents() -> String {
         let lines = LogBus.shared.transcript().split(separator: "\n").map(String.init)
             .filter { $0.contains("INTRUSION") || $0.contains("left the zone") }
-        let header = "TRI-NET RTI RADAR -- INTRUSION INCIDENT REPORT\nzones: \(zones.count)\n----\n"
+        let zlist = zones.map { String(format: "  %@  [%.2f,%.2f]-[%.2f,%.2f]", $0.name, $0.x0, $0.y0, $0.x1, $0.y1) }.joined(separator: "\n")
+        let header = "TRI-NET RTI RADAR -- INTRUSION INCIDENT REPORT\nzones (\(zones.count)):\n\(zlist)\n----\n"
         return header + (lines.isEmpty ? "(no incidents)" : lines.joined(separator: "\n"))
     }
     @Published var target: Contact? = nil          // strongest confirmed track (primary readout)
@@ -209,13 +216,15 @@ class RTIEngine: ObservableObject {
         // Option C -- perimeter alarm: a real person inside the restricted zone breaches it; log entry/exit.
         var breach = false; var nowIn = Set<Int>()
         for t in confirmed where !t.ghost {
-            if zones.contains(where: { $0.contains(t.x, t.y) }) {
+            if let z = zones.first(where: { $0.contains(t.x, t.y) }) {
                 nowIn.insert(t.id); breach = true
-                if !inZoneIds.contains(t.id) { NSLog("%@", String(format: "ALARM: INTRUSION track #%d entered zone at x=%.2f y=%.2f", t.id, t.x, t.y)) }
+                if !inZoneIds.contains(t.id) { NSLog("%@", String(format: "ALARM: INTRUSION track #%d entered \"%@\" at x=%.2f y=%.2f", t.id, z.name, t.x, t.y)) }
             }
         }
         for id in inZoneIds where !nowIn.contains(id) { NSLog("%@", String(format: "track #%d left the zone", id)) }
-        inZoneIds = nowIn; alarm = breach
+        inZoneIds = nowIn
+        if breach && !alarm && soundOn { NSSound(named: "Sosumi")?.play() }   // audible alert on the rising edge
+        alarm = breach
     }
     // distance from point p to the segment (a,b) in 3D
     private func distPointSeg(_ px: Double,_ py: Double,_ pz: Double,_ ax: Double,_ ay: Double,_ az: Double,_ bx: Double,_ by: Double,_ bz: Double) -> Double {
@@ -300,6 +309,7 @@ class RTIEngine: ObservableObject {
         guard r == 0 else { DispatchQueue.main.async { self.lastMsg = "bind fail" }; return }
         let f = fcntl(s, F_GETFL, 0); _ = fcntl(s, F_SETFL, f | O_NONBLOCK)
         LogBus.shared.start()                 // tee stderr into the shared Log pane (copyable)
+        loadZones()                           // restore a saved site layout, if any
         NSLog("%@", "RTI: listening on :6000  nodes=\(np3d.map { $0.id })")
         DispatchQueue.main.async { self.listening = true; self.lastMsg = "Ready :6000" }
         DispatchQueue.global().async { self.recv() }
@@ -528,13 +538,7 @@ struct RTIHeatmapView: View {
                         }
                     }.blur(radius: max(cw, ch)*1.1)
                     // perimeter zones (drag to draw a new one; red when breached)
-                    ForEach(e.zones) { z in
-                        Rectangle()
-                            .strokeBorder(e.alarm ? Color.red : Color.green, lineWidth: 1.5)
-                            .background(Rectangle().fill((e.alarm ? Color.red : Color.green).opacity(0.12)))
-                            .frame(width: CGFloat(z.x1-z.x0)*geo.size.width, height: CGFloat(z.y1-z.y0)*geo.size.height)
-                            .position(x: CGFloat((z.x0+z.x1)/2)*geo.size.width, y: CGFloat((z.y0+z.y1)/2)*geo.size.height)
-                    }
+                    zoneLayer(geo)
                     // in-progress drag rectangle
                     if let a = dragStart, let b = dragNow {
                         Rectangle().strokeBorder(Color.yellow, lineWidth: 1.5)
@@ -561,7 +565,7 @@ struct RTIHeatmapView: View {
                         let x0 = min(a.x, b.x)/geo.size.width, x1 = max(a.x, b.x)/geo.size.width
                         let y0 = min(a.y, b.y)/geo.size.height, y1 = max(a.y, b.y)/geo.size.height
                         if x1-x0 > 0.03 && y1-y0 > 0.03 {
-                            e.addZone(RTIEngine.ZoneRect(x0: Double(x0), y0: Double(y0), x1: Double(x1), y1: Double(y1)))
+                            e.addZone(RTIEngine.ZoneRect(name: "", x0: Double(x0), y0: Double(y0), x1: Double(x1), y1: Double(y1)))
                         }
                         dragStart = nil; dragNow = nil
                     })
@@ -576,6 +580,9 @@ struct RTIHeatmapView: View {
                 Text("Pkts: \(e.pktCount)").font(.caption).foregroundColor(.green)
                 Text("· zones \(e.zones.count)").font(.caption).foregroundColor(e.alarm ? .red : .gray)
                 Spacer()
+                Button(e.soundOn ? "🔔" : "🔕") { e.soundOn.toggle() }.font(.caption)
+                Button("Save") { e.saveZones() }.font(.caption)
+                Button("Load") { e.loadZones() }.font(.caption)
                 Button("Export incidents") {
                     let s = e.exportIncidents()
                     NSPasteboard.general.clearContents(); NSPasteboard.general.setString(s, forType: .string)
@@ -594,6 +601,21 @@ struct RTIHeatmapView: View {
         .onAppear { e.go() }
     }
     
+    // perimeter zone rectangles + name labels on the 2D floor (extracted to help the type-checker)
+    @ViewBuilder private func zoneLayer(_ geo: GeometryProxy) -> some View {
+        let zc: Color = e.alarm ? .red : .green
+        ForEach(e.zones) { z in
+            Rectangle()
+                .strokeBorder(zc, lineWidth: 1.5)
+                .background(Rectangle().fill(zc.opacity(0.12)))
+                .frame(width: CGFloat(z.x1-z.x0)*geo.size.width, height: CGFloat(z.y1-z.y0)*geo.size.height)
+                .position(x: CGFloat((z.x0+z.x1)/2)*geo.size.width, y: CGFloat((z.y0+z.y1)/2)*geo.size.height)
+            Text(z.name)
+                .font(.system(size: 9, weight: .semibold)).foregroundColor(zc)
+                .position(x: CGFloat(z.x0)*geo.size.width + 26, y: CGFloat(z.y0)*geo.size.height + 9)
+        }
+    }
+
     // smooth perceptual heatmap: blue -> cyan -> green -> yellow -> red
     func col(_ v: Double) -> Color {
         let t = max(0, min(1, v))
