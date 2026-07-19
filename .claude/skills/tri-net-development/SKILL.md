@@ -1062,4 +1062,30 @@ smoke/DEPIN_RELAY_OTA_RTI_2026-07-19.md).** ("все три"; multi-hop cycle cl
   eats the RX stdout. Use a SCRIPT FILE (like fadeprof.sh/finger2.sh/attest2.sh), or a function that
   keeps the RX loop in ONE ssh call, and retry.
 
+**3-HOP RELAY + LINK-SLASH + RSS-RTI OTA (2026-07-19, smoke/DEPIN_RELAY3_RTI_2026-07-19.md).**
+- **THE CYCLIC TX BUFFER MUST BE FILLED. `iio_writedev -c -b 46080` needs 46080 samples = SIX
+  16-byte DBPSK frames** (one frame = (64+128)*40 = 7680 IQ samples). Feeding ONE frame (`otatx $P`)
+  makes iio_writedev hit EOF before filling the cyclic buffer and DIE INSTANTLY -- nothing radiates,
+  and the RX reads noise (best_cp ~0.05, BER ~50%) that looks exactly like a dead path. **This was
+  the real cause of last wave's "hop1 blanked, 2/3 hops" -- NOT fade.** Always `otatx $P $P $P $P $P
+  $P` (6 frames) OR set `-b 7680`. attest2.sh's `otatxcoded ... 6` (6 coded frames) was right by
+  accident. **BROKEN RULER: before blaming an RX/path, check the TX writer is alive:**
+  `ls /proc/[0-9]*/comm | xargs grep -l iio_writedev | wc -l` must be >=1. A dead transmitter reads
+  as a dead receiver.
+- **Full 3-hop `.13->.12->.11->.10` all BER=0/128, first try each** (retry-until-BER=0 with
+  otarxbest selection combining, TDM one-TX-at-a-time). The "three windows must align" problem
+  DISSOLVED once the writer bug was fixed -- each sequential hop waits for its own window; every
+  pairwise link from .13 carries BER=0 when the TX actually transmits.
+- **`depinslashlink <pool> <stake> <carry> <signed:delivered ...>`** ties link-slash to crypto
+  attribution: signed+delivered -> +carry; signed+NOT-delivered -> SLASHED (the seal convicts, not
+  just rewards); no-claim -> 0. Host/board-proven with A's real delivered-flags.
+- **RTI over the air = RSS DROP, not envelope-CV.** The AD9361 RX tracking loops (DC/quadrature, ms)
+  CANCEL slow TX amplitude modulation, so a modulation-CV surrogate dies over the air (flat 0.09 vs
+  mod-90 0.14, erratic). The robust observable is **received power** (a body shadows the path ->
+  RSS falls): clean monotone OTA curve `no-body ~1500 -> -15dB ~554 -> -25dB ~300 -> -35dB ~60`
+  (~x3 per 10 dB shadow). New `rticp` mode = preamble-ALIGNED envelope (fixes rtisense's raw-block
+  misalignment noise; host dose-response 0.00/0.30/0.58). **RX must be BELOW ADC saturation** for
+  RSS to track (gain 71 clipped the strong end and masked small shadows; gain 45 gave the clean
+  curve). Biological positive (real body) still bench-gated; surrogate = TX-side path attenuation.
+
 phi^2 + phi^-2 = 3 | TRINITY
