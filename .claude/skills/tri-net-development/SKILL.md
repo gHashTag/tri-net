@@ -1106,4 +1106,23 @@ smoke/DEPIN_RELAY_OTA_RTI_2026-07-19.md).** ("все три"; multi-hop cycle cl
   naive pfa-trapezoid, which mis-scores tied thresholds). OTA: baseline mean=1298 sig=288, body
   159-763 -> AUC=0.984, auto(mean-3sig)=435 -> Pd=0.88 Pfa=0.00. Presence sensing gets a number.
 
+**RTI TOMOGRAPHY + LOSS-RELAY + LIVE CALIBRATION OTA (2026-07-19, smoke/DEPIN_TOMOGRAPHY_LOSSRELAY_LIVECAL_2026-07-19.md).**
+- **`rtiimage <dropA> <dropB> <dropC> <dropD> [lambda]` = 4-link RTI tomography** on a 3x3 grid
+  (A=.13->.12 left col, B=.11->.12 right col, C=.13->.10 top row, D=.11->.10 bottom row). Solves
+  x = W^T (WW^T + lambda I)^-1 y (dual 4x4). OTA drops A .96/B .91/C .55/D .89 -> shadow A+C -> cell
+  #0, B+D -> #8, A+D -> #6 (all correct). Two links = a line, four = a point.
+- **PER-LINK RX GAIN for multi-link RTI.** The two links into .10 differ by tens of dB (.13->.10 weak
+  -> noise floor at gain 45/65; .11->.10 strong -> saturated). Each link is measured in its own TX
+  session, so give each its own RX gain: .13->.10 gain 71, .11->.10 gain 48. Then all links track
+  their -35 dB shadow. (One RX board can serve two links at different gains across TDM sessions.)
+- **RLNC relay recovers through deep loss.** `otarxrlnc2` on a lossy hop: TX -5/-20/-32 dB all give
+  gens_decoded=1/1, ascii exact -- the cyclic repetition supplies many noisy copies, a per-cv
+  majority vote cleans them, and any 4 of 6 cv recover. A coded transit hop carries cargo through a
+  fade the raw link could not; the erasure floor (<4 cv) is below -32 dB on this bench.
+- **`rtitrack <stream> <labels> <alpha_pct> <frac_pct> <fixed_thr>` = live (EWMA) calibration.** A body
+  attenuates RSS MULTIPLICATIVELY -> detector is present = rss < frac*baseline, baseline tracked by an
+  EWMA on quiet samples. A mean-k*sigma sliding rule LAGS the drift and loses; the multiplicative EWMA
+  is drift-robust. OTA (baseline drift 1400->590 + body dips): ADAPTIVE Pd=1.00 Pfa=0.08 vs FIXED
+  Pd=1.00 Pfa=0.25.
+
 phi^2 + phi^-2 = 3 | TRINITY
