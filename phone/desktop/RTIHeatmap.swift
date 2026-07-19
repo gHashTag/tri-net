@@ -10,7 +10,10 @@ class RTIEngine: ObservableObject {
     
     private var s: Int32 = -1
     private var run = false
-    let np = [(12, 3, 15), (13, 27, 15), (11, 15, 3)]
+    // Four boards at the grid corners so link paths cross meaningfully:
+    // .13<->.10 is the main diagonal, .11<->.12 the anti-diagonal (both cross the centre);
+    // shadowing a crossing pair lights the intersection cell -> radio tomography.
+    let np = [(13, 4, 4), (11, 26, 4), (12, 4, 26), (10, 26, 26)]
     
     func go() {
         guard !run else { return }
