@@ -1019,4 +1019,18 @@ smoke/DEPIN_FINGERPRINT_SLASH_DASHBOARD_2026-07-19.md).** ("все три"; fing
 - **RF LINK NON-STATIONARY:** good windows come and go (session-to-session). If OTA is a trough,
   catch loops fail and CFO/decode are garbage -- don't force it, note it, the slow fade returns.
 
+**RF FINGERPRINT MEASURED OTA + MULTI-HOP RELAY $TRI (2026-07-19,
+smoke/DEPIN_FINGERPRINT_OTA_RELAY_2026-07-19.md).** ("все три"; fade recovered, fingerprint measured.)
+- **RF fingerprint OTA:** link recovered (fadeprofile mean cp 0.998/1.000), so rffinger measured
+  per-node CFO in good windows: **.11 = -55/-62/-53/-69 Hz -> tight ~-60 Hz (DISTINCT)**; .12 ~0
+  (noisy); .13 ~+15 Hz. **HONEST:** these P201Minis have near-identical crystals (tens of Hz ~0.01
+  ppm) -> CFO alone gives PARTIAL 3-way separation (.11 stands out, .12/.13 overlap). Robust 3-way ID
+  needs a richer feature (I/Q imbalance, phase noise, transient). Gate on cp>=0.9 -- a trough garbles it.
+- **`depinrelay <pool> <bytes> <hops_csv> [share%]` = multi-hop economics.** Path reward splits:
+  origin earns for producing, each RELAY earns a carry-fee (share, divided among relays), dest is the
+  settler. 2-hop .13,12,10 @30%: origin 700 / relay 300 / dest 0. 3-hop: 2 relays split 150 each. The
+  2-hop DATA path was OTA-proven earlier (identical seal across hops); this adds the incentive to forward.
+- **Live dashboard refreshed** (docs/dashboard/tri-net-live.html, URL 6469fc1c) with the real CFO
+  fingerprints + a multi-hop economics panel.
+
 phi^2 + phi^-2 = 3 | TRINITY

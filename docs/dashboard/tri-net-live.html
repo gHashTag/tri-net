@@ -77,29 +77,36 @@
       <div class="bar"><i style="width:100%"></i></div>
       <div class="row"><span class="lbl">BER</span><span class="val">0 / 128</span></div>
       <div class="row"><span class="lbl">награда</span><span class="val" style="color:var(--ok)">+500 $TRI</span></div>
-      <div class="row"><span class="lbl">RF-отпечаток</span><span class="val">CFO подпись</span></div>
+      <div class="row"><span class="lbl">RF-отпечаток CFO</span><span class="val">≈ +15 Гц</span></div>
     </div>
     <div class="node"><span class="rail r-ok"></span>
       <div class="id">.11 <span class="pill p-ok">покрыт</span></div>
       <div class="role">передатчик · 2.404 ГГц · честный</div>
-      <div class="row"><span class="lbl">качество (cp)</span><span class="val">0.98</span></div>
-      <div class="bar"><i style="width:98%"></i></div>
+      <div class="row"><span class="lbl">качество (cp)</span><span class="val">0.998</span></div>
+      <div class="bar"><i style="width:99%"></i></div>
       <div class="row"><span class="lbl">BER</span><span class="val">0 / 128</span></div>
       <div class="row"><span class="lbl">награда</span><span class="val" style="color:var(--ok)">+500 $TRI</span></div>
-      <div class="row"><span class="lbl">RF-отпечаток</span><span class="val">CFO подпись</span></div>
+      <div class="row"><span class="lbl">RF-отпечаток CFO</span><span class="val" style="color:var(--ok)">≈ −60 Гц (различим)</span></div>
     </div>
     <div class="node"><span class="rail r-bad"></span>
       <div class="id">.12 <span class="pill p-bad">слэш</span></div>
       <div class="role">заявил покрытие · не подтверждён</div>
-      <div class="row"><span class="lbl">качество (cp)</span><span class="val">— (не в эфире)</span></div>
-      <div class="bar"><i style="width:6%;background:var(--bad)"></i></div>
       <div class="row"><span class="lbl">заявка</span><span class="val">covered=1</span></div>
       <div class="row"><span class="lbl">измерено сетью</span><span class="val">actual=0</span></div>
+      <div class="row"><span class="lbl">RF-отпечаток CFO</span><span class="val">≈ 0 Гц</span></div>
       <div class="row"><span class="lbl">итог</span><span class="val" style="color:var(--bad)">−200 $TRI (слэш)</span></div>
     </div>
   </div>
 
-  <p class="note"><b>Как читать:</b> награда узла = его байты × подтверждённое покрытие, доля пула (сумма ≤ пул). Ложная заявка покрытия ловится по эфирному измерению и штрафуется — врать дороже, чем простаивать. Атрибуция «кто в эфире» — по RF-отпечатку (сдвиг несущей кварца), стойка к подмене.</p>
+  <h2>Мультихоп-экономика ($TRI релею за перенос)</h2>
+  <div class="nodes">
+    <div class="node"><span class="rail r-ok"></span><div class="id" style="font-size:14px">.13 origin</div><div class="role">произвёл данные</div><div class="row"><span class="lbl">доля</span><span class="val" style="color:var(--ok)">700 $TRI (70%)</span></div></div>
+    <div class="node"><span class="rail r-ok"></span><div class="id" style="font-size:14px">.12 relay</div><div class="role">перенёс (2-хоп доказан OTA)</div><div class="row"><span class="lbl">carry-fee</span><span class="val" style="color:var(--ok)">300 $TRI (30%)</span></div></div>
+    <div class="node"><span class="rail r-hub"></span><div class="id" style="font-size:14px">.10 dest</div><div class="role">расчётчик + леджер</div><div class="row"><span class="lbl">доля</span><span class="val">0 (арбитр)</span></div></div>
+    <div class="node"><div class="id" style="font-size:14px">3-хоп путь</div><div class="role">2 релея делят carry-fee</div><div class="row"><span class="lbl">каждый релей</span><span class="val">150 $TRI</span></div></div>
+  </div>
+
+  <p class="note"><b>Как читать:</b> награда узла = его байты × подтверждённое покрытие, доля пула (сумма ≤ пул). Ложная заявка покрытия ловится по эфирному измерению и штрафуется — врать дороже, чем простаивать. Релей получает carry-fee за перенос — стимул ретранслировать. Атрибуция «кто в эфире» — по RF-отпечатку (сдвиг несущей кварца): в эфире измерено — .11 различим (≈ −60 Гц), но платы почти идентичны (десятки Гц ≈ 0.01 ppm), полное 3-разделение требует богаче признак.</p>
 
   <h2>Стек под капотом (метки: доказано-OTA / host / проекция)</h2>
   <div class="nodes">
