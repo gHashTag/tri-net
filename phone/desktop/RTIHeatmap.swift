@@ -11,23 +11,24 @@ class RTIEngine: ObservableObject {
     
     private var s: Int32 = -1
     private var run = false
-    // Four boards at the grid corners so link paths cross meaningfully:
-    // .13<->.10 is the main diagonal, .11<->.12 the anti-diagonal (both cross the centre);
-    // shadowing a crossing pair lights the intersection cell -> radio tomography.
-    let np = [(13, 4, 4), (11, 26, 4), (12, 4, 26), (10, 26, 26)]
+    // THREE physical radios (.11 MAC ..:01, .12 ..:02, .13 ..:03) placed as a triangle so the 3 links
+    // (11-12, 11-13, 12-13) cross the interior -> radio tomography. There is NO .10 board: .10 was a
+    // duplicate secondary IP the stock init adds to EVERY board (an ARP-race phantom, not a node) --
+    // treating it as a 4th corner poisoned the geometry (identity-before-shared-medium).
+    let np = [(13, 6, 24), (11, 24, 24), (12, 15, 5)]
 
     // --- 3D voxel field: radio tomography in SPACE (not just a floor view) ---
     // Ellipsoid-weight backprojection (Wilson & Patwari RTI): each link (a,b) deposits its RSS
     // attenuation into the voxels inside the ellipsoid |a-p|+|p-b|-|a-b| < lambda, weighted 1/sqrt(|a-b|).
-    // The four boards sit at TWO heights so the z-axis is observable (else all links are coplanar).
+    // The three boards sit at DIFFERENT heights so the z-axis is observable (else all links are coplanar).
     let gx = 12, gy = 12, gz = 6
     @Published var vox = [Float](repeating: 0, count: 12*12*6)
     // Node positions are MEASURED, not assumed: they start as a placeholder but are overwritten by
     // self-localization packets ([34,id,x,y,z]) once the boards range each other and solve MDS. An
     // assumed geometry makes the whole RTI map wrong -- the boards must locate themselves first.
+    // THREE nodes only (the .10 "4th board" was an ARP-race phantom, see np above).
     @Published var np3d: [(id: Int, x: Double, y: Double, z: Double)] = [
-        (13, 0.15, 0.15, 0.80), (11, 0.85, 0.15, 0.20),
-        (12, 0.15, 0.85, 0.20), (10, 0.85, 0.85, 0.80)]
+        (13, 0.18, 0.82, 0.20), (11, 0.82, 0.82, 0.78), (12, 0.50, 0.15, 0.48)]
     @Published var localized = false
     var baseRss: [Int: Double] = [:]       // per-link quiet-baseline RSS
     // VRTI (variance-based RTI): a MOVING body makes a link's RSS FLUCTUATE. Per-link recent-RSS
