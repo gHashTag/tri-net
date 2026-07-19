@@ -954,4 +954,19 @@ smoke/DEPIN_FADEPHYSICS_CLEANBYTE_2026-07-19.md).** ("все три"; OTA gap CL
   the mode exists (`<mode> < /dev/null`) before blaming the RF. The concurrent-ssh race (backgrounded
   TX ssh + foreground RX ssh) also intermittently eats output -- retry, or run RX in one ssh call.
 
+**PHRASE + MULTI-SOURCE + RADIO->AI ALL OTA (2026-07-19,
+smoke/DEPIN_MSG_MULTI_RADIOAI_OTA_2026-07-19.md).** ("все три"; three OTA milestones, all first-try.)
+- **Whole PHRASE over the air:** "TRINET-OTA-LIVE!" (16 B) cyclic, `otarxbest ... 16` -> copies=64
+  best_cp=1.000 **BER=0/128** recv=the exact phrase. Slow fade -> a 0.25 ms frame fits a good window.
+- **MULTI-SOURCE message OTA:** .13@2.400 + .11@2.404 one generation at once, .10@2.402 wide-band
+  channelizer (otarxrlnc2 mix +/-2 MHz) -> gens_decoded=1/1 first capture. Fade is at the RX front
+  end (common to both paths) so a good window is good for BOTH sources -> catch it in a loop.
+- **RADIO->AI on chip OTA (`rfclassify [label]`):** 3 RF features (cp, envelope flatness, subcarrier
+  concentration) ternary-quantized {-1,0,+1} -> ternary-weight MAC (0 DSP) -> SIGNAL vs NOISE. OTA:
+  TX-on 5/5 SIGNAL, TX-off 2/2 NOISE = 7/7. Sensing half of Proof-of-Coverage on the RX chip. (conc
+  feature is weak -- DBPSK smears the tone; cp + flatness carry it.)
+- **The pattern that unlocked all three:** slow fade + long good windows (fadeprofile) => a catch
+  loop (capture -> best-copy / decode -> repeat until a good window lands) turns a marginal link into
+  a working one. `otarxbest` (selection combining) and the good-window loop are the tools.
+
 phi^2 + phi^-2 = 3 | TRINITY

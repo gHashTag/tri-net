@@ -67,7 +67,7 @@
     Каждое утверждение помечено честно: доказано по воздуху, бит-в-бит на host, или проекция.</p>
 
   <div class="headline">
-    <div class="stat"><div class="n win">BER=0</div><div class="l">чистый байт пойман по воздуху («deadbeef», best_cp=1.000)</div></div>
+    <div class="stat"><div class="n win">BER=0/128</div><div class="l">фраза «TRINET-OTA-LIVE!» поймана по воздуху + мультиисточник 1/1 + радио→ИИ 7/7</div></div>
     <div class="stat"><div class="n">1.64 Мбит/с</div><div class="l">агрегат доказан OTA — 3 одновременные FDD-полосы</div></div>
     <div class="stat"><div class="n">9.85 Мбит/с</div><div class="l">проекция — 18 RRC-полос, 72 код+частотных слота</div></div>
   </div>
@@ -103,6 +103,16 @@
     <div class="card"><div class="t">Замкнутая адаптация <span class="tag t-proven">HW</span></div><p class="desc">Узел сам выбирает усиление по cp и логирует качество во времени.</p><p class="m">авто-выбор g71 · телеметрия cp 0.11–0.56</p></div>
     <div class="card"><div class="t">Физика фейдинга <span class="tag t-proven">HW</span></div><p class="desc">Измерено: медленный фейдинг (lag1 0.58–0.96), длинные удачные окна.</p><p class="m">run2: 98% кадров декодируемы</p></div>
     <div class="card"><div class="t">Честный страж линка <span class="tag t-proven">HW</span></div><p class="desc">Метрика — корреляция, не rms; мёртвый линк помечен, а не выдан за 0/1.</p><p class="m">cp, не rms · порог 0.5</p></div>
+    <div class="card"><div class="t">Фраза по воздуху <span class="tag t-proven">OTA</span></div><p class="desc">Целое сообщение «TRINET-OTA-LIVE!» поймано в удачном окне, ноль ошибок.</p><p class="m">BER=0/128 · best_cp=1.000</p></div>
+    <div class="card"><div class="t">Мультиисточник в окне <span class="tag t-proven">OTA</span></div><p class="desc">.13+.11 одновременно, .10 ловит обе полосы в одном удачном окне и решает поле.</p><p class="m">gens 1/1 · оба банда</p></div>
+  </div>
+
+  <h2>Радио → ИИ на одном чипе</h2>
+  <div class="grid">
+    <div class="card"><div class="t">Сенсинг покрытия (троичный) <span class="tag t-proven">OTA</span></div><p class="desc">Принятое радио → 3 RF-признака → троичный MAC (0 DSP) → SIGNAL / NOISE. Сенсинг-половина Proof-of-Coverage на том же чипе.</p><p class="m">TX-on 5/5 · TX-off 2/2 = 7/7</p></div>
+    <div class="card"><div class="t">VSA RF-ID (признаки) <span class="tag t-host">host</span></div><p class="desc">Пик/огибающая/спектр на реальных OTA-захватах → классификация несущей.</p><p class="m">&gt;90% · 27-бинные признаки</p></div>
+    <div class="card"><div class="t">Троичный трансформер на чипе <span class="tag t-host">host</span></div><p class="desc">BitNet-класс: слой IGLA-Coder бит-в-бит на движке, softmax/RMSNorm 0 DSP.</p><p class="m">50–130 tok/s · xc7z020</p></div>
+    <div class="card"><div class="t">Радио + ИИ одновременно <span class="tag t-proj">кремний</span></div><p class="desc">AD9361-радио и обученный троичный ИИ на одном Zynq-7020 вживую — конвергенция вычислений и связи (ядро SG-13).</p><p class="m">один чип · открытый флоу</p></div>
   </div>
 
   <h2>Сетевое кодирование ($TRI DePIN)</h2>
