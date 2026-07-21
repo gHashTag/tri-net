@@ -1,49 +1,19 @@
-//! trios-mesh library — re-export hub for generated code.
+//! trios-mesh library — encrypted, self-routing IP-over-radio mesh primitives.
 //!
-//! All business logic lives in gen/rust/ (generated from specs/*.t27).
-//! This file ONLY re-exports. No hand-written logic.
-//!
-//! Pipeline: specs/*.t27 -> t27c gen-rust -> gen/rust/ -> src/
+//! The hand-written modules below are the current runtime surface. The
+//! generated `gen/rust/` stubs are excluded from compilation until `t27c` is
+//! available to produce valid Rust from `specs/*.t27`.
 //!
 //! phi^2 + phi^-2 = 3
 
-// Re-export all generated modules
 pub mod crypto;
-pub mod wire;
-pub mod router;
-pub mod routing;
-pub mod modem;
-pub mod gf16;
 pub mod daemon;
 pub mod discovery;
-
-// Re-export generated mesh components
-#[path = "../gen/rust/mesh_routing.rs"]
-pub mod mesh_routing;
-
-#[path = "../gen/rust/etx.rs"]
-pub mod etx;
-
-#[path = "../gen/rust/adaptive_routing.rs"]
-pub mod adaptive_routing;
-
-#[path = "../gen/rust/multipath_routing.rs"]
-pub mod multipath_routing;
-
-#[path = "../gen/rust/frame_buffer.rs"]
-pub mod frame_buffer;
-
-#[path = "../gen/rust/flow_control.rs"]
-pub mod flow_control;
-
-#[path = "../gen/rust/health_dashboard.rs"]
-pub mod health_dashboard;
-
-#[path = "../gen/rust/anomaly_detector.rs"]
-pub mod anomaly_detector;
-
-#[path = "../gen/rust/quarantine_manager.rs"]
-pub mod quarantine_manager;
+pub mod gf16;
+pub mod modem;
+pub mod router;
+pub mod routing;
+pub mod wire;
 
 // Types used across the crate
 pub type NodeId = u32;

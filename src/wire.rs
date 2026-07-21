@@ -3,32 +3,56 @@
 //!
 //! Anchor: phi^2 + phi^-2 = 3.
 //!
-//! # T27-first partial flip
+//! # T27-first note
 //!
-//! Constants (`VERSION`, `KIND_HELLO`, `KIND_DATA`, `HEADER_LEN`) and pure
-//! predicates (`frame_kind_valid`, `header_byte`, `parse_accepts`) live in
-//! `specs/wire.t27` and are auto-generated into `gen/rust/wire.rs` via the
-//! t27c bootstrap compiler. This module re-exports them and wraps them in
-//! ergonomic Rust types. See `docs/T27_FIRST_MIGRATION.md`.
+//! The original `specs/wire.t27` is the SSOT for constants and predicates. The
+//! generated `gen/rust/wire.rs` currently contains stub arithmetic (`return ()`),
+//! so this module implements the wire spec directly until `t27c` produces valid
+//! Rust. Constants and logic below mirror `specs/wire.t27` byte-for-byte.
 
 use crate::routing::NodeId;
 
-// Auto-generated from specs/wire.t27 by t27c gen-rust.
-// The t27c-0.1.0 emitter produces literal `return` statements and extra
-// parentheses around every expression. This is idiomatic for the T27 language
-// but not for Rust, so we scope clippy/rustc lints down here rather than
-// hand-editing the generated file (gen/ is untouchable; see
-// docs/T27_FIRST_MIGRATION.md). Cleaner Rust rendering is upstream work on
-// gHashTag/t27 (needless_return / unnecessary_parens in expr_to_rust).
-#[allow(clippy::needless_return, unused_parens)]
-pub mod gen {
-    include!("../gen/rust/wire.rs");
+pub const VERSION: u8 = 1;
+pub const KIND_HELLO: u8 = 0;
+pub const KIND_DATA: u8 = 1;
+pub const HEADER_LEN: usize = 11; // [ver:1][kind:1][src:4][dst:4][ttl:1]
+
+/// Returns true iff `k` is a known frame kind.
+pub fn frame_kind_valid(k: u8) -> bool {
+    k <= KIND_DATA
 }
 
-pub use gen::{
-    be_byte, frame_kind_valid, header_byte, parse_accepts, u32_be, HEADER_LEN, KIND_DATA,
-    KIND_HELLO, VERSION,
-};
+/// The i-th big-endian byte of a 32-bit word (i=0 is most significant).
+pub fn be_byte(w: u32, i: usize) -> u8 {
+    match i {
+        0 => ((w >> 24) & 0xff) as u8,
+        1 => ((w >> 16) & 0xff) as u8,
+        2 => ((w >> 8) & 0xff) as u8,
+        3 => (w & 0xff) as u8,
+        _ => 0,
+    }
+}
+
+/// Reassemble a big-endian u32 from four bytes (b0 is most significant).
+pub fn u32_be(b0: u8, b1: u8, b2: u8, b3: u8) -> u32 {
+    ((b0 as u32) << 24) | ((b1 as u32) << 16) | ((b2 as u32) << 8) | (b3 as u32)
+}
+
+/// The idx-th byte of the serialized 11-byte header.
+pub fn header_byte(kind: u8, src: u32, dst: u32, ttl: u8, idx: usize) -> u8 {
+    match idx {
+        0 => VERSION,
+        1 => kind,
+        2..=5 => be_byte(src, idx - 2),
+        6..=9 => be_byte(dst, idx - 6),
+        _ => ttl,
+    }
+}
+
+/// A two-byte prefix is acceptable iff version matches and kind is valid.
+pub fn parse_accepts(b0: u8, b1: u8) -> bool {
+    b0 == VERSION && frame_kind_valid(b1)
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FrameKind {
@@ -62,12 +86,7 @@ impl Header {
     pub const LEN: usize = HEADER_LEN;
 
     pub fn new(kind: FrameKind, src: NodeId, dst: NodeId, ttl: u8) -> Self {
-        Self {
-            kind,
-            src,
-            dst,
-            ttl,
-        }
+        Self { kind, src, dst, ttl }
     }
 
     pub fn to_bytes(&self) -> [u8; Self::LEN] {
@@ -88,10 +107,6 @@ impl Header {
         }
         Some(Self {
             kind: FrameKind::from_u8(b[1])?,
-            // SSOT: reassemble big-endian u32 via the auto-generated u32_be from
-            // specs/wire.t27 (byte-order equivalent to u32::from_be_bytes; see
-            // docs/T27_FIRST_MIGRATION.md). Keeps the parse-path arithmetic under
-            // the spec-drift-guard CI umbrella.
             src: u32_be(b[2], b[3], b[4], b[5]),
             dst: u32_be(b[6], b[7], b[8], b[9]),
             ttl: b[10],
@@ -117,7 +132,7 @@ mod tests {
     }
 
     #[test]
-    fn t27_gen_constants_match_hand_written() {
+    fn wire_constants_match_spec() {
         assert_eq!(VERSION, 1);
         assert_eq!(KIND_HELLO, 0);
         assert_eq!(KIND_DATA, 1);
@@ -125,7 +140,7 @@ mod tests {
     }
 
     #[test]
-    fn t27_gen_predicates_match_semantics() {
+    fn wire_predicates_match_spec() {
         assert!(frame_kind_valid(KIND_HELLO));
         assert!(frame_kind_valid(KIND_DATA));
         assert!(!frame_kind_valid(2));

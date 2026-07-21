@@ -8,6 +8,10 @@ repository = "https://github.com/gHashTag/trios-mesh"
 readme = "README.md"
 keywords = ["mesh", "drone", "sdr", "crypto", "routing"]
 categories = ["network-programming", "cryptography"]
+autobins = false
+autoexamples = false
+autotests = true
+autobenches = false
 
 [dependencies]
 x25519-dalek = { version = "2.0", features = ["static_secrets", "zeroize"] }
@@ -31,11 +35,3 @@ serde_json = "1"
 # default (pure-Rust) path. See src/gf16.rs and tests/gf16_conformance.rs.
 default = []
 goldenfloat-ffi = []
-
-[[bin]]
-name = "smoke-m1"
-path = "src/bin/smoke_m1.rs"
-
-[profile.release]
-opt-level = "z"
-lto = true
