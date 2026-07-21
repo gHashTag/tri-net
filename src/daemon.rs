@@ -189,8 +189,8 @@ mod tests {
         let (a_pub, b_pub) = (a.public, b.public);
         let mut na = Node::new(a_id, 16);
         let mut nb = Node::new(b_id, 16);
-        na.add_session(b_id, a.complete(&b_pub, true));
-        nb.add_session(a_id, b.complete(&a_pub, false));
+        na.add_session(b_id, a.complete(&b_pub, true).unwrap());
+        nb.add_session(a_id, b.complete(&a_pub, false).unwrap());
         (na, nb)
     }
 

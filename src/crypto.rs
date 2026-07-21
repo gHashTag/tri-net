@@ -1,4 +1,4 @@
-//! M1 crypto core: X25519 handshake → HKDF session key → ChaCha20-Poly1305 AEAD
+//! M1 crypto core: X25519 handshake -> HKDF session key -> ChaCha20-Poly1305 AEAD
 //! with a directional 96-bit nonce and a 64-frame sliding replay window.
 //!
 //! Adds a symmetric **HKDF ratchet** (B10 / tri-net#10): the session periodically
@@ -9,7 +9,7 @@
 //! current epoch's key, not the whole session. All key material (`EphemeralSecret`,
 //! HKDF output, chain key) is wiped on rekey and on drop.
 //!
-//! The ratchet is driven purely by frame count here — `seal` auto-ratchets at
+//! The ratchet is driven purely by frame count here - `seal` auto-ratchets at
 //! [`REKEY_EVERY_FRAMES`] and refuses to reuse a nonce past [`REKEY_HARD_CAP`]
 //! (returning [`MeshError::RekeyRequired`]). Time-based rekeying and the
 //! daemon-side handling of `RekeyRequired` are deferred to the M2 run loop
@@ -40,8 +40,8 @@ pub const REKEY_EVERY_FRAMES: u64 = 1 << 20; // ~1.05M frames per epoch
 
 /// Absolute per-key ceiling. Sealing at this counter fails rather than reusing a
 /// nonce. Chosen so `REKEY_HARD_CAP * MAX_FRAME` stays well below ChaCha20's
-/// 2^32-block limit — see the compile-time assertion below.
-pub const REKEY_HARD_CAP: u64 = 1 << 24; // 16.7M frames — hard nonce-reuse guard
+/// 2^32-block limit - see the compile-time assertion below.
+pub const REKEY_HARD_CAP: u64 = 1 << 24; // 16.7M frames - hard nonce-reuse guard
 
 /// Largest single payload the mesh frames (matches the single-carrier modem cap).
 /// Used only to bound the per-key block budget at compile time.
@@ -56,6 +56,19 @@ const _: () = assert!(REKEY_HARD_CAP * 4 < (1u64 << 32));
 // Counter stays within the 7-byte (56-bit) nonce counter field.
 const _: () = assert!(REKEY_HARD_CAP < (1u64 << 56));
 
+/// HKDF-Expand into a 32-byte buffer. SHA256 can always expand to 32 bytes,
+/// so an error here is a code invariant violation, not an attacker action.
+/// Map it to `MeshError::CryptoInternal` so the daemon never panics.
+fn hkdf_expand_32(hk: &Hkdf<Sha256>, info: &[u8], out: &mut [u8; 32]) -> Result<(), MeshError> {
+    hk.expand(info, out).map_err(|_| MeshError::CryptoInternal)
+}
+
+/// Build an HKDF from a PRK. SHA256 accepts any non-empty PRK, so a 32-byte
+/// key is always valid. Map unexpected failure to `CryptoInternal`.
+fn hkdf_from_prk(prk: &[u8]) -> Result<Hkdf<Sha256>, MeshError> {
+    Hkdf::<Sha256>::from_prk(prk).map_err(|_| MeshError::CryptoInternal)
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum MeshError {
     /// AEAD tag verification failed (tampered, wrong key, or wrong epoch).
@@ -67,6 +80,9 @@ pub enum MeshError {
     /// Per-key hard cap reached: the caller must `ratchet()` before sealing more,
     /// rather than risk a nonce reuse. Handled by the M2 loop (tri-net#11).
     RekeyRequired,
+    /// Internal crypto primitive failed on an input that should be valid.
+    /// Treat as an auth-equivalent failure; do not crash the daemon.
+    CryptoInternal,
 }
 
 /// One side of an ephemeral X25519 handshake. `EphemeralSecret` zeroizes on drop
@@ -83,8 +99,9 @@ pub struct Handshake {
 /// XX pattern flow:
 /// ```text
 /// Initiator                   Responder
-/// e                           ← e, ee, s, es
-/// s, se                       ←
+/// e        ---------------->
+///          <----------------  e, ee, s, es
+/// s, se    ---------------->
 /// ```
 /// After `complete()`, both parties have derived the same session key and
 /// verified each other's static keys.
@@ -129,26 +146,34 @@ impl NoiseXX {
 
     /// Complete as initiator: receive responder's message, derive session.
     /// Input: (responder_ephemeral_pub, responder_static_pub)
-    pub fn complete_initiator(self, peer_ephemeral: PublicKey, peer_static: PublicKey) -> Session {
+    pub fn complete_initiator(
+        self,
+        peer_ephemeral: PublicKey,
+        peer_static: PublicKey,
+    ) -> Result<Session, MeshError> {
         // SIMPLIFIED Noise-XX: Use only ee (ephemeral-ephemeral) + ss (static-static)
         // Proper Noise-XX would use ee, es, se but that requires multiple ephemeral DH ops
 
-        // ee = ephemeral × peer_ephemeral
+        // ee = ephemeral x peer_ephemeral
         let ee = self.ephemeral.diffie_hellman(&peer_ephemeral);
         let ee_bytes = *ee.as_bytes();
 
-        // ss = static × peer_static (both sides compute this, gets same result)
+        // ss = static x peer_static (both sides compute this, gets same result)
         let ss = self.static_secret.diffie_hellman(&peer_static);
         let ss_bytes = *ss.as_bytes();
 
         // Combine ee + ss (both sides get same result)
-        let combined = combine_dh_shares(&ee_bytes, &ss_bytes, &ss_bytes);
+        let combined = combine_dh_shares(&ee_bytes, &ss_bytes, &ss_bytes)?;
         Session::from_shared(&combined, true)
     }
 
     /// Complete as responder: receive initiator's static, derive session.
     /// Input: (initiator_ephemeral_pub, initiator_static_pub)
-    pub fn complete_responder(self, peer_ephemeral: PublicKey, peer_static: PublicKey) -> Session {
+    pub fn complete_responder(
+        self,
+        peer_ephemeral: PublicKey,
+        peer_static: PublicKey,
+    ) -> Result<Session, MeshError> {
         // Same as initiator: ee + ss (both sides compute same)
         let ee = self.ephemeral.diffie_hellman(&peer_ephemeral);
         let ee_bytes = *ee.as_bytes();
@@ -156,13 +181,17 @@ impl NoiseXX {
         let ss = self.static_secret.diffie_hellman(&peer_static);
         let ss_bytes = *ss.as_bytes();
 
-        let combined = combine_dh_shares(&ee_bytes, &ss_bytes, &ss_bytes);
+        let combined = combine_dh_shares(&ee_bytes, &ss_bytes, &ss_bytes)?;
         Session::from_shared(&combined, false)
     }
 }
 
 /// Combine three X25519 DH outputs (ee, es, se) into a single 32-byte key using HKDF.
-fn combine_dh_shares(ee_bytes: &[u8; 32], es_bytes: &[u8; 32], se_bytes: &[u8; 32]) -> [u8; 32] {
+fn combine_dh_shares(
+    ee_bytes: &[u8; 32],
+    es_bytes: &[u8; 32],
+    se_bytes: &[u8; 32],
+) -> Result<[u8; 32], MeshError> {
     let mut combined = [0u8; 96];
     combined[0..32].copy_from_slice(ee_bytes);
     combined[32..64].copy_from_slice(es_bytes);
@@ -171,17 +200,16 @@ fn combine_dh_shares(ee_bytes: &[u8; 32], es_bytes: &[u8; 32], se_bytes: &[u8; 3
     // HKDF to mix the three shares
     let hk = Hkdf::<Sha256>::new(Some(HKDF_SALT), &combined);
     let mut output = [0u8; 32];
-    hk.expand(b"noise-xx-combine", &mut output)
-        .expect("32 bytes is a valid HKDF-SHA256 output length");
-    output
+    hkdf_expand_32(&hk, b"noise-xx-combine", &mut output)?;
+    Ok(output)
 }
 
-/// Allow-list of trusted NodeId → PublicKey mappings. Used to authenticate
+/// Allow-list of trusted NodeId -> PublicKey mappings. Used to authenticate
 /// peers in Noise-XX handshakes (E1.2). Only peers with static keys in this
 /// list are allowed to establish sessions.
 #[derive(Debug, Clone)]
 pub struct AllowList {
-    /// Map of node_id → trusted public key
+    /// Map of node_id -> trusted public key
     trusted: std::collections::HashMap<u64, PublicKey>,
 }
 
@@ -249,7 +277,7 @@ impl Handshake {
     /// never overlap (initiator sends with direction byte 0, responder with 1).
     /// `self` is consumed, so the `EphemeralSecret` is dropped (and zeroized)
     /// as soon as the shared secret is derived.
-    pub fn complete(self, peer: &PublicKey, initiator: bool) -> Session {
+    pub fn complete(self, peer: &PublicKey, initiator: bool) -> Result<Session, MeshError> {
         let shared = self.secret.diffie_hellman(peer);
         Session::from_shared(shared.as_bytes(), initiator)
     }
@@ -281,7 +309,11 @@ impl StaticKey {
 
     /// Derive the session to a peer whose public key is already trusted.
     /// `initiator` must differ between the two peers (e.g. lower node id = true).
-    pub fn session_with(&self, peer: &PublicKey, initiator: bool) -> Session {
+    pub fn session_with(
+        &self,
+        peer: &PublicKey,
+        initiator: bool,
+    ) -> Result<Session, MeshError> {
         let shared = self.0.diffie_hellman(peer);
         Session::from_shared(shared.as_bytes(), initiator)
     }
@@ -318,23 +350,22 @@ impl std::fmt::Debug for Session {
 }
 
 impl Session {
-    fn from_shared(shared: &[u8; 32], initiator: bool) -> Self {
+    fn from_shared(shared: &[u8; 32], initiator: bool) -> Result<Self, MeshError> {
         // The DH output seeds the ratchet chain; the epoch-0 AEAD key is one
         // HKDF-Expand off it. Both peers derive the identical chain from the
         // symmetric X25519 secret, so their epochs stay in lock-step.
         let hk = Hkdf::<Sha256>::new(Some(HKDF_SALT), shared);
         let mut chain = Zeroizing::new([0u8; 32]);
-        hk.expand(b"ratchet-chain", chain.as_mut())
-            .expect("32 bytes is a valid HKDF-SHA256 output length");
-        let cipher = derive_cipher(&chain, HKDF_INFO);
-        Self {
+        hkdf_expand_32(&hk, b"ratchet-chain", &mut chain)?;
+        let cipher = derive_cipher(&chain, HKDF_INFO)?;
+        Ok(Self {
             cipher,
             chain_key: chain,
             epoch: 0,
             tx_dir: if initiator { 0 } else { 1 },
             tx_counter: 0,
             rx: ReplayWindow::new(),
-        }
+        })
     }
 
     /// Current ratchet epoch (starts at 0). Exposed for tests and future M2
@@ -346,24 +377,23 @@ impl Session {
     /// Advance the symmetric ratchet: derive the next chain key and AEAD key,
     /// bump the epoch, reset the counter and replay window, and zeroize the old
     /// chain key. Both peers must ratchet in lock-step (same trigger) so their
-    /// epochs — and therefore their nonces — stay aligned.
+    /// epochs - and therefore their nonces - stay aligned.
     ///
     /// The old key is unrecoverable after this call, giving forward secrecy:
     /// capturing the node now leaks only the new epoch's key.
-    pub fn ratchet(&mut self) {
+    pub fn ratchet(&mut self) -> Result<(), MeshError> {
         // key_{i+1} = HKDF-Expand(chain_i, "aead-rekey"); chain_{i+1} likewise
         // off a distinct label. Zeroizing wraps the new chain and drops (wipes)
         // the old one on assignment.
-        let hk = Hkdf::<Sha256>::from_prk(self.chain_key.as_ref())
-            .expect("32-byte chain key is a valid HKDF-SHA256 PRK");
+        let hk = hkdf_from_prk(self.chain_key.as_ref())?;
         let mut next_chain = Zeroizing::new([0u8; 32]);
-        hk.expand(b"ratchet-chain", next_chain.as_mut())
-            .expect("32 bytes is a valid HKDF-SHA256 output length");
-        self.cipher = derive_cipher(&next_chain, HKDF_INFO_RATCHET);
+        hkdf_expand_32(&hk, b"ratchet-chain", &mut next_chain)?;
+        self.cipher = derive_cipher(&next_chain, HKDF_INFO_RATCHET)?;
         self.chain_key = next_chain; // old chain key dropped -> zeroized
         self.epoch = self.epoch.wrapping_add(1);
         self.tx_counter = 0;
         self.rx = ReplayWindow::new();
+        Ok(())
     }
 
     /// Seal `plaintext` with associated data `aad`.
@@ -383,7 +413,7 @@ impl Session {
         }
         // Routine forward-secrecy ratchet: bounded per-epoch data budget.
         if self.tx_counter >= REKEY_EVERY_FRAMES {
-            self.ratchet();
+            self.ratchet()?;
         }
         let epoch = self.epoch;
         let ctr = self.tx_counter;
@@ -398,7 +428,7 @@ impl Session {
                     aad,
                 },
             )
-            .expect("ChaCha20-Poly1305 encryption is infallible for valid inputs");
+            .map_err(|_| MeshError::CryptoInternal)?;
         let mut out = Vec::with_capacity(12 + ct.len());
         out.extend_from_slice(&epoch.to_be_bytes());
         out.extend_from_slice(&ctr.to_be_bytes());
@@ -411,13 +441,13 @@ impl Session {
     ///
     /// The epoch travels in the frame prefix and is folded into the nonce, so a
     /// frame from a different epoch decrypts under a different nonce and fails
-    /// the tag as [`MeshError::Auth`] — cross-epoch replays cannot pass.
+    /// the tag as [`MeshError::Auth`] - cross-epoch replays cannot pass.
     pub fn open(&mut self, aad: &[u8], frame: &[u8]) -> Result<Vec<u8>, MeshError> {
         if frame.len() < 12 {
             return Err(MeshError::ShortFrame);
         }
-        let epoch = u32::from_be_bytes(frame[..4].try_into().expect("4-byte slice"));
-        let ctr = u64::from_be_bytes(frame[4..12].try_into().expect("8-byte slice"));
+        let epoch = read_u32_be(frame).ok_or(MeshError::ShortFrame)?;
+        let ctr = read_u64_be(&frame[4..]).ok_or(MeshError::ShortFrame)?;
         // The peer's TX direction is the opposite of ours.
         let rx_dir = 1 - self.tx_dir;
         let nonce = make_nonce(rx_dir, epoch, ctr);
@@ -443,14 +473,24 @@ impl Session {
 
 /// Derive a ChaCha20-Poly1305 cipher from a chain key under `info`, wiping the
 /// expanded key bytes immediately after the cipher captures them.
-fn derive_cipher(chain: &Zeroizing<[u8; 32]>, info: &[u8]) -> ChaCha20Poly1305 {
-    let hk = Hkdf::<Sha256>::from_prk(chain.as_ref())
-        .expect("32-byte chain key is a valid HKDF-SHA256 PRK");
+fn derive_cipher(chain: &Zeroizing<[u8; 32]>, info: &[u8]) -> Result<ChaCha20Poly1305, MeshError> {
+    let hk = hkdf_from_prk(chain.as_ref())?;
     let mut key = Zeroizing::new([0u8; 32]);
-    hk.expand(info, key.as_mut())
-        .expect("32 bytes is a valid HKDF-SHA256 output length");
-    ChaCha20Poly1305::new(Key::from_slice(key.as_ref()))
+    hkdf_expand_32(&hk, info, &mut key)?;
+    Ok(ChaCha20Poly1305::new(Key::from_slice(key.as_ref())))
     // `key` (Zeroizing) is wiped here on drop.
+}
+
+/// Read a big-endian u32 from the front of a slice that is known to be long
+/// enough. Returns `None` only if the slice is shorter than 4 bytes.
+fn read_u32_be(bytes: &[u8]) -> Option<u32> {
+    bytes.get(..4)?.try_into().ok().map(u32::from_be_bytes)
+}
+
+/// Read a big-endian u64 from the front of a slice that is known to be long
+/// enough. Returns `None` only if the slice is shorter than 8 bytes.
+fn read_u64_be(bytes: &[u8]) -> Option<u64> {
+    bytes.get(..8)?.try_into().ok().map(u64::from_be_bytes)
 }
 
 /// 96-bit nonce = `[dir:1][epoch:4 BE][counter:7 BE]`. Unique per
@@ -526,7 +566,10 @@ mod tests {
         let b = Handshake::new();
         let a_pub = a.public;
         let b_pub = b.public;
-        (a.complete(&b_pub, true), b.complete(&a_pub, false))
+        (
+            a.complete(&b_pub, true).unwrap(),
+            b.complete(&a_pub, false).unwrap(),
+        )
     }
 
     #[test]
@@ -569,7 +612,7 @@ mod tests {
         let f0 = alice.seal(b"", b"0").unwrap();
         let f1 = alice.seal(b"", b"1").unwrap();
         let f2 = alice.seal(b"", b"2").unwrap();
-        // Deliver 2, then 0, then 1 — all fresh, none replayed.
+        // Deliver 2, then 0, then 1 - all fresh, none replayed.
         assert_eq!(bob.open(b"", &f2).unwrap(), b"2");
         assert_eq!(bob.open(b"", &f0).unwrap(), b"0");
         assert_eq!(bob.open(b"", &f1).unwrap(), b"1");
@@ -589,7 +632,7 @@ mod tests {
         let (mut alice, _bob) = pair();
         let (_alice2, mut bob2) = pair();
         let frame = alice.seal(b"", b"cross").unwrap();
-        // bob2's key is from a different handshake → must not decrypt.
+        // bob2's key is from a different handshake -> must not decrypt.
         assert_eq!(bob2.open(b"", &frame), Err(MeshError::Auth));
     }
 
@@ -600,11 +643,11 @@ mod tests {
         let (mut alice, mut bob) = pair();
         // A frame sealed in epoch 0 must not open after the receiver ratchets.
         let e0 = alice.seal(b"", b"epoch0").unwrap();
-        bob.ratchet();
+        bob.ratchet().unwrap();
         assert_eq!(bob.epoch(), 1);
         assert_eq!(bob.open(b"", &e0), Err(MeshError::Auth));
         // Once the sender also ratchets, a fresh frame round-trips in epoch 1.
-        alice.ratchet();
+        alice.ratchet().unwrap();
         let e1 = alice.seal(b"", b"epoch1").unwrap();
         assert_eq!(&e1[..4], &1u32.to_be_bytes()); // epoch tag on the wire
         assert_eq!(bob.open(b"", &e1).unwrap(), b"epoch1");
@@ -615,8 +658,8 @@ mod tests {
         let (mut alice, mut bob) = pair();
         let old = alice.seal(b"", b"pre-ratchet").unwrap();
         assert_eq!(bob.open(b"", &old).unwrap(), b"pre-ratchet");
-        alice.ratchet();
-        bob.ratchet();
+        alice.ratchet().unwrap();
+        bob.ratchet().unwrap();
         // Counter restarts at 0 in the new epoch.
         let fresh = alice.seal(b"", b"post-ratchet").unwrap();
         assert_eq!(&fresh[4..12], &0u64.to_be_bytes());
@@ -641,7 +684,7 @@ mod tests {
         assert_eq!(alice.epoch(), 1);
         assert_eq!(&first1[..4], &1u32.to_be_bytes());
         // The receiver ratchets in lock-step and the frame still round-trips.
-        bob.ratchet();
+        bob.ratchet().unwrap();
         assert_eq!(bob.open(b"", &first1).unwrap(), b"first-of-epoch1");
     }
 
@@ -661,7 +704,7 @@ mod tests {
     #[test]
     fn key_material_is_zeroized() {
         use zeroize::Zeroize;
-        // Explicitly zeroizing a key buffer must wipe every byte to zero — this
+        // Explicitly zeroizing a key buffer must wipe every byte to zero - this
         // is exactly the guarantee `Zeroizing` invokes in its `Drop`. Tested on
         // an owned buffer (no `unsafe`, honoring the crate's forbid(unsafe_code)).
         let mut key = [0xABu8; 32];
@@ -695,8 +738,8 @@ mod tests {
         let b_static_pub = bob.static_public();
 
         // Complete handshakes
-        let mut alice_sess = alice.complete_initiator(b_ephem, b_static_pub);
-        let mut bob_sess = bob.complete_responder(a_ephem, a_static_pub);
+        let mut alice_sess = alice.complete_initiator(b_ephem, b_static_pub).unwrap();
+        let mut bob_sess = bob.complete_responder(a_ephem, a_static_pub).unwrap();
 
         // They should derive the same session key
         let frame = alice_sess.seal(b"xx-test", b"authenticated mesh").unwrap();
@@ -724,10 +767,10 @@ mod tests {
         let mallory_pub = PublicKey::from(&mallory_static);
 
         // This should derive a different session key (authentication fails)
-        let mut alice_sess = alice.complete_initiator(b_ephem, mallory_pub);
+        let mut alice_sess = alice.complete_initiator(b_ephem, mallory_pub).unwrap();
 
         // Bob correctly completed with Alice's static key
-        let mut bob_sess = bob.complete_responder(a_ephem, a_static_pub);
+        let mut bob_sess = bob.complete_responder(a_ephem, a_static_pub).unwrap();
 
         // Frames won't decrypt - different session keys due to failed authentication
         let frame = alice_sess.seal(b"", b"fake message").unwrap();
@@ -755,17 +798,21 @@ mod tests {
         let mallory_alice = NoiseXX::new(mallory_static.clone(), false);
         let mallory_bob = NoiseXX::new(mallory_static, true);
 
-        // Alice ↔ Mallory handshake (Alice thinks it's Bob, but it's Mallory)
-        let mut alice_sess = alice.complete_initiator(
-            mallory_alice.ephemeral_public(),
-            mallory_alice.static_public(),
-        );
-        let mut mal_sess_alice = mallory_alice.complete_responder(a_ephem, a_static_pub);
+        // Alice <-> Mallory handshake (Alice thinks it's Bob, but it's Mallory)
+        let mut alice_sess = alice
+            .complete_initiator(mallory_alice.ephemeral_public(), mallory_alice.static_public())
+            .unwrap();
+        let mut mal_sess_alice = mallory_alice
+            .complete_responder(a_ephem, a_static_pub)
+            .unwrap();
 
-        // Bob ↔ Mallory handshake
-        let mut bob_sess =
-            bob.complete_responder(mallory_bob.ephemeral_public(), mallory_bob.static_public());
-        let _mal_sess_bob = mallory_bob.complete_initiator(b_ephem, b_static_pub);
+        // Bob <-> Mallory handshake
+        let mut bob_sess = bob
+            .complete_responder(mallory_bob.ephemeral_public(), mallory_bob.static_public())
+            .unwrap();
+        let _mal_sess_bob = mallory_bob
+            .complete_initiator(b_ephem, b_static_pub)
+            .unwrap();
 
         // Alice sends message intended for Bob
         let frame = alice_sess.seal(b"", b"secret for bob").unwrap();
@@ -856,8 +903,8 @@ mod tests {
         let a_ephem = alice.ephemeral_public();
         let b_ephem = bob.ephemeral_public();
 
-        let mut alice_sess = alice.complete_initiator(b_ephem, b_pub);
-        let mut bob_sess = bob.complete_responder(a_ephem, a_pub);
+        let mut alice_sess = alice.complete_initiator(b_ephem, b_pub).unwrap();
+        let mut bob_sess = bob.complete_responder(a_ephem, a_pub).unwrap();
 
         let frame = alice_sess.seal(b"", b"verified").unwrap();
         assert_eq!(bob_sess.open(b"", &frame).unwrap(), b"verified");

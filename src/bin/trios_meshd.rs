@@ -1,13 +1,13 @@
-//! trios-meshd — minimal TRI-NET mesh daemon over a UDP transport.
+//! trios-meshd - minimal TRI-NET mesh daemon over a UDP transport.
 //!
 //! Runs on each node. Uses UDP-over-Ethernet as the link transport (stand-in
 //! for the 5.8 GHz radio, which swaps in later as a different `Transport`), so
-//! the full mesh stack — per-hop ChaCha20-Poly1305 crypto, ETX routing from
-//! HELLO beacons, and multi-hop forwarding — can be validated on real hardware
+//! the full mesh stack - per-hop ChaCha20-Poly1305 crypto, ETX routing from
+//! HELLO beacons, and multi-hop forwarding - can be validated on real hardware
 //! WITHOUT radiating anything (legally clean for development).
 //!
 //! Demo keys are derived deterministically from node id (a pre-shared-key mesh,
-//! an allow-list); real ephemeral auth is the Noise-XX path (tri-net#… / B01).
+//! an allow-list); real ephemeral auth is the Noise-XX path (tri-net#... / B01).
 //!
 //! Config file (one directive per line):
 //!   id 11
@@ -19,6 +19,7 @@ use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::io;
 use std::net::{SocketAddr, UdpSocket};
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -83,26 +84,44 @@ struct Cfg {
     peers: Vec<(NodeId, SocketAddr)>,
 }
 
-fn parse_cfg(text: &str) -> Cfg {
+fn parse_cfg(text: &str) -> Result<Cfg, String> {
     let mut id = 0u32;
     let mut listen = None;
     let mut peers = Vec::new();
-    for line in text.lines() {
+    for (line_no, line) in text.lines().enumerate() {
         let f: Vec<&str> = line.split_whitespace().collect();
         match f.as_slice() {
-            ["id", v] => id = v.parse().expect("id"),
-            ["listen", a] => listen = Some(a.parse().expect("listen addr")),
-            ["peer", pid, a] => {
-                peers.push((pid.parse().expect("peer id"), a.parse().expect("peer addr")))
+            ["id", v] => {
+                id = v
+                    .parse()
+                    .map_err(|e| format!("line {}: invalid id '{}': {}", line_no + 1, v, e))?;
             }
+            ["listen", a] => {
+                listen = Some(a.parse().map_err(|e| {
+                    format!("line {}: invalid listen addr '{}': {}", line_no + 1, a, e)
+                })?);
+            }
+            ["peer", pid, a] => {
+                let pid = pid.parse().map_err(|e| {
+                    format!("line {}: invalid peer id '{}': {}", line_no + 1, pid, e)
+                })?;
+                let addr = a.parse().map_err(|e| {
+                    format!("line {}: invalid peer addr '{}': {}", line_no + 1, a, e)
+                })?;
+                peers.push((pid, addr));
+            }
+            [] => {}
             _ => {}
         }
     }
-    Cfg {
+    if id == 0 {
+        return Err("config missing required 'id <node_id>'".into());
+    }
+    Ok(Cfg {
         id,
         listen: listen.unwrap_or_else(|| SocketAddr::from(([0, 0, 0, 0], 5000))),
         peers,
-    }
+    })
 }
 
 #[derive(Default)]
@@ -111,15 +130,49 @@ struct RxShared {
     they_heard: HashMap<NodeId, bool>,
 }
 
+/// Default path for the M5 simulated-link-failure drop set.
+/// Uses `TRIOS_MESH_DROP` if set, otherwise `.trinity/run/mesh.drop` under the
+/// current working directory (the project root when run from trios/).
+fn mesh_drop_path() -> PathBuf {
+    std::env::var("TRIOS_MESH_DROP")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            std::env::current_dir()
+                .unwrap_or_else(|_| PathBuf::from("."))
+                .join(".trinity/run/mesh.drop")
+        })
+}
+
+fn read_drop_set(path: &Path) -> HashSet<NodeId> {
+    std::fs::read_to_string(path)
+        .ok()
+        .map(|s| {
+            s.split_whitespace()
+                .filter_map(|x| x.parse().ok())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 fn main() {
-    let path = std::env::args()
-        .nth(1)
-        .expect("usage: trios-meshd <config>");
-    let cfg = parse_cfg(&std::fs::read_to_string(&path).expect("read config"));
+    if let Err(e) = run() {
+        eprintln!("[meshd] FATAL: {e}");
+        std::process::exit(1);
+    }
+}
+
+fn run() -> Result<(), String> {
+    let path = std::env::args().nth(1).ok_or("usage: trios-meshd <config>")?;
+    let text = std::fs::read_to_string(&path)
+        .map_err(|e| format!("cannot read config '{}': {}", path, e))?;
+    let cfg = parse_cfg(&text)?;
     let me = cfg.id;
     let my_key = StaticKey::from_seed(seed_for(me));
 
-    let sock = Arc::new(UdpSocket::bind(cfg.listen).expect("bind"));
+    let sock = Arc::new(
+        UdpSocket::bind(cfg.listen)
+            .map_err(|e| format!("cannot bind to {}: {}", cfg.listen, e))?,
+    );
     let mut router = MeshRouter::new(me, ETX_WINDOW);
     let mut peer_ids: Vec<NodeId> = Vec::new();
     // Key by full SocketAddr (IP + port) so that loopback smokes with
@@ -130,7 +183,9 @@ fn main() {
     let mut addr_to_id: HashMap<SocketAddr, NodeId> = HashMap::new();
     for (pid, addr) in &cfg.peers {
         let peer_pub = StaticKey::from_seed(seed_for(*pid)).public();
-        let session = my_key.session_with(&peer_pub, me < *pid);
+        let session = my_key
+            .session_with(&peer_pub, me < *pid)
+            .map_err(|_| format!("session derivation failed for peer {}", pid))?;
         router.add_link(
             *pid,
             session,
@@ -144,7 +199,7 @@ fn main() {
     }
     let router = Arc::new(Mutex::new(router));
     let rx = Arc::new(Mutex::new(RxShared::default()));
-    // Peers whose link is simulated-failed (ids in /tmp/mesh.drop) — for M5 demo.
+    // Peers whose link is simulated-failed (ids in .trinity/run/mesh.drop) - for M5 demo.
     let dropped: Arc<Mutex<HashSet<NodeId>>> = Arc::new(Mutex::new(HashSet::new()));
     let watch: Option<NodeId> = std::env::var("TRIOS_WATCH")
         .ok()
@@ -152,7 +207,7 @@ fn main() {
     // M4: this node has a real internet uplink and serves FETCH requests.
     let gateway = std::env::var("TRIOS_GATEWAY").is_ok();
     let started = Instant::now();
-    println!("[meshd] node {me} on {} — peers {peer_ids:?}", cfg.listen);
+    println!("[meshd] node {me} on {} - peers {peer_ids:?}", cfg.listen);
 
     // Central RX: dispatch every datagram through the router.
     {
@@ -174,14 +229,21 @@ fn main() {
                     Some(f) => *f,
                     None => continue,
                 };
-                if dropped.lock().unwrap().contains(&from) {
+                if dropped
+                    .lock()
+                    .unwrap_or_else(|p| p.into_inner())
+                    .contains(&from)
+                {
                     continue; // simulated link failure: ignore this neighbor
                 }
-                let deliv = router.lock().unwrap().handle_frame(from, &buf[..n]);
+                let deliv = router
+                    .lock()
+                    .unwrap_or_else(|p| p.into_inner())
+                    .handle_frame(from, &buf[..n]);
                 match deliv {
                     Delivery::Local(p) if p.first() == Some(&HELLO_TYPE) => {
                         if let Some(h) = Hello::parse(&p[1..]) {
-                            let mut r = rx.lock().unwrap();
+                            let mut r = rx.lock().unwrap_or_else(|p| p.into_inner());
                             r.seen.insert(from);
                             r.they_heard.insert(from, h.reports_hearing(me));
                         }
@@ -202,13 +264,16 @@ fn main() {
                             let ip = fetch_public_ip();
                             let mut resp = vec![FETCH_RESP];
                             resp.extend_from_slice(ip.as_bytes());
-                            let d = router.lock().unwrap().send_ip(origin, &resp);
+                            let d = router
+                                .lock()
+                                .unwrap_or_else(|p| p.into_inner())
+                                .send_ip(origin, &resp);
                             println!(
                                 "[meshd] gateway fetched \"{ip}\" -> reply to {origin}: {d:?}"
                             );
                         });
                     }
-                    // M4: the gateway's reply — internet reached us over the mesh.
+                    // M4: the gateway's reply - internet reached us over the mesh.
                     Delivery::Local(p) if p.first() == Some(&FETCH_RESP) => {
                         println!(
                             "[meshd] INTERNET-VIA-MESH: {}",
@@ -225,14 +290,19 @@ fn main() {
     // Optional one-shot test packet: TRIOS_SEND="dst:message".
     if let Ok(spec) = std::env::var("TRIOS_SEND") {
         if let Some((d, m)) = spec.split_once(':') {
-            let dst: NodeId = d.parse().expect("send dst");
+            let dst: NodeId = d
+                .parse()
+                .map_err(|e| format!("TRIOS_SEND has invalid dst '{d}': {e}"))?;
             let msg = m.as_bytes().to_vec();
             let router = router.clone();
             thread::spawn(move || {
                 thread::sleep(Duration::from_secs(4));
                 let mut payload = vec![DATA_TYPE];
                 payload.extend_from_slice(&msg);
-                let d = router.lock().unwrap().send_ip(dst, &payload);
+                let d = router
+                    .lock()
+                    .unwrap_or_else(|p| p.into_inner())
+                    .send_ip(dst, &payload);
                 println!("[meshd] TX test -> {dst}: {d:?}");
             });
         }
@@ -247,10 +317,19 @@ fn main() {
                 thread::sleep(Duration::from_secs(5));
                 let mut req = vec![FETCH_REQ];
                 req.extend_from_slice(&me.to_le_bytes());
-                let d = router.lock().unwrap().send_ip(gw, &req);
+                let d = router
+                    .lock()
+                    .unwrap_or_else(|p| p.into_inner())
+                    .send_ip(gw, &req);
                 println!("[meshd] FETCH internet via mesh -> gateway {gw}: {d:?}");
             });
         }
+    }
+
+    let drop_path = mesh_drop_path();
+    // Ensure parent dir exists so the drop file can be created by an operator.
+    if let Some(parent) = drop_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
     }
 
     // Ticker: measure ETX for the interval, beacon HELLO, print status.
@@ -262,7 +341,7 @@ fn main() {
         seq += 1;
         tick += 1;
         let (seen, they) = {
-            let mut r = rx.lock().unwrap();
+            let mut r = rx.lock().unwrap_or_else(|p| p.into_inner());
             (std::mem::take(&mut r.seen), r.they_heard.clone())
         };
         let heard: Vec<NodeId> = {
@@ -270,18 +349,11 @@ fn main() {
             v.sort();
             v
         };
-        // Refresh the simulated link-failure set from /tmp/mesh.drop (M5 control).
-        let dset: HashSet<NodeId> = std::fs::read_to_string("/tmp/mesh.drop")
-            .ok()
-            .map(|s| {
-                s.split_whitespace()
-                    .filter_map(|x| x.parse().ok())
-                    .collect()
-            })
-            .unwrap_or_default();
-        *dropped.lock().unwrap() = dset.clone();
+        // Refresh the simulated link-failure set from .trinity/run/mesh.drop (M5 control).
+        let dset: HashSet<NodeId> = read_drop_set(&drop_path);
+        *dropped.lock().unwrap_or_else(|p| p.into_inner()) = dset.clone();
 
-        let mut rt = router.lock().unwrap();
+        let mut rt = router.lock().unwrap_or_else(|p| p.into_inner());
         for pid in &peer_ids {
             let alive = !dset.contains(pid);
             let heard = seen.contains(pid) && alive;
@@ -296,10 +368,16 @@ fn main() {
                 }
             }
         }
-        // E2.2 — Use authenticated HELLO with MAC
+        // E2.2 - Use authenticated HELLO with MAC
         // TODO: derive mac_key from session keys (E2.2 complete implementation)
         let mac_key = None; // Will be derived from per-peer session keys
-        let hello = Hello::authenticated(me, seq, heard, &mac_key);
+        let hello = match Hello::authenticated(me, seq, heard, &mac_key) {
+            Ok(h) => h,
+            Err(e) => {
+                println!("[meshd] HELLO auth failed for node {me}: {e:?}");
+                continue;
+            }
+        };
         let mut pay = vec![HELLO_TYPE];
         pay.extend_from_slice(&hello.to_bytes());
         for pid in &peer_ids {

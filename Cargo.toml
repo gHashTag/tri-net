@@ -13,6 +13,11 @@ autoexamples = false
 autotests = true
 autobenches = false
 
+# NOTE: trios-meshd binary (src/bin/trios_meshd.rs) is intentionally not
+# registered as a [[bin]] target. It was written against an older trios-mesh API
+# and needs a dedicated revival pass (M2/M5 milestone) before it can compile.
+# The file is preserved and already panic-hardened /tmp-free for that future pass.
+
 [dependencies]
 x25519-dalek = { version = "2.0", features = ["static_secrets", "zeroize"] }
 chacha20poly1305 = "0.10"

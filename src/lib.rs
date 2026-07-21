@@ -6,9 +6,9 @@
 //!
 //! phi^2 + phi^-2 = 3
 
-// Tests assert on infallible test-only roundtrips; unwrap_used is allowed in
-// test code while production code remains covered by the workspace deny lint.
-#![cfg_attr(test, allow(clippy::unwrap_used))]
+// Tests assert on infallible test-only roundtrips; unwrap/expect are allowed
+// in test code while production code remains covered by the workspace deny lint.
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
 pub mod crypto;
 pub mod daemon;

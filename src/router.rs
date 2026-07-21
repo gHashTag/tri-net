@@ -1,4 +1,4 @@
-//! M2 — IP-over-radio data plane (tri-net#11).
+//! M2 - IP-over-radio data plane (tri-net#11).
 //!
 //! A [`MeshRouter`] reads IP packets from the local TUN netdev, picks a next hop
 //! toward the destination using the [`EtxTable`] metric, seals each packet
@@ -23,7 +23,7 @@ use std::net::Ipv4Addr;
 /// Default hop budget for a freshly originated packet.
 pub const DEFAULT_TTL: u8 = 8;
 
-/// Mesh subnet `10.42.0.0/24`: NodeId `n` (1..=254) ⇔ `10.42.0.n`.
+/// Mesh subnet `10.42.0.0/24`: NodeId `n` (1..=254) maps to `10.42.0.n`.
 pub fn mesh_ip(id: NodeId) -> Ipv4Addr {
     Ipv4Addr::new(10, 42, 0, (id & 0xff) as u8)
 }
@@ -48,16 +48,16 @@ pub enum DropReason {
     /// Frame from a node we have no session with, or it failed to open.
     Unopened(MeshError),
     /// Outbound seal failed (e.g. the per-key rekey hard cap was reached before
-    /// a ratchet step) — the frame is dropped rather than risking nonce reuse.
+    /// a ratchet step) - the frame is dropped rather than risking nonce reuse.
     SealFailed(MeshError),
-    /// E3.2 — Frame header.src != actual link peer (spoof attempt).
+    /// E3.2 - Frame header.src != actual link peer (spoof attempt).
     SrcSpoof,
 }
 
 /// Outcome of handling one frame.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Delivery {
-    /// Packet was for this node — hand the payload up to the local TUN.
+    /// Packet was for this node - hand the payload up to the local TUN.
     Local(Vec<u8>),
     /// Packet was re-sealed and forwarded to `next_hop`.
     Forwarded(NodeId),
@@ -100,11 +100,11 @@ pub struct MeshRouter {
     etx: EtxTable,
     /// One crypto session + transport per directly-linked neighbor.
     links: HashMap<NodeId, Link>,
-    /// Learned overrides: destination → next-hop neighbor.
+    /// Learned overrides: destination -> next-hop neighbor.
     routes: HashMap<NodeId, NodeId>,
     /// E5: Ranked next-hops (k=2) for fast failover.
     ranked_hops: HashMap<NodeId, RankedNextHops>,
-    /// E5: Candidate routes for ranked hops (dst → vec of (next_hop, path_etx)).
+    /// E5: Candidate routes for ranked hops (dst -> vec of (next_hop, path_etx)).
     ranked_candidates: HashMap<NodeId, Vec<(NodeId, f32)>>,
 }
 
@@ -157,7 +157,7 @@ impl MeshRouter {
         self.etx.record(peer, we_heard, they_heard);
     }
 
-    /// Neighbor ETX snapshot (id, etx), sorted by id — for status/printing.
+    /// Neighbor ETX snapshot (id, etx), sorted by id - for status/printing.
     pub fn neighbors(&self) -> Vec<(NodeId, f32)> {
         self.etx.neighbors()
     }
@@ -181,12 +181,12 @@ impl MeshRouter {
 
         for (dst, ranked) in self.ranked_hops.iter_mut() {
             if ranked.primary == Some(peer) {
-                // Hot-swap: primary dead → promote backup to primary
+                // Hot-swap: primary dead -> promote backup to primary
                 ranked.primary = ranked.backup;
                 ranked.backup = None; // Need to recompute backup later
                 routes_to_update.push(*dst);
             } else if ranked.backup == Some(peer) {
-                // Backup dead → just clear it (recompute later)
+                // Backup dead -> just clear it (recompute later)
                 ranked.backup = None;
             }
         }
@@ -205,7 +205,7 @@ impl MeshRouter {
 
     /// Learn a path route to `dst` via `next_hop` with advertised ETX `adv_etx`.
     /// Computes cumulative path ETX (link ETX + advertised ETX) and applies
-    /// RFC 8966 §3.7 feasibility check before accepting the route.
+    /// RFC 8966 section 3.7 feasibility check before accepting the route.
     /// Returns true if the route was learned (passed feasibility).
     pub fn learn_route(&mut self, dst: NodeId, next_hop: NodeId, adv_etx: f32) -> bool {
         // Compute cumulative path ETX
@@ -320,7 +320,7 @@ impl MeshRouter {
         if dst == self.id {
             return None;
         }
-        // Use the direct link unless its ETX has gone infinite (dead) — that is
+        // Use the direct link unless its ETX has gone infinite (dead) - that is
         // what lets traffic self-heal around a failed direct neighbor via a relay.
         let direct_dead = self.etx.etx(dst).is_some_and(|e| e.is_infinite());
         if self.links.contains_key(&dst) && !direct_dead {
@@ -403,7 +403,7 @@ impl MeshRouter {
             None => return Delivery::Dropped(DropReason::Unopened(MeshError::Auth)),
         };
 
-        // E3.1 — Src cross-check for HELLO frames only
+        // E3.1 - Src cross-check for HELLO frames only
         // HELLO beacons MUST have src == from (node announces itself)
         // Data frames can have src != from (multi-hop relay is normal)
         // W3 mitigation: prevent neighbor from spoofing HELLO source
@@ -475,12 +475,8 @@ mod tests {
         }
     }
     impl VecTransport {
-        fn take(&self) -> Vec<u8> {
-            self.q
-                .lock()
-                .unwrap()
-                .pop_front()
-                .expect("a frame was sent")
+        fn take(&self) -> Option<Vec<u8>> {
+            self.q.lock().unwrap_or_else(|p| p.into_inner()).pop_front()
         }
     }
 
@@ -489,7 +485,10 @@ mod tests {
         let a = Handshake::new();
         let b = Handshake::new();
         let (ap, bp) = (a.public, b.public);
-        (a.complete(&bp, true), b.complete(&ap, false))
+        (
+            a.complete(&bp, true).unwrap(),
+            b.complete(&ap, false).unwrap(),
+        )
     }
 
     #[test]
@@ -510,7 +509,7 @@ mod tests {
         b.add_link(1, sb, Box::new(VecTransport::default()));
 
         assert_eq!(a.send_ip(2, b"ip-packet"), Delivery::Forwarded(2));
-        let frame = t.take();
+        let frame = t.take().expect("a frame was sent");
         assert_eq!(
             b.handle_frame(1, &frame),
             Delivery::Local(b"ip-packet".to_vec())
@@ -519,7 +518,7 @@ mod tests {
 
     #[test]
     fn two_hop_relay_with_hop_by_hop_crypto() {
-        // A(1) — C(3) — B(2). A has no direct link to B; it must relay via C.
+        // A(1) - C(3) - B(2). A has no direct link to B; it must relay via C.
         let (a_c, c_a) = sessions(); // A<->C
         let (c_b, b_c) = sessions(); // C<->B
         let ac = VecTransport::default(); // A -> C
@@ -534,19 +533,19 @@ mod tests {
         c.add_link(2, c_b, Box::new(cb.clone()));
         b.add_link(3, b_c, Box::new(VecTransport::default()));
 
-        // A learns C is a good neighbor so best_next_hop(→ relay) resolves to C.
+        // A learns C is a good neighbor so best_next_hop(-> relay) resolves to C.
         for _ in 0..4 {
             a.observe(3, true, true);
         }
         assert_eq!(a.next_hop(2), Some(3), "A relays toward B via C");
 
-        // A originates to B → goes to C.
+        // A originates to B -> goes to C.
         assert_eq!(a.send_ip(2, b"hello over 2 hops"), Delivery::Forwarded(3));
-        let f1 = ac.take();
+        let f1 = ac.take().expect("a frame was sent");
 
-        // C receives from A, sees dst=B, re-seals under the C<->B session → B.
+        // C receives from A, sees dst=B, re-seals under the C<->B session -> B.
         assert_eq!(c.handle_frame(1, &f1), Delivery::Forwarded(2));
-        let f2 = cb.take();
+        let f2 = cb.take().expect("a frame was sent");
         assert_ne!(
             f1, f2,
             "each hop is independently encrypted (different ciphertext)"
@@ -593,7 +592,7 @@ mod tests {
         let (sa, _sb) = sessions();
         let mut a = MeshRouter::new(1, 16);
         a.add_link(2, sa, Box::new(VecTransport::default()));
-        // A never linked node 9 → cannot open its frame.
+        // A never linked node 9 -> cannot open its frame.
         let junk = vec![0u8; Header::LEN + 32];
         assert_eq!(
             a.handle_frame(9, &junk),
@@ -609,7 +608,7 @@ mod tests {
         let mut a = MeshRouter::new(1, 4);
         a.add_link(2, s2, Box::new(VecTransport::default()));
         a.add_link(3, s3, Box::new(VecTransport::default()));
-        // Both links healthy → route to 3 is direct.
+        // Both links healthy -> route to 3 is direct.
         for _ in 0..4 {
             a.observe(2, true, true);
             a.observe(3, true, true);
@@ -652,7 +651,7 @@ mod tests {
         spoofed_hello[9] = 1;
         spoofed_hello[10] = 8; // ttl
 
-        // A receives from 3 but HELLO says src=2 → should be dropped
+        // A receives from 3 but HELLO says src=2 -> should be dropped
         let result = a.handle_frame(3, &spoofed_hello);
 
         // Will fail MAC check first (not a valid encrypted frame),
@@ -703,8 +702,8 @@ mod tests {
 
     #[test]
     fn multi_hop_data_relay_not_affected_by_src_check() {
-        // E3 — Demonstrate that data frames with src != from are accepted (multi-hop)
-        // A(1) — C(3). C relays frame from A (src=1) to someone else.
+        // E3 - Demonstrate that data frames with src != from are accepted (multi-hop)
+        // A(1) - C(3). C relays frame from A (src=1) to someone else.
         let (s_a_c, s_c_a) = sessions();
         let t = VecTransport::default();
 
@@ -716,20 +715,20 @@ mod tests {
 
         // A sends frame
         assert_eq!(a.send_ip(3, b"hello from A"), Delivery::Forwarded(3));
-        let frame = t.take();
+        let frame = t.take().expect("a frame was sent");
 
         // This is a DATA frame (kind=1) from A to C
         // We'll modify it to simulate relay: src=1, but received from a peer
         // Verify it's not HELLO (which would require src == from)
         assert_ne!(frame[1], FrameKind::Hello as u8);
 
-        // C receives from A with src=1 → NOT SrcSpoof (data frames can have src == from)
+        // C receives from A with src=1 -> NOT SrcSpoof (data frames can have src == from)
         // This is normal single-hop traffic
         assert!(matches!(c.handle_frame(1, &frame), Delivery::Local(_)));
 
         // Additional test: craft a data frame with src != from (simulating relay)
         // In real multi-hop, C would receive from A (src=1, from=1) and relay to B
-        // B would receive from C (src=1, from=3) → this should NOT be SrcSpoof
+        // B would receive from C (src=1, from=3) -> this should NOT be SrcSpoof
         let _relayed_frame = frame.clone();
         // Change dst to simulate B (not actually routing, just testing src check)
         // relayed_frame[6..10] = 2.to_be_bytes(); // Would need to re-encrypt
