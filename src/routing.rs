@@ -149,7 +149,10 @@ impl EtxTable {
             .iter()
             .map(|(id, l)| (*id, l.etx()))
             .filter(|(_, etx)| etx.is_finite())
-            .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+            .min_by(|a, b| {
+                a.1.partial_cmp(&b.1)
+                    .unwrap_or_else(|| a.1.is_nan().cmp(&b.1.is_nan()).reverse())
+            })
     }
 
     /// RFC 8966 §3.7 feasibility check: a route is feasible if its metric is

@@ -29,8 +29,11 @@ fn main() {
         for entry in entries.flatten() {
             let spec_path = entry.path();
             if spec_path.extension().is_some_and(|e| e == "t27") {
-                let name = spec_path.file_stem().unwrap();
-                let gen_path = gen_dir.join(format!("{}.rs", name.to_str().unwrap()));
+                let Some(name) = spec_path.file_stem().and_then(|s| s.to_str()) else {
+                    eprintln!("cargo:warning=Skipping spec with non-UTF8 stem: {}", spec_path.display());
+                    continue;
+                };
+                let gen_path = gen_dir.join(format!("{}.rs", name));
 
                 let needs_regen = !gen_path.exists()
                     || modified_age_secs(&spec_path) < modified_age_secs(&gen_path);
@@ -43,7 +46,7 @@ fn main() {
                         .map(|o| {
                             if o.status.success() {
                                 let _ = std::fs::write(&gen_path, &o.stdout);
-                                println!("cargo:warning=Regenerated {}", name.to_str().unwrap());
+                                println!("cargo:warning=Regenerated {}", name);
                             }
                         });
                 }

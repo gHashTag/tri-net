@@ -28,6 +28,9 @@ serde_json = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
+[lints]
+workspace = true
+
 [features]
 # Off-by-default: swap the pure-Rust GF16 scalar backend for the goldenfloat-sys
 # C ABI (gf16_add/mul/fma/from_f32/to_f32). The unsafe FFI is isolated behind a

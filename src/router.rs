@@ -279,7 +279,13 @@ impl MeshRouter {
         by_nh.retain(|nh, _| self.etx.etx(*nh).is_none_or(|e| e.is_finite()));
 
         let mut candidates: Vec<(NodeId, f32)> = by_nh.into_iter().collect();
-        candidates.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        // NaN metrics should never appear (ETX is finite by construction), but
+        // partial_cmp can return None for NaN. Use a total order that treats NaN
+        // as worse than any finite value to avoid a panic in the routing hot path.
+        candidates.sort_by(|a, b| {
+            a.1.partial_cmp(&b.1)
+                .unwrap_or_else(|| a.1.is_nan().cmp(&b.1.is_nan()).reverse())
+        });
 
         let ranked = if candidates.is_empty() {
             RankedNextHops::new()

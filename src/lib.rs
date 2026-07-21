@@ -1,10 +1,14 @@
-//! trios-mesh library — encrypted, self-routing IP-over-radio mesh primitives.
+//! trios-mesh library - encrypted, self-routing IP-over-radio mesh primitives.
 //!
 //! The hand-written modules below are the current runtime surface. The
 //! generated `gen/rust/` stubs are excluded from compilation until `t27c` is
 //! available to produce valid Rust from `specs/*.t27`.
 //!
 //! phi^2 + phi^-2 = 3
+
+// Tests assert on infallible test-only roundtrips; unwrap_used is allowed in
+// test code while production code remains covered by the workspace deny lint.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
 
 pub mod crypto;
 pub mod daemon;
