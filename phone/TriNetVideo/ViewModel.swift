@@ -362,6 +362,7 @@ class StreamViewModel: ObservableObject {
     @Published var rxHeight: Int32 = 0 // resolution of the received frames, for the in-call badge (1-1)
     @Published var rxSources = 0       // live decoding sources in a group call
     private var lastRxFrameCount = 0
+    private var rxFrozenSince: Date?   // start of a decoded-frame freeze while packets still arrive (1-1)
     @Published var bitrateKbps = 0           // current encode bitrate, for the link badge
     @Published var bitrateHistory: [Int] = []  // last 60s, for the link-quality sparkline
     @Published var jitterHistory: [Int] = []
@@ -401,6 +402,20 @@ class StreamViewModel: ObservableObject {
             }
             self.rxFps = max(0, fc - self.lastRxFrameCount)
             self.lastRxFrameCount = fc
+            // FROZEN-VIDEO recovery (1-1): if fragments keep ARRIVING but reassembly never completes a NAL, the
+            // picture freezes (rxFps == 0) with packets flowing and nothing asks for an IDR (the decoder's own
+            // request needs a NAL; the packet-stall needs packets to STOP). Detect it and request a keyframe.
+            if !self.isGroup, self.framesReceived > 0, self.rxFps == 0 {
+                let msSincePacket = self.lastVideoArrival.map { Int(Date().timeIntervalSince($0) * 1000) } ?? 99_999
+                if msSincePacket < 3_000 {
+                    if self.rxFrozenSince == nil { self.rxFrozenSince = Date() }
+                    if Date().timeIntervalSince(self.rxFrozenSince!) > 2.0 {
+                        self.transport.send(Data([0xFC, 0x00]))
+                        NSLog("TRINET: RX video frozen (0 fps, packets flowing) — requesting keyframe")
+                        self.rxFrozenSince = Date()
+                    }
+                } else { self.rxFrozenSince = nil }
+            } else { self.rxFrozenSince = nil }
             self.bitrateKbps = self.camera.bitrateKbps   // refresh the link badge once a second
             // Rolling 60s history for the tap-to-expand link-quality sparkline.
             self.bitrateHistory.append(self.bitrateKbps); if self.bitrateHistory.count > 60 { self.bitrateHistory.removeFirst() }
@@ -901,7 +916,7 @@ class StreamViewModel: ObservableObject {
         abrTimer?.invalidate(); abrTimer = nil
         phase = .idle
         framesSent = 0; framesReceived = 0
-        rxFps = 0; rxHeight = 0; rxSources = 0; lastRxFrameCount = 0
+        rxFps = 0; rxHeight = 0; rxSources = 0; lastRxFrameCount = 0; rxFrozenSince = nil
         bytesSent = 0; bytesRecv = 0
         txKBps = 0; rxKBps = 0
         startIdleListener()   // resume listening for incoming calls

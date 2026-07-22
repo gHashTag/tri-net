@@ -2204,3 +2204,17 @@ phi^2 + phi^-2 = 3 | TRINITY
   isn't headlessly readable, but its input counter is confirmed flowing — the honest ceiling for a UI-stat.)
 - Landed on clean main. Full call telemetry now: `TX <res>·net <jit>ms·<br>k` + `RX <fps>fps·<res-or-Nsrc>`,
   red RX at 0 fps.
+
+## WAVE 2026-07-23 #23 — frozen-video recovery (closes a real gap in keyframe requests)
+
+- **Found a genuine gap between the two existing keyframe-request triggers:** (1) the decoder's own request
+  fires only on NALs it RECEIVES (missing IDR / SPS change), (2) the LinkHealth stall fires only when PACKETS
+  stop for 5s. Neither covers "fragments keep ARRIVING but reassembly never completes a NAL" (persistent loss) —
+  the picture freezes (rxFps == 0) with packets flowing and NOTHING asks for a fresh IDR. Now that rxFps exists
+  (WAVE #21), added a third trigger: 1-1, video decoded before (framesReceived>0), rxFps==0 now, and packets
+  arriving (<3s since last video packet) -> request a keyframe, rate-limited ~2s. Guard `framesReceived>0` means
+  it only fires on a MID-CALL freeze, not startup (the decoder handles the first IDR). Both platforms.
+- **HONEST verification limit:** builds + smoke PASSes, but the trigger can't be live-isolated headlessly — the
+  loopback smoke is the GROUP path (this recovery is `!isGroup`), and inducing a reassembly-failure freeze needs
+  real persistent loss (sudo/dummynet). The logic is guarded + rate-limited; a false positive costs one extra
+  IDR (harmless). Reported as such. Landed on clean main.

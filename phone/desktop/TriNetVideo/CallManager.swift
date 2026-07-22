@@ -341,8 +341,25 @@ class CallManager: ObservableObject {
             }
             self.rxFps = max(0, fc - self.lastRxFrameCount)
             self.lastRxFrameCount = fc
+            // FROZEN-VIDEO recovery (1-1): a gap between the decoder's own keyframe request (fires only on NALs
+            // it RECEIVES) and the LinkHealth stall (fires only when PACKETS stop). If fragments keep ARRIVING
+            // but reassembly never completes a NAL, the picture freezes (rxFps == 0) with packets flowing and
+            // nothing asks for an IDR. Detect it (video decoded before, 0 fps now, packets still arriving) and
+            // request a keyframe, rate-limited to ~2s so it can't storm.
+            if !self.isGroup, self.framesReceived > 0, self.rxFps == 0 {
+                let msSincePacket = self.lastVideoArrival.map { Int(Date().timeIntervalSince($0) * 1000) } ?? 99_999
+                if msSincePacket < 3_000 {   // packets ARE flowing -> reassembly/decode is stuck, not a link stall
+                    if self.rxFrozenSince == nil { self.rxFrozenSince = Date() }
+                    if Date().timeIntervalSince(self.rxFrozenSince!) > 2.0 {
+                        self.transport.send(Data([0xFC, 0x00]))
+                        NSLog("TRINET: RX video frozen (0 fps, packets flowing) — requesting keyframe")
+                        self.rxFrozenSince = Date()   // reset -> ~2s cadence
+                    }
+                } else { self.rxFrozenSince = nil }
+            } else { self.rxFrozenSince = nil }
         }
     }
+    private var rxFrozenSince: Date?   // start of a decoded-frame freeze while packets still arrive (1-1)
 
     // Sender side: the peer's report arrived — react to a rising queue before loss does.
     private func handleBWEReport(_ data: Data) {
@@ -947,7 +964,7 @@ class CallManager: ObservableObject {
         status = "Idle"
         framesSent = 0
         framesReceived = 0
-        rxFps = 0; rxHeight = 0; rxSources = 0; lastRxFrameCount = 0
+        rxFps = 0; rxHeight = 0; rxSources = 0; lastRxFrameCount = 0; rxFrozenSince = nil
         previewSession = nil
         startIdleListener()   // resume listening for incoming calls
     }
