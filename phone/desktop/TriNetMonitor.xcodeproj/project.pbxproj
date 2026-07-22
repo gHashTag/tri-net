@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1321BCE2FBFBB8BFCDEEB308 /* PeerDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8B07E5953505C3265FEAA51 /* PeerDiscovery.swift */; };
 		144EA8CA8611748CC2C6498E /* VideoEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72EFD27FFE9177F3C365221D /* VideoEncoder.swift */; };
 		16CC1C6D7EEBF2EE5C3F95A1 /* TriNetMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A55AB3C5EF91C2E49F7A086 /* TriNetMonitor.swift */; };
 		51DB04A269C0FF798682A49F /* LinkStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1512923CAB35C8933FA4CA5E /* LinkStatus.swift */; };
@@ -22,6 +23,7 @@
 		D71FF2DC1AF5071C5554087C /* CallManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE481AF1D2D340638A1ED080 /* CallManager.swift */; };
 		DAF6D4EF3DC01D613A72B27A /* BackgroundBlur.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ECC2F3EAC83479F7A0D2341 /* BackgroundBlur.swift */; };
 		E00EF2E2E4936A31DF3F1B15 /* VideoCallTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 432A15C47C534F56D40856CC /* VideoCallTab.swift */; };
+		F2659BF9683552ADAD6DFD92 /* RTI3D.swift in Sources */ = {isa = PBXBuildFile; fileRef = 292CA8FEE0BA3A9A94136269 /* RTI3D.swift */; };
 		FA37124F072CB8ADC4B3905A /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 227CBA24BA6F542237F2CD11 /* DesignSystem.swift */; };
 /* End PBXBuildFile section */
 
@@ -30,6 +32,7 @@
 		20B0445AEA738BFAA34619AA /* AudioController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioController.swift; sourceTree = "<group>"; };
 		227CBA24BA6F542237F2CD11 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 		2831FC425A30E3FBFA75BD40 /* VideoDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoDecoder.swift; sourceTree = "<group>"; };
+		292CA8FEE0BA3A9A94136269 /* RTI3D.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RTI3D.swift; sourceTree = "<group>"; };
 		2A55AB3C5EF91C2E49F7A086 /* TriNetMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriNetMonitor.swift; sourceTree = "<group>"; };
 		34A698FD561A4D1344491A23 /* MeshCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshCrypto.swift; sourceTree = "<group>"; };
 		432A15C47C534F56D40856CC /* VideoCallTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoCallTab.swift; sourceTree = "<group>"; };
@@ -41,6 +44,7 @@
 		AF4870614578478C431D47B9 /* MeshTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshTransport.swift; sourceTree = "<group>"; };
 		BED4FD339A53B74B67C3AC3B /* CameraCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraCapture.swift; sourceTree = "<group>"; };
 		EC01D2BB9D49E3653F739BC9 /* CallRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallRecorder.swift; sourceTree = "<group>"; };
+		F8B07E5953505C3265FEAA51 /* PeerDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerDiscovery.swift; sourceTree = "<group>"; };
 		FAFD67D555791E79EA093151 /* OpusCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpusCodec.swift; sourceTree = "<group>"; };
 		FE481AF1D2D340638A1ED080 /* CallManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -66,6 +70,7 @@
 				34A698FD561A4D1344491A23 /* MeshCrypto.swift */,
 				AF4870614578478C431D47B9 /* MeshTransport.swift */,
 				FAFD67D555791E79EA093151 /* OpusCodec.swift */,
+				F8B07E5953505C3265FEAA51 /* PeerDiscovery.swift */,
 				A9F379575CCFDE0476C19D25 /* ScreenCapture.swift */,
 				2831FC425A30E3FBFA75BD40 /* VideoDecoder.swift */,
 				72EFD27FFE9177F3C365221D /* VideoEncoder.swift */,
@@ -77,6 +82,7 @@
 			isa = PBXGroup;
 			children = (
 				227CBA24BA6F542237F2CD11 /* DesignSystem.swift */,
+				292CA8FEE0BA3A9A94136269 /* RTI3D.swift */,
 				A55D68653305B39F6D4E6C1F /* RTIHeatmap.swift */,
 				2A55AB3C5EF91C2E49F7A086 /* TriNetMonitor.swift */,
 				432A15C47C534F56D40856CC /* VideoCallTab.swift */,
@@ -114,6 +120,10 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					808D73FEB74DB2C7204B4529 = {
+						DevelopmentTeam = 5EM4M85VSQ;
+						ProvisioningStyle = Manual;
+					};
 				};
 			};
 			buildConfigurationList = 770B77F86927C96735FF1EEC /* Build configuration list for PBXProject "TriNetMonitor" */;
@@ -150,6 +160,8 @@
 				7BC6C7C0D52EF3F427643504 /* MeshCrypto.swift in Sources */,
 				8FB37216EA6E4DAA9752526F /* MeshTransport.swift in Sources */,
 				B47AD84EFE1C6408179E2242 /* OpusCodec.swift in Sources */,
+				1321BCE2FBFBB8BFCDEEB308 /* PeerDiscovery.swift in Sources */,
+				F2659BF9683552ADAD6DFD92 /* RTI3D.swift in Sources */,
 				A4B51FD9AC3F6A939BFE6083 /* RTIHeatmap.swift in Sources */,
 				5EDE0262C99C16D7CC7A20A9 /* ScreenCapture.swift in Sources */,
 				16CC1C6D7EEBF2EE5C3F95A1 /* TriNetMonitor.swift in Sources */,
@@ -196,10 +208,12 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGNING_ALLOWED = YES;
-				CODE_SIGNING_REQUIRED = NO;
-				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGNING_REQUIRED = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 5EM4M85VSQ;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -262,10 +276,12 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGNING_ALLOWED = YES;
-				CODE_SIGNING_REQUIRED = NO;
-				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGNING_REQUIRED = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 5EM4M85VSQ;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -292,14 +308,12 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGNING_ALLOWED = YES;
-				CODE_SIGNING_REQUIRED = NO;
-				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGNING_REQUIRED = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "TRI-NET Monitor";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Mesh monitor";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Monitor mesh network devices";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Audio for mesh video calls";
+				DEVELOPMENT_TEAM = 5EM4M85VSQ;
+				INFOPLIST_FILE = "TriNetMonitor-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -315,14 +329,12 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGNING_ALLOWED = YES;
-				CODE_SIGNING_REQUIRED = NO;
-				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGNING_REQUIRED = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "TRI-NET Monitor";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Mesh monitor";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Monitor mesh network devices";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Audio for mesh video calls";
+				DEVELOPMENT_TEAM = 5EM4M85VSQ;
+				INFOPLIST_FILE = "TriNetMonitor-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

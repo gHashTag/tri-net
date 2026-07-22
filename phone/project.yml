@@ -20,11 +20,15 @@ targets:
         CFBundleDisplayName: TRI-NET Video
         NSCameraUsageDescription: "TRI-NET needs camera to stream video over mesh radio"
         NSMicrophoneUsageDescription: "TRI-NET needs microphone for video calls"
-        NSLocalNetworkUsageDescription: "TRI-NET needs local network to connect to mesh radio nodes"
+        NSLocalNetworkUsageDescription: "Find TRI-NET people on your local network by name instead of typing IPs"
+        NSBonjourServices:
+          - _trinet._udp
         UILaunchScreen:
           UIColorName: ""
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.trinet.video

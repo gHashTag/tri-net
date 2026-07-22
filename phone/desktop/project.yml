@@ -7,8 +7,14 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    CODE_SIGN_IDENTITY: "-"
-    CODE_SIGNING_REQUIRED: NO
+    # Sign with the stable Apple Development identity (Team 5EM4M85VSQ), NOT ad-hoc. Ad-hoc changes the cdhash
+    # every build, which makes macOS TCC treat each rebuild as a NEW app and RESET the Screen Recording grant
+    # (why screen share re-prompted forever). A Team-ID signature is stable, so the grant persists. The app has
+    # no entitlements/sandbox, so this needs no provisioning profile.
+    CODE_SIGN_IDENTITY: "Apple Development"
+    CODE_SIGN_STYLE: Manual
+    DEVELOPMENT_TEAM: "5EM4M85VSQ"
+    CODE_SIGNING_REQUIRED: YES
     CODE_SIGNING_ALLOWED: YES
 targets:
   TriNetMonitor:
@@ -32,15 +38,22 @@ targets:
       - path: TriNetVideo/MeshCrypto.swift
       - path: TriNetVideo/LinkStatus.swift
       - path: TriNetVideo/OpusCodec.swift
+      - path: TriNetVideo/PeerDiscovery.swift
+    info:
+      path: TriNetMonitor-Info.plist
+      properties:
+        CFBundleDisplayName: "TRI-NET Monitor"
+        NSCameraUsageDescription: "Mesh monitor"
+        NSMicrophoneUsageDescription: "Audio for mesh video calls"
+        NSLocalNetworkUsageDescription: "Find TRI-NET peers on your local network by name instead of typing IPs"
+        NSBonjourServices:
+          - _trinet._udp
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.trinet.monitor
         PRODUCT_NAME: TriNetMonitor
-        GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: "TRI-NET Monitor"
-        INFOPLIST_KEY_NSCameraUsageDescription: "Mesh monitor"
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Audio for mesh video calls"
-        INFOPLIST_KEY_NSLocalNetworkUsageDescription: "Monitor mesh network devices"
-        CODE_SIGN_IDENTITY: "-"
-        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGN_IDENTITY: "Apple Development"
+        CODE_SIGN_STYLE: Manual
+        DEVELOPMENT_TEAM: "5EM4M85VSQ"
+        CODE_SIGNING_REQUIRED: YES
         CODE_SIGNING_ALLOWED: YES

@@ -25,6 +25,116 @@ struct VideoCallTab: View {
                 StartCallView(call: call)
             }
         }
+        // Incoming-call banner: macOS convention is a corner/top notification card,
+        // not a full-screen takeover (a Mac is multi-window). Floats above either view.
+        .overlay(alignment: .top) {
+            if let inc = call.incomingCall {
+                IncomingCallBanner(call: call, inc: inc)
+                    .padding(.top, 18)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.easeOut(duration: 0.22), value: call.incomingCall)
+    }
+}
+
+// A distinctive SYNTHESIZED ring — three ascending chirps ("tri"-tone, fitting TRI-NET) + a gap, looped. Not a
+// stock macOS alert sound, so an incoming call is instantly recognizable. AVAudioEngine plays a PCM buffer.
+final class RingSynth {
+    private let engine = AVAudioEngine()
+    private let player = AVAudioPlayerNode()
+    private var buffer: AVAudioPCMBuffer?
+    init() {
+        engine.attach(player)
+        let fmt = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)!
+        engine.connect(player, to: engine.mainMixerNode, format: fmt)
+        buffer = makeRing(fmt)
+    }
+    private func makeRing(_ fmt: AVAudioFormat) -> AVAudioPCMBuffer? {
+        let sr = 44100.0
+        let notes: [(f: Double, dur: Double)] = [(659.25, 0.10), (987.77, 0.10), (1318.51, 0.16)]  // E5 B5 E6
+        let gap = 0.55
+        let total = notes.reduce(0) { $0 + $1.dur } + gap
+        let frames = AVAudioFrameCount(total * sr)
+        guard let buf = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: frames) else { return nil }
+        buf.frameLength = frames
+        let p = buf.floatChannelData![0]
+        var i = 0
+        for n in notes {
+            let cnt = Int(n.dur * sr)
+            for k in 0..<cnt {
+                let t = Double(k) / sr
+                let env = sin(Double.pi * Double(k) / Double(cnt))   // fade in/out so it's a clean "bip"
+                p[i] = Float(0.34 * env * sin(2 * Double.pi * n.f * t)); i += 1
+            }
+        }
+        while i < Int(frames) { p[i] = 0; i += 1 }   // trailing silence (the gap between rings)
+        return buf
+    }
+    func start() {
+        guard let buffer = buffer else { return }
+        try? engine.start()
+        player.scheduleBuffer(buffer, at: nil, options: .loops, completionHandler: nil)
+        player.play()
+    }
+    func stop() { player.stop(); engine.stop() }
+}
+
+// MARK: - Incoming call banner (ring + Accept/Decline)
+private struct IncomingCallBanner: View {
+    @ObservedObject var call: CallManager
+    let inc: CallManager.IncomingCall
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pulse = false
+    @State private var ring = RingSynth()
+
+    private var initial: String { String(inc.name.prefix(1)).uppercased() }
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                // Expanding ring — signals a live, ringing call (Reduce-Motion aware).
+                Circle().stroke(DS.live.opacity(0.55), lineWidth: 2)
+                    .frame(width: 52, height: 52)
+                    .scaleEffect(pulse ? 1.35 : 1.0)
+                    .opacity(pulse ? 0 : 0.7)
+                Circle().fill(DS.surfaceHi)
+                    .overlay(Circle().stroke(DS.hairline, lineWidth: 1))
+                    .frame(width: 44, height: 44)
+                Text(initial).font(.system(size: 18, weight: .semibold)).foregroundColor(DS.text)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(inc.name).font(.system(size: 15, weight: .semibold)).foregroundColor(DS.text).lineLimit(1)
+                Text("Incoming call · TRI-NET").font(DS.mono(10)).foregroundColor(DS.dim)
+                Text(inc.ip).font(DS.mono(10)).foregroundColor(DS.faint)
+            }
+            Spacer(minLength: 8)
+            // Decline (red, LEFT) — Accept (green, RIGHT): the iOS convention.
+            ringButton(system: "phone.down.fill", bg: DS.danger, label: "Decline call") { call.declineIncoming() }
+            ringButton(system: "phone.fill", bg: DS.live, label: "Accept call") { call.acceptIncoming() }
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        .frame(maxWidth: 440)
+        .background(RoundedRectangle(cornerRadius: DS.radius).fill(DS.surface)
+            .overlay(RoundedRectangle(cornerRadius: DS.radius).stroke(DS.hairlineStrong, lineWidth: 1)))
+        .shadow(color: .black.opacity(0.45), radius: 22, y: 8)
+        .onAppear {
+            if !reduceMotion {
+                withAnimation(.easeOut(duration: 1.1).repeatForever(autoreverses: false)) { pulse = true }
+            }
+            ring.start()   // distinctive TRI-NET tri-tone, looped — noticed even if you're not looking
+        }
+        .onDisappear { ring.stop() }
+    }
+
+    private func ringButton(system: String, bg: Color, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: system).font(.system(size: 17, weight: .semibold))
+                .foregroundColor(.white).frame(width: 46, height: 46)
+                .background(Circle().fill(bg))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 }
 
@@ -67,6 +177,8 @@ private struct StartCallView: View {
                     }
                 }
 
+                PeerRoster(call: call, discovery: call.discovery)
+
                 HStack(spacing: 8) {
                     SectionLabel(text: "Optic")
                     Picker("", selection: Binding(get: { call.selectedCameraID },
@@ -82,6 +194,67 @@ private struct StartCallView: View {
                 .padding(.top, 6)
         }
         .padding(30)
+    }
+}
+
+// Live "who's on this network" roster (Bonjour). Tap a name to CALL, tick several for a GROUP call —
+// no typing IPs. Observes PeerDiscovery directly so it redraws as peers come and go.
+private struct PeerRoster: View {
+    @ObservedObject var call: CallManager
+    @ObservedObject var discovery: PeerDiscovery
+    @State private var myName = PeerDiscovery.myName
+    @State private var room = PeerDiscovery.myRoom
+
+    var body: some View {
+        VStack(spacing: 8) {
+            // Identity: your display name + optional ROOM code (only see/call peers in the same room).
+            HStack(spacing: 8) {
+                Image(systemName: "person.crop.circle.fill").foregroundColor(DS.dim)
+                TextField("Your name", text: $myName)
+                    .textFieldStyle(.plain).font(DS.ui(12)).foregroundColor(DS.text).frame(width: 120)
+                    .onSubmit { discovery.setName(myName) }
+                Divider().frame(height: 14)
+                Text("ROOM").font(DS.mono(9)).foregroundColor(DS.faint)
+                TextField("open", text: $room)
+                    .textFieldStyle(.plain).font(DS.mono(12)).foregroundColor(DS.text).frame(width: 64)
+                    .onSubmit { discovery.setRoom(room) }
+            }
+            Divider()
+            HStack {
+                SectionLabel(text: room.isEmpty ? "On this network" : "Room \(room.uppercased())")
+                Spacer()
+                if !room.isEmpty && !discovery.peers.isEmpty {
+                    Button("Call room (\(discovery.peers.count))") { call.callEveryone() }
+                        .buttonStyle(.plain).font(DS.mono(11, .semibold)).foregroundColor(.green)
+                } else if !call.selectedUIDs.isEmpty {
+                    Button("Group call (\(call.selectedUIDs.count))") { call.startGroupFromSelection() }
+                        .buttonStyle(.plain).font(DS.mono(11, .semibold)).foregroundColor(.green)
+                }
+            }
+            if discovery.peers.isEmpty {
+                Text("searching for TRI-NET peers…")
+                    .font(DS.mono(11)).foregroundColor(DS.faint)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                ForEach(discovery.peers) { peer in
+                    HStack(spacing: 10) {
+                        Image(systemName: call.selectedUIDs.contains(peer.uid) ? "checkmark.circle.fill" : "circle")
+                            .foregroundColor(call.selectedUIDs.contains(peer.uid) ? .green : DS.faint)
+                            .onTapGesture { call.toggleSelect(peer.uid) }
+                        Circle().fill(peer.status == "call" ? Color.orange : Color.green).frame(width: 6, height: 6)
+                        Text(peer.name).font(DS.ui(13)).foregroundColor(DS.text).lineLimit(1)
+                        if peer.status == "call" { Text("in call").font(DS.mono(9)).foregroundColor(.orange) }
+                        Spacer()
+                        Button("Call") { call.callPeer(peer) }
+                            .buttonStyle(.plain).font(DS.mono(11, .semibold)).foregroundColor(DS.text)
+                            .padding(.horizontal, 12).padding(.vertical, 5)
+                            .overlay(Capsule().stroke(DS.hairline, lineWidth: 1))
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12).dsCard(12)
     }
 }
 
@@ -131,7 +304,13 @@ private struct InCallView: View {
                     }
                     Spacer()
                     if let s = call.previewSession {
-                        MonitorCameraPreview(session: s)
+                        ZStack {
+                            MonitorCameraPreview(session: s)
+                            if call.cameraOff {   // local feedback: black out the self-preview too
+                                Rectangle().fill(Color.black)
+                                Image(systemName: "video.slash.fill").font(.system(size: 22)).foregroundColor(DS.dim)
+                            }
+                        }
                             .frame(width: 150, height: 112)
                             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                             .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(DS.hairlineStrong, lineWidth: 1))
@@ -143,7 +322,7 @@ private struct InCallView: View {
 
                 // Chat panel (right overlay)
                 if showChat {
-                    HStack { Spacer(); ChatPanel(call: call, draft: $draft, close: { showChat = false }) }
+                    HStack { Spacer(); ChatPanel(call: call, draft: $draft, close: { showChat = false; call.chatOpen = false }) }
                         .padding(12)
                         .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
@@ -174,7 +353,16 @@ private struct InCallView: View {
                 IconPill(system: call.isMuted ? "mic.slash.fill" : "mic.fill", active: call.isMuted, tint: DS.danger) { call.isMuted.toggle() }
                 IconPill(system: call.isScreenSharing ? "rectangle.inset.filled.on.rectangle" : "rectangle.on.rectangle",
                          active: call.isScreenSharing, tint: DS.live) { call.toggleScreenShare() }
-                IconPill(system: "bubble.left.and.bubble.right\(call.chat.isEmpty ? "" : ".fill")", active: showChat) { showChat.toggle() }
+                ZStack(alignment: .topTrailing) {
+                    IconPill(system: "bubble.left.and.bubble.right\(call.chat.isEmpty ? "" : ".fill")", active: showChat) {
+                        showChat.toggle(); call.chatOpen = showChat
+                    }
+                    if call.unreadChat > 0 && !showChat {
+                        Text("\(call.unreadChat)").font(.system(size: 10, weight: .bold)).foregroundColor(.white)
+                            .padding(.horizontal, 4).frame(minWidth: 16, minHeight: 16)
+                            .background(DS.danger, in: Capsule()).offset(x: 6, y: -6)
+                    }
+                }
                 IconPill(system: call.isRecording ? "record.circle.fill" : "record.circle", active: call.isRecording, tint: DS.danger) { call.toggleRecording() }
                 IconPill(system: call.isBlurred ? "person.crop.rectangle.badge.plus.fill" : "person.crop.rectangle", active: call.isBlurred, tint: DS.live) { call.toggleBlur() }
                 IconPill(system: call.isMeshProfile ? "antenna.radiowaves.left.and.right.circle.fill" : "antenna.radiowaves.left.and.right",
@@ -351,7 +539,7 @@ private struct GroupGrid: View {
                         if let dec = call.groupDecoders[ip] {
                             ZStack(alignment: .bottomLeading) {
                                 MonitorRemoteVideo(decoder: dec)
-                                    .aspectRatio(4/3, contentMode: .fit)
+                                    .aspectRatio(16.0/9.0, contentMode: .fit)
                                     .clipShape(RoundedRectangle(cornerRadius: 8))
                                 Text(ip).font(DS.mono(9)).foregroundColor(DS.text)
                                     .padding(4).background(DS.ink.opacity(0.6), in: Capsule()).padding(6)
@@ -396,6 +584,9 @@ struct LinkBadge: View {
 // is precisely why an audio failure went undiagnosed for so long.
 struct LogPane: View {
     @ObservedObject var bus: LogBus
+    // Square corners on every tab (0). Rounded corners on the log pane read as
+    // wrong across the app; keep it a flat panel everywhere.
+    var cornerRadius: CGFloat = 0
     @State private var paused = false
     @State private var copied = false
     var body: some View {
@@ -463,15 +654,40 @@ struct LogPane: View {
             }
         }
         .frame(height: 150)
-        .background(DS.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(DS.hairline, lineWidth: 1))
+        .background(DS.surface, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).stroke(DS.hairline, lineWidth: cornerRadius > 0 ? 1 : 0))
     }
 
-    // Surface failures without hunting: errors red, milestones green.
+    // Log line colour, syslog-style: SEVERITY first (a red error must read as an
+    // error whatever subsystem it came from), then the FACILITY tint so the eye can
+    // group NET / RTI / radio traffic at a glance. Keep it to a few hues — more than
+    // ~5 colours stops being a signal and becomes noise.
+    static let amber      = Color(red: 0.96, green: 0.70, blue: 0.30)  // warning
+    static let netBlue    = Color(red: 0.44, green: 0.66, blue: 0.98)  // NET: scan/topology
+    static let rtiCyan    = Color(red: 0.36, green: 0.82, blue: 0.86)  // RTI: radar/CSI
+    static let meshViolet = Color(red: 0.72, green: 0.58, blue: 0.99)  // radio / mesh / SNR
+    static let metric     = Color(red: 0.60, green: 0.78, blue: 0.60)  // bare telemetry summary
     private static func tint(_ l: String) -> Color {
         let s = l.lowercased()
-        if s.contains("failed") || s.contains("error") || s.contains("denied") || s.contains("dropped") { return DS.danger }
-        if s.contains("first frame") || s.contains("established") || s.contains("engine up") || s.contains("rebuilt") { return DS.live }
+        // 1) Severity — highest priority, any facility.
+        if s.contains("fail") || s.contains("error") || s.contains("denied") || s.contains("dropped")
+            || s.contains("offline") || s.contains("host is down") || s.contains("panic")
+            || s.contains("unreachable") || s.contains("lost") { return DS.danger }
+        if s.contains("warn") || s.contains("retry") || s.contains("timeout") || s.contains("degraded")
+            || s.contains("weak") || s.contains("reconnect") || s.contains("stall") { return amber }
+        // 2) Success / milestones.
+        if s.contains("online") || s.contains("established") || s.contains("delivered")
+            || s.contains("authenticated") || s.contains("ready") || s.contains(" pass")
+            || s.contains("complete") || s.contains("first frame") || s.contains("rebuilt")
+            || s.contains("connected") || s.contains("converged") { return DS.live }
+        // 3) Telemetry summary lines (start with a bullet) read as data.
+        if l.hasPrefix("·") || l.hasPrefix("▸") { return metric }
+        // 4) Facility tint for the neutral remainder.
+        if s.contains("net:") { return netBlue }
+        if s.contains("rti:") { return rtiCyan }
+        if s.contains("radiod") || s.contains("snr") || s.contains(" mesh") || s.contains("radio")
+            || s.contains(" tx ") || s.contains(" rx ") { return meshViolet }
+        if s.contains("===") || s.contains("session start") { return DS.text }
         return DS.dim
     }
 }

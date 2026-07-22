@@ -2,7 +2,39 @@
 import Foundation
 import Combine
 import AVFoundation
+import AudioToolbox
+import AppKit
 import CoreVideo
+
+// A short "Trinity"-style chat blip: a quick bright two-note chirp (C6 -> G6), synthesized ONCE to a CAF and
+// played via AudioServices — session-safe (never touches the call's AVAudioEngine, so it can't kill the mic).
+final class ChatChime {
+    private var soundID: SystemSoundID = 0
+    init() { if let u = ChatChime.render() { AudioServicesCreateSystemSoundID(u as CFURL, &soundID) } }
+    func play() { if soundID != 0 { AudioServicesPlaySystemSound(soundID) } }
+    private static func render() -> URL? {
+        let sr = 44100.0
+        let notes: [(f: Double, dur: Double)] = [(1046.5, 0.055), (1567.98, 0.085)]  // C6 -> G6, quick
+        let frames = AVAudioFrameCount(notes.reduce(0) { $0 + $1.dur } * sr)
+        guard let fmt = AVAudioFormat(standardFormatWithSampleRate: sr, channels: 1),
+              let buf = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: frames) else { return nil }
+        buf.frameLength = frames
+        let p = buf.floatChannelData![0]; var i = 0
+        for n in notes {
+            let cnt = Int(n.dur * sr)
+            for k in 0..<cnt {
+                let env = sin(Double.pi * Double(k) / Double(cnt))
+                p[i] = Float(0.3 * env * sin(2 * Double.pi * n.f * Double(k) / sr)); i += 1
+            }
+        }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("trinet-chat-chime.caf")
+        let settings: [String: Any] = [AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: sr,
+                                       AVNumberOfChannelsKey: 1, AVLinearPCMBitDepthKey: 16,
+                                       AVLinearPCMIsFloatKey: false, AVLinearPCMIsBigEndianKey: false]
+        do { let file = try AVAudioFile(forWriting: url, settings: settings); try file.write(from: buf); return url }
+        catch { NSLog("TRINET: chat chime render failed: \(error)"); return nil }
+    }
+}
 
 struct ChatLine: Identifiable {
     let id = UUID()
@@ -22,7 +54,10 @@ class CallManager: ObservableObject {
     @Published var status = "Ready"
     @Published var error: String?
     @Published var isMuted = false
-    @Published var cameraOff = false
+    @Published var cameraOff = false { didSet { camera.blackout = cameraOff } }  // off => send BLACK frames, not a freeze
+    @Published var unreadChat = 0                       // badge count on the chat icon
+    var chatOpen = false { didSet { if chatOpen { unreadChat = 0 } } }  // panel open => clear the badge
+    private let chatChime = ChatChime()                 // Trinity-style blip on an incoming chat message
     @Published var recentIPs: [String] = []
     @Published var cameras: [AVCaptureDevice] = []
     @Published var selectedCameraID: String = ""
@@ -84,6 +119,11 @@ class CallManager: ObservableObject {
     let link = LinkStatus()
     let log = LogBus.shared
 
+    // Local-network presence: advertise ourselves + browse for TRI-NET peers so the user picks people
+    // by NAME instead of typing IPs. Resolves the tapped peer to an IP for the existing transport.
+    let discovery = PeerDiscovery()
+    @Published var selectedUIDs: Set<String> = []
+
     init() {
         LogBus.shared.start()   // tee stderr (where every NSLog lands) into the UI
         localIP = MeshTransport.getLocalIP()
@@ -93,6 +133,185 @@ class CallManager: ObservableObject {
         }
         cameras = CameraCapture.availableCameras()
         selectedCameraID = AVCaptureDevice.default(for: .video)?.uniqueID ?? cameras.first?.uniqueID ?? ""
+        discovery.start()   // advertise + browse from launch
+        startIdleListener() // listen on :7000 for incoming calls while idle
+    }
+
+    // MARK: - Incoming call ("take the call")
+    // A caller sends a tiny plaintext INVITE datagram to our :7000; while idle we hold a light listener
+    // there and pop a ringing screen. The listener is torn down the moment a call starts (the encrypted
+    // transport then owns :7000) and restarted when the call ends.
+    struct IncomingCall: Equatable { let name: String; let ip: String; let participants: [String] }
+    @Published var incomingCall: IncomingCall?
+    private var idleFd: Int32 = -1
+    private var incomingTimer: Timer?
+    private let idleQueue = DispatchQueue(label: "trinet.idle-listener")
+    private static let invitePort: UInt16 = 7000
+    private static let inviteMagic: [UInt8] = [0xFD, 0x11]   // "someone is calling you"
+
+    func startIdleListener() {
+        stopIdleListener()
+        let fd = socket(AF_INET, SOCK_DGRAM, 0)
+        guard fd >= 0 else { return }
+        var on: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, socklen_t(MemoryLayout<Int32>.size))
+        // 1s recv timeout so the blocking recvfrom wakes periodically and the loop can EXIT when idleFd
+        // changes. Without it, POSIX close() may not interrupt recvfrom, the loop hangs on the serial queue,
+        // and the NEXT startIdleListener()'s loop is stuck behind it — incoming calls die after call #1.
+        var tv = timeval(tv_sec: 1, tv_usec: 0)
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+        var addr = sockaddr_in()
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = CallManager.invitePort.bigEndian
+        addr.sin_addr.s_addr = INADDR_ANY
+        let bound = withUnsafePointer(to: &addr) { p in
+            p.withMemoryRebound(to: sockaddr.self, capacity: 1) { s in
+                Darwin.bind(fd, s, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+        guard bound == 0 else { NSLog("TRINET: idle listener bind(:7000) busy — skip"); close(fd); return }
+        idleFd = fd
+        idleQueue.async { [weak self] in
+            var buf = [UInt8](repeating: 0, count: 512)
+            while self?.idleFd == fd {
+                var from = sockaddr_in(); var fl = socklen_t(MemoryLayout<sockaddr_in>.size)
+                let n = withUnsafeMutablePointer(to: &from) { fp in
+                    fp.withMemoryRebound(to: sockaddr.self, capacity: 1) { s in
+                        recvfrom(fd, &buf, buf.count, 0, s, &fl)
+                    }
+                }
+                if n <= 0 {
+                    if errno == EAGAIN || errno == EWOULDBLOCK { continue }  // recv timeout — re-check idleFd
+                    break
+                }
+                guard n >= 2, buf[0] == CallManager.inviteMagic[0], buf[1] == CallManager.inviteMagic[1] else { continue }
+                // payload = "name\nip1,ip2,ip3" — the full participant list lets Accept rebuild the whole mesh.
+                let payload = n > 2 ? (String(bytes: buf[2..<Int(n)], encoding: .utf8) ?? "") : ""
+                let parts = payload.components(separatedBy: "\n")
+                let name = (parts.first?.isEmpty == false) ? parts[0] : "TRI-NET"
+                let participants = parts.count > 1 ? parts[1].split(separator: ",").map(String.init) : []
+                let room = parts.count > 2 ? parts[2] : ""
+                let ip = String(cString: inet_ntoa(from.sin_addr))
+                DispatchQueue.main.async {
+                    guard let self = self, !self.isInCall, self.incomingCall == nil else { return }  // don't ring mid-call / twice
+                    self.incomingCall = IncomingCall(name: name, ip: ip, participants: participants)
+                    // AUTO-ACCEPT a GROUP call (>2 participants = caller + me + others) or a same-room caller,
+                    // so "call from the Mac -> both iPhones just join" works with no manual Accept. A plain
+                    // 1-1 (participants == {caller, me}) still rings so you can pick up the handset.
+                    if participants.count > 2 || (!room.isEmpty && room == PeerDiscovery.myRoom) {
+                        NSLog("TRINET: auto-joining group from \(name) — \(participants.count) participants, room '\(room)'")
+                        self.acceptIncoming()
+                        return
+                    }
+                    NSLog("TRINET: INCOMING call from \(name) (\(ip))")
+                    self.incomingTimer?.invalidate()
+                    self.incomingTimer = Timer.scheduledTimer(withTimeInterval: 40, repeats: false) { [weak self] _ in
+                        self?.incomingCall = nil   // auto-miss after 40s (per call-UX convention)
+                    }
+                }
+            }
+        }
+        NSLog("TRINET: idle listener up on :7000 (waiting for calls)")
+    }
+
+    func stopIdleListener() { if idleFd >= 0 { close(idleFd); idleFd = -1 } }
+
+    // Caller side: ring each target's :7000 a few times (UDP is lossy) from a throwaway socket.
+    // `participants` = every IP in this call (including me), so the callee can rejoin the FULL mesh.
+    func sendInvite(to ips: [String], participants: [String]) {
+        // payload = "name\nip1,ip2\nROOM" — the room lets a same-room callee auto-accept (one-tap group).
+        let payload = PeerDiscovery.myName + "\n" + participants.joined(separator: ",") + "\n" + PeerDiscovery.myRoom
+        NSLog("TRINET: ringing \(ips.joined(separator: ",")) with INVITE (participants: \(participants.joined(separator: ",")))")
+        // MUST NOT use idleQueue: startCall() just closed the idle socket, but a blocked recvfrom on that
+        // serial queue may not wake (POSIX close() doesn't reliably interrupt it), which would leave the
+        // INVITE stuck in the queue forever — the callee never rings. A fresh queue always runs.
+        DispatchQueue.global(qos: .userInitiated).async {
+            let fd = socket(AF_INET, SOCK_DGRAM, 0)
+            guard fd >= 0 else { return }
+            var pkt = CallManager.inviteMagic; pkt.append(contentsOf: Array(payload.utf8))
+            for ip in ips where !ip.isEmpty {
+                var addr = sockaddr_in()
+                addr.sin_family = sa_family_t(AF_INET)
+                addr.sin_port = CallManager.invitePort.bigEndian
+                addr.sin_addr.s_addr = inet_addr(ip)
+                for _ in 0..<4 {
+                    _ = pkt.withUnsafeBytes { raw in
+                        withUnsafePointer(to: &addr) { p in
+                            p.withMemoryRebound(to: sockaddr.self, capacity: 1) { s in
+                                sendto(fd, raw.baseAddress, pkt.count, 0, s, socklen_t(MemoryLayout<sockaddr_in>.size))
+                            }
+                        }
+                    }
+                    usleep(150_000)
+                }
+            }
+            close(fd)
+        }
+    }
+
+    // Callee taps "Accept": call the caller back → bidirectional (full-mesh, each side sends its own media).
+    func acceptIncoming() {
+        guard let inc = incomingCall else { return }
+        incomingTimer?.invalidate(); incomingCall = nil
+        // Rebuild the exact call: caller + every other participant, minus myself. A 1-1 invite carries only
+        // {caller, me}, so this collapses to a plain 1-1 back to the caller.
+        var mesh = Set(inc.participants); mesh.insert(inc.ip); mesh.remove(localIP)
+        let hosts = mesh.filter { !$0.isEmpty }.sorted()
+        remoteIP = hosts.isEmpty ? inc.ip : hosts.joined(separator: ",")
+        NSLog("TRINET: accepting call -> mesh back to \(remoteIP)")
+        startCall()
+    }
+    func declineIncoming() { incomingTimer?.invalidate(); incomingCall = nil }
+
+    func toggleSelect(_ uid: String) {
+        if selectedUIDs.contains(uid) { selectedUIDs.remove(uid) } else { selectedUIDs.insert(uid) }
+        syncPeerFieldToSelection()
+    }
+
+    // UX: ticking peers auto-fills the PEER field with their resolved IPs (comma-joined), so you never type
+    // "ip1, ip2" by hand — just check the boxes and hit Start Call (or Group call). Unchecking all leaves the
+    // field alone (you may have typed something manually).
+    private func syncPeerFieldToSelection() {
+        let sel = discovery.peers.filter { selectedUIDs.contains($0.uid) }
+        guard !sel.isEmpty else { return }
+        var ips: [String] = []
+        let g = DispatchGroup()
+        for p in sel { g.enter(); discovery.resolveIP(p) { ip in if let ip = ip, !ip.isEmpty { ips.append(ip) }; g.leave() } }
+        g.notify(queue: .main) { [weak self] in
+            guard let self = self, !ips.isEmpty else { return }
+            self.remoteIP = ips.sorted().joined(separator: ", ")
+            NSLog("TRINET: selection -> peer field '\(self.remoteIP)'")
+        }
+    }
+
+    // Tap one discovered peer: resolve its Bonjour endpoint to an IP, then place a 1-1 call.
+    func callPeer(_ peer: PeerDiscovery.Peer) {
+        discovery.resolveIP(peer) { [weak self] ip in
+            guard let self = self, let ip = ip, !ip.isEmpty else { NSLog("TRINET: could not resolve \(peer.name)"); return }
+            self.remoteIP = ip
+            self.startCall()
+        }
+    }
+
+    // Room mode: call EVERYONE currently visible (they share your room code) in one group.
+    func callEveryone() {
+        selectedUIDs = Set(discovery.peers.map { $0.uid })
+        startGroupFromSelection()
+    }
+
+    // Multi-select -> group: resolve every selected peer, then call the comma-joined IP list.
+    func startGroupFromSelection() {
+        let sel = discovery.peers.filter { selectedUIDs.contains($0.uid) }
+        guard !sel.isEmpty else { return }
+        var ips: [String] = []
+        let g = DispatchGroup()
+        for p in sel { g.enter(); discovery.resolveIP(p) { ip in if let ip = ip, !ip.isEmpty { ips.append(ip) }; g.leave() } }
+        g.notify(queue: .main) { [weak self] in
+            guard let self = self, !ips.isEmpty else { return }
+            self.remoteIP = ips.joined(separator: ",")
+            self.selectedUIDs = []
+            self.startCall()
+        }
     }
 
     func selectCamera(_ id: String) {
@@ -204,8 +423,23 @@ class CallManager: ObservableObject {
                     self.transport.send(nal)
                     DispatchQueue.main.async { self.framesSent += 1 }
                 }
+                // If the capture fails (usually the Screen Recording permission), REVERT so the camera resumes
+                // instead of leaving a black call (camera suppressed + no screen frames).
+                sc.onStarted = { [weak self] ok, msg in
+                    guard let self = self else { return }
+                    if ok { NSLog("TRINET: screen share ON") }
+                    else {
+                        self.isScreenSharing = false
+                        self.status = "Screen share needs permission — enable TRI-NET Monitor, then restart"
+                        NSLog("%@", "TRINET: screen share NOT started — \(msg ?? "")")
+                        // Jump the user straight to the Screen Recording pane so they can flip the toggle.
+                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                }
                 sc.start()
-                isScreenSharing = true  // camera guard stops sending its NALs
+                isScreenSharing = true  // camera guard stops sending its NALs (reverted above on failure)
             }
         } else {
             NSLog("TRINET: screen share needs macOS 12.3+")
@@ -217,6 +451,7 @@ class CallManager: ObservableObject {
         NSLog("TRINET: startCall to \(remoteIP):\(p)")
         isStarting = true
         status = "Connecting to \(remoteIP)..."
+        stopIdleListener()   // the encrypted transport is about to own :7000
 
         // Save IP to recent
         if !recentIPs.contains(remoteIP) {
@@ -225,9 +460,10 @@ class CallManager: ObservableObject {
             UserDefaults.standard.set(recentIPs, forKey: "recentIPs")
         }
 
-        // Camera → Encoder → Transport (suppressed while screen sharing)
+        // Camera → Encoder → Transport (suppressed while screen sharing). Camera-off keeps flowing: the
+        // encoder now emits BLACK frames (blackout), so the peer sees black instead of a frozen last frame.
         camera.onNALUnit = { [weak self] nal in
-            guard let self = self, !self.cameraOff, !self.isScreenSharing else { return }
+            guard let self = self, !self.isScreenSharing else { return }
             self.transport.send(nal)
             DispatchQueue.main.async { self.framesSent += 1 }
         }
@@ -272,7 +508,7 @@ class CallManager: ObservableObject {
             }
             if data.count > 2, data[0] == 0xFB, data[1] == 0xCA { // chat text
                 let msg = String(decoding: data.subdata(in: 2..<data.count), as: UTF8.self)
-                DispatchQueue.main.async { self.chat.append(ChatLine(who: .them, text: msg)) }
+                DispatchQueue.main.async { self.chat.append(ChatLine(who: .them, text: msg)); self.chatChime.play(); if !self.chatOpen { self.unreadChat += 1 } }
                 return
             }
             if data.count > 2, data[0] == 0xFE, data[1] == 0xAC { // reaction emoji
@@ -299,7 +535,7 @@ class CallManager: ObservableObject {
             }
             if data.count > 2, data[0] == 0xFB, data[1] == 0xCA {
                 let msg = String(decoding: data.subdata(in: 2..<data.count), as: UTF8.self)
-                DispatchQueue.main.async { self.chat.append(ChatLine(who: .them, text: msg)) }
+                DispatchQueue.main.async { self.chat.append(ChatLine(who: .them, text: msg)); self.chatChime.play(); if !self.chatOpen { self.unreadChat += 1 } }
                 return
             }
             if data.count > 2, data[0] == 0xFE, data[1] == 0xAC {
@@ -310,6 +546,7 @@ class CallManager: ObservableObject {
             // Video → per-source decoder
             let dec = self.groupDecoders[ip] ?? {
                 let d = VideoDecoder(); self.groupDecoders[ip] = d
+                NSLog("TRINET: GROUP video from \(ip) — now \(self.groupDecoders.count) source(s)")
                 DispatchQueue.main.async { self.objectWillChange.send() }
                 return d
             }()
@@ -359,8 +596,11 @@ class CallManager: ObservableObject {
             isGroup = false
             transport.connect(peerHost: remoteIP, peerPort: p, listenPort: p)
         }
+        let hostStrs = hosts.map { String($0) }
+        sendInvite(to: hostStrs, participants: [localIP] + hostStrs)   // ring the callee(s); carry the full roster
 
         isInCall = true
+        discovery.inCall = true    // advertise "in call" so the roster shows my status
         isStarting = false
         status = "Waiting for video..."
         startABR()
@@ -377,6 +617,7 @@ class CallManager: ObservableObject {
         audio.stop()
         transport.disconnect()
         isInCall = false
+        discovery.inCall = false
         isGroup = false
         roster = []
         groupDecoders = [:]
@@ -385,5 +626,6 @@ class CallManager: ObservableObject {
         framesSent = 0
         framesReceived = 0
         previewSession = nil
+        startIdleListener()   // resume listening for incoming calls
     }
 }

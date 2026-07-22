@@ -1159,4 +1159,426 @@ smoke/DEPIN_RELAY_OTA_RTI_2026-07-19.md).** ("все три"; multi-hop cycle cl
   voxel field from the same UDP link packets; `RTI3DView` renders it; a 3D/2D toggle in the RTI tab.
   Verified on-screen: two crossing diagonals -> beams crossing inside the cube.
 
+## RTI RADAR — hard-won detector discipline (added 2026-07-20)
+
+**The 3-node system is a DETECTOR, not an imager — this is geometry, not tuning.** Measurements =
+links = N(N-1)/2, so 3 nodes = 3 links. RTI inversion `x̂=(WᵀW+C⁻¹σ²)⁻¹Wᵀy` needs #links ≈ #voxels;
+`WᵀW` has rank ≤3 over hundreds of voxels → catastrophically ill-posed, the prior dominates the data.
+Wilson-Patwari RTI used **28 nodes / 378 links**; VRTI "See-Through Walls" used **34 nodes** for ~1 m.
+Never promise a tracked (x,y) on 3 nodes — ship presence/motion/zone-alarm, and SAY the wall out loud.
+Refs: Wilson-Patwari TMC 2010 (RTI_version_3.pdf); VRTI arXiv:0909.5417.
+
+**Detect on VARIANCE/|Δ|, NEVER on a signed drop.** By the fade-level model, a body entering a deep-fade
+null can RAISE rss, not lower it — shadowing sign is unpredictable per (link,channel). The `drop` path
+`(base-rss)/base` is theoretically unsound on fading links; prefer VRTI variance (pkt-35 window). Refs:
+Kaltiokallio MASS 2012 (fade level); skew-Laplace TMC 2014; RSS non-monotonic arXiv:1804.03961; RADAR
+INFOCOM 2000 abandoned RSS→distance for exactly this.
+
+**The phantom-flood bug chain (RTIHeatmap.swift) — the 8 fixes, in order they mattered:**
+1. **Absolute detection floor**, not relative `gmax*0.62` (which every frame's own peak clears → invents
+   a target every frame). Floor is tied to the empty-room reference (CFAR principle, Rohling TAES 1983).
+2. **MAD-robust sigma** `1.4826·median|x-med|`, NEVER std. Std has 0% breakdown — one 10-dB demod-corrupt
+   frame inflates variance → false alarm; MAD has 50% breakdown. Rousseeuw-Croux JASA 1993. Calibration
+   sigma AND runtime sd must BOTH be MAD or the CFAR scales diverge and the gate never fires.
+3. **Coverage normalization**: divide each voxel by #link-ellipsoids through it (the diag of WᵀW) to kill
+   the geometric crossing bias. `rebuildCoverage()` on any np3d change.
+4. **Inverse-variance link weighting** `refSigma/sigma` (floor 0.12): a noisy link (sigma 313 vs 59)
+   blankets its whole ellipsoid; down-weight it so clean links dominate.
+5. **Gate ALL THREE motion feeds behind M-of-N (>=3 of 5), not just pkt-35.** THE key trap: pkt-35 (SNR),
+   pkt-36 (CSI envelope) AND pkt-37 (CSI phase `phm`) all call `backproject3d(motion:true)`. I gated
+   pkt-35, then found pkt-36 ungated, then pkt-37 ungated — each alone re-floods mvox. Grep for EVERY
+   `backproject3d(... motion: true)` when a motion bug persists across fixes.
+6. **Node liveness** (`liveNodes`/`nodeLastPkt`): node dots were hardcoded (drawn always) → a powered-off
+   board never vanished → user read it as "fake data". A dot must grey/red when not heard <3 s.
+7. **Data-real proof = power-down negative control.** User suspected synthetic data; measured the peer's
+   log: the killed board's `src=N` lines dropped to 0 new instantly (synthetic would keep flowing). Same
+   method as TX-off OTA control (89.6×→4.2×). NOTE: `.13` is radio-only (no Ethernet) so `.113` never
+   answers SSH — that is NORMAL, not "offline".
+8. **Background subtraction (per-voxel, Wilson-Patwari quiescent reference).** A SCALAR floor cannot fix
+   the phantoms because the empty-room bias is PER-VOXEL. Two-phase calibration: phase-1 (5s) collects
+   per-link quiet MAD sigma; phase-2 (4s, gate ACTIVE) records the per-voxel empty-room ceiling `voxBg[]`;
+   detectPeaks uses `field = max(0, coverageNorm - voxBg)`. **voxFloor MUST be measured POST-gate** — an
+   early version measured it during phase-1 (gate off) → saturated to 3.24 → blinded the radar. TODO next
+   wave: ONLINE baseline update, frozen the instant any link trips, else a still person soaks into voxBg
+   (Kaltiokallio "@grandma" LCN-W 2012).
+
+**Two levers to beat the wall WITHOUT a 4th board:** (a) **channel diversity** — hop each link over K
+2.4 GHz channels, keep a per-(link,channel) baseline; independent multipath → 3 links become 3×K virtual
+(Kaltiokallio MASS 2012, ~10× accuracy). (b) **CSI dimensions** — extract AoA/ToF/Doppler per link as
+"virtual anchors" (Widar2.0 MobiSys 2018, ~0.1 m from ONE link). Vitals need CSI phase-diff + multi-antenna
+Rx (PhaseBeat ICDCS 2017, ~0.25 bpm); single RSS scalar cannot do breathing.
+
+**Reports:** project report artifact bdff7ab8-...; RTI science Wave report f9c68613-...; both have a
+print-to-PDF button (Chrome headless `--print-to-pdf` also renders the scratchpad HTML to a real .pdf).
+
+## VIDEO CAPTURE — orientation / shake / quality (added 2026-07-20)
+
+Sourced brief: AVFoundation/VideoToolbox, matched to FaceTime/WebRTC practice.
+
+- **Front camera rotated 90 deg** = `AVCaptureVideoDataOutput` delivers SENSOR-NATIVE LANDSCAPE buffers;
+  raw H.264 carries no orientation. Fix at CAPTURE: set `AVCaptureConnection.videoRotationAngle` (iOS17+;
+  guard `isVideoRotationAngleSupported`). Do NOT hardcode 90 -- drive it from
+  `AVCaptureDevice.RotationCoordinator.videoRotationAngleForHorizonLevelCapture` (gravity-aware, CORRECT
+  per camera; front vs back differ) and KEEP THE COORDINATOR ALIVE (stored property). Front camera: send
+  UN-mirrored to the wire (`automaticallyAdjustsVideoMirroring=false` FIRST, then `isVideoMirrored=false`)
+  or the remote sees backwards text. macOS built-in cam is fixed-landscape -> leave angle 0, only mirror.
+  Files use `AVAssetWriterInput.transform`; RTP/WebRTC signals rotation via the CVO header (rotate on
+  render) -- signaling beats rotating pixels IF the receiver honors it; else rotate on encode.
+- **Shaky video** -- split capture-shake from network-jitter. Capture: `.standard` video stabilization
+  (`preferredVideoStabilizationMode`, guard `format.isVideoStabilizationModeSupported`; NOT `.cinematic`
+  -- it adds latency) + LOCK FPS (`activeVideoMinFrameDuration == activeVideoMaxFrameDuration` inside
+  `lockForConfiguration`). Network: jitter-buffer sizing + sender pacing; and AIMD bitrate swing causes
+  visible "pumping" -- damp resolution/bitrate step changes. NOTE the heavy Network-tab scan (full /24
+  sweep + SSDP + mDNS every 3s) starved the call -- gate heavy discovery to Scan Now / ~1/min.
+- **Quality** -- `kVTProfileLevel_H264_Main_AutoLevel` (CABAC, ~10-15% better than Baseline; all Apple
+  decoders OK) with `AllowFrameReordering=false` (no B-frames -> no latency); add `DataRateLimits` HARD
+  cap `[bytes,1]` on top of `AverageBitRate` to clamp keyframe bursts that overflow UDP -> less
+  macroblocking; set `RealTime=true` + `ExpectedFrameRate`. VGA talking-head saturates ~800 kbps -- scale
+  RESOLUTION down before per-pixel quality. Refs: RFC 7742 (WebRTC=Constrained Baseline, 42e01f);
+  Apple RotationCoordinator / videoRotationAngle / DataRateLimits docs.
+- **iOS deploy caveat:** camera orientation is EMPIRICAL and the SIMULATOR HAS NO CAMERA -- a fix compiles
+  (`xcodebuild -scheme TriNetVideo -destination 'generic/platform=iOS Simulator'`) but must be run on a
+  real device and confirmed by eye. Headless deploy needs a paired device (`xcrun devicectl list devices`);
+  if none, the user builds+runs from Xcode. The macOS `TriNetMonitor` IS deployable headlessly; iOS is not.
+
+## iOS GROUP CALL (added 2026-07-20)
+
+iOS was single-peer; the Mac already did group. Mirrored the Mac onto iOS `BSDTransport` + `StreamViewModel`
++ `Views`, ISOLATED from the working 1-1 path (own conference key, own per-source reassembly) so it can't
+regress 1-1:
+- **Crypto:** static conference key = `HKDF<SHA256>(SHA256("tri-net-psk-v1"), salt "trios-mesh/v1/conference",
+  info "group-aead", 32)` -- EXACT same params as the Mac or the ends can't talk. Group seals with
+  `ChaChaPoly.seal(_, using: confKey).combined`; no pairwise handshake.
+- **Transport:** `connectGroup(hosts:port:recvPort:)` -> `peers:[sockaddr_in]`; `rawSend` fans out to all
+  peers in group mode; rx loop uses **`recvfrom`** (not `recv`) for the SOURCE IP; per-`"src#seq"` fragment
+  buffers so two phones' equal seqs never collide (the classic silent group bug); `onDataFrom(Data,String)`.
+- **ViewModel:** `remoteIP` with >1 comma/space IP => group; `groupDecoders:[String:H264Decoder]` + `@Published
+  roster`; per-source decode into its own tile; audio mixes; PLI handled.
+- **UI:** `GroupGrid`/`GroupTile` -- each tile `@ObservedObject`s its own decoder so a frame redraws only that tile.
+- **TEST (needs devices):** build TriNetVideo on each iPhone; in the call field enter the OTHER participants'
+  IPs comma-separated (2 iPhones + Mac = a real 3-way; the Mac already groups). Cannot be verified headlessly.
+- **Group polish (2026-07-20 "все три"):** (A) group FEC = per-`"src#seq"` parity recovery in
+  `groupTryFEC` (mirror of the 1-1 XOR-parity, one lost fragment/NAL recovers, no keyframe); the sender
+  already fans parity out via rawSend, the fix was the group RECEIVER honouring `0xFA 0xEC`. (B) damped
+  AIMD: `nudgeBitrate` 0.92-down/+8k-up (was 0.9/+10k) AND update `DataRateLimits` on every step so the
+  hard cap tracks the average (stops quality overshoot/pumping). (C) full-mesh uplink = peers x bitrate,
+  so `camera.reduceForGroup(peers:)` splits the target `220k/peers` (floor 90k); grid columns adapt
+  1/2/3 by roster size for 4-6 way.
+
+## PEER DISCOVERY — pick people by name, not IPs (added 2026-07-20)
+
+Replaced raw-IP entry with Bonjour presence. `desktop/TriNetVideo/PeerDiscovery.swift` (ObservableObject):
+- **Advertise:** `NWListener(using: .udp)` as a PURE advertiser (our real UDP transport keeps :7000; do NOT
+  run the transport through NWListener) + `NWListener.Service(name:type:"_trinet._udp",domain:"local.",
+  txtRecord:)` carrying `name`/`uid`/`port=7000`.
+- **Browse:** `NWBrowser(for: .bonjourWithTXTRecord(type:domain:))`; read `NWBrowser.Result.metadata` ->
+  `.bonjour(txt)` for name/uid WITHOUT connecting; roster keyed on a stable per-install `uid` (persisted UUID).
+- **Resolve (crux — Network.framework has NO standalone resolve):** open a throwaway `NWConnection` to the
+  tapped `result.endpoint`, on `.ready` read `currentPath?.remoteEndpoint` -> `.hostPort(host,_)`, strip any
+  `%zone`, cancel. IGNORE the resolved port, use 7000. Resolve ONLY the tapped peer, never the whole list.
+- **Info.plist (MANDATORY or SILENT failure on iOS14+/macOS15+):** `NSLocalNetworkUsageDescription` +
+  `NSBonjourServices:[_trinet._udp]`. In xcodegen use a target `info: properties:` block (arrays can't go
+  through `INFOPLIST_KEY_*`); that replaces `GENERATE_INFOPLIST_FILE`.
+- **UI:** `PeerRoster` observes `PeerDiscovery` directly; tap Call -> `callPeer` (resolve -> 1-1); tick several
+  -> `startGroupFromSelection` (resolve all -> comma-join -> group). NOT MultipeerConnectivity (owns its own
+  transport, can't return an IP for our socket).
+- **VERIFIED headless on Mac:** `dns-sd -B _trinet._udp` shows the app by instance name; `dns-sd -R "TestPhone"
+  _trinet._udp local 7000` -> app logs `roster 1 peer(s): TestPhone`, drops on removal.
+- **iOS DONE:** `PeerDiscovery` class EMBEDDED at the end of `VideoPipeline.swift` (iOS sources glob the
+  TriNetVideo/ dir, so no pbxproj edit needed; added `import UIKit` for the UIDevice default name); `iPeerRoster`
+  in Views + `discovery`/`callPeer`/`callEveryone`/`startGroupFromSelection` in StreamViewModel; `NSBonjourServices`
+  added to `phone/project.yml` info. Compiles; needs device build to verify.
+- **Rooms + status (2026-07-20 "все три"):** TXT `room=` (empty=open lobby; set=browse filters to same room +
+  "Call room" calls everyone) + `status=idle|call` (advertised on call start/stop via `discovery.inCall`, shown
+  as an orange "in call" badge). Editable display name via `setName`/`setRoom` -> republish (cancel+re-advertise
+  the NWListener; NWListener can't mutate TXT live). VERIFIED on Mac: `dns-sd -Z` shows
+  `"name=MacBook Pro" "uid=..." "port=7000" "room=" "status=idle"`.
+
+## INCOMING CALL ("take the call" — ringing screen + Accept/Decline) — 2026-07-20
+
+Discovery lets you SEE peers; this lets a call RING so the callee can pick up instead of everyone having to
+tap "Call room". Full-mesh is preserved — Accept just auto-fills the caller's IP and calls back.
+
+- **Signaling is a tiny plaintext INVITE on the SAME transport port (:7000), demuxed by a 2-byte magic
+  `[0xFD 0x11] + callerNameUTF8`.** NOT a new port, NOT Bonjour (TXT is presence, not real-time). The callee
+  learns the caller's IP from `recvfrom`'s source addr — the packet carries only the name.
+- **The `:7000` handoff is the whole trick.** While IDLE, hold a light UDP listener on :7000
+  (`startIdleListener`, SO_REUSEADDR, blocking `recvfrom` on a serial queue). The encrypted transport ALSO wants
+  :7000 the moment a call starts, so `startCall()` calls `stopIdleListener()` FIRST (close(fd) -> the blocking
+  recvfrom returns <=0 -> loop breaks), then the transport binds. `endCall()`/`stopCall()` calls
+  `startIdleListener()` again. UDP releases the port immediately on close, so no bind race (with SO_REUSEADDR).
+  Only ONE app instance can hold :7000 — kill stale instances before deploy (a busy :7000 = silent no-ring).
+- **Caller rings from a THROWAWAY socket** (`sendInvite(to: ips)`): its own transport already owns :7000, so it
+  sends the INVITE from an unbound socket to each `target:7000`, x4 with ~150ms spacing (UDP is lossy). Wired
+  into `startCall` right after computing `hosts` so both 1-1 and group ring.
+- **TWO bugs made "nothing happens on the callee" (user: «Вообще ничего»), both about a BLOCKED recvfrom on a
+  SERIAL queue — fixed 2026-07-20:**
+  1. `sendInvite` ran on `idleQueue` — the SAME serial queue the idle-listener's blocking `recvfrom` sits on.
+     `startCall()` calls `stopIdleListener()` (close the socket) right before, but **POSIX `close()` does NOT
+     reliably wake a `recvfrom` blocked in another thread**, so the queue stays occupied and the INVITE
+     `idleQueue.async` NEVER RUNS — the callee is never rung. Fix: send from `DispatchQueue.global()`, never a
+     queue that a blocking syscall might own.
+  2. Same blocked-recvfrom leaks the idle listener across calls: after a call ends, `startIdleListener()`
+     enqueues a NEW loop behind the OLD (still-blocked) one on the serial queue, so incoming calls die after
+     call #1. Fix: `SO_RCVTIMEO` (1s) on the idle socket + treat `EAGAIN/EWOULDBLOCK` as "continue, re-check
+     `idleFd`" so the loop EXITS within 1s of `stopIdleListener()`. Verified: the listener survives multiple
+     timeout cycles AND still catches a synthetic INVITE.
+- **Ring receiver dedups + auto-misses:** guard `!isInCall && incomingCall == nil` (the caller sends 4 INVITEs +
+  then media — the encrypted media also hits the idle listener; a 2-byte magic false-matches ciphertext ~1/65536,
+  harmless). A 40s `Timer` clears `incomingCall` (auto-miss); Accept/Decline invalidate it.
+- **ROOT LAW — serverless mesh, so EVERY endpoint must initiate.** There is no host/answerer: a 1-1 call only
+  forms when BOTH sides run `connect()` toward each other (each drives its own 250ms handshake), and a group only
+  forms when EACH device runs `connectGroup([the others])`. This is exactly why "iPhone->Mac works but
+  iPhone->iPhone doesn't": the Mac had the incoming-call build (rings->accept->calls back) and the iPhones did
+  not, so the callee iPhone never initiated its half. The crypto is symmetric and innocent (ECDH + HKDF on
+  constant salt/info); the asymmetry is always "who called back". Fix = build the ring feature onto BOTH ends.
+- **Accept = REBUILD THE MESH, not a 1-1 back to the caller.** The INVITE payload is `name\nip1,ip2,ip3` — the
+  FULL participant list (caller's `[myIP]+hosts`). `acceptIncoming()` does `Set(participants) + caller.ip -
+  myIP`, joins with commas, and `startCall()`s that — so a group invite rebuilds the whole mesh (A<->B, A<->C
+  AND B<->C), while a 1-1 invite (list = {caller, me}) collapses to a plain 1-1. Bug that was here first:
+  `remoteIP = inc.ip` (single IP) made a STAR (A<->B, A<->C, no B<->C), so 3-way never fully connected.
+- **AUTO-JOIN a GROUP (or same-room) call — the fix for "call from the Mac -> both iPhones just work".** The
+  INVITE payload is `name\nip1,ip2\nROOM`. The idle listener `acceptIncoming()`s IMMEDIATELY (no ring) when
+  `participants.count > 2` (a group = caller + me + others) OR the caller's room == my non-empty room. A plain
+  1-1 (`participants == {caller, me}`, count 2) still RINGS so you can pick up the handset. This is why a Mac
+  group-calling 2 iPhones now forms without anyone tapping Accept: the Mac's INVITE lists 3 participants, each
+  iPhone auto-joins and rebuilds the mesh. Verified on Mac: a 3-participant INVITE logged `auto-joining group …
+  3 participants` -> `GROUP transport up`, no ring. (The GROUP crypto is fine — Mac `MeshTransport.confKey`
+  == iOS `BSDTransport.confKey`, same HKDF salt `trios-mesh/v1/conference`; the fan-out sends to every peer.
+  The only thing missing before was that the callees never JOINED.) Verified on Mac: `defaults write com.trinet.monitor trinetRoom
+  ABCD` + an INVITE with room `ABCD` logged `auto-accepting … same room 'ABCD'`, not a ring.
+- **iOS SCREEN SHARE is a genuinely separate device-session feature** (`phone/SCREEN_SHARE_iOS.md`): needs a
+  Broadcast Upload Extension = a new app-extension TARGET + App Group + device provisioning. This repo's iOS
+  project must NOT be regenerated (breaks signing), so the target can't be added headlessly, and broadcast
+  capture can't run in the Simulator — so it can't be built OR verified here. The plan + SampleHandler skeleton
+  are written out in that file; finish it on the device machine. Don't fake it as done.
+- **UI (from a UX-research pass — FaceTime/WhatsApp/CallKit conventions):** Decline = red, LEFT; Accept = green,
+  RIGHT (iOS muscle memory — never swap). iOS = **full-screen takeover** (`IncomingCallOverlay`, ~76pt circular
+  buttons, pulsing concentric rings behind the avatar, `AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)`
+  looped every 2s — `import AudioToolbox`). macOS = **corner/top notification card** (`IncomingCallBanner`,
+  NOT full-screen — a Mac is multi-window). Both: `@Environment(\.accessibilityReduceMotion)` gates the pulse;
+  `.accessibilityLabel` on the icon buttons (color alone is invisible to VoiceOver).
+- **Why not CallKit:** CallKit's background/lock-screen ring needs a **PushKit VoIP push via APNs** — impossible
+  to originate peer-to-peer over a LAN UDP socket. A foreground in-app overlay is the only sanctioned path for a
+  serverless LAN app; accept that it only rings while the app is foregrounded.
+- **IPv6 KILLS THE CALL — force IPv4 in `resolveIP`.** The transport is IPv4-only (`sockaddr_in`, `inet_addr`).
+  Bonjour on iOS resolves a peer's endpoint to an **IPv6 link-local (`fe80::…`) FIRST**, and `inet_addr` can't
+  parse it -> returns `INADDR_NONE` (== the broadcast `255.255.255.255`), so every datagram silently sprayed the
+  subnet and the call never connected (user caught it: "зачем ты выбрал ip6"). Fix, BOTH resolveIP copies (Mac
+  PeerDiscovery.swift + iOS embedded in VideoPipeline.swift): build the NWConnection with
+  `let p = NWParameters.udp; (p.defaultProtocolStack.internetProtocol as? NWProtocolIP.Options)?.version = .v4`,
+  and map the `.ipv6` case to `nil`. Plus a LOUD guard in `connect()`: reject a host containing `:` or whose
+  `inet_addr == INADDR_NONE` instead of broadcasting. This is why iPhone->Mac limped but iPhone<->iPhone died:
+  iPhone-to-iPhone Bonjour resolve lands on v6 far more often.
+- **VERIFIED headless (Mac receive path):** deployed, idle listener bound :7000, a synthetic
+  `python3 sendto(b'\xfd\x11TestCaller', ('127.0.0.1',7000))` logged `INCOMING call from TestCaller (127.0.0.1)`.
+  Send path = identical wire format (proven compatible). iOS compiles; the 3-device ring->accept->connect loop
+  needs real devices + user's eyes (cannot verify headlessly — no device build, simulator has no camera).
+
+## VIDEO QUALITY — encoder settings that actually move quality-per-bit — 2026-07-20
+
+The iOS and Mac H.264 encoders had DRIFTED and iOS was badly throttled. FOUR fixes, both platforms,
+verified accepted in a standalone `swiftc` VideoToolbox harness (`scratchpad/enc_quality_harness.swift`:
+sets each property, checks `noErr`, READS BACK the profile, encodes 60 frames, asserts keyframe cadence +
+NAL flow). Read-back matters — VT silently CLAMPS unsupported values instead of erroring.
+
+- **LOW-LATENCY rate control** — the master switch. `kVTVideoEncoderSpecification_EnableLowLatencyRateControl
+  = true` in the `encoderSpecification` dict of `VTCompressionSessionCreate` (NOT a session property; iOS
+  14.5+/macOS 11.3+, targets are 15/14 so unconditional). Swaps the encoder's rate controller for the RTC one
+  (fast reaction, no big VBV buffer) and is the GATE for LTR / temporal-SVC / `MaxAllowedFrameQP` later.
+  GOTCHA the harness caught: with low-latency ON, `kVTCompressionPropertyKey_MaxFrameDelayCount` errors
+  **-12900 (unsupported)** — the mode already emits each frame immediately, so DON'T set it.
+
+- **H.264 HIGH profile, not Main** (`kVTProfileLevel_H264_High_AutoLevel`). High adds the 8x8 transform +
+  better intra prediction -> ~5-10% better quality-per-bit at the same bitrate; every Apple decoder supports
+  it; still CABAC, still no B-frames (AllowFrameReordering=false -> no latency). The fragment/mesh layer is
+  codec-opaque so nothing downstream cares.
+- **RARE keyframes.** iOS was `MaxKeyFrameInterval=10 + Duration=0.5` = an I-frame every ~0.5s; an I-frame is
+  ~5-10x a P-frame, so half the bit budget was spent on keyframes and the P-frames (i.e. the actual detail)
+  starved. Set both platforms to `MaxKeyFrameInterval=150 + MaxKeyFrameIntervalDuration=5.0` (~5s). Safe
+  because recovery is **PLI-driven**: the decoder's `awaitingIDR` asks the peer for an IDR on loss/join, so we
+  don't need a metronome of keyframes. Harness proved exactly 1 IDR in 60 frames.
+- **Real VGA bitrate on Wi-Fi.** iOS ceiling was a flat `maxBitrate=200_000` (Mac already used
+  `min(2_000_000, w*h*2)` ≈ 600k for VGA). 200k starves VGA to mush. iOS now uses the SAME mode-aware ceiling:
+  `meshMode ? meshBitrate(150k) : min(2_000_000, w*h*2)` in BOTH `setup()` and `applyCeiling()`. The node's
+  AIMD (0.92 down / +8k up) still governs the actual rate and backs off on loss; this only raises the CEILING
+  it may climb to when the link is good. Mesh/radio stays capped, group still splits via `setMaxBitrate`.
+- **Still TODO (higher risk, deferred):** adaptive RESOLUTION (VGA<->720p<->360p by link) — the single biggest
+  perceptual win but needs a clean mid-call VTCompressionSession teardown/recreate + AVCaptureSession preset
+  change; LTR frames for IDR-free loss recovery; a delay-based bandwidth estimator (GCC-lite) to raise bitrate
+  BEFORE loss; a video jitter buffer. Verify each on device — headless can only prove "settings accepted".
+
+## iOS<->Mac CALL FEATURE PARITY — audit + record button — 2026-07-20
+
+The user asked to "mirror all Mac call functions onto iOS." INVENTORY FIRST (don't assume — read both control
+bars): iOS already had mute, camera-flip, camera-off, blur, chat, reactions, group+roster, incoming call,
+mic/in meters, frame counters, log toggle, AND recording (CallRecorder + share sheet). It was NOT missing the
+features — recording was just hidden as a tiny top-bar "Rec" pill, so the user couldn't find it.
+
+- **Record button moved into the main control row** (`iBtn record.circle/record.circle.fill`, `active` -> red
+  while recording), mirroring the Mac's bottom-row REC. The old top-bar pill became a PASSIVE `REC` indicator
+  shown only while recording. So the toggle is where the Mac's is; the indicator persists at the top.
+- **Row fit: 7 controls on a phone.** 46pt circles overflow a 375pt iPhone SE at 7-across. Fix: the row uses
+  equal-width `.frame(maxWidth: .infinity)` cells, so it NEVER overflows horizontally — it just needs each
+  fixed circle <= cell width (usable/7 ~= 45pt on SE). Shrank `iBtn` 46->42pt (font 18->16) + End button 46->42
+  + spacing 6->4. Tap target stays the full flexible cell, so 42pt visual is still comfortable.
+- **"Not all buttons work" was a LOCAL-FEEDBACK gap, not dead buttons (2026-07-20).** Every iOS control is wired
+  to a real method (audited). But **blur** and **camera-off** change the OUTGOING stream, and the local self-PiP
+  is a raw `AVCaptureVideoPreviewLayer` that shows NEITHER — so the user toggled them, saw no change on their
+  own screen, and concluded "broken" (the far end WAS affected). Fix: make the PiP reflect state — a
+  `video.slash` placeholder when `cameraOff`, a "BLUR" badge when `isBlurred`. Lesson: a control that only
+  affects what the PEER sees needs an explicit local indicator or it reads as a no-op. (Group tiles were also
+  hard-coded 3:4 — fixed to 16:9 to match the camera.)
+- **The ONE real gap: screen sharing.** Mac uses ScreenCaptureKit (whole-desktop). iOS screen share of OTHER
+  apps needs a **Broadcast Upload Extension** — a SEPARATE app target + app-group + shared memory. The iOS
+  target compiles a STATIC file list (never regenerate), so this is a real feature/wave, NOT a mirror. In-app
+  `RPScreenRecorder.startCapture` only captures the app's own UI (useless for "share my screen"). Flag it
+  honestly; don't fake it.
+- Verified: iOS builds; Simulator renders the home screen clean and the roster already shows the live Mac
+  ("MacBook Pro - in call") + another peer. The in-call 7-button row can't be screenshotted headlessly (needs a
+  live call/camera the Simulator lacks) — fit is guaranteed by the flexible-cell geometry above.
+
+## ADAPTIVE RESOLUTION LADDER — 2026-07-20 (biggest low-bitrate quality lever)
+
+WebRTC's #1 lever: below a bitrate threshold, drop RESOLUTION (not just bitrate) so each pixel stays
+well-coded — a small SHARP frame beats a big blocky one. Both encoders now do this.
+
+- **Ladder** keyed to the AIMD's `curBitrate`, ALL 4:3 (VGA-native): 640x480 >=340k / 480x360 >=200k / 320x240
+  >=110k / 256x192 else. `targetRung()` picks the highest rung whose floor <= curBitrate. Ceiling is 900k
+  (VGA-appropriate), not 1.8M.
+- **ASPECT — the picture squished THREE times before it was killed for good. Root cause is ALWAYS anamorphic
+  (non-uniform) scaling: the output W:H differs from the content's W:H.** Sources of the mismatch here:
+  1. A 4:3 ladder rung fed from a 16:9 camera (FrameScaler does `scaleX=w/sw, scaleY=h/sh` — squish).
+  2. Forcing a 4:3 capture buffer (`output.videoSettings` 640x480) on the 16:9 FaceTime HD sensor (squish AT
+     CAPTURE, before anything downstream). This is the sneaky one — the display layers already use
+     `resizeAspect`/`resizeAspectFill` (they NEVER squish), so if the picture looks stretched the squish is
+     upstream, in the encoded frame, from capture or the scaler.
+  **BULLETPROOF FIX (final):** the ladder specifies target HEIGHT only; `encode()` computes WIDTH from the LIVE
+  camera frame's real aspect: `wantW = ((wantH * srcW / srcH) + 1) & ~1` (even). Uniform scale by construction
+  → the output aspect == the source aspect for ANY camera (verified across 16:9 / 4:3 / 1080p sources). Also set
+  the Mac `output.videoSettings` to 1280x720 (matches the 16:9 sensor, no capture squish) and all display
+  containers to 16:9. Never hard-code a rung's WIDTH again — derive it from the source.
+- **Downscale-before-encode, recreate-on-step.** A `FrameScaler` (CoreImage render into a pooled buffer of the
+  camera's own pixel format — the SAME pattern the shipping BackgroundBlur uses, so NV12 render is proven;
+  identity when src==dst so the top rung is free) shrinks each frame to the rung. On a rung CHANGE the encoder
+  `VTCompressionSessionInvalidate`s and recreates at the new size + forces an IDR. The decoder already re-inits
+  on the SPS change (`if s != sps { formatDesc=nil; session=nil }`), so it's end-to-end safe.
+- **CRITICAL: decouple the AIMD ceiling from the encoded size.** `maxBitrate` is now FIXED
+  (`meshMode ? meshBitrate : 1_800_000`), NOT `w*h*2` of the current frame. Otherwise it's a deadlock: a VGA
+  session caps curBitrate at ~600k, which never reaches the 1.1M needed to step UP to 720p, so the ladder can
+  never climb. The AIMD floor also dropped to an absolute (80k iOS / 100k Mac, was maxBitrate/8) so curBitrate
+  can fall far enough to reach the SMALL rungs on a weak link.
+- **PRESERVE curBitrate across a session recreate.** `setup()` seeds it once (`if curBitrate == 0`) and
+  otherwise only clamps to maxBitrate — a recreate must NOT reset the rate to the ceiling, or every step would
+  re-spike the bitrate. `curBitrate` default is 0 (uninitialized); `encode()` seeds it before the first
+  `targetRung()` read (mesh->meshBitrate, Wi-Fi->900k ~ 540p start).
+- **Cameras raised to 720p** (iOS preset `.hd1280x720`; Mac preset + output `videoSettings` 1280x720) so the
+  top rung has REAL detail to downscale from — upscaling VGA to 720p buys nothing.
+- **Hysteresis:** one step per 3s max (rate-limited on `lastResStep`) so it can't thrash on a jittery estimate.
+- **Mesh-aware:** `targetRung()` caps width to 320 in `meshMode` so keyframes stay under the 17850B NAL ceiling
+  (relevant: at VGA/600k a keyframe already measured 18032B in a live log — bigger frames need the radio cap).
+- **Verified** (`scratchpad/ladder_harness.swift`): CoreImage downscale 1280x720->320x240 produces a 320x240
+  buffer; a VTCompressionSession invalidated + recreated at a DIFFERENT size mid-stream emits a fresh keyframe
+  (2 keyframes across 2 sizes). On-device perceptual quality + the 720p capture cost need the user's eyes/logs
+  — watch for `TRINET: encoder resolution WxH @ Nkbps` lines to see the ladder stepping.
+
+## DEBUGGING "video doesn't go" — observability before theory — 2026-07-20
+
+A user log showed the call connecting, audio (Opus) flowing, encoder stepping the res ladder (540p->720p),
+but NO `FIRST FRAME DECODED` and a flood of `dropped unauthenticated datagram 1234B`. Two obstacles + one lead:
+
+- **The RTI radar log DROWNS the video diagnostics.** On 3 nodes the detector churns hundreds of short-lived
+  `TRACK #N LOCKED/LOST` + a jittery zone edge spamming `ALARM INTRUSION`/`left the zone` every cycle — the
+  shared Log pane fills with RTI noise and the video path is invisible. Added a `rtiLogGate()` throttle (~1 RTI
+  line / 2s) around all four RTI NSLogs in RTIHeatmap.swift. Verified: 1 RTI line in 6s (was hundreds). The
+  phantom flood itself (ill-posed 3-node detector) is a separate open bug; this only quiets the LOG.
+- **`dropped unauthenticated datagram` never said WHO sent it.** On a shared LAN with several TRI-NET devices
+  (roster "17, Yo"), a stray peer blasting :7000 fails our session key and is BENIGN; our own peer failing is a
+  REAL bug. The old log (MeshCrypto.unseal) had no source IP, so the two were indistinguishable. Added a
+  transport-level `dropByIP` log (Mac MeshTransport + iOS BSDTransport) printing the sender IP, tagged
+  `OUR PEER — REAL BUG` vs `stray peer (ignore)` by comparing to the stored `peerHostStr`. Decisive next-log
+  diagnostic. `rx #N` now also prints `from <ip>`.
+- **Suspicion:** the 1234B (== a max sealed fragment) drops are NEW since the 720p/adaptive-res wave — either
+  bigger keyframes stress the path, or (more likely) stray multi-device traffic. The IP tag settles it. Also
+  seen again: `canAddOutput=false` on a 2nd call (camera data-output not re-attaching on repeat calls).
+
+## CAMERA-OFF = BLACK, not a freeze — 2026-07-20
+
+"Turn camera off" used to just STOP sending (`guard !cameraOff` in the onFrame/onNALUnit send path), so the peer
+FROZE on the last frame. Zoom-style fix: keep the stream ALIVE and send BLACK frames.
+- `CameraCapture`/iOS camera gained `var blackout`; `captureOutput` encodes `blackFrame(like: pb)` when set —
+  a CACHED black `CVPixelBuffer` of the frame size, filled with TRUE black via `CIContext.render(CIImage(color:
+  .black)…)` (format-agnostic — memset(0) on NV12 is green, not black). Black H.264 frames are tiny, so the
+  bandwidth cost is negligible and the transition (real->black) rides a normal P-frame; no forced keyframe.
+- Wire: `cameraOff { didSet { camera.blackout = cameraOff } }`, and REMOVE `!cameraOff` from the send guard
+  (else the black frames get skipped). Keep the `!isScreenSharing` guard on Mac.
+- Local self-preview also blacks out (a `Color.black` + `video.slash` overlay on the PiP), since the raw
+  preview layer keeps showing the live camera otherwise.
+
+## CHAT unread badge + SCREEN-SHARE revert-on-fail — 2026-07-20
+
+- **Chat badge:** `@Published var unreadChat` + `var chatOpen { didSet { if chatOpen { unreadChat = 0 } } }`
+  on CallManager/StreamViewModel. Increment on an incoming `who: .them` message only when `!chatOpen`; the view
+  wires `chatOpen` on open/close and draws a red count capsule on the chat icon when `unreadChat > 0 && !showChat`.
+- **Screen-share "doesn't work" = a permission failure that left a BLACK call.** `toggleScreenShare` set
+  `isScreenSharing = true` synchronously (which SUPPRESSES the camera), but `ScreenCapture.start()` is async and
+  THROWS when Screen Recording isn't granted — so the camera was muted AND no screen frames flowed. Fix:
+  `ScreenCapture.onStarted(ok, msg)` reports back on the main queue; on failure CallManager sets
+  `isScreenSharing = false` (camera resumes) + a user-visible `status`. macOS gotcha surfaced in the message:
+  once you grant Screen Recording you MUST RESTART the app (ScreenCaptureKit caches the denial per process).
+  Also added `cfg.showsCursor = true` and a `screen frame #N` log. Can't be verified headlessly (needs the TCC
+  grant + a call).
+- **Screen-share REAL bug (permission was already granted): the frame-status filter dropped EVERY frame.** The
+  SCStreamOutput did `guard … status == .complete else { return }`, casting the sample-buffer attachments to
+  `[[SCStreamFrameInfo: Any]]`. On macOS 26 that cast / status read fails, so the guard returned on every frame
+  → nothing encoded, black call, no error. Fix: INVERT it — skip ONLY frames we can positively read as
+  not-`.complete`/`.started`; if the attachment can't be read, ENCODE anyway. Plus `screen NAL #N` logging to
+  trace frame -> encode -> NAL -> transport. Lesson: never let a fragile OS-attachment cast gate the whole
+  data path with a fail-closed `guard`.
+- **Distinctive incoming ring = a SYNTHESIZED tri-tone** (`RingSynth`, embedded on both platforms): three
+  ascending chirps E5-B5-E6 + a 0.55s gap, generated into an `AVAudioPCMBuffer` and looped via
+  `AVAudioPlayerNode` — not a stock alert sound, so it's instantly recognizable as TRI-NET. iOS sets the
+  session to `.playback`+`.mixWithOthers` so it sounds while ringing; both `stop()` on accept/decline/timeout.
+  Verified AUDIBLE (RMS 0.107, not silence) by regenerating the same math to a WAV and playing it.
+- **THE screen-share root cause: AD-HOC signing reset the TCC grant on EVERY rebuild.** The Mac app was
+  `CODE_SIGN_IDENTITY: "-"` (ad-hoc), so its cdhash changed each build; macOS TCC identifies an ad-hoc app BY
+  cdhash, so every rebuild/redeploy looked like a NEW app and the Screen Recording grant reset — the user saw
+  the app "ON" in Settings (for the OLD cdhash) yet got re-prompted forever. FIX: sign with the stable
+  **Apple Development** identity (Team `5EM4M85VSQ`, from `security find-identity -v -p codesigning`) — TCC then
+  keys off Team-ID + bundle-ID (a stable Designated Requirement), so the grant PERSISTS across rebuilds. The app
+  has NO entitlements/sandbox, so Development signing needs no provisioning profile. Set in
+  `desktop/project.yml` (base AND target settings): `CODE_SIGN_IDENTITY: "Apple Development"`,
+  `CODE_SIGN_STYLE: Manual`, `DEVELOPMENT_TEAM: "5EM4M85VSQ"`, `CODE_SIGNING_REQUIRED: YES`; `xcodegen generate`
+  then build — verified `Authority=Apple Development…`, `TeamIdentifier=5EM4M85VSQ`. The user grants Screen
+  Recording ONE more time (remove the stale ad-hoc entry, re-grant for the new signature, restart the app) and
+  it stays granted through all future updates. Lesson: any TCC-gated feature (screen/camera/mic/AX) needs a
+  STABLE signature or the permission churns every build.
+- **`-3801 "user declined TCCs"` after re-signing = a STALE TCC decision, not a real denial.** The old ad-hoc
+  grant is recorded against the old signature; the new Development signature doesn't match, so SCK returns
+  declined WITHOUT re-prompting. Clear it with `tccutil reset ScreenCapture com.trinet.monitor` — the next
+  attempt prompts fresh, and (being stably signed now) the grant sticks. The app also opens the pane on
+  failure: `NSWorkspace.shared.open(URL("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"))`
+  (needs `import AppKit`).
+
+## CHAT chime + iOS ORIENTATION — 2026-07-20
+
+- **Chat blip (Trinity-style):** `ChatChime` (embedded both platforms) synthesizes a quick C6->G6 two-note chirp
+  ONCE into a CAF (AVAudioFile, Int16 PCM) and plays via `AudioServicesCreateSystemSoundID` +
+  `AudioServicesPlaySystemSound`. Chosen over AVAudioEngine specifically because it is SESSION-SAFE — it never
+  touches the call's AVAudioEngine, so it can't trigger the config-change that kills the mic (see media
+  invariants). Fired on every incoming `who: .them` message. Verified AUDIBLE (RMS 0.150).
+- **iOS orientation / fullscreen:** the app was Portrait-only. Added LandscapeLeft/Right to
+  `TriNetVideo/Info.plist` (the build reads that file directly — NO xcodegen regen needed, which the static-file
+  rule forbids) AND to `phone/project.yml` (so a future regen keeps it). Now rotating the device fills the
+  screen. Also a fullscreen button in the call top bar forces landscape via
+  `UIWindowScene.requestGeometryUpdate(.iOS(interfaceOrientations:))` (iOS 16+); resets to portrait on
+  `CallScreen.onDisappear` so the home screen isn't stuck landscape.
+- **Self-preview PiP must rotate with the device too** (user: the right-hand preview was sideways in
+  landscape). The CAPTURE connection is pinned upright via `videoRotationAngleForHorizonLevelCapture` (so the
+  PEER always reads a level picture) — that must NOT change. Fix the PREVIEW connection separately in
+  `PreviewView`: an `AVCaptureDevice.RotationCoordinator` bound to the PREVIEW LAYER, set the layer connection's
+  `videoRotationAngle = videoRotationAngleForHorizonLevelPreview`, and KVO-observe that property to update live
+  as the phone turns (iOS 17+; retains the coordinator + observation). Two DIFFERENT connections, two different
+  angles — don't conflate capture-upright with preview-follows-device.
+
 phi^2 + phi^-2 = 3 | TRINITY

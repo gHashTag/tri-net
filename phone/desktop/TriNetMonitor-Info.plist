@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>TRI-NET Video</string>
+	<string>TRI-NET Monitor</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -25,21 +25,10 @@
 		<string>_trinet._udp</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>TRI-NET needs camera to stream video over mesh radio</string>
+	<string>Mesh monitor</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Find TRI-NET people on your local network by name instead of typing IPs</string>
+	<string>Find TRI-NET peers on your local network by name instead of typing IPs</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>TRI-NET needs microphone for video calls</string>
-	<key>UILaunchScreen</key>
-	<dict>
-		<key>UIColorName</key>
-		<string></string>
-	</dict>
-	<key>UISupportedInterfaceOrientations</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
-	</array>
+	<string>Audio for mesh video calls</string>
 </dict>
 </plist>

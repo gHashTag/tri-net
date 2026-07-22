@@ -210,11 +210,62 @@ class NetworkScanner {
         }
     }
 
-    // Full scan: an ICMP ping is the honest liveness test. (We used to `arp -d` the entry first to
-    // force a fresh resolve, but that needs root -- non-root it just fails with "writing to routing
-    // socket: Operation not permitted" on every host, spamming the log for nothing. ping already ARPs.)
+    // Full scan: ICMP ping FIRST, then a TCP connect fallback (see below) — ping alone lies about
+    // boards that answer SSH but drop ICMP. (We used to `arp -d` the entry first to force a fresh
+    // resolve, but that needs root -- non-root it just fails with "writing to routing socket:
+    // Operation not permitted" on every host, spamming the log for nothing. ping already ARPs.)
     static func scanDevice(host: String, ports: [Int]) async -> (online: Bool, rttMs: Int) {
-        return await icmpPing(host: host, timeout: 1.5)
+        let p = await icmpPing(host: host, timeout: 1.5)
+        if p.online { return p }
+        // ICMP is not a reliable liveness test: the P201Mini boards answer SSH but
+        // their ping replies are routinely dropped/filtered, so a live board scanned
+        // ONLY by ping shows as OFFLINE — a lie that made us believe a reachable
+        // board was gone. Fall back to a TCP connect on the probe ports (22 for the
+        // boards). A port that OPENS — or actively REFUSES — proves the host's stack
+        // replied, i.e. it is alive. Only a timeout (no route / host down) is offline.
+        let probePorts = ports.contains(22) ? ports : [22] + ports
+        for port in probePorts {
+            if let rtt = await tcpConnectRTT(host: host, port: port, timeout: 1.2) {
+                return (true, rtt)
+            }
+        }
+        return (false, 0)
+    }
+
+    // TCP liveness probe. Returns the connect RTT (ms) if the host's TCP stack
+    // answers — ready (port open) or ECONNREFUSED (port closed but host up) — and
+    // nil on timeout/unreachable. Uses Network.framework; no root, no subprocess.
+    static func tcpConnectRTT(host: String, port: Int, timeout: TimeInterval) async -> Int? {
+        guard let nwPort = NWEndpoint.Port(rawValue: UInt16(port)) else { return nil }
+        return await withCheckedContinuation { cont in
+            let conn = NWConnection(host: NWEndpoint.Host(host), port: nwPort, using: .tcp)
+            let start = Date()
+            let lock = NSLock(); var done = false
+            func finish(_ v: Int?) {
+                lock.lock(); defer { lock.unlock() }
+                if done { return }; done = true
+                conn.cancel()
+                cont.resume(returning: v)
+            }
+            conn.stateUpdateHandler = { state in
+                switch state {
+                case .ready:
+                    finish(Int(Date().timeIntervalSince(start) * 1000))
+                case .waiting(let err):
+                    // Refused = the host is UP (its stack sent RST); anything else
+                    // (no route, host down) we let ride to the timeout -> nil.
+                    if case .posix(let code) = err, code == .ECONNREFUSED {
+                        finish(Int(Date().timeIntervalSince(start) * 1000))
+                    }
+                case .failed:
+                    finish(nil)
+                default:
+                    break
+                }
+            }
+            conn.start(queue: .global())
+            DispatchQueue.global().asyncAfter(deadline: .now() + timeout) { finish(nil) }
+        }
     }
 
     // Real ICMP ping — the ONLY reliable way to know if host is alive
@@ -301,6 +352,136 @@ class NetworkScanner {
         } catch {
             return false
         }
+    }
+
+    // Our own IPv4 on the primary interface (getifaddrs, no subprocess). Skips link-local 169.254.
+    static func localIPv4() -> String? {
+        var head: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&head) == 0, let first = head else { return nil }
+        defer { freeifaddrs(head) }
+        var best: String?
+        var cur: UnsafeMutablePointer<ifaddrs>? = first
+        while let c = cur {
+            let f = c.pointee
+            if let sa = f.ifa_addr, sa.pointee.sa_family == UInt8(AF_INET) {
+                let name = String(cString: f.ifa_name)
+                if name == "en0" || name == "en1" {
+                    var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+                    if getnameinfo(sa, socklen_t(sa.pointee.sa_len), &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST) == 0 {
+                        let ip = String(cString: host)
+                        if !ip.hasPrefix("169.254") { best = ip; if name == "en0" { break } }
+                    }
+                }
+            }
+            cur = f.ifa_next
+        }
+        return best
+    }
+
+    // The /24 prefix of our subnet, e.g. "192.168.1." -- derived, not hardcoded.
+    static func subnetPrefix() -> String? {
+        guard let ip = localIPv4(), let r = ip.range(of: ".", options: .backwards) else { return nil }
+        return String(ip[..<r.upperBound])
+    }
+
+    // Full /24 ARP-sweep: ping EVERY host on the subnet so ARP populates for every live device.
+    // ARP is answered at L2 even when a device firewalls ICMP, so reading the ARP table after a
+    // sweep is the ground-truth way to enumerate the LAN (the classic arp-scan technique). Bounded
+    // concurrency, run on GCD threads (not the cooperative pool) so blocking on each ping is safe.
+    static func sweepSubnet(_ prefix: String) async {
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            DispatchQueue.global(qos: .utility).async {
+                let sem = DispatchSemaphore(value: 64)
+                let grp = DispatchGroup()
+                for h in 1...254 {
+                    sem.wait(); grp.enter()
+                    DispatchQueue.global(qos: .utility).async {
+                        let t = Process()
+                        t.executableURL = URL(fileURLWithPath: "/sbin/ping")
+                        t.arguments = ["-c", "1", "-W", "400", "\(prefix)\(h)"]   // -W ms: dead host returns fast
+                        t.standardOutput = FileHandle.nullDevice
+                        t.standardError = FileHandle.nullDevice
+                        try? t.run(); t.waitUntilExit()
+                        sem.signal(); grp.leave()
+                    }
+                }
+                grp.wait()
+                cont.resume()
+            }
+        }
+    }
+
+    // Generic multicast service probe: send `payload` to group:port, collect every responder's
+    // source IP for `seconds`. `hint` (case-insensitive) flags responders whose reply body contains
+    // it (e.g. "InternetGatewayDevice" -> the router). Responders unicast back to our source port,
+    // so no group membership is needed. Runs on a GCD thread; blocking recv is safe there.
+    static func multicastProbe(group: String, port: UInt16, payload: [UInt8], seconds: Double, hint: String? = nil) async -> (all: Set<String>, hinted: Set<String>) {
+        await withCheckedContinuation { (cont: CheckedContinuation<(Set<String>, Set<String>), Never>) in
+            DispatchQueue.global(qos: .utility).async {
+                var all = Set<String>(); var hinted = Set<String>()
+                let s = socket(AF_INET, SOCK_DGRAM, 0)
+                if s < 0 { cont.resume(returning: (all, hinted)); return }
+                var yes: Int32 = 1
+                setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &yes, socklen_t(MemoryLayout<Int32>.size))
+                var ttl: Int32 = 4
+                setsockopt(s, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, socklen_t(MemoryLayout<Int32>.size))
+                var tv = timeval(tv_sec: 0, tv_usec: 350_000)
+                setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+                var dst = sockaddr_in()
+                dst.sin_family = sa_family_t(AF_INET)
+                dst.sin_port = port.bigEndian
+                inet_pton(AF_INET, group, &dst.sin_addr)
+                payload.withUnsafeBytes { raw in
+                    withUnsafePointer(to: &dst) { dp in
+                        dp.withMemoryRebound(to: sockaddr.self, capacity: 1) { sap in
+                            _ = sendto(s, raw.baseAddress, raw.count, 0, sap, socklen_t(MemoryLayout<sockaddr_in>.size))
+                        }
+                    }
+                }
+                let hintL = hint?.lowercased()
+                let deadline = Date().addingTimeInterval(seconds)
+                var buf = [UInt8](repeating: 0, count: 4096)
+                while Date() < deadline {
+                    var src = sockaddr_in(); var slen = socklen_t(MemoryLayout<sockaddr_in>.size)
+                    let n = withUnsafeMutablePointer(to: &src) { sp in
+                        sp.withMemoryRebound(to: sockaddr.self, capacity: 1) { sap in
+                            recvfrom(s, &buf, buf.count, 0, sap, &slen)
+                        }
+                    }
+                    if n > 0 {
+                        var addr = src.sin_addr
+                        var ipbuf = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
+                        inet_ntop(AF_INET, &addr, &ipbuf, socklen_t(INET_ADDRSTRLEN))
+                        let ip = String(cString: ipbuf)
+                        all.insert(ip)
+                        if let h = hintL, let body = String(bytes: buf[0..<n], encoding: .utf8)?.lowercased(), body.contains(h) {
+                            hinted.insert(ip)
+                        }
+                    }
+                }
+                close(s)
+                cont.resume(returning: (all, hinted))
+            }
+        }
+    }
+
+    // SSDP / UPnP M-SEARCH -> routers (InternetGatewayDevice), smart TVs, media servers announce here.
+    static func ssdpDiscover() async -> (all: Set<String>, routers: Set<String>) {
+        let m = "M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: \"ssdp:discover\"\r\nMX: 2\r\nST: ssdp:all\r\n\r\n"
+        let r = await multicastProbe(group: "239.255.255.250", port: 1900, payload: Array(m.utf8), seconds: 2.2, hint: "InternetGatewayDevice")
+        return (r.all, r.hinted)
+    }
+
+    // mDNS / Bonjour meta-query (PTR _services._dns-sd._udp.local, unicast-response bit) -> every
+    // Bonjour responder (Apple devices, printers, Chromecast/AirPlay, some routers) replies with its IP.
+    static func mdnsDiscover() async -> Set<String> {
+        let q: [UInt8] = [0,0, 0,0, 0,1, 0,0, 0,0, 0,0,
+            9,0x5f,0x73,0x65,0x72,0x76,0x69,0x63,0x65,0x73,
+            7,0x5f,0x64,0x6e,0x73,0x2d,0x73,0x64,
+            4,0x5f,0x75,0x64,0x70,
+            5,0x6c,0x6f,0x63,0x61,0x6c, 0,
+            0,12, 0x80,1]
+        return await multicastProbe(group: "224.0.0.251", port: 5353, payload: q, seconds: 2.2).all
     }
 
     // Get ALL devices from ARP table with MAC + IP
@@ -405,6 +586,9 @@ class MeshMonitorEngine: ObservableObject {
     @Published var deviceIPs: [String] = UserDefaults.standard.stringArray(forKey: "deviceIPs") ??
         ["192.168.1.11", "192.168.1.12", "192.168.1.13"]
 
+    var upnpRouterIPs = Set<String>()   // IPs that answered SSDP as InternetGatewayDevice -> shown as Router
+    private var periodicScanCount = 0   // heavy discovery runs only every 20th periodic tick (~once/min)
+
     // Ports to probe
     private let probePorts = [22, 80, 5000, 7000, 7001]  // SSH, HTTP, mesh, video-in, video-out
 
@@ -418,9 +602,14 @@ class MeshMonitorEngine: ObservableObject {
         LogBus.shared.start()   // ensure the shared log is capturing (in case only this tab is opened)
         logEvent(.scan, node: 0, desc: "Monitor started — scanning \(deviceIPs.count) devices")
         scanNetwork()
-        // Scan every 3 seconds
-        scanTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { _ in
-            Task { await self.scanNetworkAsync() }
+        // Scan every 3 seconds. LIGHT probe of known devices each tick; the heavy discovery
+        // (full /24 sweep + SSDP + mDNS) only ~once a minute, so it never starves the video call.
+        scanTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                self.periodicScanCount += 1
+                await self.scanNetworkAsync(fullDiscovery: self.periodicScanCount % 20 == 0)
+            }
         }
     }
 
@@ -434,37 +623,48 @@ class MeshMonitorEngine: ObservableObject {
     // MARK: - Network Scan (REAL)
 
     func scanNetwork() {
-        Task { await scanNetworkAsync() }
+        Task { await scanNetworkAsync(fullDiscovery: true) }   // manual Scan Now = full discovery
     }
 
     @MainActor
-    func scanNetworkAsync() async {
+    func scanNetworkAsync(fullDiscovery: Bool = false) async {
         guard !isScanning else { return }
         isScanning = true
         scanProgress = "Scanning..."
 
-        // First: refresh ARP table by pinging all configured IPs
-        for ip in deviceIPs {
+        // Heavy discovery (full /24 sweep + SSDP + mDNS) ONLY on demand. Running it on the 3s
+        // periodic timer spawned 254 pings + 2 multicast probes every tick and starved the video
+        // call -- periodic ticks now do a light probe of known devices; this runs on Scan Now and
+        // ~once a minute.
+        if fullDiscovery {
+        // FULL /24 ARP-SWEEP (best practice): ping every host on our subnet so ARP populates for
+        // every live device -- ARP answers through an ICMP firewall, so this enumerates the whole
+        // LAN, not just the handful of configured IPs. Then also refresh any configured IPs that
+        // live outside our /24 (e.g. a board or router on another segment).
+        let prefix = NetworkScanner.subnetPrefix() ?? "192.168.1."
+        await NetworkScanner.sweepSubnet(prefix)
+        for ip in deviceIPs where !ip.hasPrefix(prefix) {
             DispatchQueue.global().async {
-                // Ping to populate ARP
                 let task = Process()
                 task.executableURL = URL(fileURLWithPath: "/sbin/ping")
-                task.arguments = ["-c", "1", "-t", "1", ip]
-                try? task.run()
-                task.waitUntilExit()
+                task.arguments = ["-c", "1", "-W", "400", ip]
+                task.standardOutput = FileHandle.nullDevice
+                task.standardError = FileHandle.nullDevice
+                try? task.run(); task.waitUntilExit()
             }
         }
-        // Wait for ARP to populate
-        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
+        try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s for ARP to settle
 
-        // Discover ALL devices from ARP table (skip self, gateway, multicast)
+        // Discover ALL devices from the ARP table. Skip only self, broadcast, multicast and the
+        // board's .10 secondary-IP phantom. The GATEWAY/ROUTER is NO LONGER skipped -- it is a real
+        // device (the main router) and must be shown; identifyDevice() labels .1 as Router.
         let arpDevices = NetworkScanner.getARPDevices()
         var allIPs = Set(deviceIPs)
-        // .10 is skipped: the stock board init adds 192.168.1.10 as a SECONDARY IP to every board, so it
-        // resolves (by ARP race) to whichever board answers -- it is not a distinct node. Counting it
-        // showed a phantom "TRI Board .10" with the same MAC as .11.
-        let skipIPs: Set<String> = ["192.168.1.105", "192.168.1.1", "224.0.0.251", "0.0.0.0", "192.168.1.10"]
-        for (ip, mac) in arpDevices {
+        // .10 phantom: the stock board init adds <prefix>.10 as a SECONDARY IP to every board, so it
+        // resolves (ARP race) to whichever board answers -- not a distinct node.
+        var skipIPs: Set<String> = ["\(prefix)255", "224.0.0.251", "0.0.0.0", "\(prefix)10", "255.255.255.255"]
+        if let s = NetworkScanner.localIPv4() { skipIPs.insert(s) }
+        for (ip, mac) in arpDevices where ip.hasPrefix(prefix) || allIPs.contains(ip) {
             if !allIPs.contains(ip) && !skipIPs.contains(ip) {
                 deviceIPs.append(ip)
                 allIPs.insert(ip)
@@ -473,6 +673,25 @@ class MeshMonitorEngine: ObservableObject {
                 logEvent(.scan, node: 0, desc: "Found \(dtype.rawValue): \(ip) (\(mac))")
             }
         }
+
+        // SERVICE-ANNOUNCEMENT discovery (SSDP/UPnP + mDNS/Bonjour), concurrent. Devices announce
+        // themselves even when quiet; a UPnP responder identifying as InternetGatewayDevice IS a
+        // router (the direct answer to "why isn't the router shown"). IPs already found via the ARP
+        // sweep are simply confirmed + tagged with the protocol that saw them.
+        async let ssdpR = NetworkScanner.ssdpDiscover()
+        async let mdnsR = NetworkScanner.mdnsDiscover()
+        let ssdp = await ssdpR
+        let mdns = await mdnsR
+        upnpRouterIPs = ssdp.routers                               // node builder marks these as Router
+        for ip in ssdp.all.union(mdns) where ip.hasPrefix(prefix) && !skipIPs.contains(ip) {
+            if !allIPs.contains(ip) {
+                deviceIPs.append(ip); allIPs.insert(ip)
+                UserDefaults.standard.set(deviceIPs, forKey: "deviceIPs")
+            }
+            let proto = ssdp.all.contains(ip) ? "SSDP/UPnP" : "mDNS"
+            logEvent(.scan, node: 0, desc: ssdp.routers.contains(ip) ? "Router (UPnP IGD): \(ip)" : "Announced via \(proto): \(ip)")
+        }
+        }  // end fullDiscovery
 
         let monitorNode = MeshNode(
             id: 0, ip: "self", label: "Monitor",
@@ -517,7 +736,8 @@ class MeshMonitorEngine: ObservableObject {
             // Get MAC and identify device type
             let macInfo = arpSnapshot.first(where: { $0.ip == ip })
             let macStr = macInfo?.mac ?? "?"
-            let (dtype, drole) = NetworkScanner.identifyDevice(mac: macStr, ip: ip)
+            var (dtype, drole) = NetworkScanner.identifyDevice(mac: macStr, ip: ip)
+            if upnpRouterIPs.contains(ip) { dtype = .router; drole = .gateway }   // UPnP IGD = router, even if not .1
 
             // Detect transitions
             if isOnline && !wasOnline {
@@ -583,14 +803,10 @@ class MeshMonitorEngine: ObservableObject {
             newLinks.append(MeshLink(id: "0-\(a.id)", from: 0, to: a.id, etx: a.etx, isActive: true))
         }
 
-        // Update packet counters for online nodes
-        for i in 0..<finalNodes.count {
-            if finalNodes[i].status == .online && finalNodes[i].id > 0 {
-                finalNodes[i].packetsForwarded += Int.random(in: 5...20)
-                finalNodes[i].packetsOriginated += Int.random(in: 3...10)
-                finalNodes[i].packetsDelivered += Int.random(in: 2...8)
-            }
-        }
+        // Packet counters stay 0: there is no mesh daemon on this side to forward,
+        // originate or deliver anything, so any nonzero value would be invented. (This
+        // used to add Int.random() every scan -- fake growing telemetry.) A real count
+        // appears only once trios_radiod on the boards feeds it.
 
         nodes = finalNodes
         links = newLinks
@@ -605,6 +821,15 @@ class MeshMonitorEngine: ObservableObject {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm:ss"
         logEvent(.scan, node: 0, desc: "Scan complete: \(online)/\(total) online (\(formatter.string(from: Date())))")
+
+        // One-line telemetry summary — real computed values only. Leads with "·" so
+        // the log pane tints it as data; worded to avoid the words online/offline/up/
+        // down that would otherwise be coloured as success/error.
+        let rtts = onlineDevices.map { $0.rttMs }
+        let avgRtt = rtts.isEmpty ? 0 : rtts.reduce(0, +) / rtts.count
+        let peakRtt = rtts.max() ?? 0
+        let boards = onlineDevices.filter { $0.deviceType == .triBoard }.count
+        NSLog("%@", "· health \(Int(networkHealth))% · reach \(online)/\(total) · \(newLinks.count) links · TRI \(boards) · RTT avg \(avgRtt)ms peak \(peakRtt)ms")
     }
 
     // MARK: - Event Log
@@ -714,36 +939,47 @@ struct MonitorView: View {
                 RTIHeatmapView(e: rtiEngine)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                // Network topology view
-                HSplitView {
-                    TopologyCanvas(engine: engine, filter: filter)
-                        .frame(minWidth: 550)
+                // Network topology view. The Log is a FULL-WIDTH bar pinned to the
+                // bottom — the same placement it has on the Video Call tab — instead
+                // of being squeezed into the right sidebar column.
+                VStack(spacing: 0) {
+                    // HStack (not HSplitView): HSplitView ignores maxHeight:.infinity when
+                    // stacked above a fixed-height bar and collapses, leaving a top gap.
+                    // A plain HStack propagates the greedy canvas and fills the height.
+                    HStack(spacing: 0) {
+                        TopologyCanvas(engine: engine, filter: filter)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                    VStack(spacing: 0) {
-                        VStack(spacing: 8) {
-                            HealthPanel(engine: engine)
-                            HStack(spacing: 6) {
-                                FilterChip(label: "All", isSelected: filter == .all) { filter = .all }
-                                FilterChip(label: "TRI", isSelected: filter == .triBoard) { filter = .triBoard }
-                                FilterChip(label: "Phones", isSelected: filter == .phone) { filter = .phone }
-                                FilterChip(label: "Routers", isSelected: filter == .router) { filter = .router }
-                                FilterChip(label: "Other", isSelected: filter == .other) { filter = .other }
+                        Divider()
+
+                        VStack(spacing: 0) {
+                            VStack(spacing: 8) {
+                                HealthPanel(engine: engine)
+                                HStack(spacing: 6) {
+                                    FilterChip(label: "All", isSelected: filter == .all) { filter = .all }
+                                    FilterChip(label: "TRI", isSelected: filter == .triBoard) { filter = .triBoard }
+                                    FilterChip(label: "Phones", isSelected: filter == .phone) { filter = .phone }
+                                    FilterChip(label: "Routers", isSelected: filter == .router) { filter = .router }
+                                    FilterChip(label: "Other", isSelected: filter == .other) { filter = .other }
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.bottom, 10)
                             }
-                            .padding(.horizontal, 12)
-                            .padding(.bottom, 10)
+                            .background(DS.ink)
+
+                            Divider()
+
+                            NodeListView(engine: engine, nodes: filteredNodes)
                         }
-                        .background(DS.ink)
-
-                        Divider()
-
-                        NodeListView(engine: engine, nodes: filteredNodes)
-
-                        Divider()
-
-                        EventLogView(engine: engine)
+                        .frame(width: 380)
                     }
-                    .frame(minWidth: 320, idealWidth: 380, maxWidth: 450)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)   // canvas+sidebar fill all space above the log
+
+                    Divider()
+
+                    EventLogView(engine: engine)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)       // whole view fills the window (no top gap)
             }
         }
         .toolbar {
@@ -1113,7 +1349,7 @@ struct NodeListView: View {
                 .padding(.horizontal)
             }
         }
-        .frame(maxHeight: 200)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)   // fill the sidebar; list top-aligned
         .padding(.vertical, 4)
         .background(DS.ink)
     }
@@ -1174,7 +1410,7 @@ struct EventLogView: View {
         // header + Copy / Log file / pause + monospace scroll. Network scan events are teed into it via
         // NSLog (see logEvent), so they show here alongside the rest of the app's log.
         _ = engine   // kept so the call site stays unchanged
-        return LogPane(bus: LogBus.shared)
+        return LogPane(bus: LogBus.shared, cornerRadius: 0)   // square: full-width bottom bar
             .background(DS.ink)
     }
 }
@@ -1257,9 +1493,13 @@ struct SettingsView: View {
             }
 
             // Ports
-            VStack(alignment: .leading) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text("Probe ports: 22 (SSH), 80 (HTTP), 5000 (Mesh), 7000-7001 (Video)")
                     .font(.caption).foregroundColor(.gray)
+                Text("Discovery: full /24 ARP-sweep + SSDP/UPnP + mDNS/Bonjour")
+                    .font(.caption).foregroundColor(.gray)
+                Text("A bridge/AP router with no IP is invisible to any scan — see it in the main router's client list")
+                    .font(.caption2).foregroundColor(.secondary)
             }
 
             HStack {

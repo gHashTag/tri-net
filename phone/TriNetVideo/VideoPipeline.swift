@@ -7,6 +7,7 @@ import Vision
 import CoreImage
 import Network
 import CryptoKit
+import UIKit   // UIDevice for the discovery default name
 
 // MARK: - Camera Controller
 
@@ -24,14 +25,22 @@ class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     }
 
     private var position: AVCaptureDevice.Position = .front
+    private var currentDevice: AVCaptureDevice?
+    private var rotCoord: Any?   // AVCaptureDevice.RotationCoordinator (iOS 17+); kept alive for KVO-free reads
 
     private func setupSession() {
         session.beginConfiguration()
-        session.sessionPreset = AVCaptureSession.Preset(rawValue: "AVCaptureSessionPreset352x288")
-        if let cam = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position),
-           let input = try? AVCaptureDeviceInput(device: cam),
-           session.canAddInput(input) {
-            session.addInput(input)
+        // 720p (16:9) — the camera's native aspect, so nothing is squished. The FrameScaler shrinks each frame
+        // to the ladder's current 16:9 rung before the encoder; the display layers preserve aspect.
+        session.sessionPreset = session.canSetSessionPreset(.hd1280x720) ? .hd1280x720
+            : (session.canSetSessionPreset(.vga640x480) ? .vga640x480
+               : AVCaptureSession.Preset(rawValue: "AVCaptureSessionPreset352x288"))
+        if let cam = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position) {
+            currentDevice = cam
+            if let input = try? AVCaptureDeviceInput(device: cam), session.canAddInput(input) {
+                session.addInput(input)
+            }
+            configureDevice(cam)   // lock frame rate + continuous auto-exposure (steadier, less shimmer)
         }
         output.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange]
         output.alwaysDiscardsLateVideoFrames = true
@@ -45,10 +54,12 @@ class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         position = (position == .front) ? .back : .front
         session.beginConfiguration()
         session.inputs.forEach { session.removeInput($0) }
-        if let cam = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position),
-           let input = try? AVCaptureDeviceInput(device: cam),
-           session.canAddInput(input) {
-            session.addInput(input)
+        if let cam = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position) {
+            currentDevice = cam
+            if let input = try? AVCaptureDeviceInput(device: cam), session.canAddInput(input) {
+                session.addInput(input)
+            }
+            configureDevice(cam)
         }
         session.commitConfiguration()
         // input swap re-creates the output connection — orientation must be re-applied
@@ -62,15 +73,44 @@ class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         }
     }
 
-    // Raw H.264 carries no orientation metadata, so rotate at capture:
-    // the app is portrait-locked, encode frames upright (90 deg from the
-    // landscape sensor) and every receiver displays them as-is.
+    // Lock the capture frame rate (min==max kills capture-interval jitter -> steadier video) and use
+    // continuous auto-exposure. Bracketed in lock/unlockForConfiguration as AVFoundation requires.
+    private func configureDevice(_ cam: AVCaptureDevice) {
+        guard (try? cam.lockForConfiguration()) != nil else { return }
+        let fps: Int32 = 24
+        if cam.activeFormat.videoSupportedFrameRateRanges.contains(where: { $0.minFrameRate <= Double(fps) && Double(fps) <= $0.maxFrameRate }) {
+            let d = CMTime(value: 1, timescale: fps)
+            cam.activeVideoMinFrameDuration = d
+            cam.activeVideoMaxFrameDuration = d          // min==max => hard-locked FPS
+        }
+        if cam.isExposureModeSupported(.continuousAutoExposure) { cam.exposureMode = .continuousAutoExposure }
+        if cam.isLowLightBoostSupported { cam.automaticallyEnablesLowLightBoostWhenAvailable = true }
+        cam.unlockForConfiguration()
+    }
+
+    // Raw H.264 carries no orientation metadata, so the frame must be upright at CAPTURE. The data
+    // output delivers sensor-native LANDSCAPE buffers, so without this the (portrait) front camera is
+    // 90 deg off. Apple's RotationCoordinator is the gravity-aware source of truth for the correct
+    // angle PER CAMERA (front vs back differ) -- more robust than a hardcoded 90. Front camera is sent
+    // UN-mirrored so the remote reads text correctly. Also enable .standard stabilization (not
+    // cinematic -- that adds latency) to calm handheld shake.
     private func applyOrientation() {
         guard let conn = output.connection(with: .video) else { return }
-        if #available(iOS 17.0, *) {
-            if conn.isVideoRotationAngleSupported(90) { conn.videoRotationAngle = 90 }
+        if conn.isVideoMirroringSupported {
+            conn.automaticallyAdjustsVideoMirroring = false
+            conn.isVideoMirrored = false
+        }
+        if #available(iOS 17.0, *), let dev = currentDevice {
+            let rc = AVCaptureDevice.RotationCoordinator(device: dev, previewLayer: nil)
+            rotCoord = rc                                             // keep alive
+            let angle = rc.videoRotationAngleForHorizonLevelCapture
+            if conn.isVideoRotationAngleSupported(angle) { conn.videoRotationAngle = angle }
+            else if conn.isVideoRotationAngleSupported(90) { conn.videoRotationAngle = 90 }
         } else if conn.isVideoOrientationSupported {
             conn.videoOrientation = .portrait
+        }
+        if let dev = currentDevice, dev.activeFormat.isVideoStabilizationModeSupported(.standard) {
+            conn.preferredVideoStabilizationMode = .standard   // .standard not .cinematic (cinematic adds latency)
         }
     }
 
@@ -85,6 +125,9 @@ class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
 
     func forceKeyframe() { encoder?.forceKeyframe() }
     func nudgeBitrate(down: Bool) { encoder?.nudgeBitrate(down: down) }
+    // Full-mesh group uploads its stream to EVERY peer, so uplink = peers x bitrate. Split the target
+    // across peers (floored) so a 4-6 way call doesn't saturate the uplink.
+    func reduceForGroup(peers: Int) { encoder?.setMaxBitrate(max(90_000, 220_000 / max(1, peers))) }
     // Held here too: the encoder is re-created on a camera switch and would
     // otherwise silently revert to the Wi-Fi cap.
     var meshMode = false { didSet { encoder?.meshMode = meshMode } }
@@ -94,16 +137,65 @@ class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     var blurBackground = false
     private let blur = BackgroundBlur()
 
+    // Camera off: keep the stream ALIVE but send BLACK frames, so the peer sees a black screen instead of a
+    // frozen last frame (Zoom-style). A cached black buffer + true black via CoreImage, format-agnostic.
+    var blackout = false
+    private var blackPB: CVPixelBuffer?
+    private let ciBlack = CIContext(options: [.cacheIntermediates: false])
+    private func blackFrame(like pb: CVPixelBuffer) -> CVPixelBuffer {
+        let w = CVPixelBufferGetWidth(pb), h = CVPixelBufferGetHeight(pb)
+        if blackPB == nil || CVPixelBufferGetWidth(blackPB!) != w || CVPixelBufferGetHeight(blackPB!) != h {
+            var out: CVPixelBuffer?
+            CVPixelBufferCreate(nil, w, h, CVPixelBufferGetPixelFormatType(pb),
+                                [kCVPixelBufferIOSurfacePropertiesKey as String: [:]] as CFDictionary, &out)
+            if let b = out { ciBlack.render(CIImage(color: .black).cropped(to: CGRect(x: 0, y: 0, width: w, height: h)), to: b) }
+            blackPB = out
+        }
+        return blackPB ?? pb
+    }
+
     func stop() { encoder = nil }
     func stopAll() { session.stopRunning() }
 
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        if blurBackground, let pb = CMSampleBufferGetImageBuffer(sampleBuffer) {
-            let out = blur.process(pb)
-            encoder?.encode(pixelBuffer: out, pts: CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
+        guard let pb = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+        if blackout {
+            encoder?.encode(pixelBuffer: blackFrame(like: pb), pts: pts)
+        } else if blurBackground {
+            encoder?.encode(pixelBuffer: blur.process(pb), pts: pts)
         } else {
-            encoder?.encode(sampleBuffer)
+            encoder?.encode(pixelBuffer: pb, pts: pts)
         }
+    }
+}
+
+// MARK: - Frame scaler (adaptive resolution)
+// Downscale a camera pixel buffer to the ladder's target size before encoding, reusing a pool. CoreImage on
+// the GPU; mirrors the BackgroundBlur pool pattern. Identity when src == dst so the top rung costs nothing.
+final class FrameScaler {
+    private let ci = CIContext(options: [.cacheIntermediates: false])
+    private var pool: CVPixelBufferPool?
+    private var pw = 0, ph = 0
+
+    func scale(_ pb: CVPixelBuffer, toW w: Int, toH h: Int) -> CVPixelBuffer {
+        let sw = CVPixelBufferGetWidth(pb), sh = CVPixelBufferGetHeight(pb)
+        if sw == w && sh == h { return pb }
+        if pool == nil || pw != w || ph != h {
+            let attrs: [String: Any] = [
+                kCVPixelBufferPixelFormatTypeKey as String: CVPixelBufferGetPixelFormatType(pb),
+                kCVPixelBufferWidthKey as String: w, kCVPixelBufferHeightKey as String: h,
+                kCVPixelBufferIOSurfacePropertiesKey as String: [:]
+            ]
+            CVPixelBufferPoolCreate(nil, nil, attrs as CFDictionary, &pool); pw = w; ph = h
+        }
+        var out: CVPixelBuffer?
+        guard let p = pool, CVPixelBufferPoolCreatePixelBuffer(nil, p, &out) == kCVReturnSuccess,
+              let dst = out else { return pb }
+        let img = CIImage(cvPixelBuffer: pb).transformed(by: CGAffineTransform(scaleX: CGFloat(w)/CGFloat(sw),
+                                                                               y: CGFloat(h)/CGFloat(sh)))
+        ci.render(img, to: dst)
+        return dst
     }
 }
 
@@ -112,6 +204,28 @@ class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
 class H264Encoder {
     private var session: VTCompressionSession?
     var onFrame: ((Data, Bool) -> Void)?
+
+    // Adaptive-resolution ladder: pick the frame size from the AIMD's curBitrate. A weak link drops to a
+    // small SHARP picture instead of a big blocky one; a strong Wi-Fi link climbs to 720p. Recreating the
+    // session on a step forces one IDR + new SPS, which the decoder already handles (SPS change -> re-init).
+    // The ladder is keyed to target HEIGHT only; the WIDTH is computed from the camera frame's real aspect at
+    // encode time, so the scale is always UNIFORM and the picture is NEVER squished — whatever the camera's
+    // aspect (16:9 FaceTime HD, 4:3 webcam, anything). This is why the "stretched picture" can't come back.
+    private struct Rung { let h: Int32; let minBitrate: Int }
+    private static let ladder: [Rung] = [
+        Rung(h: 720, minBitrate: 650_000),
+        Rung(h: 540, minBitrate: 380_000),
+        Rung(h: 360, minBitrate: 200_000),
+        Rung(h: 270, minBitrate: 110_000),
+        Rung(h: 180, minBitrate: 0),
+    ]
+    private let scaler = FrameScaler()
+    private var lastResStep = Date.distantPast
+    private func targetRung() -> Rung {
+        // Mesh/radio: cap height so keyframes stay under the 17850B NAL ceiling.
+        let cap: Int32 = meshMode ? 240 : 4096
+        return H264Encoder.ladder.first { $0.minBitrate <= curBitrate && $0.h <= cap } ?? H264Encoder.ladder.last!
+    }
     // Dimensions come from the first captured frame (rotation/preset aware) —
     // hardcoded values would make VideoToolbox scale-squash rotated buffers
     private var width: Int32 = 0
@@ -121,9 +235,12 @@ class H264Encoder {
         self.width = width
         self.height = height
         var s: VTCompressionSession?
+        // Low-latency rate control: the RTC-tuned rate controller (fast reaction, no big VBV buffer) — better
+        // quality-under-motion than the default, and the gate for LTR/temporal-SVC later. iOS 14.5+ (target 15).
+        let spec: [CFString: Any] = [kVTVideoEncoderSpecification_EnableLowLatencyRateControl: kCFBooleanTrue]
         let r = VTCompressionSessionCreate(
             allocator: kCFAllocatorDefault, width: width, height: height,
-            codecType: kCMVideoCodecType_H264, encoderSpecification: nil,
+            codecType: kCMVideoCodecType_H264, encoderSpecification: spec as CFDictionary,
             imageBufferAttributes: nil, compressedDataAllocator: nil,
             outputCallback: { ref, _, status, _, buf in
                 guard status == noErr, let buf = buf else { return }
@@ -134,13 +251,28 @@ class H264Encoder {
         )
         guard r == noErr, let s = s else { return false }
         session = s
-        maxBitrate = 200_000  // rate governed by the node's advice, not a mesh cap
-        curBitrate = maxBitrate
+        // Ceiling the AIMD climbs to — FIXED (not tied to the encoded size), so curBitrate can rise high enough
+        // to unlock the 720p rung on good Wi-Fi; the ladder picks the frame size from curBitrate. Mesh stays
+        // capped so keyframes fit the NAL ceiling.
+        maxBitrate = meshMode ? H264Encoder.meshBitrate : 900_000
+        if curBitrate == 0 { curBitrate = min(maxBitrate, 900_000) }   // first call: start ~540p, then climb
+        curBitrate = min(curBitrate, maxBitrate)                       // resolution step: PRESERVE the rate
         VTSessionSetProperty(s, key: kVTCompressionPropertyKey_AverageBitRate, value: curBitrate as CFNumber)
         VTSessionSetProperty(s, key: kVTCompressionPropertyKey_RealTime, value: kCFBooleanTrue)
-        VTSessionSetProperty(s, key: kVTCompressionPropertyKey_ProfileLevel, value: kVTProfileLevel_H264_Baseline_3_0 as CFString)
-        VTSessionSetProperty(s, key: kVTCompressionPropertyKey_MaxKeyFrameInterval, value: 10 as CFNumber)
-        VTSessionSetProperty(s, key: kVTCompressionPropertyKey_MaxKeyFrameIntervalDuration, value: 0.5 as CFNumber)
+        // High profile adds the 8x8 transform + better intra prediction: ~5-10% better quality-per-bit than
+        // Main at the same bitrate, and every Apple decoder supports it. CABAC + no B-frames (no latency).
+        // Verified accepted in a standalone VideoToolbox harness.
+        VTSessionSetProperty(s, key: kVTCompressionPropertyKey_ProfileLevel, value: kVTProfileLevel_H264_High_AutoLevel as CFString)
+        // Hard data-rate cap on TOP of AverageBitRate: clamps keyframe/scene-cut bursts that would
+        // overflow the UDP link and cause loss -> macroblocking. [bytes, seconds] pairs.
+        let capBytes = (curBitrate * 5 / 4) / 8   // ~1.25x avg per second
+        VTSessionSetProperty(s, key: kVTCompressionPropertyKey_DataRateLimits, value: [capBytes, 1] as CFArray)
+        VTSessionSetProperty(s, key: kVTCompressionPropertyKey_ExpectedFrameRate, value: 24 as CFNumber)  // rate controller allocates bits correctly
+        // Rare keyframes: an I-frame is ~5-10x a P-frame, so one every 0.5s was burning the budget on
+        // I-frames and starving P-frames of detail. Recovery is PLI-driven (peer requests an IDR on
+        // loss/join), so a long interval is safe AND frees bits for quality. Harness: 1 IDR / 60 frames.
+        VTSessionSetProperty(s, key: kVTCompressionPropertyKey_MaxKeyFrameInterval, value: 150 as CFNumber)
+        VTSessionSetProperty(s, key: kVTCompressionPropertyKey_MaxKeyFrameIntervalDuration, value: 5.0 as CFNumber)
         VTSessionSetProperty(s, key: kVTCompressionPropertyKey_AllowFrameReordering, value: kCFBooleanFalse)
         VTCompressionSessionPrepareToEncodeFrames(s)
         return true
@@ -207,7 +339,7 @@ class H264Encoder {
 
     private func applyCeiling() {
         guard let s = session else { return }
-        maxBitrate = 200_000  // rate governed by the node's advice, not a mesh cap
+        maxBitrate = meshMode ? H264Encoder.meshBitrate : 900_000
         curBitrate = min(curBitrate, maxBitrate)
         bitrateKbps = curBitrate / 1000
         VTSessionSetProperty(s, key: kVTCompressionPropertyKey_AverageBitRate, value: curBitrate as CFNumber)
@@ -230,19 +362,32 @@ class H264Encoder {
     func forceKeyframe() { forceKeyframeNext = true }
 
     // Adaptive bitrate (PLI-driven), mirrors the macOS encoder.
-    private var maxBitrate = 200_000
-    private var curBitrate = 200_000
+    private var maxBitrate = 900_000
+    private var curBitrate = 0   // 0 = uninitialized; setup() seeds it (~540p worth) on the first frame
     private(set) var bitrateKbps = 0
     // AIMD, tuned on hardware (see specs/video_bridge.t27 dead-zone note).
     // Multiplicative decrease recovers fast; additive increase seeks the ceiling
     // without oscillating. Matches the Mac encoder.
+    func setMaxBitrate(_ bps: Int) {   // group: split the uplink across peers
+        maxBitrate = max(80_000, bps)
+        curBitrate = min(curBitrate, maxBitrate)
+        if let s = session {
+            VTSessionSetProperty(s, key: kVTCompressionPropertyKey_AverageBitRate, value: curBitrate as CFNumber)
+        }
+        bitrateKbps = curBitrate / 1000
+    }
+
     func nudgeBitrate(down: Bool) {
         guard let s = session, maxBitrate > 0 else { return }
-        let floor = max(80_000, maxBitrate / 8)
-        curBitrate = down ? max(floor, Int(Double(curBitrate) * 0.9))
-                          : min(maxBitrate, curBitrate + 10_000)
+        let floor = 80_000   // absolute, so the resolution ladder can reach its small rungs on a weak link
+        // Gentler AIMD (0.92 down / +8kbps up, was 0.9 / +10k) to damp visible "pumping", and keep the
+        // hard DataRateLimits cap IN SYNC with the average so quality can't overshoot after a step.
+        curBitrate = down ? max(floor, Int(Double(curBitrate) * 0.92))
+                          : min(maxBitrate, curBitrate + 8_000)
         bitrateKbps = curBitrate / 1000
         VTSessionSetProperty(s, key: kVTCompressionPropertyKey_AverageBitRate, value: curBitrate as CFNumber)
+        let cap = (curBitrate * 5 / 4) / 8
+        VTSessionSetProperty(s, key: kVTCompressionPropertyKey_DataRateLimits, value: [cap, 1] as CFArray)
     }
 
     func encode(_ sb: CMSampleBuffer) {
@@ -251,20 +396,34 @@ class H264Encoder {
     }
 
     func encode(pixelBuffer pb: CVPixelBuffer, pts: CMTime) {
+        if curBitrate == 0 { curBitrate = meshMode ? H264Encoder.meshBitrate : 900_000 }  // seed before the ladder reads it
+        let srcW = Int(CVPixelBufferGetWidth(pb)), srcH = Int(CVPixelBufferGetHeight(pb))
+        guard srcW > 0, srcH > 0 else { return }
+        // Target HEIGHT from the ladder (rate-limited to one step / 3s); WIDTH preserves the camera's real
+        // aspect -> uniform scale -> never squished.
+        let wantH: Int32
         if session == nil {
-            let w = Int32(CVPixelBufferGetWidth(pb))
-            let h = Int32(CVPixelBufferGetHeight(pb))
-            guard setup(width: w, height: h) else { return }
-            NSLog("TRINET: encoder session \(w)x\(h)")
+            wantH = min(Int32(srcH), targetRung().h)
+        } else {
+            let t = min(Int32(srcH), targetRung().h)
+            if t != height, Date().timeIntervalSince(lastResStep) > 3.0 { wantH = t; lastResStep = Date() }
+            else { wantH = height }
+        }
+        let wantW = Int32(((Int(wantH) * srcW / srcH) + 1) & ~1)   // even width at the source aspect
+        let frame = scaler.scale(pb, toW: Int(wantW), toH: Int(wantH))
+        if session == nil || width != wantW || height != wantH {
+            if let old = session { VTCompressionSessionInvalidate(old); session = nil }
+            guard setup(width: wantW, height: wantH) else { return }
+            NSLog("TRINET: encoder resolution \(wantW)x\(wantH) @ \(curBitrate/1000)kbps")
+            forceKeyframeNext = true   // a fresh session must lead with an IDR + new SPS for the peer
         }
         guard let s = session else { return }
         var props: CFDictionary?
         if forceKeyframeNext {
             forceKeyframeNext = false
             props = [kVTEncodeFrameOptionKey_ForceKeyFrame: kCFBooleanTrue] as CFDictionary
-            NSLog("TRINET: forcing keyframe (peer PLI)")
         }
-        VTCompressionSessionEncodeFrame(s, imageBuffer: pb, presentationTimeStamp: pts, duration: .invalid, frameProperties: props, sourceFrameRefcon: nil, infoFlagsOut: nil)
+        VTCompressionSessionEncodeFrame(s, imageBuffer: frame, presentationTimeStamp: pts, duration: .invalid, frameProperties: props, sourceFrameRefcon: nil, infoFlagsOut: nil)
     }
 }
 
@@ -309,7 +468,11 @@ class H264Decoder: ObservableObject {
             let p = nalUnit.subdata(in: 4..<nalUnit.count)
             if p != pps { pps = p; formatDesc = nil; session = nil; awaitingIDR = true }
             tryInitSession()
-        case 5: // IDR — resync point
+        case 5: // IDR — resync, but only if session is ready
+            guard session != nil, formatDesc != nil else {
+                requestKeyframe()
+                return
+            }
             awaitingIDR = false
             decodeFrame(nalUnit)
         case 1 where awaitingIDR:
@@ -434,6 +597,8 @@ class H264Decoder: ObservableObject {
 class BSDTransport {
     private var fd: Int32 = -1
     private var peer = sockaddr_in()
+    private var peerHostStr = ""              // the connected peer's IP, for drop diagnostics
+    private var dropByIP: [String: Int] = [:] // undecryptable datagrams per source IP
     private var running = false
     private let rxQueue = DispatchQueue(label: "mesh.rx", qos: .userInitiated)
     // Separate queue: rxQueue is parked forever in a blocking recv(), so a
@@ -441,6 +606,20 @@ class BSDTransport {
     private let hsQueue = DispatchQueue(label: "mesh.hs", qos: .userInitiated)
     var onData: ((Data) -> Void)?
     var isReady = false
+    // Conference (group) mode: >1 peers share ONE static conference key (HKDF of the PSK), full-mesh,
+    // NO pairwise handshake -- mirrors the Mac (MeshTransport). recvfrom routes by SOURCE IP so each
+    // sender decodes into its own tile. Kept ISOLATED from the working 1-1 path (own key, own reassembly).
+    private var groupMode = false
+    private var peers: [sockaddr_in] = []
+    var onDataFrom: ((Data, String) -> Void)?
+    private static let confKey = SymmetricKey(
+        data: HKDF<SHA256>.deriveKey(
+            inputKeyMaterial: SymmetricKey(data: SHA256.hash(data: Data("tri-net-psk-v1".utf8))),
+            salt: Data("trios-mesh/v1/conference".utf8),
+            info: Data("group-aead".utf8), outputByteCount: 32))
+    // per-(source, seq) fragment buffers -- group only, so two phones' same-seq NALs never collide
+    private var groupFrag: [String: (parts: [Data?], have: Int)] = [:]
+    private var groupFec: [String: (xor: [UInt8], lastLen: Int, total: Int)] = [:]   // per-source parity (group FEC)
 
     // MARK: link feedback (see specs/video_bridge.t27)
     //
@@ -543,6 +722,13 @@ class BSDTransport {
         peer.sin_family = sa_family_t(AF_INET)
         peer.sin_port = port.bigEndian
         peer.sin_addr.s_addr = inet_addr(host)
+        // inet_addr can't parse IPv6/garbage — it returns INADDR_NONE, which as an address is the broadcast
+        // 255.255.255.255. Fail LOUD instead of silently spraying the whole subnet.
+        guard host.firstIndex(of: ":") == nil, peer.sin_addr.s_addr != INADDR_NONE else {
+            NSLog("TRINET: connect() rejected non-IPv4 host '\(host)' (IPv6/garbage) — not dialing")
+            close(fd); fd = -1; return
+        }
+        peerHostStr = host; dropByIP.removeAll()
 
         running = true
         isReady = true
@@ -559,37 +745,123 @@ class BSDTransport {
         handshakeTimer = timer
         timer.resume()
 
-        let sock = fd
+        startRx(fd)
+    }
+
+    // Group / conference call: full-mesh to 2-4 peers under the shared conference key, no handshake.
+    // Mac's connectGroup mirrored. Two iPhones + a Mac = a real 3-way group.
+    func connectGroup(hosts: [String], port: UInt16, recvPort: UInt16) {
+        disconnect()
+        groupMode = true
+        fd = socket(AF_INET, SOCK_DGRAM, 0)
+        guard fd >= 0 else { NSLog("TRINET: group socket() failed"); return }
+        var on: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, 4)
+        var addr = sockaddr_in()
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = recvPort.bigEndian
+        addr.sin_addr.s_addr = 0
+        let r = withUnsafePointer(to: &addr) { p in p.withMemoryRebound(to: sockaddr.self, capacity: 1) { s in
+            Darwin.bind(fd, s, socklen_t(MemoryLayout<sockaddr_in>.size)) } }
+        guard r == 0 else { NSLog("TRINET: group bind(:\(recvPort)) failed: \(String(cString: strerror(errno)))"); close(fd); fd = -1; return }
+        peers = hosts.map { host in
+            var pa = sockaddr_in()
+            pa.sin_family = sa_family_t(AF_INET)
+            pa.sin_port = port.bigEndian
+            pa.sin_addr.s_addr = inet_addr(host)
+            return pa
+        }
+        running = true; isReady = true
+        NSLog("TRINET: GROUP transport up — listen :\(recvPort), \(peers.count) peers: \(hosts.joined(separator: ","))")
+        startRx(fd)
+    }
+
+    // recvfrom-based receive loop shared by 1-1 and group. In group mode datagrams are sealed under the
+    // conference key and routed by SOURCE IP (per-source reassembly -> onDataFrom -> that sender's tile).
+    private func startRx(_ sock: Int32) {
         rxQueue.async { [weak self] in
             var buf = [UInt8](repeating: 0, count: 65536)
+            var from = sockaddr_in()
             var count = 0
             while true {
                 guard let self = self, self.running else { break }
-                let n = recv(sock, &buf, buf.count, 0)
-                if n > 0 {
-                    let pkt = Data(bytes: buf, count: n)
-                    if self.crypto.isHandshake(pkt) {
-                        self.crypto.consumeHandshake(pkt)
-                        // Always answer: the peer keeps sending handshakes only
-                        // while it hasn't derived the session (its ARP may have
-                        // dropped our earlier reply), and stops once it has —
-                        // so this can't loop forever.
-                        self.rawSendWire(self.crypto.handshakePacket())
-                        continue
-                    }
-                    count += 1
-                    if count == 1 || count % 200 == 0 {
-                        NSLog("TRINET: rx #\(count) \(n)B")
-                    }
-                    if let plain = self.crypto.unseal(pkt),
-                       let msg = self.reassemble(plain) {
-                        self.onData?(msg)
-                    }
+                var fromLen = socklen_t(MemoryLayout<sockaddr_in>.size)
+                let n = withUnsafeMutablePointer(to: &from) { fp in fp.withMemoryRebound(to: sockaddr.self, capacity: 1) { s in
+                    recvfrom(sock, &buf, buf.count, 0, s, &fromLen) } }
+                if n <= 0 { break }   // socket closed by disconnect() or error
+                let pkt = Data(bytes: buf, count: n)
+                let src = String(cString: inet_ntoa(from.sin_addr))
+                if self.groupMode {
+                    guard let box = try? ChaChaPoly.SealedBox(combined: pkt),
+                          let plain = try? ChaChaPoly.open(box, using: BSDTransport.confKey),
+                          let msg = self.groupReassemble(plain, from: src) else { continue }
+                    DispatchQueue.main.async { self.onDataFrom?(msg, src) }
+                    continue
+                }
+                if self.crypto.isHandshake(pkt) {
+                    self.crypto.consumeHandshake(pkt)
+                    self.rawSendWire(self.crypto.handshakePacket())
+                    continue
+                }
+                count += 1
+                if count == 1 || count % 200 == 0 { NSLog("TRINET: rx #\(count) \(n)B from \(src)") }
+                if let plain = self.crypto.unseal(pkt) {
+                    if let msg = self.reassemble(plain) { self.onData?(msg) }
                 } else {
-                    break // socket closed by disconnect() or error
+                    // Undecryptable: OUR peer (real bug) vs a stray peer blasting :7000 (benign). IP tells apart.
+                    self.dropByIP[src, default: 0] += 1
+                    let c = self.dropByIP[src]!
+                    if c <= 3 || c % 500 == 0 {
+                        let who = src == self.peerHostStr ? "OUR PEER — REAL BUG" : "stray peer (ignore)"
+                        NSLog("TRINET: DROP undecryptable \(n)B from \(src) [\(who), peer=\(self.peerHostStr)] — \(c) from this IP")
+                    }
                 }
             }
         }
+    }
+
+    // Per-source reassembly for group mode: keyed by "src#seq" so two senders' equal seqs never mix.
+    // Handles FEC parity too (group loss resilience) -- one lost fragment per NAL recovers without a keyframe.
+    private func groupReassemble(_ d: Data, from src: String) -> Data? {
+        // FEC parity [0xFA 0xEC seqLo seqHi total lastLenLo lastLenHi] + xor(maxPayload)
+        if d.count > 7, d[0] == 0xFA, d[1] == 0xEC {
+            let seq = UInt16(d[2]) | (UInt16(d[3]) << 8)
+            let total = Int(d[4]); let lastLen = Int(d[5]) | (Int(d[6]) << 8)
+            guard total >= 2 else { return nil }
+            groupFec["\(src)#\(seq)"] = (Array(d[7...]), lastLen, total)
+            return groupTryFEC(src, seq)
+        }
+        if d.count > 1, d[0] == 0xFA, d[1] != 0xFB { return nil }   // other control
+        guard d.count > 6, d[0] == 0xFA, d[1] == 0xFB else { return d }
+        let seq = UInt16(d[2]) | (UInt16(d[3]) << 8)
+        let idx = Int(d[4]); let total = Int(d[5])
+        guard total > 0, idx < total else { return nil }
+        let key = "\(src)#\(seq)"
+        var st = groupFrag[key] ?? (parts: [Data?](repeating: nil, count: total), have: 0)
+        if st.parts.count != total { st = (parts: [Data?](repeating: nil, count: total), have: 0) }
+        if st.parts[idx] == nil { st.parts[idx] = d.subdata(in: 6..<d.count); st.have += 1 }
+        groupFrag[key] = st
+        if st.have == total {
+            groupFrag[key] = nil; groupFec[key] = nil
+            if groupFrag.count > 48 { groupFrag.removeAll(); groupFec.removeAll() }   // bound memory
+            return st.parts.compactMap { $0 }.reduce(Data(), +)
+        }
+        return groupTryFEC(src, seq)   // one short? maybe parity can fill it
+    }
+
+    // Recover a single missing fragment from parity (mirror of the 1-1 FEC), per source.
+    private func groupTryFEC(_ src: String, _ seq: UInt16) -> Data? {
+        let key = "\(src)#\(seq)"
+        guard let fec = groupFec[key], var st = groupFrag[key],
+              st.parts.count == fec.total, st.have == fec.total - 1,
+              let miss = st.parts.firstIndex(where: { $0 == nil }) else { return nil }
+        var xor = fec.xor
+        for p in st.parts where p != nil { let b = [UInt8](p!); for k in 0..<b.count { xor[k] ^= b[k] } }
+        let len = (miss == fec.total - 1) ? fec.lastLen : maxPayload
+        guard len <= xor.count else { return nil }
+        st.parts[miss] = Data(xor[0..<len])
+        groupFrag[key] = nil; groupFec[key] = nil
+        return st.parts.compactMap { $0 }.reduce(Data(), +)
     }
 
     // MARK: forward-secret session (see MeshCrypto). Data is sealed under a
@@ -658,7 +930,17 @@ class BSDTransport {
 
     // Encrypt a fragment under the session key, then wire it out
     private func rawSend(_ data: Data) {
-        guard let wire = crypto.seal(data) else { return } // drop until session up
+        guard fd >= 0 else { return }
+        if groupMode {
+            guard let wire = try? ChaChaPoly.seal(data, using: BSDTransport.confKey).combined else { return }
+            for i in peers.indices {
+                _ = wire.withUnsafeBytes { raw in withUnsafePointer(to: &peers[i]) { pp in
+                    pp.withMemoryRebound(to: sockaddr.self, capacity: 1) { s in
+                        sendto(fd, raw.baseAddress, wire.count, 0, s, socklen_t(MemoryLayout<sockaddr_in>.size)) } } }
+            }
+            return
+        }
+        guard let wire = crypto.seal(data) else { return } // 1-1: drop until session up
         rawSendWire(wire)
     }
 
@@ -789,6 +1071,7 @@ class BSDTransport {
         handshakeTimer?.cancel(); handshakeTimer = nil
         if fd >= 0 { close(fd); fd = -1 }
         isReady = false
+        groupMode = false; peers = []; groupFrag.removeAll(); groupFec.removeAll()
         stopFeedbackListener()
     }
 
@@ -811,7 +1094,32 @@ struct CameraPreviewView: UIViewRepresentable {
 class PreviewView: UIView {
     override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
     var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
-    var session: AVCaptureSession? { didSet { previewLayer.session = session } }
+    private var rotCoord: Any?                 // AVCaptureDevice.RotationCoordinator (iOS 17+)
+    private var rotObs: NSKeyValueObservation?
+    var session: AVCaptureSession? {
+        didSet { previewLayer.session = session; setupPreviewRotation() }
+    }
+
+    // Keep the SELF-PREVIEW upright as the phone turns to landscape. This is the PREVIEW connection (what you
+    // see locally); the CAPTURE connection stays upright separately so the peer always reads a level picture.
+    // A RotationCoordinator bound to THIS preview layer is gravity-aware, and KVO updates the angle live.
+    private func setupPreviewRotation() {
+        rotObs = nil; rotCoord = nil
+        guard #available(iOS 17.0, *),
+              let device = (session?.inputs.compactMap { $0 as? AVCaptureDeviceInput }.first)?.device else { return }
+        let coord = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: previewLayer)
+        rotCoord = coord
+        applyPreviewAngle(coord)
+        rotObs = coord.observe(\.videoRotationAngleForHorizonLevelPreview, options: [.new]) { [weak self] c, _ in
+            DispatchQueue.main.async { self?.applyPreviewAngle(c) }
+        }
+    }
+    @available(iOS 17.0, *)
+    private func applyPreviewAngle(_ coord: AVCaptureDevice.RotationCoordinator) {
+        guard let conn = previewLayer.connection else { return }
+        let angle = coord.videoRotationAngleForHorizonLevelPreview
+        if conn.isVideoRotationAngleSupported(angle) { conn.videoRotationAngle = angle }
+    }
 }
 
 // MARK: - Remote Video Display (UIView from CVImageBuffer)
@@ -1561,5 +1869,153 @@ final class LogBus: ObservableObject {
             self.lines.append(s)
             if self.lines.count > self.cap { self.lines.removeFirst(self.lines.count - self.cap) }
         }
+    }
+}
+
+// ===== PeerDiscovery (embedded — iOS target has a static file list; can't add a new file) =====
+// TRI-NET local-network presence, so you pick people by NAME instead of typing IPs. Bonjour via
+// Network.framework; resolve the ONE tapped peer to an IP for the existing UDP transport on 7000.
+final class PeerDiscovery: ObservableObject {
+    struct Peer: Identifiable, Equatable {
+        let uid: String
+        var name: String
+        var room: String
+        var status: String          // "idle" | "call"
+        let endpoint: NWEndpoint
+        var id: String { uid }
+        static func == (a: Peer, b: Peer) -> Bool {
+            a.uid == b.uid && a.name == b.name && a.status == b.status && a.room == b.room
+        }
+    }
+
+    @Published var peers: [Peer] = []
+    static let serviceType = "_trinet._udp"
+    static let transportPort = 7000
+
+    static let myUID: String = {
+        let k = "trinetPeerUID"
+        if let s = UserDefaults.standard.string(forKey: k) { return s }
+        let s = UUID().uuidString
+        UserDefaults.standard.set(s, forKey: k)
+        return s
+    }()
+
+    static var myName: String {
+        get {
+            if let n = UserDefaults.standard.string(forKey: "trinetDisplayName"), !n.isEmpty { return n }
+            return UIDevice.current.name
+        }
+        set { UserDefaults.standard.set(newValue, forKey: "trinetDisplayName") }
+    }
+    static var myRoom: String {
+        get { UserDefaults.standard.string(forKey: "trinetRoom") ?? "" }
+        set { UserDefaults.standard.set(newValue.uppercased(), forKey: "trinetRoom") }
+    }
+
+    @Published var inCall = false { didSet { if oldValue != inCall { republish() } } }
+
+    private var listener: NWListener?
+    private var browser: NWBrowser?
+    private var started = false
+
+    func start() { started = true; publish(); browse() }
+    func stop() {
+        started = false
+        listener?.cancel(); browser?.cancel()
+        listener = nil; browser = nil
+        DispatchQueue.main.async { self.peers = [] }
+    }
+
+    func setName(_ name: String) { PeerDiscovery.myName = name; republish() }
+    func setRoom(_ room: String) { PeerDiscovery.myRoom = room; republish() }
+
+    private func republish() {
+        guard started else { return }
+        listener?.cancel(); listener = nil
+        publish()
+        DispatchQueue.main.async { self.peers = [] }
+    }
+
+    private func publish() {
+        var txt = NWTXTRecord()
+        txt["name"] = PeerDiscovery.myName
+        txt["uid"] = PeerDiscovery.myUID
+        txt["port"] = "\(PeerDiscovery.transportPort)"
+        txt["room"] = PeerDiscovery.myRoom
+        txt["status"] = inCall ? "call" : "idle"
+        do {
+            let l = try NWListener(using: .udp)
+            l.service = NWListener.Service(name: PeerDiscovery.myName + "\u{00A0}" + String(PeerDiscovery.myUID.prefix(4)),
+                                           type: PeerDiscovery.serviceType, domain: "local.", txtRecord: txt)
+            l.newConnectionHandler = { $0.cancel() }
+            l.stateUpdateHandler = { st in if case .failed(let e) = st { NSLog("TRINET: discovery publish failed: \(e)") } }
+            l.start(queue: .main)
+            listener = l
+            NSLog("TRINET: discovery advertising '\(PeerDiscovery.myName)' room='\(PeerDiscovery.myRoom)' status=\(inCall ? "call" : "idle")")
+        } catch { NSLog("TRINET: discovery NWListener failed: \(error)") }
+    }
+
+    private func browse() {
+        let b = NWBrowser(for: .bonjourWithTXTRecord(type: PeerDiscovery.serviceType, domain: "local."), using: .tcp)
+        b.browseResultsChangedHandler = { [weak self] results, _ in
+            guard let self = self else { return }
+            let room = PeerDiscovery.myRoom
+            var list: [Peer] = []
+            for r in results {
+                guard case let .bonjour(txt) = r.metadata else { continue }
+                let uid = txt["uid"] ?? ""
+                if uid.isEmpty || uid == PeerDiscovery.myUID { continue }
+                let peerRoom = txt["room"] ?? ""
+                if !room.isEmpty && peerRoom != room { continue }
+                if list.contains(where: { $0.uid == uid }) { continue }
+                list.append(Peer(uid: uid, name: txt["name"] ?? "TRI-NET", room: peerRoom,
+                                 status: txt["status"] ?? "idle", endpoint: r.endpoint))
+            }
+            let sorted = list.sorted { $0.name.lowercased() < $1.name.lowercased() }
+            DispatchQueue.main.async {
+                self.peers = sorted
+                NSLog("TRINET: roster \(sorted.count) peer(s): \(sorted.map { $0.name }.joined(separator: ", "))")
+            }
+        }
+        b.stateUpdateHandler = { st in if case .failed(let e) = st { NSLog("TRINET: discovery browse failed: \(e)") } }
+        b.start(queue: .main)
+        browser = b
+        NSLog("TRINET: discovery browsing \(PeerDiscovery.serviceType)")
+    }
+
+    func resolveIP(_ peer: Peer, completion: @escaping (String?) -> Void) {
+        // Force IPv4: our UDP transport is sockaddr_in / inet_addr only. Bonjour on iOS otherwise resolves to
+        // an IPv6 link-local (fe80::…) first, which inet_addr can't parse — so packets go nowhere. Ask the
+        // NWConnection for IPv4 and never hand back a v6 address.
+        let params = NWParameters.udp
+        if let ipOpt = params.defaultProtocolStack.internetProtocol as? NWProtocolIP.Options {
+            ipOpt.version = .v4
+        }
+        let conn = NWConnection(to: peer.endpoint, using: params)
+        var done = false
+        let finish: (String?) -> Void = { ip in
+            if done { return }; done = true
+            NSLog("TRINET: resolved '\(peer.name)' -> \(ip ?? "FAILED")")
+            conn.cancel(); DispatchQueue.main.async { completion(ip) }
+        }
+        conn.stateUpdateHandler = { state in
+            switch state {
+            case .ready:
+                var ip: String?
+                if case let .hostPort(host, _)? = conn.currentPath?.remoteEndpoint {
+                    switch host {
+                    case .ipv4(let a): ip = "\(a)".components(separatedBy: "%").first
+                    case .ipv6: ip = nil   // IPv4-only transport — never use a v6 address
+                    case .name(let n, _): ip = n
+                    @unknown default: break
+                    }
+                }
+                finish(ip)
+            case .failed, .cancelled: finish(nil)
+            default: break
+            }
+        }
+        conn.start(queue: .main)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) { finish(nil) }
     }
 }
