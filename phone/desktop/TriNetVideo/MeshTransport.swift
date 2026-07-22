@@ -8,6 +8,19 @@ import Darwin
 import CryptoKit
 
 class MeshTransport {
+    // DEBUG-only network fault injection (0 = off), read once from env so a loopback call can be driven under
+    // real loss with no root privileges. Never set in a shipping build.
+    //   TRINET_DROP=<pct>  drops that % of received packets. This is the CORRECT instrument for the loss-based
+    //     controller (it honestly lowers the peer's received-frame count); a run PROVED 25% drop -> sustained
+    //     residual-loss back-off + a 720->540->360 resolution step-down.
+    //   TRINET_JITTER=<ms>  sleeps a random 0..ms on the recv thread. NOTE: this models a SLOW CONSUMER, not
+    //     network reordering, and it perturbs the very thread that measures arrival gaps (a broken-ruler
+    //     instrument) — do not trust a jitter figure derived from it. The delay-based controller is better
+    //     exercised by the closed-loop bandwidth-step harness.
+    // Camera frames only flow when the app runs WITH A WINDOW (`open -n --env TRINET_DROP=25 ...`); the bare
+    // binary delivers no video, and jitter==0/probe-up then means "no stream", not "clean link".
+    private let dropPercent = Int(ProcessInfo.processInfo.environment["TRINET_DROP"] ?? "") ?? 0
+    private let jitterMs = Int(ProcessInfo.processInfo.environment["TRINET_JITTER"] ?? "") ?? 0
     private var fd: Int32 = -1
     private var peer = sockaddr_in()          // 1-1 peer (ephemeral session)
     private var peerHostStr = ""              // the connected peer's IP, for drop diagnostics
@@ -215,6 +228,11 @@ class MeshTransport {
                     }
                 }
                 if n > 0 {
+                    // DEBUG fault injection: drop a % of received packets (env TRINET_DROP=25) to test the
+                    // adaptive loop under real loss without root/dummynet. Random drops also add inter-arrival
+                    // jitter, which drives the BWE. No-op in production (default 0).
+                    if self.dropPercent > 0, Int.random(in: 0..<100) < self.dropPercent { continue }
+                    if self.jitterMs > 0 { usleep(useconds_t(Int.random(in: 0...self.jitterMs) * 1000)) }
                     let pkt = Data(bytes: buf, count: n)
                     let senderIP = String(cString: inet_ntoa(from.sin_addr))
                     if self.groupMode {

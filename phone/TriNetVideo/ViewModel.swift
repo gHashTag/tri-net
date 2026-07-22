@@ -357,6 +357,8 @@ class StreamViewModel: ObservableObject {
     private var bweTimer: Timer?
     private var highJitterStreak = 0
     private var cleanStreak = 0   // consecutive low-jitter reports, for GCC probe-up
+    private var lossStreak = 0             // consecutive high-residual-loss reports (loss-based back-off)
+    private var lastFramesSentSample = 0   // framesSent at the previous BWE report, for the per-second send delta
     @Published var peerJitterMs = 0
     @Published var rxFps = 0           // frames/sec we're DECODING from the peer(s) (0 = no video arriving)
     @Published var rxHeight: Int32 = 0 // resolution of the received frames, for the in-call badge (1-1)
@@ -484,8 +486,30 @@ class StreamViewModel: ObservableObject {
 
     private func handleBWEReport(_ data: Data) {
         let j = Int(data[2]) << 8 | Int(data[3])
+        let rxCount = Int(data[4]) << 8 | Int(data[5])   // frames the peer DECODED last second (was parsed nowhere)
         DispatchQueue.main.async {
             self.peerJitterMs = j
+            // LOSS-based controller — the missing half of GCC. The delay controller below only reacts to a rising
+            // QUEUE (jitter); a low-latency-but-lossy path (Wi-Fi retransmit, an FEC radio) drops frames WITHOUT
+            // adding delay, so nothing backed off — 25% induced loss produced ZERO step-down. Compare frames WE
+            // sent last second to frames the peer actually received. 1-1 only: in a group the peer's count sums
+            // every source, not just us. FEC/PLI repair some loss first, so this is RESIDUAL frame loss.
+            var lossElevated = false
+            if !self.isGroup {
+                let sent = self.framesSent - self.lastFramesSentSample
+                self.lastFramesSentSample = self.framesSent
+                if sent >= 5 {
+                    let lossPct = max(0, sent - rxCount) * 100 / sent
+                    lossElevated = lossPct >= 5
+                    if lossPct >= 15 {
+                        self.lossStreak += 1
+                        if self.lossStreak >= 2 {
+                            self.camera.nudgeBitrate(down: true)
+                            NSLog("TRINET: BWE back-off — residual loss \(lossPct)% (sent \(sent), peer rx \(rxCount))")
+                        }
+                    } else { self.lossStreak = 0 }
+                }
+            }
             if j > 40 {
                 self.highJitterStreak += 1
                 self.cleanStreak = 0
@@ -493,7 +517,7 @@ class StreamViewModel: ObservableObject {
                     self.camera.nudgeBitrate(down: true)
                     NSLog("TRINET: BWE back-off — peer jitter \(j)ms")
                 }
-            } else if j < 20 {    // GCC probe-up: confirmed spare capacity -> an EXTRA climb tick (real stream,
+            } else if j < 20 && !lossElevated {    // GCC probe-up: spare capacity AND no loss -> an EXTRA climb tick (real stream,
                 self.highJitterStreak = 0   // never padding bursts). Overshoot is caught instantly by back-off.
                 self.cleanStreak += 1
                 // Probe every 2 clean reports (was 3): harness-proven to cut recovery ~26s -> ~17s on the
@@ -898,6 +922,7 @@ class StreamViewModel: ObservableObject {
         noAnswerTimer?.invalidate(); noAnswerTimer = nil; noAnswer = false
         bweTimer?.invalidate(); bweTimer = nil
         lastVideoArrival = nil; meanGapMs = 0; jitterMs = 0; rxPktsThisSec = 0; highJitterStreak = 0; cleanStreak = 0; peerJitterMs = 0
+        lossStreak = 0; lastFramesSentSample = 0
         bitrateHistory = []; jitterHistory = []; linkHealth = .good; linkRestored = false; lastRecoveryAt = nil; stalledSince = nil
         if isRecording {
             recorder.stop { [weak self] url in
