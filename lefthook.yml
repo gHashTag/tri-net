@@ -66,6 +66,17 @@ pre-commit:
           exit 1
         fi
 
+    dispatcher-parity:
+      run: |
+        # A receive-subtype handler present in one call path but missing from its sibling
+        # silently drops that message (Mac group calls were audio-less this way). Only run
+        # when a dispatcher file is staged; the guard reads the working tree.
+        touched=$(git diff --cached --name-only --diff-filter=ACMR \
+                  | grep -E 'phone/(desktop/TriNetVideo/CallManager|TriNetVideo/ViewModel)\.swift' || true)
+        if [ -n "$touched" ]; then
+          bash smoke/dispatcher_parity.sh || exit 1
+        fi
+
     specs-typecheck:
       run: |
         # A spec that fails typecheck ships a STALE gen file silently (build.rs skips failures).

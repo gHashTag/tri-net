@@ -879,6 +879,9 @@ class StreamViewModel: ObservableObject {
                 self.chat.append(ChatLine(who: .them, text: msg)); self.chatChime.play(); if !self.chatOpen { self.unreadChat += 1 }; return
             }
             if data.count == 6, data[0] == 0xFD, data[1] == 0xBE { self.handleBWEReport(data); return }
+            if data.count > 2, data[0] == 0xFE, data[1] == 0xAC {   // reaction — handled 1-1 but the group MVP guard
+                self.showReaction(String(decoding: data.subdata(in: 2..<data.count), as: UTF8.self)); return   // below dropped it
+            }
             if data.count > 1, data[0] >= 0xFB { return }   // other control -> ignore in group MVP
             self.noteVideoArrival()
             // video: decode into THIS sender's tile
