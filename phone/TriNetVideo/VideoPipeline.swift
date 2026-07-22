@@ -1201,7 +1201,9 @@ final class AudioController {
     private var txAccum = [Float]()
     // RED (audio redundancy): rolling send seq + the last Opus frame to piggyback.
     private var redSeq: UInt8 = 0
-    private var prevOpus = Data()
+    private var redRing: [Data] = []        // last few Opus frames, newest first, for RED redundancy
+    // Frames carried per packet: 2 survives an isolated loss, 3 survives a 2-loss burst.
+    var redDepth = 2
     private var vpEnabled = true
     private var observers: [NSObjectProtocol] = []
     private var converterInFormat: AVAudioFormat?
@@ -1275,7 +1277,7 @@ final class AudioController {
 
     func start() {
         guard !started else { return }
-        redSeq = 0; prevOpus = Data(); redRecv = AudioREDReceiver()   // fresh RED state per call
+        redSeq = 0; redRing = []; redRecv = AudioREDReceiver()        // fresh RED state per call
         opusTx = 0; opusRx = 0; redRecovered = 0                      // fresh delivery stats per call
         installObservers()
         #if os(iOS)
@@ -1371,10 +1373,13 @@ final class AudioController {
                 var pkt: Data
                 var sentOpus = false
                 if AudioController.opusEnabled, let frame = self.opus?.encode(raw) {
-                    // RED: carry this frame AND the previous one, so a single lost
-                    // packet is reconstructed from the next (audio has no FEC).
-                    pkt = Data([0xFD, 0xC0]); pkt.append(AudioRED.pack(seq: self.redSeq, cur: frame, prev: self.prevOpus))   // ~130B
-                    self.prevOpus = frame; self.redSeq = self.redSeq &+ 1
+                    // RED: carry this frame plus redDepth-1 previous ones, so a lost
+                    // packet (or a short burst) is reconstructed from the next (audio has no FEC).
+                    self.redRing.insert(frame, at: 0)
+                    if self.redRing.count > AudioRED.maxFrames { self.redRing.removeLast() }
+                    let depth = max(1, min(self.redDepth, self.redRing.count))
+                    pkt = Data([0xFD, 0xC0]); pkt.append(AudioRED.pack(seq: self.redSeq, frames: Array(self.redRing.prefix(depth))))
+                    self.redSeq = self.redSeq &+ 1
                     sentOpus = true
                     self.opusTx += 1
                 } else {
@@ -1413,15 +1418,15 @@ final class AudioController {
             if opusDecodeFails <= 3 { NSLog("TRINET: opus RX dropped — codec unavailable on this device") }
             return
         }
-        // payload = RED-wrapped: [seq][curLen][cur][prev]. Recover one lost packet
-        // from the redundant copy, then decode+play each frame the receiver yields.
-        guard let (seq, cur, prev) = AudioRED.parse(payload) else {
+        // payload = RED-wrapped: [seq][count][lens][frames]. Reconstruct any lost
+        // packets from the redundant copies, then decode+play each in order.
+        guard let (seq, carried) = AudioRED.parse(payload) else {
             opusDecodeFails += 1
             if opusDecodeFails <= 3 { NSLog("TRINET: opus RED parse failed (\(payload.count)B)") }
             return
         }
-        let frames = redRecv.receive(seq: seq, cur: cur, prev: prev)
-        if frames.count > 1 { redRecovered += frames.count - 1 }   // a lost packet reconstructed from the copy
+        let frames = redRecv.receive(seq: seq, frames: carried)
+        if frames.count > 1 { redRecovered += frames.count - 1 }   // lost packet(s) reconstructed from the copies
         for frame in frames {
             guard let pcm = codec.decode(frame) else {
                 opusDecodeFails += 1
@@ -2070,38 +2075,46 @@ final class PeerDiscovery: ObservableObject {
 import Foundation
 
 enum AudioRED {
-    // Wrap one Opus frame plus the previous for redundancy. `prev` may be empty
-    // (the first packet of a call) — the receiver treats an empty prev as "no
-    // redundancy available", never as a zero-length frame.
-    static func pack(seq: UInt8, cur: Data, prev: Data) -> Data {
+    static let maxFrames = 3    // current + up to two previous (survives a 2-loss burst)
+
+    // Pack newest-first frames (frame[0] = current). Depth is min(frames.count, maxFrames).
+    static func pack(seq: UInt8, frames: [Data]) -> Data {
+        let count = min(frames.count, maxFrames)
         var b = [UInt8]()
-        b.reserveCapacity(3 + cur.count + prev.count)
         b.append(seq)
-        let n = min(cur.count, 0xFFFF)
-        b.append(UInt8(n & 0xFF)); b.append(UInt8((n >> 8) & 0xFF))
-        b.append(contentsOf: cur)
-        b.append(contentsOf: prev)
+        b.append(UInt8(count))
+        for i in 0..<count {
+            let n = min(frames[i].count, 0xFFFF)
+            b.append(UInt8(n & 0xFF)); b.append(UInt8((n >> 8) & 0xFF))
+        }
+        for i in 0..<count { b.append(contentsOf: frames[i]) }
         return Data(b)
     }
 
-    // Split back into (seq, cur, prev). nil on a malformed header/length so a
-    // corrupt datagram is dropped, never decoded as garbage.
-    static func parse(_ d: Data) -> (seq: UInt8, cur: Data, prev: Data)? {
+    // Split back into (seq, newest-first frames). nil on a malformed header/length
+    // so a corrupt datagram is dropped, never decoded as garbage.
+    static func parse(_ d: Data) -> (seq: UInt8, frames: [Data])? {
         let b = [UInt8](d)
-        guard b.count >= 3 else { return nil }
+        guard b.count >= 2 else { return nil }
         let seq = b[0]
-        let curLen = Int(b[1]) | (Int(b[2]) << 8)
-        guard b.count >= 3 + curLen else { return nil }
-        let cur = Data(b[3 ..< 3 + curLen])
-        let prev = Data(b[(3 + curLen) ..< b.count])
-        return (seq, cur, prev)
+        let count = Int(b[1])
+        guard count >= 1, count <= maxFrames else { return nil }
+        guard b.count >= 2 + count * 2 else { return nil }
+        var lens = [Int](); var off = 2
+        for _ in 0..<count { lens.append(Int(b[off]) | (Int(b[off + 1]) << 8)); off += 2 }
+        let total = lens.reduce(0, +)
+        guard b.count >= off + total else { return nil }
+        var frames = [Data]()
+        for L in lens { frames.append(Data(b[off ..< off + L])); off += L }
+        return (seq, frames)
     }
 }
 
-// Receiver-side gap detector. Feed it every parsed packet; it returns the Opus
-// frames to decode+play IN ORDER, reconstructing one isolated loss from the
-// redundant copy. Duplicates and late (reordered) packets return [] so nothing
-// is played twice or out of order. seq is a rolling u8, so distances wrap at 256.
+// Receiver-side gap filler. Feed it every parsed packet; it returns the Opus
+// frames to decode+play IN ORDER, reconstructing up to (count-1) CONSECUTIVE lost
+// frames from the redundant copies the newest packet carries. Duplicates and late
+// (reordered) packets return [] so nothing plays twice or out of order. seq is a
+// rolling u8, so distances wrap at 256.
 struct AudioREDReceiver {
     private var lastSeq = -1
 
@@ -2110,21 +2123,25 @@ struct AudioREDReceiver {
     // as gap==130. RTP (RFC 3550) resolves this with a narrow misorder window and
     // treats anything past it as forward progress / a sender resync. Without it, a
     // >128-packet (~2.5s) outage was misread as reorder and EVERY packet after it
-    // was dropped until the u8 seq lapped back to lastSeq+1 — turning a 3s dropout
-    // into a ~5s audio blackout (reproduced: 130-frame outage -> 126 more dropped).
+    // was dropped until the u8 seq lapped back to lastSeq+1 — a ~5s audio blackout.
     private static let misorderWindow = 16   // tolerate reorders up to 16 packets (~320ms at 50fps)
 
-    mutating func receive(seq: UInt8, cur: Data, prev: Data) -> [Data] {
+    // frames are newest-first: frames[k] is the sender's frame (seq - k).
+    mutating func receive(seq: UInt8, frames: [Data]) -> [Data] {
+        guard !frames.isEmpty else { return [] }
         let s = Int(seq)
-        if lastSeq < 0 { lastSeq = s; return [cur] }   // first packet of the call
+        if lastSeq < 0 { lastSeq = s; return [frames[0]] }   // first packet of the call
         let gap = (s - lastSeq + 256) % 256
-        if gap == 0 { return [] }                                   // exact duplicate
-        if gap >= 256 - Self.misorderWindow { return [] }           // small backward step = genuine reorder, ignore
-        // Everything else is forward progress — an ordinary frame, a short loss, or
-        // a resync after a long outage. `prev` is always the sender's frame s-1, so
-        // playing it reconstructs the most-recent lost frame regardless of gap size.
+        if gap == 0 { return [] }                            // exact duplicate
+        if gap >= 256 - Self.misorderWindow { return [] }    // small backward step = genuine reorder, ignore
+        // Forward progress. `gap` frames are missing in (lastSeq, s]; the packet supplies
+        // the newest `count`. Emit the newest min(gap, count) of them, oldest-first, so up
+        // to count-1 consecutive losses are filled and older gaps are simply skipped. Using
+        // `gap` (not raw s/lastSeq) keeps this correct across the u8 wrap (s can be < lastSeq).
         lastSeq = s
-        if gap == 1 { return [cur] }                                // in order
-        return prev.isEmpty ? [cur] : [prev, cur]                   // recover the most-recent lost frame
+        let m = min(gap, frames.count)
+        var out = [Data]()
+        for k in stride(from: m - 1, through: 0, by: -1) { out.append(frames[k]) }
+        return out
     }
 }

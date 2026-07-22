@@ -48,7 +48,10 @@ final class AudioController {
     private var txAccum = [Float]()
     // RED (audio redundancy): rolling send seq + the last Opus frame to piggyback.
     private var redSeq: UInt8 = 0
-    private var prevOpus = Data()
+    private var redRing: [Data] = []        // last few Opus frames, newest first, for RED redundancy
+    // Frames carried per packet: 2 survives an isolated loss, 3 survives a 2-loss burst.
+    // Raised by the call's loss controller only while the far end is dropping frames.
+    var redDepth = 2
 
     // RMS -> perceptual 0...1 (sqrt gives a livelier meter than raw RMS)
     static func level(_ sumSq: Float, _ n: Int) -> Float {
@@ -69,7 +72,7 @@ final class AudioController {
     private let opus = OpusCodec()
 
     func start() {
-        redSeq = 0; prevOpus = Data(); redRecv = AudioREDReceiver()   // fresh RED state per call
+        redSeq = 0; redRing = []; redRecv = AudioREDReceiver()        // fresh RED state per call
         opusTx = 0; opusRx = 0; redRecovered = 0                      // fresh delivery stats per call
         startPlayback()
         startCapture()
@@ -212,8 +215,11 @@ final class AudioController {
                 if AudioController.opusEnabled, let frame = self.opus?.encode(raw) {
                     // RED: carry this frame AND the previous one, so a single lost
                     // packet is reconstructed from the next (audio has no FEC).
-                    pkt = Data([0xFD, 0xC0]); pkt.append(AudioRED.pack(seq: self.redSeq, cur: frame, prev: self.prevOpus))   // ~130B
-                    self.prevOpus = frame; self.redSeq = self.redSeq &+ 1
+                    self.redRing.insert(frame, at: 0)
+                    if self.redRing.count > AudioRED.maxFrames { self.redRing.removeLast() }
+                    let depth = max(1, min(self.redDepth, self.redRing.count))
+                    pkt = Data([0xFD, 0xC0]); pkt.append(AudioRED.pack(seq: self.redSeq, frames: Array(self.redRing.prefix(depth))))
+                    self.redSeq = self.redSeq &+ 1
                     sentOpus = true
                     self.opusTx += 1
                 } else {
@@ -248,15 +254,15 @@ final class AudioController {
     // Always accepted regardless of opusEnabled: receiving a better codec is
     // never the risky direction, only sending one is.
     func playOpus(_ payload: Data) {
-        // payload = RED-wrapped: [seq][curLen][cur][prev]. Recover one lost packet
-        // from the redundant copy, then decode+play each frame the receiver yields.
-        guard let (seq, cur, prev) = AudioRED.parse(payload) else {
+        // payload = RED-wrapped: [seq][count][lens][frames]. Reconstruct any lost
+        // packets from the redundant copies, then decode+play each in order.
+        guard let (seq, carried) = AudioRED.parse(payload) else {
             opusDecodeFails += 1
             if opusDecodeFails <= 3 { NSLog("TRINET: opus RED parse failed (\(payload.count)B)") }
             return
         }
-        let frames = redRecv.receive(seq: seq, cur: cur, prev: prev)
-        if frames.count > 1 { redRecovered += frames.count - 1 }   // a lost packet reconstructed from the copy
+        let frames = redRecv.receive(seq: seq, frames: carried)
+        if frames.count > 1 { redRecovered += frames.count - 1 }   // lost packet(s) reconstructed from the copies
         for frame in frames {
             guard let pcm = opus?.decode(frame) else {
                 opusDecodeFails += 1

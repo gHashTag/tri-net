@@ -519,9 +519,13 @@ class StreamViewModel: ObservableObject {
                         self.lossStreak += 1
                         if self.lossStreak >= 2 {
                             self.camera.nudgeBitrate(down: true)
+                            self.audio.redDepth = 3   // link dropping frames -> carry an extra Opus copy so an
                             NSLog("TRINET: BWE back-off — residual loss \(lossPct)% (sent \(sent), peer rx \(rxCount))")
-                        }
-                    } else { self.lossStreak = 0 }
+                        }                             // audio BURST (2 consecutive) survives, not just an isolated loss
+                    } else {
+                        self.lossStreak = 0
+                        if lossPct < 5 { self.audio.redDepth = 2 }   // link clean -> back to 1-deep RED
+                    }
                 }
             }
             if j > 40 {
