@@ -25,6 +25,27 @@ final class MeshCrypto {
     private let ephPriv = Curve25519.KeyAgreement.PrivateKey()
     private var sessionKey: SymmetricKey?
     private var dropCount = 0
+    private var replayCount = 0
+
+    // ANTI-REPLAY. ChaChaPoly.seal picks a RANDOM 12-byte nonce per call, so a nonce is
+    // seen at most once for legitimate traffic — a REPEAT is a captured datagram replayed
+    // (e.g. to duplicate a chat message or nudge the rate controller). We can't run a
+    // counter window (there is no application counter in the frame), but a bounded set of
+    // recently-seen nonces gives the same bounded-window guarantee with ZERO false drops:
+    // a legit nonce is inserted once and never re-seen. Called only on the rx queue.
+    private var seenNonces = Set<Data>()
+    private var nonceRing: [Data] = []
+    private static let replayWindow = 8192   // ~a few seconds at video rates
+
+    // Returns true if the nonce is fresh (and records it); false if it's a replay.
+    func acceptNonce(_ nonce: Data) -> Bool {
+        let n = Data(nonce)
+        if seenNonces.contains(n) { return false }
+        seenNonces.insert(n)
+        nonceRing.append(n)
+        if nonceRing.count > MeshCrypto.replayWindow { seenNonces.remove(nonceRing.removeFirst()) }
+        return true
+    }
 
     // Shared room passphrase. The hardcoded PSK ships in every binary, so it authenticates
     // NOTHING on its own — anyone with the app can complete a handshake or forge an INVITE.
@@ -112,6 +133,12 @@ final class MeshCrypto {
             if dropCount <= 3 || dropCount % 1000 == 0 {
                 NSLog("TRINET: dropped unauthenticated datagram \(wire.count)B (#\(dropCount))")
             }
+            return nil
+        }
+        // Authentic, but reject a REPLAY (the nonce is the first 12 bytes of ChaChaPoly.combined).
+        guard acceptNonce(wire.prefix(12)) else {
+            replayCount += 1
+            if replayCount <= 3 || replayCount % 1000 == 0 { NSLog("TRINET: dropped REPLAYED datagram (#\(replayCount))") }
             return nil
         }
         return plain

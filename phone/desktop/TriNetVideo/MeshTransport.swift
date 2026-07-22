@@ -234,7 +234,8 @@ class MeshTransport {
                     if self.groupMode {
                         guard let key = self.groupKey,
                               let box = try? ChaChaPoly.SealedBox(combined: pkt),
-                              let plain = try? ChaChaPoly.open(box, using: key) else { continue }
+                              let plain = try? ChaChaPoly.open(box, using: key),
+                              self.crypto.acceptNonce(pkt.prefix(12)) else { continue }   // + anti-replay
                         if let msg = self.reassemble(plain) {
                             self.onReceiveFrom?(msg, senderIP)
                         }

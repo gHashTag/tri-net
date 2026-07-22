@@ -814,6 +814,7 @@ class BSDTransport {
                 if self.groupMode {
                     guard let box = try? ChaChaPoly.SealedBox(combined: pkt),
                           let plain = try? ChaChaPoly.open(box, using: self.groupKey),
+                          self.crypto.acceptNonce(pkt.prefix(12)),   // + anti-replay
                           let msg = self.groupReassemble(plain, from: src) else { continue }
                     DispatchQueue.main.async { self.onDataFrom?(msg, src) }
                     continue
@@ -1597,6 +1598,20 @@ final class MeshCrypto {
     private let ephPriv = Curve25519.KeyAgreement.PrivateKey()
     private var sessionKey: SymmetricKey?
     private var dropCount = 0
+    private var replayCount = 0
+    // ANTI-REPLAY: ChaChaPoly.seal picks a RANDOM nonce per call, so a repeat is a replayed
+    // datagram. A bounded seen-nonce set catches replays within a window with zero false drops.
+    private var seenNonces = Set<Data>()
+    private var nonceRing: [Data] = []
+    private static let replayWindow = 8192
+    func acceptNonce(_ nonce: Data) -> Bool {
+        let n = Data(nonce)
+        if seenNonces.contains(n) { return false }
+        seenNonces.insert(n)
+        nonceRing.append(n)
+        if nonceRing.count > MeshCrypto.replayWindow { seenNonces.remove(nonceRing.removeFirst()) }
+        return true
+    }
 
     // Shared room passphrase mixed into the auth keys. Empty room keeps the legacy
     // PSK-only keys BIT-FOR-BIT (open lobby, old-build interop); a set room means an
@@ -1671,6 +1686,11 @@ final class MeshCrypto {
             if dropCount <= 3 || dropCount % 1000 == 0 {
                 NSLog("TRINET: dropped unauthenticated datagram \(wire.count)B (#\(dropCount))")
             }
+            return nil
+        }
+        guard acceptNonce(wire.prefix(12)) else {   // authentic, but a REPLAY -> drop
+            replayCount += 1
+            if replayCount <= 3 || replayCount % 1000 == 0 { NSLog("TRINET: dropped REPLAYED datagram (#\(replayCount))") }
             return nil
         }
         return plain
