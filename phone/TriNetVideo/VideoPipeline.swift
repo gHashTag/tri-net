@@ -2105,20 +2105,26 @@ enum AudioRED {
 struct AudioREDReceiver {
     private var lastSeq = -1
 
+    // A 1-byte seq can't tell a large FORWARD jump (a long outage) from a small
+    // BACKWARD step (a reorder): a 130-packet gap and a 126-late packet both read
+    // as gap==130. RTP (RFC 3550) resolves this with a narrow misorder window and
+    // treats anything past it as forward progress / a sender resync. Without it, a
+    // >128-packet (~2.5s) outage was misread as reorder and EVERY packet after it
+    // was dropped until the u8 seq lapped back to lastSeq+1 — turning a 3s dropout
+    // into a ~5s audio blackout (reproduced: 130-frame outage -> 126 more dropped).
+    private static let misorderWindow = 16   // tolerate reorders up to 16 packets (~320ms at 50fps)
+
     mutating func receive(seq: UInt8, cur: Data, prev: Data) -> [Data] {
         let s = Int(seq)
         if lastSeq < 0 { lastSeq = s; return [cur] }   // first packet of the call
         let gap = (s - lastSeq + 256) % 256
-        switch gap {
-        case 0:                          // exact duplicate (the sender re-sends INVITEs etc.)
-            return []
-        case 1:                          // in order
-            lastSeq = s; return [cur]
-        case 2...128:                    // one-or-more lost; RED reconstructs only the most recent
-            lastSeq = s
-            return prev.isEmpty ? [cur] : [prev, cur]
-        default:                         // gap > 128 => s is behind us: a late/reordered old packet
-            return []
-        }
+        if gap == 0 { return [] }                                   // exact duplicate
+        if gap >= 256 - Self.misorderWindow { return [] }           // small backward step = genuine reorder, ignore
+        // Everything else is forward progress — an ordinary frame, a short loss, or
+        // a resync after a long outage. `prev` is always the sender's frame s-1, so
+        // playing it reconstructs the most-recent lost frame regardless of gap size.
+        lastSeq = s
+        if gap == 1 { return [cur] }                                // in order
+        return prev.isEmpty ? [cur] : [prev, cur]                   // recover the most-recent lost frame
     }
 }
