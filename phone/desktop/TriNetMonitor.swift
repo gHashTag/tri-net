@@ -11,6 +11,7 @@ import Network
 struct MeshNode: Identifiable, Hashable {
     let id: Int
     var ip: String
+    var name: String?
     var label: String
     var status: NodeStatus
     var role: NodeRole
@@ -523,6 +524,32 @@ class NetworkScanner {
         }
     }
 
+    // Resolve a Bonjour/mDNS host through the macOS directory cache. Keeping the
+    // host name as the identity avoids pinning a phone to a changing IP address.
+    static func resolveIPv4(hostname: String) -> [String] {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/dscacheutil")
+        task.arguments = ["-q", "host", "-a", "name", hostname]
+
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = pipe
+
+        do {
+            try task.run()
+            task.waitUntilExit()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8) ?? ""
+            return output.components(separatedBy: "\n").compactMap { line in
+                let prefix = "ip_address: "
+                guard line.hasPrefix(prefix) else { return nil }
+                return String(line.dropFirst(prefix.count))
+            }
+        } catch {
+            return []
+        }
+    }
+
     // Determine device type from MAC address
     static func identifyDevice(mac: String, ip: String) -> (MeshNode.DeviceType, MeshNode.NodeRole) {
         let macLower = mac.lowercased()
@@ -586,6 +613,10 @@ class MeshMonitorEngine: ObservableObject {
     @Published var deviceIPs: [String] = UserDefaults.standard.stringArray(forKey: "deviceIPs") ??
         ["192.168.1.11", "192.168.1.12", "192.168.1.13"]
 
+    // Named Bonjour devices stay stable even when their DHCP or link-local IP changes.
+    private let namedDevices: [(name: String, hostname: String)] = [
+        (name: "ssd26", hostname: "ssd26.local")
+    ]
     var upnpRouterIPs = Set<String>()   // IPs that answered SSDP as InternetGatewayDevice -> shown as Router
     private var periodicScanCount = 0   // heavy discovery runs only every 20th periodic tick (~once/min)
 
@@ -600,7 +631,7 @@ class MeshMonitorEngine: ObservableObject {
         guard !isMonitoring else { return }
         isMonitoring = true
         LogBus.shared.start()   // ensure the shared log is capturing (in case only this tab is opened)
-        logEvent(.scan, node: 0, desc: "Monitor started — scanning \(deviceIPs.count) devices")
+        logEvent(.scan, node: 0, desc: "Monitor started — scanning \(deviceIPs.count + namedDevices.count) devices")
         scanNetwork()
         // Scan every 3 seconds. LIGHT probe of known devices each tick; the heavy discovery
         // (full /24 sweep + SSDP + mDNS) only ~once a minute, so it never starves the video call.
@@ -632,6 +663,22 @@ class MeshMonitorEngine: ObservableObject {
         isScanning = true
         scanProgress = "Scanning..."
 
+        // Resolve named devices before probing. Prefer the direct link-local path when
+        // available; it represents the attached iPhone instead of its hotspot gateway.
+        var namedLabels: [String: String] = [:]
+        var namedResolvedIPs = Set<String>()
+        var scanTargets = deviceIPs
+        for device in namedDevices {
+            let addresses = NetworkScanner.resolveIPv4(hostname: device.hostname)
+            namedResolvedIPs.formUnion(addresses)
+            let target = addresses.first(where: { $0.hasPrefix("169.254.") })
+                ?? addresses.first
+                ?? device.hostname
+            scanTargets.removeAll { namedResolvedIPs.contains($0) }
+            if !scanTargets.contains(target) { scanTargets.append(target) }
+            namedLabels[target] = device.name
+        }
+
         // Heavy discovery (full /24 sweep + SSDP + mDNS) ONLY on demand. Running it on the 3s
         // periodic timer spawned 254 pings + 2 multicast probes every tick and starved the video
         // call -- periodic ticks now do a light probe of known devices; this runs on Scan Now and
@@ -643,7 +690,7 @@ class MeshMonitorEngine: ObservableObject {
         // live outside our /24 (e.g. a board or router on another segment).
         let prefix = NetworkScanner.subnetPrefix() ?? "192.168.1."
         await NetworkScanner.sweepSubnet(prefix)
-        for ip in deviceIPs where !ip.hasPrefix(prefix) {
+        for ip in scanTargets where !ip.hasPrefix(prefix) {
             DispatchQueue.global().async {
                 let task = Process()
                 task.executableURL = URL(fileURLWithPath: "/sbin/ping")
@@ -659,13 +706,13 @@ class MeshMonitorEngine: ObservableObject {
         // board's .10 secondary-IP phantom. The GATEWAY/ROUTER is NO LONGER skipped -- it is a real
         // device (the main router) and must be shown; identifyDevice() labels .1 as Router.
         let arpDevices = NetworkScanner.getARPDevices()
-        var allIPs = Set(deviceIPs)
+        var allIPs = Set(scanTargets)
         // .10 phantom: the stock board init adds <prefix>.10 as a SECONDARY IP to every board, so it
         // resolves (ARP race) to whichever board answers -- not a distinct node.
         var skipIPs: Set<String> = ["\(prefix)255", "224.0.0.251", "0.0.0.0", "\(prefix)10", "255.255.255.255"]
         if let s = NetworkScanner.localIPv4() { skipIPs.insert(s) }
         for (ip, mac) in arpDevices where ip.hasPrefix(prefix) || allIPs.contains(ip) {
-            if !allIPs.contains(ip) && !skipIPs.contains(ip) {
+            if !allIPs.contains(ip) && !skipIPs.contains(ip) && !namedResolvedIPs.contains(ip) {
                 deviceIPs.append(ip)
                 allIPs.insert(ip)
                 UserDefaults.standard.set(deviceIPs, forKey: "deviceIPs")
@@ -694,7 +741,7 @@ class MeshMonitorEngine: ObservableObject {
         }  // end fullDiscovery
 
         let monitorNode = MeshNode(
-            id: 0, ip: "self", label: "Monitor",
+            id: 0, ip: "self", name: "Monitor", label: "Monitor",
             status: .online, role: .endpoint,
             etx: 0, hopCount: 0,
             packetsForwarded: 0, packetsOriginated: 0, packetsDelivered: 0,
@@ -710,7 +757,10 @@ class MeshMonitorEngine: ObservableObject {
         // timeout chain -- 16 devices took minutes and the UI showed stale
         // "Online" states the whole time. A TaskGroup bounds the pass to the
         // slowest single probe (~2s) no matter how many hosts are down.
-        let ipsSnapshot = deviceIPs
+        var ipsSnapshot = deviceIPs.filter { !namedResolvedIPs.contains($0) }
+        for target in scanTargets where !ipsSnapshot.contains(target) {
+            ipsSnapshot.append(target)
+        }
         let ports = probePorts
         scanProgress = "Probing \(ipsSnapshot.count) devices in parallel..."
         var results: [String: (online: Bool, rttMs: Int)] = [:]
@@ -736,7 +786,10 @@ class MeshMonitorEngine: ObservableObject {
             // Get MAC and identify device type
             let macInfo = arpSnapshot.first(where: { $0.ip == ip })
             let macStr = macInfo?.mac ?? "?"
-            var (dtype, drole) = NetworkScanner.identifyDevice(mac: macStr, ip: ip)
+            let displayName = namedLabels[ip]
+            var (dtype, drole) = displayName == nil
+                ? NetworkScanner.identifyDevice(mac: macStr, ip: ip)
+                : (.phone, .external)
             if upnpRouterIPs.contains(ip) { dtype = .router; drole = .gateway }   // UPnP IGD = router, even if not .1
 
             // Detect transitions
@@ -753,7 +806,7 @@ class MeshMonitorEngine: ObservableObject {
 
             // Golden ratio spiral layout — Monitor in center, devices radiate outward
             // phi = 1.618 — each device placed at golden angle (137.5°) from previous
-            let total = deviceIPs.count
+            let total = ipsSnapshot.count
             let phi: CGFloat = 1.618
             let goldenAngle: CGFloat = 2.39996  // 137.5° in radians
             let baseRadius: CGFloat = 110
@@ -775,8 +828,8 @@ class MeshMonitorEngine: ObservableObject {
             let etx = isOnline ? 1.0 : 0
 
             let node = MeshNode(
-                id: nodeId, ip: ip,
-                label: "\(dtype.rawValue)\n\(ip)",
+                id: nodeId, ip: ip, name: displayName,
+                label: displayName ?? "\(dtype.rawValue)\n\(ip)",
                 status: isOnline ? .online : .offline,
                 role: drole,
                 etx: etx,
@@ -871,6 +924,7 @@ struct TriNetMonitorApp: App {
                 .onAppear {
                     // Start RTI listener immediately on app launch
                     rtiEngine.go()
+                    engine.scanNetwork()
                 }
         }
         .commands {
@@ -1240,7 +1294,7 @@ struct NodeView: View {
             .animation(.easeInOut(duration: 0.15), value: isHovered)
 
             // Label — IP only (less is more, UX Magazine principle)
-            Text(node.id == 0 ? "Monitor" : node.ip)
+            Text(node.id == 0 ? "Monitor" : (node.name ?? node.ip))
                 .font(.system(size: 9, weight: .medium, design: .monospaced))
                 .foregroundColor(node.status == .offline ? .gray.opacity(0.35) : .white.opacity(0.8))
                 .lineLimit(1)
@@ -1248,7 +1302,7 @@ struct NodeView: View {
         .onHover { hovering in
             isHovered = hovering
         }
-        .help(node.id == 0 ? "This Mac (Monitor)" : "\(node.deviceType.rawValue) \(node.ip)\nMAC: \(node.mac)\nRTT: \(node.rttMs)ms\nStatus: \(node.status.label)")
+        .help(node.id == 0 ? "This Mac (Monitor)" : "\(node.name ?? node.deviceType.rawValue) \(node.ip)\nMAC: \(node.mac)\nRTT: \(node.rttMs)ms\nStatus: \(node.status.label)")
     }
 
     var iconName: String {
@@ -1366,7 +1420,7 @@ struct DeviceRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack {
-                    Text(node.deviceType.rawValue)
+                    Text(node.name ?? node.deviceType.rawValue)
                         .font(.system(size: 9, weight: .bold))
                         .foregroundColor(node.deviceType.color)
                     Text(node.ip)

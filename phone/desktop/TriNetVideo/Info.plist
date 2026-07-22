@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>TRI-NET Monitor</string>
+	<string>TRI-NET Video</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -28,21 +28,12 @@
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_trinet-call._udp</string>
-		<string>_trinet._udp</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>TRI-NET needs camera for secure local and internet video calls</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>TRI-NET discovers signed contacts and peers over local UDP or a routed radio mesh</string>
+	<string>TRI-NET discovers signed contacts and connects over local UDP or a routed radio mesh</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>TRI-NET needs microphone for video calls</string>
-	<key>TRINET_API_BASE_URL</key>
-	<string>http://SSDs-MacBook-Pro.local:8080</string>
-	<key>TRINET_DEVELOPMENT_ROOM_TOKEN</key>
-	<string></string>
-	<key>TRINET_LIVEKIT_URL</key>
-	<string></string>
-	<key>TRINET_SERVICE_ACCESS_TOKEN</key>
-	<string></string>
 </dict>
 </plist>

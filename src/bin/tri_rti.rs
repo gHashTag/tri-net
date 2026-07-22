@@ -468,7 +468,7 @@ fn run_fusion() {
         let should = (cmd >> 14) & 1;
         let dir_name = ["CCW", "CW", "none"][dir as usize];
         let action = if should == 1 { "SLEW" } else { "in view" };
-        eprintln!("  {:>3}  | ({:>4.0},{:>4.0}) | {:>5}° | {:>3}° | {:>9} | {}", 
+        eprintln!("  {:>3}  | ({:>4.0},{:>4.0}) | {:>5}° | {:>3}° | {:>9} | {}",
             i+1, bx, by, 0, slew, dir_name, action);
     }
     eprintln!("\nFusion: RTI finds objects → camera slews to confirm visually.");

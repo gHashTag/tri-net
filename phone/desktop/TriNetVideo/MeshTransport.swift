@@ -19,6 +19,7 @@ class MeshTransport {
     // timer scheduled on it would never fire.
     private let hsQueue = DispatchQueue(label: "mesh.hs", qos: .userInitiated)
     var onReceive: ((Data) -> Void)?
+    var onSecureSessionReady: (() -> Void)?
     // Group calls need to know WHO sent each datagram (per-source decoding +
     // roster), so recvfrom carries the sender IP up alongside the payload.
     var onReceiveFrom: ((Data, String) -> Void)?
@@ -147,6 +148,8 @@ class MeshTransport {
     // 1-1 (ephemeral forward-secret) — unchanged path.
     func connect(peerHost: String, peerPort: UInt16, listenPort: UInt16) {
         disconnect()
+        crypto = MeshCrypto()
+        secureReadyEmitted = false
         groupMode = false
         startFeedbackListener()
 
@@ -229,6 +232,7 @@ class MeshTransport {
                     // 1-1 ephemeral path
                     if self.crypto.isHandshake(pkt) {
                         self.crypto.consumeHandshake(pkt)
+                        self.emitSecureReadyIfNeeded()
                         self.rawSendWire(self.crypto.handshakePacket())
                         continue
                     }
@@ -290,8 +294,15 @@ class MeshTransport {
     // MARK: forward-secret session (see MeshCrypto). Data is sealed under a
     // per-connection ephemeral session key; the static PSK only authenticates
     // the handshake, so a later PSK leak can't decrypt recorded traffic.
-    private let crypto = MeshCrypto()
+    private var crypto = MeshCrypto()
     private var handshakeTimer: DispatchSourceTimer?
+    private var secureReadyEmitted = false
+
+    private func emitSecureReadyIfNeeded() {
+        guard crypto.established, !secureReadyEmitted else { return }
+        secureReadyEmitted = true
+        DispatchQueue.main.async { self.onSecureSessionReady?() }
+    }
 
     func send(_ data: Data) {
         guard fd >= 0 else { return }

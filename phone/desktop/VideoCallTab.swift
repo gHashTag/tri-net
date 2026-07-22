@@ -25,6 +25,18 @@ struct VideoCallTab: View {
                 StartCallView(call: call)
             }
         }
+        .alert(item: $call.incomingMeshCall) { incoming in
+            Alert(title: Text("Incoming local call"),
+                  message: Text("@\(incoming.invite.nickname) wants to start an encrypted UDP call."),
+                  primaryButton: .default(Text("Accept"), action: call.acceptIncomingMeshCall),
+                  secondaryButton: .cancel(Text("Decline"), action: call.declineIncomingMeshCall))
+        }
+        .alert(item: $call.incomingInternetCall) { incoming in
+            Alert(title: Text("Incoming Internet call"),
+                  message: Text("@\(incoming.caller) is calling through WebRTC."),
+                  primaryButton: .default(Text("Accept"), action: call.acceptIncomingInternetCall),
+                  secondaryButton: .cancel(Text("Decline"), action: call.declineIncomingInternetCall))
+        }
         // Incoming-call banner: macOS convention is a corner/top notification card,
         // not a full-screen takeover (a Mac is multi-window). Floats above either view.
         .overlay(alignment: .top) {
@@ -193,29 +205,106 @@ private struct IncomingCallBanner: View {
 
 private struct StartCallView: View {
     @ObservedObject var call: CallManager
+    @ObservedObject private var groupChat: GroupChatController
+    @State private var showNickname = false
+    @State private var showInternetSettings = false
+    @State private var showGroupChats = false
+
+    init(call: CallManager) {
+        self.call = call
+        groupChat = call.groupChat
+    }
 
     var body: some View {
         VStack(spacing: 18) {
-            Text("Video Call").font(DS.display(28, .semibold)).tracking(-0.5)
-                .foregroundColor(DS.text)
+            HStack {
+                Spacer().frame(width: 76)
+                Spacer()
+                Text("Video Call").font(DS.display(28, .semibold)).tracking(-0.5)
+                    .foregroundColor(DS.text)
+                Spacer()
+                HStack(spacing: 4) {
+                    Button(action: { showGroupChats = true }) {
+                        Image(systemName: groupChat.chats.isEmpty ? "bubble.left.and.bubble.right" : "bubble.left.and.bubble.right.fill")
+                            .foregroundColor(DS.dim).frame(width: 36, height: 36)
+                    }.buttonStyle(.plain)
+                    Button(action: { showInternetSettings = true }) {
+                        Image(systemName: "gearshape").foregroundColor(DS.dim).frame(width: 36, height: 36)
+                    }.buttonStyle(.plain)
+                }
+            }
             // Say what this actually is. The call is direct UDP between two IP
             // peers over whatever interface the OS routes by (Wi-Fi today) — the
             // radio mesh is a separate subsystem and is NOT in this path. The old
             // "Encrypted mesh" line implied otherwise.
-            Text("Encrypted peer-to-peer · forward-secret")
+            Text("Encrypted local UDP | LiveKit WebRTC")
                 .font(DS.ui(13)).foregroundColor(DS.dim)
 
-            VStack(spacing: 12) {
+            Button(action: { showNickname = true }) {
                 HStack(spacing: 8) {
-                    SectionLabel(text: "Peer")
-                    TextField("IP", text: $call.remoteIP)
+                    Image(systemName: call.directory.currentNickname == nil ?
+                          "person.crop.circle.badge.plus" : "checkmark.seal.fill")
+                    Text(call.directory.currentNickname.map { "@\($0)" } ?? "Create your nickname")
+                        .font(DS.mono(12, .medium))
+                    Text(call.directory.claimKind == .verified ? "VERIFIED" :
+                         call.directory.claimKind == .meshLocal ? "MESH-LOCAL" : "NEW")
+                        .font(DS.mono(9, .bold))
+                        .foregroundColor(call.directory.claimKind == .verified ? DS.live : .orange)
+                }
+                .padding(.horizontal, 14).padding(.vertical, 8)
+                .dsCard(12)
+            }.buttonStyle(.plain)
+
+            VStack(spacing: 12) {
+                Picker("Route", selection: $call.route) {
+                    Text("Auto").tag(CallRoute.automatic)
+                    Text("Local/Mesh UDP").tag(CallRoute.mesh)
+                    Text("Internet").tag(CallRoute.internet)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 430)
+
+                HStack(spacing: 8) {
+                    SectionLabel(text: "Find")
+                    TextField(call.route == .mesh ? "nickname or IP" : "nickname",
+                              text: Binding(get: { call.directory.searchQuery },
+                                            set: { call.directory.searchQuery = $0 }))
                         .textFieldStyle(.plain).font(DS.mono(14)).foregroundColor(DS.text)
-                        .frame(width: 160)
+                        .frame(width: 250)
+                        .onSubmit { call.searchNicknames() }
+                    Button(action: { call.searchNicknames() }) {
+                        Image(systemName: "magnifyingglass").foregroundColor(DS.text)
+                    }.buttonStyle(.plain)
                 }
                 .padding(.horizontal, 16).padding(.vertical, 12).dsCard(12)
 
-                Text("SELF · \(call.localIP):\(call.port)")
+                if !call.directory.results.isEmpty {
+                    HStack(spacing: 8) {
+                        ForEach(call.directory.results.prefix(3)) { contact in
+                            Button("@\(contact.nickname) [\(contact.source.rawValue)]") {
+                                call.selectContact(contact)
+                            }
+                            .buttonStyle(.plain).font(DS.mono(10, .medium)).foregroundColor(DS.text)
+                            .padding(.horizontal, 10).padding(.vertical, 6)
+                            .overlay(Capsule().stroke(DS.hairline, lineWidth: 1))
+                        }
+                    }
+                }
+
+                Text("SELF | \(call.directory.currentNickname.map { "@\($0)" } ?? call.identity.displayName) | \(call.localIP):\(call.port)")
                     .font(DS.mono(11)).foregroundColor(DS.faint)
+
+                if call.isStarting {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text(call.status).font(DS.ui(11)).foregroundColor(DS.dim)
+                    }
+                }
+
+                if let error = call.error {
+                    Text(error).font(DS.ui(11)).foregroundColor(DS.danger)
+                        .multilineTextAlignment(.center)
+                }
 
                 // Missed calls — one-tap call back (newest first, capped at 5).
                 if !call.missedCalls.isEmpty {
@@ -298,6 +387,233 @@ private struct StartCallView: View {
                 .padding(.top, 6)
         }
         .padding(30)
+        .sheet(isPresented: $showNickname) { MonitorNicknamePanel(call: call) }
+        .sheet(isPresented: $showInternetSettings) { MonitorInternetSettingsPanel(call: call) }
+        .sheet(isPresented: $showGroupChats) { MonitorGroupChatPanel(call: call) }
+    }
+}
+
+private struct MonitorNicknamePanel: View {
+    @ObservedObject var call: CallManager
+    @ObservedObject private var directory: NicknameDirectoryController
+    @Environment(\.dismiss) private var dismiss
+
+    init(call: CallManager) {
+        self.call = call
+        directory = call.directory
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Your Nickname").font(DS.display(20, .semibold))
+                Spacer()
+                Button("Done") { dismiss() }
+            }
+            HStack {
+                Text("@").foregroundColor(DS.dim)
+                TextField("nickname", text: $directory.proposedNickname)
+                    .textFieldStyle(.roundedBorder)
+            }
+            Text("Use 3-20 lowercase letters, numbers, or underscore.")
+                .font(DS.ui(11)).foregroundColor(DS.dim)
+            Button(directory.isWorking ? "Checking..." : "Check and create") {
+                call.claimNickname()
+            }.disabled(directory.isWorking)
+            if let status = directory.statusMessage {
+                Text(status).font(DS.ui(11)).foregroundColor(DS.text)
+            }
+            if !directory.suggestions.isEmpty {
+                HStack {
+                    ForEach(directory.suggestions, id: \.self) { suggestion in
+                        Button("@\(suggestion)") {
+                            directory.proposedNickname = suggestion
+                            call.claimNickname()
+                        }
+                    }
+                }
+            }
+            Spacer()
+        }
+        .padding(24)
+        .frame(width: 480, height: 300)
+        .onChange(of: directory.currentNickname) { current in
+            if current != nil { dismiss() }
+        }
+    }
+}
+
+private struct MonitorInternetSettingsPanel: View {
+    @ObservedObject var call: CallManager
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Internet Calling").font(DS.display(20, .semibold))
+                Spacer()
+                Button("Cancel") { dismiss() }
+            }
+            TextField("https://api.example.com", text: $call.internetConfiguration.apiBaseURL)
+                .textFieldStyle(.roundedBorder)
+            TextField("wss://project.livekit.cloud", text: $call.internetConfiguration.liveKitURL)
+                .textFieldStyle(.roundedBorder)
+            SecureField("Service access token", text: $call.internetConfiguration.accessToken)
+                .textFieldStyle(.roundedBorder)
+            SecureField("Development room token", text: $call.internetConfiguration.developmentRoomToken)
+                .textFieldStyle(.roundedBorder)
+            Text("Production uses the signed API. Direct LiveKit mode is for development tests only.")
+                .font(DS.ui(11)).foregroundColor(DS.dim)
+            HStack {
+                Spacer()
+                Button("Save") {
+                    call.saveInternetSettings()
+                    dismiss()
+                }
+            }
+        }
+        .padding(24)
+        .frame(width: 560, height: 330)
+    }
+}
+
+private struct MonitorGroupChatPanel: View {
+    @ObservedObject var call: CallManager
+    @ObservedObject private var group: GroupChatController
+    @Environment(\.dismiss) private var dismiss
+
+    init(call: CallManager) {
+        self.call = call
+        group = call.groupChat
+    }
+
+    var body: some View {
+        VStack(spacing: 14) {
+            HStack {
+                Text("Group Chats").font(DS.display(22, .semibold)).foregroundColor(DS.text)
+                Spacer()
+                Button("Done") { dismiss() }
+            }
+
+            HStack(spacing: 14) {
+                VStack(alignment: .leading, spacing: 10) {
+                    SectionLabel(text: "New group")
+                    TextField("Title (optional)", text: $group.titleInput)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("@alice, @bob", text: $group.membersInput)
+                        .textFieldStyle(.roundedBorder)
+                    Text("Separate unique nicknames with commas or spaces.")
+                        .font(DS.ui(10)).foregroundColor(DS.dim)
+                    Button(group.isWorking ? "Creating..." : "Create group") {
+                        group.createGroup()
+                    }
+                    .disabled(group.isWorking)
+
+                    Hairline()
+                    SectionLabel(text: "Your chats")
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 7) {
+                            if group.chats.isEmpty {
+                                Text("No groups yet").font(DS.ui(11)).foregroundColor(DS.faint)
+                            }
+                            ForEach(group.chats) { chat in
+                                Button(action: { group.open(chat) }) {
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(chat.title).font(DS.ui(13, .medium)).foregroundColor(DS.text)
+                                        Text(chat.members.map { "@\($0)" }.joined(separator: ", "))
+                                            .font(DS.mono(9)).foregroundColor(DS.faint).lineLimit(1)
+                                        if let lastMessage = chat.lastMessage {
+                                            Text(lastMessage).font(DS.ui(10)).foregroundColor(DS.dim).lineLimit(1)
+                                        }
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(9)
+                                    .background(group.activeChatID == chat.chatID ? DS.surfaceHi : DS.surface,
+                                                in: RoundedRectangle(cornerRadius: 10))
+                                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(DS.hairline, lineWidth: 1))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+                .frame(width: 260)
+
+                VStack(spacing: 0) {
+                    if let chat = group.activeChat {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(chat.title).font(DS.ui(16, .semibold)).foregroundColor(DS.text)
+                                Text(chat.members.map { "@\($0)" }.joined(separator: ", "))
+                                    .font(DS.mono(9)).foregroundColor(DS.faint).lineLimit(1)
+                            }
+                            Spacer()
+                        }
+                        .padding(12)
+                        Hairline()
+                        ScrollViewReader { proxy in
+                            ScrollView {
+                                LazyVStack(spacing: 8) {
+                                    ForEach(group.messages) { message in
+                                        let mine = message.senderUserID == call.identity.userID
+                                        HStack {
+                                            if mine { Spacer(minLength: 70) }
+                                            VStack(alignment: .leading, spacing: 3) {
+                                                Text(mine ? "You" : "@\(message.senderNickname)")
+                                                    .font(DS.mono(9)).foregroundColor(DS.faint)
+                                                Text(message.text).font(DS.ui(12)).foregroundColor(DS.text)
+                                            }
+                                            .padding(.horizontal, 11).padding(.vertical, 7)
+                                            .background(mine ? Color.white.opacity(0.10) : DS.surfaceHi,
+                                                        in: RoundedRectangle(cornerRadius: 11))
+                                            if !mine { Spacer(minLength: 70) }
+                                        }
+                                        .id(message.messageID)
+                                    }
+                                }
+                                .padding(12)
+                            }
+                            .onChange(of: group.messages.count) { _ in
+                                if let last = group.messages.last {
+                                    proxy.scrollTo(last.messageID, anchor: .bottom)
+                                }
+                            }
+                        }
+                        Hairline()
+                        HStack(spacing: 8) {
+                            TextField("Message", text: $group.draft)
+                                .textFieldStyle(.roundedBorder)
+                                .onSubmit { group.send() }
+                            Button(action: { group.send() }) {
+                                Image(systemName: "arrow.up.circle.fill").font(.system(size: 24))
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(group.isWorking || group.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
+                        .padding(12)
+                    } else {
+                        VStack(spacing: 10) {
+                            Image(systemName: "bubble.left.and.bubble.right")
+                                .font(.system(size: 42)).foregroundColor(DS.faint)
+                            Text("Select a group or create one by nickname.")
+                                .font(DS.ui(13)).foregroundColor(DS.dim)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                }
+                .background(DS.surface, in: RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(DS.hairline, lineWidth: 1))
+            }
+
+            if let status = group.statusMessage {
+                Text(status).font(DS.ui(10)).foregroundColor(DS.dim)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(20)
+        .frame(width: 820, height: 600)
+        .background(DS.ink)
+        .onAppear { group.startPolling() }
     }
 }
 

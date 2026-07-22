@@ -7,30 +7,74 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		094B0FDEEEA876B04E5C3700 /* CallIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C404DA930B30CD012F62D59 /* CallIdentity.swift */; };
+		0FD4749EFC9F8923DD0BCB49 /* MeshCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = A95B320DB85BD9CA34441F97 /* MeshCrypto.swift */; };
+		111558B34260E5B694D543EE /* AudioController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61BC88F2C76B79E6716BD918 /* AudioController.swift */; };
+		12E514050EC8F765A8DC3472 /* OpusCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96DB9356EBB9897CE6C906D7 /* OpusCodec.swift */; };
+		131244A5A527881519B0BB77 /* LinkStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BCD15FBEAF2379CE2C75DC1 /* LinkStatus.swift */; };
+		1410A21A73E9E82F0622FFE1 /* BackgroundBlur.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AA628378284C43ABC50D020 /* BackgroundBlur.swift */; };
 		40F017DE28896B7D0177AC7B /* CameraCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05D79458F799679566EA2F11 /* CameraCapture.swift */; };
+		520A5853F1324286B7C9D328 /* CallRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4EA56245810CECD0C202FFE /* CallRecorder.swift */; };
 		66CCD9FFAD828B288E427269 /* MeshTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201CD1EE7B29F77025DA7005 /* MeshTransport.swift */; };
 		7059B12C50899D17431177A1 /* CallManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 915D7663B5CD3BA6B725865A /* CallManager.swift */; };
+		925424B00856474500875967 /* ScreenCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E0D7BDA34C051DCC9477E0 /* ScreenCapture.swift */; };
 		93828957945393D93D1AE545 /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 919A6C8C4AE3FF1BEBC24E2D /* App.swift */; };
 		C42AEF335F11DD33CC802C77 /* Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3E1BEB0E6D36884DC34BAF1 /* Views.swift */; };
+		D97D14140C893639F33F37D5 /* LiveKit in Frameworks */ = {isa = PBXBuildFile; productRef = C4D0DDD6535CFA404CBF8DAA /* LiveKit */; };
 		E00B31F6C88D6223CF93B32F /* VideoEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7467C86E81673925398E7CA /* VideoEncoder.swift */; };
+		EDE8E8CA5000C63D274F4D54 /* NicknameDirectory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27976511C5B03FA14DBE15C6 /* NicknameDirectory.swift */; };
+		F6CB4CE6A1336FEBE77BA83B /* InternetCall.swift in Sources */ = {isa = PBXBuildFile; fileRef = 338452C9348505CF2B20ED39 /* InternetCall.swift */; };
 		F909D84E94FAA98C4929B709 /* VideoDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC9E1456FC3042E3A277409E /* VideoDecoder.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		05D79458F799679566EA2F11 /* CameraCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraCapture.swift; sourceTree = "<group>"; };
+		0AA628378284C43ABC50D020 /* BackgroundBlur.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundBlur.swift; sourceTree = "<group>"; };
 		201CD1EE7B29F77025DA7005 /* MeshTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshTransport.swift; sourceTree = "<group>"; };
+		27976511C5B03FA14DBE15C6 /* NicknameDirectory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NicknameDirectory.swift; sourceTree = "<group>"; };
+		338452C9348505CF2B20ED39 /* InternetCall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InternetCall.swift; sourceTree = "<group>"; };
 		5235533C9F22E43B48C7BE18 /* TriNetVideo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TriNetVideo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5BCD15FBEAF2379CE2C75DC1 /* LinkStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkStatus.swift; sourceTree = "<group>"; };
+		61BC88F2C76B79E6716BD918 /* AudioController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioController.swift; sourceTree = "<group>"; };
 		915D7663B5CD3BA6B725865A /* CallManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallManager.swift; sourceTree = "<group>"; };
 		919A6C8C4AE3FF1BEBC24E2D /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
+		96DB9356EBB9897CE6C906D7 /* OpusCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpusCodec.swift; sourceTree = "<group>"; };
+		9C404DA930B30CD012F62D59 /* CallIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallIdentity.swift; sourceTree = "<group>"; };
+		A5E0D7BDA34C051DCC9477E0 /* ScreenCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCapture.swift; sourceTree = "<group>"; };
+		A95B320DB85BD9CA34441F97 /* MeshCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshCrypto.swift; sourceTree = "<group>"; };
+		B4EA56245810CECD0C202FFE /* CallRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallRecorder.swift; sourceTree = "<group>"; };
+		B531BE39B4623AAA1D6E3823 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		C3E1BEB0E6D36884DC34BAF1 /* Views.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views.swift; sourceTree = "<group>"; };
 		DC9E1456FC3042E3A277409E /* VideoDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoDecoder.swift; sourceTree = "<group>"; };
 		E7467C86E81673925398E7CA /* VideoEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEncoder.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFrameworksBuildPhase section */
+		A992AD0FA4A8B6D7F4F2E05C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D97D14140C893639F33F37D5 /* LiveKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
 /* Begin PBXGroup section */
+		12A8BAAE3F99DCCE291DFFC1 /* shared */ = {
+			isa = PBXGroup;
+			children = (
+				9C404DA930B30CD012F62D59 /* CallIdentity.swift */,
+				338452C9348505CF2B20ED39 /* InternetCall.swift */,
+				27976511C5B03FA14DBE15C6 /* NicknameDirectory.swift */,
+			);
+			path = shared;
+			sourceTree = "<group>";
+		};
 		A6C8AF585BF4DA374BF1E301 = {
 			isa = PBXGroup;
 			children = (
+				CDACF92DA242F04F4B37857C /* phone */,
 				AB31945200E8755D13A21492 /* TriNetVideo */,
 				BDEBCA25FD616B1244269FB0 /* Products */,
 			);
@@ -40,9 +84,17 @@
 			isa = PBXGroup;
 			children = (
 				919A6C8C4AE3FF1BEBC24E2D /* App.swift */,
+				61BC88F2C76B79E6716BD918 /* AudioController.swift */,
+				0AA628378284C43ABC50D020 /* BackgroundBlur.swift */,
 				915D7663B5CD3BA6B725865A /* CallManager.swift */,
+				B4EA56245810CECD0C202FFE /* CallRecorder.swift */,
 				05D79458F799679566EA2F11 /* CameraCapture.swift */,
+				B531BE39B4623AAA1D6E3823 /* Info.plist */,
+				5BCD15FBEAF2379CE2C75DC1 /* LinkStatus.swift */,
+				A95B320DB85BD9CA34441F97 /* MeshCrypto.swift */,
 				201CD1EE7B29F77025DA7005 /* MeshTransport.swift */,
+				96DB9356EBB9897CE6C906D7 /* OpusCodec.swift */,
+				A5E0D7BDA34C051DCC9477E0 /* ScreenCapture.swift */,
 				DC9E1456FC3042E3A277409E /* VideoDecoder.swift */,
 				E7467C86E81673925398E7CA /* VideoEncoder.swift */,
 				C3E1BEB0E6D36884DC34BAF1 /* Views.swift */,
@@ -58,6 +110,15 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		CDACF92DA242F04F4B37857C /* phone */ = {
+			isa = PBXGroup;
+			children = (
+				12A8BAAE3F99DCCE291DFFC1 /* shared */,
+			);
+			name = phone;
+			path = ..;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -66,6 +127,7 @@
 			buildConfigurationList = 8BF7BEC5E62F701272704476 /* Build configuration list for PBXNativeTarget "TriNetVideo" */;
 			buildPhases = (
 				6D90D1F1C47C345671E3F8F9 /* Sources */,
+				A992AD0FA4A8B6D7F4F2E05C /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -73,6 +135,7 @@
 			);
 			name = TriNetVideo;
 			packageProductDependencies = (
+				C4D0DDD6535CFA404CBF8DAA /* LiveKit */,
 			);
 			productName = TriNetVideo;
 			productReference = 5235533C9F22E43B48C7BE18 /* TriNetVideo.app */;
@@ -98,6 +161,9 @@
 			);
 			mainGroup = A6C8AF585BF4DA374BF1E301;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				7396F5F92AEBADE75587ABFF /* XCRemoteSwiftPackageReference "client-sdk-swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = BDEBCA25FD616B1244269FB0 /* Products */;
 			projectDirPath = "";
@@ -114,9 +180,19 @@
 			buildActionMask = 2147483647;
 			files = (
 				93828957945393D93D1AE545 /* App.swift in Sources */,
+				111558B34260E5B694D543EE /* AudioController.swift in Sources */,
+				1410A21A73E9E82F0622FFE1 /* BackgroundBlur.swift in Sources */,
+				094B0FDEEEA876B04E5C3700 /* CallIdentity.swift in Sources */,
 				7059B12C50899D17431177A1 /* CallManager.swift in Sources */,
+				520A5853F1324286B7C9D328 /* CallRecorder.swift in Sources */,
 				40F017DE28896B7D0177AC7B /* CameraCapture.swift in Sources */,
+				F6CB4CE6A1336FEBE77BA83B /* InternetCall.swift in Sources */,
+				131244A5A527881519B0BB77 /* LinkStatus.swift in Sources */,
+				0FD4749EFC9F8923DD0BCB49 /* MeshCrypto.swift in Sources */,
 				66CCD9FFAD828B288E427269 /* MeshTransport.swift in Sources */,
+				EDE8E8CA5000C63D274F4D54 /* NicknameDirectory.swift in Sources */,
+				12E514050EC8F765A8DC3472 /* OpusCodec.swift in Sources */,
+				925424B00856474500875967 /* ScreenCapture.swift in Sources */,
 				F909D84E94FAA98C4929B709 /* VideoDecoder.swift in Sources */,
 				E00B31F6C88D6223CF93B32F /* VideoEncoder.swift in Sources */,
 				C42AEF335F11DD33CC802C77 /* Views.swift in Sources */,
@@ -200,11 +276,8 @@
 				CODE_SIGNING_REQUIRED = NO;
 				CODE_SIGN_IDENTITY = "-";
 				COMBINE_HIDPI_IMAGES = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "TRI-NET Video";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Video calls over mesh";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Mesh video transport";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Audio for video calls";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = TriNetVideo/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -282,11 +355,8 @@
 				CODE_SIGNING_REQUIRED = NO;
 				CODE_SIGN_IDENTITY = "-";
 				COMBINE_HIDPI_IMAGES = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "TRI-NET Video";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Video calls over mesh";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Mesh video transport";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Audio for video calls";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = TriNetVideo/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -319,6 +389,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		7396F5F92AEBADE75587ABFF /* XCRemoteSwiftPackageReference "client-sdk-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/livekit/client-sdk-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.15.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		C4D0DDD6535CFA404CBF8DAA /* LiveKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7396F5F92AEBADE75587ABFF /* XCRemoteSwiftPackageReference "client-sdk-swift" */;
+			productName = LiveKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 46F6CE57375BBA9D8E897E3E /* Project object */;
 }

@@ -45,9 +45,9 @@ done
 # does not). python's single sendto() guarantees one datagram. Re-sent every ~4s (UDP is lossy).
 send_invite() {
     python3 - <<'PYEOF'
-import socket, hashlib, hmac
-# The INVITE is authenticated (see CallManager.inviteKey): [FD 11][HMAC:8][payload]. Derive the same
-# PSK -> HKDF -> HMAC key so the app accepts this test packet; an unauthenticated one is now rejected.
+import socket, hashlib, hmac, time
+# The INVITE is authenticated + fresh (see CallManager.inviteKey): [FD 11][HMAC:8][name\nips\nROOM\nTS_MS].
+# Derive the same PSK -> HKDF -> HMAC key AND stamp a current timestamp; unauthenticated OR stale is rejected.
 def hkdf(ikm, salt, info, n=32):
     prk = hmac.new(salt, ikm, hashlib.sha256).digest()
     okm, t, i = b"", b"", 1
@@ -55,7 +55,8 @@ def hkdf(ikm, salt, info, n=32):
         t = hmac.new(prk, t + info + bytes([i]), hashlib.sha256).digest(); okm += t; i += 1
     return okm[:n]
 key = hkdf(hashlib.sha256(b"tri-net-psk-v1").digest(), b"trios-mesh/v1/invite", b"invite-auth")
-payload = b"LOOPBACK smoke\n127.0.0.1,192.168.1.250,192.168.1.251\n"
+ts = str(int(time.time() * 1000)).encode()
+payload = b"LOOPBACK smoke\n127.0.0.1,192.168.1.250,192.168.1.251\n\n" + ts
 mac = hmac.new(key, payload, hashlib.sha256).digest()[:8]
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 s.sendto(bytes([0xFD, 0x11]) + mac + payload, ("127.0.0.1", 7000))
