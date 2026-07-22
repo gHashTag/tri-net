@@ -249,9 +249,19 @@ class MeshTransport {
                             NSLog("TRINET: DROP undecryptable \(n)B from \(senderIP) [\(who), peer=\(self.peerHostStr)] — \(c) from this IP")
                         }
                     }
-                } else {
+                } else if n < 0 {
+                    // UDP + ICMP gotcha: a previous sendto to an UNREACHABLE peer delivers its ICMP
+                    // error (EHOSTDOWN / ECONNREFUSED / ENETUNREACH / EHOSTUNREACH) on the NEXT recvfrom.
+                    // These are TRANSIENT — one dead group peer, or a peer not yet bound during 1-1
+                    // startup, must NOT kill the whole receive loop (that ended the entire call ~15s in,
+                    // caught by a live loopback test). EINTR is a transient interrupt. Only a genuinely
+                    // closed socket (EBADF, when running -> false) exits the loop.
+                    let e = errno
+                    if e == EINTR || e == EHOSTDOWN || e == ECONNREFUSED || e == ENETUNREACH
+                        || e == EHOSTUNREACH || e == EAGAIN || e == EWOULDBLOCK { continue }
                     break
                 }
+                // n == 0: a zero-length UDP datagram (UDP has no EOF) — ignore and keep receiving.
             }
         }
     }

@@ -795,7 +795,16 @@ class BSDTransport {
                 var fromLen = socklen_t(MemoryLayout<sockaddr_in>.size)
                 let n = withUnsafeMutablePointer(to: &from) { fp in fp.withMemoryRebound(to: sockaddr.self, capacity: 1) { s in
                     recvfrom(sock, &buf, buf.count, 0, s, &fromLen) } }
-                if n <= 0 { break }   // socket closed by disconnect() or error
+                if n < 0 {
+                    // UDP + ICMP gotcha: an unreachable peer's ICMP error (EHOSTDOWN / ECONNREFUSED /
+                    // ENETUNREACH / EHOSTUNREACH) surfaces on the NEXT recvfrom. Transient -> keep going,
+                    // or one dead group peer ends the whole call. Only a closed socket (EBADF) exits.
+                    let e = errno
+                    if e == EINTR || e == EHOSTDOWN || e == ECONNREFUSED || e == ENETUNREACH
+                        || e == EHOSTUNREACH || e == EAGAIN || e == EWOULDBLOCK { continue }
+                    break
+                }
+                if n == 0 { continue }   // zero-length UDP datagram (no EOF in UDP) -> ignore
                 let pkt = Data(bytes: buf, count: n)
                 let src = String(cString: inet_ntoa(from.sin_addr))
                 if self.groupMode {

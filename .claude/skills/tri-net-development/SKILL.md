@@ -1988,3 +1988,22 @@ phi^2 + phi^-2 = 3 | TRINITY
   fix; the rest are safe because their operands are bounded (<=16 bits or by frame/counter caps). The
   differential/exhaustive harness is now the standard gate for any spec touching multiply/shift/mask before it
   is trusted, wired or not.
+
+## WAVE 2026-07-22 #10 — LIVE test caught a group-call teardown bug (UDP+ICMP)
+
+- **Grounding back in the product after 6 theory waves immediately paid off.** A sustained loopback call was
+  observed to die at ~15s. Root cause (isolated by re-running with all-reachable vs unreachable peers): the BSD
+  recv loop did `if n <= 0 { break }` on recvfrom. A previous `sendto` to an UNREACHABLE peer delivers its ICMP
+  error (EHOSTDOWN/ECONNREFUSED/ENETUNREACH) on the NEXT `recvfrom` as n<0 -> the loop broke -> the ENTIRE call
+  ended. One dead group participant killed the whole conference; a 1-1 peer not-yet-bound at startup could too.
+- **Fix (both platforms, the recv loop is shared by 1-1 and group):** on n<0 inspect errno — EINTR / EHOSTDOWN /
+  ECONNREFUSED / ENETUNREACH / EHOSTUNREACH / EAGAIN / EWOULDBLOCK are TRANSIENT -> `continue`; only a closed
+  socket (EBADF when running->false) breaks. Also n==0 is a zero-length UDP datagram (UDP has no EOF) ->
+  continue, don't break.
+- **VERIFIED LIVE, before/after, one variable:** unreachable-peer loopback died at 15s (1 EHOSTDOWN -> teardown)
+  BEFORE; AFTER the fix the same test survived 78s through 51 EHOSTDOWN errors (27 steady BWE probe-ups). The
+  all-reachable control sustained both times.
+- **Also learned about the adaptive loop from the same test:** on a clean loopback the encoder correctly PINS to
+  the 900k non-mesh ceiling + 720p top rung (probe-up fires, 0 back-offs). Loopback starts AT the ceiling and
+  has no loss, so it verifies only the "good link" arm; the climb-from-low and loss back-off arms remain
+  harness-only (can't induce loss on loopback). Honest coverage note, not a bug.
