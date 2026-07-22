@@ -1,0 +1,90 @@
+// Persistent group chat membership and message policy.
+// HTTP, SQLite, and UI adapters are outside this specification.
+// phi^2 + phi^-2 = 3
+
+module GroupChat {
+    use base::types;
+
+    const MIN_GROUP_MEMBERS: u8 = 2;
+    const MAX_GROUP_MEMBERS: u8 = 32;
+    const MAX_GROUP_TITLE_BYTES: u16 = 80;
+    const MAX_MESSAGE_BYTES: u16 = 4096;
+    const MAX_MESSAGE_PAGE: u16 = 100;
+
+    // requested/resolved/unique count only the invited accounts. The creator
+    // is always inserted separately and must own a verified nickname.
+    fn group_may_be_created(creator_valid: bool, requested: u8, resolved: u8, unique: u8) -> bool {
+        if (!creator_valid || requested == 0) {
+            return false;
+        }
+        if (requested != resolved || requested != unique) {
+            return false;
+        }
+        // The creator is the extra member, so at most MAX-1 invitations fit.
+        // Avoid `requested + 1`: requested is u8 and an attacker can send 255.
+        return requested < MAX_GROUP_MEMBERS;
+    }
+
+    fn title_is_valid(byte_length: u16) -> bool {
+        return byte_length > 0 && byte_length <= MAX_GROUP_TITLE_BYTES;
+    }
+
+    fn member_may_read(active_member: bool, device_valid: bool) -> bool {
+        return active_member && device_valid;
+    }
+
+    fn message_may_be_sent(active_member: bool, device_valid: bool, byte_length: u16) -> bool {
+        return member_may_read(active_member, device_valid) &&
+               byte_length > 0 &&
+               byte_length <= MAX_MESSAGE_BYTES;
+    }
+
+    fn message_page_size(requested: u16) -> u16 {
+        if (requested == 0) {
+            return 1;
+        }
+        if (requested > MAX_MESSAGE_PAGE) {
+            return MAX_MESSAGE_PAGE;
+        }
+        return requested;
+    }
+
+    test complete_unique_roster_is_required {
+        assert(group_may_be_created(true, 2, 2, 2) == true, "creator plus two invitees");
+        assert(group_may_be_created(true, 2, 1, 2) == false, "unresolved nickname");
+        assert(group_may_be_created(true, 2, 2, 1) == false, "duplicate account");
+        assert(group_may_be_created(false, 2, 2, 2) == false, "creator needs nickname");
+    }
+
+    test membership_gates_history {
+        assert(member_may_read(true, true) == true, "active account device");
+        assert(member_may_read(false, true) == false, "not a member");
+        assert(member_may_read(true, false) == false, "invalid device");
+    }
+
+    test messages_are_bounded {
+        assert(message_may_be_sent(true, true, 1) == true, "small message");
+        assert(message_may_be_sent(true, true, 4096) == true, "boundary accepted");
+        assert(message_may_be_sent(true, true, 4097) == false, "oversized rejected");
+        assert(message_may_be_sent(false, true, 10) == false, "non-member rejected");
+    }
+
+    test page_size_is_clamped {
+        assert(message_page_size(0) == 1, "non-empty page");
+        assert(message_page_size(50) == 50, "requested page");
+        assert(message_page_size(500) == 100, "bounded page");
+    }
+
+    invariant member_bounds_are_ordered
+        assert MIN_GROUP_MEMBERS < MAX_GROUP_MEMBERS
+
+    invariant message_limit_is_positive
+        assert MAX_MESSAGE_BYTES > 0
+
+    invariant page_fits_message_limit
+        assert MAX_MESSAGE_PAGE < MAX_MESSAGE_BYTES
+
+    bench message_policy_latency
+        measure: nanoseconds to message_may_be_sent(true, true, 128)
+        target: < 1000ns
+}

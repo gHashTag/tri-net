@@ -2,6 +2,7 @@
 import SwiftUI
 import AVFoundation
 import AppKit
+import LiveKit
 
 // MARK: - Main Entry View
 
@@ -19,6 +20,18 @@ struct CallView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .alert(item: $call.incomingMeshCall) { incoming in
+            Alert(title: Text("Incoming local call"),
+                  message: Text("@\(incoming.invite.nickname) wants to start an encrypted UDP call."),
+                  primaryButton: .default(Text("Accept"), action: call.acceptIncomingMeshCall),
+                  secondaryButton: .cancel(Text("Decline"), action: call.declineIncomingMeshCall))
+        }
+        .alert(item: $call.incomingInternetCall) { incoming in
+            Alert(title: Text("Incoming Internet call"),
+                  message: Text("@\(incoming.caller) is calling through WebRTC."),
+                  primaryButton: .default(Text("Accept"), action: call.acceptIncomingInternetCall),
+                  secondaryButton: .cancel(Text("Decline"), action: call.declineIncomingInternetCall))
+        }
     }
 }
 
@@ -26,9 +39,23 @@ struct CallView: View {
 
 struct HomeScreen: View {
     @EnvironmentObject var call: CallManager
+    @State private var showSettings = false
+    @State private var showNicknameSetup = false
 
     var body: some View {
         VStack(spacing: 32) {
+            HStack {
+                Text("TRI-NET")
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                Spacer()
+                Button(action: { showSettings = true }) {
+                    Image(systemName: "gearshape")
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 24)
+
             Spacer()
 
             // App icon / camera button
@@ -56,19 +83,46 @@ struct HomeScreen: View {
                     .font(.system(size: 24, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
 
-                Text("Encrypted mesh video calls")
+                Text("Encrypted mesh and internet video calls")
                     .font(.system(size: 13))
                     .foregroundColor(.gray)
             }
 
+            Button(action: { showNicknameSetup = true }) {
+                HStack(spacing: 8) {
+                    Image(systemName: call.directory.currentNickname == nil ? "person.crop.circle.badge.plus" : "checkmark.seal.fill")
+                    Text(call.directory.currentNickname.map { "@\($0)" } ?? "Create your nickname")
+                        .font(.system(size: 13, weight: .medium, design: .monospaced))
+                    Text(call.directory.claimKind == .verified ? "VERIFIED" :
+                         call.directory.claimKind == .meshLocal ? "MESH" : "NEW")
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundColor(call.directory.claimKind == .verified ? .green :
+                                         call.directory.claimKind == .meshLocal ? .orange : .gray)
+                }
+                .padding(.horizontal, 14).padding(.vertical, 8)
+                .background(Color.white.opacity(0.08), in: Capsule())
+            }
+            .buttonStyle(.plain)
+
             // IP configuration
             VStack(spacing: 12) {
+                Picker("Route", selection: $call.route) {
+                    ForEach(CallRoute.allCases) { route in
+                        Text(route.displayName).tag(route)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 24)
+
                 HStack(spacing: 12) {
                     Image(systemName: "person.crop.circle")
                         .foregroundColor(.gray)
                         .font(.system(size: 18))
 
-                    TextField("Remote IP Address", text: $call.remoteIP)
+                    TextField(call.route == .mesh ? "Nickname or IP" : "Nickname", text: Binding(
+                        get: { call.directory.searchQuery },
+                        set: { call.directory.searchQuery = $0 }
+                    ))
                         .textFieldStyle(.plain)
                         .font(.system(size: 16, design: .monospaced))
                         .foregroundColor(.white)
@@ -80,17 +134,36 @@ struct HomeScreen: View {
                             RoundedRectangle(cornerRadius: 10)
                                 .stroke(Color.blue.opacity(0.3), lineWidth: 1)
                         )
+                        .onSubmit { call.searchNicknames() }
+
+                    Button(action: { call.searchNicknames() }) {
+                        Image(systemName: "magnifyingglass")
+                    }
+                    .buttonStyle(.plain)
                 }
                 .padding(.horizontal, 24)
+
+                if !call.directory.results.isEmpty {
+                    VStack(spacing: 7) {
+                        ForEach(call.directory.results.prefix(3)) { contact in
+                            MacDirectoryContactButton(contact: contact) { call.selectContact(contact) }
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                }
 
                 // Show your IP
                 HStack {
                     Image(systemName: "wifi")
                         .foregroundColor(.green)
                         .font(.system(size: 12))
-                    Text("You: \(call.localIP):7001")
+                    Text("You: \(call.identity.nickname.map { "@\($0)" } ?? call.identity.displayName) | \(call.identity.keyFingerprint)")
                         .font(.system(size: 12, design: .monospaced))
                         .foregroundColor(.green.opacity(0.8))
+                }
+
+                if let error = call.error {
+                    Text(error).font(.system(size: 12)).foregroundColor(.red).multilineTextAlignment(.center)
                 }
 
                 // Recent IPs
@@ -130,11 +203,209 @@ struct HomeScreen: View {
                 .shadow(color: .green.opacity(0.3), radius: 10)
             }
             .buttonStyle(.plain)
-            .disabled(call.remoteIP.isEmpty)
-            .opacity(call.remoteIP.isEmpty ? 0.5 : 1.0)
+            .disabled(call.directory.searchQuery.isEmpty && call.callee.isEmpty)
+            .opacity((call.directory.searchQuery.isEmpty && call.callee.isEmpty) ? 0.5 : 1.0)
 
             Spacer()
         }
+        .sheet(isPresented: $showSettings) {
+            MacCallSettingsView(call: call)
+        }
+        .sheet(isPresented: $showNicknameSetup) {
+            MacNicknameSetupView(call: call)
+        }
+    }
+}
+
+private struct MacDirectoryContactButton: View {
+    let contact: DirectoryContact
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Circle().fill(contact.online ? Color.green : Color.gray).frame(width: 7, height: 7)
+                Text("@\(contact.nickname)").font(.system(size: 12, weight: .medium, design: .monospaced))
+                Spacer()
+                Text(contact.source.rawValue).font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundColor(contact.source == .mesh ? .orange : .green)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct MacNicknameSetupView: View {
+    @ObservedObject var call: CallManager
+    @ObservedObject private var directory: NicknameDirectoryController
+    @Environment(\.dismiss) private var dismiss
+
+    init(call: CallManager) {
+        self.call = call
+        directory = call.directory
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                Text("Create Nickname").font(.title2.bold())
+                Spacer()
+                Button("Done") { dismiss() }
+            }
+            HStack {
+                Text("@").foregroundColor(.secondary)
+                TextField("nickname", text: $directory.proposedNickname)
+                    .textFieldStyle(.roundedBorder)
+            }
+            Text("Use 3-20 lowercase letters, numbers, or underscore. The first character must be a letter.")
+                .font(.caption).foregroundColor(.secondary)
+            Button(directory.isWorking ? "Checking..." : "Check and create") { call.claimNickname() }
+                .disabled(directory.isWorking)
+            if let message = directory.statusMessage {
+                Text(message).font(.callout)
+            }
+            if !directory.suggestions.isEmpty {
+                Text("Alternatives").font(.headline)
+                HStack {
+                    ForEach(directory.suggestions, id: \.self) { suggestion in
+                        Button("@\(suggestion)") {
+                            directory.proposedNickname = suggestion
+                            call.claimNickname()
+                        }
+                    }
+                }
+            }
+            Divider()
+            Text(directory.claimKind == .verified ? "Globally verified" :
+                 directory.claimKind == .meshLocal ? "Mesh-local until the Directory API confirms uniqueness" :
+                 "Choose a nickname to register this device")
+                .font(.caption).foregroundColor(.secondary)
+            Spacer()
+        }
+        .padding(24)
+        .frame(width: 520, height: 340)
+        .onChange(of: directory.currentNickname) { current in
+            if current != nil { dismiss() }
+        }
+    }
+}
+
+private struct MacCallSettingsView: View {
+    @ObservedObject var call: CallManager
+    @ObservedObject private var account: AccountDeviceController
+    @Environment(\.dismiss) private var dismiss
+
+    init(call: CallManager) {
+        self.call = call
+        account = call.account
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                Text("Call Settings").font(.title2.bold())
+                Spacer()
+                Button("Done") { dismiss() }
+            }
+
+            Form {
+                Section("Identity") {
+                    TextField("Device name", text: Binding(
+                        get: { call.identity.displayName },
+                        set: { call.renameDevice($0) }
+                    ))
+                    LabeledContent("Device ID", value: String(call.identity.deviceID.prefix(16)))
+                    LabeledContent("Key fingerprint", value: call.identity.keyFingerprint)
+                    LabeledContent("Nickname", value: call.identity.nickname.map { "@\($0)" } ?? "Not created")
+                }
+
+                Section("Owner account") {
+                    LabeledContent("Account ID", value: String(account.accountID.prefix(16)))
+                    Text("Each Mac or iPhone has a separate revocable signing key; no shared password or private key is copied between devices.")
+                        .font(.caption).foregroundColor(.secondary)
+                    Button(account.isWorking ? "Syncing..." : "Sync Account") { account.sync() }
+                        .disabled(account.isWorking)
+                }
+
+                Section("Add Your Device") {
+                    HStack {
+                        Button("Create One-Time Code") { account.createLinkCode() }
+                            .disabled(account.isWorking)
+                        if let code = account.generatedLinkCode {
+                            Text(code).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+                            Button("Copy") {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(code, forType: .string)
+                            }
+                        }
+                    }
+                    HStack {
+                        TextField("link_... from trusted device", text: $account.linkCodeInput)
+                        Button("Link This Mac") { account.joinAccount() }
+                            .disabled(account.isWorking)
+                    }
+                    Text("The 128-bit code expires in 10 minutes and is accepted once. Passkey recovery will be enabled when the production HTTPS domain is associated with the app.")
+                        .font(.caption).foregroundColor(.secondary)
+                }
+
+                if !account.devices.isEmpty {
+                    Section("Your Devices") {
+                        ForEach(account.devices) { device in
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text(device.displayName + (device.current ? " (this Mac)" : ""))
+                                    Text("\(device.platform) · \(device.keyFingerprint)")
+                                        .font(.caption).foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                if device.revoked {
+                                    Text("Revoked").foregroundColor(.secondary)
+                                } else if !device.current {
+                                    Button("Revoke", role: .destructive) { account.revoke(device) }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if let message = account.statusMessage {
+                    Section("Account Status") { Text(message).font(.caption) }
+                }
+
+                Section("Routing") {
+                    Picker("Route", selection: $call.route) {
+                        ForEach(CallRoute.allCases) { route in
+                            Text(route.displayName).tag(route)
+                        }
+                    }
+                    TextField("Contact or device", text: $call.callee)
+                    TextField("Mesh peer IP", text: $call.remoteIP)
+                }
+
+                Section("Internet service") {
+                    TextField("API URL", text: $call.internetConfiguration.apiBaseURL)
+                    TextField("LiveKit URL", text: $call.internetConfiguration.liveKitURL)
+                    SecureField("Development room token", text: $call.internetConfiguration.developmentRoomToken)
+                    SecureField("Service access token", text: $call.internetConfiguration.accessToken)
+                }
+            }
+
+            HStack {
+                if let error = call.error {
+                    Text(error).foregroundColor(.red).font(.caption)
+                }
+                Spacer()
+                Button("Save") {
+                    call.saveInternetSettings()
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(24)
+        .frame(width: 680, height: 720)
     }
 }
 
@@ -148,7 +419,13 @@ struct ActiveCallView: View {
     var body: some View {
         ZStack {
             // Full-screen remote video
-            RemoteVideoView(decoder: call.decoder)
+            Group {
+                if call.activeRoute == .internet {
+                    MacInternetVideoView(controller: call.internet, peer: call.callee)
+                } else {
+                    RemoteVideoView(decoder: call.decoder)
+                }
+            }
                 .ignoresSafeArea()
                 .onTapGesture {
                     withAnimation(.easeInOut(duration: 0.2)) {
@@ -160,7 +437,17 @@ struct ActiveCallView: View {
             VStack {
                 HStack {
                     Spacer()
-                    if let session = call.previewSession {
+                    if call.activeRoute == .internet, let track = call.internet.localVideoTrack {
+                        SwiftUIVideoView(track, layoutMode: .fill, mirrorMode: .mirror)
+                            .frame(width: 140, height: 105)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(.white.opacity(0.3), lineWidth: 2))
+                            .shadow(color: .black.opacity(0.5), radius: 8)
+                            .offset(pipOffset)
+                            .gesture(DragGesture().onChanged { pipOffset = $0.translation })
+                            .padding(.trailing, 16)
+                            .padding(.top, 16)
+                    } else if let session = call.previewSession {
                         CameraPreview(session: session)
                             .frame(width: 140, height: 105)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -204,13 +491,13 @@ struct ActiveCallView: View {
                         // Mute toggle
                         ControlButton(icon: call.isMuted ? "mic.slash.fill" : "mic.fill",
                                       color: call.isMuted ? .red : Color.white.opacity(0.3)) {
-                            call.isMuted.toggle()
+                            call.toggleMute()
                         }
 
                         // Camera toggle
                         ControlButton(icon: call.cameraOff ? "video.slash.fill" : "video.fill",
                                       color: call.cameraOff ? .red : Color.white.opacity(0.3)) {
-                            call.cameraOff.toggle()
+                            call.toggleCamera()
                         }
 
                         // End call
@@ -228,6 +515,29 @@ struct ActiveCallView: View {
                         )
                         .ignoresSafeArea()
                     )
+                }
+            }
+        }
+    }
+}
+
+private struct MacInternetVideoView: View {
+    @ObservedObject var controller: InternetCallController
+    let peer: String
+
+    var body: some View {
+        ZStack {
+            Color.black
+            if let track = controller.remoteVideoTrack {
+                SwiftUIVideoView(track, layoutMode: .fill)
+            } else {
+                VStack(spacing: 12) {
+                    ProgressView()
+                    Text(controller.state.rawValue.uppercased())
+                        .font(.system(size: 12, design: .monospaced))
+                    Text(controller.participantName.isEmpty ? peer : controller.participantName)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.gray)
                 }
             }
         }

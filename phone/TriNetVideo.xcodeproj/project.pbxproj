@@ -7,30 +7,76 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		30BBD2896D5A7FC7B1925F43 /* CallKitCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77C7B555729BF4950129B2B3 /* CallKitCoordinator.swift */; };
 		32F9E38E7DAE216C3F1451B4 /* MeshMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A440834DBBB15D89B628F943 /* MeshMapView.swift */; };
 		46733E13DB201753378F9262 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 30BC89191B19A3BEEC4154B1 /* Assets.xcassets */; };
+		4A82037CE58913122DAD91B2 /* NicknameDirectory.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB09FD7E74ABA713CD5310EF /* NicknameDirectory.swift */; };
+		8BE32CD40859109FC2A7C369 /* CallIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7212A08167551ACF6967F7D0 /* CallIdentity.swift */; };
 		93828957945393D93D1AE545 /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 919A6C8C4AE3FF1BEBC24E2D /* App.swift */; };
 		9E0CD413BCD9A696DA51DC24 /* VideoPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3ED271D273E3217E7CC3EE2 /* VideoPipeline.swift */; };
 		C42AEF335F11DD33CC802C77 /* Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3E1BEB0E6D36884DC34BAF1 /* Views.swift */; };
+		D97D14140C893639F33F37D5 /* LiveKit in Frameworks */ = {isa = PBXBuildFile; productRef = C4D0DDD6535CFA404CBF8DAA /* LiveKit */; };
+		DCF621B6EAFBA584120600A9 /* NicknamePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E94DD97F9BCB86654BF8570F /* NicknamePolicyTests.swift */; };
 		E5F2C842E940E04413D23C77 /* ViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67409F0DFE04304A7A386F76 /* ViewModel.swift */; };
+		FAE00C03F4913C43EBDEE6A2 /* InternetCall.swift in Sources */ = {isa = PBXBuildFile; fileRef = 279CEAB4FFAA47773A21AE83 /* InternetCall.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		7AB41012168F582CBB73864F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 46F6CE57375BBA9D8E897E3E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 940A8758E3352D4C38C9BBA8;
+			remoteInfo = TriNetVideo;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		1E0F86581AC710AC4AA81C5F /* TriNetVideo.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TriNetVideo.entitlements; sourceTree = "<group>"; };
+		279CEAB4FFAA47773A21AE83 /* InternetCall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InternetCall.swift; sourceTree = "<group>"; };
 		30BC89191B19A3BEEC4154B1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		39BC2F38EBB30740C9BBE500 /* TriNetVideoTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TriNetVideoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		5235533C9F22E43B48C7BE18 /* TriNetVideo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TriNetVideo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		67409F0DFE04304A7A386F76 /* ViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewModel.swift; sourceTree = "<group>"; };
+		7212A08167551ACF6967F7D0 /* CallIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallIdentity.swift; sourceTree = "<group>"; };
+		77C7B555729BF4950129B2B3 /* CallKitCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallKitCoordinator.swift; sourceTree = "<group>"; };
 		919A6C8C4AE3FF1BEBC24E2D /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
 		A440834DBBB15D89B628F943 /* MeshMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshMapView.swift; sourceTree = "<group>"; };
 		B531BE39B4623AAA1D6E3823 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		C3E1BEB0E6D36884DC34BAF1 /* Views.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views.swift; sourceTree = "<group>"; };
 		C3ED271D273E3217E7CC3EE2 /* VideoPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoPipeline.swift; sourceTree = "<group>"; };
+		E94DD97F9BCB86654BF8570F /* NicknamePolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NicknamePolicyTests.swift; sourceTree = "<group>"; };
+		EB09FD7E74ABA713CD5310EF /* NicknameDirectory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NicknameDirectory.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFrameworksBuildPhase section */
+		A992AD0FA4A8B6D7F4F2E05C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D97D14140C893639F33F37D5 /* LiveKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
 /* Begin PBXGroup section */
+		26C2741AD7A62D60BD384EE3 /* shared */ = {
+			isa = PBXGroup;
+			children = (
+				7212A08167551ACF6967F7D0 /* CallIdentity.swift */,
+				279CEAB4FFAA47773A21AE83 /* InternetCall.swift */,
+				EB09FD7E74ABA713CD5310EF /* NicknameDirectory.swift */,
+			);
+			path = shared;
+			sourceTree = "<group>";
+		};
 		A6C8AF585BF4DA374BF1E301 = {
 			isa = PBXGroup;
 			children = (
+				26C2741AD7A62D60BD384EE3 /* shared */,
 				AB31945200E8755D13A21492 /* TriNetVideo */,
+				CAF0276C6DD58239B77C0AB2 /* TriNetVideoTests */,
 				BDEBCA25FD616B1244269FB0 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -40,8 +86,10 @@
 			children = (
 				919A6C8C4AE3FF1BEBC24E2D /* App.swift */,
 				30BC89191B19A3BEEC4154B1 /* Assets.xcassets */,
+				77C7B555729BF4950129B2B3 /* CallKitCoordinator.swift */,
 				B531BE39B4623AAA1D6E3823 /* Info.plist */,
 				A440834DBBB15D89B628F943 /* MeshMapView.swift */,
+				1E0F86581AC710AC4AA81C5F /* TriNetVideo.entitlements */,
 				C3ED271D273E3217E7CC3EE2 /* VideoPipeline.swift */,
 				67409F0DFE04304A7A386F76 /* ViewModel.swift */,
 				C3E1BEB0E6D36884DC34BAF1 /* Views.swift */,
@@ -53,8 +101,17 @@
 			isa = PBXGroup;
 			children = (
 				5235533C9F22E43B48C7BE18 /* TriNetVideo.app */,
+				39BC2F38EBB30740C9BBE500 /* TriNetVideoTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		CAF0276C6DD58239B77C0AB2 /* TriNetVideoTests */ = {
+			isa = PBXGroup;
+			children = (
+				E94DD97F9BCB86654BF8570F /* NicknamePolicyTests.swift */,
+			);
+			path = TriNetVideoTests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -66,6 +123,7 @@
 			buildPhases = (
 				6D90D1F1C47C345671E3F8F9 /* Sources */,
 				D2357CD5F9537B8A21AA2A90 /* Resources */,
+				A992AD0FA4A8B6D7F4F2E05C /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -73,10 +131,29 @@
 			);
 			name = TriNetVideo;
 			packageProductDependencies = (
+				C4D0DDD6535CFA404CBF8DAA /* LiveKit */,
 			);
 			productName = TriNetVideo;
 			productReference = 5235533C9F22E43B48C7BE18 /* TriNetVideo.app */;
 			productType = "com.apple.product-type.application";
+		};
+		E8136BB8EB84045A1718A9D7 /* TriNetVideoTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 229469408C45D0C1A6755657 /* Build configuration list for PBXNativeTarget "TriNetVideoTests" */;
+			buildPhases = (
+				99DD34D2894F9AB61ADB7D10 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BEE2656BFEFF6D42685E82F7 /* PBXTargetDependency */,
+			);
+			name = TriNetVideoTests;
+			packageProductDependencies = (
+			);
+			productName = TriNetVideoTests;
+			productReference = 39BC2F38EBB30740C9BBE500 /* TriNetVideoTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
@@ -90,6 +167,9 @@
 					940A8758E3352D4C38C9BBA8 = {
 						ProvisioningStyle = Automatic;
 					};
+					E8136BB8EB84045A1718A9D7 = {
+						ProvisioningStyle = Automatic;
+					};
 				};
 			};
 			buildConfigurationList = 07981B78B5E85DEEF70866B1 /* Build configuration list for PBXProject "TriNetVideo" */;
@@ -101,12 +181,16 @@
 			);
 			mainGroup = A6C8AF585BF4DA374BF1E301;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				7396F5F92AEBADE75587ABFF /* XCRemoteSwiftPackageReference "client-sdk-swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = BDEBCA25FD616B1244269FB0 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				940A8758E3352D4C38C9BBA8 /* TriNetVideo */,
+				E8136BB8EB84045A1718A9D7 /* TriNetVideoTests */,
 			);
 		};
 /* End PBXProject section */
@@ -128,16 +212,53 @@
 			buildActionMask = 2147483647;
 			files = (
 				93828957945393D93D1AE545 /* App.swift in Sources */,
+				8BE32CD40859109FC2A7C369 /* CallIdentity.swift in Sources */,
+				30BBD2896D5A7FC7B1925F43 /* CallKitCoordinator.swift in Sources */,
+				FAE00C03F4913C43EBDEE6A2 /* InternetCall.swift in Sources */,
 				32F9E38E7DAE216C3F1451B4 /* MeshMapView.swift in Sources */,
+				4A82037CE58913122DAD91B2 /* NicknameDirectory.swift in Sources */,
 				9E0CD413BCD9A696DA51DC24 /* VideoPipeline.swift in Sources */,
 				E5F2C842E940E04413D23C77 /* ViewModel.swift in Sources */,
 				C42AEF335F11DD33CC802C77 /* Views.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		99DD34D2894F9AB61ADB7D10 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DCF621B6EAFBA584120600A9 /* NicknamePolicyTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		BEE2656BFEFF6D42685E82F7 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 940A8758E3352D4C38C9BBA8 /* TriNetVideo */;
+			targetProxy = 7AB41012168F582CBB73864F /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		050C8A476BA2E2598C492C49 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.trinet.video.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TriNetVideo.app/TriNetVideo";
+			};
+			name = Release;
+		};
 		54A8B7DCB5C67571724CBC14 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -208,6 +329,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGNING_ALLOWED = YES;
 				CODE_SIGNING_REQUIRED = YES;
+				CODE_SIGN_ENTITLEMENTS = TriNetVideo/TriNetVideo.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 5EM4M85VSQ;
@@ -287,6 +409,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGNING_ALLOWED = YES;
 				CODE_SIGNING_REQUIRED = YES;
+				CODE_SIGN_ENTITLEMENTS = TriNetVideo/TriNetVideo.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 5EM4M85VSQ;
@@ -303,6 +426,23 @@
 			};
 			name = Release;
 		};
+		CA68EDE257D205E90053BB70 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.trinet.video.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TriNetVideo.app/TriNetVideo";
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -311,6 +451,15 @@
 			buildConfigurations = (
 				54A8B7DCB5C67571724CBC14 /* Debug */,
 				898E4F633D0B2254E3456141 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		229469408C45D0C1A6755657 /* Build configuration list for PBXNativeTarget "TriNetVideoTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CA68EDE257D205E90053BB70 /* Debug */,
+				050C8A476BA2E2598C492C49 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
@@ -325,6 +474,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		7396F5F92AEBADE75587ABFF /* XCRemoteSwiftPackageReference "client-sdk-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/livekit/client-sdk-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.15.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		C4D0DDD6535CFA404CBF8DAA /* LiveKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7396F5F92AEBADE75587ABFF /* XCRemoteSwiftPackageReference "client-sdk-swift" */;
+			productName = LiveKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 46F6CE57375BBA9D8E897E3E /* Project object */;
 }

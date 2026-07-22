@@ -10,6 +10,10 @@ settings:
     CODE_SIGN_IDENTITY: "-"
     CODE_SIGNING_REQUIRED: NO
     CODE_SIGNING_ALLOWED: YES
+packages:
+  LiveKit:
+    url: https://github.com/livekit/client-sdk-swift.git
+    from: 2.15.2
 targets:
   TriNetMonitor:
     type: application
@@ -20,6 +24,7 @@ targets:
       - path: RTIHeatmap.swift
       - path: RTI3D.swift
       - path: VideoCallTab.swift
+      - path: ../shared
       - path: TriNetVideo/CallManager.swift
       - path: TriNetVideo/CameraCapture.swift
       - path: TriNetVideo/ScreenCapture.swift
@@ -32,15 +37,28 @@ targets:
       - path: TriNetVideo/MeshCrypto.swift
       - path: TriNetVideo/LinkStatus.swift
       - path: TriNetVideo/OpusCodec.swift
+    dependencies:
+      - package: LiveKit
+    info:
+      path: TriNetMonitor-Info.plist
+      properties:
+        CFBundleDisplayName: "TRI-NET Monitor"
+        NSCameraUsageDescription: "TRI-NET needs camera for secure local and internet video calls"
+        NSMicrophoneUsageDescription: "TRI-NET needs microphone for video calls"
+        NSLocalNetworkUsageDescription: "TRI-NET discovers signed contacts and connects over local UDP"
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSBonjourServices:
+          - _trinet-call._udp
+        TRINET_API_BASE_URL: "http://SSDs-MacBook-Pro.local:8080"
+        TRINET_LIVEKIT_URL: ""
+        TRINET_SERVICE_ACCESS_TOKEN: ""
+        TRINET_DEVELOPMENT_ROOM_TOKEN: ""
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.trinet.monitor
         PRODUCT_NAME: TriNetMonitor
-        GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: "TRI-NET Monitor"
-        INFOPLIST_KEY_NSCameraUsageDescription: "Mesh monitor"
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Audio for mesh video calls"
-        INFOPLIST_KEY_NSLocalNetworkUsageDescription: "Monitor mesh network devices"
+        GENERATE_INFOPLIST_FILE: NO
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGNING_REQUIRED: NO
         CODE_SIGNING_ALLOWED: YES

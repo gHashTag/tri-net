@@ -45,6 +45,17 @@ pub mod anomaly_detector;
 #[path = "../gen/rust/quarantine_manager.rs"]
 pub mod quarantine_manager;
 
+#[path = "../gen/rust/internet_call.rs"]
+pub mod internet_call;
+
+#[path = "../gen/rust/nickname_directory.rs"]
+pub mod nickname_directory;
+#[path = "../gen/rust/mesh_call_signaling.rs"]
+pub mod mesh_call_signaling;
+
+#[path = "../gen/rust/group_chat.rs"]
+pub mod group_chat;
+
 // Types used across the crate
 pub type NodeId = u32;
 

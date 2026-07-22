@@ -19,6 +19,13 @@ struct RecFile: Identifiable {
 class StreamViewModel: ObservableObject {
     @Published var phase: CallPhase = .idle
     @Published var remoteIP: String = UserDefaults.standard.string(forKey: "remoteIP") ?? "192.168.1.105"
+    @Published var callee: String = UserDefaults.standard.string(forKey: "internetCallee") ?? "ssd26"
+    @Published var route: CallRoute = CallRoute(rawValue: UserDefaults.standard.string(forKey: "callRoute") ?? "Auto") ?? .automatic
+    @Published private(set) var activeRoute: CallRoute?
+    @Published var callError: String?
+    @Published var identity: DeviceIdentity
+    @Published var internetConfiguration: InternetCallConfiguration
+    @Published var incomingMeshCall: IncomingMeshCall?
     @Published var myIP: String = ""
     @Published var framesSent: Int = 0
     @Published var framesReceived: Int = 0
@@ -133,12 +140,22 @@ class StreamViewModel: ObservableObject {
     func sendChat(_ text: String) {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { return }
+        if activeRoute == .internet {
+            internet.sendChat(t)
+            chat.append(ChatLine(who: .me, text: t))
+            return
+        }
         var d = Data([0xFB, 0xCA]); d.append(Data(t.utf8))
         transport.send(d)
         chat.append(ChatLine(who: .me, text: t))
     }
 
     func sendReaction(_ emoji: String) {
+        if activeRoute == .internet {
+            internet.sendReaction(emoji)
+            showReaction(emoji)
+            return
+        }
         var d = Data([0xFE, 0xAC]); d.append(Data(emoji.utf8))
         transport.send(d)
         showReaction(emoji)
@@ -161,15 +178,97 @@ class StreamViewModel: ObservableObject {
     let transport = BSDTransport()
     let decoder = H264Decoder()
     let audio = AudioController()
+    let internet: InternetCallController
+    let directory: NicknameDirectoryController
+    let account: AccountDeviceController
+    let groupChat: GroupChatController
 
     private var bytesSent = 0
     private var bytesRecv = 0
     private var timer: Timer?
+    private var callKitUUID: UUID?
+    private var meshAttemptID: UUID?
 
     init() {
+        let loadedIdentity: DeviceIdentity
+        do {
+            loadedIdentity = try DeviceIdentityStore.shared.loadOrCreate(defaultName: "ssd26")
+        } catch {
+            loadedIdentity = DeviceIdentity(userID: UUID().uuidString.lowercased(),
+                                            deviceID: UUID().uuidString.lowercased(),
+                                            displayName: "ssd26",
+                                            nickname: nil,
+                                            signingPublicKey: "",
+                                            keyFingerprint: "unavailable")
+        }
+        let loadedConfiguration = InternetCallConfiguration.load()
+        identity = loadedIdentity
+        internetConfiguration = loadedConfiguration
+        internet = InternetCallController(identity: loadedIdentity, configuration: loadedConfiguration)
+        directory = NicknameDirectoryController(identity: loadedIdentity, configuration: loadedConfiguration)
+        account = AccountDeviceController(identity: loadedIdentity, configuration: loadedConfiguration)
+        groupChat = GroupChatController(identity: loadedIdentity, configuration: loadedConfiguration)
         myIP = getLocalIP()
         if let saved = UserDefaults.standard.array(forKey: "recentCallIPs") as? [String] {
             recentIPs = saved
+        }
+        internet.onChat = { [weak self] text in
+            self?.chat.append(ChatLine(who: .them, text: text))
+        }
+        internet.onReaction = { [weak self] value in
+            self?.showReaction(value)
+        }
+        internet.onIncomingCall = { [weak self] incoming in
+            guard let self, self.phase == .idle else { return }
+            CallKitCoordinator.shared.reportIncoming(callID: incoming.callID,
+                                                     caller: incoming.caller,
+                                                     video: incoming.video)
+        }
+        directory.onIdentityChanged = { [weak self] updatedIdentity in
+            guard let self else { return }
+            self.identity = updatedIdentity
+            self.internet.update(identity: updatedIdentity, configuration: self.internetConfiguration)
+            self.account.update(identity: updatedIdentity, configuration: self.internetConfiguration)
+            self.groupChat.update(identity: updatedIdentity, configuration: self.internetConfiguration)
+            self.internet.startIncomingPolling(voipToken: UserDefaults.standard.string(forKey: "voipPushToken"))
+            self.account.sync()
+        }
+        account.onIdentityChanged = { [weak self] updatedIdentity in
+            guard let self else { return }
+            self.identity = updatedIdentity
+            self.internet.update(identity: updatedIdentity, configuration: self.internetConfiguration)
+            self.directory.update(identity: updatedIdentity, configuration: self.internetConfiguration)
+            self.groupChat.update(identity: updatedIdentity, configuration: self.internetConfiguration)
+        }
+        directory.onIncomingMeshInvite = { [weak self] invite, address in
+            guard let self, self.phase == .idle else { return }
+            self.incomingMeshCall = IncomingMeshCall(invite: invite, sourceAddress: address)
+        }
+        internet.startIncomingPolling(voipToken: UserDefaults.standard.string(forKey: "voipPushToken"))
+        account.sync()
+        groupChat.startPolling()
+    }
+
+    func saveInternetSettings() {
+        internetConfiguration.save()
+        UserDefaults.standard.set(route.rawValue, forKey: "callRoute")
+        internet.update(identity: identity, configuration: internetConfiguration)
+        directory.update(identity: identity, configuration: internetConfiguration)
+        account.update(identity: identity, configuration: internetConfiguration)
+        groupChat.update(identity: identity, configuration: internetConfiguration)
+        internet.startIncomingPolling(voipToken: UserDefaults.standard.string(forKey: "voipPushToken"))
+        account.sync()
+    }
+
+    func renameDevice(_ name: String) {
+        do {
+            identity = try DeviceIdentityStore.shared.rename(name)
+            internet.update(identity: identity, configuration: internetConfiguration)
+            directory.update(identity: identity, configuration: internetConfiguration)
+            account.update(identity: identity, configuration: internetConfiguration)
+            groupChat.update(identity: identity, configuration: internetConfiguration)
+        } catch {
+            callError = error.localizedDescription
         }
     }
 
@@ -184,6 +283,135 @@ class StreamViewModel: ObservableObject {
     }
 
     func startCall() {
+        callError = nil
+        let typedTarget = directory.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let target = NicknamePolicy.normalize(typedTarget.isEmpty ? callee : typedTarget)
+        callee = target
+        let meshContact = directory.meshContact(named: target)
+        let selected: CallRoute
+        switch route {
+        case .automatic:
+            if isMeshAddress(target) {
+                remoteIP = target
+                selected = .mesh
+            } else if let meshContact, let address = meshContact.meshAddress {
+                remoteIP = address
+                selected = .mesh
+            } else {
+                selected = .internet
+            }
+        case .mesh, .internet:
+            selected = route
+        }
+        if selected == .mesh {
+            if isMeshAddress(target) {
+                remoteIP = target
+            } else if let address = meshContact?.meshAddress {
+                remoteIP = address
+            } else {
+                callError = "@\(target) is not visible in the current mesh."
+                activeRoute = nil
+                return
+            }
+        }
+        activeRoute = selected
+        UserDefaults.standard.set(route.rawValue, forKey: "callRoute")
+        if selected == .internet {
+            startInternetCall()
+        } else {
+            do {
+                _ = try directory.sendMeshInvite(to: remoteIP, port: meshContact?.meshPort)
+            } catch {
+                callError = error.localizedDescription
+                activeRoute = nil
+                return
+            }
+            startMeshCall()
+        }
+    }
+
+    func acceptIncomingMeshCall() {
+        guard let incoming = incomingMeshCall else { return }
+        incomingMeshCall = nil
+        callee = incoming.invite.nickname
+        remoteIP = incoming.sourceAddress
+        activeRoute = .mesh
+        startMeshCall()
+    }
+
+    func declineIncomingMeshCall() {
+        incomingMeshCall = nil
+    }
+
+    func claimNickname() {
+        directory.claimProposedNickname()
+    }
+
+    func searchNicknames() {
+        let target = NicknamePolicy.normalize(directory.searchQuery)
+        if !target.isEmpty { callee = target }
+        directory.search()
+    }
+
+    func selectContact(_ contact: DirectoryContact) {
+        callee = contact.nickname
+        if let address = contact.meshAddress {
+            remoteIP = address
+        }
+        route = .automatic
+    }
+
+    private func startInternetCall() {
+        let target = callee.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !target.isEmpty else {
+            callError = "Enter a contact or device name."
+            activeRoute = nil
+            return
+        }
+        UserDefaults.standard.set(target, forKey: "internetCallee")
+        internet.update(identity: identity, configuration: internetConfiguration)
+        callKitUUID = CallKitCoordinator.shared.startOutgoing(handle: target, video: true)
+        phase = .connecting
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await self.internet.start(callee: target, audio: true, video: true)
+                await MainActor.run {
+                    self.phase = .live
+                    if let uuid = self.callKitUUID { CallKitCoordinator.shared.markOutgoingConnected(uuid) }
+                }
+            } catch {
+                await MainActor.run {
+                    if let uuid = self.callKitUUID { CallKitCoordinator.shared.end(uuid) }
+                    self.callKitUUID = nil
+                    self.callError = error.localizedDescription
+                    self.phase = .idle
+                    self.activeRoute = nil
+                }
+            }
+        }
+    }
+
+    func answerInternetCall(callID: String) {
+        activeRoute = .internet
+        phase = .connecting
+        internet.update(identity: identity, configuration: internetConfiguration)
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await self.internet.join(callID: callID, audio: true, video: true)
+                await MainActor.run { self.phase = .live }
+            } catch {
+                await MainActor.run {
+                    self.callError = error.localizedDescription
+                    self.phase = .idle
+                    self.activeRoute = nil
+                }
+            }
+        }
+    }
+
+    private func startMeshCall() {
         UserDefaults.standard.set(remoteIP, forKey: "remoteIP")
         if !recentIPs.contains(remoteIP) {
             recentIPs.insert(remoteIP, at: 0)
@@ -192,8 +420,15 @@ class StreamViewModel: ObservableObject {
         }
 
         phase = .connecting
+        let attemptID = UUID()
+        meshAttemptID = attemptID
 
         // UDP: send to remoteIP:7000, listen on 7000 (same port for both)
+        transport.onSecureSessionReady = { [weak self] in
+            guard let self, self.meshAttemptID == attemptID else { return }
+            self.meshAttemptID = nil
+            self.phase = .live
+        }
         transport.connect(host: remoteIP, port: 7000, recvPort: 7000)
 
         // Peer PLI → force an IDR from our encoder
@@ -283,13 +518,24 @@ class StreamViewModel: ObservableObject {
 
         startABR()
 
-        // Fallback: go live after 2s even without remote video
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            if self.phase == .connecting { self.phase = .live }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
+            guard let self, self.meshAttemptID == attemptID, self.phase == .connecting else { return }
+            self.callError = "The local peer did not accept the call within 30 seconds."
+            self.stopCall()
         }
     }
 
     func stopCall() {
+        if activeRoute == .internet {
+            internet.disconnect()
+            CallKitCoordinator.shared.endCurrent()
+            callKitUUID = nil
+            phase = .idle
+            activeRoute = nil
+            framesSent = 0
+            framesReceived = 0
+            return
+        }
         if isRecording {
             recorder.stop { [weak self] url in
                 DispatchQueue.main.async { if let u = url { self?.shareFile = RecFile(url: u) } }
@@ -301,12 +547,31 @@ class StreamViewModel: ObservableObject {
         camera.stopAll()
         audio.stop()
         transport.disconnect()
+        meshAttemptID = nil
         timer?.invalidate(); timer = nil
         abrTimer?.invalidate(); abrTimer = nil
         phase = .idle
         framesSent = 0; framesReceived = 0
         bytesSent = 0; bytesRecv = 0
         txKBps = 0; rxKBps = 0
+        activeRoute = nil
+    }
+
+    func toggleMute() {
+        isMuted.toggle()
+        if activeRoute == .internet { internet.setMuted(isMuted) }
+    }
+
+    func toggleCamera() {
+        cameraOff.toggle()
+        if activeRoute == .internet { internet.setCamera(enabled: !cameraOff) }
+    }
+
+    private func isMeshAddress(_ value: String) -> Bool {
+        let address = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if address.hasSuffix(".local") { return true }
+        let parts = address.split(separator: ".")
+        return parts.count == 4 && parts.allSatisfy { Int($0).map { (0...255).contains($0) } ?? false }
     }
 
     // Get local WiFi IP

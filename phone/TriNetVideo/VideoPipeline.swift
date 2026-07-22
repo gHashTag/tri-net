@@ -14,6 +14,9 @@ class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     let session = AVCaptureSession()
     private let output = AVCaptureVideoDataOutput()
     private var encoder: H264Encoder?
+    private var rotationCoordinator: AnyObject?
+    private var rotationObservation: NSKeyValueObservation?
+    private var appliedRotationAngle: CGFloat?
     var onFrame: ((Data, Bool) -> Void)?
     var previewSession: AVCaptureSession { session }
 
@@ -28,50 +31,98 @@ class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     private func setupSession() {
         session.beginConfiguration()
         session.sessionPreset = AVCaptureSession.Preset(rawValue: "AVCaptureSessionPreset352x288")
+        var activeCamera: AVCaptureDevice?
         if let cam = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position),
            let input = try? AVCaptureDeviceInput(device: cam),
            session.canAddInput(input) {
             session.addInput(input)
+            activeCamera = cam
         }
         output.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange]
         output.alwaysDiscardsLateVideoFrames = true
         output.setSampleBufferDelegate(self, queue: DispatchQueue(label: "camera"))
         if session.canAddOutput(output) { session.addOutput(output) }
         session.commitConfiguration()
-        applyOrientation()
+        if let activeCamera { configureOrientation(for: activeCamera) }
     }
 
     func switchCamera() {
         position = (position == .front) ? .back : .front
         session.beginConfiguration()
         session.inputs.forEach { session.removeInput($0) }
+        var activeCamera: AVCaptureDevice?
         if let cam = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position),
            let input = try? AVCaptureDeviceInput(device: cam),
            session.canAddInput(input) {
             session.addInput(input)
+            activeCamera = cam
         }
         session.commitConfiguration()
-        // input swap re-creates the output connection — orientation must be re-applied
-        applyOrientation()
+        // An input swap re-creates the output connection and the front and back
+        // cameras can require different physical buffer rotations.
+        if let activeCamera { configureOrientation(for: activeCamera) }
         // restart the encoder so its lazy setup matches the new camera's frames
-        if encoder != nil {
-            let enc = H264Encoder()
-            enc.onFrame = { [weak self] data, isKey in self?.onFrame?(data, isKey) }
-        enc.meshMode = meshMode
-            encoder = enc
+        replaceEncoderIfRunning()
+    }
+
+    // Raw H.264 carries no orientation metadata, so the outgoing pixel buffers
+    // must be physically upright before VideoToolbox encodes them. A hardcoded
+    // 90 degrees is wrong for some front cameras. The system coordinator knows
+    // the correct angle for the active camera and physical device orientation.
+    private func configureOrientation(for camera: AVCaptureDevice) {
+        rotationObservation?.invalidate()
+        rotationObservation = nil
+        rotationCoordinator = nil
+        appliedRotationAngle = nil
+
+        if #available(iOS 17.0, *) {
+            let coordinator = AVCaptureDevice.RotationCoordinator(device: camera, previewLayer: nil)
+            rotationCoordinator = coordinator
+            rotationObservation = coordinator.observe(
+                \.videoRotationAngleForHorizonLevelCapture,
+                options: [.initial, .new]
+            ) { [weak self] coordinator, _ in
+                self?.applyRotation(coordinator.videoRotationAngleForHorizonLevelCapture)
+            }
+        } else {
+            guard let connection = output.connection(with: .video),
+                  connection.isVideoOrientationSupported else {
+                NSLog("TRINET: camera orientation is unsupported")
+                return
+            }
+            connection.videoOrientation = .portrait
+            NSLog("TRINET: camera capture orientation portrait")
         }
     }
 
-    // Raw H.264 carries no orientation metadata, so rotate at capture:
-    // the app is portrait-locked, encode frames upright (90 deg from the
-    // landscape sensor) and every receiver displays them as-is.
-    private func applyOrientation() {
-        guard let conn = output.connection(with: .video) else { return }
-        if #available(iOS 17.0, *) {
-            if conn.isVideoRotationAngleSupported(90) { conn.videoRotationAngle = 90 }
-        } else if conn.isVideoOrientationSupported {
-            conn.videoOrientation = .portrait
+    @available(iOS 17.0, *)
+    private func applyRotation(_ angle: CGFloat) {
+        guard let connection = output.connection(with: .video) else {
+            NSLog("TRINET: camera video connection unavailable for rotation")
+            return
         }
+        guard connection.isVideoRotationAngleSupported(angle) else {
+            NSLog("TRINET: camera rotation angle \(Int(angle)) is unsupported")
+            return
+        }
+        guard appliedRotationAngle != angle else { return }
+        connection.videoRotationAngle = angle
+        appliedRotationAngle = angle
+        let cameraName = position == .front ? "front" : "back"
+        NSLog("TRINET: \(cameraName) camera capture rotation \(Int(angle)) degrees")
+        encoder?.forceKeyframe()
+    }
+
+    private func replaceEncoderIfRunning() {
+        guard encoder != nil else { return }
+        let enc = H264Encoder()
+        enc.onFrame = { [weak self] data, isKey in self?.onFrame?(data, isKey) }
+        enc.meshMode = meshMode
+        encoder = enc
+    }
+
+    deinit {
+        rotationObservation?.invalidate()
     }
 
     func start() {
@@ -251,9 +302,15 @@ class H264Encoder {
     }
 
     func encode(pixelBuffer pb: CVPixelBuffer, pts: CMTime) {
-        if session == nil {
-            let w = Int32(CVPixelBufferGetWidth(pb))
-            let h = Int32(CVPixelBufferGetHeight(pb))
+        let w = Int32(CVPixelBufferGetWidth(pb))
+        let h = Int32(CVPixelBufferGetHeight(pb))
+        if session == nil || width != w || height != h {
+            if let oldSession = session {
+                VTCompressionSessionCompleteFrames(oldSession, untilPresentationTimeStamp: .invalid)
+                VTCompressionSessionInvalidate(oldSession)
+                session = nil
+                NSLog("TRINET: encoder input changed from \(width)x\(height) to \(w)x\(h)")
+            }
             guard setup(width: w, height: h) else { return }
             NSLog("TRINET: encoder session \(w)x\(h)")
         }
@@ -440,7 +497,9 @@ class BSDTransport {
     // timer scheduled on it would never fire.
     private let hsQueue = DispatchQueue(label: "mesh.hs", qos: .userInitiated)
     var onData: ((Data) -> Void)?
+    var onSecureSessionReady: (() -> Void)?
     var isReady = false
+    private var secureReadyEmitted = false
 
     // MARK: link feedback (see specs/video_bridge.t27)
     //
@@ -514,6 +573,8 @@ class BSDTransport {
 
     func connect(host: String, port: UInt16, recvPort: UInt16) {
         disconnect()
+        crypto = MeshCrypto()
+        secureReadyEmitted = false
         startFeedbackListener()
 
         fd = socket(AF_INET, SOCK_DGRAM, 0)
@@ -570,6 +631,7 @@ class BSDTransport {
                     let pkt = Data(bytes: buf, count: n)
                     if self.crypto.isHandshake(pkt) {
                         self.crypto.consumeHandshake(pkt)
+                        self.emitSecureReadyIfNeeded()
                         // Always answer: the peer keeps sending handshakes only
                         // while it hasn't derived the session (its ARP may have
                         // dropped our earlier reply), and stops once it has —
@@ -595,8 +657,14 @@ class BSDTransport {
     // MARK: forward-secret session (see MeshCrypto). Data is sealed under a
     // per-connection ephemeral session key; the static PSK only authenticates
     // the handshake, so a later PSK leak can't decrypt recorded traffic.
-    private let crypto = MeshCrypto()
+    private var crypto = MeshCrypto()
     private var handshakeTimer: DispatchSourceTimer?
+
+    private func emitSecureReadyIfNeeded() {
+        guard crypto.established, !secureReadyEmitted else { return }
+        secureReadyEmitted = true
+        DispatchQueue.main.async { self.onSecureSessionReady?() }
+    }
 
     // MARK: application-level fragmentation
     // UDP datagrams are capped (~9KB default on Apple platforms) and anything
