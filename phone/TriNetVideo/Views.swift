@@ -73,6 +73,63 @@ struct HomeView: View {
                         }
 
                         iPeerRoster(vm: vm, discovery: vm.discovery)
+
+                        // Missed calls — one-tap call back (newest first, capped at 5).
+                        if !vm.missedCalls.isEmpty {
+                            VStack(spacing: 6) {
+                                ForEach(vm.missedCalls) { m in
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "phone.arrow.down.left").font(.system(size: 12)).foregroundColor(DS.danger)
+                                        Text("Missed · \(m.name)").font(DS.ui(13)).foregroundColor(DS.text).lineLimit(1)
+                                        Text(m.at, style: .time).font(DS.mono(10)).foregroundColor(DS.faint)
+                                        Spacer()
+                                        Button("Call back") { vm.remoteIP = m.ip; vm.startCall() }
+                                            .font(DS.mono(12)).foregroundColor(.green)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 14).padding(.vertical, 10)
+                            .background(DS.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(DS.hairline, lineWidth: 1))
+                        }
+
+                        // Recent-call journal: duration + average link quality of past completed calls.
+                        if !vm.recentCalls.isEmpty {
+                            VStack(spacing: 6) {
+                                HStack {
+                                    Text("RECENT").font(DS.mono(9)).foregroundColor(DS.faint).tracking(1)
+                                    Spacer()
+                                    if #available(iOS 16.0, *) {
+                                        ShareLink(item: vm.callJournalText) {
+                                            Text("Share log").font(DS.mono(9)).foregroundColor(DS.dim)
+                                        }
+                                    }
+                                }
+                                ForEach(vm.recentCalls.prefix(4)) { r in
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "phone.connection").font(.system(size: 12)).foregroundColor(DS.dim)
+                                        Text(r.peer).font(DS.mono(12)).foregroundColor(DS.text).lineLimit(1)
+                                        Spacer()
+                                        Text("\(r.durationSec/60)m\(String(format: "%02d", r.durationSec%60))s · \(r.avgKbps)k\(r.stalls > 0 ? " · ⚠︎\(r.stalls)" : "")")
+                                            .font(DS.mono(10)).foregroundColor(r.avgJitterMs > 40 || r.stalls > 0 ? DS.danger : DS.faint)
+                                        Button("Call") { vm.remoteIP = r.peer; vm.startCall() }
+                                            .font(DS.mono(11)).foregroundColor(.green)
+                                    }
+                                }
+                                // Aggregate stability across the whole journal.
+                                let s = vm.callStats
+                                Divider().overlay(DS.hairline)
+                                HStack(spacing: 8) {
+                                    Text("\(s.count) calls").font(DS.mono(9)).foregroundColor(DS.dim)
+                                    Spacer()
+                                    Text("avg \(s.avgDurationSec/60)m\(String(format: "%02d", s.avgDurationSec%60))s · \(s.avgKbps)k · \(s.totalStalls) stalls")
+                                        .font(DS.mono(9)).foregroundColor(s.totalStalls > 0 ? DS.danger : DS.faint)
+                                }
+                            }
+                            .padding(.horizontal, 14).padding(.vertical, 10)
+                            .background(DS.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(DS.hairline, lineWidth: 1))
+                        }
                     }
                     .padding(.horizontal, 24)
 
@@ -364,11 +421,63 @@ func setInterfaceOrientation(_ mask: UIInterfaceOrientationMask) {
     }
 }
 
+// Tap-to-expand link-quality panel: 60s sparklines of encode bitrate + peer jitter.
+private struct iLinkStatsPanel: View {
+    @ObservedObject var vm: StreamViewModel
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("LINK QUALITY · 60s").font(DS.mono(10)).foregroundColor(DS.faint).tracking(1)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Bitrate  \(vm.bitrateKbps) kbps").font(DS.mono(12)).foregroundColor(DS.text)
+                iSparkline(values: vm.bitrateHistory.map(Double.init), tint: DS.live).frame(height: 44)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Peer jitter  \(vm.peerJitterMs) ms").font(DS.mono(12)).foregroundColor(vm.peerJitterMs > 40 ? DS.danger : DS.text)
+                iSparkline(values: vm.jitterHistory.map(Double.init), tint: vm.peerJitterMs > 40 ? DS.danger : DS.dim, threshold: 40).frame(height: 44)
+            }
+            Text("Jitter > 40ms triggers a bitrate back-off.").font(DS.ui(11)).foregroundColor(DS.faint)
+        }
+        .padding(20).frame(maxWidth: .infinity, alignment: .leading)
+        .background(DS.ink)
+    }
+}
+
+private struct iSparkline: View {
+    let values: [Double]
+    var tint: Color = .green
+    var threshold: Double? = nil
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width, h = geo.size.height
+            let maxV = max(values.max() ?? 1, threshold ?? 0, 1)
+            ZStack {
+                if let t = threshold {
+                    let ty = h - CGFloat(t / maxV) * h
+                    Path { p in p.move(to: CGPoint(x: 0, y: ty)); p.addLine(to: CGPoint(x: w, y: ty)) }
+                        .stroke(DS.danger.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                }
+                if values.count > 1 {
+                    Path { p in
+                        for (i, v) in values.enumerated() {
+                            let x = w * CGFloat(i) / CGFloat(values.count - 1)
+                            let y = h - CGFloat(v / maxV) * h
+                            if i == 0 { p.move(to: CGPoint(x: x, y: y)) } else { p.addLine(to: CGPoint(x: x, y: y)) }
+                        }
+                    }.stroke(tint, style: StrokeStyle(lineWidth: 2, lineJoin: .round))
+                }
+            }
+        }
+        .background(DS.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
+}
+
 struct CallScreen: View {
     @ObservedObject var vm: StreamViewModel
     @State private var showControls = true
     @State private var showChat = false
     @State private var showLog = false
+    @State private var showLinkStats = false
     @State private var draft = ""
     @State private var wantLandscape = false
     private let reactions = ["👍", "❤️", "😂", "👏", "🔥"]
@@ -458,8 +567,18 @@ struct CallScreen: View {
             if showControls && !showChat {
                 VStack(spacing: 0) {
                     HStack(spacing: 10) {
-                        StatusTag(text: vm.framesReceived > 0 ? "Secure" : "Connecting", live: vm.framesReceived > 0)
+                        StatusTag(text: vm.framesReceived > 0 ? "Secure" : (vm.noAnswer ? "No answer" : "Calling…"),
+                                  live: vm.framesReceived > 0)
                             .background(DS.ink.opacity(0.5), in: Capsule())
+                        // Make link trouble visible instead of a silent freeze.
+                        if vm.linkHealth != .good {
+                            StatusTag(text: vm.linkHealth == .stalled ? "Reconnecting…" : "Weak connection", live: false)
+                                .background((vm.linkHealth == .stalled ? DS.danger : Color.orange).opacity(0.9), in: Capsule())
+                        } else if vm.linkRestored {
+                            StatusTag(text: "Connection restored", live: true)
+                                .background(DS.live.opacity(0.9), in: Capsule())
+                                .transition(.opacity)
+                        }
                         Spacer()
                         // Passive REC indicator (only while recording); the toggle now lives in the main
                         // control row, mirroring the macOS layout.
@@ -486,6 +605,10 @@ struct CallScreen: View {
                                 .padding(.horizontal, 8).padding(.vertical, 5)
                                 .overlay(Capsule().stroke(DS.hairline, lineWidth: 1))
                         }.buttonStyle(.plain)
+                        // Live BWE readout: peer's receive jitter + our encode rate. Green under the 40ms
+                        // back-off threshold, red above — network health at a glance (Zoom-style indicator).
+                        Text("\(vm.peerJitterMs)ms·\(vm.camera.bitrateKbps)k")
+                            .font(DS.mono(10)).foregroundColor(vm.peerJitterMs > 40 ? DS.danger : .green)
                         Text(vm.remoteIP).font(DS.mono(11)).foregroundColor(DS.faint)
                     }
                     .padding(.horizontal, 16).padding(.top, 8)
@@ -509,6 +632,12 @@ struct CallScreen: View {
                             iMeter(label: "Mic", level: vm.txLevel, muted: vm.isMuted)
                             iMeter(label: "In", level: vm.rxLevel, muted: false)
                             Spacer()
+                            // Link-quality at a glance: encode bitrate + peer-reported jitter (red = queueing).
+                            // Tap to expand a 60s sparkline of both.
+                            Button { showLinkStats = true } label: {
+                                Text("\(vm.bitrateKbps)k · jit \(vm.peerJitterMs)ms")
+                                    .font(DS.mono(11)).foregroundColor(vm.peerJitterMs > 40 ? DS.danger : DS.faint)
+                            }.buttonStyle(.plain)
                             Text("↑\(vm.framesSent) ↓\(vm.framesReceived)")
                                 .font(DS.mono(11)).foregroundColor(DS.faint)
                         }
@@ -546,6 +675,13 @@ struct CallScreen: View {
         .animation(.spring(response: 0.35), value: vm.liveReaction)
         .animation(.spring(response: 0.3), value: showChat)
         .onDisappear { if wantLandscape { setInterfaceOrientation(.portrait) } }   // call ended -> home is portrait
+        .sheet(isPresented: $showLinkStats) {
+            if #available(iOS 16.0, *) {
+                iLinkStatsPanel(vm: vm).presentationDetents([.height(240)])
+            } else {
+                iLinkStatsPanel(vm: vm)
+            }
+        }
     }
 }
 

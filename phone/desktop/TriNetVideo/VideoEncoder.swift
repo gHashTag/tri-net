@@ -215,11 +215,20 @@ class VideoEncoder {
     // seeks the ceiling without oscillating. The old x1.2/x0.7 swung 36% and sat
     // at 70% of the link; +10 kbps / x0.9 settles near 80% and holds, with zero
     // steady-state loss. (Swept in frags/s as +15/x0.9; ~15 frags/s = ~10 kbps.)
+    // Escalating additive increase (slow-start style, as in TCP/GCC probing): every consecutive clean tick
+    // DOUBLES the climb step (10k -> 20k -> 40k -> 80k cap), any loss resets it. The old flat +10k/tick took
+    // ~90s to climb 900k after a dip; escalation reaches it in ~6 ticks while still backing off instantly.
+    private var climbStep = 10_000
     func nudgeBitrate(down: Bool) {
         guard let s = session, maxBitrate > 0 else { return }
         let floor = 100_000   // absolute, so the resolution ladder can reach its small rungs on a weak link
-        curBitrate = down ? max(floor, Int(Double(curBitrate) * 0.9))
-                          : min(maxBitrate, curBitrate + 10_000)
+        if down {
+            climbStep = 10_000
+            curBitrate = max(floor, Int(Double(curBitrate) * 0.9))
+        } else {
+            curBitrate = min(maxBitrate, curBitrate + climbStep)
+            climbStep = min(80_000, climbStep * 2)
+        }
         bitrateKbps = curBitrate / 1000
         VTSessionSetProperty(s, key: kVTCompressionPropertyKey_AverageBitRate, value: curBitrate as CFNumber)
     }

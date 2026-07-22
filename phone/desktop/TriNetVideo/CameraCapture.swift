@@ -49,7 +49,12 @@ class CameraCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         ]
         output.alwaysDiscardsLateVideoFrames = true
         output.setSampleBufferDelegate(self, queue: queue)
-        if session.canAddOutput(output) {
+        // Idempotent (WebRTC-style: the capturer OUTLIVES a call): stop() leaves the output attached, so on
+        // the 2nd call the same instance is already in the session and canAddOutput correctly says false —
+        // that is REUSE, not a failure. Only a genuine "can't attach a fresh output" is an error.
+        if session.outputs.contains(output) {
+            // already attached from a previous call — frames keep flowing through the same delegate
+        } else if session.canAddOutput(output) {
             session.addOutput(output)
         } else {
             NSLog("TRINET: canAddOutput=false — data output NOT attached")

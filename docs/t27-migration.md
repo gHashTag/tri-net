@@ -28,12 +28,12 @@ truth), so the Rust node `include!`s generated code instead of hand-authoring bu
 |---|---|---|---|---|---|
 | wire.rs | 170 | header/kind/BE bytes | wire.t27 | ✅ | ✅ (precedent) |
 | rti.rs | 844 | (partial) | rti_security.t27 | ✅ | partial |
-| **rti_alert.rs** | 174 | **severity ladder** | **rti_alert.t27 ✅ NEW** | **✅ 0 err, gen-rust bit-identical** | ⏳ next |
-| discovery.rs | 432 | HELLO byte layout / ETX validity | NONE | — | — |
-| routing.rs | 511 | ETX integer metric / next-hop select | NONE | — | — |
-| modem.rs | 781 | Barker preamble / frame length logic | NONE | — | — |
+| **rti_alert.rs** | 174 | **severity ladder** | **rti_alert.t27** | ✅ | ✅ include! wired, cargo test 3/3 (2026-07-22) |
+| discovery.rs | 432 | HELLO layout/gates/freshness | discovery.t27 | ✅ | ✅ include! wired, tests 14/14 (2026-07-22) |
+| routing.rs | 511 | ETX metric (fixed-point milli) | routing_etx.t27 | ✅ | ETX metric + RFC8966 feasibility/learn spec-first, equivalence test pinned to f32 (routing 19/19); live-path rewire pending radio test (2026-07-22) |
+| modem.rs | 781 | frame geometry / sync gate | modem_frame.t27 | ✅ | ✅ include! wired + equivalence test, modem 23/23 (2026-07-22) |
 | gf16.rs | 663 | GF16 fixed-point (host DSP model) | NONE | — | — |
-| router.rs | 1350 | hop selection / TTL logic | NONE | — | — |
+| router.rs | 1350 | TTL + forwarding decision | router_ttl.t27 | ✅ | ✅ include! wired + equivalence + behavioral tests, router 27/27 (2026-07-22) |
 | crypto.rs | 907 | nonce/epoch/replay-window integer logic only | NONE | — | — |
 | daemon.rs | 328 | (mostly orchestration/I/O) | — | — | — |
 | tun_dev.rs | 204 | I/O — NOT t27 | — | — | — |

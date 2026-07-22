@@ -58,12 +58,27 @@ pre-commit:
 
     no-shell-scripts:
       run: |
-        sh_files=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.sh$' || true)
+        # CLAUDE.md ALLOWED list: smoke/*.sh are test-runner scripts (not business logic) — exempt.
+        sh_files=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.sh$' | grep -v '^smoke/' || true)
         if [ -n "$sh_files" ]; then
           echo "VIOLATION L7 (UNITY): New shell script: $sh_files"
-          echo "Use Rust (cargo) or t27c instead."
+          echo "Use Rust (cargo) or t27c instead (smoke/*.sh test runners are exempt per CLAUDE.md)."
           exit 1
         fi
+
+    specs-typecheck:
+      run: |
+        # A spec that fails typecheck ships a STALE gen file silently (build.rs skips failures).
+        # Sweep every staged spec so a broken .t27 can never live in the tree unnoticed.
+        T27C=../t27/target/release/t27c
+        if [ ! -f "$T27C" ]; then exit 0; fi
+        for spec in $(git diff --cached --name-only --diff-filter=ACMR | grep '\.t27$'); do
+          if ! $T27C typecheck "$spec" 2>&1 | grep -q "Typecheck OK"; then
+            echo "TYPECHECK FAIL: $spec"
+            $T27C typecheck "$spec" 2>&1 | tail -3
+            exit 1
+          fi
+        done
 
 pre-push:
   commands:

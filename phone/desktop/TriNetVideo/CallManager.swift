@@ -109,7 +109,70 @@ class CallManager: ObservableObject {
             }
             self.pliCount = 0
             self.bitrateKbps = self.camera.bitrateKbps
+            // Rolling 60s history for the tap-to-expand link-quality sparkline.
+            self.bitrateHistory.append(self.bitrateKbps); if self.bitrateHistory.count > 60 { self.bitrateHistory.removeFirst() }
+            self.jitterHistory.append(self.peerJitterMs); if self.jitterHistory.count > 60 { self.jitterHistory.removeFirst() }
+            self.evalLinkHealth()
         }
+    }
+    @Published var bitrateHistory: [Int] = []   // last 60s, for the link-quality sparkline
+    @Published var jitterHistory: [Int] = []
+
+    // Make link trouble VISIBLE instead of a silent freeze (debugging doctrine): once frames have flowed, if
+    // none arrive for STALL_SECS the call is stalled; sustained high peer jitter is a weak link.
+    enum LinkHealth { case good, weak, stalled
+        // Pure classifier (verified by a standalone swiftc harness): once frames have flowed, no frame for
+        // stallMs => stalled; sustained peer jitter over weakJitterMs => weak; otherwise good.
+        static func classify(framesFlowed: Bool, msSinceLastFrame: Int, jitterMs: Int,
+                             stallMs: Int = 5000, weakJitterMs: Int = 40) -> LinkHealth {
+            guard framesFlowed else { return .good }
+            if msSinceLastFrame > stallMs { return .stalled }
+            if jitterMs > weakJitterMs { return .weak }
+            return .good
+        }
+        // Escalating recovery plan (verified by the swiftc harness). While stalled we ask the peer for a fresh
+        // IDR, rate-limited. A PROLONGED stall (> prolongedMs of continuous silence) escalates: the request
+        // cadence halves (2s -> 1s) AND we drop the encoder to its bitrate floor, trading resolution for a
+        // better chance of punching a keyframe through a bad channel. Not stalled => do nothing.
+        struct RecoveryPlan: Equatable { let requestKeyframe: Bool; let dropToFloor: Bool }
+        static func recoveryPlan(health: LinkHealth, msSinceLastRecovery: Int?, msStalledContinuously: Int,
+                                 baseCooldownMs: Int = 2000, prolongedMs: Int = 10000) -> RecoveryPlan {
+            guard health == .stalled else { return RecoveryPlan(requestKeyframe: false, dropToFloor: false) }
+            let prolonged = msStalledContinuously > prolongedMs
+            let cooldown = prolonged ? baseCooldownMs / 2 : baseCooldownMs
+            let ask = msSinceLastRecovery.map { $0 > cooldown } ?? true
+            return RecoveryPlan(requestKeyframe: ask, dropToFloor: prolonged && ask)
+        }
+    }
+    @Published var linkHealth: LinkHealth = .good
+    @Published var linkRestored = false        // brief green "Connection restored" flash on stalled -> good
+    private var lastRecoveryAt: Date?
+    private var stalledSince: Date?            // start of the CURRENT continuous stall (for escalation)
+    private func evalLinkHealth() {
+        let ms = lastVideoArrival.map { Int(Date().timeIntervalSince($0) * 1000) } ?? 0
+        let next = LinkHealth.classify(framesFlowed: isInCall && framesReceived > 0,
+                                       msSinceLastFrame: ms, jitterMs: peerJitterMs)
+        let prev = linkHealth
+        if next != .stalled { stalledSince = nil }
+        else if stalledSince == nil { stalledSince = Date() }
+        // Auto-recovery: a stall means NO packets are arriving, so the decoder's own onKeyframeNeeded can't
+        // fire. Ask the peer for a fresh IDR (rate-limited); a prolonged stall escalates to a faster cadence
+        // and drops the encoder to its floor to punch a keyframe through.
+        let sinceRecovery = lastRecoveryAt.map { Int(Date().timeIntervalSince($0) * 1000) }
+        let stalledMs = stalledSince.map { Int(Date().timeIntervalSince($0) * 1000) } ?? 0
+        let plan = LinkHealth.recoveryPlan(health: next, msSinceLastRecovery: sinceRecovery, msStalledContinuously: stalledMs)
+        if plan.requestKeyframe {
+            transport.send(Data([0xFC, 0x00]))
+            lastRecoveryAt = Date()
+            if plan.dropToFloor { camera.nudgeBitrate(down: true) }   // prolonged stall: trade resolution for reach
+            NSLog("TRINET: stall %dms — requested keyframe%@", stalledMs, plan.dropToFloor ? " + dropped to floor" : "")
+        }
+        if prev != .stalled, next == .stalled { callStalls += 1 }   // count stalls for the call journal
+        if prev == .stalled, next == .good {   // recovered — flash it, then clear
+            linkRestored = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.linkRestored = false }
+        }
+        linkHealth = next
     }
 
 
@@ -143,6 +206,151 @@ class CallManager: ObservableObject {
     // transport then owns :7000) and restarted when the call ends.
     struct IncomingCall: Equatable { let name: String; let ip: String; let participants: [String] }
     @Published var incomingCall: IncomingCall?
+    // Missed calls: an incoming that timed out unanswered (NOT a decline — that was a choice). Newest first.
+    // Persisted across restarts so you don't lose "who called while I was away".
+    struct MissedCall: Identifiable, Equatable, Codable { var id = UUID(); let name: String; let ip: String; let at: Date }
+    @Published var missedCalls: [MissedCall] = CallManager.loadMissed() { didSet { CallManager.saveMissed(missedCalls) } }
+    private static let missedKey = "trinetMissedCalls"
+    private static func loadMissed() -> [MissedCall] {
+        guard let d = UserDefaults.standard.data(forKey: missedKey),
+              let arr = try? JSONDecoder().decode([MissedCall].self, from: d) else { return [] }
+        return arr
+    }
+    private static func saveMissed(_ m: [MissedCall]) {
+        if let d = try? JSONEncoder().encode(m) { UserDefaults.standard.set(d, forKey: missedKey) }
+    }
+    private var noAnswerTimer: Timer?
+
+    // Recent-call journal: one record per COMPLETED call (frames actually flowed), with duration and the
+    // average link quality it ran at. Persisted so "how did my last calls go" survives a restart.
+    struct CallRecord: Identifiable, Equatable, Codable {
+        var id = UUID(); let peer: String; let at: Date; let durationSec: Int; let avgKbps: Int; let avgJitterMs: Int
+        var stalls: Int            // how many times the link stalled during this call
+        init(peer: String, at: Date, durationSec: Int, avgKbps: Int, avgJitterMs: Int, stalls: Int) {
+            self.peer = peer; self.at = at; self.durationSec = durationSec
+            self.avgKbps = avgKbps; self.avgJitterMs = avgJitterMs; self.stalls = stalls
+        }
+        // Custom decode so records written before `stalls` existed still load (synthesized Codable does NOT
+        // apply a property default for a missing key — it would throw and drop the whole journal).
+        enum CodingKeys: String, CodingKey { case id, peer, at, durationSec, avgKbps, avgJitterMs, stalls }
+        init(from d: Decoder) throws {
+            let c = try d.container(keyedBy: CodingKeys.self)
+            id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+            peer = try c.decode(String.self, forKey: .peer)
+            at = try c.decode(Date.self, forKey: .at)
+            durationSec = try c.decode(Int.self, forKey: .durationSec)
+            avgKbps = try c.decode(Int.self, forKey: .avgKbps)
+            avgJitterMs = try c.decode(Int.self, forKey: .avgJitterMs)
+            stalls = try c.decodeIfPresent(Int.self, forKey: .stalls) ?? 0
+        }
+    }
+    private var callStalls = 0     // stall count for the in-progress call
+    @Published var recentCalls: [CallRecord] = CallManager.loadRecents() { didSet { CallManager.saveRecents(recentCalls) } }
+    private static let recentsKey = "trinetRecentCalls"
+    private static func loadRecents() -> [CallRecord] {
+        guard let d = UserDefaults.standard.data(forKey: recentsKey),
+              let a = try? JSONDecoder().decode([CallRecord].self, from: d) else { return [] }
+        return a
+    }
+    private static func saveRecents(_ r: [CallRecord]) {
+        if let d = try? JSONEncoder().encode(r) { UserDefaults.standard.set(d, forKey: recentsKey) }
+    }
+    // Tab-separated journal for export (link-quality diagnostics the user can paste anywhere).
+    var callJournalText: String {
+        let head = "peer\tstarted\tduration_s\tavg_kbps\tavg_jitter_ms\tstalls"
+        let rows = recentCalls.map { "\($0.peer)\t\(ISO8601DateFormatter().string(from: $0.at))\t\($0.durationSec)\t\($0.avgKbps)\t\($0.avgJitterMs)\t\($0.stalls)" }
+        return ([head] + rows).joined(separator: "\n")
+    }
+    func copyJournal() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(callJournalText, forType: .string)
+    }
+
+    // Aggregate stability across the journal — one glance at "how good has my link been overall".
+    struct CallStats: Equatable {
+        let count: Int; let avgDurationSec: Int; let totalStalls: Int; let avgKbps: Int
+        // Pure summariser (verified by a swiftc harness): integer means over the records, empty => all zeros.
+        static func summarize(durations: [Int], stalls: [Int], kbps: [Int]) -> CallStats {
+            let n = durations.count
+            guard n > 0 else { return CallStats(count: 0, avgDurationSec: 0, totalStalls: 0, avgKbps: 0) }
+            return CallStats(count: n,
+                             avgDurationSec: durations.reduce(0, +) / n,
+                             totalStalls: stalls.reduce(0, +),
+                             avgKbps: kbps.reduce(0, +) / n)
+        }
+    }
+    var callStats: CallStats {
+        CallStats.summarize(durations: recentCalls.map(\.durationSec),
+                            stalls: recentCalls.map(\.stalls),
+                            kbps: recentCalls.map(\.avgKbps))
+    }
+    private var callStartedAt: Date?
+
+    // MARK: - Delay-based BWE (receiver report)
+    // The RECEIVER measures inter-arrival jitter of video datagrams (RFC3550-style EMA: J += (|D|-J)/16) and
+    // reports it once a second in a tiny control packet [0xFD 0xBE jitterMsBE:2 pktsBE:2]. The SENDER backs its
+    // bitrate off when the peer's jitter RISES — the queue is building — BEFORE any packet is lost. This is
+    // the delay-based half of GCC; the loss-based AIMD (PLI) remains the hard trigger.
+    private var lastVideoArrival: Date?
+    private var meanGapMs = 0.0        // EMA of inter-arrival gap
+    private var jitterMs = 0.0         // EMA of |gap - meanGap|
+    private var rxPktsThisSec = 0
+    private var bweTimer: Timer?
+    private var highJitterStreak = 0
+    @Published var peerJitterMs = 0    // what the far end reports (drives our sender)
+
+    private func noteVideoArrival() {
+        let now = Date()
+        if let last = lastVideoArrival {
+            let gap = now.timeIntervalSince(last) * 1000
+            meanGapMs += (gap - meanGapMs) / 16
+            jitterMs += (abs(gap - meanGapMs) - jitterMs) / 16
+        }
+        lastVideoArrival = now
+        rxPktsThisSec += 1
+    }
+
+    private func startBWE() {
+        bweTimer?.invalidate()
+        bweTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            guard let self = self, self.isInCall else { return }
+            // Report OUR receive-side jitter to the sender (they steer their encoder with it).
+            let j = UInt16(min(65535, max(0, Int(self.jitterMs))))
+            let p = UInt16(min(65535, self.rxPktsThisSec))
+            self.rxPktsThisSec = 0
+            var pkt = Data([0xFD, 0xBE])
+            pkt.append(contentsOf: [UInt8(j >> 8), UInt8(j & 0xFF), UInt8(p >> 8), UInt8(p & 0xFF)])
+            self.transport.send(pkt)
+        }
+    }
+
+    // Sender side: the peer's report arrived — react to a rising queue before loss does.
+    private func handleBWEReport(_ data: Data) {
+        let j = Int(data[2]) << 8 | Int(data[3])
+        DispatchQueue.main.async {
+            self.peerJitterMs = j
+            if j > 40 {           // sustained queueing at the receiver
+                self.highJitterStreak += 1
+                self.cleanStreak = 0
+                if self.highJitterStreak >= 2 {
+                    self.camera.nudgeBitrate(down: true)
+                    NSLog("TRINET: BWE back-off — peer jitter \(j)ms")
+                }
+            } else if j < 20 {    // GCC probe-up: confirmed spare capacity -> an EXTRA climb tick (on the real
+                self.highJitterStreak = 0   // stream, never padding bursts — the mesh's pacing is fragile).
+                self.cleanStreak += 1       // Overshoot is caught instantly by the back-off above.
+                if self.cleanStreak >= 3 {
+                    self.camera.nudgeBitrate(down: false)
+                    self.cleanStreak = 0
+                    NSLog("TRINET: BWE probe-up — peer jitter \(j)ms, capacity spare")
+                }
+            } else {
+                self.highJitterStreak = 0
+                self.cleanStreak = 0
+            }
+        }
+    }
+    private var cleanStreak = 0   // consecutive low-jitter reports, for GCC probe-up
     private var idleFd: Int32 = -1
     private var incomingTimer: Timer?
     private let idleQueue = DispatchQueue(label: "trinet.idle-listener")
@@ -206,7 +414,13 @@ class CallManager: ObservableObject {
                     NSLog("TRINET: INCOMING call from \(name) (\(ip))")
                     self.incomingTimer?.invalidate()
                     self.incomingTimer = Timer.scheduledTimer(withTimeInterval: 40, repeats: false) { [weak self] _ in
-                        self?.incomingCall = nil   // auto-miss after 40s (per call-UX convention)
+                        guard let self = self else { return }
+                        if let m = self.incomingCall {   // auto-miss after 40s -> log it for one-tap call-back
+                            self.missedCalls.insert(MissedCall(name: m.name, ip: m.ip, at: Date()), at: 0)
+                            if self.missedCalls.count > 5 { self.missedCalls.removeLast() }
+                            NSLog("TRINET: MISSED call from \(m.name) (\(m.ip))")
+                        }
+                        self.incomingCall = nil
                     }
                 }
             }
@@ -288,6 +502,14 @@ class CallManager: ObservableObject {
     func callPeer(_ peer: PeerDiscovery.Peer) {
         discovery.resolveIP(peer) { [weak self] ip in
             guard let self = self, let ip = ip, !ip.isEmpty else { NSLog("TRINET: could not resolve \(peer.name)"); return }
+            // A roster entry can be ANOTHER APP ON THIS MACHINE (e.g. the iOS Simulator) — it resolves to our
+            // own IP and "calling" it is a self-call that floods undecryptable-datagram noise. Refuse loudly.
+            // (Typing 127.0.0.1 by hand stays allowed — that's a deliberate loopback test.)
+            if ip == self.localIP {
+                self.status = "\(peer.name) is this machine — not calling myself"
+                NSLog("TRINET: refusing self-call — '\(peer.name)' resolved to our own IP \(ip)")
+                return
+            }
             self.remoteIP = ip
             self.startCall()
         }
@@ -516,6 +738,13 @@ class CallManager: ObservableObject {
                 DispatchQueue.main.async { self.showReaction(emoji) }
                 return
             }
+            if data.count == 6, data[0] == 0xFD, data[1] == 0xBE { // BWE receiver report
+                self.handleBWEReport(data)
+                return
+            }
+            // Doctrine: NEVER hand an unknown control subtype to the H.264 decoder. Real NALs start 00 00 00 01.
+            if data.first.map({ $0 >= 0xFB }) == true { return }
+            self.noteVideoArrival()
             self.decoder.feed(data)
             DispatchQueue.main.async {
                 self.framesReceived = self.decoder.frameCount
@@ -543,6 +772,10 @@ class CallManager: ObservableObject {
                 DispatchQueue.main.async { self.showReaction(emoji) }
                 return
             }
+            if data.count == 6, data[0] == 0xFD, data[1] == 0xBE { self.handleBWEReport(data); return }
+            // Doctrine: NEVER hand an unknown control subtype to the H.264 decoder. Real NALs start 00 00 00 01.
+            if data.first.map({ $0 >= 0xFB }) == true { return }
+            self.noteVideoArrival()
             // Video → per-source decoder
             let dec = self.groupDecoders[ip] ?? {
                 let d = VideoDecoder(); self.groupDecoders[ip] = d
@@ -600,18 +833,42 @@ class CallManager: ObservableObject {
         sendInvite(to: hostStrs, participants: [localIP] + hostStrs)   // ring the callee(s); carry the full roster
 
         isInCall = true
+        callStartedAt = Date()     // for the recent-call journal duration
+        callStalls = 0
         discovery.inCall = true    // advertise "in call" so the roster shows my status
         isStarting = false
-        status = "Waiting for video..."
+        status = "Calling \(remoteIP)…"
+        // Caller-side ring feedback: if nothing arrives in 30s, say so instead of "Waiting" forever.
+        noAnswerTimer?.invalidate()
+        noAnswerTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: false) { [weak self] _ in
+            guard let self = self, self.isInCall, self.framesReceived == 0 else { return }
+            self.status = "No answer"
+            NSLog("TRINET: no answer from \(self.remoteIP) after 30s")
+        }
         startABR()
+        startBWE()
         link.begin(peer: hosts.first ?? remoteIP)
     }
 
     func endCall() {
+        // Journal a COMPLETED call (frames actually flowed) with its duration + average link quality,
+        // BEFORE the history arrays are reset below.
+        if let started = callStartedAt, framesReceived > 0 || framesSent > 0 {
+            let dur = Int(Date().timeIntervalSince(started))
+            let avgB = bitrateHistory.isEmpty ? bitrateKbps : bitrateHistory.reduce(0, +) / bitrateHistory.count
+            let avgJ = jitterHistory.isEmpty ? peerJitterMs : jitterHistory.reduce(0, +) / jitterHistory.count
+            recentCalls.insert(CallRecord(peer: remoteIP, at: started, durationSec: dur, avgKbps: avgB, avgJitterMs: avgJ, stalls: callStalls), at: 0)
+            if recentCalls.count > 8 { recentCalls.removeLast() }
+        }
+        callStartedAt = nil
+        noAnswerTimer?.invalidate(); noAnswerTimer = nil
         if #available(macOS 12.3, *) { (screen as? ScreenCapture)?.stop() }
         isScreenSharing = false
         if isRecording { recorder.stop { [weak self] url in self?.lastRecordingPath = url?.path }; isRecording = false; recSink = nil }
         abrTimer?.invalidate(); abrTimer = nil
+        bweTimer?.invalidate(); bweTimer = nil
+        lastVideoArrival = nil; meanGapMs = 0; jitterMs = 0; rxPktsThisSec = 0; highJitterStreak = 0; cleanStreak = 0; peerJitterMs = 0
+        bitrateHistory = []; jitterHistory = []; linkHealth = .good; linkRestored = false; lastRecoveryAt = nil; stalledSince = nil
         link.end()
         camera.stop()
         audio.stop()

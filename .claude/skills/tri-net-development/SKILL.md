@@ -1514,6 +1514,328 @@ FROZE on the last frame. Zoom-style fix: keep the stream ALIVE and send BLACK fr
   (else the black frames get skipped). Keep the `!isScreenSharing` guard on Mac.
 - Local self-preview also blacks out (a `Color.black` + `video.slash` overlay on the PiP), since the raw
   preview layer keeps showing the live camera otherwise.
+- **`canAddOutput=false` on the 2nd call was a FALSE ALARM born of a lifecycle mismatch (fixed 2026-07-22).**
+  Mac `CameraCapture.stop()` leaves the data output ATTACHED to the AVCaptureSession (it only stops running);
+  `start()` then re-ran the full setup and asked `canAddOutput(sameInstance)` — which is false for an
+  already-attached output, logging a scary "NOT attached" for what is actually REUSE. WebRTC-style rule: the
+  capturer OUTLIVES a call; configuration must be IDEMPOTENT. Fix: `if session.outputs.contains(output)` ->
+  reuse silently; only a genuinely un-attachable fresh output is an error. (iOS was already safe via the
+  `guard !session.isRunning` in startPreview.)
+
+## WAVE ABC 2026-07-22 — climb acceleration + call UX + t27 wave 2
+
+- **A: Escalating additive increase** (slow-start style, both encoders): consecutive clean ABR ticks DOUBLE the
+  climb step (8k->16k->32k->64k cap iOS; 10k->…->80k Mac); any loss resets to base. Replaces the flat +8k/+10k
+  that took ~100s to regain 900k after one dip. Multiplicative decrease untouched, so back-off is instant. This
+  is the additive-increase half of GCC-style probing — a real delay-based estimator is still future work.
+- **B: Caller/callee status.** Caller: `status = "Calling <ip>…"` + a 30s no-answer timer (`framesReceived ==
+  0` -> "No answer" / iOS `noAnswer` -> StatusTag). Callee: an un-answered 40s incoming ring is recorded into
+  `missedCalls` (Identifiable, capped 5, newest first) with a one-tap "Call back" row on the start screen —
+  BOTH platforms. Declines are NOT missed (a decline is a choice).
+- **C: t27 wave 2 — the include! flip actually landed.** `cargo build` regenerates `gen/rust/rti_alert.rs`
+  from the new spec (build.rs `rerun-if-changed=specs/`); `src/rti_alert.rs` now does
+  `pub mod gen { include!("../gen/rust/rti_alert.rs") }` (with `#[allow(needless_return, unused_parens,
+  dead_code)]` — the t27c emitter style) and calls `gen::alert_severity(anom_sev)` instead of the hand ladder.
+  `cargo test --lib`: rti_alert 3/3 + wire 8/8 pass. NOTE: the workspace BIN `tri_rti` was ALREADY broken by
+  someone else's uncommitted `LinkMeasurement.link_quality` field — scope builds/tests to `--lib` until that's
+  fixed; it is NOT caused by the spec work.
+
+## WAVE 2026-07-22 #2 — delay-based BWE + discovery.t27 + tri_rti fixed
+
+- **Delay-based BWE v1 (receiver report), both platforms.** Receiver measures inter-arrival jitter of VIDEO
+  datagrams (RFC3550 EMA: `mean += (gap-mean)/16; J += (|gap-mean|-J)/16`) + pkts/sec, reports once a second in
+  `[0xFD 0xBE jitterMsBE:2 pktsBE:2]` (6B, sealed like all control). Sender: peer jitter > 40ms for 2
+  consecutive reports -> `nudgeBitrate(down)` BEFORE loss (resets the escalating climb too); < 40ms clears the
+  streak. This is the delay-based half of GCC: rising receive jitter = a queue building somewhere.
+- **Control-packet hygiene (doctrine enforced):** the 1-1 receive paths fed ANY unmatched packet to the H.264
+  decoder. New rule in code: after all known control handlers, `data[0] >= 0xFB -> drop` — real Annex-B NALs
+  always start 00 00 00 01, so this can never eat video, and unknown/future control (like 0xFD 0xBE from a
+  NEWER peer) can never corrupt an OLDER decoder. `noteVideoArrival()` only runs on actual video.
+- **MISSED-call mechanism verified LIVE:** synthetic INVITE left unanswered 40s -> log `MISSED call from DO NOT
+  ANSWER test` + row recorded. (First attempt failed because the USER клацнул Accept on the test banner — the
+  Mac then held a self-call to 127.0.0.1. Test-INVITE lesson: name the caller "DO NOT ANSWER".)
+- **t27 wave 3: `specs/discovery.t27`** (HDR_LEN/MAC_LEN/hello_len/mac_offset/parse_len_ok/is_fresh, tests for
+  33B empty + 45B 3-neighbor + truncation + freshness both directions) — typechecked, generated, and WIRED:
+  `src/discovery.rs` `include!`s it; parse gates + to_bytes capacity now come from the spec. discovery tests
+  14/14 pass.
+- **`tri_rti` bin fixed:** added `link_quality: 1.0` (= clean link, as all compiling call sites use) to the 31
+  `LinkMeasurement` initializers someone left broken. FULL `cargo build --release` is green again (not just
+  --lib).
+
+## WAVE 2026-07-22 #3 — BWE visible + LOOPBACK e2e proof + self-call guard
+
+- **BWE is now user-visible** (Zoom-style net indicator): a `net <peerJitterMs>ms · <bitrateKbps>k` capsule in
+  the in-call top bar, green under the 40ms back-off threshold, red above. Both platforms.
+- **LOOPBACK e2e harness for the whole new receive path:** send a 3-participant INVITE listing 127.0.0.1 ->
+  auto-join fires -> the Mac group-calls itself -> its own video loops back through frag/seal/unseal/reassembly.
+  Verified live: `auto-joining group … 3 participants` -> `GROUP transport up — 3 peers` -> `GROUP video from
+  127.0.0.1` (the >=0xFB control guard did NOT eat video) -> `BWE … peer jitter 2-5ms` (reports flowing). This
+  is the cheapest true end-to-end video test that exists headless — reuse it.
+- **Self-call guard:** a roster peer can be ANOTHER APP ON THE SAME HOST (the iOS Simulator advertises
+  `_trinet._udp` and resolves to the Mac's own IP). The user tapped it -> the Mac called itself -> undecryptable
+  noise + a stuck call. `callPeer` now refuses when the resolved IP == our own IP (log + status); hand-typed
+  127.0.0.1 stays allowed (deliberate loopback). ALSO: kill the Simulator instance after UI checks — it
+  pollutes the roster ('iPhone 17 Pro').
+- **PARALLEL-ACTOR AWARENESS:** a second 15m cron loop runs in this session and EDITS THE SAME FILES (it added
+  the GCC probe-up branch to handleBWEReport — `j < 20` streak -> extra climb tick — which this wave's loopback
+  then verified live: `BWE probe-up — peer jitter 5ms, capacity spare`). Before claiming "I didn't write that",
+  grep the file; before editing, expect the tree to have moved. Log-scoping lesson (bitten TWICE): the monitor
+  log spans DAYS — always filter with the FULL date (`awk '/2026-07-22 14:2[7-9]/{f=1} f'`), never bare HH:MM.
+
+## WAVE 2026-07-22 #4 — smoke/loopback_call.sh + index cleanup + routing verified
+
+- **`smoke/loopback_call.sh` (PASS, in-repo):** one-command e2e video test. Restart app (pkill by BARE
+  `TriNetMonitor` — ghost instances launched from build dirs share the log and steal :7000; a path-scoped
+  pkill misses them), HANDSHAKE WITH THE LOG (wait for a fresh `idle listener up` after a full-date MARK —
+  never a blind sleep), send a 3-participant INVITE incl 127.0.0.1, PASS on `GROUP video from 127.0.0.1` or
+  `FIRST FRAME DECODED`, then restart clean. Verified: auto-join -> 3-peer group -> own video decoded.
+- **THE UDP ONE-DATAGRAM TRAP (cost 2 failed runs):** `printf '\xfd\x11name\nips\n' > /dev/udp/...` in bash
+  issues MULTIPLE write()s -> MULTIPLE datagrams: the app got magic+name only (rang a participant-less call;
+  `accepting call -> mesh back to 127.0.0.1` with an empty list was the tell). A PIPE coalesces writes, so
+  `bash printf | xxd` compares byte-identical to python — the SOCKET does not coalesce. Any multi-byte UDP
+  test payload must be sent with a single sendto() (python one-liner in smoke scripts is fine — smoke/ is the
+  allowed test-runner zone).
+- **git index cleanup:** 13425 staged files -> 273 by unstaging `cwasm/target/`, `phone/desktop/.dd/`,
+  `phone/desktop/build/`, `phone/build-ios/` (13k build artifacts someone had staged); those paths are now in
+  `.gitignore`. The remaining 273 staged foreign files (gen/specs/src/docs from other sessions) are left for
+  the user to review — do not commit unreviewed foreign content.
+- **routing.t27 was ALREADY DONE by the parallel loop** (`specs/routing_etx.t27`, 16 test/invariant blocks,
+  milli-fixed-point `etx_milli` + `is_feasible`, wired at `src/routing.rs:18`). Verified: typecheck OK,
+  routing tests 19/19. t27 migration now: wire, rti_alert, discovery, routing_etx = 4 files spec-first.
+
+## WAVE 2026-07-22 #5 — t27 reconciliation + rti_security.t27 fixed (parallel actor == CODEX)
+
+- **The "parallel actor" is the user's CODEX session** (they said so) — same working tree, own remote branches.
+  Its `feat/trios-integration` (Jul 21) touches src/{crypto,daemon,discovery,lib,router,routing,wire}.rs with
+  NO t27 includes — a future merge must resolve routing in favor of the SPEC (repo law), folding their
+  NaN-safe-ETX idea into routing_etx.t27 tests.
+- **RECONCILE BEFORE YOU BUILD: the tracker lied.** A grep for `include!("../gen/rust/` found SIX wired files —
+  modem.rs (modem_frame.t27) and router.rs (router_ttl.t27) were already flipped by Codex, unknown to the
+  tracker. Habit: before starting a t27 wave, regenerate the map from the CODE (`grep -l 'include!("../gen/rust'
+  src/*.rs`), never trust the tracker doc.
+- **`rti_security.t27` was BROKEN in-tree (typecheck: cannot assign I32 to U16) and the build swallowed it
+  silently** — build.rs regenerates what it can and skips failures without failing the build, so a broken spec
+  ships a STALE gen file. Sweep habit: `for s in specs/*.t27; do t27c typecheck $s; done` on every wave.
+- **t27c-0.1.0 DIVISION TRAP:** a division result types as I32; `let t: u16 = ...; t = t / 2;` fails to
+  typecheck ("cannot assign I32 to U16") while LITERAL assignments coerce fine. u32 math divides cleanly
+  (routing_etx pattern). Fix used in rti_security: replace halving with explicit literal branches (60->30,
+  40->20, 80->40) — semantics identical, and the generated Rust (`let mut`, widened compares) verified by eye.
+  After the fix: typecheck 0 errors, regenerated, FULL `cargo test --lib` 169/169 green.
+
+## WAVE 2026-07-22 #3 — link badge + routing_etx.t27 (equivalence-first)
+
+- **Link-quality badge, both platforms** (what Zoom/Meet show as "bars" — the BWE was invisible before):
+  in-call `"<bitrateKbps>k · jit <peerJitterMs>ms"`, red when jitter > 40ms (the BWE back-off threshold). Mac
+  already published both; iOS gained `@Published bitrateKbps` refreshed in the 1s BWE tick. Observability
+  doctrine: a control loop the user can't SEE can't be trusted on device.
+- **t27 wave 4: `specs/routing_etx.t27` — the EQUIVALENCE-FIRST pattern for lifting FLOAT code.** routing.rs's
+  ETX is f32 (ratios, INFINITY) and t27 is integer-only, so the spec formalizes it in MILLI fixed-point
+  (1000 = 1.0; DEAD = sentinel 0 since real ETX >= 1000; `etx_milli = 1e9/(df*dr) * pen/1000`), with
+  9 tests + 2 invariants. Typechecked, generated, include!d into routing.rs, and a HAND-WRITTEN Rust test
+  (`spec_fixed_point_etx_matches_f32`) pins the generated integer math to the live f32 at 5 points (<= 2 milli
+  diff) + the exact dead threshold. routing tests 18/18. The LIVE path still runs f32 — rewiring the mesh's
+  heart waits for a radio test rig; the spec is now the SSOT and the equivalence test will catch drift.
+  This pattern (spec in fixed-point + equivalence pin, rewire later) is how the remaining float files
+  (gf16 host model, rti) should be lifted.
+
+## WAVE 2026-07-22 #4 — modem_frame.t27 + tap-to-expand link-stats panel
+
+- **t27 wave 5: `specs/modem_frame.t27`** lifts the BPSK modem's INTEGER frame geometry (the Barker
+  CORRELATION stays f32 — noisy IQ matched filter — but the layout is integer): PREAMBLE_LEN 13, BITS_PER_BYTE
+  8, MAX_PAYLOAD 255, PEAK 13, SYNC_THRESHOLD 8; `frame_symbols(n)=13+8+n*8`, `min_parse_len=21`, `can_parse`,
+  `payload_fits`, `decode_fits(sym_start,out_len,total)`, `is_synced`, `sync_margin_pct=61`. 9 tests + 3
+  invariants. WIRED into src/modem.rs: `can_parse` replaces `samples.len() < BARKER13.len()+8`, `decode_fits`
+  replaces the decode bounds check, `MAX_FRAME = gen::MAX_PAYLOAD`. Equivalence test
+  `spec_frame_geometry_matches_modem` pins Barker len / threshold / MAX_FRAME AND round-trips modulate() to
+  `frame_symbols()`. modem 23/23, full lib 167/167. **5/11 files now spec-first** (wire, rti_alert, discovery,
+  routing_etx, modem_frame).
+- **Tap-to-expand link-quality panel, both platforms** (extends last wave's badge — the report emphasized
+  on-device observability of the BWE loop). CallManager/ViewModel keep a rolling 60-sample `bitrateHistory` +
+  `jitterHistory` (appended in the existing 1s tick, cleared on endCall). Mac: badge -> `.popover` with
+  `LinkStatsPanel` + a minimal `Sparkline` (auto-scales, dashed 40ms threshold line). iOS: badge -> `.sheet`
+  (`presentationDetents([.height(240)])` guarded `#available(iOS 16)`) with `iLinkStatsPanel` + `iSparkline`.
+  Sparkline is a plain SwiftUI Path in a GeometryReader — no deps.
+
+## WAVE 2026-07-22 #5 — routing feasibility t27 + GCC probe-up + missed-call persistence
+
+- **t27: `routing_etx.t27` gained RFC 8966 §3.7 feasibility** (loop prevention): `is_feasible(new_etx,
+  existing_etx, has_existing)` (no incumbent -> true; else `better_route`) + `learn_ok(is_self_route,
+  feasible)`. Equivalence test `spec_feasibility_matches_f32` pins them to routing.rs's live f32
+  `is_feasible`/`learn_route` (no-incumbent, strictly-better, tie, worse, self-route). routing 19/19, lib
+  168/168. **t27c EMITTER BUG found & worked around:** comparing a `bool` param to a bool literal
+  (`has_existing == false`) emits `(has_existing as u32) == false` which won't compile. Use **u32 0/1 flags**
+  for any bool that gets COMPARED (a bool that's only RETURNED, like `feasible`, is fine). Same class as the
+  `as u32` cast drift noted in wire.rs.
+- **GCC probe-up (2nd half of GCC), both platforms:** the BWE handler backed off on high jitter but never
+  probed UP. Now peer jitter `< 20ms` for 3 consecutive reports -> an EXTRA `nudgeBitrate(down:false)` climb
+  tick — on the REAL video stream, NEVER padding bursts (CLAUDE.md: the mesh pacing is fragile, a burst hits
+  the fragmentation path). Overshoot is caught instantly by the existing `> 40ms` back-off. `cleanStreak`
+  resets on any non-clean report and on endCall. The new link-stats sparkline visualizes the faster reclimb.
+- **Missed-call persistence, both platforms:** `MissedCall` is now `Codable`; `missedCalls` loads from
+  UserDefaults (`trinetMissedCalls`, JSON) at init and a `didSet` re-persists on every change. `id` changed
+  `let`->`var` for Codable. VERIFIED end-to-end on Mac: unanswered INVITE -> 40s auto-miss -> JSON round-trips
+  through UserDefaults (`defaults export` showed the decoded record). Test artifact cleared afterward.
+
+## WAVE 2026-07-22 #6 — t27c emitter CEILING found + call-history journal
+
+- **The golden-pipeline migration has a hard CEILING at 6/11, and it's the FROZEN compiler.** Two t27c
+  gen-rust emitter bugs, both CONFIRMED with minimal repros (docs/T27C_EMITTER_BUGS.md):
+  1. **bool compared to a bool literal** -> `(x as u32) == false` (won't compile). Workaround: u32 0/1 flags.
+  2. **u64 comparison operands TRUNCATED to u32** -> `(a as u32) > (b as u32)`; `big_gt(2^40, 2^40-1)` decides
+     `false`. SILENT and wrong for any operand >= 2^32. `cmp_operand_as_u32` promotes unconditionally to u32.
+  Both live in `../t27/bootstrap/src/compiler.rs` which is **FROZEN (FROZEN_HASH seal, build.rs verifies)** —
+  cannot be fixed from tri-net, needs an upstream fix + deliberate re-seal. **DO NOT lift u64 (crypto replay
+  window, counters) or bool-compare logic until fixed** — gen output is silently wrong. Verified the existing
+  6 specs are SAFE (u32/usize, values << 2^32); the one u64 gen fn `discovery::is_fresh` is DEAD (not wired),
+  so nothing ships wrong. This is why `crypto.rs` was NOT lifted this wave — shipping on a broken tool violates
+  the debugging doctrine. Filing the upstream issue is an outward action; left for the user (documented).
+- **Call-history journal, both platforms:** `CallRecord{peer, at, durationSec, avgKbps, avgJitterMs}` (Codable,
+  persisted under `trinetRecentCalls`). `callStartedAt` stamped at startCall; endCall/stopCall journals a
+  record IFF frames flowed (real call, not a failed dial), computing duration + averages from the
+  bitrate/jitter history BEFORE it is reset. Start screen shows the last 4 as "peer · 3m12s · 512k · 18ms"
+  (red if avg jitter > 40) with a one-tap Call. Same proven UserDefaults Codable path as missedCalls (that
+  round-trip was verified live last wave); the record itself needs a real 2-endpoint call to populate.
+
+## WAVE 2026-07-22 #7 — router_ttl.t27 (u32-safe lane) + call-journal export
+
+- **t27 wave 7: `specs/router_ttl.t27`** — continues the migration in the U32-SAFE LANE (deliberately dodging
+  both emitter bugs: all values <= 8, and has_route is a u32 0/1 flag). Lifts router.rs's hop-by-hop
+  forwarding decision (`is_for_me` / `is_expired` / no-route / `is_split_horizon` / forward) + `next_ttl`
+  (ttl-1) + a combined `forward_decision` returning DECIDE_{LOCAL,DROP_TTL,DROP_NOROUTE,DROP_SPLIT,FORWARD}.
+  WIRED into router.rs forward() (the 4 predicates + `DEFAULT_TTL = gen::DEFAULT_TTL as u8` + `next_ttl`).
+  Equivalence test `spec_forward_decision_matches_wired_gates` sweeps the full input table; CRUCIALLY the
+  pre-existing BEHAVIORAL tests `ttl_expiry_is_dropped` + `ttl_decrements_across_two_hop_relay` (which drive
+  forward() through real sealed frames) still pass -> the wiring preserved end-to-end behavior. router 27/27,
+  lib 169/169. **7/11 files spec-first.** (u64 files crypto/gf16/rti still blocked on the frozen-compiler
+  emitter bugs — see docs/T27C_EMITTER_BUGS.md.)
+- **Call-journal export, both platforms:** `callJournalText` = TSV (peer, ISO8601 start, duration_s, avg_kbps,
+  avg_jitter_ms). Mac: "Copy log" button -> NSPasteboard. iOS: `ShareLink(item:)` (iOS 16+ guarded). For the
+  link-quality diagnostics use case from the market report — the user can paste/share the journal.
+
+## WAVE 2026-07-22 #8 — mid-call link-health banner (make the freeze visible)
+
+- **Weak-spot correction:** the candidate "RTI presence detector is unverified" was WRONG — rti.rs already has
+  `detect_single_blob_one_person`, `detect_two_blobs_two_people`, `detect_no_blobs_empty_field`, kalman
+  tracking (17 tests). Don't re-test it. Also note: t27 targets Rust/C/Zig, NOT Swift — the phone app's logic
+  can't be lifted to a spec, so t27 waves only apply to src/*.rs.
+- **Mid-call link-health banner, both platforms** (debugging doctrine: make the silent failure VISIBLE). Before,
+  a degraded/lost link just froze the last frame with no signal. Now `LinkHealth.classify(framesFlowed,
+  msSinceLastFrame, jitterMs, stallMs=5000, weakJitterMs=40)` -> good/weak/stalled, evaluated in the existing
+  1s BWE tick off `lastVideoArrival`: once frames have flowed, no frame for >5s => "Reconnecting…" (red tag),
+  sustained peer jitter >40ms => "Weak connection" (amber tag). `framesFlowed=false` (a dialing call) is always
+  good — a ring isn't "weak". Reset on endCall/stopCall. The classifier is a PURE static func VERIFIED by a
+  standalone swiftc harness (7/7 truth-table: no-frames, healthy, high-jitter, both thresholds exact, stalled,
+  stalled-beats-weak) — the project's Swift-logic verification pattern. Live wiring build-verified; the actual
+  end-to-end stall still needs a real 2-endpoint call.
+
+## WAVE 2026-07-22 #9 — stall AUTO-RECOVERY (act, not just show) + restored flash
+
+- **The banner from #8 only SHOWED the stall — now it ACTS.** On `.stalled`, `evalLinkHealth` sends a PLI
+  (`[0xFC 0x00]`, keyframe-request) to the peer, rate-limited to once / 2s. Rationale: a stall means NO packets
+  are arriving, so the DECODER's own `onKeyframeNeeded` (VideoToolbox, fires when it's fed an undecodable
+  frame) can NEVER fire — the decoder isn't being fed at all. So the receiver must PROACTIVELY ask the
+  still-alive peer for a fresh IDR, so the first frame after the link returns is decodable (an IDR) instead of
+  a P-frame referencing a lost anchor (which the decoder drops, extending the black screen). Both platforms.
+- **"Connection restored" green flash** on `stalled -> good` transition (2s, symmetric to the red banner) —
+  the user sees recovery, not just the trouble.
+- **Verified:** the rate-limit decision is a pure static `LinkHealth.shouldRequestKeyframe(health,
+  msSinceLastRecovery, cooldownMs=2000)` — swiftc harness 6/6 (good/weak never ask; stalled first-time asks;
+  after-cooldown asks; within-cooldown + at-boundary suppressed). Both apps build; Mac deployed. The PLI
+  actually reaching a peer + faster recovery needs a real 2-endpoint call.
+
+## WAVE 2026-07-22 #10 — seq-partition non-overlap PROOF + stall count in journal
+
+- **video_bridge.t27 already had video_seq/express_seq (construction); it was MISSING the receive-side
+  classifiers + a proof of the property the design's safety rests on.** Added `is_express(seq)` /
+  `is_video(seq)` (u16 `>=`/`<` — the emitter's `as u32` widening is LOSSLESS for u16, safe) + 5 t27 tests +
+  an invariant `seq_partition_at_midpoint`. Then a RUST integration test in tests/generated_modules.rs sweeps
+  ALL 65536 counters proving: video_seq always in [0,32767], express_seq always in [32768,65535], the two are
+  NEVER equal, and the classifiers round-trip. This machine-checks the exact splice hazard CLAUDE.md warns
+  about (one reassembly map, two seq producers). generated_modules 108, lib 169/169. Note: the receiver
+  currently doesn't call is_express (one map, delivered to one socket) — the classifiers are the SSOT+proof;
+  wiring them is only needed if a future receiver routes by class.
+- **Stall count in the call journal, both platforms:** `CallRecord.stalls` counts stalled transitions per call
+  (incremented in evalLinkHealth on good/weak->stalled), shown as "· ⚠︎N" in recents (red) and added to the
+  TSV export. **Codable pitfall caught + fixed:** synthesized Swift Codable does NOT apply a property default
+  for a MISSING key — `var stalls = 0` would THROW on old records and `try?` would drop the WHOLE journal.
+  Fixed with a custom `init(from:)` using `decodeIfPresent(..) ?? 0` (+ kept the memberwise init). VERIFIED by
+  a swiftc harness: an old-format JSON record (no "stalls" key) decodes with stalls=0; a new record
+  round-trips stalls=3. This is the general rule for evolving any persisted Codable in this app.
+
+## WAVE 2026-07-22 #11 — gen/spec audit (clean) + ESCALATING stall recovery
+
+- **gen/spec coverage audit:** every one of the 115 `gen/rust/*.rs` modules has a matching `specs/*.t27` (115 =
+  115, zero orphans) — the golden pipeline's gen side is fully spec-backed. (The "N/11 spec-first" tracker is a
+  separate thing — the HAND-WRITTEN src/*.rs business-logic files; the u64 ones stay blocked on the emitter.)
+  So "uncovered gen modules" was an empty lane — pivoted.
+- **Escalating stall recovery, both platforms:** #9 asked for a keyframe every 2s while stalled; now a
+  PROLONGED stall (>10s continuous) escalates — `LinkHealth.recoveryPlan(health, msSinceLastRecovery,
+  msStalledContinuously, baseCooldownMs=2000, prolongedMs=10000)` returns `{requestKeyframe, dropToFloor}`:
+  cadence halves to 1s AND (when it fires) `camera.nudgeBitrate(down:)` drives the encoder toward its floor,
+  trading resolution for a better chance of punching an IDR through a bad channel. `stalledSince` tracks the
+  CURRENT continuous stall (reset when leaving stalled + on endCall). Replaces the old `shouldRequestKeyframe`.
+  VERIFIED by swiftc harness 9/9 (good/weak do nothing; short-stall first/after-2s/within-2s; prolonged
+  first/after-1s/within-1s asks + floor; the 10s boundary is strictly-greater so not-yet-prolonged). Both
+  build; Mac deployed. Actual reach improvement needs a real bad-link 2-endpoint call.
+
+## WAVE 2026-07-22 #12 — reference-vector tests for gen modules (self-consistent != correct)
+
+- **Weak spot: many gen-module tests in tests/generated_modules.rs are SELF-CONSISTENT ONLY** (deterministic /
+  round-trip / verify-accepts-own-output). Those would ALL pass even if the emitter produced subtly wrong
+  output (wrong shift/mask/truncation), because getter and setter share the same bug. A test that only checks
+  code against itself proves nothing about INTEROPERABILITY. This is the exact class the u64/bool emitter bugs
+  live in — so unverified-against-reference gen output is a real risk.
+- **Fix: pin correctness-critical gen output to INDEPENDENT reference vectors.**
+  - `crc16`: computed CRC-16/CCITT (init 0xFFFF, poly 0x1021, MSB-first shift, LSB-first input bits) in a
+    separate Python impl; asserted `crc16_4bytes` == {0x7663, 0x2C58, 0x84C0, 0x1D0F} for 4 inputs. MATCHES —
+    the spec-first CRC is correct + interoperable, u16 arithmetic survived the emitter.
+  - `network_coding`: pinned the ABSOLUTE packed wire layout `create_packet(11,22,0xAB,7)==0x0B16AB07`,
+    `create_coded_packet(0xF,0xAB,0xCD,0x123)==0xFABCD123`, and bit-exact XOR — a mis-shifted layout would pass
+    the round-trip test but fail these. MATCHES.
+  generated_modules 108 -> 110, lib 169/169, full suite green. Rust-only wave (no app changes). GENERAL RULE:
+  when adding a gen-module test, at least one assertion must pin an ABSOLUTE value from an independent oracle,
+  not just round-trip the generated code against itself.
+
+## WAVE 2026-07-22 #13 — call-stability summary (aggregate over the journal)
+
+- **Stability summary, both platforms:** under the recent-call journal, an aggregate row "N calls · avg
+  <dur> · <kbps>k · <totalStalls> stalls" (red when any stalls) gives one glance at overall link quality
+  instead of per-call rows only. Pure `CallStats.summarize(durations, stalls, kbps)` — integer means +
+  stall total, empty => all zeros. Exposed as a computed `callStats` over recentCalls. VERIFIED by a swiftc
+  harness 4/4 (empty->zeros, single, three-means-and-total, integer-truncation of the mean). Both build; Mac
+  deployed. Populates from real completed calls (needs a 2-endpoint call).
+
+## WAVE 2026-07-22 #14 — reference-vector tests for 3 more state-machine gen modules
+
+- Extended the #12 pattern (pin ABSOLUTE values vs an independent oracle, not self-round-trip) to three more
+  correctness-critical bit-packed gen modules whose existing tests were round-trip/isolation only:
+  - `packet_queue`: state `[tail:3][head:3][count @6]` — `enqueue(0)==0x48`, `enqueue(enqueue(0))==0x90`,
+    `increment_index(3)==4`, `(7)==0`.
+  - `congestion_control`: `[cwnd:8 @24][ssthresh:8 @16][state:2 @14][losses:14]` —
+    `create(200,100,1,3)==0xC8644003`, `create(0xAB,0xCD,2,0x1234)==0xABCD9234`, 14-bit loss field holds
+    0x3FFF, 2-bit state holds 3.
+  - `flow_control`: `[sender:4 @28][receiver:4 @24][window:8 @16][credits:8]` — `create(5,10,8,5)==0x5A080005`,
+    `create(0xF,0xA,0xBC,0xDE)==0xFABC00DE`, `consume_credit` takes exactly 1 off the low byte (0xDE->0xDD)
+    leaving the other fields intact.
+  All MATCH -> the spec-first layouts are interoperable; the emitter didn't corrupt these u32 packings.
+  generated_modules 110 -> 113, lib 169/169. Rust-only wave.
+
+## WAVE 2026-07-22 #15 — systematic self-consistent-test audit + security/FEC absolute pins
+
+- **Audit:** scanned every gen module with a `create_/pack_/encode_` packer for whether ANY test pins an
+  ABSOLUTE value vs only round-tripping getters. Found ~20 TESTED modules with **abs_pins=0** (round-trip
+  only) — a whole class where a mis-shifted layout would pass every test. Closed the highest-value ones:
+  - `access_control` (SECURITY): `create_node_creds(0xAB,3,0x2CD,1)==0xABECD800`,
+    `create_policy(0xF,3,1,0,1)==0xFE800000`.
+  - `trust_manager` (SECURITY): `create_trust_score(0xAB,0xCD,0xEF,0x12)==0xABCDEF12`.
+  - `pq_hybrid` (SECURITY, u64): `pack_initiator_msg(0xAABBCCDD,0x11223344)==0xAABBCCDD11223344u64` — proves
+    the emitter's u64 SHIFT/OR is correct (only u64 COMPARISON is buggy, per T27C_EMITTER_BUGS.md).
+  - `rlnc_coding` (FEC): pinned `gf_mul(0x53,0xCA)==0x01` — the KNOWN AES GF(256) inverse pair (poly 0x11B), an
+    EXTERNAL vector proving the field itself is correct; + `encode_symbol` dot-product + `batch_header` layout.
+  All MATCH. generated_modules 113 -> 116, lib 169/169.
+  BACKLOG (tested, still abs_pins=0): anomaly_detector, adaptive_routing, olsr_routing, multipath_routing,
+  cache_management, frame_buffer, health_monitoring, quarantine_manager, tri_contract, tri_spora, and ~40
+  UNTESTED packers (api_documenter, emergency_alert, key_management, ...). Same recipe applies.
 
 ## CHAT unread badge + SCREEN-SHARE revert-on-fail — 2026-07-20
 

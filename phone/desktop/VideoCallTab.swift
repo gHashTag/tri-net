@@ -81,6 +81,57 @@ final class RingSynth {
 }
 
 // MARK: - Incoming call banner (ring + Accept/Decline)
+// Tap-to-expand link-quality panel: 60s sparklines of encode bitrate + peer jitter.
+private struct LinkStatsPanel: View {
+    @ObservedObject var call: CallManager
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("LINK QUALITY · 60s").font(DS.mono(10)).foregroundColor(DS.faint).tracking(1)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Bitrate  \(call.bitrateKbps) kbps").font(DS.mono(11)).foregroundColor(DS.text)
+                Sparkline(values: call.bitrateHistory.map(Double.init), tint: DS.live).frame(height: 34)
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Peer jitter  \(call.peerJitterMs) ms").font(DS.mono(11)).foregroundColor(call.peerJitterMs > 40 ? DS.danger : DS.text)
+                Sparkline(values: call.jitterHistory.map(Double.init), tint: call.peerJitterMs > 40 ? DS.danger : DS.dim, threshold: 40).frame(height: 34)
+            }
+            Text("Jitter > 40ms triggers a bitrate back-off.").font(DS.ui(10)).foregroundColor(DS.faint)
+        }
+        .padding(14)
+    }
+}
+
+// Minimal sparkline: auto-scales to its own max, optional dashed threshold line.
+private struct Sparkline: View {
+    let values: [Double]
+    var tint: Color = .green
+    var threshold: Double? = nil
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width, h = geo.size.height
+            let maxV = max(values.max() ?? 1, threshold ?? 0, 1)
+            ZStack {
+                if let t = threshold {
+                    let ty = h - CGFloat(t / maxV) * h
+                    Path { p in p.move(to: CGPoint(x: 0, y: ty)); p.addLine(to: CGPoint(x: w, y: ty)) }
+                        .stroke(DS.danger.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                }
+                if values.count > 1 {
+                    Path { p in
+                        for (i, v) in values.enumerated() {
+                            let x = w * CGFloat(i) / CGFloat(values.count - 1)
+                            let y = h - CGFloat(v / maxV) * h
+                            if i == 0 { p.move(to: CGPoint(x: x, y: y)) } else { p.addLine(to: CGPoint(x: x, y: y)) }
+                        }
+                    }.stroke(tint, style: StrokeStyle(lineWidth: 1.5, lineJoin: .round))
+                }
+            }
+        }
+        .background(DS.ink.opacity(0.25))
+        .clipShape(RoundedRectangle(cornerRadius: 5))
+    }
+}
+
 private struct IncomingCallBanner: View {
     @ObservedObject var call: CallManager
     let inc: CallManager.IncomingCall
@@ -165,6 +216,59 @@ private struct StartCallView: View {
 
                 Text("SELF · \(call.localIP):\(call.port)")
                     .font(DS.mono(11)).foregroundColor(DS.faint)
+
+                // Missed calls — one-tap call back (newest first, capped at 5).
+                if !call.missedCalls.isEmpty {
+                    VStack(spacing: 6) {
+                        ForEach(call.missedCalls) { m in
+                            HStack(spacing: 8) {
+                                Image(systemName: "phone.arrow.down.left").font(.system(size: 11)).foregroundColor(DS.danger)
+                                Text("Missed · \(m.name)").font(DS.ui(12)).foregroundColor(DS.text)
+                                Text(m.at, style: .time).font(DS.mono(10)).foregroundColor(DS.faint)
+                                Spacer()
+                                Button("Call back") { call.remoteIP = m.ip; call.startCall() }
+                                    .buttonStyle(.plain).font(DS.mono(11)).foregroundColor(DS.live)
+                                    .padding(.horizontal, 10).padding(.vertical, 4)
+                                    .overlay(Capsule().stroke(DS.live.opacity(0.4), lineWidth: 1))
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 14).padding(.vertical, 10).dsCard(12)
+                    .frame(maxWidth: 420)
+                }
+
+                // Recent-call journal: duration + average link quality of past completed calls.
+                if !call.recentCalls.isEmpty {
+                    VStack(spacing: 5) {
+                        HStack {
+                            Text("RECENT").font(DS.mono(9)).foregroundColor(DS.faint).tracking(1)
+                            Spacer()
+                            Button("Copy log") { call.copyJournal() }
+                                .buttonStyle(.plain).font(DS.mono(9)).foregroundColor(DS.dim)
+                        }
+                        ForEach(call.recentCalls.prefix(4)) { r in
+                            HStack(spacing: 8) {
+                                Image(systemName: "phone.connection").font(.system(size: 11)).foregroundColor(DS.dim)
+                                Text(r.peer).font(DS.mono(11)).foregroundColor(DS.text)
+                                Spacer()
+                                Text("\(r.durationSec/60)m\(String(format: "%02d", r.durationSec%60))s · \(r.avgKbps)k · \(r.avgJitterMs)ms\(r.stalls > 0 ? " · ⚠︎\(r.stalls)" : "")")
+                                    .font(DS.mono(10)).foregroundColor(r.avgJitterMs > 40 || r.stalls > 0 ? DS.danger : DS.faint)
+                                Button("Call") { call.remoteIP = r.peer; call.startCall() }
+                                    .buttonStyle(.plain).font(DS.mono(10)).foregroundColor(DS.live)
+                            }
+                        }
+                        // Aggregate stability across the whole journal.
+                        let s = call.callStats
+                        Divider().overlay(DS.hairline)
+                        HStack(spacing: 8) {
+                            Text("\(s.count) calls").font(DS.mono(9)).foregroundColor(DS.dim)
+                            Spacer()
+                            Text("avg \(s.avgDurationSec/60)m\(String(format: "%02d", s.avgDurationSec%60))s · \(s.avgKbps)k · \(s.totalStalls) stalls")
+                                .font(DS.mono(9)).foregroundColor(s.totalStalls > 0 ? DS.danger : DS.faint)
+                        }
+                    }
+                    .padding(.horizontal, 14).padding(.vertical, 10).dsCard(12).frame(maxWidth: 420)
+                }
 
                 if !call.recentIPs.isEmpty {
                     HStack(spacing: 8) {
@@ -264,6 +368,7 @@ private struct InCallView: View {
     @ObservedObject var call: CallManager
     @State private var pipOffset: CGSize = .zero
     @State private var showChat = false
+    @State private var showLinkStats = false
     @State private var draft = ""
     private let reactions = ["👍", "❤️", "😂", "👏", "🔥"]
 
@@ -294,6 +399,15 @@ private struct InCallView: View {
                         StatusTag(text: call.framesReceived > 0 || !call.groupDecoders.isEmpty ? "Secure" : "Connecting",
                                   live: call.framesReceived > 0 || !call.groupDecoders.isEmpty)
                             .background(DS.ink.opacity(0.5), in: Capsule())
+                        // Make link trouble visible instead of a silent freeze.
+                        if call.linkHealth != .good {
+                            StatusTag(text: call.linkHealth == .stalled ? "Reconnecting…" : "Weak connection", live: false)
+                                .background((call.linkHealth == .stalled ? DS.danger : Color.orange).opacity(0.9), in: Capsule())
+                        } else if call.linkRestored {
+                            StatusTag(text: "Connection restored", live: true)
+                                .background(DS.live.opacity(0.9), in: Capsule())
+                                .transition(.opacity)
+                        }
                         if call.roster.count > 1 {
                             StatusTag(text: "\(call.roster.count) in call", live: true).background(DS.ink.opacity(0.5), in: Capsule())
                         }
@@ -301,6 +415,12 @@ private struct InCallView: View {
                             StatusTag(text: "Sharing Screen", live: true).background(DS.ink.opacity(0.5), in: Capsule())
                         }
                         LinkBadge(link: call.link)
+                        // Live BWE readout: what the PEER's receiver measures (jitter) + our encode rate.
+                        // Green under 40ms (the back-off threshold), red above — network health at a glance.
+                        Text("net \(call.peerJitterMs)ms · \(call.camera.bitrateKbps)k")
+                            .font(DS.mono(10)).foregroundColor(call.peerJitterMs > 40 ? DS.danger : DS.live)
+                            .padding(.horizontal, 8).padding(.vertical, 4)
+                            .background(DS.ink.opacity(0.5), in: Capsule())
                     }
                     Spacer()
                     if let s = call.previewSession {
@@ -348,6 +468,16 @@ private struct InCallView: View {
                 Meter(label: "Mic", level: call.txLevel, muted: call.isMuted)
                 Meter(label: "In", level: call.rxLevel, muted: false)
                 Spacer()
+                // Link-quality at a glance (what Zoom/Meet show as "bars"): encode bitrate + peer's jitter.
+                // Tap to expand a 60s sparkline of both.
+                Button { showLinkStats.toggle() } label: {
+                    Text("\(call.bitrateKbps)k · jit \(call.peerJitterMs)ms")
+                        .font(DS.mono(11)).foregroundColor(call.peerJitterMs > 40 ? DS.danger : DS.faint)
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showLinkStats, arrowEdge: .top) {
+                    LinkStatsPanel(call: call).frame(width: 300)
+                }
                 Text("↑\(call.framesSent)  ↓\(call.framesReceived)")
                     .font(DS.mono(11)).foregroundColor(DS.faint)
                 IconPill(system: call.isMuted ? "mic.slash.fill" : "mic.fill", active: call.isMuted, tint: DS.danger) { call.isMuted.toggle() }

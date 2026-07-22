@@ -377,13 +377,20 @@ class H264Encoder {
         bitrateKbps = curBitrate / 1000
     }
 
+    // Escalating additive increase (slow-start style, as in TCP/GCC probing): every consecutive clean tick
+    // DOUBLES the climb step (8k -> 16k -> 32k -> 64k cap), any loss resets it — reaches the 720p rung in a
+    // few ticks on a clean link instead of ~100s of flat +8k, while still backing off instantly on loss.
+    private var climbStep = 8_000
     func nudgeBitrate(down: Bool) {
         guard let s = session, maxBitrate > 0 else { return }
         let floor = 80_000   // absolute, so the resolution ladder can reach its small rungs on a weak link
-        // Gentler AIMD (0.92 down / +8kbps up, was 0.9 / +10k) to damp visible "pumping", and keep the
-        // hard DataRateLimits cap IN SYNC with the average so quality can't overshoot after a step.
-        curBitrate = down ? max(floor, Int(Double(curBitrate) * 0.92))
-                          : min(maxBitrate, curBitrate + 8_000)
+        if down {
+            climbStep = 8_000
+            curBitrate = max(floor, Int(Double(curBitrate) * 0.92))
+        } else {
+            curBitrate = min(maxBitrate, curBitrate + climbStep)
+            climbStep = min(64_000, climbStep * 2)
+        }
         bitrateKbps = curBitrate / 1000
         VTSessionSetProperty(s, key: kVTCompressionPropertyKey_AverageBitRate, value: curBitrate as CFNumber)
         let cap = (curBitrate * 5 / 4) / 8
