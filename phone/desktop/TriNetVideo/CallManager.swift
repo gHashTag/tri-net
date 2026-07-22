@@ -344,6 +344,13 @@ class CallManager: ObservableObject {
             }
             self.rxFps = max(0, fc - self.lastRxFrameCount)
             self.lastRxFrameCount = fc
+            // framesReceived is otherwise set only in onReceive, which the transport does NOT call in group mode
+            // (only onReceiveFrom) — so in a group call it stayed 0, misfiring the 30s "No answer" timer and
+            // never flipping status to "Connected". Drive it from the per-source decoders here.
+            if self.isGroup {
+                self.framesReceived = fc
+                if fc > 0 && self.status != "Connected" { self.status = "Connected" }
+            }
             // ALIGNED delivery stats: sample sent vs decoded AT THE SAME INSTANT, every ~5s. Reading these from
             // the per-500 tx / per-200 rx log lines gave a stale-vs-late mismatch (a nonsensical "110%"); this is
             // the honest end-to-end number. audio delivery = decoded/sent (recovered = frames RED rebuilt);
@@ -881,6 +888,9 @@ class CallManager: ObservableObject {
             if data.count > 2, data[0] == 0xFD, data[1] == 0xAD {
                 self.audio.playPacket(data.subdata(in: 2..<data.count)); return
             }
+            if data.count > 2, data[0] == 0xFD, data[1] == 0xC0 {   // audio (Opus) — the 1-1 path had this but the
+                self.audio.playOpus(data.subdata(in: 2..<data.count)); return   // group path did NOT, so with Opus
+            }                                                        // always on, group calls were SILENT.
             if data.count > 2, data[0] == 0xFB, data[1] == 0xCA {
                 let msg = String(decoding: data.subdata(in: 2..<data.count), as: UTF8.self)
                 DispatchQueue.main.async { self.chat.append(ChatLine(who: .them, text: msg)); self.chatChime.play(); if !self.chatOpen { self.unreadChat += 1 } }

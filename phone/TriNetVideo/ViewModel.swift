@@ -405,6 +405,9 @@ class StreamViewModel: ObservableObject {
             }
             self.rxFps = max(0, fc - self.lastRxFrameCount)
             self.lastRxFrameCount = fc
+            // framesReceived is otherwise set only in the 1-1 onData path; in a group call drive it from the
+            // per-source decoders so LinkHealth and the STATS line reflect the real received video.
+            if self.isGroup { self.framesReceived = fc }
             // ALIGNED delivery stats: sample sent vs decoded AT THE SAME INSTANT, every ~5s (the honest
             // end-to-end number; the per-N tx/rx log lines are sampled at different cadences and don't align).
             self.statsTick += 1
