@@ -243,7 +243,7 @@ class MeshTransport {
                     }
                     // 1-1 ephemeral path
                     if self.crypto.isHandshake(pkt) {
-                        self.crypto.consumeHandshake(pkt)
+                        self.crypto.consumeHandshake(pkt, from: senderIP)
                         self.rawSendWire(self.crypto.handshakePacket())
                         continue
                     }

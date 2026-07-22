@@ -820,7 +820,7 @@ class BSDTransport {
                     continue
                 }
                 if self.crypto.isHandshake(pkt) {
-                    self.crypto.consumeHandshake(pkt)
+                    self.crypto.consumeHandshake(pkt, from: src)
                     self.rawSendWire(self.crypto.handshakePacket())
                     continue
                 }
@@ -1617,6 +1617,44 @@ final class MeshCrypto {
     // PSK-only keys BIT-FOR-BIT (open lobby, old-build interop); a set room means an
     // attacker must know the room secret, not merely possess the app's hardcoded PSK.
     var room = ""
+
+    // ---- persistent device IDENTITY (Ed25519) + trust-on-first-use pinning ----
+    // Stops an active MITM who knows the room from impersonating a pinned peer: only
+    // the identity holder can sign the ephemeral key. Pin on first contact; a changed
+    // idPub at a pinned peer flags a MITM. Private key in UserDefaults (Keychain is the
+    // hardening follow-up); it never leaves the device.
+    let identityPriv: Curve25519.Signing.PrivateKey
+    var identityPub: Data { identityPriv.publicKey.rawRepresentation }
+    private(set) var peerIdentity: Data?
+    private(set) var mitmDetected = false
+
+    init(identity: Curve25519.Signing.PrivateKey = MeshCrypto.deviceIdentity()) {
+        self.identityPriv = identity
+    }
+
+    static func deviceIdentity() -> Curve25519.Signing.PrivateKey {
+        let k = "trinetIdentityKeyV1"
+        if let b64 = UserDefaults.standard.string(forKey: k), let raw = Data(base64Encoded: b64),
+           let key = try? Curve25519.Signing.PrivateKey(rawRepresentation: raw) { return key }
+        let key = Curve25519.Signing.PrivateKey()
+        UserDefaults.standard.set(key.rawRepresentation.base64EncodedString(), forKey: k)
+        return key
+    }
+
+    private var pins: [String: Data] = (UserDefaults.standard.dictionary(forKey: "trinetPeerPins") as? [String: String] ?? [:])
+        .compactMapValues { Data(base64Encoded: $0) }
+    private func pin(_ ip: String, _ idPub: Data) {
+        pins[ip] = idPub
+        UserDefaults.standard.set(pins.mapValues { $0.base64EncodedString() }, forKey: "trinetPeerPins")
+    }
+
+    static func safetyNumber(_ a: Data, _ b: Data) -> String {
+        let pair = a.lexicographicallyPrecedes(b) ? a + b : b + a
+        let h = SHA256.hash(data: pair)
+        let n = h.prefix(5).reduce(UInt64(0)) { ($0 << 8) | UInt64($1) }
+        return String(format: "%011llu", n % 100_000_000_000)
+    }
+
     static func handshakeAuthKey(room: String) -> SymmetricKey {
         room.isEmpty ? psk : SymmetricKey(data: HKDF<SHA256>.deriveKey(
             inputKeyMaterial: psk, salt: Data("trios-mesh/v1/room".utf8),
@@ -1643,22 +1681,38 @@ final class MeshCrypto {
         var d = Data(MeshCrypto.handshakeMagic)
         d.append(pub)
         d.append(Data(mac))
+        d.append(identityPub)
+        d.append((try? identityPriv.signature(for: pub)) ?? Data(count: 64))
         return d
     }
 
     func isHandshake(_ d: Data) -> Bool {
-        d.count == 66 && d[0] == MeshCrypto.handshakeMagic[0] && d[1] == MeshCrypto.handshakeMagic[1]
+        d.count == 162 && d[0] == MeshCrypto.handshakeMagic[0] && d[1] == MeshCrypto.handshakeMagic[1]
     }
 
     @discardableResult
-    func consumeHandshake(_ d: Data) -> Bool {
+    func consumeHandshake(_ d: Data, from peerIP: String = "") -> Bool {
         guard isHandshake(d) else { return false }
         let pub = d.subdata(in: 2..<34)
         let mac = d.subdata(in: 34..<66)
+        let idPub = d.subdata(in: 66..<98)
+        let sig = d.subdata(in: 98..<162)
         guard HMAC<SHA256>.isValidAuthenticationCode(mac, authenticating: pub, using: MeshCrypto.handshakeAuthKey(room: room)) else {
             NSLog("TRINET: handshake HMAC invalid — wrong room secret or not a TRI-NET peer — rejected")
             return true
         }
+        guard let idKey = try? Curve25519.Signing.PublicKey(rawRepresentation: idPub),
+              idKey.isValidSignature(sig, for: pub) else {
+            NSLog("TRINET: handshake identity signature invalid — rejected")
+            return true
+        }
+        if let pinned = pins[peerIP], pinned != idPub {
+            mitmDetected = true
+            NSLog("TRINET: MITM — peer %@ identity CHANGED from the pinned key; session refused", peerIP)
+            return true
+        }
+        if pins[peerIP] == nil, !peerIP.isEmpty { pin(peerIP, idPub) }
+        peerIdentity = idPub
         guard let peerPub = try? Curve25519.KeyAgreement.PublicKey(rawRepresentation: pub),
               let shared = try? ephPriv.sharedSecretFromKeyAgreement(with: peerPub) else {
             return true
