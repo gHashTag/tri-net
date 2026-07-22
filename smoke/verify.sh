@@ -33,6 +33,7 @@ SUITE=(
   "MeshCrypto identity: $SRC/MeshCrypto.swift: smoke/harness/crypto_identity.swift"
   "MeshCrypto keychain: $SRC/MeshCrypto.swift: smoke/harness/crypto_keychain.swift"
   "Stun RFC5769     : $SRC/StunClient.swift: smoke/harness/stun_vectors.swift"
+  "HolePunch        : $SRC/HolePunch.swift : smoke/harness/holepunch.swift"
 )
 
 pass=0; fail=0

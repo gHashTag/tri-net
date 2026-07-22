@@ -2844,3 +2844,37 @@ Lessons:
   record; the live query is a bonus, honestly reported when the network cooperates.
 NOT yet wired into the transport (no signaling to exchange candidates, no hole-punch); that is
 the next brick. StunClient.swift is harness-proven but not in project.yml until it is used.
+
+## WAVE 2026-07-23 #43 — hole-punch: the SECOND brick of NAT traversal (verified on loopback)
+#42 gave each side its public address (STUN); the missing half is USING two addresses to
+connect. HolePunch.swift is the connectivity check: both peers send probes to each other's
+candidates AT THE SAME TIME, and that simultaneous open is what punches a pinhole through each
+NAT (NAT B admits A's inbound because B just sent outbound toward A). The pair that completes
+a probe/ack round-trip is the one the media call uses.
+
+Pure + standalone (like StunClient). Three verified layers in smoke/harness/holepunch.swift
+(the 9th verify.sh test):
+  1. probe/ack wire codec bit-exact (0xFD 0x1C probe / 0xFD 0x1D ack + big-endian txid).
+  2. ICE-style pair priority (RFC 8445 6.1.2.3) + nomination on synthetic candidates:
+     host outranks srflx; pair priority is IDENTICAL from the controlling and controlled
+     views (min/max makes it symmetric); nominate returns the best SUCCEEDED pair, not the
+     best pair overall.
+  3. TWO real agents actually hole-punch each other over loopback UDP (real sockets, two
+     threads) and both hear an ack.
+
+Lessons:
+- What a single machine CAN prove: the check state machine + wire format + selection, over
+  real UDP. What it CANNOT: traversal of a real NAT (needs two separate NATs). State the
+  boundary; do not claim NAT traversal from a loopback pass.
+- The one non-pure test (real sockets, thread scheduling) is the flake risk. Made it robust,
+  not lucky: each agent RETRANSMITS its probe every 50ms for the whole 1.2s window on a
+  lossless loopback and answers every probe it sees, so an ack is guaranteed regardless of
+  who sends first. Then ran it 5x — 5/5 ALL PASS — before trusting it ("PROVEN"=reproduced,
+  one success is an anecdote).
+- Reply the ack to the OBSERVED source (recvfrom's from-addr), not a preconfigured peer addr:
+  a symmetric NAT rewrites the source port, and the observed source is the pinhole.
+- Retransmission IS the algorithm, not a workaround: simultaneous open routinely needs a few
+  tries because the two sides never start in lockstep.
+NOT yet wired into the transport: exchanging candidate lists over a signaling/rendezvous
+channel and running punch() before the media socket opens is the third brick. HolePunch.swift
+is harness-proven but not in project.yml until used.
