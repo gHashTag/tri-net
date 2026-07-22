@@ -2177,3 +2177,18 @@ phi^2 + phi^-2 = 3 | TRINITY
   badge. Directly serves the user's recurring real-device pain ("video not working"): they can now WATCH the
   resolution step down/up as bandwidth changes, instead of only reading logs. Builds; smoke PASSes (720p on the
   clean loopback). Landed on clean main.
+
+## WAVE 2026-07-23 #21 — receive-side stats in the badge (the "no video" diagnostic)
+
+- **The in-call badge showed only OUR TX stats** (send resolution/bitrate + peer jitter). But "video not working"
+  is almost always a RECEIVE problem. Added an RX capsule: frames/sec DECODED from the peer + received
+  resolution, RED when 0 fps (no video arriving) — the fastest read on the recurring complaint. Badge now:
+  `TX 720p·net 5ms·640k` + `RX 30fps·720p`. Both platforms.
+- Plumbing: decoder exposes `decodedHeight` (from CMVideoFormatDescriptionGetDimensions on the SPS) +
+  frameCount; CallManager/ViewModel sample `rxFps = frameCount - last` in the existing 1s BWE timer, reset on
+  call end. Builds; smoke PASSes.
+- **HONEST limit: the RX badge is the 1-1 path (`self.decoder`).** The loopback smoke is the GROUP path
+  (3-participant auto-join -> groupDecoders), so it can't isolate the 1-1 rxFps headlessly (a 1-1 loopback is
+  impossible — auto-join is group-only). Code is straightforward + correct; a real Mac<->iPhone 1-1 call
+  populates it. Group calls show video in per-source tiles, so the RX badge reading 0 there is expected, not a
+  bug. Landed on clean main.

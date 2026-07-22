@@ -358,6 +358,9 @@ class StreamViewModel: ObservableObject {
     private var highJitterStreak = 0
     private var cleanStreak = 0   // consecutive low-jitter reports, for GCC probe-up
     @Published var peerJitterMs = 0
+    @Published var rxFps = 0           // frames/sec we're DECODING from the peer (0 = no video arriving) — 1-1 path
+    @Published var rxHeight: Int32 = 0 // resolution of the received frames, for the in-call badge
+    private var lastRxFrameCount = 0
     @Published var bitrateKbps = 0           // current encode bitrate, for the link badge
     @Published var bitrateHistory: [Int] = []  // last 60s, for the link-quality sparkline
     @Published var jitterHistory: [Int] = []
@@ -383,6 +386,11 @@ class StreamViewModel: ObservableObject {
             var pkt = Data([0xFD, 0xBE])
             pkt.append(contentsOf: [UInt8(j >> 8), UInt8(j & 0xFF), UInt8(p >> 8), UInt8(p & 0xFF)])
             self.transport.send(pkt)
+            // Receive-side video health for the badge (frames DECODED in the last second) — 1-1 path.
+            let fc = self.decoder.frameCount
+            self.rxFps = max(0, fc - self.lastRxFrameCount)
+            self.lastRxFrameCount = fc
+            self.rxHeight = self.decoder.decodedHeight
             self.bitrateKbps = self.camera.bitrateKbps   // refresh the link badge once a second
             // Rolling 60s history for the tap-to-expand link-quality sparkline.
             self.bitrateHistory.append(self.bitrateKbps); if self.bitrateHistory.count > 60 { self.bitrateHistory.removeFirst() }
@@ -883,6 +891,7 @@ class StreamViewModel: ObservableObject {
         abrTimer?.invalidate(); abrTimer = nil
         phase = .idle
         framesSent = 0; framesReceived = 0
+        rxFps = 0; rxHeight = 0; lastRxFrameCount = 0
         bytesSent = 0; bytesRecv = 0
         txKBps = 0; rxKBps = 0
         startIdleListener()   // resume listening for incoming calls

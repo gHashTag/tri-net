@@ -300,6 +300,9 @@ class CallManager: ObservableObject {
     private var bweTimer: Timer?
     private var highJitterStreak = 0
     @Published var peerJitterMs = 0    // what the far end reports (drives our sender)
+    @Published var rxFps = 0           // frames/sec we're DECODING from the peer (0 = no video arriving) — 1-1 path
+    @Published var rxHeight: Int32 = 0 // resolution of the received frames, for the in-call badge
+    private var lastRxFrameCount = 0
 
     private func noteVideoArrival() {
         let now = Date()
@@ -323,6 +326,11 @@ class CallManager: ObservableObject {
             var pkt = Data([0xFD, 0xBE])
             pkt.append(contentsOf: [UInt8(j >> 8), UInt8(j & 0xFF), UInt8(p >> 8), UInt8(p & 0xFF)])
             self.transport.send(pkt)
+            // Sample receive-side video health for the badge (frames DECODED in the last second).
+            let fc = self.decoder.frameCount
+            self.rxFps = max(0, fc - self.lastRxFrameCount)
+            self.lastRxFrameCount = fc
+            self.rxHeight = self.decoder.decodedHeight
         }
     }
 
@@ -929,6 +937,7 @@ class CallManager: ObservableObject {
         status = "Idle"
         framesSent = 0
         framesReceived = 0
+        rxFps = 0; rxHeight = 0; lastRxFrameCount = 0
         previewSession = nil
         startIdleListener()   // resume listening for incoming calls
     }

@@ -440,6 +440,7 @@ class H264Encoder {
 
 class H264Decoder: ObservableObject {
     @Published var frameCount: Int = 0
+    private(set) var decodedHeight: Int32 = 0   // resolution of the frames we're RECEIVING from the peer
     @Published var currentFrame: CVImageBuffer?
 
     private var session: VTDecompressionSession?
@@ -517,6 +518,7 @@ class H264Decoder: ObservableObject {
                 NSLog("TRINET: CMVideoFormatDescriptionCreate status=\(status)")
                 guard status == noErr, let desc = desc else { return }
                 self.formatDesc = desc
+                self.decodedHeight = CMVideoFormatDescriptionGetDimensions(desc).height   // received resolution, for the badge
                 let refCon = Unmanaged.passUnretained(self).toOpaque()
                 var callback = VTDecompressionOutputCallbackRecord(
                     decompressionOutputCallback: { refCon, _, status, _, imageBuffer, _, _ in

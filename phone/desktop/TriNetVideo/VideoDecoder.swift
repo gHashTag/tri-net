@@ -7,6 +7,7 @@ import SwiftUI
 
 class VideoDecoder: ObservableObject {
     @Published var frameCount: Int = 0
+    private(set) var decodedHeight: Int32 = 0   // resolution of the frames we're RECEIVING from the peer
     @Published var currentFrame: CVImageBuffer?
 
     private var session: VTDecompressionSession?
@@ -74,6 +75,7 @@ class VideoDecoder: ObservableObject {
                 NSLog("TRINET: CMVideoFormatDescriptionCreate status=\(fdStatus)")
                 guard let d = desc else { return }
                 formatDesc = d
+                decodedHeight = CMVideoFormatDescriptionGetDimensions(d).height   // received resolution, for the badge
 
                 let ref = Unmanaged.passUnretained(self).toOpaque()
                 var cb = VTDecompressionOutputCallbackRecord(

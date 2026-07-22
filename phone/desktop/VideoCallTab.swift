@@ -417,8 +417,14 @@ private struct InCallView: View {
                         LinkBadge(link: call.link)
                         // Live BWE readout: what the PEER's receiver measures (jitter) + our encode rate.
                         // Green under 40ms (the back-off threshold), red above — network health at a glance.
-                        Text("\(call.camera.activeHeight > 0 ? "\(call.camera.activeHeight)p · " : "")net \(call.peerJitterMs)ms · \(call.camera.bitrateKbps)k")
+                        Text("TX \(call.camera.activeHeight > 0 ? "\(call.camera.activeHeight)p · " : "")net \(call.peerJitterMs)ms · \(call.camera.bitrateKbps)k")
                             .font(DS.mono(10)).foregroundColor(call.peerJitterMs > 40 ? DS.danger : DS.live)
+                            .padding(.horizontal, 8).padding(.vertical, 4)
+                            .background(DS.ink.opacity(0.5), in: Capsule())
+                        // Receive-side health: frames/sec + resolution DECODED from the peer. Red when 0 fps
+                        // (no video arriving) — the fastest read on the recurring "no video" complaint.
+                        Text("RX \(call.rxFps)fps\(call.rxHeight > 0 ? " · \(call.rxHeight)p" : "")")
+                            .font(DS.mono(10)).foregroundColor(call.rxFps > 0 ? DS.live : DS.danger)
                             .padding(.horizontal, 8).padding(.vertical, 4)
                             .background(DS.ink.opacity(0.5), in: Capsule())
                     }
