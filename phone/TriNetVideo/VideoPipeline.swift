@@ -7,6 +7,7 @@ import Vision
 import CoreImage
 import Network
 import CryptoKit
+import Security
 import UIKit   // UIDevice for the discovery default name
 
 // MARK: - Camera Controller
@@ -1638,12 +1639,39 @@ final class MeshCrypto {
         self.identityPriv = identity
     }
 
+    // Long-term signing key in the KEYCHAIN (not a plaintext plist). Migrates a legacy
+    // UserDefaults key once; falls back to UserDefaults only if the Keychain is unavailable.
+    static let kcService = "com.trinet.identity"
+    static let kcAccount = "device-ed25519"
+    private static func kcQuery() -> [String: Any] {
+        [kSecClass as String: kSecClassGenericPassword,
+         kSecAttrService as String: kcService, kSecAttrAccount as String: kcAccount]
+    }
+    static func keychainLoad() -> Data? {
+        var q = kcQuery(); q[kSecReturnData as String] = true
+        var out: CFTypeRef?
+        return SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess ? (out as? Data) : nil
+    }
+    @discardableResult static func keychainSave(_ data: Data) -> Bool {
+        SecItemDelete(kcQuery() as CFDictionary)
+        var add = kcQuery()
+        add[kSecValueData as String] = data
+        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        return SecItemAdd(add as CFDictionary, nil) == errSecSuccess
+    }
+
     static func deviceIdentity() -> Curve25519.Signing.PrivateKey {
-        let k = "trinetIdentityKeyV1"
-        if let b64 = UserDefaults.standard.string(forKey: k), let raw = Data(base64Encoded: b64),
-           let key = try? Curve25519.Signing.PrivateKey(rawRepresentation: raw) { return key }
+        let legacyKey = "trinetIdentityKeyV1"
+        if let raw = keychainLoad(), let key = try? Curve25519.Signing.PrivateKey(rawRepresentation: raw) { return key }
+        if let b64 = UserDefaults.standard.string(forKey: legacyKey), let raw = Data(base64Encoded: b64),
+           let key = try? Curve25519.Signing.PrivateKey(rawRepresentation: raw) {
+            if keychainSave(raw) { UserDefaults.standard.removeObject(forKey: legacyKey) }
+            return key
+        }
         let key = Curve25519.Signing.PrivateKey()
-        UserDefaults.standard.set(key.rawRepresentation.base64EncodedString(), forKey: k)
+        if !keychainSave(key.rawRepresentation) {
+            UserDefaults.standard.set(key.rawRepresentation.base64EncodedString(), forKey: legacyKey)
+        }
         return key
     }
 

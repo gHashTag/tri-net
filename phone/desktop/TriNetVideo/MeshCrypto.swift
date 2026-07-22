@@ -13,6 +13,7 @@
 // Wire (data): ChaChaPoly.combined sealed under the derived session key.
 import Foundation
 import CryptoKit
+import Security
 
 final class MeshCrypto {
     // PSK authenticates the ephemeral exchange (not the data). Swap for real
@@ -73,12 +74,42 @@ final class MeshCrypto {
     }
 
     // Load (or first-run generate + persist) this device's long-term signing key.
+    // The long-term signing key lives in the KEYCHAIN, not UserDefaults — a private key
+    // must not sit in a plaintext plist on disk. Order: (1) load from Keychain; (2) migrate
+    // a legacy UserDefaults key into the Keychain once (so existing installs keep their
+    // identity + peers' pins stay valid); (3) first run — generate + store. If the Keychain
+    // is unavailable (unsigned build), fall back to UserDefaults so the app still works.
+    static let kcService = "com.trinet.identity"
+    static let kcAccount = "device-ed25519"
+    private static func kcQuery() -> [String: Any] {
+        [kSecClass as String: kSecClassGenericPassword,
+         kSecAttrService as String: kcService, kSecAttrAccount as String: kcAccount]
+    }
+    static func keychainLoad() -> Data? {
+        var q = kcQuery(); q[kSecReturnData as String] = true
+        var out: CFTypeRef?
+        return SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess ? (out as? Data) : nil
+    }
+    @discardableResult static func keychainSave(_ data: Data) -> Bool {
+        SecItemDelete(kcQuery() as CFDictionary)
+        var add = kcQuery()
+        add[kSecValueData as String] = data
+        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        return SecItemAdd(add as CFDictionary, nil) == errSecSuccess
+    }
+
     static func deviceIdentity() -> Curve25519.Signing.PrivateKey {
-        let k = "trinetIdentityKeyV1"
-        if let b64 = UserDefaults.standard.string(forKey: k), let raw = Data(base64Encoded: b64),
-           let key = try? Curve25519.Signing.PrivateKey(rawRepresentation: raw) { return key }
+        let legacyKey = "trinetIdentityKeyV1"
+        if let raw = keychainLoad(), let key = try? Curve25519.Signing.PrivateKey(rawRepresentation: raw) { return key }
+        if let b64 = UserDefaults.standard.string(forKey: legacyKey), let raw = Data(base64Encoded: b64),
+           let key = try? Curve25519.Signing.PrivateKey(rawRepresentation: raw) {
+            if keychainSave(raw) { UserDefaults.standard.removeObject(forKey: legacyKey) }   // migrate + scrub the plist
+            return key
+        }
         let key = Curve25519.Signing.PrivateKey()
-        UserDefaults.standard.set(key.rawRepresentation.base64EncodedString(), forKey: k)
+        if !keychainSave(key.rawRepresentation) {
+            UserDefaults.standard.set(key.rawRepresentation.base64EncodedString(), forKey: legacyKey)   // fallback
+        }
         return key
     }
 
