@@ -2027,3 +2027,23 @@ phi^2 + phi^-2 = 3 | TRINITY
   harness now exists to prove any retune (e.g. gate 3->2) keeps stability — do that behind a user OK.
 - **Pattern: when live loss-injection needs root, a constants-exact closed-loop harness with an explicit link
   model verifies control-loop DYNAMICS (convergence, stability, recovery) that step-math tests can't.**
+
+## WAVE 2026-07-22 #12 — fuzzed the plaintext INVITE listener (:7000), no crash
+
+- **Attack surface: the idle INVITE listener on :7000 parses UNAUTHENTICATED datagrams from any LAN host**
+  (call setup is plaintext by design, before crypto). Fuzzed it live with 56 adversarial datagrams x scenarios:
+  empty / 1-byte / magic-only / no-newline / invalid-UTF8 / 2000B oversize (buf is 512 -> truncated) /
+  200-fake-IPs (auto-join flood) / only-newlines / empty-fields / 400B name / NUL bytes / trailing commas /
+  wrong-magic / negative-lookalike IPs.
+- **VERIFIED robust: same PID before/after, NO crash.** The parser is bounds-safe by construction — every index
+  is guarded (`n >= 2`, `n > 2 ?`, `parts.count > 1/2`), invalid UTF-8 -> "" (`String(bytes:) ?? ""`), 512B buf
+  truncates oversize. The idle recv loop already handles EAGAIN (SO_RCVTIMEO). After the barrage a VALID INVITE
+  still rang correctly -> listener not wedged.
+- **FINDING (spam-hardening, not a crash): a 2-byte magic-only datagram makes the Mac RING** "TRI-NET
+  (127.0.0.1)" — any LAN host can pop the incoming-call UI, and while ringing (40s) the `incomingCall == nil`
+  guard makes it IGNORE legitimate INVITEs. Also lucky-ordering shielded the 200-IP auto-join flood (the first
+  garbage ring set incomingCall, blocking the rest). Left UNCHANGED: requiring a minimal valid payload before
+  ringing is a policy/behavior call on Codex-edited CallManager; reported as an option. The app is SAFE (no
+  crash) — this is annoyance-DoS, not memory-unsafety.
+- **Pattern: fuzz any plaintext/unauthenticated parser that faces the network, live, and assert the PROCESS
+  survives (same PID) + the service still works afterward — reading "looks bounds-safe" is not proof.**
