@@ -398,6 +398,10 @@ class CallManager: ObservableObject {
                 let parts = payload.components(separatedBy: "\n")
                 let name = (parts.first?.isEmpty == false) ? parts[0] : "TRI-NET"
                 let participants = parts.count > 1 ? parts[1].split(separator: ",").map(String.init) : []
+                // Spam-hardening: a REAL INVITE always carries the caller's IP list ([myIP] + hosts, >= 1).
+                // A payload with no participants (a 2-byte magic-only or empty-field datagram) can't be a call
+                // -- reject it so any LAN host can't pop the incoming-call UI (and block real INVITEs for 40s).
+                guard !participants.isEmpty else { continue }
                 let room = parts.count > 2 ? parts[2] : ""
                 let ip = String(cString: inet_ntoa(from.sin_addr))
                 DispatchQueue.main.async {

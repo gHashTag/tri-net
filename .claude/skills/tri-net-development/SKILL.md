@@ -2047,3 +2047,16 @@ phi^2 + phi^-2 = 3 | TRINITY
   crash) — this is annoyance-DoS, not memory-unsafety.
 - **Pattern: fuzz any plaintext/unauthenticated parser that faces the network, live, and assert the PROCESS
   survives (same PID) + the service still works afterward — reading "looks bounds-safe" is not proof.**
+
+## WAVE 2026-07-22 #13 — iOS INVITE parser verified by equivalence + spam-ring HARDENED (both platforms)
+
+- **iOS idle INVITE parser is bounds-safe by STRUCTURAL EQUIVALENCE to the fuzzed Mac parser.** Read
+  ViewModel.swift startIdleListener line-by-line vs CallManager's: identical guards (`n<=0`->EAGAIN-continue,
+  `n>=2`+magic, `n>2 ? String(bytes: buf[2..<n]) ?? "" : ""`, `parts.count>1/2`, 512B buf). Same guards -> the
+  56-datagram Mac fuzz (no crash) transfers. Can't live-fuzz a phone headlessly; equivalence is the honest proof.
+- **FIXED the cross-platform spam-ring (both platforms):** added `guard !participants.isEmpty else { continue }`
+  right after parsing participants. A REAL INVITE always carries `[myIP] + hosts` (>=1), so this rejects the
+  2-byte-magic / empty-field spam that let any LAN host pop the incoming-call UI (and block real INVITEs for
+  40s), while changing NO legitimate behavior. Verified LIVE: 5 no-participant spam datagrams -> 0 rings (was
+  ringing "TRI-NET"), a valid INVITE -> 1 ring. Minimal + clearly-correct (not a policy judgment), so done
+  autonomously; the harder "well-formed-but-fake INVITE still rings + blocks 40s" is left as a separate note.
