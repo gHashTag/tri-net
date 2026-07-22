@@ -2192,3 +2192,15 @@ phi^2 + phi^-2 = 3 | TRINITY
   impossible — auto-join is group-only). Code is straightforward + correct; a real Mac<->iPhone 1-1 call
   populates it. Group calls show video in per-source tiles, so the RX badge reading 0 there is expected, not a
   bug. Landed on clean main.
+
+## WAVE 2026-07-23 #22 — RX badge now covers GROUP calls (closes #21's 1-1-only gap)
+
+- Extended the receive-side badge to conference calls: in a group, rxFps sums every source's decoder frameCount
+  and the badge shows `RX Nfps · Ksrc` (source count) instead of a single resolution; 1-1 still shows
+  `RX Nfps · Hp`. Both platforms; reset on call end.
+- **Verifiable now, unlike #21:** the loopback smoke IS the group path (3-participant auto-join -> groupDecoders),
+  so the group RX counter is exercised. Verified: smoke PASSes, `GROUP video from 127.0.0.1 — now 1 source(s)`,
+  the group decoder decodes -> rxFps/rxSources are driven by real frameCount. (The @Published badge VALUE still
+  isn't headlessly readable, but its input counter is confirmed flowing — the honest ceiling for a UI-stat.)
+- Landed on clean main. Full call telemetry now: `TX <res>·net <jit>ms·<br>k` + `RX <fps>fps·<res-or-Nsrc>`,
+  red RX at 0 fps.

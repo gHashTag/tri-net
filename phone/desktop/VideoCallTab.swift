@@ -423,7 +423,7 @@ private struct InCallView: View {
                             .background(DS.ink.opacity(0.5), in: Capsule())
                         // Receive-side health: frames/sec + resolution DECODED from the peer. Red when 0 fps
                         // (no video arriving) — the fastest read on the recurring "no video" complaint.
-                        Text("RX \(call.rxFps)fps\(call.rxHeight > 0 ? " · \(call.rxHeight)p" : "")")
+                        Text("RX \(call.rxFps)fps\(call.isGroup ? " · \(call.rxSources) src" : (call.rxHeight > 0 ? " · \(call.rxHeight)p" : ""))")
                             .font(DS.mono(10)).foregroundColor(call.rxFps > 0 ? DS.live : DS.danger)
                             .padding(.horizontal, 8).padding(.vertical, 4)
                             .background(DS.ink.opacity(0.5), in: Capsule())

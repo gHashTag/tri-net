@@ -610,7 +610,7 @@ struct CallScreen: View {
                         Text("TX \(vm.camera.activeHeight > 0 ? "\(vm.camera.activeHeight)p·" : "")\(vm.peerJitterMs)ms·\(vm.camera.bitrateKbps)k")
                             .font(DS.mono(10)).foregroundColor(vm.peerJitterMs > 40 ? DS.danger : .green)
                         // Receive-side: frames/sec + resolution DECODED from the peer. Red at 0 fps (no video in).
-                        Text("RX \(vm.rxFps)fps\(vm.rxHeight > 0 ? "·\(vm.rxHeight)p" : "")")
+                        Text("RX \(vm.rxFps)fps\(vm.isGroup ? "·\(vm.rxSources)src" : (vm.rxHeight > 0 ? "·\(vm.rxHeight)p" : ""))")
                             .font(DS.mono(10)).foregroundColor(vm.rxFps > 0 ? .green : DS.danger)
                         Text(vm.remoteIP).font(DS.mono(11)).foregroundColor(DS.faint)
                     }
