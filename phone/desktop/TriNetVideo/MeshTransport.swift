@@ -374,35 +374,80 @@ class MeshTransport {
     private var nackedAt: [UInt16: Date] = [:]
     private let nackWindow = 30          // only chase the last ~30 missing NALs (~0.5s of video)
 
+    // sentNALs/sentOrder are WRITTEN by bufferSentNAL on the encoder/send thread and
+    // READ by resend* on the rx queue — a real cross-thread race (Swift Dictionary is
+    // not thread-safe; it SIGSEGV'd under the frequent per-fragment NACK). Guard both,
+    // and copy the wire array out under the lock so rawSend (crypto) runs lock-free.
+    private let nackLock = NSLock()
+    private var fragNackedAt: [UInt16: Date] = [:]
+    // Seqs already delivered to the decoder. NACK resends can re-complete a NAL that was
+    // already handed up -> the decoder would get the SAME frame twice (recv > sent, and
+    // real double-decode artifacts). Drop any fragment for an already-delivered seq. 1-1
+    // only (group has no resends and shares the seq space across sources). rx-queue-only.
+    private var deliveredSeqs: Set<UInt16> = []
+    private var deliveredOrder: [UInt16] = []
+    private func markDelivered(_ seq: UInt16) {
+        guard !groupMode, deliveredSeqs.insert(seq).inserted else { return }
+        deliveredOrder.append(seq)
+        while deliveredOrder.count > 256 { deliveredSeqs.remove(deliveredOrder.removeFirst()) }
+    }
+
     private func bufferSentNAL(_ seq: UInt16, _ wire: [Data]) {
+        nackLock.lock()
         sentNALs[seq] = wire
         sentOrder.append(seq)
         while sentOrder.count > 64 { sentNALs.removeValue(forKey: sentOrder.removeFirst()) }
+        nackLock.unlock()
     }
 
-    // Peer asked us to re-send a NAL it never got. Re-seal (fresh random nonce) and wire it out.
+    // Peer asked us to re-send a whole NAL it never got. Re-seal (fresh random nonce) and wire it out.
     func resendNAL(_ seq: UInt16) {
-        guard let wire = sentNALs[seq] else { return }   // already evicted -> too old to help
+        nackLock.lock(); let wire = sentNALs[seq]; nackLock.unlock()
+        guard let wire = wire else { return }   // already evicted -> too old to help
         for w in wire { rawSend(w) }
     }
 
-    // A video data fragment arrived: NACK any NAL seq skipped since the last one.
-    // Uses the modular gap (never raw seq math) so a u16 wrap can't strand it.
+    // Peer asked for SPECIFIC missing fragments of a NAL it partly got. Data fragments
+    // occupy wire[0..<total] in idx order (parities follow), so idx maps straight in.
+    func resendFragments(_ seq: UInt16, _ idxs: [Int]) {
+        nackLock.lock(); let wire = sentNALs[seq]; nackLock.unlock()
+        guard let wire = wire else { return }
+        for i in idxs where i >= 0 && i < wire.count { rawSend(wire[i]) }
+    }
+
+    // A video data fragment arrived: (1) NACK any NAL seq skipped entirely since the
+    // last one (whole-NAL, since we don't know its `total`); (2) per-FRAGMENT NACK the
+    // recent NALs that are partly here but still short — resend only the holes, not the
+    // whole keyframe, and retry while they stay incomplete. Modular gap => u16-wrap-safe.
     private func noteVideoSeq(_ s: Int) {
         if highestVideoSeq < 0 { highestVideoSeq = s; return }
         let gap = (s - highestVideoSeq + 65536) % 65536
         if gap == 0 || gap > 32768 { return }            // duplicate / reorder / old
+        let now = Date()
         if gap > 1 {
-            let now = Date()
             for j in max(1, gap - nackWindow)..<gap {
                 let mseq = UInt16((highestVideoSeq + j) & 0xFFFF)
                 if let t = nackedAt[mseq], now.timeIntervalSince(t) < 0.12 { continue }   // rate-limit per seq
                 nackedAt[mseq] = now
-                send(Data([0xFD, 0x4E, UInt8(mseq & 0xFF), UInt8(mseq >> 8)]))             // "resend NAL mseq"
+                send(Data([0xFD, 0x4E, UInt8(mseq & 0xFF), UInt8(mseq >> 8)]))             // "resend whole NAL mseq"
             }
             if nackedAt.count > 256 { nackedAt = nackedAt.filter { now.timeIntervalSince($0.value) < 1.0 } }
         }
         highestVideoSeq = s
+        for back in 1...8 { nackMissingFragments(UInt16((s - back) & 0xFFFF), now) }   // retry recent partials
+        if fragNackedAt.count > 256 { fragNackedAt = fragNackedAt.filter { now.timeIntervalSince($0.value) < 1.0 } }
+    }
+
+    // If NAL `seq` is present but short, ask for exactly its missing fragment indices.
+    private func nackMissingFragments(_ seq: UInt16, _ now: Date) {
+        guard let entry = fragBufs[seq], entry.have < entry.parts.count else { return }
+        if let t = fragNackedAt[seq], now.timeIntervalSince(t) < 0.08 { return }         // rate-limit per NAL
+        let missing = (0..<entry.parts.count).filter { entry.parts[$0] == nil }
+        guard !missing.isEmpty else { return }
+        fragNackedAt[seq] = now
+        var pkt = Data([0xFD, 0x4F, UInt8(seq & 0xFF), UInt8(seq >> 8)])
+        for idx in missing.prefix(64) { pkt.append(UInt8(idx)) }                          // idx < total <= 255
+        send(pkt)
     }
 
     // Encrypt a fragment (group key in conference mode, else the ephemeral
@@ -504,7 +549,10 @@ class MeshTransport {
         let idx = Int(d[4])
         let total = Int(d[5])
         guard total > 0, idx < total else { return nil }
-        if !groupMode { noteVideoSeq(Int(seq)) }   // NACK any NAL skipped before this one (1-1)
+        if !groupMode {
+            if deliveredSeqs.contains(seq) { return nil }   // resend/late dupe of a delivered NAL -> drop
+            noteVideoSeq(Int(seq))                          // NACK any NAL skipped before this one
+        }
         var entry = fragBufs[seq] ?? (Array(repeating: nil, count: total), 0, 0)
         if entry.parts.count != total { entry = (Array(repeating: nil, count: total), 0, 0) }
         if entry.parts[idx] == nil {
@@ -513,6 +561,7 @@ class MeshTransport {
         }
         if entry.have == total {
             fragBufs.removeValue(forKey: seq); fecBufs.removeValue(forKey: seq)
+            markDelivered(seq)
             return entry.parts.compactMap { $0 }.reduce(Data(), +)
         }
         fragTick &+= 1
@@ -551,6 +600,7 @@ class MeshTransport {
         entry.have += 1
         if entry.have == fec.total {
             fragBufs.removeValue(forKey: seq); fecBufs.removeValue(forKey: seq)
+            markDelivered(seq)
             return entry.parts.compactMap { $0 }.reduce(Data(), +)
         }
         fragBufs[seq] = entry
@@ -563,7 +613,8 @@ class MeshTransport {
         if fd >= 0 { close(fd); fd = -1 }
         stopFeedbackListener()
         connected = false
-        sentNALs = [:]; sentOrder = []; highestVideoSeq = -1; nackedAt = [:]   // fresh NACK state per call
+        nackLock.lock(); sentNALs = [:]; sentOrder = []; nackLock.unlock()
+        highestVideoSeq = -1; nackedAt = [:]; fragNackedAt = [:]; deliveredSeqs = []; deliveredOrder = []   // fresh per call (rx-queue-only)
     }
 
     deinit { disconnect() }

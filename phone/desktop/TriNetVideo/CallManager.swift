@@ -880,6 +880,10 @@ class CallManager: ObservableObject {
                 self.transport.resendNAL(UInt16(data[2]) | (UInt16(data[3]) << 8))
                 return
             }
+            if data.count >= 5, data[0] == 0xFD, data[1] == 0x4F { // per-fragment NACK -> re-send just those frags
+                self.transport.resendFragments(UInt16(data[2]) | (UInt16(data[3]) << 8), data[4...].map { Int($0) })
+                return
+            }
             // Doctrine: NEVER hand an unknown control subtype to the H.264 decoder. Real NALs start 00 00 00 01.
             if data.first.map({ $0 >= 0xFB }) == true { return }
             self.noteVideoArrival()
