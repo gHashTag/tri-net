@@ -70,6 +70,7 @@ final class AudioController {
 
     func start() {
         redSeq = 0; prevOpus = Data(); redRecv = AudioREDReceiver()   // fresh RED state per call
+        opusTx = 0; opusRx = 0; redRecovered = 0                      // fresh delivery stats per call
         startPlayback()
         startCapture()
         installObservers()
@@ -254,7 +255,9 @@ final class AudioController {
             if opusDecodeFails <= 3 { NSLog("TRINET: opus RED parse failed (\(payload.count)B)") }
             return
         }
-        for frame in redRecv.receive(seq: seq, cur: cur, prev: prev) {
+        let frames = redRecv.receive(seq: seq, cur: cur, prev: prev)
+        if frames.count > 1 { redRecovered += frames.count - 1 }   // a lost packet reconstructed from the copy
+        for frame in frames {
             guard let pcm = opus?.decode(frame) else {
                 opusDecodeFails += 1
                 if opusDecodeFails <= 3 { NSLog("TRINET: opus decode failed (\(frame.count)B)") }
@@ -267,7 +270,12 @@ final class AudioController {
     private var redRecv = AudioREDReceiver()
     private var opusRx = 0
     private var pcmRx = 0
+    private var redRecovered = 0
     private var opusDecodeFails = 0
+    // Aligned call stats, sampled together (never from mismatched per-N log cadences,
+    // which is how a loopback delivery ratio read a nonsensical "110%"). sent/decoded
+    // are cumulative Opus-frame counts; recovered is frames rebuilt from RED redundancy.
+    var audioStats: (sent: Int, decoded: Int, recovered: Int) { (opusTx, opusRx, redRecovered) }
 
     // payload = Int16 LE samples (magic already stripped). `wire` says what
     // ACTUALLY arrived: this logs the DECODED size, so an Opus frame and a raw

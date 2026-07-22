@@ -1276,6 +1276,7 @@ final class AudioController {
     func start() {
         guard !started else { return }
         redSeq = 0; prevOpus = Data(); redRecv = AudioREDReceiver()   // fresh RED state per call
+        opusTx = 0; opusRx = 0; redRecovered = 0                      // fresh delivery stats per call
         installObservers()
         #if os(iOS)
         let sess = AVAudioSession.sharedInstance()
@@ -1419,7 +1420,9 @@ final class AudioController {
             if opusDecodeFails <= 3 { NSLog("TRINET: opus RED parse failed (\(payload.count)B)") }
             return
         }
-        for frame in redRecv.receive(seq: seq, cur: cur, prev: prev) {
+        let frames = redRecv.receive(seq: seq, cur: cur, prev: prev)
+        if frames.count > 1 { redRecovered += frames.count - 1 }   // a lost packet reconstructed from the copy
+        for frame in frames {
             guard let pcm = codec.decode(frame) else {
                 opusDecodeFails += 1
                 if opusDecodeFails <= 3 || opusDecodeFails % 200 == 0 {
@@ -1432,7 +1435,10 @@ final class AudioController {
         }
     }
     private var redRecv = AudioREDReceiver()
+    private var redRecovered = 0
     private var opusDecodeFails = 0
+    // Aligned call stats, sampled together (never from mismatched per-N log cadences).
+    var audioStats: (sent: Int, decoded: Int, recovered: Int) { (opusTx, opusRx, redRecovered) }
     private var opusRx = 0
     private var pcmRx = 0
 

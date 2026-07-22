@@ -359,6 +359,7 @@ class StreamViewModel: ObservableObject {
     private var cleanStreak = 0   // consecutive low-jitter reports, for GCC probe-up
     private var lossStreak = 0             // consecutive high-residual-loss reports (loss-based back-off)
     private var lastFramesSentSample = 0   // framesSent at the previous BWE report, for the per-second send delta
+    private var statsTick = 0              // 1s BWE ticks; the aligned STATS line prints every 5th
     @Published var peerJitterMs = 0
     @Published var rxFps = 0           // frames/sec we're DECODING from the peer(s) (0 = no video arriving)
     @Published var rxHeight: Int32 = 0 // resolution of the received frames, for the in-call badge (1-1)
@@ -404,6 +405,16 @@ class StreamViewModel: ObservableObject {
             }
             self.rxFps = max(0, fc - self.lastRxFrameCount)
             self.lastRxFrameCount = fc
+            // ALIGNED delivery stats: sample sent vs decoded AT THE SAME INSTANT, every ~5s (the honest
+            // end-to-end number; the per-N tx/rx log lines are sampled at different cadences and don't align).
+            self.statsTick += 1
+            if self.statsTick % 5 == 0 {
+                let a = self.audio.audioStats
+                if a.sent > 0 {
+                    let d = a.decoded * 100 / max(1, a.sent)
+                    NSLog("TRINET: STATS audio sent=\(a.sent) decoded=\(a.decoded) recovered=\(a.recovered) delivery=\(d)% | video sent=\(self.framesSent) recv=\(self.framesReceived)")
+                }
+            }
             // FROZEN-VIDEO recovery (1-1): if fragments keep ARRIVING but reassembly never completes a NAL, the
             // picture freezes (rxFps == 0) with packets flowing and nothing asks for an IDR (the decoder's own
             // request needs a NAL; the packet-stall needs packets to STOP). Detect it and request a keyframe.
