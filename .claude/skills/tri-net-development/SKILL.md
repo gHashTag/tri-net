@@ -2148,3 +2148,17 @@ phi^2 + phi^-2 = 3 | TRINITY
   reported as such.
 - **Decision to keep it:** cheap, correct, textbook anti-replay complement to the freshness window; not
   speculative. Landed on the clean main (does not touch Codex's broken branch).
+
+## WAVE 2026-07-23 #19 — BWE recovery 26s -> 17s (harness-chosen, conservative)
+
+- **Fixed the slow-recovery finding from #11** (26s to regain full rate after congestion clears). Used the
+  closed-loop harness (scratchpad/bwe_tune_harness.swift) to compare retune candidates on the 900k->400k->900k
+  bandwidth step, measuring recovery-time AND stability (settles at the knee? climbs while still congested?):
+  baseline gate3/cap64k=26s; gate2/cap64k=17s; gate2/cap128k=13s; gate1/cap128k=6s — ALL settled at the same
+  502k knee with no oscillation.
+- **Chose the MINIMAL change: probe-up gate 3 -> 2** (climb every 2 clean reports instead of 3), keeping the
+  step-size cap at 64k. Rationale: only the probe FREQUENCY changes, not the step size, so no extra overshoot
+  on a capacity-limited link (the harness's deterministic jitter can't model real-world noise-induced pumping,
+  so I did NOT chase the 6s gate1 option). 26s -> 17s, a 1.5x win, harness-proven stable. Both platforms.
+- Builds; smoke PASSes (normal call path unaffected). Landed on clean main. Data-driven control-loop tuning:
+  compare candidates in the harness, pick the smallest change that clearly wins, don't over-optimize a model.

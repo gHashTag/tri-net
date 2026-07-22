@@ -341,7 +341,10 @@ class CallManager: ObservableObject {
             } else if j < 20 {    // GCC probe-up: confirmed spare capacity -> an EXTRA climb tick (on the real
                 self.highJitterStreak = 0   // stream, never padding bursts — the mesh's pacing is fragile).
                 self.cleanStreak += 1       // Overshoot is caught instantly by the back-off above.
-                if self.cleanStreak >= 3 {
+                // Probe every 2 clean reports (was 3): a closed-loop harness on the 900k->400k->900k bandwidth
+                // step showed this cuts recovery ~26s -> ~17s while STILL settling at the same congestion knee
+                // with no oscillation. Only the probe FREQUENCY changed (not the step size), so no extra overshoot.
+                if self.cleanStreak >= 2 {
                     self.camera.nudgeBitrate(down: false)
                     self.cleanStreak = 0
                     NSLog("TRINET: BWE probe-up — peer jitter \(j)ms, capacity spare")
