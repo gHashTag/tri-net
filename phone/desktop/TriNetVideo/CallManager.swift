@@ -5,6 +5,7 @@ import AVFoundation
 import AudioToolbox
 import AppKit
 import CoreVideo
+import CryptoKit
 
 // A short "Trinity"-style chat blip: a quick bright two-note chirp (C6 -> G6), synthesized ONCE to a CAF and
 // played via AudioServices — session-safe (never touches the call's AVAudioEngine, so it can't kill the mic).
@@ -415,6 +416,19 @@ class CallManager: ObservableObject {
     private let idleQueue = DispatchQueue(label: "trinet.idle-listener")
     private static let invitePort: UInt16 = 7000
     private static let inviteMagic: [UInt8] = [0xFD, 0x11]   // "someone is calling you"
+    // AUTH: the INVITE is plaintext (call setup precedes crypto), so without this ANY LAN host could send a
+    // 3-participant INVITE and FORCE the camera on to attacker-chosen IPs (confirmed vuln). Authenticate the
+    // payload with an 8-byte HMAC keyed by a secret derived from the shared PSK, so only a real TRI-NET app
+    // (which knows the PSK) can make you ring or auto-join. Wire: [FD 11][mac:8][payload utf8]. Same key both
+    // platforms. (A peer that HAS the app can still forge — the root cure is per-enrollment keys — but this
+    // closes the "any script blasts a UDP packet at :7000" attack.)
+    static let inviteKey = SymmetricKey(data: HKDF<SHA256>.deriveKey(
+        inputKeyMaterial: SymmetricKey(data: SHA256.hash(data: Data("tri-net-psk-v1".utf8))),
+        salt: Data("trios-mesh/v1/invite".utf8),
+        info: Data("invite-auth".utf8), outputByteCount: 32))
+    static func inviteMAC(_ payload: Data) -> [UInt8] {
+        Array(HMAC<SHA256>.authenticationCode(for: payload, using: inviteKey).prefix(8))
+    }
 
     func startIdleListener() {
         stopIdleListener()
@@ -452,11 +466,20 @@ class CallManager: ObservableObject {
                     break
                 }
                 guard n >= 2, buf[0] == CallManager.inviteMagic[0], buf[1] == CallManager.inviteMagic[1] else { continue }
+                // AUTH FIRST: [FD 11][mac:8][payload]. Reject anything without a valid PSK-keyed HMAC so an
+                // unauthenticated LAN packet can never ring us or force an auto-join (the forced-camera vuln).
+                guard n >= 10 else { continue }
+                let payloadData = n > 10 ? Data(buf[10..<Int(n)]) : Data()
+                guard Array(buf[2..<10]) == CallManager.inviteMAC(payloadData) else { continue }
                 // payload = "name\nip1,ip2,ip3" — the full participant list lets Accept rebuild the whole mesh.
-                let payload = n > 2 ? (String(bytes: buf[2..<Int(n)], encoding: .utf8) ?? "") : ""
+                let payload = String(data: payloadData, encoding: .utf8) ?? ""
                 let parts = payload.components(separatedBy: "\n")
                 let name = (parts.first?.isEmpty == false) ? parts[0] : "TRI-NET"
                 let participants = parts.count > 1 ? parts[1].split(separator: ",").map(String.init) : []
+                // Spam-hardening: a REAL INVITE always carries the caller's IP list ([myIP] + hosts, >= 1).
+                // A payload with no participants (a 2-byte magic-only or empty-field datagram) can't be a call
+                // -- reject it so any LAN host can't pop the incoming-call UI (and block real INVITEs for 40s).
+                guard !participants.isEmpty else { continue }
                 let room = parts.count > 2 ? parts[2] : ""
                 let ip = String(cString: inet_ntoa(from.sin_addr))
                 DispatchQueue.main.async {
@@ -501,7 +524,10 @@ class CallManager: ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async {
             let fd = socket(AF_INET, SOCK_DGRAM, 0)
             guard fd >= 0 else { return }
-            var pkt = CallManager.inviteMagic; pkt.append(contentsOf: Array(payload.utf8))
+            let payloadData = Data(payload.utf8)
+            var pkt = CallManager.inviteMagic                        // [FD 11]
+            pkt.append(contentsOf: CallManager.inviteMAC(payloadData))  // + HMAC(8)
+            pkt.append(contentsOf: payloadData)                      // + payload
             for ip in ips where !ip.isEmpty {
                 var addr = sockaddr_in()
                 addr.sin_family = sa_family_t(AF_INET)

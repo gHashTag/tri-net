@@ -32,7 +32,7 @@ truth), so the Rust node `include!`s generated code instead of hand-authoring bu
 | discovery.rs | 432 | HELLO layout/gates/freshness | discovery.t27 | ✅ | ✅ include! wired, tests 14/14 (2026-07-22) |
 | routing.rs | 511 | ETX metric (fixed-point milli) | routing_etx.t27 | ✅ | ETX metric + RFC8966 feasibility/learn spec-first, equivalence test pinned to f32 (routing 19/19); live-path rewire pending radio test (2026-07-22) |
 | modem.rs | 781 | frame geometry / sync gate | modem_frame.t27 | ✅ | ✅ include! wired + equivalence test, modem 23/23 (2026-07-22) |
-| gf16.rs | 663 | bit format/classifiers (f64 rounding stays host) | gf16_format.t27 | ✅ | spec-only (L6 hook blocks src wiring) |
+| gf16.rs | 663 | bit format/classifiers (f64 rounding stays host) | gf16_format.t27 | ✅ | spec-only; audit EXHAUSTIVE 65536 patterns clean (2026-07-22) |
 | router.rs | 1350 | TTL + forwarding decision | router_ttl.t27 | ✅ | ✅ include! wired + equivalence + behavioral tests, router 27/27 (2026-07-22) |
 | crypto.rs | 907 | nonce/frame/rekey + lane-split replay window | crypto_frame.t27 | ✅ | spec-only, diff-harness 40k counters bit-identical |
 | daemon.rs | 328 | (mostly orchestration/I/O) | — | — | — |

