@@ -2101,3 +2101,16 @@ phi^2 + phi^-2 = 3 | TRINITY
   video). The complete cure is per-enrollment/per-room keys — a bigger design change. This fix closes the
   remote-unauthenticated attack, which was the demonstrated exploit. Needs `import CryptoKit` in CallManager +
   ViewModel.
+
+## WAVE 2026-07-22 #16 — INVITE anti-replay (freshness timestamp) — closes the gap left by #15
+
+- **Weakness in my own #15 fix: the authenticated INVITE had NO replay protection.** A valid HMAC only proves
+  the sender knew the PSK ONCE; an attacker who sniffs a legit INVITE off the LAN could replay it later to make
+  the victim ring/auto-join again. Fix (WireGuard/SIP-style): the payload gained a 4th field `TS_MS` (ms epoch),
+  covered by the same HMAC (so it can't be rewritten); the listener rejects an INVITE whose timestamp is missing
+  or outside a +/-15s freshness window (tolerates Mac<->iPhone clock skew).
+- **VERIFIED LIVE:** a REPLAYED INVITE (valid MAC, 60s-old timestamp) -> 0 auto-joins; a fresh one -> auto-joins.
+  Both platforms; `smoke/loopback_call.sh` now stamps a current TS and still PASSes end-to-end.
+- **Honest residual:** a 15s window still allows an immediate replay; a nonce/seen-MAC cache would close it fully
+  (cheap: remember recent INVITE MACs for ~30s and drop dups). Left as an option — the demonstrated risk
+  (later replay) is closed. Wire is now `[FD 11][HMAC:8][name\nips\nROOM\nTS_MS]`.

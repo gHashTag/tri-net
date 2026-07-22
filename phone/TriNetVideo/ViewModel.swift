@@ -639,6 +639,11 @@ class StreamViewModel: ObservableObject {
                 // -- reject it so any LAN host can't pop the incoming-call UI (and block real INVITEs for 40s).
                 guard !participants.isEmpty else { continue }
                 let room = parts.count > 2 ? parts[2] : ""
+                // ANTI-REPLAY: reject a stale (or timestamp-less) INVITE. A valid HMAC only proves the sender
+                // knew the PSK once; the freshness window stops a captured INVITE from being replayed later.
+                let tsMs = parts.count > 3 ? (Int64(parts[3]) ?? 0) : 0
+                let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
+                guard tsMs != 0, abs(nowMs - tsMs) <= 15_000 else { continue }
                 let ip = String(cString: inet_ntoa(from.sin_addr))
                 DispatchQueue.main.async {
                     guard let self = self, self.phase == .idle, self.incomingCall == nil else { return }  // don't ring mid-call / twice
@@ -672,8 +677,10 @@ class StreamViewModel: ObservableObject {
     // Caller side: ring each target's :7000 a few times (UDP is lossy) from a throwaway socket.
     // `participants` = every IP in this call (including me), so the callee can rejoin the FULL mesh.
     func sendInvite(to ips: [String], participants: [String]) {
-        // payload = "name\nip1,ip2\nROOM" — the room lets a same-room callee auto-accept (one-tap group).
-        let payload = PeerDiscovery.myName + "\n" + participants.joined(separator: ",") + "\n" + PeerDiscovery.myRoom
+        // payload = "name\nip1,ip2\nROOM\nTS_MS" — TS_MS is a freshness timestamp so a sniffed-and-replayed
+        // INVITE (even with a valid HMAC) is rejected as stale. The HMAC covers TS too, so it can't be rewritten.
+        let tsMs = Int64(Date().timeIntervalSince1970 * 1000)
+        let payload = PeerDiscovery.myName + "\n" + participants.joined(separator: ",") + "\n" + PeerDiscovery.myRoom + "\n" + String(tsMs)
         NSLog("TRINET: ringing \(ips.joined(separator: ",")) with INVITE (participants: \(participants.joined(separator: ",")))")
         // MUST NOT use idleQueue: startCall() just closed the idle socket, but a blocked recvfrom on that
         // serial queue may not wake (POSIX close() doesn't reliably interrupt it), which would leave the
