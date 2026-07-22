@@ -2007,3 +2007,23 @@ phi^2 + phi^-2 = 3 | TRINITY
   the 900k non-mesh ceiling + 720p top rung (probe-up fires, 0 back-offs). Loopback starts AT the ceiling and
   has no loss, so it verifies only the "good link" arm; the climb-from-low and loss back-off arms remain
   harness-only (can't induce loss on loopback). Honest coverage note, not a bug.
+
+## WAVE 2026-07-22 #11 — BWE back-off arm VERIFIED via closed-loop harness (+ slow-recovery finding)
+
+- **Closed the one unverified arm of the adaptive-bitrate loop.** Live loopback only exercises the "good link"
+  arm (starts at the 900k ceiling, no loss). Inducing real loss needs pfctl/dnctl dummynet = sudo + a system
+  firewall change -> NOT done autonomously. Instead built a closed-loop harness (scratchpad/
+  bwe_closed_loop_harness.swift) with the EXACT constants (jitter EMA /16, >40ms x2 back-off, <20ms x3 probe-up,
+  0.92 down / escalating 8k->64k up, floor 80k, ceiling 900k) and an explicit bottleneck model, then ran the
+  canonical GCC bandwidth-step test (capacity 900k->400k->900k).
+- **VERIFIED: the loop is stable and correct.** On congestion it backs off 900k->502k, settling exactly at the
+  knee where jitter ~ 40ms (the threshold) — textbook AIMD, no collapse to floor, no oscillation. After relief
+  it fully recovers to 900k (no deadlock). So the back-off + recovery path, previously harness-only for the STEP
+  math, is now verified as a closed LOOP.
+- **FINDING (not a bug): recovery is SLOW — 26s to regain full rate** after congestion clears, because probe-up
+  climbs only once per 3 clean reports (`cleanStreak >= 3`) ~= once per 3s. Stable but conservative; WebRTC GCC
+  recovers in a few seconds. Left UNCHANGED this wave: retuning a verified-stable control loop changes call
+  quality (user should sign off) and touches CallManager/ViewModel that the parallel Codex session edits. The
+  harness now exists to prove any retune (e.g. gate 3->2) keeps stability — do that behind a user OK.
+- **Pattern: when live loss-injection needs root, a constants-exact closed-loop harness with an explicit link
+  model verifies control-loop DYNAMICS (convergence, stability, recovery) that step-math tests can't.**
