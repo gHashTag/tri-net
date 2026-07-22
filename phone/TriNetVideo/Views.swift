@@ -3,6 +3,13 @@ import SwiftUI
 import AVFoundation
 import AudioToolbox
 
+// Group the 11-digit safety number into readable blocks (e.g. 164 0819 8304) for reading aloud.
+func groupDigits(_ s: String) -> String {
+    let d = Array(s)
+    guard d.count == 11 else { return s }
+    return String(d[0..<3]) + " " + String(d[3..<7]) + " " + String(d[7..<11])
+}
+
 // MARK: - Home Screen
 
 struct HomeView: View {
@@ -570,6 +577,12 @@ struct CallScreen: View {
                         StatusTag(text: vm.framesReceived > 0 ? "Secure" : (vm.noAnswer ? "No answer" : "Calling…"),
                                   live: vm.framesReceived > 0)
                             .background(DS.ink.opacity(0.5), in: Capsule())
+                        if vm.mitmWarning {
+                            StatusTag(text: "⚠︎ MITM?", live: false).background(DS.danger, in: Capsule())
+                        }
+                        if let sn = vm.safetyNumber {
+                            StatusTag(text: "🔒 " + groupDigits(sn), live: false).background(DS.ink.opacity(0.6), in: Capsule())
+                        }
                         // Make link trouble visible instead of a silent freeze.
                         if vm.linkHealth != .good {
                             StatusTag(text: vm.linkHealth == .stalled ? "Reconnecting…" : "Weak connection", live: false)

@@ -311,6 +311,15 @@ class MeshTransport {
     private let crypto = MeshCrypto()
     private var handshakeTimer: DispatchSourceTimer?
 
+    // Security surface for the UI (1-1): the safety number pairs OUR identity with the
+    // peer's; nil until the peer's signed handshake is in. mitmDetected latches when a
+    // pinned peer's identity changes.
+    var peerSafetyNumber: String? {
+        guard let peer = crypto.peerIdentity else { return nil }
+        return MeshCrypto.safetyNumber(crypto.identityPub, peer)
+    }
+    var mitmDetected: Bool { crypto.mitmDetected }
+
     func send(_ data: Data) {
         guard fd >= 0 else { return }
         if data.count <= maxPayload {

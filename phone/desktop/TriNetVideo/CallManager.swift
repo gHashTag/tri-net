@@ -306,6 +306,8 @@ class CallManager: ObservableObject {
     @Published var rxFps = 0           // frames/sec we're DECODING from the peer(s) (0 = no video arriving)
     @Published var rxHeight: Int32 = 0 // resolution of the received frames, for the in-call badge (1-1)
     @Published var rxSources = 0       // live decoding sources in a group call (badge shows this instead of resolution)
+    @Published var safetyNumber: String? = nil   // 1-1 identity code for out-of-band verification (Signal-style)
+    @Published var mitmWarning = false           // peer's pinned identity changed -> possible MITM
     private var lastRxFrameCount = 0
 
     private func noteVideoArrival() {
@@ -344,6 +346,16 @@ class CallManager: ObservableObject {
             }
             self.rxFps = max(0, fc - self.lastRxFrameCount)
             self.lastRxFrameCount = fc
+            // Security surface: the 1-1 safety number appears once the peer's signed handshake lands.
+            let sn = self.isGroup ? nil : self.transport.peerSafetyNumber
+            if self.safetyNumber != sn {
+                self.safetyNumber = sn
+                if let sn = sn { NSLog("TRINET: 1-1 peer identity verified — safety number \(sn)") }
+            }
+            if self.mitmWarning != self.transport.mitmDetected {
+                self.mitmWarning = self.transport.mitmDetected
+                if self.mitmWarning { NSLog("TRINET: SECURITY WARNING shown — peer identity changed (possible MITM)") }
+            }
             // framesReceived is otherwise set only in onReceive, which the transport does NOT call in group mode
             // (only onReceiveFrom) — so in a group call it stayed 0, misfiring the 30s "No answer" timer and
             // never flipping status to "Connected". Drive it from the per-source decoders here.
@@ -1009,6 +1021,7 @@ class CallManager: ObservableObject {
         bweTimer?.invalidate(); bweTimer = nil
         lastVideoArrival = nil; meanGapMs = 0; jitterMs = 0; rxPktsThisSec = 0; highJitterStreak = 0; cleanStreak = 0; peerJitterMs = 0
         lossStreak = 0; lastFramesSentSample = 0
+        safetyNumber = nil; mitmWarning = false
         bitrateHistory = []; jitterHistory = []; linkHealth = .good; linkRestored = false; lastRecoveryAt = nil; stalledSince = nil
         link.end()
         camera.stop()

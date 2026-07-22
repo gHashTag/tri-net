@@ -13,6 +13,13 @@ import CoreImage
 import CoreMedia
 import CoreVideo
 
+// Group the 11-digit safety number into readable blocks (e.g. 123 4567 8901) for reading aloud.
+func groupDigits(_ s: String) -> String {
+    let d = Array(s)
+    guard d.count == 11 else { return s }
+    return String(d[0..<3]) + " " + String(d[3..<7]) + " " + String(d[7..<11])
+}
+
 struct VideoCallTab: View {
     @StateObject private var call = CallManager()
 
@@ -399,6 +406,16 @@ private struct InCallView: View {
                         StatusTag(text: call.framesReceived > 0 || !call.groupDecoders.isEmpty ? "Secure" : "Connecting",
                                   live: call.framesReceived > 0 || !call.groupDecoders.isEmpty)
                             .background(DS.ink.opacity(0.5), in: Capsule())
+                        // MITM alarm: the peer's pinned identity changed. Loud + persistent.
+                        if call.mitmWarning {
+                            StatusTag(text: "⚠︎ IDENTITY CHANGED — POSSIBLE MITM", live: false)
+                                .background(DS.danger, in: Capsule())
+                        }
+                        // Safety number (1-1): read it aloud to your peer to confirm no MITM (Signal-style).
+                        if let sn = call.safetyNumber {
+                            StatusTag(text: "🔒 " + groupDigits(sn), live: false)
+                                .background(DS.ink.opacity(0.6), in: Capsule())
+                        }
                         // Make link trouble visible instead of a silent freeze.
                         if call.linkHealth != .good {
                             StatusTag(text: call.linkHealth == .stalled ? "Reconnecting…" : "Weak connection", live: false)

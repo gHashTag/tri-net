@@ -897,6 +897,12 @@ class BSDTransport {
     // per-connection ephemeral session key; the static PSK only authenticates
     // the handshake, so a later PSK leak can't decrypt recorded traffic.
     private let crypto = MeshCrypto()
+    // Security surface for the UI (1-1): safety number pairs our identity with the peer's.
+    var peerSafetyNumber: String? {
+        guard let peer = crypto.peerIdentity else { return nil }
+        return MeshCrypto.safetyNumber(crypto.identityPub, peer)
+    }
+    var mitmDetected: Bool { crypto.mitmDetected }
     private var handshakeTimer: DispatchSourceTimer?
 
     // MARK: application-level fragmentation

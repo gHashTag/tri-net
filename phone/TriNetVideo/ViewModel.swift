@@ -364,6 +364,8 @@ class StreamViewModel: ObservableObject {
     @Published var rxFps = 0           // frames/sec we're DECODING from the peer(s) (0 = no video arriving)
     @Published var rxHeight: Int32 = 0 // resolution of the received frames, for the in-call badge (1-1)
     @Published var rxSources = 0       // live decoding sources in a group call
+    @Published var safetyNumber: String? = nil   // 1-1 identity code for out-of-band verification
+    @Published var mitmWarning = false           // peer's pinned identity changed -> possible MITM
     private var lastRxFrameCount = 0
     private var rxFrozenSince: Date?   // start of a decoded-frame freeze while packets still arrive (1-1)
     @Published var bitrateKbps = 0           // current encode bitrate, for the link badge
@@ -405,6 +407,13 @@ class StreamViewModel: ObservableObject {
             }
             self.rxFps = max(0, fc - self.lastRxFrameCount)
             self.lastRxFrameCount = fc
+            // Security surface for the call UI (1-1 safety number + MITM alarm).
+            let sn = self.isGroup ? nil : self.transport.peerSafetyNumber
+            if self.safetyNumber != sn {
+                self.safetyNumber = sn
+                if let sn = sn { NSLog("TRINET: 1-1 peer identity verified — safety number \(sn)") }
+            }
+            if self.mitmWarning != self.transport.mitmDetected { self.mitmWarning = self.transport.mitmDetected }
             // framesReceived is otherwise set only in the 1-1 onData path; in a group call drive it from the
             // per-source decoders so LinkHealth and the STATS line reflect the real received video.
             if self.isGroup { self.framesReceived = fc }
@@ -952,6 +961,7 @@ class StreamViewModel: ObservableObject {
         bweTimer?.invalidate(); bweTimer = nil
         lastVideoArrival = nil; meanGapMs = 0; jitterMs = 0; rxPktsThisSec = 0; highJitterStreak = 0; cleanStreak = 0; peerJitterMs = 0
         lossStreak = 0; lastFramesSentSample = 0
+        safetyNumber = nil; mitmWarning = false
         bitrateHistory = []; jitterHistory = []; linkHealth = .good; linkRestored = false; lastRecoveryAt = nil; stalledSince = nil
         if isRecording {
             recorder.stop { [weak self] url in
