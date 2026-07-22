@@ -210,6 +210,7 @@ class VideoEncoder {
     private var maxBitrate = 900_000
     private var curBitrate = 0   // 0 = uninitialized; setup() seeds it (~540p worth) on the first frame
     private(set) var bitrateKbps: Int = 0
+    var activeHeight: Int32 { height }   // current adaptive send resolution (ladder rung), for the in-call badge
     // AIMD, tuned on hardware (see specs/video_bridge.t27 dead-zone note).
     // Multiplicative DECREASE recovers fast from congestion; ADDITIVE INCREASE
     // seeks the ceiling without oscillating. The old x1.2/x0.7 swung 36% and sat

@@ -132,6 +132,7 @@ class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     // otherwise silently revert to the Wi-Fi cap.
     var meshMode = false { didSet { encoder?.meshMode = meshMode } }
     var bitrateKbps: Int { encoder?.bitrateKbps ?? 0 }
+    var activeHeight: Int32 { encoder?.activeHeight ?? 0 }   // adaptive send resolution for the in-call badge
 
     // Virtual background: blur all but the person on the outgoing frame.
     var blurBackground = false
@@ -365,6 +366,7 @@ class H264Encoder {
     private var maxBitrate = 900_000
     private var curBitrate = 0   // 0 = uninitialized; setup() seeds it (~540p worth) on the first frame
     private(set) var bitrateKbps = 0
+    var activeHeight: Int32 { height }   // current adaptive send resolution (ladder rung), for the in-call badge
     // AIMD, tuned on hardware (see specs/video_bridge.t27 dead-zone note).
     // Multiplicative decrease recovers fast; additive increase seeks the ceiling
     // without oscillating. Matches the Mac encoder.

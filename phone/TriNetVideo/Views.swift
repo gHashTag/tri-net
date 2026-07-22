@@ -607,7 +607,7 @@ struct CallScreen: View {
                         }.buttonStyle(.plain)
                         // Live BWE readout: peer's receive jitter + our encode rate. Green under the 40ms
                         // back-off threshold, red above — network health at a glance (Zoom-style indicator).
-                        Text("\(vm.peerJitterMs)ms·\(vm.camera.bitrateKbps)k")
+                        Text("\(vm.camera.activeHeight > 0 ? "\(vm.camera.activeHeight)p·" : "")\(vm.peerJitterMs)ms·\(vm.camera.bitrateKbps)k")
                             .font(DS.mono(10)).foregroundColor(vm.peerJitterMs > 40 ? DS.danger : .green)
                         Text(vm.remoteIP).font(DS.mono(11)).foregroundColor(DS.faint)
                     }

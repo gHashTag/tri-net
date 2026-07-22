@@ -2162,3 +2162,18 @@ phi^2 + phi^-2 = 3 | TRINITY
   so I did NOT chase the 6s gate1 option). 26s -> 17s, a 1.5x win, harness-proven stable. Both platforms.
 - Builds; smoke PASSes (normal call path unaffected). Landed on clean main. Data-driven control-loop tuning:
   compare candidates in the harness, pick the smallest change that clearly wins, don't over-optimize a model.
+
+## WAVE 2026-07-23 #20 — adaptive video chain VERIFIED end-to-end + resolution in the badge
+
+- **Verified the CORE product feature ("video adapts to bandwidth") as ONE integrated closed loop** (BWE
+  step-law -> curBitrate -> resolution ladder targetRung + 3s rate-limit) — something neither lossless loopback
+  nor the separate bitrate-only / ladder-only harnesses showed together. Harness
+  (scratchpad/adaptive_chain_harness.swift) on the bandwidth step, 3 link capacities:
+  400k -> settles 540p, 250k -> 360p, 120k -> 270p, all recovering to 720p, no thrash (the 3s rate-limit never
+  blocks a needed step because rung transitions are >3s apart). NO bug — the chain is correct. Sometimes the
+  win is "core feature proven end-to-end," not a fix.
+- **Added the adaptive send resolution to the in-call net badge** ("720p · net 5ms · 640k") on both platforms:
+  exposed `encoder.activeHeight` (the ladder rung's height, updated on each session-recreate) -> camera ->
+  badge. Directly serves the user's recurring real-device pain ("video not working"): they can now WATCH the
+  resolution step down/up as bandwidth changes, instead of only reading logs. Builds; smoke PASSes (720p on the
+  clean loopback). Landed on clean main.
