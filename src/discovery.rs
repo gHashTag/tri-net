@@ -112,7 +112,8 @@ impl Hello {
 
     /// E2.2 - Verify MAC over (src, seq, ts, heard[])
     pub fn verify_mac(&self, mac_key: &Option<[u8; 32]>) -> bool {
-        let Ok(expected) = Self::compute_mac(self.src, self.seq, self.ts, &self.heard, mac_key) else {
+        let Ok(expected) = Self::compute_mac(self.src, self.seq, self.ts, &self.heard, mac_key)
+        else {
             return false;
         };
         self.mac == expected

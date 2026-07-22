@@ -30,7 +30,10 @@ fn main() {
             let spec_path = entry.path();
             if spec_path.extension().is_some_and(|e| e == "t27") {
                 let Some(name) = spec_path.file_stem().and_then(|s| s.to_str()) else {
-                    eprintln!("cargo:warning=Skipping spec with non-UTF8 stem: {}", spec_path.display());
+                    eprintln!(
+                        "cargo:warning=Skipping spec with non-UTF8 stem: {}",
+                        spec_path.display()
+                    );
                     continue;
                 };
                 let gen_path = gen_dir.join(format!("{}.rs", name));

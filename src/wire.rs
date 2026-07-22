@@ -86,7 +86,12 @@ impl Header {
     pub const LEN: usize = HEADER_LEN;
 
     pub fn new(kind: FrameKind, src: NodeId, dst: NodeId, ttl: u8) -> Self {
-        Self { kind, src, dst, ttl }
+        Self {
+            kind,
+            src,
+            dst,
+            ttl,
+        }
     }
 
     pub fn to_bytes(&self) -> [u8; Self::LEN] {

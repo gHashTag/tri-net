@@ -309,11 +309,7 @@ impl StaticKey {
 
     /// Derive the session to a peer whose public key is already trusted.
     /// `initiator` must differ between the two peers (e.g. lower node id = true).
-    pub fn session_with(
-        &self,
-        peer: &PublicKey,
-        initiator: bool,
-    ) -> Result<Session, MeshError> {
+    pub fn session_with(&self, peer: &PublicKey, initiator: bool) -> Result<Session, MeshError> {
         let shared = self.0.diffie_hellman(peer);
         Session::from_shared(shared.as_bytes(), initiator)
     }
@@ -800,7 +796,10 @@ mod tests {
 
         // Alice <-> Mallory handshake (Alice thinks it's Bob, but it's Mallory)
         let mut alice_sess = alice
-            .complete_initiator(mallory_alice.ephemeral_public(), mallory_alice.static_public())
+            .complete_initiator(
+                mallory_alice.ephemeral_public(),
+                mallory_alice.static_public(),
+            )
             .unwrap();
         let mut mal_sess_alice = mallory_alice
             .complete_responder(a_ephem, a_static_pub)
