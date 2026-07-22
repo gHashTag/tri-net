@@ -36,6 +36,7 @@ targets:
       - path: TriNetVideo/VideoEncoder.swift
       - path: TriNetVideo/AudioController.swift
       - path: TriNetVideo/AudioRED.swift
+      - path: TriNetVideo/VideoFEC.swift
       - path: TriNetVideo/MeshCrypto.swift
       - path: TriNetVideo/LinkStatus.swift
       - path: TriNetVideo/OpusCodec.swift

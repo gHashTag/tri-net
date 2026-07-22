@@ -630,7 +630,7 @@ class BSDTransport {
             info: Data("group-aead".utf8), outputByteCount: 32))
     // per-(source, seq) fragment buffers -- group only, so two phones' same-seq NALs never collide
     private var groupFrag: [String: (parts: [Data?], have: Int)] = [:]
-    private var groupFec: [String: (xor: [UInt8], lastLen: Int, total: Int)] = [:]   // per-source parity (group FEC)
+    private var groupFec: [String: [Int: (xor: [UInt8], gLen: Int, lastLen: Int, total: Int)]] = [:]   // "src#seq" -> gStart -> parity
 
     // MARK: link feedback (see specs/video_bridge.t27)
     //
@@ -843,13 +843,14 @@ class BSDTransport {
     // Per-source reassembly for group mode: keyed by "src#seq" so two senders' equal seqs never mix.
     // Handles FEC parity too (group loss resilience) -- one lost fragment per NAL recovers without a keyframe.
     private func groupReassemble(_ d: Data, from src: String) -> Data? {
-        // FEC parity [0xFA 0xEC seqLo seqHi total lastLenLo lastLenHi] + xor(maxPayload)
-        if d.count > 7, d[0] == 0xFA, d[1] == 0xEC {
+        // FEC parity (per group): [FA EC][seq:2][total][gStart][gLen][lastLen:2] + xor(maxPayload)
+        if d.count > 9, d[0] == 0xFA, d[1] == 0xEC {
             let seq = UInt16(d[2]) | (UInt16(d[3]) << 8)
-            let total = Int(d[4]); let lastLen = Int(d[5]) | (Int(d[6]) << 8)
+            let total = Int(d[4]); let gStart = Int(d[5]); let gLen = Int(d[6])
+            let lastLen = Int(d[7]) | (Int(d[8]) << 8)
             guard total >= 2 else { return nil }
-            groupFec["\(src)#\(seq)"] = (Array(d[7...]), lastLen, total)
-            return groupTryFEC(src, seq)
+            groupFec["\(src)#\(seq)", default: [:]][gStart] = (Array(d[9...]), gLen, lastLen, total)
+            return groupTryFEC(src, seq, gStart)
         }
         if d.count > 1, d[0] == 0xFA, d[1] != 0xFB { return nil }   // other control
         guard d.count > 6, d[0] == 0xFA, d[1] == 0xFB else { return d }
@@ -866,22 +867,29 @@ class BSDTransport {
             if groupFrag.count > 48 { groupFrag.removeAll(); groupFec.removeAll() }   // bound memory
             return st.parts.compactMap { $0 }.reduce(Data(), +)
         }
-        return groupTryFEC(src, seq)   // one short? maybe parity can fill it
+        if let byGroup = groupFec[key] {   // a data fragment may complete any group whose parity is here
+            for gStart in byGroup.keys { if let r = groupTryFEC(src, seq, gStart) { return r } }
+        }
+        return nil
     }
 
-    // Recover a single missing fragment from parity (mirror of the 1-1 FEC), per source.
-    private func groupTryFEC(_ src: String, _ seq: UInt16) -> Data? {
+    // XOR-reconstruct the one missing fragment of a single GROUP from its parity, per source.
+    private func groupTryFEC(_ src: String, _ seq: UInt16, _ gStart: Int) -> Data? {
         let key = "\(src)#\(seq)"
-        guard let fec = groupFec[key], var st = groupFrag[key],
-              st.parts.count == fec.total, st.have == fec.total - 1,
-              let miss = st.parts.firstIndex(where: { $0 == nil }) else { return nil }
-        var xor = fec.xor
-        for p in st.parts where p != nil { let b = [UInt8](p!); for k in 0..<b.count { xor[k] ^= b[k] } }
-        let len = (miss == fec.total - 1) ? fec.lastLen : maxPayload
-        guard len <= xor.count else { return nil }
-        st.parts[miss] = Data(xor[0..<len])
-        groupFrag[key] = nil; groupFec[key] = nil
-        return st.parts.compactMap { $0 }.reduce(Data(), +)
+        guard let fec = groupFec[key]?[gStart], var st = groupFrag[key], st.parts.count == fec.total else { return nil }
+        var present = [Int: [UInt8]]()
+        let end = min(gStart + fec.gLen, fec.total)
+        for i in gStart..<end { if let p = st.parts[i] { present[i] = [UInt8](p) } }
+        guard let (idx, bytes) = VideoFEC.recover(parity: fec.xor, present: present, gStart: gStart,
+                                                  gLen: fec.gLen, total: fec.total, lastLen: fec.lastLen,
+                                                  maxPayload: maxPayload) else { return nil }
+        st.parts[idx] = Data(bytes); st.have += 1
+        if st.have == fec.total {
+            groupFrag[key] = nil; groupFec[key] = nil
+            return st.parts.compactMap { $0 }.reduce(Data(), +)
+        }
+        groupFrag[key] = st
+        return nil
     }
 
     // MARK: forward-secret session (see MeshCrypto). Data is sealed under a
@@ -904,7 +912,7 @@ class BSDTransport {
     private var fragTick: UInt64 = 0
     private let fragBufsCap = 24
     // FEC parity per fragment group (XOR over padded cells, last-cell length).
-    private var fecBufs: [UInt16: (xor: [UInt8], lastLen: Int, total: Int)] = [:]
+    private var fecBufs: [UInt16: [Int: (xor: [UInt8], gLen: Int, lastLen: Int, total: Int)]] = [:]
     // Send parity only when the peer is known to understand it (see send()).
     // Receiving parity is always safe, so only the send side is gated.
     private let fecEnabled = true
@@ -932,21 +940,21 @@ class BSDTransport {
         // magic straight to its H.264 decoder (see MeshTransport.send), which
         // caused a PLI/keyframe storm and frozen video.
         if fecEnabled, total >= 2 {
-            var xor = [UInt8](repeating: 0, count: maxPayload)
-            data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
-                for i in 0..<total {
-                    let start = i * maxPayload
-                    let end = min(start + maxPayload, data.count)
-                    for k in 0..<(end - start) { xor[k] ^= raw[start + k] }
-                }
-            }
+            // One XOR parity per GROUP of fecGroup fragments (adaptive; shrinks under loss).
+            let payload = [UInt8](data)
             let lastLen = data.count - (total - 1) * maxPayload
-            var parity = Data([0xFA, 0xEC, UInt8(fragSeqOut & 0xFF), UInt8(fragSeqOut >> 8),
-                               UInt8(total), UInt8(lastLen & 0xFF), UInt8(lastLen >> 8)])
-            parity.append(contentsOf: xor)
-            rawSend(parity)
+            for gStart in VideoFEC.groupStarts(total: total, group: fecGroup) {
+                let gLen = min(fecGroup, total - gStart)
+                let xor = VideoFEC.parity(payload, maxPayload: maxPayload, gStart: gStart, gLen: gLen, total: total)
+                var parity = Data([0xFA, 0xEC, UInt8(fragSeqOut & 0xFF), UInt8(fragSeqOut >> 8),
+                                   UInt8(total), UInt8(gStart), UInt8(gLen), UInt8(lastLen & 0xFF), UInt8(lastLen >> 8)])
+                parity.append(contentsOf: xor)
+                rawSend(parity)
+            }
         }
     }
+    // Fragments covered by one parity; the call shrinks it toward VideoFEC.lossyGroup under loss.
+    var fecGroup = VideoFEC.cleanGroup
 
     // Encrypt a fragment under the session key, then wire it out
     private func rawSend(_ data: Data) {
@@ -1015,14 +1023,15 @@ class BSDTransport {
     // Multi-slot: chunks of several NALs may interleave (video + a peer
     // restart, or future multi-stream), so partial buffers are keyed by seq.
     private func reassemble(_ d: Data) -> Data? {
-        // FEC parity packet: store it, then try to recover a single lost fragment.
-        if d.count > 7, d[0] == 0xFA, d[1] == 0xEC {
+        // FEC parity packet (per group): store it, then try to repair that group.
+        // Wire: [FA EC][seq:2][total][gStart][gLen][lastLen:2] + xor.
+        if d.count > 9, d[0] == 0xFA, d[1] == 0xEC {
             let seq = UInt16(d[2]) | (UInt16(d[3]) << 8)
-            let total = Int(d[4])
-            let lastLen = Int(d[5]) | (Int(d[6]) << 8)
+            let total = Int(d[4]); let gStart = Int(d[5]); let gLen = Int(d[6])
+            let lastLen = Int(d[7]) | (Int(d[8]) << 8)
             guard total >= 2 else { return nil }
-            fecBufs[seq] = (Array(d[7...]), lastLen, total)
-            return tryFEC(seq)
+            fecBufs[seq, default: [:]][gStart] = (Array(d[9...]), gLen, lastLen, total)
+            return tryFEC(seq, gStart)
         }
         // 0xFA is reserved for this framing layer (raw NALs start 00 00 00 01 and
         // control packets use 0xFB..0xFE). Drop an unknown 0xFA subtype instead of
@@ -1047,7 +1056,9 @@ class BSDTransport {
         fragTick &+= 1
         entry.tick = fragTick
         fragBufs[seq] = entry
-        if let recovered = tryFEC(seq) { return recovered }  // parity may already be here
+        if let byGroup = fecBufs[seq] {   // a data fragment may complete any group whose parity is here
+            for gStart in byGroup.keys { if let recovered = tryFEC(seq, gStart) { return recovered } }
+        }
         // GC by RECENCY, never "keep only the current seq" — audio and video
         // fragments interleave, so wiping every other partial group silently
         // destroyed in-flight audio groups once video filled the table.
@@ -1060,23 +1071,17 @@ class BSDTransport {
         return nil
     }
 
-    // XOR-reconstruct exactly one missing fragment from parity + the rest.
-    private func tryFEC(_ seq: UInt16) -> Data? {
-        guard let fec = fecBufs[seq], var entry = fragBufs[seq],
+    // XOR-reconstruct the one missing fragment of a single GROUP from its parity.
+    private func tryFEC(_ seq: UInt16, _ gStart: Int) -> Data? {
+        guard let fec = fecBufs[seq]?[gStart], var entry = fragBufs[seq],
               entry.parts.count == fec.total else { return nil }
-        let missing = (0..<fec.total).filter { entry.parts[$0] == nil }
-        guard missing.count == 1 else { return nil }
-        let j = missing[0]
-        var rec = fec.xor
-        for i in 0..<fec.total where i != j {
-            guard let part = entry.parts[i] else { return nil }
-            part.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
-                for k in 0..<part.count { rec[k] ^= raw[k] }
-            }
-        }
-        let len = (j == fec.total - 1) ? fec.lastLen : maxPayload
-        guard len >= 0, len <= rec.count else { return nil }
-        entry.parts[j] = Data(rec.prefix(len))
+        var present = [Int: [UInt8]]()
+        let end = min(gStart + fec.gLen, fec.total)
+        for i in gStart..<end { if let p = entry.parts[i] { present[i] = [UInt8](p) } }
+        guard let (idx, bytes) = VideoFEC.recover(parity: fec.xor, present: present, gStart: gStart,
+                                                  gLen: fec.gLen, total: fec.total, lastLen: fec.lastLen,
+                                                  maxPayload: maxPayload) else { return nil }
+        entry.parts[idx] = Data(bytes)
         entry.have += 1
         if entry.have == fec.total {
             fragBufs.removeValue(forKey: seq); fecBufs.removeValue(forKey: seq)
@@ -2143,5 +2148,54 @@ struct AudioREDReceiver {
         var out = [Data]()
         for k in stride(from: m - 1, through: 0, by: -1) { out.append(frames[k]) }
         return out
+    }
+}
+
+// ===== VideoFEC (embedded copy — iOS static file list; keep BYTE-IDENTICAL to
+// desktop/TriNetVideo/VideoFEC.swift, which the standalone harness compiles). =====
+enum VideoFEC {
+    static let cleanGroup = 16   // fragments per parity on a clean link (low overhead)
+    static let lossyGroup = 4    // fragments per parity while the link is dropping frames
+
+    // Contiguous group start indices for `total` fragments at the given group size.
+    static func groupStarts(total: Int, group: Int) -> [Int] {
+        let g = max(1, group)
+        return Array(stride(from: 0, to: total, by: g))
+    }
+
+    // XOR parity over data fragments [gStart, gStart+gLen) of `payload`, each cell
+    // padded to maxPayload. `payload` is the whole NAL; fragment i is
+    // payload[i*maxPayload ..< min((i+1)*maxPayload, count)].
+    static func parity(_ payload: [UInt8], maxPayload: Int, gStart: Int, gLen: Int, total: Int) -> [UInt8] {
+        var xor = [UInt8](repeating: 0, count: maxPayload)
+        let end = min(gStart + gLen, total)
+        for i in gStart..<end {
+            let start = i * maxPayload
+            let stop = min(start + maxPayload, payload.count)
+            for k in 0..<(stop - start) { xor[k] ^= payload[start + k] }
+        }
+        return xor
+    }
+
+    // Rebuild the single missing fragment in a group from its parity + the present
+    // fragments, or nil if the group has zero or >1 missing (XOR can only fix one).
+    static func recover(parity: [UInt8], present: [Int: [UInt8]],
+                        gStart: Int, gLen: Int, total: Int, lastLen: Int, maxPayload: Int) -> (idx: Int, bytes: [UInt8])? {
+        let end = min(gStart + gLen, total)
+        guard end > gStart else { return nil }
+        var missing = -1
+        for i in gStart..<end where present[i] == nil {
+            if missing != -1 { return nil }   // more than one missing -> unrecoverable
+            missing = i
+        }
+        guard missing != -1 else { return nil }   // nothing missing
+        var rec = parity
+        for i in gStart..<end where i != missing {
+            guard let p = present[i] else { return nil }
+            for k in 0..<p.count { rec[k] ^= p[k] }
+        }
+        let len = (missing == total - 1) ? lastLen : maxPayload
+        guard len >= 0, len <= rec.count else { return nil }
+        return (missing, Array(rec.prefix(len)))
     }
 }

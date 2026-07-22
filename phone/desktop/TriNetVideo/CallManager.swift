@@ -405,12 +405,16 @@ class CallManager: ObservableObject {
                         self.lossStreak += 1
                         if self.lossStreak >= 2 {
                             self.camera.nudgeBitrate(down: true)
-                            self.audio.redDepth = 3   // link is dropping frames -> carry an extra Opus copy so an
+                            self.audio.redDepth = 3               // audio: carry an extra Opus copy (survive a 2-burst)
+                            self.transport.fecGroup = VideoFEC.lossyGroup   // video: 1 parity per 4 frags, not per NAL
                             NSLog("TRINET: BWE back-off — residual loss \(lossPct)% (sent \(sent), peer rx \(rxCount))")
-                        }                             // audio BURST (2 consecutive) survives, not just an isolated loss
+                        }
                     } else {
                         self.lossStreak = 0
-                        if lossPct < 5 { self.audio.redDepth = 2 }   // link clean -> back to 1-deep RED (save bandwidth)
+                        if lossPct < 5 {                          // link clean -> relax both (save bandwidth)
+                            self.audio.redDepth = 2
+                            self.transport.fecGroup = VideoFEC.cleanGroup
+                        }
                     }
                 }
             }

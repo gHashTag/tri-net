@@ -298,8 +298,11 @@ class MeshTransport {
     private var fragBufs: [UInt16: (parts: [Data?], have: Int, tick: UInt64)] = [:]
     private var fragTick: UInt64 = 0
     private let fragBufsCap = 24
-    // FEC parity per fragment group (XOR over padded cells, last-cell length).
-    private var fecBufs: [UInt16: (xor: [UInt8], lastLen: Int, total: Int)] = [:]
+    // FEC parity per fragment GROUP: seq -> gStart -> (xor, gLen, lastLen, total).
+    private var fecBufs: [UInt16: [Int: (xor: [UInt8], gLen: Int, lastLen: Int, total: Int)]] = [:]
+    // Fragments covered by one parity. cleanGroup on a good link; the call shrinks it
+    // toward lossyGroup while the far end is dropping frames (more parity where needed).
+    var fecGroup = VideoFEC.cleanGroup
     // Send parity only when the peer is known to understand it (see send()).
     // Receiving parity is always safe, so only the send side is gated.
     private let fecEnabled = true
@@ -338,19 +341,19 @@ class MeshTransport {
         // probe an old peer either (any new magic chokes it the same way), so this
         // stays a build-time gate rather than a negotiation.
         if fecEnabled, total >= 2 {
-            var xor = [UInt8](repeating: 0, count: maxPayload)
-            data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
-                for i in 0..<total {
-                    let start = i * maxPayload
-                    let end = min(start + maxPayload, data.count)
-                    for k in 0..<(end - start) { xor[k] ^= raw[start + k] }
-                }
-            }
+            // One XOR parity per GROUP of fecGroup fragments (adaptive: shrinks under loss).
+            // A big keyframe gets several parities instead of one, so a scattered loss no
+            // longer sinks the whole frame. Wire adds gStart/gLen naming the covered range.
+            let payload = [UInt8](data)
             let lastLen = data.count - (total - 1) * maxPayload
-            var parity = Data([0xFA, 0xEC, UInt8(fragSeqOut & 0xFF), UInt8(fragSeqOut >> 8),
-                               UInt8(total), UInt8(lastLen & 0xFF), UInt8(lastLen >> 8)])
-            parity.append(contentsOf: xor)
-            rawSend(parity)
+            for gStart in VideoFEC.groupStarts(total: total, group: fecGroup) {
+                let gLen = min(fecGroup, total - gStart)
+                let xor = VideoFEC.parity(payload, maxPayload: maxPayload, gStart: gStart, gLen: gLen, total: total)
+                var parity = Data([0xFA, 0xEC, UInt8(fragSeqOut & 0xFF), UInt8(fragSeqOut >> 8),
+                                   UInt8(total), UInt8(gStart), UInt8(gLen), UInt8(lastLen & 0xFF), UInt8(lastLen >> 8)])
+                parity.append(contentsOf: xor)
+                rawSend(parity)
+            }
         }
     }
 
@@ -433,14 +436,15 @@ class MeshTransport {
     // Multi-slot: chunks of several NALs may interleave (video + a peer
     // restart, or future multi-stream), so partial buffers are keyed by seq.
     private func reassemble(_ d: Data) -> Data? {
-        // FEC parity packet: store it, then try to recover a single lost fragment.
-        if d.count > 7, d[0] == 0xFA, d[1] == 0xEC {
+        // FEC parity packet (per group): store it, then try to repair that group.
+        // Wire: [FA EC][seq:2][total][gStart][gLen][lastLen:2] + xor.
+        if d.count > 9, d[0] == 0xFA, d[1] == 0xEC {
             let seq = UInt16(d[2]) | (UInt16(d[3]) << 8)
-            let total = Int(d[4])
-            let lastLen = Int(d[5]) | (Int(d[6]) << 8)
+            let total = Int(d[4]); let gStart = Int(d[5]); let gLen = Int(d[6])
+            let lastLen = Int(d[7]) | (Int(d[8]) << 8)
             guard total >= 2 else { return nil }
-            fecBufs[seq] = (Array(d[7...]), lastLen, total)
-            return tryFEC(seq)
+            fecBufs[seq, default: [:]][gStart] = (Array(d[9...]), gLen, lastLen, total)
+            return tryFEC(seq, gStart)
         }
         // 0xFA is reserved for this framing layer (raw NALs start 00 00 00 01 and
         // control packets use 0xFB..0xFE). Drop an unknown 0xFA subtype instead of
@@ -465,7 +469,10 @@ class MeshTransport {
         fragTick &+= 1
         entry.tick = fragTick
         fragBufs[seq] = entry
-        if let recovered = tryFEC(seq) { return recovered }  // parity may already be here
+        // A data fragment may complete any group whose parity is already here.
+        if let byGroup = fecBufs[seq] {
+            for gStart in byGroup.keys { if let recovered = tryFEC(seq, gStart) { return recovered } }
+        }
         // GC by RECENCY, never "keep only the current seq". Audio and video
         // fragments interleave, so wiping every other partial group silently
         // destroyed in-flight audio groups the moment video filled the table —
@@ -481,23 +488,17 @@ class MeshTransport {
         return nil
     }
 
-    // XOR-reconstruct exactly one missing fragment from parity + the rest.
-    private func tryFEC(_ seq: UInt16) -> Data? {
-        guard let fec = fecBufs[seq], var entry = fragBufs[seq],
+    // XOR-reconstruct the one missing fragment of a single GROUP from its parity.
+    private func tryFEC(_ seq: UInt16, _ gStart: Int) -> Data? {
+        guard let fec = fecBufs[seq]?[gStart], var entry = fragBufs[seq],
               entry.parts.count == fec.total else { return nil }
-        let missing = (0..<fec.total).filter { entry.parts[$0] == nil }
-        guard missing.count == 1 else { return nil }
-        let j = missing[0]
-        var rec = fec.xor                       // parity = XOR of all padded cells
-        for i in 0..<fec.total where i != j {
-            guard let part = entry.parts[i] else { return nil }
-            part.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
-                for k in 0..<part.count { rec[k] ^= raw[k] }
-            }
-        }
-        let len = (j == fec.total - 1) ? fec.lastLen : maxPayload
-        guard len >= 0, len <= rec.count else { return nil }
-        entry.parts[j] = Data(rec.prefix(len))
+        var present = [Int: [UInt8]]()
+        let end = min(gStart + fec.gLen, fec.total)
+        for i in gStart..<end { if let p = entry.parts[i] { present[i] = [UInt8](p) } }
+        guard let (idx, bytes) = VideoFEC.recover(parity: fec.xor, present: present, gStart: gStart,
+                                                  gLen: fec.gLen, total: fec.total, lastLen: fec.lastLen,
+                                                  maxPayload: maxPayload) else { return nil }
+        entry.parts[idx] = Data(bytes)
         entry.have += 1
         if entry.have == fec.total {
             fragBufs.removeValue(forKey: seq); fecBufs.removeValue(forKey: seq)

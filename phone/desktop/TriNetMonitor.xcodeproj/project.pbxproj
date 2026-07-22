@@ -10,6 +10,7 @@
 		1321BCE2FBFBB8BFCDEEB308 /* PeerDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8B07E5953505C3265FEAA51 /* PeerDiscovery.swift */; };
 		144EA8CA8611748CC2C6498E /* VideoEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72EFD27FFE9177F3C365221D /* VideoEncoder.swift */; };
 		16CC1C6D7EEBF2EE5C3F95A1 /* TriNetMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A55AB3C5EF91C2E49F7A086 /* TriNetMonitor.swift */; };
+		4489469BCC400072DF1A1A90 /* VideoFEC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D218ACE2EFFAE6AEAA004AC /* VideoFEC.swift */; };
 		51DB04A269C0FF798682A49F /* LinkStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1512923CAB35C8933FA4CA5E /* LinkStatus.swift */; };
 		5EDE0262C99C16D7CC7A20A9 /* ScreenCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9F379575CCFDE0476C19D25 /* ScreenCapture.swift */; };
 		7BC6C7C0D52EF3F427643504 /* MeshCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34A698FD561A4D1344491A23 /* MeshCrypto.swift */; };
@@ -40,6 +41,7 @@
 		6ECC2F3EAC83479F7A0D2341 /* BackgroundBlur.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundBlur.swift; sourceTree = "<group>"; };
 		72EFD27FFE9177F3C365221D /* VideoEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEncoder.swift; sourceTree = "<group>"; };
 		8CD42991E4D14A95B2A03439 /* TriNetMonitor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TriNetMonitor.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8D218ACE2EFFAE6AEAA004AC /* VideoFEC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoFEC.swift; sourceTree = "<group>"; };
 		A55D68653305B39F6D4E6C1F /* RTIHeatmap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RTIHeatmap.swift; sourceTree = "<group>"; };
 		A9F379575CCFDE0476C19D25 /* ScreenCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCapture.swift; sourceTree = "<group>"; };
 		AF4870614578478C431D47B9 /* MeshTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshTransport.swift; sourceTree = "<group>"; };
@@ -77,6 +79,7 @@
 				A9F379575CCFDE0476C19D25 /* ScreenCapture.swift */,
 				2831FC425A30E3FBFA75BD40 /* VideoDecoder.swift */,
 				72EFD27FFE9177F3C365221D /* VideoEncoder.swift */,
+				8D218ACE2EFFAE6AEAA004AC /* VideoFEC.swift */,
 			);
 			path = TriNetVideo;
 			sourceTree = "<group>";
@@ -172,6 +175,7 @@
 				E00EF2E2E4936A31DF3F1B15 /* VideoCallTab.swift in Sources */,
 				8EDD1E7105EA28C7B290C700 /* VideoDecoder.swift in Sources */,
 				144EA8CA8611748CC2C6498E /* VideoEncoder.swift in Sources */,
+				4489469BCC400072DF1A1A90 /* VideoFEC.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
