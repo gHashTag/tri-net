@@ -2114,3 +2114,21 @@ phi^2 + phi^-2 = 3 | TRINITY
 - **Honest residual:** a 15s window still allows an immediate replay; a nonce/seen-MAC cache would close it fully
   (cheap: remember recent INVITE MACs for ~30s and drop dups). Left as an option — the demonstrated risk
   (later replay) is closed. Wire is now `[FD 11][HMAC:8][name\nips\nROOM\nTS_MS]`.
+
+## WAVE 2026-07-23 #17 — Codex branch broken by the gen/ trap; landed clean anti-replay in main
+
+- **Diagnosed the 31 compile errors on Codex's feat/regen-final tip: ALL in generated gen/*.rs, from Codex's
+  new specs.** 26x E0107 "missing generics for Vec" (t27c emits `find_flow_by_sender(flows: Vec, ...)` — bare
+  `Vec` with no `<T>`) in flow_control/health_dashboard/anomaly_detector; plus multipath_routing E0425
+  `path_valid` not found, E0308 type mismatches, E0277 bool-vs-u32. These are t27c CODEGEN bugs on Codex's
+  Vec-using / complex specs — exactly the "gen/ is a trap, unfixable from inside this repo" case in CLAUDE.md.
+- **NOT fixable autonomously without overreach:** hand-editing gen/ is hook-blocked and build.rs overwrites it;
+  fixing t27c is a different repo with golden-pipeline-wide impact; altering Codex's WIP specs changes their
+  design. So the branch build stays Codex's to resolve (fix t27c's Vec codegen, or change the specs).
+- **Safe completion: landed the clean, verified anti-replay (#16) into main directly** (b467cd1 = 8eec0e1
+  auth + anti-replay, builds + live-tested), bypassing Codex's broken tip. origin/main now has the FULL INVITE
+  security fix (HMAC auth + freshness), builds clean. feat/regen-final keeps Codex's WIP + a cherry-pick of #16
+  but does not build until they fix the t27c/gen errors.
+- **Two-agent-on-one-branch lesson: when the other actor's tip won't build, don't try to fix their WIP —
+  verify your own change in isolation and land it on the clean base (main) via a worktree cherry-pick or a
+  direct fast-forward; report their break as theirs to fix.**
