@@ -19,6 +19,7 @@
 		A4B51FD9AC3F6A939BFE6083 /* RTIHeatmap.swift in Sources */ = {isa = PBXBuildFile; fileRef = A55D68653305B39F6D4E6C1F /* RTIHeatmap.swift */; };
 		B47AD84EFE1C6408179E2242 /* OpusCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAFD67D555791E79EA093151 /* OpusCodec.swift */; };
 		C270D9DDE66C74E5DC1A30B3 /* AudioController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0445AEA738BFAA34619AA /* AudioController.swift */; };
+		C362C1972E203A2FC184A61B /* AudioRED.swift in Sources */ = {isa = PBXBuildFile; fileRef = E49D0210081B122F0477D404 /* AudioRED.swift */; };
 		C73AAD99E5A78718DEBAB8D8 /* CameraCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = BED4FD339A53B74B67C3AC3B /* CameraCapture.swift */; };
 		D71FF2DC1AF5071C5554087C /* CallManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE481AF1D2D340638A1ED080 /* CallManager.swift */; };
 		DAF6D4EF3DC01D613A72B27A /* BackgroundBlur.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ECC2F3EAC83479F7A0D2341 /* BackgroundBlur.swift */; };
@@ -43,6 +44,7 @@
 		A9F379575CCFDE0476C19D25 /* ScreenCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCapture.swift; sourceTree = "<group>"; };
 		AF4870614578478C431D47B9 /* MeshTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshTransport.swift; sourceTree = "<group>"; };
 		BED4FD339A53B74B67C3AC3B /* CameraCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraCapture.swift; sourceTree = "<group>"; };
+		E49D0210081B122F0477D404 /* AudioRED.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRED.swift; sourceTree = "<group>"; };
 		EC01D2BB9D49E3653F739BC9 /* CallRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallRecorder.swift; sourceTree = "<group>"; };
 		F8B07E5953505C3265FEAA51 /* PeerDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerDiscovery.swift; sourceTree = "<group>"; };
 		FAFD67D555791E79EA093151 /* OpusCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpusCodec.swift; sourceTree = "<group>"; };
@@ -62,6 +64,7 @@
 			isa = PBXGroup;
 			children = (
 				20B0445AEA738BFAA34619AA /* AudioController.swift */,
+				E49D0210081B122F0477D404 /* AudioRED.swift */,
 				6ECC2F3EAC83479F7A0D2341 /* BackgroundBlur.swift */,
 				FE481AF1D2D340638A1ED080 /* CallManager.swift */,
 				EC01D2BB9D49E3653F739BC9 /* CallRecorder.swift */,
@@ -151,6 +154,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C270D9DDE66C74E5DC1A30B3 /* AudioController.swift in Sources */,
+				C362C1972E203A2FC184A61B /* AudioRED.swift in Sources */,
 				DAF6D4EF3DC01D613A72B27A /* BackgroundBlur.swift in Sources */,
 				D71FF2DC1AF5071C5554087C /* CallManager.swift in Sources */,
 				9883135C4EC8B3D8C9780D21 /* CallRecorder.swift in Sources */,

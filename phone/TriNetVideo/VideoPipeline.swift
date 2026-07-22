@@ -1199,6 +1199,9 @@ final class AudioController {
     private var pcmTx = 0
     // Leftover samples between taps, so no frame is ever short (see the tap).
     private var txAccum = [Float]()
+    // RED (audio redundancy): rolling send seq + the last Opus frame to piggyback.
+    private var redSeq: UInt8 = 0
+    private var prevOpus = Data()
     private var vpEnabled = true
     private var observers: [NSObjectProtocol] = []
     private var converterInFormat: AVAudioFormat?
@@ -1272,6 +1275,7 @@ final class AudioController {
 
     func start() {
         guard !started else { return }
+        redSeq = 0; prevOpus = Data(); redRecv = AudioREDReceiver()   // fresh RED state per call
         installObservers()
         #if os(iOS)
         let sess = AVAudioSession.sharedInstance()
@@ -1366,7 +1370,10 @@ final class AudioController {
                 var pkt: Data
                 var sentOpus = false
                 if AudioController.opusEnabled, let frame = self.opus?.encode(raw) {
-                    pkt = Data([0xFD, 0xC0]); pkt.append(frame)   // ~65B
+                    // RED: carry this frame AND the previous one, so a single lost
+                    // packet is reconstructed from the next (audio has no FEC).
+                    pkt = Data([0xFD, 0xC0]); pkt.append(AudioRED.pack(seq: self.redSeq, cur: frame, prev: self.prevOpus))   // ~130B
+                    self.prevOpus = frame; self.redSeq = self.redSeq &+ 1
                     sentOpus = true
                     self.opusTx += 1
                 } else {
@@ -1399,22 +1406,32 @@ final class AudioController {
     // A silent `return` here dropped EVERY incoming Opus packet with no log, no
     // meter, nothing — indistinguishable from the peer not sending at all. That
     // is precisely how "no audio from the Mac" looked from this side.
-    func playOpus(_ frame: Data) {
+    func playOpus(_ payload: Data) {
         guard let codec = opus else {
             opusDecodeFails += 1
             if opusDecodeFails <= 3 { NSLog("TRINET: opus RX dropped — codec unavailable on this device") }
             return
         }
-        guard let pcm = codec.decode(frame) else {
+        // payload = RED-wrapped: [seq][curLen][cur][prev]. Recover one lost packet
+        // from the redundant copy, then decode+play each frame the receiver yields.
+        guard let (seq, cur, prev) = AudioRED.parse(payload) else {
             opusDecodeFails += 1
-            if opusDecodeFails <= 3 || opusDecodeFails % 200 == 0 {
-                NSLog("TRINET: opus decode FAILED (\(frame.count)B) #\(opusDecodeFails) — audio dropped")
-            }
+            if opusDecodeFails <= 3 { NSLog("TRINET: opus RED parse failed (\(payload.count)B)") }
             return
         }
-        opusRx += 1
-        playPacket(pcm, wire: "OPUS \(frame.count)B")
+        for frame in redRecv.receive(seq: seq, cur: cur, prev: prev) {
+            guard let pcm = codec.decode(frame) else {
+                opusDecodeFails += 1
+                if opusDecodeFails <= 3 || opusDecodeFails % 200 == 0 {
+                    NSLog("TRINET: opus decode FAILED (\(frame.count)B) #\(opusDecodeFails) — audio dropped")
+                }
+                continue
+            }
+            opusRx += 1
+            playPacket(pcm, wire: "OPUS \(frame.count)B")
+        }
     }
+    private var redRecv = AudioREDReceiver()
     private var opusDecodeFails = 0
     private var opusRx = 0
     private var pcmRx = 0
@@ -2037,5 +2054,65 @@ final class PeerDiscovery: ObservableObject {
         }
         conn.start(queue: .main)
         DispatchQueue.main.asyncAfter(deadline: .now() + 4) { finish(nil) }
+    }
+}
+
+// ===== AudioRED (embedded copy — iOS target has a STATIC file list, so shared
+// types live inside an existing file; keep BYTE-IDENTICAL to desktop/TriNetVideo/AudioRED.swift
+// which the standalone harness compiles). See that file for the full rationale. =====
+// compile the exact production framing — no re-implementation that could drift.
+import Foundation
+
+enum AudioRED {
+    // Wrap one Opus frame plus the previous for redundancy. `prev` may be empty
+    // (the first packet of a call) — the receiver treats an empty prev as "no
+    // redundancy available", never as a zero-length frame.
+    static func pack(seq: UInt8, cur: Data, prev: Data) -> Data {
+        var b = [UInt8]()
+        b.reserveCapacity(3 + cur.count + prev.count)
+        b.append(seq)
+        let n = min(cur.count, 0xFFFF)
+        b.append(UInt8(n & 0xFF)); b.append(UInt8((n >> 8) & 0xFF))
+        b.append(contentsOf: cur)
+        b.append(contentsOf: prev)
+        return Data(b)
+    }
+
+    // Split back into (seq, cur, prev). nil on a malformed header/length so a
+    // corrupt datagram is dropped, never decoded as garbage.
+    static func parse(_ d: Data) -> (seq: UInt8, cur: Data, prev: Data)? {
+        let b = [UInt8](d)
+        guard b.count >= 3 else { return nil }
+        let seq = b[0]
+        let curLen = Int(b[1]) | (Int(b[2]) << 8)
+        guard b.count >= 3 + curLen else { return nil }
+        let cur = Data(b[3 ..< 3 + curLen])
+        let prev = Data(b[(3 + curLen) ..< b.count])
+        return (seq, cur, prev)
+    }
+}
+
+// Receiver-side gap detector. Feed it every parsed packet; it returns the Opus
+// frames to decode+play IN ORDER, reconstructing one isolated loss from the
+// redundant copy. Duplicates and late (reordered) packets return [] so nothing
+// is played twice or out of order. seq is a rolling u8, so distances wrap at 256.
+struct AudioREDReceiver {
+    private var lastSeq = -1
+
+    mutating func receive(seq: UInt8, cur: Data, prev: Data) -> [Data] {
+        let s = Int(seq)
+        if lastSeq < 0 { lastSeq = s; return [cur] }   // first packet of the call
+        let gap = (s - lastSeq + 256) % 256
+        switch gap {
+        case 0:                          // exact duplicate (the sender re-sends INVITEs etc.)
+            return []
+        case 1:                          // in order
+            lastSeq = s; return [cur]
+        case 2...128:                    // one-or-more lost; RED reconstructs only the most recent
+            lastSeq = s
+            return prev.isEmpty ? [cur] : [prev, cur]
+        default:                         // gap > 128 => s is behind us: a late/reordered old packet
+            return []
+        }
     }
 }

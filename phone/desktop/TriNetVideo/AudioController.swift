@@ -46,6 +46,9 @@ final class AudioController {
     private var pcmTx = 0
     // Leftover samples between taps, so no frame is ever short (see the tap).
     private var txAccum = [Float]()
+    // RED (audio redundancy): rolling send seq + the last Opus frame to piggyback.
+    private var redSeq: UInt8 = 0
+    private var prevOpus = Data()
 
     // RMS -> perceptual 0...1 (sqrt gives a livelier meter than raw RMS)
     static func level(_ sumSq: Float, _ n: Int) -> Float {
@@ -66,6 +69,7 @@ final class AudioController {
     private let opus = OpusCodec()
 
     func start() {
+        redSeq = 0; prevOpus = Data(); redRecv = AudioREDReceiver()   // fresh RED state per call
         startPlayback()
         startCapture()
         installObservers()
@@ -205,7 +209,10 @@ final class AudioController {
                 var pkt: Data
                 var sentOpus = false
                 if AudioController.opusEnabled, let frame = self.opus?.encode(raw) {
-                    pkt = Data([0xFD, 0xC0]); pkt.append(frame)   // ~65B
+                    // RED: carry this frame AND the previous one, so a single lost
+                    // packet is reconstructed from the next (audio has no FEC).
+                    pkt = Data([0xFD, 0xC0]); pkt.append(AudioRED.pack(seq: self.redSeq, cur: frame, prev: self.prevOpus))   // ~130B
+                    self.prevOpus = frame; self.redSeq = self.redSeq &+ 1
                     sentOpus = true
                     self.opusTx += 1
                 } else {
@@ -239,15 +246,25 @@ final class AudioController {
     // One Opus frame off the wire (magic stripped) -> PCM -> normal playback.
     // Always accepted regardless of opusEnabled: receiving a better codec is
     // never the risky direction, only sending one is.
-    func playOpus(_ frame: Data) {
-        guard let pcm = opus?.decode(frame) else {
+    func playOpus(_ payload: Data) {
+        // payload = RED-wrapped: [seq][curLen][cur][prev]. Recover one lost packet
+        // from the redundant copy, then decode+play each frame the receiver yields.
+        guard let (seq, cur, prev) = AudioRED.parse(payload) else {
             opusDecodeFails += 1
-            if opusDecodeFails <= 3 { NSLog("TRINET: opus decode failed (\(frame.count)B)") }
+            if opusDecodeFails <= 3 { NSLog("TRINET: opus RED parse failed (\(payload.count)B)") }
             return
         }
-        opusRx += 1
-        playPacket(pcm, wire: "OPUS \(frame.count)B")
+        for frame in redRecv.receive(seq: seq, cur: cur, prev: prev) {
+            guard let pcm = opus?.decode(frame) else {
+                opusDecodeFails += 1
+                if opusDecodeFails <= 3 { NSLog("TRINET: opus decode failed (\(frame.count)B)") }
+                continue
+            }
+            opusRx += 1
+            playPacket(pcm, wire: "OPUS \(frame.count)B")
+        }
     }
+    private var redRecv = AudioREDReceiver()
     private var opusRx = 0
     private var pcmRx = 0
     private var opusDecodeFails = 0
