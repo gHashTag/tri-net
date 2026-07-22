@@ -1969,3 +1969,22 @@ phi^2 + phi^-2 = 3 | TRINITY
 - **Lesson for every wired spec doing multiply/shift: sweep the FULL input domain against a u64 reference, not
   just the happy path.** u32 overflow hides above the realistic range and only a domain sweep finds it. Audit
   the other wired arithmetic specs (modem_frame frame-length math, gf16 field ops) the same way next.
+
+## WAVE 2026-07-22 #9 — audit sweep of remaining wired arithmetic specs (both CLEAN)
+
+- **modem_frame.t27 (wired src/modem.rs) — CLEAN over the realistic domain (2.13M checks, 0 mismatches).** The
+  one `as u32` truncation point is `decode_fits`'s `(sym_start + out_len*8) as u32 <= total`. It DOES truncate
+  at sym_start=2^32 (gen=true vs ref=false, demonstrated), but is UNREACHABLE by construction: a max frame is
+  frame_symbols(255)=2061 symbols, so indices never approach 2^32. Added a spec NOTE documenting the bound;
+  no code fix (contrast routing_etx, whose penalty had NO bound and WAS reachable -> needed a clamp). The
+  distinction to record for each `as u32` site: is the operand bounded by construction (safe) or unbounded
+  (reachable -> must clamp)?
+- **gf16_format.t27 (spec-only) — proven EXHAUSTIVELY.** All 65536 u16 bit patterns x 6 field/classifier
+  functions (393216 checks) + all 65536 compose(sign,exp,mant) roundtrips: 0 mismatches. Bit-field ops stay
+  <=16 bits so the u32 codegen is always exact. Exhaustive proof is cheap for <=16-bit domains; prefer it over
+  sampling when the domain fits in a u32 loop.
+- **Audit status of all wired arithmetic specs: DONE.** wire (BE bytes), routing_etx (overflow found+clamped),
+  rti_alert, discovery (gates), modem_frame (clean), router_ttl, gf16 (exhaustive). Only routing_etx needed a
+  fix; the rest are safe because their operands are bounded (<=16 bits or by frame/counter caps). The
+  differential/exhaustive harness is now the standard gate for any spec touching multiply/shift/mask before it
+  is trusted, wired or not.
