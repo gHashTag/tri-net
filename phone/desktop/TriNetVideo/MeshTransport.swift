@@ -323,11 +323,13 @@ class MeshTransport {
         let total = (data.count + maxPayload - 1) / maxPayload
         guard total <= 255 else { return }
         fragSeqOut &+= 1
+        var wire = [Data]()
         for i in 0..<total {
             let start = i * maxPayload
             let end = min(start + maxPayload, data.count)
             var pkt = Data([0xFA, 0xFB, UInt8(fragSeqOut & 0xFF), UInt8(fragSeqOut >> 8), UInt8(i), UInt8(total)])
             pkt.append(data.subdata(in: start..<end))
+            wire.append(pkt)
             rawSend(pkt)
         }
         // Forward error correction: one XOR-parity packet over all fragments
@@ -352,9 +354,55 @@ class MeshTransport {
                 var parity = Data([0xFA, 0xEC, UInt8(fragSeqOut & 0xFF), UInt8(fragSeqOut >> 8),
                                    UInt8(total), UInt8(gStart), UInt8(gLen), UInt8(lastLen & 0xFF), UInt8(lastLen >> 8)])
                 parity.append(contentsOf: xor)
+                wire.append(parity)
                 rawSend(parity)
             }
         }
+        // Buffer this NAL's wire packets so a NACK can re-send them. 1-1 only: group
+        // is best-effort. seal() uses a random nonce (MeshCrypto), so re-sealing on
+        // resend is safe — no counter to collide across threads.
+        if !groupMode { bufferSentNAL(fragSeqOut, wire) }
+    }
+
+    // MARK: NACK retransmission (1-1). The ONLY loss recovery that reaches a fully
+    // lost single-fragment P-frame: FEC needs >=2 fragments, and the frozen-video
+    // path needs SOME fragment to arrive, so a whole small NAL vanishing is invisible
+    // to both. The monotonic per-NAL seq makes it visible — a gap means a NAL is gone.
+    private var sentNALs: [UInt16: [Data]] = [:]
+    private var sentOrder: [UInt16] = []
+    private var highestVideoSeq = -1
+    private var nackedAt: [UInt16: Date] = [:]
+    private let nackWindow = 30          // only chase the last ~30 missing NALs (~0.5s of video)
+
+    private func bufferSentNAL(_ seq: UInt16, _ wire: [Data]) {
+        sentNALs[seq] = wire
+        sentOrder.append(seq)
+        while sentOrder.count > 64 { sentNALs.removeValue(forKey: sentOrder.removeFirst()) }
+    }
+
+    // Peer asked us to re-send a NAL it never got. Re-seal (fresh random nonce) and wire it out.
+    func resendNAL(_ seq: UInt16) {
+        guard let wire = sentNALs[seq] else { return }   // already evicted -> too old to help
+        for w in wire { rawSend(w) }
+    }
+
+    // A video data fragment arrived: NACK any NAL seq skipped since the last one.
+    // Uses the modular gap (never raw seq math) so a u16 wrap can't strand it.
+    private func noteVideoSeq(_ s: Int) {
+        if highestVideoSeq < 0 { highestVideoSeq = s; return }
+        let gap = (s - highestVideoSeq + 65536) % 65536
+        if gap == 0 || gap > 32768 { return }            // duplicate / reorder / old
+        if gap > 1 {
+            let now = Date()
+            for j in max(1, gap - nackWindow)..<gap {
+                let mseq = UInt16((highestVideoSeq + j) & 0xFFFF)
+                if let t = nackedAt[mseq], now.timeIntervalSince(t) < 0.12 { continue }   // rate-limit per seq
+                nackedAt[mseq] = now
+                send(Data([0xFD, 0x4E, UInt8(mseq & 0xFF), UInt8(mseq >> 8)]))             // "resend NAL mseq"
+            }
+            if nackedAt.count > 256 { nackedAt = nackedAt.filter { now.timeIntervalSince($0.value) < 1.0 } }
+        }
+        highestVideoSeq = s
     }
 
     // Encrypt a fragment (group key in conference mode, else the ephemeral
@@ -456,6 +504,7 @@ class MeshTransport {
         let idx = Int(d[4])
         let total = Int(d[5])
         guard total > 0, idx < total else { return nil }
+        if !groupMode { noteVideoSeq(Int(seq)) }   // NACK any NAL skipped before this one (1-1)
         var entry = fragBufs[seq] ?? (Array(repeating: nil, count: total), 0, 0)
         if entry.parts.count != total { entry = (Array(repeating: nil, count: total), 0, 0) }
         if entry.parts[idx] == nil {
@@ -514,6 +563,7 @@ class MeshTransport {
         if fd >= 0 { close(fd); fd = -1 }
         stopFeedbackListener()
         connected = false
+        sentNALs = [:]; sentOrder = []; highestVideoSeq = -1; nackedAt = [:]   // fresh NACK state per call
     }
 
     deinit { disconnect() }

@@ -876,6 +876,10 @@ class CallManager: ObservableObject {
                 self.handleBWEReport(data)
                 return
             }
+            if data.count == 4, data[0] == 0xFD, data[1] == 0x4E { // NACK: peer never got this NAL -> re-send it
+                self.transport.resendNAL(UInt16(data[2]) | (UInt16(data[3]) << 8))
+                return
+            }
             // Doctrine: NEVER hand an unknown control subtype to the H.264 decoder. Real NALs start 00 00 00 01.
             if data.first.map({ $0 >= 0xFB }) == true { return }
             self.noteVideoArrival()

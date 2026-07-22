@@ -926,11 +926,13 @@ class BSDTransport {
         let total = (data.count + maxPayload - 1) / maxPayload
         guard total <= 255 else { return }
         fragSeqOut &+= 1
+        var wire = [Data]()
         for i in 0..<total {
             let start = i * maxPayload
             let end = min(start + maxPayload, data.count)
             var pkt = Data([0xFA, 0xFB, UInt8(fragSeqOut & 0xFF), UInt8(fragSeqOut >> 8), UInt8(i), UInt8(total)])
             pkt.append(data.subdata(in: start..<end))
+            wire.append(pkt)
             rawSend(pkt)
         }
         // Forward error correction: one XOR-parity packet over all fragments so
@@ -949,9 +951,49 @@ class BSDTransport {
                 var parity = Data([0xFA, 0xEC, UInt8(fragSeqOut & 0xFF), UInt8(fragSeqOut >> 8),
                                    UInt8(total), UInt8(gStart), UInt8(gLen), UInt8(lastLen & 0xFF), UInt8(lastLen >> 8)])
                 parity.append(contentsOf: xor)
+                wire.append(parity)
                 rawSend(parity)
             }
         }
+        if !groupMode { bufferSentNAL(fragSeqOut, wire) }   // NACK retransmit buffer (1-1)
+    }
+
+    // MARK: NACK retransmission (1-1). Recovers a fully-lost NAL — including a single-
+    // fragment P-frame, which FEC (needs >=2 frags) and the frozen-video path cannot.
+    private var sentNALs: [UInt16: [Data]] = [:]
+    private var sentOrder: [UInt16] = []
+    private var highestVideoSeq = -1
+    private var nackedAt: [UInt16: Date] = [:]
+    private let nackWindow = 30
+
+    private func bufferSentNAL(_ seq: UInt16, _ wire: [Data]) {
+        sentNALs[seq] = wire
+        sentOrder.append(seq)
+        while sentOrder.count > 64 { sentNALs.removeValue(forKey: sentOrder.removeFirst()) }
+    }
+
+    func resendNAL(_ seq: UInt16) {
+        guard let wire = sentNALs[seq] else { return }
+        for w in wire { rawSend(w) }
+    }
+
+    // A video data fragment arrived: NACK any NAL seq skipped before it. Uses the
+    // modular gap (never raw seq math) so a u16 wrap can't strand it.
+    private func noteVideoSeq(_ s: Int) {
+        if highestVideoSeq < 0 { highestVideoSeq = s; return }
+        let gap = (s - highestVideoSeq + 65536) % 65536
+        if gap == 0 || gap > 32768 { return }
+        if gap > 1 {
+            let now = Date()
+            for j in max(1, gap - nackWindow)..<gap {
+                let mseq = UInt16((highestVideoSeq + j) & 0xFFFF)
+                if let t = nackedAt[mseq], now.timeIntervalSince(t) < 0.12 { continue }
+                nackedAt[mseq] = now
+                send(Data([0xFD, 0x4E, UInt8(mseq & 0xFF), UInt8(mseq >> 8)]))
+            }
+            if nackedAt.count > 256 { nackedAt = nackedAt.filter { now.timeIntervalSince($0.value) < 1.0 } }
+        }
+        highestVideoSeq = s
     }
     // Fragments covered by one parity; the call shrinks it toward VideoFEC.lossyGroup under loss.
     var fecGroup = VideoFEC.cleanGroup
@@ -1043,6 +1085,7 @@ class BSDTransport {
         let idx = Int(d[4])
         let total = Int(d[5])
         guard total > 0, idx < total else { return nil }
+        if !groupMode { noteVideoSeq(Int(seq)) }   // NACK any NAL skipped before this one (1-1)
         var entry = fragBufs[seq] ?? (Array(repeating: nil, count: total), 0, 0)
         if entry.parts.count != total { entry = (Array(repeating: nil, count: total), 0, 0) }
         if entry.parts[idx] == nil {
@@ -1097,6 +1140,7 @@ class BSDTransport {
         if fd >= 0 { close(fd); fd = -1 }
         isReady = false
         groupMode = false; peers = []; groupFrag.removeAll(); groupFec.removeAll()
+        sentNALs = [:]; sentOrder = []; highestVideoSeq = -1; nackedAt = [:]   // fresh NACK state per call
         stopFeedbackListener()
     }
 
