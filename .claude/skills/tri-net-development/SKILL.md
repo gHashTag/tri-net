@@ -1947,3 +1947,25 @@ phi^2 + phi^-2 = 3 | TRINITY
   recombined `(blo|(bhi<<32))` to the real u64 bitmap. Reuse this lane pattern for any future >32-bit spec math.
 - Wiring into src/crypto.rs still waits on the L6 hook policy (same as the other lifted specs); the window stays
   runtime-active as the hand-written u64 version, now with a proven-equivalent spec beside it.
+
+## WAVE 2026-07-22 #8 — AUDIT of already-wired specs catches a latent u32 overflow
+
+- **Insight: typecheck-passes-and-compiles is NOT proof for ALREADY-WIRED specs either.** Turned the crypto
+  finding into an audit of the live wired specs. routing_etx.t27 (wired at src/routing.rs:18) is the most
+  arithmetic-heavy, so it went first: a full-domain differential harness (scratchpad/etx_overflow_audit.rs)
+  compared gen::etx_milli against a u64 reference.
+- **Realistic domain CLEAN, but a latent overflow found.** For delivery ratios 0.15..1.0 and penalty <= 10x
+  (the documented range) — 273652 checks, 0 mismatches: the live metric is correct today. BUT `base *
+  penalty_milli` is a u32 multiply and `set_penalty` has NO upper clamp (`penalty.max(1.0)` only), so a penalty
+  above ~96000 milli WRAPS: worst base 44444 * 100000 = 4.44e9 > 2^32 -> gen returned 149432 (tiny) instead of
+  4.44e6. A wrapped-tiny ETX makes a heavily-obstructed link read as a GREAT route -> routing black-hole. The
+  live f32 path in src/routing.rs does NOT wrap (float), so no runtime bug TODAY, but the fixed-point form
+  would be a real hole once wired.
+- **FIX (minimal, physical): clamp the penalty to 32x in the spec.** `PENALTY_MAX_MILLI = 32000`; a link 32x
+  worse than clear is already "avoid entirely", so no realistic decision changes, and 44444*32000=1.42e9 stays
+  in u32 with margin. Re-audited over the FULL domain (7.31M checks, penalties 1x..1000x): 0 mismatches, output
+  stable at 1422208 for runaway penalties, never wraps. When routing_etx is wired, src/routing.rs set_penalty
+  should gain a matching `.min(32.0)` so the point-by-point equivalence holds at high penalties.
+- **Lesson for every wired spec doing multiply/shift: sweep the FULL input domain against a u64 reference, not
+  just the happy path.** u32 overflow hides above the realistic range and only a domain sweep finds it. Audit
+  the other wired arithmetic specs (modem_frame frame-length math, gf16 field ops) the same way next.
