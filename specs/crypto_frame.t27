@@ -9,15 +9,15 @@
 // Mirrors src/crypto.rs bit-for-bit; early-return style (t27c-0.1.0 forbids
 // local reassignment).
 //
-// NOT LIFTED — the 64-frame replay window (highest + bitmap). t27c-0.1.0 wraps
-// integer compare/mask operands in `as u32` and types the literal `1` in `1 << n`
-// as i32. A differential harness (scratchpad/crypto_frame_diff.rs) proved this
-// MISCOMPILES a 64-bit sliding window: `(bitmap & (1 << 34)) as u32` truncates
-// bits 32..63 to zero and `1i32 << 34` wraps the shift to bit 2 — a frame at
-// distance 34 read as fresh when it is a replay. A generated replay check would
-// be a silent security hole, so the window stays hand-written in src/crypto.rs
-// until t27c gets 64-bit-clean comparison codegen (or the window is lane-split
-// into two u32 halves). Only >32-bit-clean pieces are lifted below.
+// The 64-frame replay window is lifted LANE-SPLIT (two u32 halves). t27c-0.1.0
+// wraps integer compare/mask operands in `as u32` and types the literal `1` in
+// `1 << n` as i32; a single u64 bitmap MISCOMPILES (`(bitmap & (1 << 34)) as u32`
+// truncates bits 32..63, `1i32 << 34` wraps the shift to bit 2 — a frame at
+// distance 34 read as fresh when it is a replay). Carrying the window as two
+// 32-bit lanes keeps every operand <= 32 bits, so the codegen is exact. A
+// differential harness (scratchpad/crypto_frame_diff.rs) drives the generated
+// lane functions and an exact copy of src/crypto.rs's u64 window through 5000
+// clustered-random counters and confirms bit-identical accept + state.
 // phi^2 + phi^-2 = 3 | TRINITY
 
 module CryptoFrame {
@@ -77,6 +77,89 @@ module CryptoFrame {
         return 1 - tx_dir;
     }
 
+    // ---- 64-frame replay window, LANE-SPLIT (IPsec RFC 6479 style) ----
+    // The u64 window bitmap of src/crypto.rs is carried here as TWO u32 lanes
+    // (blo = bits 0..31, bhi = bits 32..63) so no operand ever exceeds 32 bits.
+    // This dodges the t27c-0.1.0 codegen bug that miscompiled a single u64 mask
+    // (see the NOT-LIFTED note above); every shift amount below is < 32 and every
+    // mask fits a lane. Verified bit-identical to the u64 window by a differential
+    // harness over 5000 clustered-random counters (scratchpad/crypto_frame_diff.rs).
+    // `top` is the highest counter seen; counters are bounded by REKEY_HARD_CAP
+    // (2^24), so the u64 `top`/`ctr` comparisons stay exact under u32 codegen.
+    const WINDOW_WIDTH : u64 = 64;
+
+    // Fresh iff the frame is newer than the window top, or its in-window bit is unset.
+    fn replay_accept(seen_any: bool, top: u64, blo: u32, bhi: u32, ctr: u64) -> bool {
+        if (!seen_any) {
+            return true;
+        }
+        if (ctr > top) {
+            return true;
+        }
+        let d : u64 = top - ctr;
+        if (d >= WINDOW_WIDTH) {
+            return false;    // too old to prove non-replay
+        }
+        if (d < 32) {
+            return (blo & (1 << d)) == 0;
+        }
+        return (bhi & (1 << (d - 32))) == 0;
+    }
+
+    // New window top after admitting ctr (max of top and ctr).
+    fn replay_next_top(seen_any: bool, top: u64, ctr: u64) -> u64 {
+        if (!seen_any) {
+            return ctr;
+        }
+        if (ctr > top) {
+            return ctr;
+        }
+        return top;
+    }
+
+    // Low lane after admitting ctr. On a forward jump the whole 64-bit value shifts
+    // left by s and bit 0 is set; on an in-window frame the matching bit is set.
+    fn replay_next_blo(seen_any: bool, top: u64, blo: u32, bhi: u32, ctr: u64) -> u32 {
+        if (!seen_any) {
+            return 1;         // first frame: bit 0
+        }
+        if (ctr > top) {
+            let s : u64 = ctr - top;
+            if (s >= 32) {
+                return 1;     // low lane fully shifted out; only the new bit 0
+            }
+            return (blo << s) | 1;
+        }
+        let d : u64 = top - ctr;
+        if (d < 32) {
+            return blo | (1 << d);
+        }
+        return blo;
+    }
+
+    // High lane after admitting ctr. Carries the bits shifting up out of the low
+    // lane on a forward jump, or sets the matching bit for an in-window frame.
+    fn replay_next_bhi(seen_any: bool, top: u64, blo: u32, bhi: u32, ctr: u64) -> u32 {
+        if (!seen_any) {
+            return 0;         // first frame lives in the low lane
+        }
+        if (ctr > top) {
+            let s : u64 = ctr - top;
+            if (s >= WINDOW_WIDTH) {
+                return 0;     // jumped past the whole window
+            }
+            if (s >= 32) {
+                return blo << (s - 32);
+            }
+            return (bhi << s) | (blo >> (32 - s));
+        }
+        let d : u64 = top - ctr;
+        if (d >= 32) {
+            return bhi | (1 << (d - 32));
+        }
+        return bhi;
+    }
+
     // ---- TDD (L4): mirror src/crypto.rs behavior ----
     test header_is_epoch_plus_counter
         given h = EPOCH_LEN + COUNTER_LEN
@@ -115,6 +198,36 @@ module CryptoFrame {
         and   b = rx_dir(1)
         then a == 1
         and  b == 0
+
+    test replay_first_and_duplicate
+        given first = replay_accept(false, 0, 0, 0, 7)
+        and   blo = replay_next_blo(false, 0, 0, 0, 7)
+        and   dup = replay_accept(true, 7, 1, 0, 7)
+        then first == true
+        and  blo == 1
+        and  dup == false
+
+    test replay_low_lane_in_window
+        given fresh = replay_accept(true, 10, 1, 0, 5)
+        and   blo = replay_next_blo(true, 10, 1, 0, 5)
+        then fresh == true
+        and  blo == 33
+
+    test replay_high_lane_bit
+        given fresh = replay_accept(true, 40, 1, 0, 5)
+        and   bhi = replay_next_bhi(true, 40, 1, 0, 5)
+        then fresh == true
+        and  bhi == 8
+
+    test replay_too_old_rejected
+        given old = replay_accept(true, 70, 1, 0, 5)
+        then old == false
+
+    test replay_forward_jump_carries_lane
+        given blo = replay_next_blo(true, 5, 1, 0, 8)
+        and   bhi = replay_next_bhi(true, 5, 1, 0, 8)
+        then blo == 9
+        and  bhi == 0
 
     // ---- invariants (mirror the const asserts in src/crypto.rs) ----
     invariant routine_ratchet_below_hard_cap

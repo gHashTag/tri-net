@@ -1928,3 +1928,22 @@ phi^2 + phi^-2 = 3 | TRINITY
   rekey thresholds (2^20 ratchet / 2^24 hard cap), rx_dir. Full `cargo test --lib` still 169/169.
 - Do NOT "fix" this by wiring the miscompiled version anyway because it typechecks — that is exactly the
   fabrication trap. A green typecheck on a security function is necessary, never sufficient.
+
+## WAVE 2026-07-22 #7 — replay window RECLAIMED for t27 (lane-split, RFC 6479 style)
+
+- **The t27c 32-bit codegen bug is DODGEABLE, not fatal: split the >32-bit value into u32 LANES.** The 64-bit
+  replay bitmap is now carried in crypto_frame.t27 as two u32 halves (blo=bits0..31, bhi=bits32..63). Every
+  shift amount is forced < 32 and every mask fits one lane, so t27c's `as u32` wrap becomes a no-op instead of
+  a truncation. The security-critical anti-replay window is now spec-first (the golden pipeline finally covers
+  the most sensitive function), NOT hand-waved away.
+- **The exact miscompile, corrected understanding:** the killer was the OUTER `as u32`, not the shift. u64:
+  `(bitmap & (1u64 << 34)) as u32` — the AND result 2^34 truncates to 0. Lane: `(blo & (1 << d)) as u32` with
+  blo:u32 and d<32 — the AND result already fits u32, so the cast is harmless. (The literal `1` is inferred to
+  match the u32 operand, so `1 << 31` is fine too.) Rule: keep every masked/compared value <= 32 bits and
+  t27c-0.1.0 is exact.
+- **64-bit shift across two lanes (forward jump s in 1..63):** new_lo=(blo<<s)|1 for s<32 else 1; new_hi for
+  s<32 = (bhi<<s)|(blo>>(32-s)), for s>=32 = blo<<(s-32), for s>=64 = 0. Verified against the u64
+  `(bitmap<<shift)|1` by the differential harness — 8 seeds x 5000 clustered counters, comparing accept AND the
+  recombined `(blo|(bhi<<32))` to the real u64 bitmap. Reuse this lane pattern for any future >32-bit spec math.
+- Wiring into src/crypto.rs still waits on the L6 hook policy (same as the other lifted specs); the window stays
+  runtime-active as the hand-written u64 version, now with a proven-equivalent spec beside it.
