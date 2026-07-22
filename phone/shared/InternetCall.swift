@@ -900,6 +900,7 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
     private func connect(session: InternetCallSession, audio: Bool, video: Bool) async throws {
         setState(.connecting)
         setMain { self.callID = session.callID }
+        NSLog("TRINET: LiveKit connecting call=%@ url=%@", session.callID, session.liveKitURL)
         let encryption = session.mediaKey.map { EncryptionOptions.sharedKey($0) }
         let options = RoomOptions(adaptiveStream: true,
                                   dynacast: true,
@@ -910,16 +911,29 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
         room = newRoom
         do {
             try await newRoom.connect(url: session.liveKitURL, token: session.token)
+            NSLog("TRINET: LiveKit signaling connected call=%@", session.callID)
             let cameraPublication = try await newRoom.localParticipant.setCamera(enabled: video)
             let microphonePublication = try await newRoom.localParticipant.setMicrophone(enabled: audio)
             _ = microphonePublication
+            let existingParticipant = newRoom.remoteParticipants.values.first
+            let existingVideo = existingParticipant?.trackPublications.values
+                .compactMap { $0.track as? RemoteVideoTrack }
+                .first
             setMain {
                 self.localVideoTrack = cameraPublication?.track as? LocalVideoTrack
+                if let existingParticipant {
+                    self.participantName = self.participantLabel(existingParticipant)
+                }
+                if let existingVideo { self.remoteVideoTrack = existingVideo }
                 self.isCameraEnabled = video
                 self.isMuted = !audio
                 self.state = .connected
             }
+            NSLog("TRINET: LiveKit media published call=%@ camera=%d microphone=%d",
+                  session.callID, video ? 1 : 0, audio ? 1 : 0)
         } catch {
+            NSLog("TRINET: LiveKit connect failed call=%@ error=%@",
+                  session.callID, error.localizedDescription)
             setFailure(error)
             await newRoom.disconnect()
             room = nil
@@ -993,10 +1007,13 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
               from oldConnectionState: ConnectionState) {
         switch connectionState {
         case .connected:
+            NSLog("TRINET: LiveKit state connected")
             setState(.connected)
         case .reconnecting:
+            NSLog("TRINET: LiveKit state reconnecting")
             setState(.reconnecting)
         case .disconnected:
+            NSLog("TRINET: LiveKit state disconnected")
             setState(.ended)
         default:
             break
@@ -1005,6 +1022,7 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
 
     func room(_ room: Room, participantDidConnect participant: RemoteParticipant) {
         let label = participantLabel(participant)
+        NSLog("TRINET: LiveKit participant connected %@", label)
         setMain { self.participantName = label }
     }
 
@@ -1013,6 +1031,7 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
               didSubscribeTrack publication: RemoteTrackPublication) {
         guard let video = publication.track as? RemoteVideoTrack else { return }
         let label = participantLabel(participant)
+        NSLog("TRINET: LiveKit remote video subscribed %@", label)
         setMain {
             self.participantName = label
             self.remoteVideoTrack = video

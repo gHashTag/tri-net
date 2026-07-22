@@ -309,6 +309,13 @@ struct CallScreen: View {
     @State private var draft = ""
     private let reactions = ["👍", "❤️", "😂", "👏", "🔥"]
 
+    private var mediaConnected: Bool {
+        if vm.activeRoute == .internet {
+            return vm.internet.state == .connected
+        }
+        return vm.framesReceived > 0
+    }
+
     var body: some View {
         ZStack {
             DS.ink.ignoresSafeArea()
@@ -364,7 +371,7 @@ struct CallScreen: View {
             if showControls && !showChat {
                 VStack(spacing: 0) {
                     HStack(spacing: 10) {
-                        StatusTag(text: vm.framesReceived > 0 ? "Secure" : "Connecting", live: vm.framesReceived > 0)
+                        StatusTag(text: mediaConnected ? "Secure" : "Connecting", live: mediaConnected)
                             .background(DS.ink.opacity(0.5), in: Capsule())
                         Spacer()
                         // Record toggle — kept out of the bottom bar so the six

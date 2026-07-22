@@ -50,18 +50,35 @@ final class CallKitCoordinator: NSObject, CXProviderDelegate, PKPushRegistryDele
     }
 
     func startOutgoing(handle: String, video: Bool) -> UUID {
+        // A failed or interrupted CallKit transaction can leave our single call
+        // group occupied. Close only the call owned by this provider before a
+        // new foreground attempt; otherwise CallKit rejects the next request
+        // with maximumCallGroupsReached while WebRTC continues independently.
+        if let staleUUID = activeCallUUID {
+            provider.reportCall(with: staleUUID, endedAt: Date(), reason: .failed)
+            callIDs.removeValue(forKey: staleUUID)
+            activeCallUUID = nil
+        }
         let uuid = UUID()
         activeCallUUID = uuid
         let action = CXStartCallAction(call: uuid, handle: CXHandle(type: .generic, value: handle))
         action.isVideo = video
         callController.request(CXTransaction(action: action)) { error in
-            if let error { NSLog("TRINET: CallKit start failed: %@", error.localizedDescription) }
+            guard let error else { return }
+            NSLog("TRINET: CallKit start failed: %@", error.localizedDescription)
+            DispatchQueue.main.async {
+                if self.activeCallUUID == uuid {
+                    self.provider.reportCall(with: uuid, endedAt: Date(), reason: .failed)
+                    self.activeCallUUID = nil
+                }
+            }
         }
         provider.reportOutgoingCall(with: uuid, startedConnectingAt: Date())
         return uuid
     }
 
     func markOutgoingConnected(_ uuid: UUID) {
+        guard activeCallUUID == uuid else { return }
         provider.reportOutgoingCall(with: uuid, connectedAt: Date())
     }
 
@@ -77,7 +94,13 @@ final class CallKitCoordinator: NSObject, CXProviderDelegate, PKPushRegistryDele
         update.localizedCallerName = caller
         update.hasVideo = video
         provider.reportNewIncomingCall(with: uuid, update: update) { error in
-            if let error { NSLog("TRINET: incoming CallKit report failed: %@", error.localizedDescription) }
+            if let error {
+                NSLog("TRINET: incoming CallKit report failed: %@", error.localizedDescription)
+                DispatchQueue.main.async {
+                    self.callIDs.removeValue(forKey: uuid)
+                    if self.activeCallUUID == uuid { self.activeCallUUID = nil }
+                }
+            }
             completion?()
         }
     }
@@ -85,7 +108,10 @@ final class CallKitCoordinator: NSObject, CXProviderDelegate, PKPushRegistryDele
     func end(_ uuid: UUID) {
         if activeCallUUID == uuid { activeCallUUID = nil }
         callController.request(CXTransaction(action: CXEndCallAction(call: uuid))) { error in
-            if let error { NSLog("TRINET: CallKit end failed: %@", error.localizedDescription) }
+            if let error {
+                NSLog("TRINET: CallKit end failed: %@", error.localizedDescription)
+                self.provider.reportCall(with: uuid, endedAt: Date(), reason: .remoteEnded)
+            }
         }
     }
 
