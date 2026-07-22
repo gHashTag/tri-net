@@ -450,16 +450,11 @@ class CallManager: ObservableObject {
     private static let inviteMagic: [UInt8] = [0xFD, 0x11]   // "someone is calling you"
     // AUTH: the INVITE is plaintext (call setup precedes crypto), so without this ANY LAN host could send a
     // 3-participant INVITE and FORCE the camera on to attacker-chosen IPs (confirmed vuln). Authenticate the
-    // payload with an 8-byte HMAC keyed by a secret derived from the shared PSK, so only a real TRI-NET app
-    // (which knows the PSK) can make you ring or auto-join. Wire: [FD 11][mac:8][payload utf8]. Same key both
-    // platforms. (A peer that HAS the app can still forge — the root cure is per-enrollment keys — but this
-    // closes the "any script blasts a UDP packet at :7000" attack.)
-    static let inviteKey = SymmetricKey(data: HKDF<SHA256>.deriveKey(
-        inputKeyMaterial: SymmetricKey(data: SHA256.hash(data: Data("tri-net-psk-v1".utf8))),
-        salt: Data("trios-mesh/v1/invite".utf8),
-        info: Data("invite-auth".utf8), outputByteCount: 32))
+    // payload with an 8-byte HMAC. The key is now bound to the room passphrase (empty room => the legacy
+    // PSK-only key), so with a room set only a peer that knows the room secret can ring or auto-join you —
+    // not merely anyone holding the app's hardcoded PSK. Wire: [FD 11][mac:8][payload utf8].
     static func inviteMAC(_ payload: Data) -> [UInt8] {
-        Array(HMAC<SHA256>.authenticationCode(for: payload, using: inviteKey).prefix(8))
+        Array(HMAC<SHA256>.authenticationCode(for: payload, using: MeshCrypto.inviteAuthKey(room: PeerDiscovery.myRoom)).prefix(8))
     }
 
     func startIdleListener() {

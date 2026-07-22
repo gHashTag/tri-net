@@ -623,11 +623,8 @@ class BSDTransport {
     private var groupMode = false
     private var peers: [sockaddr_in] = []
     var onDataFrom: ((Data, String) -> Void)?
-    private static let confKey = SymmetricKey(
-        data: HKDF<SHA256>.deriveKey(
-            inputKeyMaterial: SymmetricKey(data: SHA256.hash(data: Data("tri-net-psk-v1".utf8))),
-            salt: Data("trios-mesh/v1/conference".utf8),
-            info: Data("group-aead".utf8), outputByteCount: 32))
+    // Room-bound conference AEAD key, set at connectGroup (empty room == the legacy key).
+    private var groupKey = MeshCrypto.groupAuthKey(room: "")
     // per-(source, seq) fragment buffers -- group only, so two phones' same-seq NALs never collide
     private var groupFrag: [String: (parts: [Data?], have: Int)] = [:]
     private var groupFec: [String: [Int: (xor: [UInt8], gLen: Int, lastLen: Int, total: Int)]] = [:]   // "src#seq" -> gStart -> parity
@@ -704,6 +701,8 @@ class BSDTransport {
 
     func connect(host: String, port: UInt16, recvPort: UInt16) {
         disconnect()
+        groupMode = false
+        crypto.room = PeerDiscovery.myRoom   // bind the handshake to the room passphrase
         startFeedbackListener()
 
         fd = socket(AF_INET, SOCK_DGRAM, 0)
@@ -764,6 +763,7 @@ class BSDTransport {
     func connectGroup(hosts: [String], port: UInt16, recvPort: UInt16) {
         disconnect()
         groupMode = true
+        groupKey = MeshCrypto.groupAuthKey(room: PeerDiscovery.myRoom)   // room-bound conference key
         fd = socket(AF_INET, SOCK_DGRAM, 0)
         guard fd >= 0 else { NSLog("TRINET: group socket() failed"); return }
         var on: Int32 = 1
@@ -813,7 +813,7 @@ class BSDTransport {
                 let src = String(cString: inet_ntoa(from.sin_addr))
                 if self.groupMode {
                     guard let box = try? ChaChaPoly.SealedBox(combined: pkt),
-                          let plain = try? ChaChaPoly.open(box, using: BSDTransport.confKey),
+                          let plain = try? ChaChaPoly.open(box, using: self.groupKey),
                           let msg = self.groupReassemble(plain, from: src) else { continue }
                     DispatchQueue.main.async { self.onDataFrom?(msg, src) }
                     continue
@@ -1036,7 +1036,7 @@ class BSDTransport {
     private func rawSend(_ data: Data) {
         guard fd >= 0 else { return }
         if groupMode {
-            guard let wire = try? ChaChaPoly.seal(data, using: BSDTransport.confKey).combined else { return }
+            guard let wire = try? ChaChaPoly.seal(data, using: self.groupKey).combined else { return }
             for i in peers.indices {
                 _ = wire.withUnsafeBytes { raw in withUnsafePointer(to: &peers[i]) { pp in
                     pp.withMemoryRebound(to: sockaddr.self, capacity: 1) { s in
@@ -1598,11 +1598,33 @@ final class MeshCrypto {
     private var sessionKey: SymmetricKey?
     private var dropCount = 0
 
+    // Shared room passphrase mixed into the auth keys. Empty room keeps the legacy
+    // PSK-only keys BIT-FOR-BIT (open lobby, old-build interop); a set room means an
+    // attacker must know the room secret, not merely possess the app's hardcoded PSK.
+    var room = ""
+    static func handshakeAuthKey(room: String) -> SymmetricKey {
+        room.isEmpty ? psk : SymmetricKey(data: HKDF<SHA256>.deriveKey(
+            inputKeyMaterial: psk, salt: Data("trios-mesh/v1/room".utf8),
+            info: Data(room.utf8), outputByteCount: 32))
+    }
+    static func inviteAuthKey(room: String) -> SymmetricKey {
+        SymmetricKey(data: HKDF<SHA256>.deriveKey(
+            inputKeyMaterial: psk,
+            salt: room.isEmpty ? Data("trios-mesh/v1/invite".utf8) : Data(("trios-mesh/v1/invite/" + room).utf8),
+            info: Data("invite-auth".utf8), outputByteCount: 32))
+    }
+    static func groupAuthKey(room: String) -> SymmetricKey {
+        SymmetricKey(data: HKDF<SHA256>.deriveKey(
+            inputKeyMaterial: psk,
+            salt: room.isEmpty ? Data("trios-mesh/v1/conference".utf8) : Data(("trios-mesh/v1/conference/" + room).utf8),
+            info: Data("group-aead".utf8), outputByteCount: 32))
+    }
+
     var established: Bool { sessionKey != nil }
 
     func handshakePacket() -> Data {
         let pub = ephPriv.publicKey.rawRepresentation
-        let mac = HMAC<SHA256>.authenticationCode(for: pub, using: MeshCrypto.psk)
+        let mac = HMAC<SHA256>.authenticationCode(for: pub, using: MeshCrypto.handshakeAuthKey(room: room))
         var d = Data(MeshCrypto.handshakeMagic)
         d.append(pub)
         d.append(Data(mac))
@@ -1618,8 +1640,8 @@ final class MeshCrypto {
         guard isHandshake(d) else { return false }
         let pub = d.subdata(in: 2..<34)
         let mac = d.subdata(in: 34..<66)
-        guard HMAC<SHA256>.isValidAuthenticationCode(mac, authenticating: pub, using: MeshCrypto.psk) else {
-            NSLog("TRINET: handshake HMAC invalid — rejected")
+        guard HMAC<SHA256>.isValidAuthenticationCode(mac, authenticating: pub, using: MeshCrypto.handshakeAuthKey(room: room)) else {
+            NSLog("TRINET: handshake HMAC invalid — wrong room secret or not a TRI-NET peer — rejected")
             return true
         }
         guard let peerPub = try? Curve25519.KeyAgreement.PublicKey(rawRepresentation: pub),

@@ -113,11 +113,6 @@ class MeshTransport {
     // broadcast to 2-4 nodes, the right topology for a zero-server mesh.
     private var groupMode = false
     private var groupKey: SymmetricKey?
-    private static let confKey = SymmetricKey(
-        data: HKDF<SHA256>.deriveKey(
-            inputKeyMaterial: SymmetricKey(data: SHA256.hash(data: Data("tri-net-psk-v1".utf8))),
-            salt: Data("trios-mesh/v1/conference".utf8),
-            info: Data("group-aead".utf8), outputByteCount: 32))
 
     /// Audio goes to the node's express ingress (AUDIO_IN_PORT 7002): its own
     /// budget, never paced, so it cannot queue behind a keyframe -- and it skips
@@ -161,6 +156,7 @@ class MeshTransport {
     func connect(peerHost: String, peerPort: UInt16, listenPort: UInt16) {
         disconnect()
         groupMode = false
+        crypto.room = PeerDiscovery.myRoom   // bind the handshake to the room passphrase
         startFeedbackListener()
 
         fd = socket(AF_INET, SOCK_DGRAM, 0)
@@ -495,7 +491,7 @@ class MeshTransport {
     func connectGroup(peerHosts: [String], peerPort: UInt16, listenPort: UInt16) {
         disconnect()
         groupMode = true
-        groupKey = MeshTransport.confKey
+        groupKey = MeshCrypto.groupAuthKey(room: PeerDiscovery.myRoom)   // room-bound conference key
 
         fd = socket(AF_INET, SOCK_DGRAM, 0)
         guard fd >= 0 else { NSLog("TRINET: socket() failed"); return }

@@ -560,15 +560,11 @@ class StreamViewModel: ObservableObject {
     private let idleQueue = DispatchQueue(label: "trinet.idle-listener")
     private static let invitePort: UInt16 = 7000
     private static let inviteMagic: [UInt8] = [0xFD, 0x11]   // "someone is calling you"
-    // AUTH: authenticate the plaintext INVITE with an 8-byte HMAC keyed by a PSK-derived secret, so an
-    // unauthenticated LAN packet can't ring us or force an auto-join (the forced-camera vuln). Wire:
-    // [FD 11][mac:8][payload utf8]. MUST match the Mac derivation exactly (same key, same format).
-    static let inviteKey = SymmetricKey(data: HKDF<SHA256>.deriveKey(
-        inputKeyMaterial: SymmetricKey(data: SHA256.hash(data: Data("tri-net-psk-v1".utf8))),
-        salt: Data("trios-mesh/v1/invite".utf8),
-        info: Data("invite-auth".utf8), outputByteCount: 32))
+    // AUTH: authenticate the plaintext INVITE with an 8-byte HMAC. The key is now bound to the room
+    // passphrase (empty room == the legacy PSK-only key), so with a room set only a peer that knows the
+    // room secret can ring or auto-join. Wire: [FD 11][mac:8][payload]. MUST match the Mac derivation.
     static func inviteMAC(_ payload: Data) -> [UInt8] {
-        Array(HMAC<SHA256>.authenticationCode(for: payload, using: inviteKey).prefix(8))
+        Array(HMAC<SHA256>.authenticationCode(for: payload, using: MeshCrypto.inviteAuthKey(room: PeerDiscovery.myRoom)).prefix(8))
     }
 
     func startIdleListener() {

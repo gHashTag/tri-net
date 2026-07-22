@@ -26,12 +26,43 @@ final class MeshCrypto {
     private var sessionKey: SymmetricKey?
     private var dropCount = 0
 
+    // Shared room passphrase. The hardcoded PSK ships in every binary, so it authenticates
+    // NOTHING on its own — anyone with the app can complete a handshake or forge an INVITE.
+    // Mixing a room secret in means an attacker must ALSO know the room to MITM/forge. Empty
+    // room keeps the legacy PSK-only key BIT-FOR-BIT, so open-lobby calls are unaffected and
+    // an old build still interops. The transport sets this from PeerDiscovery.myRoom.
+    var room = ""
+
+    static func handshakeAuthKey(room: String) -> SymmetricKey {
+        room.isEmpty ? psk : SymmetricKey(data: HKDF<SHA256>.deriveKey(
+            inputKeyMaterial: psk, salt: Data("trios-mesh/v1/room".utf8),
+            info: Data(room.utf8), outputByteCount: 32))
+    }
+
+    // INVITE authenticator key. Empty room reproduces the legacy key exactly.
+    static func inviteAuthKey(room: String) -> SymmetricKey {
+        SymmetricKey(data: HKDF<SHA256>.deriveKey(
+            inputKeyMaterial: psk,
+            salt: room.isEmpty ? Data("trios-mesh/v1/invite".utf8) : Data(("trios-mesh/v1/invite/" + room).utf8),
+            info: Data("invite-auth".utf8), outputByteCount: 32))
+    }
+
+    // Group-conference AEAD key (there is no pairwise handshake in group mode, so the
+    // static conference key IS the confidentiality boundary). Empty room reproduces the
+    // legacy key exactly; a set room means only same-room peers can decrypt the call.
+    static func groupAuthKey(room: String) -> SymmetricKey {
+        SymmetricKey(data: HKDF<SHA256>.deriveKey(
+            inputKeyMaterial: psk,
+            salt: room.isEmpty ? Data("trios-mesh/v1/conference".utf8) : Data(("trios-mesh/v1/conference/" + room).utf8),
+            info: Data("group-aead".utf8), outputByteCount: 32))
+    }
+
     var established: Bool { sessionKey != nil }
 
     // 66-byte authenticated handshake to send to the peer.
     func handshakePacket() -> Data {
         let pub = ephPriv.publicKey.rawRepresentation // 32B
-        let mac = HMAC<SHA256>.authenticationCode(for: pub, using: MeshCrypto.psk)
+        let mac = HMAC<SHA256>.authenticationCode(for: pub, using: MeshCrypto.handshakeAuthKey(room: room))
         var d = Data(MeshCrypto.handshakeMagic)
         d.append(pub)
         d.append(Data(mac))
@@ -48,8 +79,8 @@ final class MeshCrypto {
         guard isHandshake(d) else { return false }
         let pub = d.subdata(in: 2..<34)
         let mac = d.subdata(in: 34..<66)
-        guard HMAC<SHA256>.isValidAuthenticationCode(mac, authenticating: pub, using: MeshCrypto.psk) else {
-            NSLog("TRINET: handshake HMAC invalid — rejected")
+        guard HMAC<SHA256>.isValidAuthenticationCode(mac, authenticating: pub, using: MeshCrypto.handshakeAuthKey(room: room)) else {
+            NSLog("TRINET: handshake HMAC invalid — wrong room secret or not a TRI-NET peer — rejected")
             return true // it was a handshake, just a bad one; don't treat as data
         }
         guard let peerPub = try? Curve25519.KeyAgreement.PublicKey(rawRepresentation: pub),
