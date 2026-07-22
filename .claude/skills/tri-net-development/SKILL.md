@@ -2132,3 +2132,19 @@ phi^2 + phi^-2 = 3 | TRINITY
 - **Two-agent-on-one-branch lesson: when the other actor's tip won't build, don't try to fix their WIP —
   verify your own change in isolation and land it on the clean base (main) via a worktree cherry-pick or a
   direct fast-forward; report their break as theirs to fix.**
+
+## WAVE 2026-07-23 #18 — INVITE seen-MAC cache (defense-in-depth, honest about verification)
+
+- **Closes the last replay edge in the INVITE auth chain:** a seen-MAC cache (dict of the 8-byte tag -> time,
+  pruned >30s, main-queue only) drops a duplicate INVITE, so a captured one can't be replayed within the 15s
+  freshness window after a decline/hangup returns the app to idle. Standard WireGuard/IPsec-style nonce cache;
+  the sender's own 4x UDP re-sends share a tag and are already ignored, so dedup is safe. Both platforms.
+- **HONEST verification limit:** builds on both; smoke PASSes (fresh INVITEs each have a distinct tag, unaffected);
+  a duplicate authenticated INVITE -> exactly one join, no crash. BUT the dedup's SPECIFIC firing could NOT be
+  isolated headlessly — the pre-existing `!isInCall`/`incomingCall == nil` guards catch a duplicate FIRST in
+  every headlessly-reachable path (auto-join makes the app in-call before the second arrives; a ring blocks new
+  INVITEs for 40s > the 15s window). The edge it uniquely covers (replay after an interactive decline/hangup
+  within 15s) needs a human to reproduce. So this is clearly-correct standard code, NOT a live-verified drop —
+  reported as such.
+- **Decision to keep it:** cheap, correct, textbook anti-replay complement to the freshness window; not
+  speculative. Landed on the clean main (does not touch Codex's broken branch).

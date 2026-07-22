@@ -62,6 +62,7 @@ class StreamViewModel: ObservableObject {
     @Published var unreadChat = 0                       // badge count on the chat icon
     var chatOpen = false { didSet { if chatOpen { unreadChat = 0 } } }  // panel open => clear the badge
     private let chatChime = ChatChime()                 // Trinity-style blip on an incoming chat message
+    private var seenInviteMACs: [Data: Date] = [:]      // recent INVITE auth tags -> replay dedup (main queue only)
     @Published var recentIPs: [String] = []
     // Live audio levels (0...1) for the TX/RX meters, peak-held with decay.
     @Published var txLevel: Float = 0
@@ -546,8 +547,14 @@ class StreamViewModel: ObservableObject {
                 let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
                 guard tsMs != 0, abs(nowMs - tsMs) <= 15_000 else { continue }
                 let ip = String(cString: inet_ntoa(from.sin_addr))
+                let macKey = Data(buf[2..<10])   // 8-byte auth tag, used as the replay-dedup key
                 DispatchQueue.main.async {
                     guard let self = self, self.phase == .idle, self.incomingCall == nil else { return }  // don't ring mid-call / twice
+                    // SEEN-MAC dedup closes the immediate-replay gap inside the 15s freshness window (the 4x UDP
+                    // re-sends share a tag and are already ignored above, so dropping duplicates is safe).
+                    self.seenInviteMACs = self.seenInviteMACs.filter { Date().timeIntervalSince($0.value) < 30 }
+                    guard self.seenInviteMACs[macKey] == nil else { return }
+                    self.seenInviteMACs[macKey] = Date()
                     self.incomingCall = IncomingCall(name: name, ip: ip, participants: participants)
                     // AUTO-ACCEPT a GROUP call (>2 participants = caller + me + others) or a same-room caller,
                     // so "call from the Mac -> both iPhones just join" works with no manual Accept. A plain
