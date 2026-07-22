@@ -200,6 +200,26 @@ class CallManager: ObservableObject {
         selectedCameraID = AVCaptureDevice.default(for: .video)?.uniqueID ?? cameras.first?.uniqueID ?? ""
         discovery.start()   // advertise + browse from launch
         startIdleListener() // listen on :7000 for incoming calls while idle
+        autoCallIfConfigured()   // two-endpoint test rig hook (no-op in a real run)
+    }
+
+    // TEST RIG ONLY: TRINET_AUTOCALL=<host>:<peerPort> + TRINET_LISTEN=<myPort> auto-dials a
+    // 1-1 call on launch with distinct local ports, so two instances on one machine can talk
+    // over real UDP (INVITE bypassed). Never set in a shipping run.
+    private var autoListenPort: UInt16?
+    private func autoCallIfConfigured() {
+        let env = ProcessInfo.processInfo.environment
+        guard let peer = env["TRINET_AUTOCALL"], !peer.isEmpty else { return }
+        let parts = peer.split(separator: ":")
+        guard parts.count == 2, let peerPort = UInt16(parts[1]) else { NSLog("TRINET: bad TRINET_AUTOCALL"); return }
+        remoteIP = String(parts[0])
+        port = String(peerPort)
+        autoListenPort = env["TRINET_LISTEN"].flatMap { UInt16($0) }
+        NSLog("TRINET: RIG autocall -> \(remoteIP):\(peerPort) listen \(autoListenPort.map(String.init) ?? "same")")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+            guard let self = self, !self.isInCall else { return }
+            self.startCall()
+        }
     }
 
     // MARK: - Incoming call ("take the call")
@@ -979,7 +999,8 @@ class CallManager: ObservableObject {
             NSLog("TRINET: group call — \(hosts.count) peers")
         } else {
             isGroup = false
-            transport.connect(peerHost: remoteIP, peerPort: p, listenPort: p)
+            let listenP = autoListenPort ?? p   // rig: two local instances need distinct listen ports
+            transport.connect(peerHost: remoteIP, peerPort: p, listenPort: listenP)
         }
         let hostStrs = hosts.map { String($0) }
         sendInvite(to: hostStrs, participants: [localIP] + hostStrs)   // ring the callee(s); carry the full roster
