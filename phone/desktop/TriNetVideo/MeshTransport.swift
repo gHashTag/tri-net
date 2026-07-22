@@ -10,6 +10,8 @@ import CryptoKit
 class MeshTransport {
     private var fd: Int32 = -1
     private var peer = sockaddr_in()          // 1-1 peer (ephemeral session)
+    private var peerHostStr = ""              // the connected peer's IP, for drop diagnostics
+    private var dropByIP: [String: Int] = [:] // undecryptable datagrams per source IP
     private var peers: [(addr: sockaddr_in, ip: String)] = []  // group peers
     private var running = false
     private let rxQueue = DispatchQueue(label: "mesh.rx", qos: .userInitiated)
@@ -178,6 +180,8 @@ class MeshTransport {
         peer.sin_family = sa_family_t(AF_INET)
         peer.sin_port = peerPort.bigEndian
         peer.sin_addr.s_addr = inet_addr(peerHost)
+        peerHostStr = peerHost
+        dropByIP.removeAll()
 
         running = true
         connected = true
@@ -233,11 +237,21 @@ class MeshTransport {
                         continue
                     }
                     count += 1
-                    if count == 1 || count % 500 == 0 { NSLog("TRINET: rx #\(count) \(n)B") }
-                    if let plain = self.crypto.unseal(pkt),
-                       let msg = self.reassemble(plain) {
-                        self.onReceive?(msg)
-                        self.onReceiveFrom?(msg, senderIP)
+                    if count == 1 || count % 500 == 0 { NSLog("TRINET: rx #\(count) \(n)B from \(senderIP)") }
+                    if let plain = self.crypto.unseal(pkt) {
+                        if let msg = self.reassemble(plain) {
+                            self.onReceive?(msg)
+                            self.onReceiveFrom?(msg, senderIP)
+                        }
+                    } else {
+                        // Undecryptable: either OUR peer (a real bug — wrong key/corruption) or a STRAY peer
+                        // on the shared LAN blasting :7000 (benign). The sender IP tells them apart.
+                        self.dropByIP[senderIP, default: 0] += 1
+                        let c = self.dropByIP[senderIP]!
+                        if c <= 3 || c % 500 == 0 {
+                            let who = senderIP == self.peerHostStr ? "OUR PEER — REAL BUG" : "stray peer (ignore)"
+                            NSLog("TRINET: DROP undecryptable \(n)B from \(senderIP) [\(who), peer=\(self.peerHostStr)] — \(c) from this IP")
+                        }
                     }
                 } else {
                     break

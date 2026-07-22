@@ -28,11 +28,12 @@
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_trinet-call._udp</string>
+		<string>_trinet._udp</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>TRI-NET needs camera for secure local and internet video calls</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>TRI-NET discovers signed contacts and connects over local UDP</string>
+	<string>TRI-NET discovers signed contacts and peers over local UDP or a routed radio mesh</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>TRI-NET needs microphone for video calls</string>
 	<key>TRINET_API_BASE_URL</key>

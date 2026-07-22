@@ -2,6 +2,7 @@
 import SwiftUI
 import AVFoundation
 import LiveKit
+import AudioToolbox
 
 // MARK: - Home Screen
 
@@ -143,6 +144,65 @@ struct HomeView: View {
                                 }
                             }
                         }
+
+                        iPeerRoster(vm: vm, discovery: vm.discovery)
+
+                        // Missed calls — one-tap call back (newest first, capped at 5).
+                        if !vm.missedCalls.isEmpty {
+                            VStack(spacing: 6) {
+                                ForEach(vm.missedCalls) { m in
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "phone.arrow.down.left").font(.system(size: 12)).foregroundColor(DS.danger)
+                                        Text("Missed · \(m.name)").font(DS.ui(13)).foregroundColor(DS.text).lineLimit(1)
+                                        Text(m.at, style: .time).font(DS.mono(10)).foregroundColor(DS.faint)
+                                        Spacer()
+                                        Button("Call back") { vm.remoteIP = m.ip; vm.startCall() }
+                                            .font(DS.mono(12)).foregroundColor(.green)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 14).padding(.vertical, 10)
+                            .background(DS.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(DS.hairline, lineWidth: 1))
+                        }
+
+                        // Recent-call journal: duration + average link quality of past completed calls.
+                        if !vm.recentCalls.isEmpty {
+                            VStack(spacing: 6) {
+                                HStack {
+                                    Text("RECENT").font(DS.mono(9)).foregroundColor(DS.faint).tracking(1)
+                                    Spacer()
+                                    if #available(iOS 16.0, *) {
+                                        ShareLink(item: vm.callJournalText) {
+                                            Text("Share log").font(DS.mono(9)).foregroundColor(DS.dim)
+                                        }
+                                    }
+                                }
+                                ForEach(vm.recentCalls.prefix(4)) { r in
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "phone.connection").font(.system(size: 12)).foregroundColor(DS.dim)
+                                        Text(r.peer).font(DS.mono(12)).foregroundColor(DS.text).lineLimit(1)
+                                        Spacer()
+                                        Text("\(r.durationSec/60)m\(String(format: "%02d", r.durationSec%60))s · \(r.avgKbps)k\(r.stalls > 0 ? " · ⚠︎\(r.stalls)" : "")")
+                                            .font(DS.mono(10)).foregroundColor(r.avgJitterMs > 40 || r.stalls > 0 ? DS.danger : DS.faint)
+                                        Button("Call") { vm.remoteIP = r.peer; vm.startCall() }
+                                            .font(DS.mono(11)).foregroundColor(.green)
+                                    }
+                                }
+                                // Aggregate stability across the whole journal.
+                                let s = vm.callStats
+                                Divider().overlay(DS.hairline)
+                                HStack(spacing: 8) {
+                                    Text("\(s.count) calls").font(DS.mono(9)).foregroundColor(DS.dim)
+                                    Spacer()
+                                    Text("avg \(s.avgDurationSec/60)m\(String(format: "%02d", s.avgDurationSec%60))s · \(s.avgKbps)k · \(s.totalStalls) stalls")
+                                        .font(DS.mono(9)).foregroundColor(s.totalStalls > 0 ? DS.danger : DS.faint)
+                                }
+                            }
+                            .padding(.horizontal, 14).padding(.vertical, 10)
+                            .background(DS.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(DS.hairline, lineWidth: 1))
+                        }
                     }
                     .padding(.horizontal, 24)
 
@@ -154,6 +214,13 @@ struct HomeView: View {
                 }
             }
         }
+        // Incoming call: full-screen ringing takeover (iOS convention) with Accept/Decline.
+        .overlay {
+            if let inc = vm.incomingCall {
+                IncomingCallOverlay(vm: vm, inc: inc).transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: vm.incomingCall)
         .preferredColorScheme(.dark)
         .animation(.easeInOut(duration: 0.3), value: vm.phase)
         .onAppear { vm.checkPermission(); if vm.cameraAuthorized { vm.camera.startPreview() } }
@@ -277,6 +344,127 @@ struct ShareSheet: UIViewControllerRepresentable {
     func updateUIViewController(_ vc: UIActivityViewController, context: Context) {}
 }
 
+// A distinctive SYNTHESIZED ring — three ascending chirps ("tri"-tone, fitting TRI-NET) + a gap, looped. Not a
+// stock ringtone, so an incoming call is instantly recognizable. Sets the session to .playback so it sounds.
+final class RingSynth {
+    private let engine = AVAudioEngine()
+    private let player = AVAudioPlayerNode()
+    private var buffer: AVAudioPCMBuffer?
+    init() {
+        engine.attach(player)
+        let fmt = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)!
+        engine.connect(player, to: engine.mainMixerNode, format: fmt)
+        buffer = makeRing(fmt)
+    }
+    private func makeRing(_ fmt: AVAudioFormat) -> AVAudioPCMBuffer? {
+        let sr = 44100.0
+        let notes: [(f: Double, dur: Double)] = [(659.25, 0.10), (987.77, 0.10), (1318.51, 0.16)]  // E5 B5 E6
+        let gap = 0.55
+        let total = notes.reduce(0) { $0 + $1.dur } + gap
+        let frames = AVAudioFrameCount(total * sr)
+        guard let buf = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: frames) else { return nil }
+        buf.frameLength = frames
+        let p = buf.floatChannelData![0]
+        var i = 0
+        for n in notes {
+            let cnt = Int(n.dur * sr)
+            for k in 0..<cnt {
+                let t = Double(k) / sr
+                let env = sin(Double.pi * Double(k) / Double(cnt))
+                p[i] = Float(0.34 * env * sin(2 * Double.pi * n.f * t)); i += 1
+            }
+        }
+        while i < Int(frames) { p[i] = 0; i += 1 }
+        return buf
+    }
+    func start() {
+        guard let buffer = buffer else { return }
+        try? AVAudioSession.sharedInstance().setCategory(.playback, options: [.mixWithOthers])
+        try? AVAudioSession.sharedInstance().setActive(true)
+        try? engine.start()
+        player.scheduleBuffer(buffer, at: nil, options: .loops, completionHandler: nil)
+        player.play()
+    }
+    func stop() { player.stop(); engine.stop() }
+}
+
+// MARK: - Incoming call (full-screen ring + Accept/Decline)
+// iOS convention: a full-screen takeover, caller identity top, two circular action buttons at the
+// bottom — Decline (red, LEFT), Accept (green, RIGHT). Ring vibrates + plays the tri-tone until answered.
+struct IncomingCallOverlay: View {
+    @ObservedObject var vm: StreamViewModel
+    let inc: StreamViewModel.IncomingCall
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pulse = false
+    @State private var ringTimer: Timer?
+    @State private var ring = RingSynth()
+
+    private var initial: String { String(inc.name.prefix(1)).uppercased() }
+
+    var body: some View {
+        ZStack {
+            DS.ink.opacity(0.98).ignoresSafeArea()
+            VStack(spacing: 0) {
+                Spacer()
+                ZStack {
+                    // Two expanding rings — "ringing, live now" (Reduce-Motion aware).
+                    Circle().stroke(DS.live.opacity(0.55), lineWidth: 3)
+                        .frame(width: 150, height: 150)
+                        .scaleEffect(pulse ? 1.45 : 1.0).opacity(pulse ? 0 : 0.7)
+                    Circle().stroke(DS.live.opacity(0.30), lineWidth: 2)
+                        .frame(width: 150, height: 150)
+                        .scaleEffect(pulse ? 1.18 : 0.9).opacity(pulse ? 0 : 0.5)
+                    Circle().fill(DS.surfaceHi)
+                        .overlay(Circle().stroke(DS.hairlineStrong, lineWidth: 1))
+                        .frame(width: 118, height: 118)
+                    Text(initial).font(.system(size: 46, weight: .semibold)).foregroundColor(DS.text)
+                }
+                Text(inc.name).font(DS.display(26, .semibold)).foregroundColor(DS.text)
+                    .padding(.top, 26).lineLimit(1)
+                Text("Incoming call · TRI-NET").font(DS.ui(14)).foregroundColor(DS.dim).padding(.top, 6)
+                Text(inc.ip).font(DS.mono(12)).foregroundColor(DS.faint).padding(.top, 2)
+                Spacer()
+                HStack(spacing: 80) {
+                    answerButton(system: "phone.down.fill", label: "Decline", bg: DS.danger) {
+                        stopRing(); vm.declineIncoming()
+                    }
+                    answerButton(system: "phone.fill", label: "Accept", bg: DS.live) {
+                        stopRing(); vm.acceptIncoming()
+                    }
+                }
+                .padding(.bottom, 70)
+            }
+        }
+        .onAppear { startRing() }
+        .onDisappear { stopRing() }
+    }
+
+    private func answerButton(system: String, label: String, bg: Color, action: @escaping () -> Void) -> some View {
+        VStack(spacing: 10) {
+            Button(action: action) {
+                Image(systemName: system).font(.system(size: 30, weight: .semibold))
+                    .foregroundColor(.white).frame(width: 76, height: 76)
+                    .background(Circle().fill(bg))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(label) call")
+            Text(label).font(DS.ui(13)).foregroundColor(DS.dim)
+        }
+    }
+
+    private func startRing() {
+        if !reduceMotion {
+            withAnimation(.easeOut(duration: 1.2).repeatForever(autoreverses: false)) { pulse = true }
+        }
+        ring.start()   // distinctive TRI-NET tri-tone, looped
+        AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+        ringTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
+            AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+        }
+    }
+    private func stopRing() { ring.stop(); ringTimer?.invalidate(); ringTimer = nil }
+}
+
 // MARK: - Call Screen (FaceTime style)
 
 struct RemoteVideoArea: View {
@@ -301,12 +489,172 @@ struct RemoteVideoArea: View {
     }
 }
 
+// Group conference: one tile per remote source (roster). Each tile observes ITS OWN decoder, so a
+// new frame from any participant redraws only that tile.
+struct GroupGrid: View {
+    @ObservedObject var vm: StreamViewModel
+    var body: some View {
+        let cols = vm.roster.count <= 1 ? 1 : (vm.roster.count <= 4 ? 2 : 3)   // adaptive grid for 4-6 way
+        let grid = Array(repeating: GridItem(.flexible(), spacing: 2), count: cols)
+        ZStack {
+            DS.surface
+            if vm.roster.isEmpty {
+                VStack(spacing: 12) {
+                    ProgressView().tint(DS.dim)
+                    Text("WAITING FOR PARTICIPANTS").font(DS.mono(12, .medium)).tracking(1).foregroundColor(DS.dim)
+                }
+            } else {
+                LazyVGrid(columns: grid, spacing: 2) {
+                    ForEach(vm.roster, id: \.self) { ip in
+                        if let dec = vm.groupDecoders[ip] { GroupTile(decoder: dec, ip: ip) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct GroupTile: View {
+    @ObservedObject var decoder: H264Decoder
+    let ip: String
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            Rectangle().fill(Color.black)
+            if decoder.frameCount > 0, let frame = decoder.currentFrame {
+                RemoteVideoDisplay(imageBuffer: frame, frameId: decoder.frameCount)
+            } else {
+                ProgressView().tint(DS.dim)
+            }
+            Text(ip).font(DS.mono(10)).foregroundColor(.white)
+                .padding(.horizontal, 5).padding(.vertical, 2)
+                .background(Color.black.opacity(0.55)).cornerRadius(4).padding(5)
+        }
+        .aspectRatio(16.0/9.0, contentMode: .fit)   // matches the 16:9 camera/encoder
+        .clipped()
+    }
+}
+
+// Live "who's on this network" roster (Bonjour). Tap a name to CALL, tick several for a GROUP call, or
+// set a ROOM code and "Call room" — no typing IPs. Observes PeerDiscovery so it redraws as peers come/go.
+struct iPeerRoster: View {
+    @ObservedObject var vm: StreamViewModel
+    @ObservedObject var discovery: PeerDiscovery
+    @State private var myName = PeerDiscovery.myName
+    @State private var room = PeerDiscovery.myRoom
+
+    var body: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "person.crop.circle.fill").foregroundColor(DS.dim)
+                TextField("Your name", text: $myName).font(DS.ui(13)).foregroundColor(DS.text)
+                    .onSubmit { discovery.setName(myName) }
+                Text("ROOM").font(DS.mono(9)).foregroundColor(DS.faint)
+                TextField("open", text: $room).font(DS.mono(13)).foregroundColor(DS.text).frame(width: 62)
+                    .onSubmit { discovery.setRoom(room) }
+            }
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .background(DS.surface, in: RoundedRectangle(cornerRadius: 14))
+            HStack {
+                Text(room.isEmpty ? "ON THIS NETWORK" : "ROOM \(room.uppercased())").font(DS.mono(10)).foregroundColor(DS.faint)
+                Spacer()
+                if !room.isEmpty && !discovery.peers.isEmpty {
+                    Button("Call room (\(discovery.peers.count))") { vm.callEveryone() }.font(DS.mono(11)).foregroundColor(.green)
+                } else if !vm.selectedUIDs.isEmpty {
+                    Button("Group (\(vm.selectedUIDs.count))") { vm.startGroupFromSelection() }.font(DS.mono(11)).foregroundColor(.green)
+                }
+            }
+            if discovery.peers.isEmpty {
+                Text("searching for TRI-NET peers…").font(DS.mono(11)).foregroundColor(DS.faint)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                ForEach(discovery.peers) { peer in
+                    HStack(spacing: 10) {
+                        Image(systemName: vm.selectedUIDs.contains(peer.uid) ? "checkmark.circle.fill" : "circle")
+                            .foregroundColor(vm.selectedUIDs.contains(peer.uid) ? .green : DS.faint)
+                            .onTapGesture { vm.toggleSelect(peer.uid) }
+                        Circle().fill(peer.status == "call" ? Color.orange : Color.green).frame(width: 7, height: 7)
+                        Text(peer.name).font(DS.ui(14)).foregroundColor(DS.text).lineLimit(1)
+                        if peer.status == "call" { Text("in call").font(DS.mono(9)).foregroundColor(.orange) }
+                        Spacer()
+                        Button("Call") { vm.callPeer(peer) }.font(DS.mono(12)).foregroundColor(DS.text)
+                            .padding(.horizontal, 14).padding(.vertical, 6)
+                            .overlay(Capsule().stroke(DS.hairline, lineWidth: 1))
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Force the interface orientation (iOS 16+). The fullscreen button uses it; plain device rotation is handled
+// by the OS now that landscape is in the Info.plist orientation set.
+func setInterfaceOrientation(_ mask: UIInterfaceOrientationMask) {
+    guard let scene = UIApplication.shared.connectedScenes
+        .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene else { return }
+    if #available(iOS 16.0, *) {
+        scene.requestGeometryUpdate(.iOS(interfaceOrientations: mask)) { _ in }
+    }
+}
+
+// Tap-to-expand link-quality panel: 60s sparklines of encode bitrate + peer jitter.
+private struct iLinkStatsPanel: View {
+    @ObservedObject var vm: StreamViewModel
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("LINK QUALITY · 60s").font(DS.mono(10)).foregroundColor(DS.faint).tracking(1)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Bitrate  \(vm.bitrateKbps) kbps").font(DS.mono(12)).foregroundColor(DS.text)
+                iSparkline(values: vm.bitrateHistory.map(Double.init), tint: DS.live).frame(height: 44)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Peer jitter  \(vm.peerJitterMs) ms").font(DS.mono(12)).foregroundColor(vm.peerJitterMs > 40 ? DS.danger : DS.text)
+                iSparkline(values: vm.jitterHistory.map(Double.init), tint: vm.peerJitterMs > 40 ? DS.danger : DS.dim, threshold: 40).frame(height: 44)
+            }
+            Text("Jitter > 40ms triggers a bitrate back-off.").font(DS.ui(11)).foregroundColor(DS.faint)
+        }
+        .padding(20).frame(maxWidth: .infinity, alignment: .leading)
+        .background(DS.ink)
+    }
+}
+
+private struct iSparkline: View {
+    let values: [Double]
+    var tint: Color = .green
+    var threshold: Double? = nil
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width, h = geo.size.height
+            let maxV = max(values.max() ?? 1, threshold ?? 0, 1)
+            ZStack {
+                if let t = threshold {
+                    let ty = h - CGFloat(t / maxV) * h
+                    Path { p in p.move(to: CGPoint(x: 0, y: ty)); p.addLine(to: CGPoint(x: w, y: ty)) }
+                        .stroke(DS.danger.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                }
+                if values.count > 1 {
+                    Path { p in
+                        for (i, v) in values.enumerated() {
+                            let x = w * CGFloat(i) / CGFloat(values.count - 1)
+                            let y = h - CGFloat(v / maxV) * h
+                            if i == 0 { p.move(to: CGPoint(x: x, y: y)) } else { p.addLine(to: CGPoint(x: x, y: y)) }
+                        }
+                    }.stroke(tint, style: StrokeStyle(lineWidth: 2, lineJoin: .round))
+                }
+            }
+        }
+        .background(DS.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
+}
+
 struct CallScreen: View {
     @ObservedObject var vm: StreamViewModel
     @State private var showControls = true
     @State private var showChat = false
     @State private var showLog = false
+    @State private var showLinkStats = false
     @State private var draft = ""
+    @State private var wantLandscape = false
     private let reactions = ["👍", "❤️", "😂", "👏", "🔥"]
 
     private var mediaConnected: Bool {
@@ -323,6 +671,8 @@ struct CallScreen: View {
             Group {
                 if vm.activeRoute == .internet {
                     InternetVideoArea(controller: vm.internet, phase: vm.phase, peer: vm.callee)
+                } else if vm.isGroup {
+                    GroupGrid(vm: vm)
                 } else {
                     RemoteVideoArea(decoder: vm.decoder, phase: vm.phase, remoteIP: vm.remoteIP)
                 }
@@ -337,21 +687,55 @@ struct CallScreen: View {
                     .allowsHitTesting(false)
             }
 
-            // Self camera PiP
+            // RTI fusion slew indicator — shows where RTI detected an object.
+            if vm.rtiSlewActive {
+                VStack(spacing: 6) {
+                    Image(systemName: "sensor.tag.radiowaves.forward")
+                        .font(.title2)
+                        .foregroundColor(.orange)
+                    Text("RTI SLEW")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(.orange)
+                    Text("\(vm.rtiSlewAngle)° \(vm.rtiSlewDirection)")
+                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.white)
+                }
+                .padding(10)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .padding(.top, 60)
+                .padding(.trailing, 12)
+                .transition(.opacity)
+                .allowsHitTesting(false)
+            }
+
+            // Self camera PiP — reflects camera-off / blur so the toggles give LOCAL feedback (they affect the
+            // OUTGOING stream, which the preview layer doesn't show on its own, so they felt like no-ops).
             VStack {
                 HStack {
                     Spacer()
-                    Group {
+                    ZStack {
                         if vm.activeRoute == .internet, let track = vm.internet.localVideoTrack {
                             SwiftUIVideoView(track, layoutMode: .fill, mirrorMode: .mirror)
                         } else {
                             CameraPreviewView(session: vm.camera.previewSession)
                         }
+                        if vm.activeRoute != .internet && vm.cameraOff {
+                            Rectangle().fill(Color.black)
+                            Image(systemName: "video.slash.fill").font(.system(size: 22)).foregroundColor(DS.dim)
+                        }
+                        if vm.activeRoute != .internet && vm.isBlurred && !vm.cameraOff {
+                            Text("BLUR").font(DS.mono(9, .medium)).foregroundColor(DS.onFill)
+                                .padding(.horizontal, 6).padding(.vertical, 2)
+                                .background(DS.live, in: Capsule())
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                                .padding(6)
+                        }
                     }
-                        .frame(width: 104, height: 138)
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(DS.hairlineStrong, lineWidth: 1))
-                        .padding(14)
+                    .frame(width: 104, height: 138)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(DS.hairlineStrong, lineWidth: 1))
+                    .padding(14)
                 }
                 Spacer()
             }
@@ -359,7 +743,7 @@ struct CallScreen: View {
 
             // Chat panel
             if showChat {
-                VStack { Spacer(); iChatPanel(vm: vm, draft: $draft, close: { showChat = false }) }
+                VStack { Spacer(); iChatPanel(vm: vm, draft: $draft, close: { showChat = false; vm.chatOpen = false }) }
                     .padding(12).transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
@@ -371,19 +755,36 @@ struct CallScreen: View {
             if showControls && !showChat {
                 VStack(spacing: 0) {
                     HStack(spacing: 10) {
-                        StatusTag(text: mediaConnected ? "Secure" : "Connecting", live: mediaConnected)
+                        StatusTag(text: mediaConnected ? "Secure" : (vm.activeRoute != .internet && vm.noAnswer ? "No answer" : "Calling…"),
+                                  live: mediaConnected)
                             .background(DS.ink.opacity(0.5), in: Capsule())
+                        // Make link trouble visible instead of a silent freeze.
+                        if vm.linkHealth != .good {
+                            StatusTag(text: vm.linkHealth == .stalled ? "Reconnecting…" : "Weak connection", live: false)
+                                .background((vm.linkHealth == .stalled ? DS.danger : Color.orange).opacity(0.9), in: Capsule())
+                        } else if vm.linkRestored {
+                            StatusTag(text: "Connection restored", live: true)
+                                .background(DS.live.opacity(0.9), in: Capsule())
+                                .transition(.opacity)
+                        }
                         Spacer()
-                        // Record toggle — kept out of the bottom bar so the six
-                        // primary controls stay one row on every iPhone.
-                        Button(action: { vm.toggleRecording() }) {
+                        // Passive REC indicator (only while recording); the toggle now lives in the main
+                        // control row, mirroring the macOS layout.
+                        if vm.isRecording {
                             HStack(spacing: 5) {
-                                Circle().fill(vm.isRecording ? DS.danger : DS.faint).frame(width: 7, height: 7)
-                                Text(vm.isRecording ? "REC" : "Rec").font(DS.mono(10, .medium)).tracking(0.5)
-                                    .foregroundColor(vm.isRecording ? DS.danger : DS.dim)
+                                Circle().fill(DS.danger).frame(width: 7, height: 7)
+                                Text("REC").font(DS.mono(10, .medium)).tracking(0.5).foregroundColor(DS.danger)
                             }
                             .padding(.horizontal, 10).padding(.vertical, 5)
-                            .overlay(Capsule().stroke(vm.isRecording ? DS.danger.opacity(0.5) : DS.hairline, lineWidth: 1))
+                            .overlay(Capsule().stroke(DS.danger.opacity(0.5), lineWidth: 1))
+                        }
+                        // Fullscreen: force landscape (the video fills the screen). Rotating the device does
+                        // the same now that landscape is allowed; this button forces it without turning the phone.
+                        Button(action: { wantLandscape.toggle(); setInterfaceOrientation(wantLandscape ? .landscapeRight : .portrait) }) {
+                            Image(systemName: wantLandscape ? "arrow.down.forward.and.arrow.up.backward" : "arrow.up.backward.and.arrow.down.forward")
+                                .font(.system(size: 11)).foregroundColor(wantLandscape ? DS.text : DS.dim)
+                                .padding(.horizontal, 8).padding(.vertical, 5)
+                                .overlay(Capsule().stroke(DS.hairline, lineWidth: 1))
                         }.buttonStyle(.plain)
                         Button(action: { withAnimation { showLog.toggle() } }) {
                             Image(systemName: "text.alignleft")
@@ -392,7 +793,14 @@ struct CallScreen: View {
                                 .padding(.horizontal, 8).padding(.vertical, 5)
                                 .overlay(Capsule().stroke(DS.hairline, lineWidth: 1))
                         }.buttonStyle(.plain)
-                        Text(vm.activeRoute == .internet ? vm.callee : vm.remoteIP).font(DS.mono(11)).foregroundColor(DS.faint)
+                        // Live BWE readout: peer's receive jitter + our encode rate. Green under the 40ms
+                        // back-off threshold, red above — network health at a glance (Zoom-style indicator).
+                        if vm.activeRoute != .internet {
+                            Text("\(vm.peerJitterMs)ms·\(vm.camera.bitrateKbps)k")
+                                .font(DS.mono(10)).foregroundColor(vm.peerJitterMs > 40 ? DS.danger : .green)
+                        }
+                        Text(vm.activeRoute == .internet ? vm.callee : vm.remoteIP)
+                            .font(DS.mono(11)).foregroundColor(DS.faint)
                     }
                     .padding(.horizontal, 16).padding(.top, 8)
 
@@ -415,20 +823,35 @@ struct CallScreen: View {
                             iMeter(label: "Mic", level: vm.txLevel, muted: vm.isMuted)
                             iMeter(label: "In", level: vm.rxLevel, muted: false)
                             Spacer()
+                            // Link-quality at a glance: encode bitrate + peer-reported jitter (red = queueing).
+                            // Tap to expand a 60s sparkline of both.
+                            Button { showLinkStats = true } label: {
+                                Text("\(vm.bitrateKbps)k · jit \(vm.peerJitterMs)ms")
+                                    .font(DS.mono(11)).foregroundColor(vm.peerJitterMs > 40 ? DS.danger : DS.faint)
+                            }.buttonStyle(.plain)
                             Text("↑\(vm.framesSent) ↓\(vm.framesReceived)")
                                 .font(DS.mono(11)).foregroundColor(DS.faint)
                         }
                         // Equal-width flexible cells so the row always fits the
                         // phone width (6 controls; each cell centers a 46pt circle).
-                        HStack(spacing: 6) {
-                            iBtn(system: vm.isMuted ? "mic.slash.fill" : "mic.fill", active: vm.isMuted) { vm.toggleMute() }
-                            iBtn(system: "arrow.triangle.2.circlepath.camera.fill", active: false) { vm.camera.switchCamera() }
-                            iBtn(system: vm.cameraOff ? "video.slash.fill" : "video.fill", active: vm.cameraOff) { vm.toggleCamera() }
-                            iBtn(system: vm.isBlurred ? "person.crop.rectangle.badge.plus.fill" : "person.crop.rectangle", active: vm.isBlurred) { vm.toggleBlur() }
-                            iBtn(system: "bubble.left.and.bubble.right\(vm.chat.isEmpty ? "" : ".fill")", active: false) { withAnimation { showChat = true } }
-                            Button(action: { vm.stopCall() }) {
-                                Image(systemName: "phone.down.fill").font(.system(size: 19)).foregroundColor(DS.onFill)
-                                    .frame(width: 46, height: 46).background(DS.danger, in: Circle())
+                        HStack(spacing: 4) {
+                            iBtn(system: vm.isMuted ? "mic.slash.fill" : "mic.fill", active: vm.isMuted) { NSLog("TRINET: btn MUTE -> \(!vm.isMuted)"); vm.toggleMute() }
+                            iBtn(system: "arrow.triangle.2.circlepath.camera.fill", active: false) { NSLog("TRINET: btn FLIP camera"); vm.camera.switchCamera() }
+                            iBtn(system: vm.cameraOff ? "video.slash.fill" : "video.fill", active: vm.cameraOff) { NSLog("TRINET: btn CAMERA-OFF -> \(!vm.cameraOff)"); vm.toggleCamera() }
+                            iBtn(system: vm.isBlurred ? "person.crop.rectangle.badge.plus.fill" : "person.crop.rectangle", active: vm.isBlurred) { NSLog("TRINET: btn BLUR -> \(!vm.isBlurred)"); vm.toggleBlur() }
+                            ZStack(alignment: .topTrailing) {
+                                iBtn(system: "bubble.left.and.bubble.right\(vm.chat.isEmpty ? "" : ".fill")", active: false) { NSLog("TRINET: btn CHAT"); vm.chatOpen = true; withAnimation { showChat = true } }
+                                if vm.unreadChat > 0 && !showChat {
+                                    Text("\(vm.unreadChat)").font(.system(size: 10, weight: .bold)).foregroundColor(.white)
+                                        .padding(.horizontal, 4).frame(minWidth: 16, minHeight: 16)
+                                        .background(DS.danger, in: Capsule()).offset(x: 2, y: -2)
+                                }
+                            }
+                            // Record — mirrors the Mac's main-row REC button; the button turns red while recording.
+                            iBtn(system: vm.isRecording ? "record.circle.fill" : "record.circle", active: vm.isRecording) { NSLog("TRINET: btn RECORD -> \(!vm.isRecording)"); vm.toggleRecording() }
+                            Button(action: { NSLog("TRINET: btn END CALL"); vm.stopCall() }) {
+                                Image(systemName: "phone.down.fill").font(.system(size: 17)).foregroundColor(DS.onFill)
+                                    .frame(width: 42, height: 42).background(DS.danger, in: Circle())
                                     .frame(maxWidth: .infinity)
                             }.buttonStyle(.plain)
                         }
@@ -442,6 +865,14 @@ struct CallScreen: View {
         }
         .animation(.spring(response: 0.35), value: vm.liveReaction)
         .animation(.spring(response: 0.3), value: showChat)
+        .onDisappear { if wantLandscape { setInterfaceOrientation(.portrait) } }   // call ended -> home is portrait
+        .sheet(isPresented: $showLinkStats) {
+            if #available(iOS 16.0, *) {
+                iLinkStatsPanel(vm: vm).presentationDetents([.height(240)])
+            } else {
+                iLinkStatsPanel(vm: vm)
+            }
+        }
     }
 }
 
@@ -492,9 +923,11 @@ private struct iBtn: View {
     let system: String; let active: Bool; let action: () -> Void
     var body: some View {
         Button(action: action) {
-            Image(systemName: system).font(.system(size: 18))
+            // 42pt (was 46) so SEVEN controls fit one row on the narrowest iPhone; the tap area is the full
+            // flexible cell (maxWidth: .infinity), so the target stays comfortable despite the smaller circle.
+            Image(systemName: system).font(.system(size: 16))
                 .foregroundColor(active ? DS.danger : DS.text)
-                .frame(width: 46, height: 46)
+                .frame(width: 42, height: 42)
                 .overlay(Circle().stroke(active ? DS.danger.opacity(0.6) : DS.hairlineStrong, lineWidth: 1))
                 .frame(maxWidth: .infinity)
         }.buttonStyle(.plain)

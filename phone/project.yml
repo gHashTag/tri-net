@@ -32,6 +32,7 @@ targets:
           NSAllowsLocalNetworking: true
         NSBonjourServices:
           - _trinet-call._udp
+          - _trinet._udp
         TRINET_API_BASE_URL: "http://SSDs-MacBook-Pro.local:8080"
         TRINET_LIVEKIT_URL: ""
         TRINET_SERVICE_ACCESS_TOKEN: ""
@@ -44,6 +45,8 @@ targets:
           UIColorName: ""
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.trinet.video

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1321BCE2FBFBB8BFCDEEB308 /* PeerDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8B07E5953505C3265FEAA51 /* PeerDiscovery.swift */; };
 		144EA8CA8611748CC2C6498E /* VideoEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72EFD27FFE9177F3C365221D /* VideoEncoder.swift */; };
 		16CC1C6D7EEBF2EE5C3F95A1 /* TriNetMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A55AB3C5EF91C2E49F7A086 /* TriNetMonitor.swift */; };
 		2788FE5E517F273F9E3AA342 /* InternetCall.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDB130CF8851311DC42CFA87 /* InternetCall.swift */; };
@@ -50,6 +51,7 @@
 		DD1104EED999717896B60DA1 /* NicknameDirectory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NicknameDirectory.swift; sourceTree = "<group>"; };
 		DDB130CF8851311DC42CFA87 /* InternetCall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InternetCall.swift; sourceTree = "<group>"; };
 		EC01D2BB9D49E3653F739BC9 /* CallRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallRecorder.swift; sourceTree = "<group>"; };
+		F8B07E5953505C3265FEAA51 /* PeerDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerDiscovery.swift; sourceTree = "<group>"; };
 		FAFD67D555791E79EA093151 /* OpusCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpusCodec.swift; sourceTree = "<group>"; };
 		FE481AF1D2D340638A1ED080 /* CallManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -86,6 +88,7 @@
 				34A698FD561A4D1344491A23 /* MeshCrypto.swift */,
 				AF4870614578478C431D47B9 /* MeshTransport.swift */,
 				FAFD67D555791E79EA093151 /* OpusCodec.swift */,
+				F8B07E5953505C3265FEAA51 /* PeerDiscovery.swift */,
 				A9F379575CCFDE0476C19D25 /* ScreenCapture.swift */,
 				2831FC425A30E3FBFA75BD40 /* VideoDecoder.swift */,
 				72EFD27FFE9177F3C365221D /* VideoEncoder.swift */,
@@ -157,6 +160,10 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					808D73FEB74DB2C7204B4529 = {
+						DevelopmentTeam = 5EM4M85VSQ;
+						ProvisioningStyle = Manual;
+					};
 				};
 			};
 			buildConfigurationList = 770B77F86927C96735FF1EEC /* Build configuration list for PBXProject "TriNetMonitor" */;
@@ -199,6 +206,7 @@
 				8FB37216EA6E4DAA9752526F /* MeshTransport.swift in Sources */,
 				46FAF63A454E9A77896686AC /* NicknameDirectory.swift in Sources */,
 				B47AD84EFE1C6408179E2242 /* OpusCodec.swift in Sources */,
+				1321BCE2FBFBB8BFCDEEB308 /* PeerDiscovery.swift in Sources */,
 				F2659BF9683552ADAD6DFD92 /* RTI3D.swift in Sources */,
 				A4B51FD9AC3F6A939BFE6083 /* RTIHeatmap.swift in Sources */,
 				5EDE0262C99C16D7CC7A20A9 /* ScreenCapture.swift in Sources */,
@@ -246,10 +254,12 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGNING_ALLOWED = YES;
-				CODE_SIGNING_REQUIRED = NO;
-				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGNING_REQUIRED = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 5EM4M85VSQ;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -312,10 +322,12 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGNING_ALLOWED = YES;
-				CODE_SIGNING_REQUIRED = NO;
-				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGNING_REQUIRED = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 5EM4M85VSQ;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -342,9 +354,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGNING_ALLOWED = YES;
-				CODE_SIGNING_REQUIRED = NO;
-				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGNING_REQUIRED = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 5EM4M85VSQ;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "TriNetMonitor-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -362,9 +376,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGNING_ALLOWED = YES;
-				CODE_SIGNING_REQUIRED = NO;
-				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGNING_REQUIRED = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 5EM4M85VSQ;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "TriNetMonitor-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (

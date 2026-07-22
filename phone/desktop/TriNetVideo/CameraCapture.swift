@@ -2,6 +2,7 @@
 import Foundation
 import AVFoundation
 import CoreMedia
+import CoreImage
 import AppKit
 
 class CameraCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
@@ -29,24 +30,31 @@ class CameraCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
                 session.addInput(input)
             }
         }
-        // preset after input: some cameras ignore it when set before
-        if session.canSetSessionPreset(.vga640x480) {
+        // 720p (16:9) — the FaceTime HD camera is natively 16:9. Forcing a 4:3 output (640x480) SQUISHED the
+        // 16:9 sensor frame ("stretched picture"). 1280x720 matches the sensor aspect, so no squish.
+        if session.canSetSessionPreset(.hd1280x720) {
+            session.sessionPreset = .hd1280x720
+        } else if session.canSetSessionPreset(.vga640x480) {
             session.sessionPreset = .vga640x480
         } else {
-            NSLog("TRINET: vga640x480 preset unsupported, keeping \(session.sessionPreset.rawValue)")
+            NSLog("TRINET: 720p/vga presets unsupported, keeping \(session.sessionPreset.rawValue)")
         }
 
-        // Width/height keys force the output to scale — cameras ignore the
-        // session preset and deliver 1080p, whose I-frames exceed a single
-        // UDP datagram (drops/EMSGSIZE) and the peer can never start decoding
+        // Width/height MATCH the 16:9 sensor so the output isn't anamorphically scaled. Caps at 720p (cameras
+        // otherwise deliver 1080p+, whose I-frames exceed a UDP datagram). The ladder downscales 16:9 from here.
         output.videoSettings = [
             kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
-            kCVPixelBufferWidthKey as String: 640,
-            kCVPixelBufferHeightKey as String: 480
+            kCVPixelBufferWidthKey as String: 1280,
+            kCVPixelBufferHeightKey as String: 720
         ]
         output.alwaysDiscardsLateVideoFrames = true
         output.setSampleBufferDelegate(self, queue: queue)
-        if session.canAddOutput(output) {
+        // Idempotent (WebRTC-style: the capturer OUTLIVES a call): stop() leaves the output attached, so on
+        // the 2nd call the same instance is already in the session and canAddOutput correctly says false —
+        // that is REUSE, not a failure. Only a genuine "can't attach a fresh output" is an error.
+        if session.outputs.contains(output) {
+            // already attached from a previous call — frames keep flowing through the same delegate
+        } else if session.canAddOutput(output) {
             session.addOutput(output)
         } else {
             NSLog("TRINET: canAddOutput=false — data output NOT attached")
@@ -73,6 +81,23 @@ class CameraCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     // Virtual background: blur everything but the person on the outgoing frame.
     var blurBackground = false
     private let blur = BackgroundBlur()
+
+    // Camera off: keep the stream ALIVE but send BLACK frames (Zoom-style), so the peer sees a black screen,
+    // not a frozen last frame. Cached black buffer, true black via CoreImage, format-agnostic.
+    var blackout = false
+    private var blackPB: CVPixelBuffer?
+    private let ciBlack = CIContext(options: [.cacheIntermediates: false])
+    private func blackFrame(like pb: CVPixelBuffer) -> CVPixelBuffer {
+        let w = CVPixelBufferGetWidth(pb), h = CVPixelBufferGetHeight(pb)
+        if blackPB == nil || CVPixelBufferGetWidth(blackPB!) != w || CVPixelBufferGetHeight(blackPB!) != h {
+            var out: CVPixelBuffer?
+            CVPixelBufferCreate(nil, w, h, CVPixelBufferGetPixelFormatType(pb),
+                                [kCVPixelBufferIOSurfacePropertiesKey as String: [:]] as CFDictionary, &out)
+            if let b = out { ciBlack.render(CIImage(color: .black).cropped(to: CGRect(x: 0, y: 0, width: w, height: h)), to: b) }
+            blackPB = out
+        }
+        return blackPB ?? pb
+    }
 
     func switchTo(_ device: AVCaptureDevice) {
         session.beginConfiguration()
@@ -102,11 +127,14 @@ class CameraCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         capCount += 1
         if capCount == 1 { NSLog("TRINET: captureOutput first frame, encoder=\(encoder != nil)") }
         onSampleBuffer?(sampleBuffer)
-        if blurBackground, let pb = CMSampleBufferGetImageBuffer(sampleBuffer) {
-            let out = blur.process(pb)
-            encoder?.encode(pixelBuffer: out, pts: CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
+        guard let pb = CMSampleBufferGetImageBuffer(sampleBuffer) else { encoder?.encode(sampleBuffer); return }
+        let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+        if blackout {
+            encoder?.encode(pixelBuffer: blackFrame(like: pb), pts: pts)
+        } else if blurBackground {
+            encoder?.encode(pixelBuffer: blur.process(pb), pts: pts)
         } else {
-            encoder?.encode(sampleBuffer)
+            encoder?.encode(pixelBuffer: pb, pts: pts)
         }
     }
 }

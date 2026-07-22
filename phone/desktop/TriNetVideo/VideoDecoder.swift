@@ -42,7 +42,12 @@ class VideoDecoder: ObservableObject {
             let p = nal.subdata(in: 4..<nal.count)
             if p != pps { pps = p; formatDesc = nil; session = nil; awaitingIDR = true }
             tryInit()
-        case 5: // IDR — we can resync here
+        case 5: // IDR — resync, but only if session is ready
+            guard session != nil, formatDesc != nil else {
+                // SPS/PPS lost on UDP → can't decode this IDR → request another
+                requestKeyframe()
+                return
+            }
             awaitingIDR = false
             decode(nal)
         case 1 where awaitingIDR:

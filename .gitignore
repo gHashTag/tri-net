@@ -16,3 +16,9 @@ tests/fuzz/grammar_v2/out/
 # built app bundles
 phone/release/
 **/*.app/
+
+# Build artifacts (never stage these)
+cwasm/target/
+phone/desktop/.dd/
+phone/desktop/build/
+phone/build-ios/

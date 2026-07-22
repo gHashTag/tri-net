@@ -7,8 +7,14 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    CODE_SIGN_IDENTITY: "-"
-    CODE_SIGNING_REQUIRED: NO
+    # Sign with the stable Apple Development identity (Team 5EM4M85VSQ), NOT ad-hoc. Ad-hoc changes the cdhash
+    # every build, which makes macOS TCC treat each rebuild as a NEW app and RESET the Screen Recording grant
+    # (why screen share re-prompted forever). A Team-ID signature is stable, so the grant persists. The app has
+    # no entitlements/sandbox, so this needs no provisioning profile.
+    CODE_SIGN_IDENTITY: "Apple Development"
+    CODE_SIGN_STYLE: Manual
+    DEVELOPMENT_TEAM: "5EM4M85VSQ"
+    CODE_SIGNING_REQUIRED: YES
     CODE_SIGNING_ALLOWED: YES
 packages:
   LiveKit:
@@ -37,6 +43,7 @@ targets:
       - path: TriNetVideo/MeshCrypto.swift
       - path: TriNetVideo/LinkStatus.swift
       - path: TriNetVideo/OpusCodec.swift
+      - path: TriNetVideo/PeerDiscovery.swift
     dependencies:
       - package: LiveKit
     info:
@@ -45,11 +52,12 @@ targets:
         CFBundleDisplayName: "TRI-NET Monitor"
         NSCameraUsageDescription: "TRI-NET needs camera for secure local and internet video calls"
         NSMicrophoneUsageDescription: "TRI-NET needs microphone for video calls"
-        NSLocalNetworkUsageDescription: "TRI-NET discovers signed contacts and connects over local UDP"
+        NSLocalNetworkUsageDescription: "TRI-NET discovers signed contacts and peers over local UDP or a routed radio mesh"
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         NSBonjourServices:
           - _trinet-call._udp
+          - _trinet._udp
         TRINET_API_BASE_URL: "http://SSDs-MacBook-Pro.local:8080"
         TRINET_LIVEKIT_URL: ""
         TRINET_SERVICE_ACCESS_TOKEN: ""
@@ -59,6 +67,8 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.trinet.monitor
         PRODUCT_NAME: TriNetMonitor
         GENERATE_INFOPLIST_FILE: NO
-        CODE_SIGN_IDENTITY: "-"
-        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGN_IDENTITY: "Apple Development"
+        CODE_SIGN_STYLE: Manual
+        DEVELOPMENT_TEAM: "5EM4M85VSQ"
+        CODE_SIGNING_REQUIRED: YES
         CODE_SIGNING_ALLOWED: YES

@@ -23,6 +23,12 @@ class RTIEngine: ObservableObject {
     // The three boards sit at DIFFERENT heights so the z-axis is observable (else all links are coplanar).
     let gx = 12, gy = 12, gz = 6
     @Published var vox = [Float](repeating: 0, count: 12*12*6)
+    // Coverage map: per voxel, how many link ellipsoids pass through it. With only 3-4 links their
+    // ellipsoids all cross at a few points, and residual noise on ANY link piles up there -> those
+    // hot spots saturate (measured voxFloor 3.24) and become permanent phantoms. Dividing the field
+    // by coverage is the Wilson-Patwari sensitivity normalization: it removes that geometric bias so
+    // a real (coherent, sustained) crossing still peaks while independent noise flattens out.
+    var coverage = [Float](repeating: 1, count: 12*12*6)
     // Node positions are MEASURED, not assumed: they start as a placeholder but are overwritten by
     // self-localization packets ([34,id,x,y,z]) once the boards range each other and solve MDS. An
     // assumed geometry makes the whole RTI map wrong -- the boards must locate themselves first.
@@ -60,7 +66,8 @@ class RTIEngine: ObservableObject {
     struct Track: Identifiable { var id: Int; var x: Double; var y: Double; var z: Double
         var vx: Double; var vy: Double; var vz: Double; var conf: Double; var hits: Int; var misses: Int
         var trail: [Contact]; var ghost: Bool = false
-        var bpm: Double = 0; var hr: Double = 0; var vconf: Double = 0 }
+        var bpm: Double = 0; var hr: Double = 0; var vconf: Double = 0
+        var announced: Bool = false }   // logged/published only once CONFIRMED, never at seed
     // Vital signs: a chest wall moving with breathing/heartbeat periodically modulates the CSI phase.
     // We buffer the (CFO-robust) phase signal PER LINK and attribute it to the nearest tracked person.
     var csiPhaseSeries: [(t: Double, v: Double)] = []              // global (strongest link) fallback
@@ -77,6 +84,14 @@ class RTIEngine: ObservableObject {
     @Published var alarm = false
     @Published var soundOn = true
     private var inZoneIds = Set<Int>()
+    // RTI track/alarm logging throttle: on 3 nodes the detector churns short-lived tracks and the zone edge
+    // jitters, flooding the shared Log pane and burying the VIDEO CALL diagnostics. Cap RTI to ~1 line / 2s.
+    private var lastRtiLogAt: CFTimeInterval = 0
+    private func rtiLogGate() -> Bool {
+        let t = CACurrentMediaTime()
+        if t - lastRtiLogAt > 2.0 { lastRtiLogAt = t; return true }
+        return false
+    }
     private var zoneSeq = 1
     func addZone(_ z: ZoneRect) { DispatchQueue.main.async { self.zoneSeq += 1; var zz = z; zz.name = "Zone \(self.zoneSeq)"; self.zones.append(zz) } }
     func clearZones() { DispatchQueue.main.async { self.zones.removeAll(); self.alarm = false; self.inZoneIds.removeAll() } }
@@ -95,6 +110,36 @@ class RTIEngine: ObservableObject {
     @Published var target: Contact? = nil          // strongest confirmed track (primary readout)
     @Published var trail: [Contact] = []           // primary track's history
     @Published var contacts: [Track] = []          // all confirmed tracks (for multi-blip render)
+    @Published var activeLinkCount = 0              // distinct links seen in the last 2.5s -- the geometry available to localize
+    @Published var linkLive: [Int: Double] = [:]    // link id (frm*100+to) -> live shadow/motion 0..1, for the link-diagram view
+    @Published var liveNodes: Set<Int> = []         // node ids heard in a REAL packet in the last 3s -- honest liveness, so a
+    var nodeLastPkt: [Int: Double] = [:]            // powered-off board actually vanishes from the map (main-queue only)
+    // Empty-room calibration (CFAR). Record the QUIET per-link SNR jitter (sigma) with
+    // nobody present, then gate motion on the excess ABOVE k*sigma -- so natural jitter
+    // reads as CLEAR and only a real crossing lights a link. Persisted across launches.
+    @Published var calibrated = false
+    @Published var calibrating = false
+    @Published var calibSecs = 0
+    var calibEndT: Double = 0
+    var calibBuf: [Int: [Double]] = [:]             // per-link SNR samples collected while calibrating
+    var linkFloor: [Int: Double] = [:] {            // per-link quiet sigma = the CFAR noise floor
+        didSet {
+            var d: [String: Double] = [:]; for (k, v) in linkFloor { d[String(k)] = v }
+            UserDefaults.standard.set(d, forKey: "rtiLinkFloor")
+        }
+    }
+    private let cfarK = 3.0                          // CFAR multiplier: detect only when sd > k*sigma_quiet (Pfa small)
+    var voxFloor: Float = 0                          // empty-room PEAK voxel energy = the ABSOLUTE detection floor (persisted)
+    var floorLearn = false                           // 2nd calibration phase: measure voxFloor with the CFAR gate ACTIVE
+    var floorLearnEnd: Double = 0
+    var refSigma: Double = 60                         // cleanest link's quiet sigma -> inverse-variance link weighting
+    var voxFloorIdx = 0                               // index of the peak voxel measured during floor-learn (diagnostic)
+    var voxBg = [Float](repeating: 0, count: 12*12*6) // per-voxel empty-room REFERENCE image (RTI background subtraction)
+    // Down-weight a link's tomogram contribution by how noisy it is: a link with sigma>>refSigma
+    // (measured 313 vs 59) saturates its whole ellipsoid from noise. Weight = refSigma/sigma so the
+    // clean links dominate the image and the noisy ones can't blanket it. Floored so it never zeroes.
+    func linkWeight(_ key: Int) -> Double { guard let f = linkFloor[key], f > 0 else { return 1.0 }; return max(0.12, min(1.0, refSigma / f)) }
+    var linkFire: [Int: [Bool]] = [:]               // per-link ring of recent gate-fires, for M-of-N confirmation (recv-thread only)
     private var tracks: [Track] = []
     private var nextTrackId = 1
 
@@ -103,9 +148,16 @@ class RTIEngine: ObservableObject {
         let n = vox.count
         var field = [Float](repeating: 0, count: n)
         var gmax: Float = 0
-        for i in 0..<n { let c = max(vox[i], mvox[i]*1.2); field[i] = c; if c > gmax { gmax = c } }
-        guard gmax > 0.45 else { return [] }
-        let floor = gmax * 0.62
+        // BACKGROUND SUBTRACTION (Wilson-Patwari quiescent reference). A scalar floor could not fix
+        // the phantoms because the empty-room bias is PER-VOXEL, not global: the geometry's fixed
+        // crossing hot spots and each link's noise sit at specific voxels. Subtract the empty-room
+        // reference image voxel-by-voxel so those cancel to ~0, and only energy ABOVE the empty room
+        // survives. voxBg==0 (uncalibrated) makes this a no-op, so behaviour is unchanged until calibrated.
+        for i in 0..<n { let c = max(vox[i], mvox[i]*1.2) / max(1.0, coverage[i]); field[i] = max(0, c - voxBg[i]); if field[i] > gmax { gmax = field[i] } }
+        // Small residual floor: against the background-subtracted field, a person must add real energy.
+        let absFloor: Float = voxBg.contains(where: { $0 > 0.05 }) ? 0.9 : min(Float(2.9), max(Float(0.85), voxFloor * 1.4))
+        guard gmax > absFloor else { return [] }
+        let floor = max(absFloor, gmax * 0.72)      // relative term now only SEPARATES multiple bodies
         var out: [Contact] = []
         for _ in 0..<maxK {
             var pk: Float = 0, pi = 0, pj = 0, pkk = 0
@@ -132,6 +184,22 @@ class RTIEngine: ObservableObject {
     }
 
     private func extractTargets() {
+        // HONEST GEOMETRY GATE. Localizing a point needs >=2 non-parallel links CROSSING
+        // at it; with a single link the backprojection is one ellipsoid shell and any
+        // "peak" on it is a phantom, not a body. Count distinct recently-active links and
+        // refuse to publish a located person below that geometric minimum -- the radar
+        // still reports MOTION (real), but never an invented XY it cannot triangulate.
+        // (This runs on the main queue via the go() timer, so direct @Published writes.)
+        let tnow = CACurrentMediaTime()
+        let nLinks = Set(activeLinks.filter { tnow - $0.value < 2.5 }.keys).count
+        activeLinkCount = nLinks
+        liveNodes = Set(nodeLastPkt.filter { tnow - $0.value < 3.0 }.keys)   // which boards are actually still on air
+        guard nLinks >= 2 else {
+            if !tracks.isEmpty { tracks.removeAll() }
+            if !contacts.isEmpty { contacts = [] }
+            if target != nil { target = nil; trail = [] }
+            return
+        }
         // predict every track forward (constant velocity) -- this is the coast during a missing frame
         for i in tracks.indices { tracks[i].x += tracks[i].vx; tracks[i].y += tracks[i].vy; tracks[i].z += tracks[i].vz }
         let dets = detectPeaks(3)
@@ -159,8 +227,7 @@ class RTIEngine: ObservableObject {
             tracks.append(Track(id: nextTrackId, x: d.x, y: d.y, z: d.z, vx: 0, vy: 0, vz: 0,
                                 conf: d.conf, hits: 1, misses: 0,
                                 trail: [Contact(x: d.x, y: d.y, z: d.z, conf: d.conf)]))
-            NSLog("%@", String(format: "RTI: TRACK #%d LOCKED  x=%.2f y=%.2f height=%.2f", nextTrackId, d.x, d.y, d.z))
-            nextTrackId += 1
+            nextTrackId += 1                         // seed silently -- a seed is not a person yet
         }
         // clamp velocity (bound the coast) and cull dead tracks
         let vmax = 0.14
@@ -182,7 +249,13 @@ class RTIEngine: ObservableObject {
             }
             mi += 1
         }
-        for t in tracks where t.misses > 6 { NSLog("%@", String(format: "RTI: TRACK #%d LOST", t.id)) }
+        // announce a track ONLY once it is CONFIRMED (survived >=3 frames of association) -- this is
+        // where a seed becomes a person. LOST fires only for a track that was actually announced.
+        for i in tracks.indices where tracks[i].hits >= 3 && !tracks[i].announced {
+            tracks[i].announced = true
+            if rtiLogGate() { NSLog("%@", String(format: "RTI: TRACK #%d LOCKED  x=%.2f y=%.2f height=%.2f", tracks[i].id, tracks[i].x, tracks[i].y, tracks[i].z)) }
+        }
+        for t in tracks where t.misses > 6 && t.announced { if rtiLogGate() { NSLog("%@", String(format: "RTI: TRACK #%d LOST", t.id)) } }
         tracks.removeAll { $0.misses > 6 }
         // publish confirmed tracks (survived >=3 frames, still fresh) -- strongest is the primary
         var confirmed = tracks.filter { $0.hits >= 3 && $0.misses <= 2 }.sorted { $0.conf > $1.conf }
@@ -219,10 +292,10 @@ class RTIEngine: ObservableObject {
         for t in confirmed where !t.ghost {
             if let z = zones.first(where: { $0.contains(t.x, t.y) }) {
                 nowIn.insert(t.id); breach = true
-                if !inZoneIds.contains(t.id) { NSLog("%@", String(format: "ALARM: INTRUSION track #%d entered \"%@\" at x=%.2f y=%.2f", t.id, z.name, t.x, t.y)) }
+                if !inZoneIds.contains(t.id), rtiLogGate() { NSLog("%@", String(format: "ALARM: INTRUSION track #%d entered \"%@\" at x=%.2f y=%.2f", t.id, z.name, t.x, t.y)) }
             }
         }
-        for id in inZoneIds where !nowIn.contains(id) { NSLog("%@", String(format: "track #%d left the zone", id)) }
+        for id in inZoneIds where !nowIn.contains(id) { if rtiLogGate() { NSLog("%@", String(format: "track #%d left the zone", id)) } }
         inZoneIds = nowIn
         if breach && !alarm && soundOn { NSSound(named: "Sosumi")?.play() }   // audible alert on the rising edge
         alarm = breach
@@ -279,6 +352,25 @@ class RTIEngine: ObservableObject {
     private func d3(_ ax: Double,_ ay: Double,_ az: Double,_ bx: Double,_ by: Double,_ bz: Double) -> Double {
         let dx = ax-bx, dy = ay-by, dz = az-bz; return (dx*dx+dy*dy+dz*dz).squareRoot()
     }
+    // Rebuild the coverage map: for every node pair, mark the voxels its ellipsoid contains (the SAME
+    // excess<lam test backproject3d uses) and count them. detectPeaks then divides the field by this,
+    // cancelling the geometric bias where sparse-link ellipsoids cross. Recompute on any geometry change.
+    func rebuildCoverage() {
+        let lam = 0.14
+        var cov = [Float](repeating: 0, count: gx*gy*gz)
+        let ids = np3d
+        for a in 0..<ids.count { for b in (a+1)..<ids.count {
+            let na = ids[a], nb = ids[b]
+            let dab = d3(na.x,na.y,na.z, nb.x,nb.y,nb.z)
+            for k in 0..<gz { for j in 0..<gy { for i in 0..<gx {
+                let px = (Double(i)+0.5)/Double(gx), py = (Double(j)+0.5)/Double(gy), pz = (Double(k)+0.5)/Double(gz)
+                let excess = d3(na.x,na.y,na.z, px,py,pz) + d3(px,py,pz, nb.x,nb.y,nb.z) - dab
+                if excess < lam { cov[k*gx*gy + j*gx + i] += 1 }
+            }}}
+        }}
+        coverage = cov
+        NSLog("%@", "RTI: coverage map rebuilt — max \(Int(cov.max() ?? 0)) links/voxel over \(ids.count) nodes")
+    }
     private func backproject3d(_ frm: Int,_ to: Int,_ v: Double, motion: Bool = false) {
         guard let a = np3d.first(where: { $0.id == frm }), let b = np3d.first(where: { $0.id == to }) else { return }
         let dab = d3(a.x,a.y,a.z, b.x,b.y,b.z)
@@ -311,6 +403,16 @@ class RTIEngine: ObservableObject {
         let f = fcntl(s, F_GETFL, 0); _ = fcntl(s, F_SETFL, f | O_NONBLOCK)
         LogBus.shared.start()                 // tee stderr into the shared Log pane (copyable)
         loadZones()                           // restore a saved site layout, if any
+        if let d = UserDefaults.standard.dictionary(forKey: "rtiLinkFloor") as? [String: Double] {
+            for (k, v) in d { if let ik = Int(k) { linkFloor[ik] = v } }
+            calibrated = !linkFloor.isEmpty   // a saved empty-room reference survives launches
+            voxFloor = Float(UserDefaults.standard.double(forKey: "rtiVoxFloor"))   // and its voxel detection floor
+            if let s = UserDefaults.standard.string(forKey: "rtiVoxBg") {          // and the per-voxel reference image
+                let vals = s.split(separator: ",").compactMap { Float($0) }
+                if vals.count == voxBg.count { voxBg = vals }
+            }
+        }
+        rebuildCoverage()                     // static sensitivity map for the current node geometry
         NSLog("%@", "RTI: listening on :6000  nodes=\(np3d.map { $0.id })")
         DispatchQueue.main.async { self.listening = true; self.lastMsg = "Ready :6000" }
         DispatchQueue.global().async { self.recv() }
@@ -321,12 +423,72 @@ class RTIEngine: ObservableObject {
                 for i in self.mvox.indices { self.mvox[i] *= 0.90 }   // motion persists a touch longer
                 self.motionEnergy *= 0.82                             // decay stale motion (was frozen -> lied)
                 self.csiDelta *= 0.82; self.csiPhase *= 0.82
+                for k in self.linkLive.keys { self.linkLive[k]! *= 0.80 }   // link lines cool back to green
+                if self.calibrating { self.tickCalibration() }
+                else if self.floorLearn {
+                    // Phase 2: learn the empty-room voxel peak UNDER THE ACTIVE CFAR GATE (sigma is
+                    // set now). Measuring it during phase 1 (gate off) saturated the floor to the cap
+                    // and blinded the radar -- this is the correct, gated measurement.
+                    var g: Float = 0; var gi = 0
+                    for i in self.vox.indices {
+                        let c = max(self.vox[i], self.mvox[i]*1.2) / max(1.0, self.coverage[i])
+                        if c > self.voxBg[i] { self.voxBg[i] = c }        // per-voxel empty-room ceiling = the reference image
+                        if c > g { g = c; gi = i }
+                    }
+                    if g > self.voxFloor { self.voxFloor = g; self.voxFloorIdx = gi }
+                    if CACurrentMediaTime() >= self.floorLearnEnd {
+                        self.floorLearn = false
+                        UserDefaults.standard.set(Double(self.voxFloor), forKey: "rtiVoxFloor")
+                        UserDefaults.standard.set(self.voxBg.map { String(format:"%.3f",$0) }.joined(separator:","), forKey: "rtiVoxBg")
+                        let nbg = self.voxBg.filter { $0 > 0.05 }.count
+                        NSLog("%@", "RTI: empty-room voxFloor \(String(format:"%.2f",self.voxFloor)) | background image: \(nbg) cells>0.05, peak \(String(format:"%.2f",self.voxBg.max() ?? 0)) — per-voxel subtraction ACTIVE")
+                    }
+                }
                 self.extractTargets()         // radar detection + multi-target tracking
                 self.computeVital()           // breathing-rate estimate from the CSI-phase time-series
             }
         }
     }
     
+    // Start a ~5 s empty-room calibration: collect per-link SNR with nobody present.
+    func calibrateEmptyRoom() {
+        calibBuf.removeAll(); calibrating = true; calibSecs = 5; voxFloor = 0; floorLearn = false
+        calibEndT = CACurrentMediaTime() + 5.0
+        NSLog("%@", "RTI: calibrating empty room — ~9s total (5s links + 4s voxel floor), keep the area clear")
+    }
+    // Timer-driven: count down, then turn the collected quiet samples into a per-link
+    // sigma (the CFAR noise floor) and reset each baseline to the measured empty mean.
+    private func tickCalibration() {
+        let left = max(0, Int((calibEndT - CACurrentMediaTime()).rounded(.up)))
+        if left != calibSecs { calibSecs = left }
+        guard CACurrentMediaTime() >= calibEndT else { return }
+        var floors: [Int: Double] = [:]
+        for (key, xs) in calibBuf where xs.count >= 6 {
+            // Robust quiet sigma via MAD + median baseline -- MUST match the runtime `sd` estimator
+            // (also MAD) or the CFAR scales diverge and the gate never fires. A plain std here gave
+            // sigma 481 (outlier-inflated); the MAD reflects the true frame-to-frame jitter.
+            let xss = xs.sorted(); let med = xss[xss.count/2]
+            let devs = xs.map { abs($0 - med) }.sorted()
+            let sig = 1.4826 * devs[devs.count/2]
+            floors[key] = max(1.0, sig)          // clamp so a flat link never divides by ~0
+            baseRss[key] = med                    // baseline := robust empty-room median
+        }
+        calibrating = false
+        if !floors.isEmpty {
+            linkFloor = floors; calibrated = true
+            refSigma = floors.values.min() ?? 60      // cleanest link = weight 1.0, noisy links down-weighted
+            // start phase 2: clear the tomogram and measure the empty voxel floor WITH the gate now
+            // active (room stays clear ~4s more). Do NOT keep the phase-1 voxFloor -- it was ungated.
+            for i in vox.indices { vox[i] = 0 }; for i in mvox.indices { mvox[i] = 0 }
+            for i in voxBg.indices { voxBg[i] = 0 }               // fresh reference image
+            voxFloor = 0; floorLearn = true; floorLearnEnd = CACurrentMediaTime() + 4.0
+            let wts = floors.keys.sorted().map { String(format: "%.2f", max(0.12, min(1.0, refSigma / floors[$0]!))) }.joined(separator: "/")
+            NSLog("%@", "RTI: calibrated \(floors.count) link(s), quiet sigma \(floors.values.map { String(format: "%.0f", $0) }.joined(separator: "/")), link weights \(wts) — learning voxel floor 4s, keep clear")
+        } else {
+            NSLog("%@", "RTI: calibration got too few samples — retry with links live")
+        }
+    }
+
     private func recv() {
         var buf = [UInt8](repeating: 0, count: 2048)
         while run {
@@ -358,21 +520,46 @@ class RTIEngine: ObservableObject {
                 let rss = Double(Int(buf[3]) << 8 | Int(buf[4]))
                 let key = frm*1000 + to
                 let base = self.baseRss[key] ?? rss
-                if rss >= base*0.82 { self.baseRss[key] = 0.15*rss + 0.85*base }   // quiet -> track baseline
+                if rss >= base*0.82 { self.baseRss[key] = 0.15*rss + 0.85*base }   // slow-adapt baseline ONLY while quiet
+                // (empty-room samples are collected on the main queue below — see motionEnergy — to avoid a data race)
                 // VRTI: window of recent RSS -> std -> MOTION (a moving body fluctuates the link)
                 var h = self.rssHist[key] ?? []; h.append(rss); if h.count > 8 { h.removeFirst() }
                 self.rssHist[key] = h
-                let m = h.reduce(0,+)/Double(h.count)
-                let sd = (h.map { ($0-m)*($0-m) }.reduce(0,+)/Double(h.count)).squareRoot()
-                let motion = min(1.0, sd/max(1.0, base*0.13))                 // VRTI: variance -> motion
-                let drop = max(0.0, min(1.0, (base - rss)/max(1.0, base)))    // static shadow (occupancy)
-                DispatchQueue.main.async { self.motionEnergy = 0.7*self.motionEnergy + 0.3*motion }
+                // Robust spread via MAD, NOT std. These links are heavy-tailed: a corrupt demod frame
+                // throws the SNR estimate 10+ dB, and one such outlier inflates a plain std enough to
+                // fire the CFAR gate every few frames -> the empty-room tomogram saturates (measured
+                // voxFloor 3.24). The MAD barely moves for a single spike but rises for a SUSTAINED
+                // crossing -- exactly the discrimination RTI needs on marginal links.
+                let hs = h.sorted(); let med = hs[hs.count/2]
+                let devs = h.map { abs($0 - med) }.sorted()
+                let sd = 1.4826 * devs[devs.count/2]     // robust sigma (== std for Gaussian, immune to outliers)
+                // CFAR gate: once a quiet sigma is calibrated, count only the variance ABOVE
+                // k*sigma_quiet -- natural jitter reads as 0, only a real crossing lights the link.
+                let motion: Double
+                if let f = self.linkFloor[key], f > 0.01 {
+                    motion = min(1.0, max(0.0, sd - self.cfarK*f) / max(0.8, 3.5*f))
+                } else {
+                    motion = min(1.0, sd/max(1.0, base*0.13))                 // uncalibrated fallback (old behaviour)
+                }
+                let drop = max(0.0, min(1.0, (base - rss)/max(1.0, base) - 0.04))    // static shadow, small deadzone
+                DispatchQueue.main.async {
+                    self.motionEnergy = 0.7*self.motionEnergy + 0.3*motion
+                    if self.calibrating { self.calibBuf[key, default: []].append(rss) }   // collect on main = no race
+                }
                 // Option B -- real VRTI LOCALIZATION: backproject the per-link VARIANCE into the motion
                 // field so where moving-link ellipsoids cross, the motion peaks -> a MOVING point in
                 // space (extracted by the radar), not just a scalar energy bar.
-                if motion > 0.12 { self.backproject3d(frm, to, motion, motion: true) }
-                // static occupancy still lights the 2D floor + the occupancy field
-                if drop > 0.15 {
+                // M-of-N confirmation: one noisy frame must NOT light a link or seed a target.
+                // Require the CFAR gate to fire in >=3 of the last 5 frames on this link.
+                // (linkFire is touched only on this single recv thread -> no lock needed.)
+                let raw = motion > 0.12 || drop > 0.15
+                var fires = self.linkFire[frm*100+to, default: []]
+                fires.append(raw); if fires.count > 5 { fires.removeFirst() }
+                self.linkFire[frm*100+to] = fires
+                let confirmed = fires.filter { $0 }.count >= 3
+                // Only a CONFIRMED crossing feeds the tomogram, the link line and the target.
+                if confirmed && motion > 0.12 { self.backproject3d(frm, to, motion * self.linkWeight(key), motion: true) }
+                if confirmed && drop > 0.15 {
                     let ax = np.first(where: { $0.0 == frm })?.1 ?? 10, ay = np.first(where: { $0.0 == frm })?.2 ?? 15
                     let bx = np.first(where: { $0.0 == to })?.1 ?? 20, by = np.first(where: { $0.0 == to })?.2 ?? 15
                     var x0=ax, y0=ay; let x1=bx, y1=by
@@ -380,10 +567,18 @@ class RTIEngine: ObservableObject {
                     var err=dx-dy, pts:[(Int,Int)]=[]
                     while true { pts.append((x0,y0)); if x0==x1 && y0==y1 {break}; let e2=2*err; if e2 > (-dy){err-=dy; x0+=sx}; if e2<dx{err+=dx; y0+=sy} }
                     DispatchQueue.main.async { for (x,y) in pts { if x>=0&&x<30&&y>=0&&y<30 { self.grid[y][x]=min(1.0,self.grid[y][x]+drop) } } }
-                    self.backproject3d(frm, to, drop)
+                    self.backproject3d(frm, to, drop * self.linkWeight(key))
                 }
-                let act = motion > 0.12 || drop > 0.15; let nowT = CACurrentMediaTime()
-                DispatchQueue.main.async { if act { self.activeLinks[frm*100+to] = nowT }; self.pktCount += 1; self.lastMsg = "LIVE \(self.pktCount)" }
+                let nowT = CACurrentMediaTime()
+                let shadow = confirmed ? max(motion, drop) : 0.0
+                DispatchQueue.main.async {
+                    if confirmed { self.activeLinks[frm*100+to] = nowT }
+                    self.nodeLastPkt[frm] = nowT; self.nodeLastPkt[to] = nowT   // both endpoints heard on air
+                    // Live per-link shadow for the link diagram: rise fast on a crossing, so the
+                    // line "lights up" the instant a body cuts it; the timer decays it back.
+                    self.linkLive[frm*100+to] = max(self.linkLive[frm*100+to] ?? 0, shadow)
+                    self.pktCount += 1; self.lastMsg = "LIVE \(self.pktCount)"
+                }
             } else if n >= 4 && buf[0] == 36 {
                 // Option C -- CSI: [36, frm, to, nb, b0..b_{nb-1}] = per-subcarrier |H| envelope (0..255).
                 // A moving body reshapes the frequency-selective fading; the change of the |H| SHAPE
@@ -401,8 +596,14 @@ class RTIEngine: ObservableObject {
                 let cm = ch.reduce(0,+)/Double(ch.count)
                 let csd = (ch.map { ($0-cm)*($0-cm) }.reduce(0,+)/Double(ch.count)).squareRoot()  // temporal change of the shape
                 let csi = min(1.0, csd/max(1.0, bm*0.08))
-                DispatchQueue.main.async { self.csiDelta = 0.7*self.csiDelta + 0.3*csi }
-                if csi > 0.12 { self.backproject3d(frm, to, csi, motion: true) }   // CSI feeds the same motion field
+                let tcsi = CACurrentMediaTime()
+                DispatchQueue.main.async { self.csiDelta = 0.7*self.csiDelta + 0.3*csi; self.nodeLastPkt[frm] = tcsi; self.nodeLastPkt[to] = tcsi }
+                // CSI must obey the SAME discipline as the SNR path or it floods the motion voxels
+                // ungated (it bypassed CFAR, M-of-N and link weighting -> voxFloor pinned at 3.24
+                // regardless of every fix on the pkt-35 path). Gate it on the link's M-of-N confirm
+                // (shared linkFire ring, same recv thread) and weight it by the link's cleanliness.
+                let cconf = (self.linkFire[frm*100+to]?.filter { $0 }.count ?? 0) >= 3
+                if cconf && csi > 0.20 { self.backproject3d(frm, to, csi * self.linkWeight(key), motion: true) }
                 DispatchQueue.main.async { self.pktCount += 1; self.lastMsg = "CSI \(self.pktCount)" }
             } else if n >= 4 && buf[0] == 37 {
                 // Complex CSI PHASE [37, frm, to, nb, p0..] -- per-subcarrier phase (0..255 -> 0..2pi).
@@ -433,8 +634,13 @@ class RTIEngine: ObservableObject {
                     while let f = ls.first, now - f.t > 40 { ls.removeFirst() }
                     self.csiLinkSeries[lk] = ls
                     self.activeLinks[lk] = now                    // a link carrying live CSI is "present"
+                    self.nodeLastPkt[frm] = now; self.nodeLastPkt[to] = now
                 }
-                if phm > 0.15 { self.backproject3d(frm, to, phm, motion: true) }
+                // pkt-37 phase is the THIRD ungated feed into the motion voxels (after pkt-35 SNR and
+                // pkt-36 CSI). Alone it pinned voxFloor at 3.24 immune to every other fix. Gate it on
+                // the same M-of-N confirm + link weight so an empty room stays dark.
+                let pconf = (self.linkFire[frm*100+to]?.filter { $0 }.count ?? 0) >= 3
+                if pconf && phm > 0.22 { self.backproject3d(frm, to, phm * self.linkWeight(frm*1000+to), motion: true) }
                 DispatchQueue.main.async { self.pktCount += 1; self.lastMsg = "CSIφ \(self.pktCount)" }
             } else if n >= 5 && buf[0] == 34 {
                 // self-localization: a board's MEASURED position [34, id, x, y, z] (0..255 -> 0..1)
@@ -444,6 +650,7 @@ class RTIEngine: ObservableObject {
                     if let k = self.np3d.firstIndex(where: { $0.id == id }) { self.np3d[k] = (id, x, y, z) }
                     else { self.np3d.append((id, x, y, z)) }
                     self.localized = true
+                    self.rebuildCoverage()          // geometry changed -> refresh the sensitivity map
                 }
                 NSLog("%@", String(format: "SELF-LOC: node .%d at (%.2f, %.2f, %.2f)  [measured, MDS]", id, x, y, z))
             } else { usleep(15000) }
@@ -463,7 +670,7 @@ class RTIEngine: ObservableObject {
 
 struct RTIHeatmapView: View {
     @ObservedObject var e: RTIEngine
-    @State private var threeD = true          // 3D volumetric view is the default — presence in SPACE
+    @State private var threeD = false         // 2D link map is the default — it reads at a glance (nodes + links that light up when crossed); 3D voxels are the deep view
     @State private var dragStart: CGPoint? = nil   // drawing a new perimeter zone on the 2D floor
     @State private var dragNow: CGPoint? = nil
 
@@ -489,9 +696,22 @@ struct RTIHeatmapView: View {
                                 Text("⚠ INTRUSION ALARM").font(.system(size: 13, weight: .heavy)).foregroundColor(.white)
                                     .padding(.horizontal, 6).padding(.vertical, 2).background(Color.red).cornerRadius(4)
                             }
+                            // Geometry readout -- how many crossing links the fix rests on.
+                            Text(String(format: "links %d/3", e.activeLinkCount))
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundColor(e.activeLinkCount >= 2 ? .green : .orange)
                             if e.contacts.isEmpty {
-                                Text("○ SCANNING…").font(.system(size: 12, weight: .bold)).foregroundColor(.green)
-                                Text("no contact").font(.system(size: 11, design: .monospaced)).foregroundColor(.gray)
+                                if e.activeLinkCount < 2 {
+                                    // Not enough crossing links to triangulate a position. Report motion
+                                    // honestly, but do NOT invent an (x,y) the geometry cannot support.
+                                    Text(e.motionEnergy > 0.22 ? "▲ MOTION — no fix" : "○ SCANNING…")
+                                        .font(.system(size: 12, weight: .bold))
+                                        .foregroundColor(e.motionEnergy > 0.22 ? .yellow : .green)
+                                    Text("need ≥2 links to locate").font(.system(size: 10, design: .monospaced)).foregroundColor(.gray)
+                                } else {
+                                    Text("○ SCANNING…").font(.system(size: 12, weight: .bold)).foregroundColor(.green)
+                                    Text("no contact").font(.system(size: 11, design: .monospaced)).foregroundColor(.gray)
+                                }
                             } else {
                                 let people = e.contacts.filter { !$0.ghost }.count
                                 Text("● \(people) PERSON\(people == 1 ? "" : "S")").font(.system(size: 12, weight: .bold)).foregroundColor(.red)
@@ -546,17 +766,9 @@ struct RTIHeatmapView: View {
                             .frame(width: abs(b.x-a.x), height: abs(b.y-a.y))
                             .position(x: (a.x+b.x)/2, y: (a.y+b.y)/2)
                     }
-                    // node markers on top (sharp)
-                    ForEach(0..<e.np.count, id: \.self) { i in
-                        let n = e.np[i]
-                        Text("\(n.0)")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(.white)
-                            .padding(3)
-                            .background(Color.blue)
-                            .clipShape(Circle())
-                            .position(x: CGFloat(n.1)*cw, y: CGFloat(n.2)*ch)
-                    }
+                    // Link lines + nodes + target blip + status. Extracted to a helper so the
+                    // 2D ZStack stays within SwiftUI's type-checker budget.
+                    radar2DOverlay(geo)
                 }
                 .contentShape(Rectangle())
                 .gesture(DragGesture(minimumDistance: 8)
@@ -580,7 +792,12 @@ struct RTIHeatmapView: View {
             HStack {
                 Text("Pkts: \(e.pktCount)").font(.caption).foregroundColor(.green)
                 Text("· zones \(e.zones.count)").font(.caption).foregroundColor(e.alarm ? .red : .gray)
+                Text(e.calibrating ? "· calibrating \(e.calibSecs)s…" : (e.calibrated ? "· baseline ✓" : "· not calibrated"))
+                    .font(.caption).foregroundColor(e.calibrating ? .yellow : (e.calibrated ? .green : .orange))
                 Spacer()
+                Button(e.calibrating ? "Calibrating…" : "Calibrate empty room") { e.calibrateEmptyRoom() }
+                    .font(.caption).disabled(e.calibrating)
+                    .help("Record the quiet per-link jitter with nobody present, so links read CLEAR when empty (CFAR baseline).")
                 Button(e.soundOn ? "🔔" : "🔕") { e.soundOn.toggle() }.font(.caption)
                 Button("Save") { e.saveZones() }.font(.caption)
                 Button("Load") { e.loadZones() }.font(.caption)
@@ -618,6 +835,54 @@ struct RTIHeatmapView: View {
     }
 
     // smooth perceptual heatmap: blue -> cyan -> green -> yellow -> red
+    // The clear 2D radar overlay: the links between nodes (green when clear, glowing red
+    // when a body crosses one), labeled nodes, the located target, and an honest status.
+    @ViewBuilder private func radar2DOverlay(_ geo: GeometryProxy) -> some View {
+        let cw = geo.size.width / 30, ch = geo.size.height / 30
+        ZStack {
+            ForEach(Array(0..<e.np.count), id: \.self) { i in
+                ForEach(Array((i+1)..<e.np.count), id: \.self) { j in
+                    let a = e.np[i], b = e.np[j]
+                    let s = max(e.linkLive[a.0*100+b.0] ?? 0, e.linkLive[b.0*100+a.0] ?? 0)
+                    Path { p in
+                        p.move(to: CGPoint(x: CGFloat(a.1)*cw, y: CGFloat(a.2)*ch))
+                        p.addLine(to: CGPoint(x: CGFloat(b.1)*cw, y: CGFloat(b.2)*ch))
+                    }
+                    .stroke(linkColor(s), style: StrokeStyle(lineWidth: 2 + s*7, lineCap: .round))
+                    .shadow(color: s > 0.2 ? linkColor(s).opacity(0.9) : .clear, radius: s*12)
+                }
+            }
+            ForEach(e.contacts.filter { !$0.ghost }) { c in
+                Circle().fill(Color.red).frame(width: 16, height: 16)
+                    .overlay(Circle().stroke(.white, lineWidth: 2))
+                    .shadow(color: .red.opacity(0.9), radius: 8)
+                    .position(x: CGFloat(c.x)*geo.size.width, y: CGFloat(c.y)*geo.size.height)
+            }
+            ForEach(0..<e.np.count, id: \.self) { i in
+                let n = e.np[i]
+                let live = e.liveNodes.contains(n.0)     // heard on air in the last 3s?
+                Text("\(n.0)")
+                    .font(.system(size: 10, weight: .heavy, design: .monospaced))
+                    .foregroundColor(live ? .white : .white.opacity(0.6))
+                    .frame(width: 26, height: 26)
+                    .background(live ? Color(red: 0.15, green: 0.45, blue: 0.95) : Color(white: 0.26)).clipShape(Circle())
+                    .overlay(Circle().stroke(live ? .white.opacity(0.85) : .red.opacity(0.85), lineWidth: 1.5))
+                    .opacity(live ? 1.0 : 0.5)
+                    .position(x: CGFloat(n.1)*cw, y: CGFloat(n.2)*ch)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text("links \(e.activeLinkCount)/3 · boards \(e.liveNodes.sorted().map(String.init).joined(separator: ","))")
+                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    .foregroundColor(e.activeLinkCount >= 2 ? .green : .orange)
+                Text(statusLine()).font(.system(size: 10, design: .monospaced)).foregroundColor(.gray)
+            }.padding(10).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+        }
+    }
+    private func statusLine() -> String {
+        if e.activeLinkCount < 2 { return e.motionEnergy > 0.22 ? "MOTION — cross a line to see it" : "clear" }
+        return e.contacts.contains { !$0.ghost } ? "TARGET tracked" : "MOTION"
+    }
+
     func col(_ v: Double) -> Color {
         let t = max(0, min(1, v))
         let r, g, b: Double
@@ -626,5 +891,12 @@ struct RTIHeatmapView: View {
         else if t < 0.75 { r = 0.1 + (t-0.5)*3.4; g = 0.9; b = 0.1 }
         else { r = 0.95; g = 0.9 - (t-0.75)*3.2; b = 0.1 }
         return Color(red: r, green: g, blue: b)
+    }
+    // Link line colour: calm green when the link is clear, ramping amber->red as a
+    // body shadows it. This is the plain-language radar cue -- "you crossed this line".
+    func linkColor(_ s: Double) -> Color {
+        if s < 0.14 { return Color(red: 0.30, green: 0.82, blue: 0.45) }
+        let t = min(1.0, (s - 0.14) / 0.55)
+        return Color(red: 0.97, green: 0.80 - 0.45*t, blue: 0.32 - 0.24*t)
     }
 }
