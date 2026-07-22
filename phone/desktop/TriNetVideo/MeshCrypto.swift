@@ -80,7 +80,17 @@ final class MeshCrypto {
     // identity + peers' pins stay valid); (3) first run — generate + store. If the Keychain
     // is unavailable (unsigned build), fall back to UserDefaults so the app still works.
     static let kcService = "com.trinet.identity"
-    static let kcAccount = "device-ed25519"
+    // TRINET_KC_ACCOUNT / TRINET_PINS_KEY give the two-endpoint rig DISTINCT identities +
+    // pin stores per instance on one machine (so an over-the-wire MITM test is real). No-op
+    // in a shipping run.
+    static let kcAccount: String = {
+        if let s = ProcessInfo.processInfo.environment["TRINET_KC_ACCOUNT"], !s.isEmpty { return "device-ed25519-" + s }
+        return "device-ed25519"
+    }()
+    static let pinsKey: String = {
+        if let s = ProcessInfo.processInfo.environment["TRINET_PINS_KEY"], !s.isEmpty { return "trinetPeerPins-" + s }
+        return "trinetPeerPins"
+    }()
     private static func kcQuery() -> [String: Any] {
         [kSecClass as String: kSecClassGenericPassword,
          kSecAttrService as String: kcService, kSecAttrAccount as String: kcAccount]
@@ -114,11 +124,11 @@ final class MeshCrypto {
     }
 
     // Persisted TOFU pins: peer IP -> idPub. In-memory mirror for speed.
-    private var pins: [String: Data] = (UserDefaults.standard.dictionary(forKey: "trinetPeerPins") as? [String: String] ?? [:])
+    private var pins: [String: Data] = (UserDefaults.standard.dictionary(forKey: MeshCrypto.pinsKey) as? [String: String] ?? [:])
         .compactMapValues { Data(base64Encoded: $0) }
     private func pin(_ ip: String, _ idPub: Data) {
         pins[ip] = idPub
-        UserDefaults.standard.set(pins.mapValues { $0.base64EncodedString() }, forKey: "trinetPeerPins")
+        UserDefaults.standard.set(pins.mapValues { $0.base64EncodedString() }, forKey: MeshCrypto.pinsKey)
     }
 
     // Short digit string over BOTH identity keys (order-independent) for out-of-band checks.
@@ -191,8 +201,8 @@ final class MeshCrypto {
         }
         // TOFU: a different idPub at a peer we've pinned is a MITM. Refuse the session.
         if let pinned = pins[peerIP], pinned != idPub {
-            mitmDetected = true
-            NSLog("TRINET: MITM — peer %@ identity CHANGED from the pinned key; session refused", peerIP)
+            if !mitmDetected { NSLog("TRINET: MITM — peer %@ identity CHANGED from the pinned key; session refused", peerIP) }
+            mitmDetected = true   // latch; every subsequent impostor handshake is still refused, just not re-logged
             return true
         }
         if pins[peerIP] == nil, !peerIP.isEmpty { pin(peerIP, idPub) }   // trust on first use

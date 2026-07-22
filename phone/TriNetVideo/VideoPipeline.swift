@@ -1642,7 +1642,16 @@ final class MeshCrypto {
     // Long-term signing key in the KEYCHAIN (not a plaintext plist). Migrates a legacy
     // UserDefaults key once; falls back to UserDefaults only if the Keychain is unavailable.
     static let kcService = "com.trinet.identity"
-    static let kcAccount = "device-ed25519"
+    // TRINET_KC_ACCOUNT / TRINET_PINS_KEY give the two-endpoint rig distinct identities +
+    // pin stores per instance (Mac rig only; inert on iOS where the env vars are unset).
+    static let kcAccount: String = {
+        if let s = ProcessInfo.processInfo.environment["TRINET_KC_ACCOUNT"], !s.isEmpty { return "device-ed25519-" + s }
+        return "device-ed25519"
+    }()
+    static let pinsKey: String = {
+        if let s = ProcessInfo.processInfo.environment["TRINET_PINS_KEY"], !s.isEmpty { return "trinetPeerPins-" + s }
+        return "trinetPeerPins"
+    }()
     private static func kcQuery() -> [String: Any] {
         [kSecClass as String: kSecClassGenericPassword,
          kSecAttrService as String: kcService, kSecAttrAccount as String: kcAccount]
@@ -1675,11 +1684,11 @@ final class MeshCrypto {
         return key
     }
 
-    private var pins: [String: Data] = (UserDefaults.standard.dictionary(forKey: "trinetPeerPins") as? [String: String] ?? [:])
+    private var pins: [String: Data] = (UserDefaults.standard.dictionary(forKey: MeshCrypto.pinsKey) as? [String: String] ?? [:])
         .compactMapValues { Data(base64Encoded: $0) }
     private func pin(_ ip: String, _ idPub: Data) {
         pins[ip] = idPub
-        UserDefaults.standard.set(pins.mapValues { $0.base64EncodedString() }, forKey: "trinetPeerPins")
+        UserDefaults.standard.set(pins.mapValues { $0.base64EncodedString() }, forKey: MeshCrypto.pinsKey)
     }
 
     static func safetyNumber(_ a: Data, _ b: Data) -> String {
@@ -1741,8 +1750,8 @@ final class MeshCrypto {
             return true
         }
         if let pinned = pins[peerIP], pinned != idPub {
-            mitmDetected = true
-            NSLog("TRINET: MITM — peer %@ identity CHANGED from the pinned key; session refused", peerIP)
+            if !mitmDetected { NSLog("TRINET: MITM — peer %@ identity CHANGED from the pinned key; session refused", peerIP) }
+            mitmDetected = true   // latch; subsequent impostor handshakes still refused, not re-logged
             return true
         }
         if pins[peerIP] == nil, !peerIP.isEmpty { pin(peerIP, idPub) }
