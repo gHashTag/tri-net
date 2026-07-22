@@ -3,6 +3,7 @@ import SwiftUI
 import AVFoundation
 import AudioToolbox
 import Combine
+import CryptoKit
 
 // A short "Trinity"-style chat blip: a quick bright two-note chirp (C6 -> G6), synthesized ONCE to a CAF and
 // played via AudioServices — session-safe (never touches the call's AVAudioEngine, so it can't kill the mic).
@@ -477,6 +478,16 @@ class StreamViewModel: ObservableObject {
     private let idleQueue = DispatchQueue(label: "trinet.idle-listener")
     private static let invitePort: UInt16 = 7000
     private static let inviteMagic: [UInt8] = [0xFD, 0x11]   // "someone is calling you"
+    // AUTH: authenticate the plaintext INVITE with an 8-byte HMAC keyed by a PSK-derived secret, so an
+    // unauthenticated LAN packet can't ring us or force an auto-join (the forced-camera vuln). Wire:
+    // [FD 11][mac:8][payload utf8]. MUST match the Mac derivation exactly (same key, same format).
+    static let inviteKey = SymmetricKey(data: HKDF<SHA256>.deriveKey(
+        inputKeyMaterial: SymmetricKey(data: SHA256.hash(data: Data("tri-net-psk-v1".utf8))),
+        salt: Data("trios-mesh/v1/invite".utf8),
+        info: Data("invite-auth".utf8), outputByteCount: 32))
+    static func inviteMAC(_ payload: Data) -> [UInt8] {
+        Array(HMAC<SHA256>.authenticationCode(for: payload, using: inviteKey).prefix(8))
+    }
 
     func startIdleListener() {
         stopIdleListener()
@@ -514,8 +525,13 @@ class StreamViewModel: ObservableObject {
                     break
                 }
                 guard n >= 2, buf[0] == StreamViewModel.inviteMagic[0], buf[1] == StreamViewModel.inviteMagic[1] else { continue }
+                // AUTH FIRST: [FD 11][mac:8][payload]. Reject anything without a valid PSK-keyed HMAC so an
+                // unauthenticated LAN packet can never ring us or force an auto-join (the forced-camera vuln).
+                guard n >= 10 else { continue }
+                let payloadData = n > 10 ? Data(buf[10..<Int(n)]) : Data()
+                guard Array(buf[2..<10]) == StreamViewModel.inviteMAC(payloadData) else { continue }
                 // payload = "name\nip1,ip2,ip3" — the full participant list lets Accept rebuild the whole mesh.
-                let payload = n > 2 ? (String(bytes: buf[2..<Int(n)], encoding: .utf8) ?? "") : ""
+                let payload = String(data: payloadData, encoding: .utf8) ?? ""
                 let parts = payload.components(separatedBy: "\n")
                 let name = (parts.first?.isEmpty == false) ? parts[0] : "TRI-NET"
                 let participants = parts.count > 1 ? parts[1].split(separator: ",").map(String.init) : []
@@ -566,7 +582,10 @@ class StreamViewModel: ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async {
             let fd = socket(AF_INET, SOCK_DGRAM, 0)
             guard fd >= 0 else { return }
-            var pkt = StreamViewModel.inviteMagic; pkt.append(contentsOf: Array(payload.utf8))
+            let payloadData = Data(payload.utf8)
+            var pkt = StreamViewModel.inviteMagic                          // [FD 11]
+            pkt.append(contentsOf: StreamViewModel.inviteMAC(payloadData))  // + HMAC(8)
+            pkt.append(contentsOf: payloadData)                            // + payload
             for ip in ips where !ip.isEmpty {
                 var addr = sockaddr_in()
                 addr.sin_family = sa_family_t(AF_INET)

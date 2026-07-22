@@ -2083,3 +2083,21 @@ phi^2 + phi^-2 = 3 | TRINITY
   ViewModel).
 - **Lesson: an "auto-accept for convenience" path on an UNAUTHENTICATED plaintext trigger is a camera/mic
   exfiltration primitive. Audit every auto-action reachable from the network for a caller-authentication gate.**
+
+## WAVE 2026-07-22 #15 — FIXED the forced-camera vuln: authenticated INVITE (both platforms)
+
+- **Root fix for the WAVE #14 forced-camera exfiltration: the plaintext INVITE is now AUTHENTICATED.** Wire
+  changed to `[FD 11][HMAC:8][payload utf8]`; the 8-byte tag is `HMAC-SHA256(inviteKey, payload)[:8]` where
+  `inviteKey = HKDF-SHA256(SHA256("tri-net-psk-v1"), salt "trios-mesh/v1/invite", info "invite-auth")` — same
+  PSK material as the conf key, derived identically on both platforms. The idle listener verifies the MAC BEFORE
+  ringing or auto-joining and drops anything that fails. Only a real TRI-NET app (which knows the PSK) can make
+  you ring/auto-join, so the "any script blasts a UDP packet at :7000" attack is closed while the "iPhones just
+  join" UX is preserved (real apps produce valid MACs).
+- **VERIFIED LIVE, attack vs legit:** the original exploit (crafted 3-participant INVITE, no valid MAC) -> 0
+  auto-joins, camera stays OFF; the same INVITE with the correct PSK-derived MAC -> auto-joins normally. The
+  python HKDF+HMAC (RFC5869) matches CryptoKit exactly, so Mac<->iPhone calls interoperate. `smoke/
+  loopback_call.sh` updated to send an authenticated INVITE; still PASSes end-to-end.
+- **Honest limit:** a peer that HAS the app still knows the PSK and can forge an INVITE (and decrypt group
+  video). The complete cure is per-enrollment/per-room keys — a bigger design change. This fix closes the
+  remote-unauthenticated attack, which was the demonstrated exploit. Needs `import CryptoKit` in CallManager +
+  ViewModel.
