@@ -2811,3 +2811,36 @@ Realizations:
 Committing `.swift` under smoke/ is clean: hooks gate .rs/.t27/.v (ascii) and .sh outside
 smoke/ (no-shell-scripts); a smoke/*.swift harness trips neither. phone/ is hand-written,
 outside the golden pipeline, so no gen/ concern.
+
+## WAVE 2026-07-23 #42 — STUN client: the first VERIFIABLE brick of NAT traversal
+The call has connected only same-subnet peers for its entire life; every wave report v0.7..
+v0.11 listed "add STUN" as the #1 usability unlock and deferred it. Codecs/FEC/crypto/BWE
+are polish on a call that cannot even be established across two networks. Root cause: neither
+side knows its own PUBLIC address, so there is nothing to hole-punch toward.
+
+First brick, chosen because it is fully verifiable OFFLINE: a minimal STUN (RFC 5389) Binding
+client — phone/desktop/TriNetVideo/StunClient.swift (pure + standalone like MeshCrypto). It
+encodes a Binding Request and parses XOR-MAPPED-ADDRESS (IPv4 + IPv6). The unmasking is the
+error-prone part:
+  X-Port = port XOR (cookie>>16);  X-Addr = addr XOR cookie  (IPv4);
+  X-Addr = addr XOR (cookie||txid)                            (IPv6 — txid is load-bearing).
+
+Verified two independent ways:
+  * OFFLINE, bit-exact against the IETF's OWN reference bytes (RFC 5769 2.2 -> 192.0.2.1:32853,
+    2.3 -> [2001:db8:1234:5678:11:2233:4455:6677]:32853) in smoke/harness/stun_vectors.swift,
+    now the 8th test in verify.sh. A green run == agreement with every conformant STUN server.
+  * LIVE end-to-end: gatherServerReflexive("stun.l.google.com",19302) returned this machine's
+    real public ip:port. host candidates via getifaddrs returned the LAN IPv4.
+
+Lessons:
+- RFC 5769 gives official STUN test vectors — use them. They make the endian-sensitive XOR
+  unmask provable with ZERO network dependency, so the gate stays hermetic (contrast the #41
+  Keychain hang: never put an environment-dependent op in verify.sh).
+- IPv4 X-Address XORs the cookie ALONE; IPv6 XORs cookie||transaction-id. A harness that only
+  tests IPv4 cannot catch a txid-handling bug — include the IPv6 vector with the RFC's exact txid.
+- Bound every attribute walk by the buffer AND the declared msg-length; a length field that
+  runs past the end must return nil, never read out of bounds (tested explicitly).
+- Live STUN worked here, but the gate must not depend on it — the RFC vectors are the proof of
+  record; the live query is a bonus, honestly reported when the network cooperates.
+NOT yet wired into the transport (no signaling to exchange candidates, no hole-punch); that is
+the next brick. StunClient.swift is harness-proven but not in project.yml until it is used.
