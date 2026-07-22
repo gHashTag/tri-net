@@ -1616,11 +1616,13 @@ FROZE on the last frame. Zoom-style fix: keep the stream ALIVE and send BLACK fr
 - **`rti_security.t27` was BROKEN in-tree (typecheck: cannot assign I32 to U16) and the build swallowed it
   silently** — build.rs regenerates what it can and skips failures without failing the build, so a broken spec
   ships a STALE gen file. Sweep habit: `for s in specs/*.t27; do t27c typecheck $s; done` on every wave.
-- **t27c-0.1.0 DIVISION TRAP:** a division result types as I32; `let t: u16 = ...; t = t / 2;` fails to
-  typecheck ("cannot assign I32 to U16") while LITERAL assignments coerce fine. u32 math divides cleanly
-  (routing_etx pattern). Fix used in rti_security: replace halving with explicit literal branches (60->30,
-  40->20, 80->40) — semantics identical, and the generated Rust (`let mut`, widened compares) verified by eye.
-  After the fix: typecheck 0 errors, regenerated, FULL `cargo test --lib` 169/169 green.
+- **t27c-0.1.0 REASSIGNMENT TRAP (corrected):** the first diagnosis ("literals coerce, division doesn't") was
+  WRONG — a `tail -1` on the typecheck output hid 3 of 4 errors (broken-ruler, again: read the FULL output).
+  Truth: t27c-0.1.0 rejects ANY reassignment of a typed local (`let t: u16 = ...; t = 40;` -> "cannot assign
+  I32 to U16" + immutable warning). The working idiom in every green spec is EARLY-RETURN pure functions — no
+  local mutation at all. rti_security's threshold ladder was rewritten as `alert_threshold(sensitivity,
+  is_night)` with pure returns (day 40/60/80, night 20/30/40): typecheck 0 errors 0 warnings, full
+  `cargo test --lib` 169/169. The new `specs-typecheck` pre-commit hook is what caught the half-fix.
 
 ## WAVE 2026-07-22 #3 — link badge + routing_etx.t27 (equivalence-first)
 
@@ -1904,3 +1906,25 @@ FROZE on the last frame. Zoom-style fix: keep the stream ALIVE and send BLACK fr
   angles — don't conflate capture-upright with preview-follows-device.
 
 phi^2 + phi^-2 = 3 | TRINITY
+
+## WAVE 2026-07-22 #6 — crypto_frame.t27 + a t27c CODEGEN BUG the diff-harness caught
+
+- **THE FINDING (important): t27c-0.1.0 has 32-bit-only comparison/mask codegen.** It emits integer compare
+  and mask operands wrapped in `as u32`, and types the literal `1` in `1 << n` as i32. For anything wider than
+  32 bits this MISCOMPILES: `(bitmap & (1 << 34)) as u32` truncates window bits 32..63 to zero, and `1i32 << 34`
+  wraps the shift to `34 & 31 = 2`. A 64-bit replay bitmap lifted to t27 would read a frame at distance 34 as
+  FRESH when it is a REPLAY — a silent security hole. This affects ANY future spec doing >32-bit masks/compares
+  (crypto counters, large bitfields, u64 flag sets). Workaround: split into <=32-bit lanes, or wait for
+  64-bit-clean codegen upstream (gHashTag/t27).
+- **HOW IT WAS CAUGHT — always differential-test a generated spec against the source, do NOT trust typecheck.**
+  crypto_frame.t27 typechecked 0/0 and generated clean Rust that COMPILED — but `scratchpad/crypto_frame_diff.rs`
+  drove the generated `replay_accept/next_bitmap` and an exact copy of src/crypto.rs's `ReplayWindow` through
+  2000 shared pseudo-random counters and diverged at step 37 (ctr 78, distance 34): spec said accept, source
+  said replay. Typecheck proves types; only a differential harness proves SEMANTICS survive codegen. For any
+  crypto/wire spec this harness is mandatory, not optional.
+- **HONEST OUTCOME:** dropped the replay-window functions from crypto_frame.t27 (they can't be generated
+  correctly) with a prominent NOTE; the window stays hand-written in src/crypto.rs. KEPT and re-verified
+  bit-identical: nonce layout `[dir][epoch:4 BE][ctr low 7 BE]`, frame geometry (12B header/offsets/gate),
+  rekey thresholds (2^20 ratchet / 2^24 hard cap), rx_dir. Full `cargo test --lib` still 169/169.
+- Do NOT "fix" this by wiring the miscompiled version anyway because it typechecks — that is exactly the
+  fabrication trap. A green typecheck on a security function is necessary, never sufficient.

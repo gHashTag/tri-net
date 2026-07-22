@@ -34,7 +34,7 @@ truth), so the Rust node `include!`s generated code instead of hand-authoring bu
 | modem.rs | 781 | frame geometry / sync gate | modem_frame.t27 | ✅ | ✅ include! wired + equivalence test, modem 23/23 (2026-07-22) |
 | gf16.rs | 663 | bit format/classifiers (f64 rounding stays host) | gf16_format.t27 | ✅ | spec-only (L6 hook blocks src wiring) |
 | router.rs | 1350 | TTL + forwarding decision | router_ttl.t27 | ✅ | ✅ include! wired + equivalence + behavioral tests, router 27/27 (2026-07-22) |
-| crypto.rs | 907 | nonce/epoch/replay-window integer logic only | NONE | — | — |
+| crypto.rs | 907 | nonce/frame geometry/rekey (NOT replay: t27c 32b codegen bug) | crypto_frame.t27 | ✅ | spec-only, harness-verified bit-identical |
 | daemon.rs | 328 | (mostly orchestration/I/O) | — | — | — |
 | tun_dev.rs | 204 | I/O — NOT t27 | — | — | — |
 
