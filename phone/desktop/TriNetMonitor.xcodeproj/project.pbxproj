@@ -17,6 +17,7 @@
 		51DB04A269C0FF798682A49F /* LinkStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1512923CAB35C8933FA4CA5E /* LinkStatus.swift */; };
 		5EDE0262C99C16D7CC7A20A9 /* ScreenCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9F379575CCFDE0476C19D25 /* ScreenCapture.swift */; };
 		7BC6C7C0D52EF3F427643504 /* MeshCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34A698FD561A4D1344491A23 /* MeshCrypto.swift */; };
+		862D38921269544DF68D6EDC /* Rendezvous.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE3C2CA7D393D208C02C855D /* Rendezvous.swift */; };
 		8EDD1E7105EA28C7B290C700 /* VideoDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2831FC425A30E3FBFA75BD40 /* VideoDecoder.swift */; };
 		8FB37216EA6E4DAA9752526F /* MeshTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF4870614578478C431D47B9 /* MeshTransport.swift */; };
 		9883135C4EC8B3D8C9780D21 /* CallRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC01D2BB9D49E3653F739BC9 /* CallRecorder.swift */; };
@@ -54,6 +55,7 @@
 		A5C7266EA57914708FEF0520 /* StunClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StunClient.swift; sourceTree = "<group>"; };
 		A9F379575CCFDE0476C19D25 /* ScreenCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCapture.swift; sourceTree = "<group>"; };
 		AF4870614578478C431D47B9 /* MeshTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshTransport.swift; sourceTree = "<group>"; };
+		BE3C2CA7D393D208C02C855D /* Rendezvous.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Rendezvous.swift; sourceTree = "<group>"; };
 		BED4FD339A53B74B67C3AC3B /* CameraCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraCapture.swift; sourceTree = "<group>"; };
 		E49D0210081B122F0477D404 /* AudioRED.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRED.swift; sourceTree = "<group>"; };
 		EC01D2BB9D49E3653F739BC9 /* CallRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallRecorder.swift; sourceTree = "<group>"; };
@@ -90,6 +92,7 @@
 				F1850921832DAC906FC971A0 /* NatDiagnostics.swift */,
 				FAFD67D555791E79EA093151 /* OpusCodec.swift */,
 				F8B07E5953505C3265FEAA51 /* PeerDiscovery.swift */,
+				BE3C2CA7D393D208C02C855D /* Rendezvous.swift */,
 				A9F379575CCFDE0476C19D25 /* ScreenCapture.swift */,
 				A5C7266EA57914708FEF0520 /* StunClient.swift */,
 				2831FC425A30E3FBFA75BD40 /* VideoDecoder.swift */,
@@ -189,6 +192,7 @@
 				1321BCE2FBFBB8BFCDEEB308 /* PeerDiscovery.swift in Sources */,
 				F2659BF9683552ADAD6DFD92 /* RTI3D.swift in Sources */,
 				A4B51FD9AC3F6A939BFE6083 /* RTIHeatmap.swift in Sources */,
+				862D38921269544DF68D6EDC /* Rendezvous.swift in Sources */,
 				5EDE0262C99C16D7CC7A20A9 /* ScreenCapture.swift in Sources */,
 				04CD15FB173B0DA5942C761E /* StunClient.swift in Sources */,
 				16CC1C6D7EEBF2EE5C3F95A1 /* TriNetMonitor.swift in Sources */,

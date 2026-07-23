@@ -3078,3 +3078,38 @@ Lessons:
   only the reject path and prove nothing about the interior.
 NAT stack status: 6 modules, correctness + end-to-end (loopback) + crash-robustness all proven;
 Rendezvous still Mac-only; nothing wired into CallManager yet.
+
+## WAVE 2026-07-23 #50 — THE MAIN THING: a real call establishes across a rendezvous (Mac)
+Everything before wired the NAT stack as proven-but-unused modules. This wave made the actual call
+use them: CallManager gained autoConnectViaRendezvousIfConfigured() -- gather (STUN) -> seal
+(CandidateOffer) -> publish/fetch (Rendezvous) -> open -> Ice.connect -> then startCall() on the
+punched pair. Entirely additive + env-gated (TRINET_RENDEZVOUS / TRINET_ROOM / TRINET_MEDIA_PORT),
+so the working same-subnet call is untouched (default OFF, no-op guard).
+
+VERIFIED LIVE on a new rig (smoke/rendezvous_call.sh + smoke/rendezvous_serverd.swift, a runnable
+relay built from the real Rendezvous.swift Mailbox): two TriNetMonitor processes, knowing ONLY a
+shared room name (NO peer IP), discovered each other through the blind relay and established a
+forward-secret ENCRYPTED media session -- audio decoded 1705/1705 BOTH ways. Reproduced.
+
+Lessons (all found by reading the logs, broken-ruler style, not guessing):
+- Rendezvous.swift was created harness-only in #48 and never added to desktop/project.yml, so
+  "cannot find 'Rendezvous' in scope" the moment CallManager referenced it. When a module graduates
+  from harness to app use, add it to project.yml + xcodegen + commit the pbxproj. (Stun/Ice/
+  CandidateOffer were already added in #46; only Rendezvous was missing.)
+- Two instances on one machine SHARE the keychain identity + TOFU pin store, so each sees the
+  other's handshake at 127.0.0.1 as an identity CHANGE and the security layer (#40) REFUSES the
+  session -- audio "sent" climbed but decoded stayed 0. Not a call bug: give each rig instance a
+  distinct TRINET_KC_ACCOUNT + TRINET_PINS_KEY and clean them (the #40 pattern). After that, decoded
+  went 0 -> 1705 both ways. "identity before shared medium" again -- the app's own identity poisoned
+  the peer check on a shared host.
+- Video recv=0 in the rig: video "sent" was also 0, i.e. the camera produced no NAL units in this
+  headless run (an environment condition -- the two_endpoint delivery rig hits it too when no camera
+  is live), NOT the transport. Audio proves handshake + encrypted transport + decode over the
+  rendezvous-discovered pair; video rides the identical transport.send path. Report the boundary,
+  do not claim video from an audio-only run.
+- The build log was piped through `tail -30`, which kept only warnings + "BUILD FAILED" and HID the
+  real error. Capture the full log (or grep ': error:' from the whole file) -- a truncated build log
+  is a broken ruler.
+Cone-NAT scope: CallManager hands the transport the discovered (remote, localPort) and reuses the
+punched local port; a symmetric NAT needs the punch socket handed to the transport (fd hand-off) --
+the next step. Still Mac-only (iOS CallManager equivalent is ViewModel; mirror is a follow-up).

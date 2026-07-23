@@ -45,6 +45,7 @@ targets:
       - path: TriNetVideo/HolePunch.swift
       - path: TriNetVideo/IceSession.swift
       - path: TriNetVideo/CandidateOffer.swift
+      - path: TriNetVideo/Rendezvous.swift
       - path: TriNetVideo/NatDiagnostics.swift
     info:
       path: TriNetMonitor-Info.plist

@@ -201,6 +201,7 @@ class CallManager: ObservableObject {
         discovery.start()   // advertise + browse from launch
         startIdleListener() // listen on :7000 for incoming calls while idle
         autoCallIfConfigured()   // two-endpoint test rig hook (no-op in a real run)
+        autoConnectViaRendezvousIfConfigured()   // NAT-traversal path (no-op unless a rendezvous is configured)
     }
 
     // TEST RIG ONLY: TRINET_AUTOCALL=<host>:<peerPort> + TRINET_LISTEN=<myPort> auto-dials a
@@ -219,6 +220,60 @@ class CallManager: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
             guard let self = self, !self.isInCall else { return }
             self.startCall()
+        }
+    }
+
+    // NAT-TRAVERSAL PATH. Instead of dialing a hard-coded peer IP, discover the peer through a
+    // blind rendezvous knowing only a shared room passphrase, then place the media call on the
+    // pair a connectivity check actually punched. Entirely additive and OFF unless configured, so
+    // the working same-subnet call is untouched:
+    //   TRINET_RENDEZVOUS=<host>:<port>   the blind relay (StunClient/CandidateOffer/Rendezvous/Ice)
+    //   TRINET_ROOM=<passphrase>          both peers must share it (hashed to address the relay)
+    //   TRINET_MEDIA_PORT=<port>          the local UDP port the call runs on (also our host candidate)
+    //   TRINET_TIEBREAK=<u64>             optional ICE role tiebreaker (default random)
+    // Cone-NAT scope: we hand the media transport the discovered (remote, localPort); the punched
+    // mapping stays warm because we reuse the same local port. A symmetric NAT needs the punch
+    // socket handed to the transport (fd hand-off) -- that is the next step, not this one.
+    private func autoConnectViaRendezvousIfConfigured() {
+        let env = ProcessInfo.processInfo.environment
+        guard let rz = env["TRINET_RENDEZVOUS"], !rz.isEmpty,
+              let room = env["TRINET_ROOM"], !room.isEmpty,
+              let mediaPort = env["TRINET_MEDIA_PORT"].flatMap({ UInt16($0) }) else { return }
+        let parts = rz.split(separator: ":")
+        guard parts.count == 2, let rzPort = UInt16(parts[1]) else { NSLog("TRINET: bad TRINET_RENDEZVOUS"); return }
+        let rzHost = String(parts[0])
+        let tiebreak = env["TRINET_TIEBREAK"].flatMap { UInt64($0) } ?? UInt64.random(in: 0 ... UInt64.max)
+        NSLog("%@", "TRINET RZ: discovering peer via \(rzHost):\(rzPort) room=\(room) mediaPort=\(mediaPort)")
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            // 1. gather our candidates: host (loopback + LAN) on the media port, + STUN reflexive
+            var cands = [Ice.Candidate(ip: "127.0.0.1", port: mediaPort, kind: .host)]
+            for ip in Stun.hostCandidates() { cands.append(Ice.Candidate(ip: ip, port: mediaPort, kind: .host)) }
+            if let srflx = Stun.gatherServerReflexive(host: "stun.l.google.com", port: 19302) {
+                cands.append(Ice.Candidate(ip: srflx.ip, port: srflx.port, kind: .srflx))
+            }
+            // 2. seal our candidate offer under the room + publish it to the relay
+            let rh = Rendezvous.roomHash(room)
+            let offer = CandidateOffer.make(candidates: cands, tiebreaker: tiebreak, room: room, ttlMs: 60_000)
+            for _ in 0..<3 { Rendezvous.publish(roomHash: rh, selfTag: tiebreak, offer: offer, host: rzHost, port: rzPort) }
+            // 3. fetch + open the peer's offer
+            guard let peerOffer = Rendezvous.fetch(roomHash: rh, selfTag: tiebreak, host: rzHost, port: rzPort, timeoutMs: 8000),
+                  let opened = CandidateOffer.open(peerOffer, room: room) else {
+                NSLog("%@", "TRINET RZ: no peer offer within 8s (relay down, or peer not in room yet)"); return
+            }
+            // 4. connectivity check -> the pair that actually round-trips
+            guard let connected = Ice.connect(localPort: mediaPort, remote: opened.candidates, timeoutMs: 4000) else {
+                NSLog("%@", "TRINET RZ: connectivity check failed — no reachable candidate among \(opened.candidates.count)"); return
+            }
+            NSLog("%@", "TRINET RZ: connected pair -> \(connected.remote.ip):\(connected.remote.port) (local \(connected.localPort))")
+            // 5. place the real media call on the punched pair
+            DispatchQueue.main.async {
+                guard !self.isInCall else { return }
+                self.remoteIP = connected.remote.ip
+                self.port = String(connected.remote.port)
+                self.autoListenPort = connected.localPort
+                self.startCall()
+            }
         }
     }
 
