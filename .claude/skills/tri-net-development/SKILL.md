@@ -2878,3 +2878,34 @@ Lessons:
 NOT yet wired into the transport: exchanging candidate lists over a signaling/rendezvous
 channel and running punch() before the media socket opens is the third brick. HolePunch.swift
 is harness-proven but not in project.yml until used.
+
+## WAVE 2026-07-23 #44 — ICE session: gather -> exchange -> connect (the third NAT brick)
+#42 gave each side its public address, #43 punched between two KNOWN ports. The missing glue:
+serialize the candidate LIST for the signaling channel, and orchestrate a real connect that
+probes ALL of the peer's candidates and nominates the one that answers. IceSession.swift does
+both (pure + standalone; reuses HolePunch's codec + priority):
+  * Ice.encode/decode: [count:2][kind:1][port:2][ipLen:1][ip utf8] per candidate, bounds-checked.
+  * Ice.connect(localPort, remote[]): bind one socket, probe every remote candidate for the
+    whole window, ack observed sources, nominate the highest-priority remote that answered.
+
+Verified in smoke/harness/ice_session.swift (10th verify.sh test): serialization round-trips
++ rejects garbage; and TWO real in-process sessions exchange serialized blobs and CONNECT over
+loopback UDP while correctly discarding a decoy candidate (192.0.2.2, RFC 5737 unroutable) that
+never answers. Ran 3x -> 3/3.
+
+Lessons:
+- A decoy candidate must be genuinely dead AND not local: 127.0.0.1:<closed> triggers an ICMP
+  port-unreachable that can surface as ECONNREFUSED on the next recvfrom and disturb the loop.
+  Use an RFC 5737 unroutable address (192.0.2.0/24) so probes simply go nowhere.
+- Nominate by "did it ACK", never by "is it highest priority": the whole point is that a NAT
+  may silently drop some pairs. connect() records which remote answered and picks the best
+  AMONG THOSE, so a dead higher-priority candidate is skipped, not selected.
+- Don't early-exit connect() on first success — a peer that stops answering the instant it
+  succeeds strands the other side mid-handshake. Run the full window, keep acking, nominate at
+  the end. (Same lesson as #43's punch, now at the multi-candidate layer.)
+- verify.sh now allows a multi-FILE source per harness (IceSession needs HolePunch too): $src
+  is left unquoted so each path is a separate swiftc arg (TriNetVideo paths have no spaces).
+Boundary unchanged: loopback proves serialize/exchange/connect/nominate over real UDP, NOT
+real-NAT traversal (two separate NATs). The three bricks (#42 STUN, #43 punch, #44 session) are
+harness-proven but still not in project.yml / not wired into CallManager — that integration
+(run connect() before the media socket opens, feed it the room's exchanged candidates) is next.

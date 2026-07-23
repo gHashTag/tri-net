@@ -34,6 +34,7 @@ SUITE=(
   "MeshCrypto keychain: $SRC/MeshCrypto.swift: smoke/harness/crypto_keychain.swift"
   "Stun RFC5769     : $SRC/StunClient.swift: smoke/harness/stun_vectors.swift"
   "HolePunch        : $SRC/HolePunch.swift : smoke/harness/holepunch.swift"
+  "IceSession       : $SRC/HolePunch.swift $SRC/IceSession.swift: smoke/harness/ice_session.swift"
 )
 
 pass=0; fail=0
@@ -46,7 +47,9 @@ run_harness() {
   local label="$1" src="$2" harness="$3"
   # top-level code must be in a file literally named main.swift
   cp "$harness" "$TMP/main.swift"
-  if ! swiftc "$src" "$TMP/main.swift" -o "$TMP/bin" 2>"$TMP/err"; then
+  # $src may name more than one source file (space-separated); leave it unquoted so each is
+  # a separate swiftc argument. TriNetVideo paths contain no spaces, so word-splitting is safe.
+  if ! swiftc $src "$TMP/main.swift" -o "$TMP/bin" 2>"$TMP/err"; then
     echo "  FAIL  $label  (compile error)"; sed 's/^/        /' "$TMP/err" | head -8; fail=$((fail+1)); return
   fi
   "$TMP/bin" >"$TMP/out" 2>&1 &
