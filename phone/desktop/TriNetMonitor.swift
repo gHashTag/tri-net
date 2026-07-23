@@ -871,6 +871,8 @@ struct TriNetMonitorApp: App {
                 .onAppear {
                     // Start RTI listener immediately on app launch
                     rtiEngine.go()
+                    // Gather + seal this device's NAT-traversal candidates (off-main, diagnostic only)
+                    NatDiagnostics.run()
                 }
         }
         .commands {

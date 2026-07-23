@@ -2940,3 +2940,30 @@ verify.sh already supported multi-file sources (#44); CandidateOffer needs four
 (MeshCrypto+HolePunch+IceSession+CandidateOffer). Uses only static room-key derivation, so no
 MeshCrypto() is built and the Keychain is never touched (the #41 hang cannot recur). Four
 harness-proven NAT/exchange modules now exist, none yet in project.yml / wired into CallManager.
+
+## WAVE 2026-07-23 #46 — wire the NAT stack INTO the app (break the unwired-module streak)
+Four waves (#42-45) built harness-proven but UNWIRED NAT modules. Four modules sitting outside
+the binary is a debt: proven-in-a-harness is not proven-in-the-product. This wave put them in
+the shipping Mac app and proved they run there, WITHOUT touching the working same-subnet call.
+- project.yml: added StunClient, HolePunch, IceSession, CandidateOffer, NatDiagnostics; xcodegen
+  regenerated the tracked pbxproj (clean +20 lines, only the 5 files, zero churn).
+- NatDiagnostics.run(): off-main at launch (.onAppear), gathers host + STUN srflx candidates and
+  seals a CandidateOffer under the current room, then logs it. Additive-only: nothing in the
+  call/media path changes.
+Verified LIVE in the built binary (not a harness): launched with TRINET_LOG and read back
+  TRINET NAT: candidates host=["192.168.1.104"] srflx=182.232.218.171:59434 -> sealed offer 83B (room=lobby)
+i.e. StunClient.hostCandidates + gatherServerReflexive (real public address via Google STUN) +
+CandidateOffer.make all execute inside the app; the app did not crash (working call intact).
+
+Lessons:
+- Break an unwired-module streak deliberately: accumulating proven modules is not progress until
+  they run in the product. But wire ADDITIVELY around a known-good path (off-main diagnostic, no
+  change to connect/media) so integration cannot regress the working call.
+- The tracked xcodegen pbxproj must be committed WITH the project.yml change, or a checkout that
+  does not re-run xcodegen builds without the new files. Verify the pbxproj diff is only the new
+  files (grep the added lines) so a stale/newer xcodegen version does not sneak churn into the commit.
+- LogBus tees stderr, so a plain NSLog("%@", ...) in a new module is visible in the per-instance
+  TRINET_LOG file with no wiring — the cheapest way to prove a new code path ran live.
+- Deferred deliberately: iOS embed (static file list is fragile per CLAUDE.md) and the real
+  integration (exchange the offer via a rendezvous, run Ice.connect before the media socket). The
+  Mac app now HOLDS its sealed candidate offer; delivering it + connecting on it is next.

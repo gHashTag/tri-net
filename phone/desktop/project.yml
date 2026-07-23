@@ -41,6 +41,11 @@ targets:
       - path: TriNetVideo/LinkStatus.swift
       - path: TriNetVideo/OpusCodec.swift
       - path: TriNetVideo/PeerDiscovery.swift
+      - path: TriNetVideo/StunClient.swift
+      - path: TriNetVideo/HolePunch.swift
+      - path: TriNetVideo/IceSession.swift
+      - path: TriNetVideo/CandidateOffer.swift
+      - path: TriNetVideo/NatDiagnostics.swift
     info:
       path: TriNetMonitor-Info.plist
       properties:
