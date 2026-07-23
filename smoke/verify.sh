@@ -24,6 +24,16 @@ SRC=phone/desktop/TriNetVideo
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
+# The keychain harness must use an ISOLATED account. Once the real (signed) app has been launched
+# it stores its device identity under the default account "device-ed25519"; a fresh UNSIGNED
+# harness binary that then touches that signed item blocks on a GUI SecurityAgent authorization
+# prompt that never arrives headless, and hangs (wave #46's app launch poisoned the shared keychain
+# exactly this way -- the #41 watchdog caught it as a timeout). A harness-only account is owned by
+# the harness binary itself, so no prompt. crypto_ room/replay/identity use explicit ephemeral
+# identities and never read the keychain, so only crypto_keychain is affected; the app's real
+# identity item is left untouched.
+export TRINET_KC_ACCOUNT="verify"
+
 # label : source-under-test : harness
 SUITE=(
   "AudioRED         : $SRC/AudioRED.swift  : smoke/harness/audio_red.swift"
@@ -36,6 +46,7 @@ SUITE=(
   "HolePunch        : $SRC/HolePunch.swift : smoke/harness/holepunch.swift"
   "IceSession       : $SRC/HolePunch.swift $SRC/IceSession.swift: smoke/harness/ice_session.swift"
   "CandidateOffer   : $SRC/MeshCrypto.swift $SRC/HolePunch.swift $SRC/IceSession.swift $SRC/CandidateOffer.swift: smoke/harness/candidate_offer.swift"
+  "Rendezvous       : $SRC/MeshCrypto.swift $SRC/HolePunch.swift $SRC/IceSession.swift $SRC/CandidateOffer.swift $SRC/Rendezvous.swift: smoke/harness/rendezvous.swift"
 )
 
 pass=0; fail=0

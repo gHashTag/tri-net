@@ -3001,3 +3001,49 @@ Lessons:
   `simctl`; bundle id com.trinet.video.
 Both platforms now hold the NAT stack. Still not wired into the call path (exchange the offer via
 a rendezvous, run Ice.connect before the media socket) -- that is the integration wave.
+
+## WAVE 2026-07-23 #48 — rendezvous: two peers who share only a room passphrase connect
+Both platforms hold a sealed candidate offer (#45-47) but had no way to DELIVER it to the peer.
+Even serverless P2P needs a meeting point for the first exchange (WebRTC=signaling server,
+BitTorrent=tracker/DHT, tri-net=the mesh). Rendezvous.swift is the CLIENT: address the relay by
+roomHash = SHA256(passphrase) (so it never sees the passphrase), publish your sealed offer, fetch
+the peer's. The relay is a BLIND pairing service -- offers are sealed, so it cannot read or forge
+candidates; it only matches "someone else who hashed the same room" with you.
+
+Verified in smoke/harness/rendezvous.swift (12th verify.sh test, 15 checks): pure layer -- wire
+codec round-trips, roomHash blinding (same room->same hash, different->different), and the mailbox
+pairing logic (returns the OTHER tag's offer, refresh-not-duplicate, unknown room->nil); LIVE layer
+-- a reference UDP rendezvous server + two clients that gather -> seal -> publish -> fetch -> open
+-> Ice.connect and actually connect over loopback KNOWING ONLY A SHARED ROOM NAME. This is the WHOLE
+serverless-connection chain end-to-end on one machine. Ran 5x -> 5/5 (concurrency: server + 2
+client threads, so reproduce before trusting).
+
+Lessons:
+- roomHash blinds the passphrase from the relay AND prevents cross-room correlation -- a relay that
+  saw the passphrase could join the call; one that sees only SHA256(room) cannot. The seal (#45) and
+  the hash are two independent defenses: hash hides WHICH room, seal hides WHAT candidates.
+- The mailbox needs a per-peer selfTag (a cleartext session nonce, distinct from the sealed
+  tiebreaker the relay can't read) so GET returns the OTHER peer's offer, not your own echo.
+- publish is fire-and-forget (retransmit); fetch POLLS (GET every 100ms until the peer publishes or
+  the deadline) -- this absorbs arrival order, so it does not matter who joins the room first.
+- A UDP socket buffers datagrams, so a publish that arrives while the server is mid-processing is not
+  lost; still retransmit a few times for a lossy real link.
+Boundary: loopback proves the full chain (discover + exchange + punch + connect) over real UDP; a
+real deployment needs the relay HOST (a tiny stateless public service, or the mesh) and two separate
+NATs to prove real traversal. Rendezvous.swift is client-only + harness-proven, not yet wired into
+CallManager, and (deliberately, this wave) Mac-only -- iOS mirror + the CallManager integration are
+the last two steps.
+
+### #48 addendum — the app launch POISONED the keychain harness (identity before shared medium)
+Adding Rendezvous did NOT break verify.sh; the keychain harness did -- it hung (caught by the #41
+watchdog as a 60s timeout, not a silent wedge). Root cause via the debugging doctrine (independent
+channel, don't assume): waves #46/#47 launched the REAL signed app (Team 5EM4M85VSQ), which stored
+its device identity in the keychain under the default account "device-ed25519". A fresh UNSIGNED
+harness binary that then touches that signed item blocks on a GUI SecurityAgent authorization prompt
+-> hang. The app launch poisoned the shared keychain medium for the harness -- textbook "identity
+before shared medium": a real app writing to a shared store makes an unsigned test hang on it.
+Fix: isolate, do NOT clean. `export TRINET_KC_ACCOUNT="verify"` in verify.sh so the keychain harness
+uses a harness-owned account it can freely create/read/delete; the app's real identity item is left
+untouched (verified it still exists after). Proven: keychain harness passes fast with the isolated
+account, and the app item survives. Lesson: any test that touches a store the SHIPPING app also
+writes must use an isolated key/account, or launching the app once turns the test into a hang.
