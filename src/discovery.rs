@@ -4,16 +4,16 @@
 //! E2 - Authenticated HELLO: Each beacon now carries a timestamp and MAC to
 //! prevent false-metric attacks (W2). Format: `[src:4][seq:4][ts:8][n:1][heard:nx4][mac:16]`
 
+use crate::crypto::MeshError;
 use crate::routing::NodeId;
-use chacha20poly1305::aead::{Aead, KeyInit, Payload};
-use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
+use hkdf::Hkdf;
+use hmac::{Hmac, Mac};
+use sha2::Sha256;
 use std::time::{SystemTime, UNIX_EPOCH};
+use subtle::ConstantTimeEq;
 
-/// E2.2 - MAC key for HELLO beacons (derived from session key)
-const HELLO_MAC_KEY: [u8; 32] = [
-    0x74, 0x72, 0x69, 0x6f, 0x73, 0x2d, 0x6d, 0x65, 0x73, 0x68, 0x2d, 0x68, 0x65, 0x6c, 0x6c, 0x6f,
-    0x2d, 0x6d, 0x61, 0x63, 0x2d, 0x6b, 0x65, 0x79, 0x2d, 0x76, 0x31, 0x00, 0x00, 0x00, 0x00, 0x00,
-]; // "trios-mesh-hello-mac-key-v1" null-padded to 32 bytes
+/// HKDF info label used to derive the HELLO MAC key from a session key.
+const HELLO_MAC_INFO: &[u8] = b"hello-mac";
 
 /// E2.3 - Freshness threshold: reject beacons older than 2xHELLO_MS
 /// Assuming HELLO_MS = 300 ms, this is 600 ms
@@ -51,16 +51,17 @@ impl Hello {
             .as_millis() as u64
     }
 
-    /// Create a beacon with automatic timestamp and MAC calculation (E2.2)
-    /// Uses a symmetric key for MAC (in production, derive from session key)
+    /// Create a beacon with automatic timestamp and MAC calculation (E2.2).
+    /// The HELLO MAC key is derived from `session_key` via HKDF; no session key
+    /// means no beacon can be authenticated, so this fails closed.
     pub fn authenticated(
         src: NodeId,
         seq: u32,
         heard: Vec<NodeId>,
-        mac_key: &Option<[u8; 32]>,
-    ) -> Result<Self, crate::crypto::MeshError> {
+        session_key: &[u8; 32],
+    ) -> Result<Self, MeshError> {
         let ts = Self::now_ms();
-        let mac = Self::compute_mac(src, seq, ts, &heard, mac_key)?;
+        let mac = Self::compute_mac(src, seq, ts, &heard, session_key)?;
         Ok(Self {
             src,
             seq,
@@ -70,21 +71,29 @@ impl Hello {
         })
     }
 
-    /// E2.2 - Compute MAC over (src, seq, ts, heard[]) using ChaCha20-Poly1305
-    /// The MAC key is typically derived from the session key with a context label
+    /// Derive the per-session HELLO MAC key from a 32-byte session key.
+    fn derive_mac_key(session_key: &[u8; 32]) -> Result<[u8; 32], MeshError> {
+        let hk = Hkdf::<Sha256>::new(None, session_key);
+        let mut out = [0u8; 32];
+        hk.expand(HELLO_MAC_INFO, &mut out)
+            .map_err(|_| MeshError::CryptoInternal)?;
+        Ok(out)
+    }
+
+    /// E2.2 - Compute MAC over (src, seq, ts, heard[]) using HMAC-SHA256.
+    /// Returns the first 16 bytes of the HMAC output.
     fn compute_mac(
         src: NodeId,
         seq: u32,
         ts: u64,
         heard: &[NodeId],
-        mac_key: &Option<[u8; 32]>,
-    ) -> Result<[u8; 16], crate::crypto::MeshError> {
-        let key_bytes = mac_key.unwrap_or(HELLO_MAC_KEY);
-        let cipher = ChaCha20Poly1305::new(Key::from_slice(&key_bytes));
+        session_key: &[u8; 32],
+    ) -> Result<[u8; 16], MeshError> {
+        let mac_key = Self::derive_mac_key(session_key)?;
 
         // Build MAC input: src || seq || ts || heard[]
         let n = heard.len().min(u8::MAX as usize);
-        let mut aad = Vec::with_capacity(12 + n * 4);
+        let mut aad = Vec::with_capacity(16 + n * 4);
         aad.extend_from_slice(&src.to_be_bytes());
         aad.extend_from_slice(&seq.to_be_bytes());
         aad.extend_from_slice(&ts.to_be_bytes());
@@ -92,31 +101,23 @@ impl Hello {
             aad.extend_from_slice(&id.to_be_bytes());
         }
 
-        // Use empty plaintext, MAC is in the tag
-        let nonce = Nonce::from_slice(&[0u8; 12]); // fixed nonce for MAC-only mode
-        let ct = cipher
-            .encrypt(
-                nonce,
-                Payload {
-                    msg: &[],
-                    aad: &aad,
-                },
-            )
-            .map_err(|_| crate::crypto::MeshError::CryptoInternal)?;
+        let mut mac = Hmac::<Sha256>::new_from_slice(&mac_key)
+            .map_err(|_| MeshError::CryptoInternal)?;
+        mac.update(&aad);
+        let result = mac.finalize().into_bytes();
 
-        // Extract 16-byte tag (MAC)
-        let mut mac = [0u8; 16];
-        mac.copy_from_slice(&ct[..16]);
-        Ok(mac)
+        let mut out = [0u8; 16];
+        out.copy_from_slice(&result[..16]);
+        Ok(out)
     }
 
     /// E2.2 - Verify MAC over (src, seq, ts, heard[])
-    pub fn verify_mac(&self, mac_key: &Option<[u8; 32]>) -> bool {
-        let Ok(expected) = Self::compute_mac(self.src, self.seq, self.ts, &self.heard, mac_key)
+    pub fn verify_mac(&self, session_key: &[u8; 32]) -> bool {
+        let Ok(expected) = Self::compute_mac(self.src, self.seq, self.ts, &self.heard, session_key)
         else {
             return false;
         };
-        self.mac == expected
+        self.mac.ct_eq(&expected).into()
     }
 
     /// E2.3 - Check freshness: reject beacons older than HELLO_FRESHNESS_MS
@@ -200,6 +201,10 @@ impl Hello {
 mod tests {
     use super::*;
 
+    fn session_key() -> [u8; 32] {
+        [42u8; 32]
+    }
+
     #[test]
     fn hello_roundtrips() {
         let mac = [1u8; 16];
@@ -228,7 +233,7 @@ mod tests {
 
     #[test]
     fn mac_verifies_authentic_beacon() {
-        let key = Some([42u8; 32]);
+        let key = session_key();
         let h = Hello::authenticated(7, 123, vec![1, 2, 3], &key).unwrap();
 
         // MAC should verify
@@ -247,8 +252,8 @@ mod tests {
 
     #[test]
     fn mac_different_key_fails() {
-        let key1 = Some([1u8; 32]);
-        let key2 = Some([2u8; 32]);
+        let key1 = [1u8; 32];
+        let key2 = [2u8; 32];
 
         let h = Hello::authenticated(7, 123, vec![1, 2], &key1).unwrap();
 
@@ -259,7 +264,7 @@ mod tests {
     #[test]
     fn mac_prevents_false_metric_attack() {
         // E2.4 - Attack simulation: Mallory tries to inflate ETX by forging heard[]
-        let key = Some([99u8; 32]);
+        let key = [99u8; 32];
 
         // Legitimate beacon from node 7
         let legitimate = Hello::authenticated(7, 1, vec![1, 2], &key).unwrap();
@@ -285,7 +290,7 @@ mod tests {
 
     #[test]
     fn fresh_beacon_accepted() {
-        let key = Some([5u8; 32]);
+        let key = [5u8; 32];
         let h = Hello::authenticated(7, 123, vec![1], &key).unwrap();
 
         // Fresh beacon should pass
@@ -294,7 +299,7 @@ mod tests {
 
     #[test]
     fn old_beacon_rejected() {
-        let _key = Some([6u8; 32]);
+        let _key = [6u8; 32];
 
         // Create beacon with old timestamp
         let now = Hello::now_ms();
@@ -308,7 +313,7 @@ mod tests {
 
     #[test]
     fn authenticated_hello_roundtrip() {
-        let key = Some([7u8; 32]);
+        let key = [7u8; 32];
 
         // Create authenticated beacon
         let h = Hello::authenticated(7, 456, vec![8, 9, 10], &key).unwrap();

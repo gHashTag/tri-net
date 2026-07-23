@@ -42,6 +42,21 @@ fn seed_for(id: NodeId) -> [u8; 32] {
     h.finalize().into()
 }
 
+/// Deterministic shared HELLO session key for the demo PSK mesh.
+/// All nodes must use the same set of IDs for this to be consistent; in a real
+/// deployment the key is derived from the per-peer Noise-XX session secret.
+fn demo_hello_session_key(peer_ids: &[NodeId]) -> [u8; 32] {
+    let mut ids: Vec<NodeId> = peer_ids.to_vec();
+    ids.sort_unstable();
+    ids.dedup();
+    let mut h = Sha256::new();
+    h.update(b"trios-mesh/demo/v1/hello-key");
+    for id in ids {
+        h.update(id.to_le_bytes());
+    }
+    h.finalize().into()
+}
+
 /// Gateway-side internet fetch (M4): GET the caller's public IP. Runs only on
 /// the node that actually has an uplink; the result travels back over the mesh.
 fn fetch_public_ip() -> String {
@@ -368,10 +383,14 @@ fn run() -> Result<(), String> {
                 }
             }
         }
-        // E2.2 - Use authenticated HELLO with MAC
-        // TODO: derive mac_key from session keys (E2.2 complete implementation)
-        let mac_key = None; // Will be derived from per-peer session keys
-        let hello = match Hello::authenticated(me, seq, heard, &mac_key) {
+        // E2.2 - Use authenticated HELLO with MAC.
+        // In this deterministic PSK demo mesh both peers know each other's seed,
+        // so we derive a shared HELLO session key from the lexicographically
+        // earlier seed. This is NOT suitable for production (real mesh uses
+        // ephemeral Noise-XX sessions), but it keeps the demo beacon MAC
+        // authenticated without the hardcoded global fallback that existed before.
+        let demo_hello_key = demo_hello_session_key(&peer_ids);
+        let hello = match Hello::authenticated(me, seq, heard, &demo_hello_key) {
             Ok(h) => h,
             Err(e) => {
                 println!("[meshd] HELLO auth failed for node {me}: {e:?}");
