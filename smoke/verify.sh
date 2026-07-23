@@ -35,6 +35,7 @@ SUITE=(
   "Stun RFC5769     : $SRC/StunClient.swift: smoke/harness/stun_vectors.swift"
   "HolePunch        : $SRC/HolePunch.swift : smoke/harness/holepunch.swift"
   "IceSession       : $SRC/HolePunch.swift $SRC/IceSession.swift: smoke/harness/ice_session.swift"
+  "CandidateOffer   : $SRC/MeshCrypto.swift $SRC/HolePunch.swift $SRC/IceSession.swift $SRC/CandidateOffer.swift: smoke/harness/candidate_offer.swift"
 )
 
 pass=0; fail=0

@@ -2909,3 +2909,34 @@ Boundary unchanged: loopback proves serialize/exchange/connect/nominate over rea
 real-NAT traversal (two separate NATs). The three bricks (#42 STUN, #43 punch, #44 session) are
 harness-proven but still not in project.yml / not wired into CallManager — that integration
 (run connect() before the media socket opens, feed it the room's exchanged candidates) is next.
+
+## WAVE 2026-07-23 #45 — confidential candidate exchange (secure the rendezvous BEFORE building it)
+The three NAT bricks (#42-44) all assume the peers already hold each other's candidate lists.
+Whatever rendezvous carries that list must NOT be trusted to read or forge it: an injected
+candidate redirects the call to an attacker's machine (classic ICE candidate-injection / call
+hijack; WebRTC blocks it with signed SDP + DTLS fingerprint). This is a prerequisite for a
+rendezvous, not an afterthought -- shipping candidate exchange unsealed is a call-hijack hole.
+
+CandidateOffer.swift (pure; reuses MeshCrypto.inviteAuthKey + Ice serialization): seal
+[version][tiebreaker:8][expiry:8][Ice list] under a room-derived key, with an expiry so a
+captured offer cannot be replayed later, and an ICE controlling/controlled tiebreaker.
+smoke/harness/candidate_offer.swift (11th verify.sh test, 13 checks): honest round-trip;
+wrong room -> nil (confidential); flipped tag -> nil (unforgeable); expired -> nil (fresh);
+role resolves oppositely for the two peers.
+
+Lessons:
+- Domain-separate the offer key from the invite key with one HKDF step (ikm = inviteAuthKey,
+  distinct salt) so a candidate offer and an invite can never be cross-interpreted even though
+  both are room-authenticated. Verified: the offer does NOT open under the raw invite key.
+- The pre-handshake exchange cannot use the forward-secret SESSION key (no handshake yet); the
+  ROOM key (inviteAuthKey) is the right trust boundary -- "anyone with the room passphrase",
+  which is exactly who is allowed to join the call, and excludes a passphrase-less rendezvous.
+- A long-lived room key has no built-in anti-replay (unlike the session-key seal path, which
+  runs acceptNonce). Put an EXPIRY inside the sealed blob and check it on open, or a captured
+  offer is replayable forever.
+- Pass the clock in (now: Date = Date()) so expiry tests are deterministic -- never let a test
+  depend on wall-clock time.
+verify.sh already supported multi-file sources (#44); CandidateOffer needs four
+(MeshCrypto+HolePunch+IceSession+CandidateOffer). Uses only static room-key derivation, so no
+MeshCrypto() is built and the Keychain is never touched (the #41 hang cannot recur). Four
+harness-proven NAT/exchange modules now exist, none yet in project.yml / wired into CallManager.
