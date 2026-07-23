@@ -3047,3 +3047,34 @@ uses a harness-owned account it can freely create/read/delete; the app's real id
 untouched (verified it still exists after). Proven: keychain harness passes fast with the isolated
 account, and the app item survives. Lesson: any test that touches a store the SHIPPING app also
 writes must use an isolated key/account, or launching the app once turns the test into a hang.
+
+## WAVE 2026-07-23 #49 — fuzz the untrusted-input parsers (harden the attacker-facing surface)
+The whole NAT stack is proven for CORRECT input, but its parsers read bytes straight off the
+network -- a STUN response from any server, a candidate offer from any rendezvous, a probe/ack from
+any peer. A malformed datagram must return nil, never crash (an out-of-bounds read is a remote DoS)
+and never hang. Point tests covered a few bad cases; nothing covered the surface systematically.
+
+smoke/harness/nat_fuzz.swift (13th verify.sh test): a deterministic xorshift64 PRNG throws 20k
+inputs at each of 8 parsers (Stun.parseBindingResponse, HolePunch.probe/ackTxid, Ice.decode,
+CandidateOffer.open, Rendezvous.parsePublish/parseGet/parseResponse) -- half pure noise, half
+mutations of a VALID message (flip / truncate / extend / splice), because mutations near valid
+structure hit boundary bugs pure noise misses. The harness REACHING its final line is the proof:
+any trap would abort the process and fail the run. Result: 160k inputs (default seed) + 640k across
+4 more seeds = ~800k untrusted inputs, ZERO crashes. The "parsed as valid" tallies (Stun 3413, Ice
+3077, Rendezvous.parsePublish 8881, ...) confirm the fuzz exercised the ACCEPT paths, not just
+trivial length rejections.
+
+Lessons:
+- Fuzz found nothing -- which is the point being MADE, not a wasted wave: the bounds guards written
+  into each parser (guard count>=N, guard start+len<=buf.count, gap-based never index-based) hold
+  under adversarial input, and that is now a permanent reproducible gate before the stack faces the
+  internet. A clean fuzz is a proof, provided the corpus actually reaches the accept paths (check the
+  valid-count, or you fuzzed only the front-door reject).
+- Seed the PRNG from a fixed constant so verify.sh is reproducible; expose TRINET_FUZZ_SEED to widen
+  the search ad-hoc without touching the committed default. Never fuzz with Date/Math.random -- an
+  irreproducible crash you cannot replay is nearly worthless.
+- Structured mutation > pure noise for parsers with a magic prefix (0x2112A442 cookie, 0xFD tag): a
+  random 500-byte string almost never passes the first guard, so without mutation you would fuzz
+  only the reject path and prove nothing about the interior.
+NAT stack status: 6 modules, correctness + end-to-end (loopback) + crash-robustness all proven;
+Rendezvous still Mac-only; nothing wired into CallManager yet.
