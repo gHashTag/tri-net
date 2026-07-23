@@ -214,6 +214,9 @@ fn run() -> Result<(), String> {
     }
     let router = Arc::new(Mutex::new(router));
     let rx = Arc::new(Mutex::new(RxShared::default()));
+    // E2.2 - deterministic demo HELLO MAC key shared by all nodes in this PSK mesh.
+    // In a real deployment this is replaced by the per-peer Noise-XX session secret.
+    let demo_hello_key = demo_hello_session_key(&peer_ids);
     // Peers whose link is simulated-failed (ids in .trinity/run/mesh.drop) - for M5 demo.
     let dropped: Arc<Mutex<HashSet<NodeId>>> = Arc::new(Mutex::new(HashSet::new()));
     let watch: Option<NodeId> = std::env::var("TRIOS_WATCH")
@@ -226,6 +229,7 @@ fn run() -> Result<(), String> {
 
     // Central RX: dispatch every datagram through the router.
     {
+        let demo_hello_key = demo_hello_key;
         let (sock, router, rx, addr_to_id, dropped) = (
             sock.clone(),
             router.clone(),
@@ -258,9 +262,19 @@ fn run() -> Result<(), String> {
                 match deliv {
                     Delivery::Local(p) if p.first() == Some(&HELLO_TYPE) => {
                         if let Some(h) = Hello::parse(&p[1..]) {
-                            let mut r = rx.lock().unwrap_or_else(|p| p.into_inner());
-                            r.seen.insert(from);
-                            r.they_heard.insert(from, h.reports_hearing(me));
+                            // E2.2 / E2.3 - authenticate and freshness-check the
+                            // beacon before accepting it into routing state.
+                            if h.src != from {
+                                println!("[meshd] HELLO src mismatch {h.src} != {from} from {src}");
+                            } else if !h.verify_mac(&demo_hello_key) {
+                                println!("[meshd] HELLO MAC failed from {from}");
+                            } else if !h.is_fresh() {
+                                println!("[meshd] stale HELLO from {from} ts={}", h.ts);
+                            } else {
+                                let mut r = rx.lock().unwrap_or_else(|p| p.into_inner());
+                                r.seen.insert(from);
+                                r.they_heard.insert(from, h.reports_hearing(me));
+                            }
                         }
                     }
                     Delivery::Local(p) if p.first() == Some(&DATA_TYPE) => {
@@ -383,13 +397,7 @@ fn run() -> Result<(), String> {
                 }
             }
         }
-        // E2.2 - Use authenticated HELLO with MAC.
-        // In this deterministic PSK demo mesh both peers know each other's seed,
-        // so we derive a shared HELLO session key from the lexicographically
-        // earlier seed. This is NOT suitable for production (real mesh uses
-        // ephemeral Noise-XX sessions), but it keeps the demo beacon MAC
-        // authenticated without the hardcoded global fallback that existed before.
-        let demo_hello_key = demo_hello_session_key(&peer_ids);
+        // Build and send an authenticated HELLO using the pre-derived demo key.
         let hello = match Hello::authenticated(me, seq, heard, &demo_hello_key) {
             Ok(h) => h,
             Err(e) => {
