@@ -2967,3 +2967,37 @@ Lessons:
 - Deferred deliberately: iOS embed (static file list is fragile per CLAUDE.md) and the real
   integration (exchange the offer via a rendezvous, run Ice.connect before the media socket). The
   Mac app now HOLDS its sealed candidate offer; delivering it + connecting on it is next.
+
+## WAVE 2026-07-23 #47 — mirror the NAT stack to iOS (restore the byte-identical invariant)
+Five waves added NAT modules Mac-only, violating the codebase invariant that shared logic
+(crypto, codecs) is BYTE-IDENTICAL across Mac and iOS. An iPhone user needs the NAT stack too.
+This wave mirrors StunClient/HolePunch/IceSession/CandidateOffer/NatDiagnostics into iOS.
+
+- The iOS target has a STATIC file list (never regenerate it -- breaks signing), so shared
+  types live embedded inside an existing file. Appended all five enums to VideoPipeline.swift
+  (where MeshCrypto/AudioRED/VideoFEC already live), each with a "keep BYTE-IDENTICAL" header.
+- Guaranteed byte-identical by EXTRACTING the enum blocks straight from the Mac files with
+  `sed -n '/^enum X {/,$p'` and appending them -- a manual retype risks silent drift. Then
+  verified: `diff` of each of the 5 enums (Mac source vs the block in VideoPipeline.swift) ->
+  all BYTE-IDENTICAL. iOS uses the same "trinetRoom" UserDefaults key + has LogBus, so
+  NatDiagnostics is correct verbatim.
+- NatDiagnostics.run() added to TriNetVideoApp.init() after LogBus.shared.start().
+
+Verified: iOS `** BUILD SUCCEEDED **` (the embed compiles into the static target); all 5 enums
+byte-identical to Mac (which ran live in #46); and the iOS app, launched in the Simulator,
+LIVE made a network path check to Hostname:19302 -- the STUN port used ONLY by NatDiagnostics --
+proving it executed on iOS.
+
+Lessons:
+- iOS LogBus dup2's stderr into the in-app Log pane, so a plain NSLog does NOT reach the
+  unified log; `simctl spawn booted log stream --predicate 'eventMessage CONTAINS ...'` finds
+  nothing. Verify a code path RAN on iOS via an independent channel instead -- here the OS's own
+  os_log for the outbound STUN connection (`log show --predicate 'process == "TriNetVideo"'`
+  shows Hostname:19302). Broken-ruler: don't diagnose through the signal the app swallowed.
+- Embedding by sed-extraction + diff is how you keep the Mac/iOS invariant provable, not
+  aspirational. Do it for every shared module, every time it changes.
+- iOS build for the Simulator: `xcodebuild -scheme TriNetVideo -sdk iphonesimulator -configuration
+  Debug -derivedDataPath .dd-ios CODE_SIGNING_ALLOWED=NO build`. Boot + install + launch via
+  `simctl`; bundle id com.trinet.video.
+Both platforms now hold the NAT stack. Still not wired into the call path (exchange the offer via
+a rendezvous, run Ice.connect before the media socket) -- that is the integration wave.

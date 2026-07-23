@@ -2422,3 +2422,453 @@ enum VideoFEC {
         return (missing, Array(rec.prefix(len)))
     }
 }
+
+// ============================================================================
+// NAT traversal stack (embedded copies — iOS target has a STATIC file list, so
+// shared types live inside an existing file). Each enum below is kept
+// BYTE-IDENTICAL to its desktop/TriNetVideo/*.swift source, which the standalone
+// harnesses in smoke/harness/ compile and verify (waves #42-46).
+// ============================================================================
+
+// ===== Stun — keep BYTE-IDENTICAL to desktop/TriNetVideo/StunClient.swift =====
+enum Stun {
+    static let magicCookie: UInt32 = 0x2112_A442
+    private static let bindingRequestType: UInt16 = 0x0001
+    private static let attrXorMappedAddress: UInt16 = 0x0020
+
+    struct MappedAddress: Equatable { let ip: String; let port: UInt16 }
+
+    // A 20-byte Binding Request: type, length 0 (no attributes), magic cookie, 96-bit
+    // transaction ID. The caller supplies the transaction ID so a reply can be matched to
+    // its request and so the encoder is deterministic under test.
+    static func bindingRequest(transactionID: Data) -> Data {
+        precondition(transactionID.count == 12, "STUN transaction ID is 96 bits")
+        var d = Data(capacity: 20)
+        d.append(UInt8(bindingRequestType >> 8)); d.append(UInt8(bindingRequestType & 0xFF))
+        d.append(0); d.append(0)                                        // message length = 0
+        for shift: UInt32 in [24, 16, 8, 0] { d.append(UInt8((magicCookie >> shift) & 0xFF)) }
+        d.append(transactionID)
+        return d
+    }
+
+    // Parse a Binding success response and return the XOR-MAPPED-ADDRESS it carries. We do
+    // NOT verify MESSAGE-INTEGRITY / FINGERPRINT: those authenticate an ICE session, not a
+    // plain address query, and a basic candidate gather does not need them. Returns nil on
+    // a malformed message or a wrong magic cookie (i.e. not a STUN response).
+    static func parseBindingResponse(_ data: Data, transactionID: Data) -> MappedAddress? {
+        let b = [UInt8](data)
+        guard b.count >= 20 else { return nil }
+        let cookie = UInt32(b[4]) << 24 | UInt32(b[5]) << 16 | UInt32(b[6]) << 8 | UInt32(b[7])
+        guard cookie == magicCookie else { return nil }
+        let msgLen = Int(b[2]) << 8 | Int(b[3])
+        guard 20 + msgLen <= b.count else { return nil }
+        var i = 20
+        while i + 4 <= 20 + msgLen {
+            let type = UInt16(b[i]) << 8 | UInt16(b[i + 1])
+            let len  = Int(b[i + 2]) << 8 | Int(b[i + 3])
+            let valueStart = i + 4
+            guard valueStart + len <= b.count else { return nil }
+            if type == attrXorMappedAddress {
+                return decodeXorMapped(Array(b[valueStart ..< valueStart + len]), transactionID: transactionID)
+            }
+            i = valueStart + len + ((4 - (len & 3)) & 3)                // attributes are 4-byte aligned
+        }
+        return nil
+    }
+
+    // XOR-MAPPED-ADDRESS value: [reserved 0x00][family][X-Port:2][X-Address:4 or 16].
+    //   X-Port    = port XOR (magic cookie >> 16)
+    //   X-Address = addr XOR magic cookie              (IPv4)
+    //   X-Address = addr XOR (magic cookie || txid)    (IPv6)
+    private static func decodeXorMapped(_ v: [UInt8], transactionID: Data) -> MappedAddress? {
+        guard v.count >= 8 else { return nil }
+        let family = v[1]
+        let port = (UInt16(v[2]) << 8 | UInt16(v[3])) ^ UInt16(magicCookie >> 16)
+        let cookieBytes: [UInt8] = [0x21, 0x12, 0xA4, 0x42]
+        if family == 0x01 {                                            // IPv4
+            let a = (0..<4).map { v[4 + $0] ^ cookieBytes[$0] }
+            return MappedAddress(ip: a.map(String.init).joined(separator: "."), port: port)
+        } else if family == 0x02 {                                     // IPv6
+            guard v.count >= 20 else { return nil }
+            let mask = cookieBytes + [UInt8](transactionID)            // 16-byte XOR mask
+            guard mask.count == 16 else { return nil }
+            let a = (0..<16).map { v[4 + $0] ^ mask[$0] }
+            return MappedAddress(ip: formatIPv6(a), port: port)
+        }
+        return nil
+    }
+
+    // RFC 5952 basic form: each 16-bit group in hex with leading zeros stripped. The one
+    // vector we validate (RFC 5769 §2.3) has no zero run to compress, so "::" is not needed.
+    private static func formatIPv6(_ a: [UInt8]) -> String {
+        stride(from: 0, to: 16, by: 2)
+            .map { String(UInt16(a[$0]) << 8 | UInt16(a[$0 + 1]), radix: 16) }
+            .joined(separator: ":")
+    }
+
+    // This machine's non-loopback IPv4 interface addresses — the host candidates.
+    static func hostCandidates() -> [String] {
+        var out: [String] = []
+        var ifap: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&ifap) == 0 else { return out }
+        defer { freeifaddrs(ifap) }
+        var p = ifap
+        while let cur = p {
+            defer { p = cur.pointee.ifa_next }
+            guard let sa = cur.pointee.ifa_addr, sa.pointee.sa_family == UInt8(AF_INET) else { continue }
+            var addr = sa.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee.sin_addr }
+            var buf = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
+            inet_ntop(AF_INET, &addr, &buf, socklen_t(INET_ADDRSTRLEN))
+            let ip = String(cString: buf)
+            if ip != "127.0.0.1", !out.contains(ip) { out.append(ip) }
+        }
+        return out
+    }
+
+    // Server-reflexive candidate: send a Binding Request to a public STUN server (host may
+    // be a name or an IP) and parse the address it saw. Raw BSD UDP, matching MeshTransport.
+    // Best-effort: returns nil if the network blocks it — no server dependency is baked into
+    // the hermetic tests, which prove the codec offline against the RFC vectors.
+    static func gatherServerReflexive(host: String, port: UInt16, timeoutMs: Int32 = 2000) -> MappedAddress? {
+        var hints = addrinfo()
+        hints.ai_family = AF_INET
+        hints.ai_socktype = SOCK_DGRAM
+        var res: UnsafeMutablePointer<addrinfo>?
+        guard getaddrinfo(host, String(port), &hints, &res) == 0, let info = res else { return nil }
+        defer { freeaddrinfo(res) }
+
+        let fd = socket(AF_INET, SOCK_DGRAM, 0)
+        guard fd >= 0 else { return nil }
+        defer { close(fd) }
+        var tv = timeval(tv_sec: Int(timeoutMs / 1000), tv_usec: (timeoutMs % 1000) * 1000)
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+
+        let txid = Data((0..<12).map { _ in UInt8.random(in: 0...255) })
+        let req = bindingRequest(transactionID: txid)
+        let sent = req.withUnsafeBytes { rp in
+            sendto(fd, rp.baseAddress, req.count, 0, info.pointee.ai_addr, info.pointee.ai_addrlen)
+        }
+        guard sent == req.count else { return nil }
+
+        var buf = [UInt8](repeating: 0, count: 512)
+        let n = recv(fd, &buf, buf.count, 0)
+        guard n > 0 else { return nil }
+        return parseBindingResponse(Data(buf.prefix(n)), transactionID: txid)
+    }
+}
+
+// ===== HolePunch — keep BYTE-IDENTICAL to desktop/TriNetVideo/HolePunch.swift =====
+enum HolePunch {
+    // 0xFD is the control family; 0x1C/0x1D are free (0x11/0x4E/0x4F/0xAD/0xBE/0xC0 are taken).
+    private static let probeTag: [UInt8] = [0xFD, 0x1C]
+    private static let ackTag:   [UInt8] = [0xFD, 0x1D]
+
+    // ---- candidates + ICE-style priority (RFC 8445 §5.1.2 / §6.1.2) ----
+    enum Kind: Int { case host = 126, srflx = 100 }        // type preferences
+    struct Candidate: Equatable { let ip: String; let port: UInt16; let kind: Kind }
+
+    static func priority(_ c: Candidate) -> UInt32 {
+        (UInt32(c.kind.rawValue) << 24) | 255              // component 1 -> (256 - 1)
+    }
+    // Pair priority, RFC 8445 §6.1.2.3: G is the controlling agent's candidate priority,
+    // D the controlled agent's. min/max make the value symmetric across the two agents.
+    static func pairPriority(local: Candidate, remote: Candidate, controlling: Bool) -> UInt64 {
+        let g = UInt64(priority(controlling ? local : remote))
+        let d = UInt64(priority(controlling ? remote : local))
+        return (UInt64(1) << 32) * min(g, d) + 2 * max(g, d) + (g > d ? 1 : 0)
+    }
+    // All candidate pairs, highest priority first — the check order.
+    static func orderedPairs(local: [Candidate], remote: [Candidate], controlling: Bool) -> [(Candidate, Candidate)] {
+        var pairs: [(Candidate, Candidate)] = []
+        for l in local { for r in remote { pairs.append((l, r)) } }
+        return pairs.sorted { pairPriority(local: $0.0, remote: $0.1, controlling: controlling)
+                            > pairPriority(local: $1.0, remote: $1.1, controlling: controlling) }
+    }
+    // Nominate: the controlling agent picks the highest-priority pair that PASSED its check.
+    static func nominate(ordered: [(Candidate, Candidate)], succeeded: Set<Int>) -> (Candidate, Candidate)? {
+        for (i, pair) in ordered.enumerated() where succeeded.contains(i) { return pair }
+        return nil
+    }
+
+    // ---- probe / ack wire codec ----
+    static func probePacket(txid: UInt64) -> Data { Data(probeTag + be(txid)) }
+    static func ackPacket(txid: UInt64) -> Data { Data(ackTag + be(txid)) }
+    static func probeTxid(_ d: Data) -> UInt64? { txid(d, tag: probeTag) }
+    static func ackTxid(_ d: Data)   -> UInt64? { txid(d, tag: ackTag) }
+
+    private static func be(_ x: UInt64) -> [UInt8] { (0..<8).map { UInt8((x >> (56 - 8 * $0)) & 0xFF) } }
+    private static func txid(_ d: Data, tag: [UInt8]) -> UInt64? {
+        let b = [UInt8](d)
+        guard b.count == 10, b[0] == tag[0], b[1] == tag[1] else { return nil }
+        return b[2..<10].reduce(UInt64(0)) { ($0 << 8) | UInt64($1) }
+    }
+
+    // ---- the actual hole-punch over one UDP socket ----
+    // Bind boundPort, then for the whole window: retransmit our probe toward the peer, answer
+    // every probe we receive with an ack (replying to the OBSERVED source, which is what a
+    // symmetric NAT rewrites the port to), and watch for an ack that echoes OUR txid. Success
+    // = we heard an ack for our own probe, i.e. this pair round-tripped. Retransmission is
+    // what makes the simultaneous open robust to which side sends first.
+    static func punch(boundPort: UInt16, peerHost: String, peerPort: UInt16, timeoutMs: Int = 1200) -> Bool {
+        let fd = socket(AF_INET, SOCK_DGRAM, 0)
+        guard fd >= 0 else { return false }
+        defer { close(fd) }
+        var one: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, socklen_t(MemoryLayout<Int32>.size))
+
+        var me = sockaddr_in()
+        me.sin_family = sa_family_t(AF_INET)
+        me.sin_port = boundPort.bigEndian
+        me.sin_addr.s_addr = 0                              // INADDR_ANY
+        let bound = withUnsafePointer(to: &me) { p in
+            p.withMemoryRebound(to: sockaddr.self, capacity: 1) { Foundation.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
+        }
+        guard bound == 0 else { return false }
+
+        var tv = timeval(tv_sec: 0, tv_usec: 50_000)        // 50ms: re-probe ~20x/sec
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+
+        var peer = sockaddr_in()
+        peer.sin_family = sa_family_t(AF_INET)
+        peer.sin_port = peerPort.bigEndian
+        inet_pton(AF_INET, peerHost, &peer.sin_addr)
+
+        let myTxid = UInt64.random(in: 0 ... UInt64.max)
+        let probe = probePacket(txid: myTxid)
+        let deadline = Date().addingTimeInterval(Double(timeoutMs) / 1000.0)
+        var gotAck = false
+        var buf = [UInt8](repeating: 0, count: 64)
+
+        while Date() < deadline {
+            _ = probe.withUnsafeBytes { pb in
+                withUnsafePointer(to: &peer) { pp in
+                    pp.withMemoryRebound(to: sockaddr.self, capacity: 1) { sp in
+                        sendto(fd, pb.baseAddress, probe.count, 0, sp, socklen_t(MemoryLayout<sockaddr_in>.size))
+                    }
+                }
+            }
+            var from = sockaddr_in()
+            var fromLen = socklen_t(MemoryLayout<sockaddr_in>.size)
+            let n = withUnsafeMutablePointer(to: &from) { fp in
+                fp.withMemoryRebound(to: sockaddr.self, capacity: 1) { sp in
+                    recvfrom(fd, &buf, buf.count, 0, sp, &fromLen)
+                }
+            }
+            guard n > 0 else { continue }                   // timeout -> re-probe
+            let pkt = Data(buf.prefix(n))
+            if let t = probeTxid(pkt) {                      // peer's probe -> ack the observed source
+                let ack = ackPacket(txid: t)
+                _ = ack.withUnsafeBytes { ab in
+                    withUnsafeMutablePointer(to: &from) { fp in
+                        fp.withMemoryRebound(to: sockaddr.self, capacity: 1) { sp in
+                            sendto(fd, ab.baseAddress, ack.count, 0, sp, fromLen)
+                        }
+                    }
+                }
+            } else if let t = ackTxid(pkt), t == myTxid {    // ack for OUR probe -> this pair works
+                gotAck = true
+            }
+        }
+        return gotAck
+    }
+}
+
+// ===== Ice — keep BYTE-IDENTICAL to desktop/TriNetVideo/IceSession.swift =====
+enum Ice {
+    typealias Candidate = HolePunch.Candidate
+
+    // ---- candidate-list wire format (crosses the signaling channel) ----
+    // [count:2 BE] then per candidate [kind:1][port:2 BE][ipLen:1][ip utf8].
+    static func encode(_ cands: [Candidate]) -> Data {
+        var d = Data()
+        d.append(UInt8(cands.count >> 8)); d.append(UInt8(cands.count & 0xFF))
+        for c in cands {
+            let ip = Array(c.ip.utf8)
+            d.append(UInt8(c.kind.rawValue))
+            d.append(UInt8(c.port >> 8)); d.append(UInt8(c.port & 0xFF))
+            d.append(UInt8(ip.count))
+            d.append(contentsOf: ip)
+        }
+        return d
+    }
+
+    static func decode(_ data: Data) -> [Candidate]? {
+        let b = [UInt8](data)
+        guard b.count >= 2 else { return nil }
+        let count = Int(b[0]) << 8 | Int(b[1])
+        var i = 2
+        var out: [Candidate] = []
+        for _ in 0..<count {
+            guard i + 4 <= b.count, let kind = HolePunch.Kind(rawValue: Int(b[i])) else { return nil }
+            let port = UInt16(b[i + 1]) << 8 | UInt16(b[i + 2])
+            let ipLen = Int(b[i + 3])
+            let ipStart = i + 4
+            guard ipStart + ipLen <= b.count, let ip = String(bytes: b[ipStart ..< ipStart + ipLen], encoding: .utf8) else { return nil }
+            out.append(Candidate(ip: ip, port: port, kind: kind))
+            i = ipStart + ipLen
+        }
+        return out.count == count ? out : nil
+    }
+
+    struct Connected: Equatable { let remote: Candidate; let localPort: UInt16 }
+
+    // Bind one UDP socket, then for the whole window: probe EVERY remote candidate, answer
+    // every probe we receive (ack to the observed source — the pinhole), and note which
+    // remote's ack echoes our txid. That remote is a working pair. We do not early-exit: a
+    // peer that stopped answering the moment it succeeded would strand the other side, so we
+    // keep answering and nominate the highest-priority pair that answered by the deadline.
+    static func connect(localPort: UInt16, remote: [Candidate], timeoutMs: Int = 1500) -> Connected? {
+        let fd = socket(AF_INET, SOCK_DGRAM, 0)
+        guard fd >= 0 else { return nil }
+        defer { close(fd) }
+        var one: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, socklen_t(MemoryLayout<Int32>.size))
+
+        var me = sockaddr_in()
+        me.sin_family = sa_family_t(AF_INET)
+        me.sin_port = localPort.bigEndian
+        me.sin_addr.s_addr = 0
+        let bound = withUnsafePointer(to: &me) { p in
+            p.withMemoryRebound(to: sockaddr.self, capacity: 1) { Foundation.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
+        }
+        guard bound == 0 else { return nil }
+        let boundPort = localBoundPort(fd) ?? localPort
+
+        var tv = timeval(tv_sec: 0, tv_usec: 50_000)
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+
+        // precompute a sockaddr for each remote candidate, ordered by priority
+        let ordered = remote.sorted { HolePunch.priority($0) > HolePunch.priority($1) }
+        let remoteAddrs: [(Candidate, sockaddr_in)] = ordered.map { c in
+            var a = sockaddr_in()
+            a.sin_family = sa_family_t(AF_INET)
+            a.sin_port = c.port.bigEndian
+            inet_pton(AF_INET, c.ip, &a.sin_addr)
+            return (c, a)
+        }
+
+        let myTxid = UInt64.random(in: 0 ... UInt64.max)
+        let probe = HolePunch.probePacket(txid: myTxid)
+        let deadline = Date().addingTimeInterval(Double(timeoutMs) / 1000.0)
+        var winners: Set<String> = []                       // "ip:port" of remotes that acked us
+        var buf = [UInt8](repeating: 0, count: 64)
+
+        while Date() < deadline {
+            for (_, a) in remoteAddrs {
+                var aa = a
+                _ = probe.withUnsafeBytes { pb in
+                    withUnsafePointer(to: &aa) { pp in
+                        pp.withMemoryRebound(to: sockaddr.self, capacity: 1) { sp in
+                            sendto(fd, pb.baseAddress, probe.count, 0, sp, socklen_t(MemoryLayout<sockaddr_in>.size))
+                        }
+                    }
+                }
+            }
+            var from = sockaddr_in()
+            var fromLen = socklen_t(MemoryLayout<sockaddr_in>.size)
+            let n = withUnsafeMutablePointer(to: &from) { fp in
+                fp.withMemoryRebound(to: sockaddr.self, capacity: 1) { sp in
+                    recvfrom(fd, &buf, buf.count, 0, sp, &fromLen)
+                }
+            }
+            guard n > 0 else { continue }
+            let pkt = Data(buf.prefix(n))
+            if let t = HolePunch.probeTxid(pkt) {            // peer's probe -> ack the observed source
+                let ack = HolePunch.ackPacket(txid: t)
+                _ = ack.withUnsafeBytes { ab in
+                    withUnsafeMutablePointer(to: &from) { fp in
+                        fp.withMemoryRebound(to: sockaddr.self, capacity: 1) { sp in
+                            sendto(fd, ab.baseAddress, ack.count, 0, sp, fromLen)
+                        }
+                    }
+                }
+            } else if let t = HolePunch.ackTxid(pkt), t == myTxid {   // our probe was answered
+                var addr = from.sin_addr
+                var ipbuf = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
+                inet_ntop(AF_INET, &addr, &ipbuf, socklen_t(INET_ADDRSTRLEN))
+                winners.insert("\(String(cString: ipbuf)):\(UInt16(bigEndian: from.sin_port))")
+            }
+        }
+        // nominate the highest-priority candidate that answered
+        for (c, _) in remoteAddrs where winners.contains("\(c.ip):\(c.port)") {
+            return Connected(remote: c, localPort: boundPort)
+        }
+        return nil
+    }
+
+    private static func localBoundPort(_ fd: Int32) -> UInt16? {
+        var a = sockaddr_in()
+        var len = socklen_t(MemoryLayout<sockaddr_in>.size)
+        let ok = withUnsafeMutablePointer(to: &a) { p in
+            p.withMemoryRebound(to: sockaddr.self, capacity: 1) { getsockname(fd, $0, &len) }
+        }
+        return ok == 0 ? UInt16(bigEndian: a.sin_port) : nil
+    }
+}
+
+// ===== CandidateOffer — keep BYTE-IDENTICAL to desktop/TriNetVideo/CandidateOffer.swift =====
+enum CandidateOffer {
+    static let version: UInt8 = 1
+
+    // Domain-separated offer key: HKDF(invite-key) so it is cryptographically independent of
+    // the invite path while still gated on the room passphrase.
+    static func offerKey(room: String) -> SymmetricKey {
+        SymmetricKey(data: HKDF<SHA256>.deriveKey(
+            inputKeyMaterial: MeshCrypto.inviteAuthKey(room: room),
+            salt: Data("trinet/candidate-offer/v1".utf8),
+            info: Data(room.utf8), outputByteCount: 32))
+    }
+
+    // Sealed inner plaintext: [version:1][tiebreaker:8 BE][expiry unix-ms:8 BE][Ice list].
+    static func make(candidates: [Ice.Candidate], tiebreaker: UInt64, room: String, ttlMs: Int, now: Date = Date()) -> Data {
+        let expiry = UInt64((now.timeIntervalSince1970 * 1000).rounded()) + UInt64(ttlMs)
+        var inner = Data([version])
+        inner.append(contentsOf: be(tiebreaker))
+        inner.append(contentsOf: be(expiry))
+        inner.append(Ice.encode(candidates))
+        return ((try? ChaChaPoly.seal(inner, using: offerKey(room: room)))?.combined) ?? Data()
+    }
+
+    struct Offer: Equatable { let candidates: [Ice.Candidate]; let tiebreaker: UInt64 }
+
+    // nil if: wrong room passphrase, tampered ciphertext, bad version, expired, or a malformed
+    // candidate list. Every rejection is silent-safe (no crash on any input).
+    static func open(_ data: Data, room: String, now: Date = Date()) -> Offer? {
+        guard let box = try? ChaChaPoly.SealedBox(combined: data),
+              let inner = try? ChaChaPoly.open(box, using: offerKey(room: room)) else { return nil }
+        let b = [UInt8](inner)
+        guard b.count >= 17, b[0] == version else { return nil }
+        let tiebreaker = u64(b[1..<9])
+        let expiry = u64(b[9..<17])
+        let nowMs = UInt64((now.timeIntervalSince1970 * 1000).rounded())
+        guard expiry >= nowMs else { return nil }                     // stale: cannot be replayed later
+        guard let cands = Ice.decode(Data(b[17...])) else { return nil }
+        return Offer(candidates: cands, tiebreaker: tiebreaker)
+    }
+
+    // ICE role (RFC 8445 §6.1.1): the peer with the higher tiebreaker is controlling. 64-bit
+    // random tiebreakers never tie in practice; resolve a tie deterministically anyway.
+    static func isControlling(mine: UInt64, peer: UInt64) -> Bool { mine > peer }
+
+    private static func be(_ x: UInt64) -> [UInt8] { (0..<8).map { UInt8((x >> (56 - 8 * $0)) & 0xFF) } }
+    private static func u64(_ s: ArraySlice<UInt8>) -> UInt64 { s.reduce(UInt64(0)) { ($0 << 8) | UInt64($1) } }
+}
+
+// ===== NatDiagnostics — keep BYTE-IDENTICAL to desktop/TriNetVideo/NatDiagnostics.swift =====
+enum NatDiagnostics {
+    static func run() {
+        DispatchQueue.global(qos: .utility).async {
+            let room = UserDefaults.standard.string(forKey: "trinetRoom") ?? ""
+            let hosts = Stun.hostCandidates()
+            var cands = hosts.map { Ice.Candidate(ip: $0, port: 0, kind: .host) }
+            var srflx = "none"
+            if let m = Stun.gatherServerReflexive(host: "stun.l.google.com", port: 19302) {
+                cands.append(Ice.Candidate(ip: m.ip, port: m.port, kind: .srflx))
+                srflx = "\(m.ip):\(m.port)"
+            }
+            let offer = CandidateOffer.make(candidates: cands, tiebreaker: UInt64.random(in: 0 ... UInt64.max),
+                                            room: room, ttlMs: 60_000)
+            NSLog("%@", "TRINET NAT: candidates host=\(hosts) srflx=\(srflx) -> sealed offer \(offer.count)B (room=\(room.isEmpty ? "lobby" : room))")
+        }
+    }
+}
