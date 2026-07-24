@@ -1,0 +1,177 @@
+{
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/client-sdk-swift/Sources/LiveKit/E2EE/Protos+E2EE.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/Protos+E2EE.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/Protos+E2EE.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/Protos+E2EE.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/Protos+E2EE.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/Protos+E2EE.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/client-sdk-swift/Sources/LiveKit/E2EE/State.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/State.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/State.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/State.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/State.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/State.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Errors.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/Errors.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/Errors.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/Errors.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/Errors.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/Errors.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Extensions/AVAudioNode.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/AVAudioNode.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/AVAudioNode.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/AVAudioNode.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/AVAudioNode.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/AVAudioNode.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Extensions/AVAudioPCMBuffer.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/AVAudioPCMBuffer.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/AVAudioPCMBuffer.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/AVAudioPCMBuffer.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/AVAudioPCMBuffer.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/AVAudioPCMBuffer.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Extensions/AVCaptureDevice.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/AVCaptureDevice.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/AVCaptureDevice.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/AVCaptureDevice.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/AVCaptureDevice.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/AVCaptureDevice.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Extensions/AsyncSequence.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/AsyncSequence.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/AsyncSequence.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/AsyncSequence.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/AsyncSequence.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/AsyncSequence.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Extensions/CGFloat.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/CGFloat.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/CGFloat.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/CGFloat.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/CGFloat.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/CGFloat.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Extensions/Codable.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/Codable.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/Codable.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/Codable.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/Codable.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/Codable.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Extensions/CoreImage.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/CoreImage.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/CoreImage.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/CoreImage.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/CoreImage.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/CoreImage.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Extensions/CustomStringConvertible.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/CustomStringConvertible.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/CustomStringConvertible.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/CustomStringConvertible.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/CustomStringConvertible.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/CustomStringConvertible.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Extensions/DispatchQueue.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/DispatchQueue.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/DispatchQueue.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/DispatchQueue.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/DispatchQueue.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/DispatchQueue.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Extensions/LKRTCRtpSender.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/LKRTCRtpSender.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/LKRTCRtpSender.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/LKRTCRtpSender.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/LKRTCRtpSender.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/LKRTCRtpSender.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Extensions/PixelBuffer.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/PixelBuffer.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/PixelBuffer.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/PixelBuffer.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/PixelBuffer.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/PixelBuffer.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Extensions/Primitives.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/Primitives.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/Primitives.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/Primitives.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/Primitives.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/Primitives.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Extensions/RTCConfiguration.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCConfiguration.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCConfiguration.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCConfiguration.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCConfiguration.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCConfiguration.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Extensions/RTCDataChannel+Util.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCDataChannel+Util.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCDataChannel+Util.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCDataChannel+Util.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCDataChannel+Util.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCDataChannel+Util.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Extensions/RTCI420Buffer.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCI420Buffer.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCI420Buffer.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCI420Buffer.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCI420Buffer.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCI420Buffer.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Extensions/RTCMediaConstraints.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCMediaConstraints.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCMediaConstraints.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCMediaConstraints.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCMediaConstraints.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCMediaConstraints.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Extensions/RTCRtpTransceiver.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCRtpTransceiver.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCRtpTransceiver.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCRtpTransceiver.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCRtpTransceiver.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCRtpTransceiver.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Extensions/RTCVideoCapturerDelegate+Buffer.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCVideoCapturerDelegate+Buffer.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCVideoCapturerDelegate+Buffer.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCVideoCapturerDelegate+Buffer.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCVideoCapturerDelegate+Buffer.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/RTCVideoCapturerDelegate+Buffer.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Extensions/Sendable.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/Sendable.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/Sendable.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/Sendable.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/Sendable.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/Sendable.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Extensions/String.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/String.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/String.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/String.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/String.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/String.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Extensions/TimeInterval.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/TimeInterval.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/TimeInterval.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/TimeInterval.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/TimeInterval.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/TimeInterval.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Extensions/URL.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/URL.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/URL.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/URL.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/URL.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/LiveKit.build/Debug-iphonesimulator/LiveKit.build/Objects-normal/arm64/URL.swiftdeps"
+  }
+}

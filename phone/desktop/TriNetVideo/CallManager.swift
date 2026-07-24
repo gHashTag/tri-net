@@ -67,6 +67,24 @@ class CallManager: ObservableObject {
     var chatOpen = false { didSet { if chatOpen { unreadChat = 0 } } }  // panel open => clear the badge
     private let chatChime = ChatChime()                 // Trinity-style blip on an incoming chat message
     @Published var recentIPs: [String] = []
+    /// Saved nicknames for one-tap calling. Persisted. Tapping calls on the
+    /// selected route (Internet default; switch to Mesh in Connection for LAN).
+    @Published var savedContacts: [String] = UserDefaults.standard.stringArray(forKey: "savedContacts") ?? [] {
+        didSet { UserDefaults.standard.set(savedContacts, forKey: "savedContacts") }
+    }
+    func addContact(_ raw: String) {
+        let nick = NicknamePolicy.normalize(raw)
+        guard nick.count >= 3, !savedContacts.contains(nick) else { return }
+        savedContacts.append(nick)
+    }
+    func removeContact(_ nick: String) {
+        savedContacts.removeAll { $0 == nick }
+    }
+    func callNickname(_ nick: String) {
+        callee = nick
+        directory.searchQuery = nick
+        startCall()
+    }
     @Published var cameras: [AVCaptureDevice] = []
     @Published var selectedCameraID: String = ""
     // Live audio levels (0...1) for the TX/RX meters. Decayed on the main

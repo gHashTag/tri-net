@@ -1,0 +1,109 @@
+{
+  "" : {
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/TriNetVideo-primary.dia",
+    "emit-module-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/TriNetVideo-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/TriNetVideo-primary-emit-module.dia",
+    "pch" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/TriNetVideo-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/TriNetVideo-primary.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/GeneratedAssetSymbols.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/GeneratedAssetSymbols.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/GeneratedAssetSymbols.dia",
+    "index-unit-output-path" : "/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/GeneratedAssetSymbols.o",
+    "llvm-bc" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/GeneratedAssetSymbols.bc",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/GeneratedAssetSymbols.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/GeneratedAssetSymbols.swiftdeps",
+    "swiftmodule" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/GeneratedAssetSymbols~partial.swiftmodule"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/TriNetVideo/App.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/App.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/App.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/App.dia",
+    "index-unit-output-path" : "/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/App.o",
+    "llvm-bc" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/App.bc",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/App.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/App.swiftdeps",
+    "swiftmodule" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/App~partial.swiftmodule"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/TriNetVideo/CallKitCoordinator.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/CallKitCoordinator.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/CallKitCoordinator.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/CallKitCoordinator.dia",
+    "index-unit-output-path" : "/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/CallKitCoordinator.o",
+    "llvm-bc" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/CallKitCoordinator.bc",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/CallKitCoordinator.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/CallKitCoordinator.swiftdeps",
+    "swiftmodule" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/CallKitCoordinator~partial.swiftmodule"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/TriNetVideo/MeshMapView.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/MeshMapView.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/MeshMapView.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/MeshMapView.dia",
+    "index-unit-output-path" : "/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/MeshMapView.o",
+    "llvm-bc" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/MeshMapView.bc",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/MeshMapView.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/MeshMapView.swiftdeps",
+    "swiftmodule" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/MeshMapView~partial.swiftmodule"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/TriNetVideo/VideoPipeline.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/VideoPipeline.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/VideoPipeline.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/VideoPipeline.dia",
+    "index-unit-output-path" : "/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/VideoPipeline.o",
+    "llvm-bc" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/VideoPipeline.bc",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/VideoPipeline.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/VideoPipeline.swiftdeps",
+    "swiftmodule" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/VideoPipeline~partial.swiftmodule"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/TriNetVideo/ViewModel.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/ViewModel.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/ViewModel.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/ViewModel.dia",
+    "index-unit-output-path" : "/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/ViewModel.o",
+    "llvm-bc" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/ViewModel.bc",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/ViewModel.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/ViewModel.swiftdeps",
+    "swiftmodule" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/ViewModel~partial.swiftmodule"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/TriNetVideo/Views.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/Views.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/Views.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/Views.dia",
+    "index-unit-output-path" : "/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/Views.o",
+    "llvm-bc" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/Views.bc",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/Views.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/Views.swiftdeps",
+    "swiftmodule" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/Views~partial.swiftmodule"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/shared/CallIdentity.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/CallIdentity.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/CallIdentity.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/CallIdentity.dia",
+    "index-unit-output-path" : "/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/CallIdentity.o",
+    "llvm-bc" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/CallIdentity.bc",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/CallIdentity.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/CallIdentity.swiftdeps",
+    "swiftmodule" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/CallIdentity~partial.swiftmodule"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/shared/InternetCall.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/InternetCall.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/InternetCall.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/InternetCall.dia",
+    "index-unit-output-path" : "/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/InternetCall.o",
+    "llvm-bc" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/InternetCall.bc",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/InternetCall.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/InternetCall.swiftdeps",
+    "swiftmodule" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/InternetCall~partial.swiftmodule"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/shared/NicknameDirectory.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/NicknameDirectory.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/NicknameDirectory.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/NicknameDirectory.dia",
+    "index-unit-output-path" : "/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/NicknameDirectory.o",
+    "llvm-bc" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/NicknameDirectory.bc",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/NicknameDirectory.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/NicknameDirectory.swiftdeps",
+    "swiftmodule" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/TriNetVideo.build/Debug-iphonesimulator/TriNetVideo.build/Objects-normal/x86_64/NicknameDirectory~partial.swiftmodule"
+  }
+}

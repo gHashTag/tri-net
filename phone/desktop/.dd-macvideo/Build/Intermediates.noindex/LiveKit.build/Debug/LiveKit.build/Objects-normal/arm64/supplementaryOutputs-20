@@ -1,0 +1,170 @@
+{
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Types/MediaDevice.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/MediaDevice.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/MediaDevice.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/MediaDevice.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/MediaDevice.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/MediaDevice.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Types/Options/ARCameraCaptureOptions.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ARCameraCaptureOptions.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ARCameraCaptureOptions.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ARCameraCaptureOptions.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ARCameraCaptureOptions.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ARCameraCaptureOptions.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Types/Options/AudioCaptureOptions.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/AudioCaptureOptions.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/AudioCaptureOptions.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/AudioCaptureOptions.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/AudioCaptureOptions.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/AudioCaptureOptions.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Types/Options/AudioPublishOptions.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/AudioPublishOptions.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/AudioPublishOptions.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/AudioPublishOptions.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/AudioPublishOptions.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/AudioPublishOptions.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Types/Options/BufferCaptureOptions.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/BufferCaptureOptions.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/BufferCaptureOptions.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/BufferCaptureOptions.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/BufferCaptureOptions.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/BufferCaptureOptions.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Types/Options/CameraCaptureOptions+Copy.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/CameraCaptureOptions+Copy.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/CameraCaptureOptions+Copy.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/CameraCaptureOptions+Copy.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/CameraCaptureOptions+Copy.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/CameraCaptureOptions+Copy.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Types/Options/CameraCaptureOptions.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/CameraCaptureOptions.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/CameraCaptureOptions.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/CameraCaptureOptions.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/CameraCaptureOptions.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/CameraCaptureOptions.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Types/Options/CaptureOptions.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/CaptureOptions.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/CaptureOptions.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/CaptureOptions.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/CaptureOptions.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/CaptureOptions.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Types/Options/ConnectOptions+Copy.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ConnectOptions+Copy.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ConnectOptions+Copy.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ConnectOptions+Copy.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ConnectOptions+Copy.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ConnectOptions+Copy.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Types/Options/ConnectOptions.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ConnectOptions.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ConnectOptions.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ConnectOptions.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ConnectOptions.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ConnectOptions.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Types/Options/DataPublishOptions.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/DataPublishOptions.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/DataPublishOptions.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/DataPublishOptions.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/DataPublishOptions.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/DataPublishOptions.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Types/Options/PublishOptions.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/PublishOptions.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/PublishOptions.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/PublishOptions.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/PublishOptions.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/PublishOptions.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Types/Options/RoomOptions.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/RoomOptions.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/RoomOptions.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/RoomOptions.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/RoomOptions.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/RoomOptions.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Types/Options/ScreenShareCaptureOptions.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ScreenShareCaptureOptions.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ScreenShareCaptureOptions.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ScreenShareCaptureOptions.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ScreenShareCaptureOptions.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ScreenShareCaptureOptions.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Types/Options/VideoCaptureOptions.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/VideoCaptureOptions.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/VideoCaptureOptions.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/VideoCaptureOptions.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/VideoCaptureOptions.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/VideoCaptureOptions.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Types/Options/VideoPublishOptions.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/VideoPublishOptions.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/VideoPublishOptions.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/VideoPublishOptions.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/VideoPublishOptions.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/VideoPublishOptions.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Types/Participant+Types.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/Participant+Types.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/Participant+Types.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/Participant+Types.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/Participant+Types.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/Participant+Types.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Types/ParticipantPermissions.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ParticipantPermissions.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ParticipantPermissions.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ParticipantPermissions.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ParticipantPermissions.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ParticipantPermissions.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Types/ParticipantState.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ParticipantState.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ParticipantState.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ParticipantState.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ParticipantState.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ParticipantState.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Types/ParticipantTrackPermission.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ParticipantTrackPermission.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ParticipantTrackPermission.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ParticipantTrackPermission.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ParticipantTrackPermission.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ParticipantTrackPermission.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Types/Priority.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/Priority.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/Priority.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/Priority.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/Priority.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/Priority.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Types/ProtocolVersion.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ProtocolVersion.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ProtocolVersion.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ProtocolVersion.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ProtocolVersion.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/ProtocolVersion.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Types/RegionInfo.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/RegionInfo.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/RegionInfo.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/RegionInfo.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/RegionInfo.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/RegionInfo.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/client-sdk-swift/Sources/LiveKit/Types/Room+Types.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/Room+Types.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/Room+Types.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/Room+Types.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/Room+Types.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/LiveKit.build/Debug/LiveKit.build/Objects-normal/arm64/Room+Types.swiftdeps"
+  }
+}

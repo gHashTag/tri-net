@@ -1,0 +1,72 @@
+{
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/BinaryEncodingOptions.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/BinaryEncodingOptions.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/BinaryEncodingOptions.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/BinaryEncodingOptions.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/BinaryEncodingOptions.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/BinaryEncodingOptions.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/BinaryEncodingSizeVisitor.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/BinaryEncodingSizeVisitor.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/BinaryEncodingSizeVisitor.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/BinaryEncodingSizeVisitor.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/BinaryEncodingSizeVisitor.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/BinaryEncodingSizeVisitor.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/BinaryEncodingVisitor.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/BinaryEncodingVisitor.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/BinaryEncodingVisitor.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/BinaryEncodingVisitor.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/BinaryEncodingVisitor.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/BinaryEncodingVisitor.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/BytecodeInterpreter.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/BytecodeInterpreter.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/BytecodeInterpreter.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/BytecodeInterpreter.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/BytecodeInterpreter.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/BytecodeInterpreter.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/BytecodeReader.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/BytecodeReader.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/BytecodeReader.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/BytecodeReader.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/BytecodeReader.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/BytecodeReader.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/CustomJSONCodable.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/CustomJSONCodable.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/CustomJSONCodable.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/CustomJSONCodable.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/CustomJSONCodable.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/CustomJSONCodable.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/Decoder.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/Decoder.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/Decoder.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/Decoder.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/Decoder.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/Decoder.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/DoubleParser.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/DoubleParser.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/DoubleParser.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/DoubleParser.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/DoubleParser.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/DoubleParser.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/Enum.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/Enum.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/Enum.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/Enum.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/Enum.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/Enum.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/ExtensibleMessage.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/ExtensibleMessage.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/ExtensibleMessage.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/ExtensibleMessage.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/ExtensibleMessage.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/x86_64/ExtensibleMessage.swiftdeps"
+  }
+}

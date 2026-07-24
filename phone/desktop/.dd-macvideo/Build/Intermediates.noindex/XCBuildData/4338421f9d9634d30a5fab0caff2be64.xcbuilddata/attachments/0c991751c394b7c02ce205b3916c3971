@@ -1,0 +1,4 @@
+module LKObjCHelpers {
+umbrella header "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/client-sdk-swift/Sources/LKObjCHelpers/include/LKObjCHelpers.h"
+export *
+}

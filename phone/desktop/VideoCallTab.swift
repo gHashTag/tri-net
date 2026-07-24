@@ -209,6 +209,7 @@ private struct StartCallView: View {
     @State private var showNickname = false
     @State private var showInternetSettings = false
     @State private var showGroupChats = false
+    @State private var newContactNick = ""
 
     init(call: CallManager) {
         self.call = call
@@ -267,42 +268,113 @@ private struct StartCallView: View {
             }.buttonStyle(.plain)
 
             VStack(spacing: 12) {
-                Picker("Route", selection: $call.route) {
-                    Text("Auto").tag(CallRoute.automatic)
-                    Text("Local/Mesh UDP").tag(CallRoute.mesh)
-                    Text("Internet").tag(CallRoute.internet)
+                // Connection: Internet (default) or Local Mesh. Collapsed so the
+                // common case needs no fiddling.
+                DisclosureGroup("Connection: \(call.route == .automatic ? "Auto" : call.route == .mesh ? "Local Mesh" : "Internet")") {
+                    Picker("Route", selection: $call.route) {
+                        Text("Auto").tag(CallRoute.automatic)
+                        Text("Internet").tag(CallRoute.internet)
+                        Text("Local/Mesh UDP").tag(CallRoute.mesh)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 430)
+                    .padding(.top, 6)
                 }
-                .pickerStyle(.segmented)
-                .frame(width: 430)
+                .font(DS.mono(10)).foregroundColor(DS.dim)
+                .frame(width: 430, alignment: .leading)
 
+                // Add a contact by nickname; tap them to call.
                 HStack(spacing: 8) {
-                    SectionLabel(text: "Find")
-                    TextField(call.route == .mesh ? "nickname or IP" : "nickname",
+                    Image(systemName: "person.badge.plus").foregroundColor(DS.dim)
+                    TextField("add by @nickname", text: $newContactNick)
+                        .textFieldStyle(.plain).font(DS.mono(14)).foregroundColor(DS.text)
+                        .frame(width: 240)
+                        .onSubmit {
+                            call.addContact(newContactNick)
+                            newContactNick = ""
+                        }
+                    Button {
+                        call.addContact(newContactNick)
+                        newContactNick = ""
+                    } label: {
+                        Text("Add").font(DS.mono(11, .bold)).foregroundColor(.white)
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .background(Capsule().fill(DS.fill))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(newContactNick.trimmingCharacters(in: .whitespaces).count < 3)
+                }
+                .padding(.horizontal, 16).padding(.vertical, 12).dsCard(12)
+
+                if !call.savedContacts.isEmpty {
+                    VStack(spacing: 6) {
+                        ForEach(call.savedContacts, id: \.self) { nick in
+                            HStack(spacing: 10) {
+                                Image(systemName: "person.crop.circle.fill")
+                                    .font(.system(size: 20)).foregroundColor(DS.live)
+                                Text("@\(nick)").font(DS.mono(12, .medium)).foregroundColor(DS.text)
+                                Spacer()
+                                Button {
+                                    call.callNickname(nick)
+                                } label: {
+                                    HStack(spacing: 5) {
+                                        Image(systemName: "phone.fill").font(.system(size: 10))
+                                        Text("Call").font(DS.mono(11, .bold))
+                                    }
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 12).padding(.vertical, 5)
+                                    .background(Capsule().fill(DS.live))
+                                }
+                                .buttonStyle(.plain)
+                                Button {
+                                    call.removeContact(nick)
+                                } label: {
+                                    Image(systemName: "minus.circle.fill")
+                                        .font(.system(size: 13)).foregroundColor(DS.faint)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(.horizontal, 12).padding(.vertical, 8).dsCard(10)
+                        }
+                    }
+                    .frame(maxWidth: 430)
+                }
+
+                // Directory search: who's online now.
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass").foregroundColor(DS.dim)
+                    TextField("search online by @nickname",
                               text: Binding(get: { call.directory.searchQuery },
                                             set: { call.directory.searchQuery = $0 }))
-                        .textFieldStyle(.plain).font(DS.mono(14)).foregroundColor(DS.text)
-                        .frame(width: 250)
+                        .textFieldStyle(.plain).font(DS.mono(13)).foregroundColor(DS.text)
+                        .frame(width: 230)
                         .onSubmit { call.searchNicknames() }
-                    Button(action: { call.searchNicknames() }) {
-                        Image(systemName: "magnifyingglass").foregroundColor(DS.text)
-                    }.buttonStyle(.plain)
+                    Button("Search") { call.searchNicknames() }
+                        .buttonStyle(.plain).font(DS.mono(10, .medium)).foregroundColor(DS.text)
                 }
                 .padding(.horizontal, 16).padding(.vertical, 12).dsCard(12)
 
                 if !call.directory.results.isEmpty {
-                    HStack(spacing: 8) {
-                        ForEach(call.directory.results.prefix(3)) { contact in
-                            Button("@\(contact.nickname) [\(contact.source.rawValue)]") {
-                                call.selectContact(contact)
+                    VStack(spacing: 4) {
+                        ForEach(call.directory.results.prefix(5)) { contact in
+                            Button {
+                                call.addContact(contact.nickname)
+                                call.callNickname(contact.nickname)
+                            } label: {
+                                HStack {
+                                    Text("@\(contact.nickname)").font(DS.mono(11, .medium)).foregroundColor(DS.text)
+                                    Spacer()
+                                    Text(contact.source.rawValue).font(DS.mono(8)).foregroundColor(DS.faint)
+                                }
+                                .padding(.horizontal, 12).padding(.vertical, 6).dsCard(8)
                             }
-                            .buttonStyle(.plain).font(DS.mono(10, .medium)).foregroundColor(DS.text)
-                            .padding(.horizontal, 10).padding(.vertical, 6)
-                            .overlay(Capsule().stroke(DS.hairline, lineWidth: 1))
+                            .buttonStyle(.plain)
                         }
                     }
+                    .frame(maxWidth: 430)
                 }
 
-                Text("SELF | \(call.directory.currentNickname.map { "@\($0)" } ?? call.identity.displayName) | \(call.localIP):\(call.port)")
+                Text(call.directory.currentNickname.map { "You are @\($0)" } ?? call.identity.displayName)
                     .font(DS.mono(11)).foregroundColor(DS.faint)
 
                 if call.isStarting {
@@ -370,16 +442,8 @@ private struct StartCallView: View {
                     .padding(.horizontal, 14).padding(.vertical, 10).dsCard(12).frame(maxWidth: 420)
                 }
 
-                if !call.recentIPs.isEmpty {
-                    HStack(spacing: 8) {
-                        ForEach(call.recentIPs, id: \.self) { ip in
-                            Button(ip) { call.remoteIP = ip }
-                                .buttonStyle(.plain).font(DS.mono(11)).foregroundColor(DS.dim)
-                                .padding(.horizontal, 12).padding(.vertical, 6)
-                                .overlay(Capsule().stroke(DS.hairline, lineWidth: 1))
-                        }
-                    }
-                }
+                // Recent raw-IP quick-dial removed: the nickname contacts above
+                // are the supported way to reach someone.
 
                 PeerRoster(call: call, discovery: call.discovery)
 

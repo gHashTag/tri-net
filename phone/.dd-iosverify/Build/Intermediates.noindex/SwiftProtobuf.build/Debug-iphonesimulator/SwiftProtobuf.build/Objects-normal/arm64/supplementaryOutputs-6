@@ -1,0 +1,65 @@
+{
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/Message+FieldMask.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+FieldMask.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+FieldMask.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+FieldMask.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+FieldMask.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+FieldMask.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/Message+JSONAdditions.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+JSONAdditions.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+JSONAdditions.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+JSONAdditions.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+JSONAdditions.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+JSONAdditions.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/Message+JSONAdditions_Data.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+JSONAdditions_Data.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+JSONAdditions_Data.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+JSONAdditions_Data.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+JSONAdditions_Data.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+JSONAdditions_Data.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/Message+JSONArrayAdditions.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+JSONArrayAdditions.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+JSONArrayAdditions.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+JSONArrayAdditions.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+JSONArrayAdditions.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+JSONArrayAdditions.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/Message+JSONArrayAdditions_Data.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+JSONArrayAdditions_Data.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+JSONArrayAdditions_Data.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+JSONArrayAdditions_Data.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+JSONArrayAdditions_Data.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+JSONArrayAdditions_Data.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/Message+TextFormatAdditions.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+TextFormatAdditions.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+TextFormatAdditions.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+TextFormatAdditions.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+TextFormatAdditions.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message+TextFormatAdditions.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/Message.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/Message.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/MessageExtension.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/MessageExtension.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/MessageExtension.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/MessageExtension.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/MessageExtension.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/MessageExtension.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/NameMap.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/NameMap.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/NameMap.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/NameMap.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/NameMap.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/.dd-iosverify/Build/Intermediates.noindex/SwiftProtobuf.build/Debug-iphonesimulator/SwiftProtobuf.build/Objects-normal/arm64/NameMap.swiftdeps"
+  }
+}

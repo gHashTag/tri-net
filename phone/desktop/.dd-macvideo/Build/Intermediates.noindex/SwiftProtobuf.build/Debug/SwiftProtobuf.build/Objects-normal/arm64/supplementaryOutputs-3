@@ -1,0 +1,72 @@
+{
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/ExtensionFieldValueSet.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/ExtensionFieldValueSet.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/ExtensionFieldValueSet.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/ExtensionFieldValueSet.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/ExtensionFieldValueSet.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/ExtensionFieldValueSet.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/ExtensionFields.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/ExtensionFields.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/ExtensionFields.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/ExtensionFields.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/ExtensionFields.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/ExtensionFields.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/ExtensionMap.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/ExtensionMap.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/ExtensionMap.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/ExtensionMap.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/ExtensionMap.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/ExtensionMap.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/FieldTag.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/FieldTag.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/FieldTag.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/FieldTag.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/FieldTag.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/FieldTag.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/FieldTypes.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/FieldTypes.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/FieldTypes.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/FieldTypes.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/FieldTypes.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/FieldTypes.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/Google_Protobuf_Any+Extensions.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/Google_Protobuf_Any+Extensions.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/Google_Protobuf_Any+Extensions.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/Google_Protobuf_Any+Extensions.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/Google_Protobuf_Any+Extensions.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/Google_Protobuf_Any+Extensions.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/Google_Protobuf_Any+Registry.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/Google_Protobuf_Any+Registry.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/Google_Protobuf_Any+Registry.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/Google_Protobuf_Any+Registry.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/Google_Protobuf_Any+Registry.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/Google_Protobuf_Any+Registry.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/Google_Protobuf_Duration+Extensions.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/Google_Protobuf_Duration+Extensions.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/Google_Protobuf_Duration+Extensions.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/Google_Protobuf_Duration+Extensions.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/Google_Protobuf_Duration+Extensions.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/Google_Protobuf_Duration+Extensions.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/Google_Protobuf_FieldMask+Extensions.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/Google_Protobuf_FieldMask+Extensions.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/Google_Protobuf_FieldMask+Extensions.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/Google_Protobuf_FieldMask+Extensions.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/Google_Protobuf_FieldMask+Extensions.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/Google_Protobuf_FieldMask+Extensions.swiftdeps"
+  },
+  "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.spm/checkouts/swift-protobuf/Sources/SwiftProtobuf/Google_Protobuf_ListValue+Extensions.swift" : {
+    "const-values" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/Google_Protobuf_ListValue+Extensions.swiftconstvalues",
+    "dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/Google_Protobuf_ListValue+Extensions.d",
+    "diagnostics" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/Google_Protobuf_ListValue+Extensions.dia",
+    "object" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/Google_Protobuf_ListValue+Extensions.o",
+    "swift-dependencies" : "/Users/ssdm4/Desktop/PROJECTS/CLAUDE/trinet-unified/phone/desktop/.dd-macvideo/Build/Intermediates.noindex/SwiftProtobuf.build/Debug/SwiftProtobuf.build/Objects-normal/arm64/Google_Protobuf_ListValue+Extensions.swiftdeps"
+  }
+}
