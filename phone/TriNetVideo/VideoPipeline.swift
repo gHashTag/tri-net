@@ -2754,7 +2754,7 @@ enum Ice {
 
         // precompute a sockaddr for each remote candidate, ordered by priority
         let ordered = remote.sorted { HolePunch.priority($0) > HolePunch.priority($1) }
-        let remoteAddrs: [(Candidate, sockaddr_in)] = ordered.map { c in
+        var remoteAddrs: [(Candidate, sockaddr_in)] = ordered.map { c in
             var a = sockaddr_in()
             a.sin_family = sa_family_t(AF_INET)
             a.sin_port = c.port.bigEndian
@@ -2796,6 +2796,22 @@ enum Ice {
                             sendto(fd, ab.baseAddress, ack.count, 0, sp, fromLen)
                         }
                     }
+                }
+                // PEER-REFLEXIVE candidate. A symmetric NAT allocates a different external port per
+                // destination, so the peer's probes arrive from an address that is NOT in the list it
+                // advertised (that one was learned from a STUN server and is useless to us). Learn the
+                // observed source as a candidate, or we probe the dead advertised address forever and
+                // never nominate anything.
+                var oa = from.sin_addr
+                var ipbuf = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
+                inet_ntop(AF_INET, &oa, &ipbuf, socklen_t(INET_ADDRSTRLEN))
+                let oip = String(cString: ipbuf), oport = UInt16(bigEndian: from.sin_port)
+                if !remoteAddrs.contains(where: { $0.0.ip == oip && $0.0.port == oport }) {
+                    var na = sockaddr_in()
+                    na.sin_family = sa_family_t(AF_INET)
+                    na.sin_port = oport.bigEndian
+                    inet_pton(AF_INET, oip, &na.sin_addr)
+                    remoteAddrs.append((Candidate(ip: oip, port: oport, kind: .srflx), na))
                 }
             } else if let t = HolePunch.ackTxid(pkt), t == myTxid {   // our probe was answered
                 var addr = from.sin_addr

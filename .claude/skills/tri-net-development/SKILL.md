@@ -3113,3 +3113,39 @@ Lessons (all found by reading the logs, broken-ruler style, not guessing):
 Cone-NAT scope: CallManager hands the transport the discovered (remote, localPort) and reuses the
 punched local port; a symmetric NAT needs the punch socket handed to the transport (fd hand-off) --
 the next step. Still Mac-only (iOS CallManager equivalent is ViewModel; mirror is a follow-up).
+
+## WAVE 2026-07-24 #51 — A+B+C: punched-socket hand-off, iOS parity, real NAT semantics
+Three fronts in one wave, each verified.
+
+A. THE PINHOLE BELONGS TO THE SOCKET, not the port. Ice.connect(keepSocket:) now returns its fd and
+MeshTransport/iOS-transport connect(adoptFd:) take it over instead of binding a fresh socket.
+Clear the 50ms probe recv timeout before handing off, or the adopting receive loop eats a spurious
+EAGAIN every tick. Verified live: both rig instances logged "adopted the punched socket (fd 20/12)"
+and the call ran audio 1206/1206 AND VIDEO 696/695 both ways -- a full encrypted video call over the
+rendezvous. (Earlier video=0 runs were a dead camera, not the transport; same rig, camera live, video
+flows.)
+
+C. iOS PARITY. Re-mirrored Ice (it had changed) + added Rendezvous, all six NAT enums verified
+BYTE-IDENTICAL by sed-extract + diff; iOS transport got adoptFd; ViewModel got the same env-gated
+rendezvous path (its startCall now uses the DISCOVERED peer + punched port + punched socket instead
+of hard-coded :7000). VERIFIED CROSS-PLATFORM: Mac + iOS-Simulator, given only a shared room name,
+found each other through the relay and ran an encrypted session -- the MAC decoded 1228 audio frames
+from the iPhone. Verified from the MAC log deliberately: iOS LogBus dup2's stderr into its in-app
+pane, so the phone's own lines never reach the unified log -- THE PEER IS THE INDEPENDENT CHANNEL.
+
+B. REAL NAT SEMANTICS (and an honest correction).
+- Kernel NAT emulation is BLOCKED here: `sudo -n true` -> "a password is required", so pfctl/dnctl
+  are unavailable. Said plainly rather than faked.
+- But the property that actually breaks hole punching IS testable without root: a symmetric NAT
+  allocates a different external port PER DESTINATION, so the peer's probes arrive from an address
+  that is NOT in the candidate list it advertised (that one was learned from a STUN server).
+  smoke/harness/symmetric_nat.swift models exactly that (peer advertises a dead port, speaks from
+  another) -- and it FAILED against the then-current code: Ice.connect only ever probed the
+  advertised list, so it never nominated anything. A REAL gap, found by building the adversarial case.
+- Fix: PEER-REFLEXIVE candidates. When a probe arrives from an unknown source, learn that source as a
+  candidate (so it gets probed and can be nominated). 3/3 runs pass after the fix.
+- CORRECTION to the #51-A commit wording: the fd hand-off alone is NOT "symmetric-NAT support". What
+  makes a ONE-SIDED symmetric NAT work is ack-to-the-observed-source (#43) + peer-reflexive discovery
+  (this wave) + the fd hand-off keeping that mapping. Symmetric-on-BOTH-sides still cannot punch
+  (neither side's first packet is admitted) and needs a relay (TURN-style) -- that gap is real and
+  remains open. Do not claim symmetric-NAT traversal from a one-sided test.

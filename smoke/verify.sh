@@ -47,6 +47,7 @@ SUITE=(
   "IceSession       : $SRC/HolePunch.swift $SRC/IceSession.swift: smoke/harness/ice_session.swift"
   "CandidateOffer   : $SRC/MeshCrypto.swift $SRC/HolePunch.swift $SRC/IceSession.swift $SRC/CandidateOffer.swift: smoke/harness/candidate_offer.swift"
   "Rendezvous       : $SRC/MeshCrypto.swift $SRC/HolePunch.swift $SRC/IceSession.swift $SRC/CandidateOffer.swift $SRC/Rendezvous.swift: smoke/harness/rendezvous.swift"
+  "SymmetricNAT     : $SRC/HolePunch.swift $SRC/IceSession.swift: smoke/harness/symmetric_nat.swift"
   "NAT parser fuzz  : $SRC/MeshCrypto.swift $SRC/HolePunch.swift $SRC/IceSession.swift $SRC/CandidateOffer.swift $SRC/Rendezvous.swift $SRC/StunClient.swift: smoke/harness/nat_fuzz.swift"
 )
 
