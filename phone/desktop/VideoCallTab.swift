@@ -267,42 +267,79 @@ private struct StartCallView: View {
             }.buttonStyle(.plain)
 
             VStack(spacing: 12) {
-                Picker("Route", selection: $call.route) {
-                    Text("Auto").tag(CallRoute.automatic)
-                    Text("Local/Mesh UDP").tag(CallRoute.mesh)
-                    Text("Internet").tag(CallRoute.internet)
+                // The route picker is hidden behind a disclosure by default:
+                // almost everyone wants Auto (Internet when the peer is online,
+                // LAN mesh when they're on the same Wi-Fi). Surfacing it as the
+                // first thing made the screen look like a network engineer's tool.
+                DisclosureGroup("Connection") {
+                    Picker("Route", selection: $call.route) {
+                        Text("Auto").tag(CallRoute.automatic)
+                        Text("Internet").tag(CallRoute.internet)
+                        Text("Local/Mesh UDP").tag(CallRoute.mesh)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 430)
+                    .padding(.top, 6)
                 }
-                .pickerStyle(.segmented)
-                .frame(width: 430)
+                .font(DS.mono(10)).foregroundColor(DS.dim)
+                .frame(width: 430, alignment: .leading)
 
+                // Find someone to call — by nickname only. No IP entry; that was
+                // the mesh-era affordance that confused everyone. Searching the
+                // directory is the supported path.
                 HStack(spacing: 8) {
-                    SectionLabel(text: "Find")
-                    TextField(call.route == .mesh ? "nickname or IP" : "nickname",
+                    Image(systemName: "magnifyingglass").foregroundColor(DS.dim)
+                    TextField("Search by @nickname",
                               text: Binding(get: { call.directory.searchQuery },
                                             set: { call.directory.searchQuery = $0 }))
                         .textFieldStyle(.plain).font(DS.mono(14)).foregroundColor(DS.text)
                         .frame(width: 250)
                         .onSubmit { call.searchNicknames() }
-                    Button(action: { call.searchNicknames() }) {
-                        Image(systemName: "magnifyingglass").foregroundColor(DS.text)
-                    }.buttonStyle(.plain)
+                    Button("Search") { call.searchNicknames() }
+                        .buttonStyle(.plain).font(DS.mono(11, .medium)).foregroundColor(DS.text)
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(Capsule().fill(DS.surfaceHi))
                 }
                 .padding(.horizontal, 16).padding(.vertical, 12).dsCard(12)
 
+                // Search results: each contact is a card with a Call button.
                 if !call.directory.results.isEmpty {
-                    HStack(spacing: 8) {
-                        ForEach(call.directory.results.prefix(3)) { contact in
-                            Button("@\(contact.nickname) [\(contact.source.rawValue)]") {
-                                call.selectContact(contact)
+                    VStack(spacing: 6) {
+                        ForEach(call.directory.results.prefix(6)) { contact in
+                            HStack(spacing: 10) {
+                                Image(systemName: "person.crop.circle")
+                                    .font(.system(size: 22)).foregroundColor(DS.dim)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("@\(contact.nickname)").font(DS.mono(13, .medium)).foregroundColor(DS.text)
+                                    Text(contact.source.rawValue.capitalized)
+                                        .font(DS.mono(9)).foregroundColor(DS.faint)
+                                }
+                                Spacer()
+                                // One-tap call: select the contact and start the call.
+                                Button {
+                                    call.selectContact(contact)
+                                    call.startCall()
+                                } label: {
+                                    HStack(spacing: 5) {
+                                        Image(systemName: "phone.fill").font(.system(size: 10))
+                                        Text("Call").font(DS.mono(11, .bold))
+                                    }
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 14).padding(.vertical, 6)
+                                    .background(Capsule().fill(DS.live))
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain).font(DS.mono(10, .medium)).foregroundColor(DS.text)
-                            .padding(.horizontal, 10).padding(.vertical, 6)
-                            .overlay(Capsule().stroke(DS.hairline, lineWidth: 1))
+                            .padding(.horizontal, 14).padding(.vertical, 10)
+                            .background(RoundedRectangle(cornerRadius: 10).fill(DS.surface))
+                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(DS.hairline, lineWidth: 1))
                         }
                     }
+                    .frame(maxWidth: 430)
                 }
 
-                Text("SELF | \(call.directory.currentNickname.map { "@\($0)" } ?? call.identity.displayName) | \(call.localIP):\(call.port)")
+                // Your own identity — nickname only, no raw IP/port in the UI.
+                Text(call.directory.currentNickname.map { "You are @\($0)" } ?? "Create your nickname to be callable")
                     .font(DS.mono(11)).foregroundColor(DS.faint)
 
                 if call.isStarting {
@@ -370,17 +407,9 @@ private struct StartCallView: View {
                     .padding(.horizontal, 14).padding(.vertical, 10).dsCard(12).frame(maxWidth: 420)
                 }
 
-                if !call.recentIPs.isEmpty {
-                    HStack(spacing: 8) {
-                        ForEach(call.recentIPs, id: \.self) { ip in
-                            Button(ip) { call.remoteIP = ip }
-                                .buttonStyle(.plain).font(DS.mono(11)).foregroundColor(DS.dim)
-                                .padding(.horizontal, 12).padding(.vertical, 6)
-                                .overlay(Capsule().stroke(DS.hairline, lineWidth: 1))
-                        }
-                    }
-                }
-
+                // Recent raw IP quick-dial removed: the supported path is the
+                // nickname directory above. Peers found on the local Wi-Fi mesh
+                // are still listed by name below.
                 PeerRoster(call: call, discovery: call.discovery)
 
                 HStack(spacing: 8) {
