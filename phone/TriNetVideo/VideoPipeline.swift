@@ -700,33 +700,42 @@ class BSDTransport {
         if fbFd >= 0 { close(fbFd); fbFd = -1 }
     }
 
-    func connect(host: String, port: UInt16, recvPort: UInt16) {
+    // adoptFd: take over a socket that a NAT connectivity check already punched a pinhole with,
+    // instead of binding a fresh one. A symmetric NAT maps per (source socket, destination), so a
+    // new socket on the same local port gets a NEW mapping the peer's NAT drops — the media must
+    // leave from the socket that did the punching. Mirrors desktop MeshTransport.connect.
+    func connect(host: String, port: UInt16, recvPort: UInt16, adoptFd: Int32? = nil) {
         disconnect()
         groupMode = false
         crypto.room = PeerDiscovery.myRoom   // bind the handshake to the room passphrase
         startFeedbackListener()
 
-        fd = socket(AF_INET, SOCK_DGRAM, 0)
-        guard fd >= 0 else {
-            NSLog("TRINET: socket() failed: \(String(cString: strerror(errno)))")
-            return
-        }
-        var on: Int32 = 1
-        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, 4)
-
-        var addr = sockaddr_in()
-        addr.sin_family = sa_family_t(AF_INET)
-        addr.sin_port = recvPort.bigEndian
-        addr.sin_addr.s_addr = 0
-        let r = withUnsafePointer(to: &addr) { p in
-            p.withMemoryRebound(to: sockaddr.self, capacity: 1) { s in
-                Darwin.bind(fd, s, socklen_t(MemoryLayout<sockaddr_in>.size))
+        if let adopted = adoptFd, adopted >= 0 {
+            fd = adopted
+            NSLog("%@", "TRINET: adopted the punched socket (fd \(adopted)) — the NAT pinhole survives")
+        } else {
+            fd = socket(AF_INET, SOCK_DGRAM, 0)
+            guard fd >= 0 else {
+                NSLog("TRINET: socket() failed: \(String(cString: strerror(errno)))")
+                return
             }
-        }
-        guard r == 0 else {
-            NSLog("TRINET: bind(:\(recvPort)) failed: \(String(cString: strerror(errno)))")
-            close(fd); fd = -1
-            return
+            var on: Int32 = 1
+            setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, 4)
+
+            var addr = sockaddr_in()
+            addr.sin_family = sa_family_t(AF_INET)
+            addr.sin_port = recvPort.bigEndian
+            addr.sin_addr.s_addr = 0
+            let r = withUnsafePointer(to: &addr) { p in
+                p.withMemoryRebound(to: sockaddr.self, capacity: 1) { s in
+                    Darwin.bind(fd, s, socklen_t(MemoryLayout<sockaddr_in>.size))
+                }
+            }
+            guard r == 0 else {
+                NSLog("TRINET: bind(:\(recvPort)) failed: \(String(cString: strerror(errno)))")
+                close(fd); fd = -1
+                return
+            }
         }
 
         peer = sockaddr_in()
@@ -2710,17 +2719,23 @@ enum Ice {
         return out.count == count ? out : nil
     }
 
-    struct Connected: Equatable { let remote: Candidate; let localPort: UInt16 }
+    // fd is the socket that PUNCHED the pinhole. A symmetric NAT maps per-destination, so the hole
+    // belongs to that socket, not merely to the local port: media sent from a fresh socket gets a
+    // NEW mapping the peer's NAT drops. With keepSocket the caller adopts this fd (and must close
+    // it); without it fd is -1 and the socket is closed here.
+    struct Connected: Equatable { let remote: Candidate; let localPort: UInt16; let fd: Int32 }
 
     // Bind one UDP socket, then for the whole window: probe EVERY remote candidate, answer
     // every probe we receive (ack to the observed source — the pinhole), and note which
     // remote's ack echoes our txid. That remote is a working pair. We do not early-exit: a
     // peer that stopped answering the moment it succeeded would strand the other side, so we
     // keep answering and nominate the highest-priority pair that answered by the deadline.
-    static func connect(localPort: UInt16, remote: [Candidate], timeoutMs: Int = 1500) -> Connected? {
+    static func connect(localPort: UInt16, remote: [Candidate], timeoutMs: Int = 1500,
+                        keepSocket: Bool = false) -> Connected? {
         let fd = socket(AF_INET, SOCK_DGRAM, 0)
         guard fd >= 0 else { return nil }
-        defer { close(fd) }
+        var handedOff = false
+        defer { if !handedOff { close(fd) } }
         var one: Int32 = 1
         setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, socklen_t(MemoryLayout<Int32>.size))
 
@@ -2791,7 +2806,13 @@ enum Ice {
         }
         // nominate the highest-priority candidate that answered
         for (c, _) in remoteAddrs where winners.contains("\(c.ip):\(c.port)") {
-            return Connected(remote: c, localPort: boundPort)
+            guard keepSocket else { return Connected(remote: c, localPort: boundPort, fd: -1) }
+            // hand the punched socket to the caller: clear the probe-loop recv timeout first, or
+            // the adopting receive loop sees a spurious EAGAIN every 50ms.
+            var tv = timeval(tv_sec: 0, tv_usec: 0)
+            setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+            handedOff = true
+            return Connected(remote: c, localPort: boundPort, fd: fd)
         }
         return nil
     }
@@ -2871,4 +2892,116 @@ enum NatDiagnostics {
             NSLog("%@", "TRINET NAT: candidates host=\(hosts) srflx=\(srflx) -> sealed offer \(offer.count)B (room=\(room.isEmpty ? "lobby" : room))")
         }
     }
+}
+
+// ===== Rendezvous — keep BYTE-IDENTICAL to desktop/TriNetVideo/Rendezvous.swift =====
+enum Rendezvous {
+    // Public rendezvous key: the relay is addressed by this, never by the passphrase itself.
+    static func roomHash(_ room: String) -> Data {
+        Data(SHA256.hash(data: Data(room.utf8)).prefix(16))
+    }
+
+    // ---- wire codec ----
+    // PUBLISH [0x01][selfTag:8 BE][roomHash:16][offer]   store (tag, offer) under roomHash
+    // GET     [0x02][selfTag:8 BE][roomHash:16]          fetch an offer whose tag != selfTag
+    // OFFER   [0x03][offer]                              response: the peer's sealed offer
+    // NONE    [0x04]                                     response: no peer has published yet
+    static func encodePublish(selfTag: UInt64, roomHash: Data, offer: Data) -> Data {
+        Data([0x01] + be(selfTag)) + roomHash + offer
+    }
+    static func encodeGet(selfTag: UInt64, roomHash: Data) -> Data {
+        Data([0x02] + be(selfTag)) + roomHash
+    }
+    static func encodeOffer(_ offer: Data) -> Data { Data([0x03]) + offer }
+    static let encodeNone = Data([0x04])
+
+    struct Publish: Equatable { let selfTag: UInt64; let roomHash: Data; let offer: Data }
+    struct Get: Equatable { let selfTag: UInt64; let roomHash: Data }
+
+    static func parsePublish(_ d: Data) -> Publish? {
+        let b = [UInt8](d)
+        guard b.count >= 25, b[0] == 0x01 else { return nil }
+        return Publish(selfTag: u64(b[1..<9]), roomHash: Data(b[9..<25]), offer: Data(b[25...]))
+    }
+    static func parseGet(_ d: Data) -> Get? {
+        let b = [UInt8](d)
+        guard b.count == 25, b[0] == 0x02 else { return nil }
+        return Get(selfTag: u64(b[1..<9]), roomHash: Data(b[9..<25]))
+    }
+    // Returns the peer offer bytes for an OFFER response, or nil for NONE / anything malformed.
+    static func parseResponse(_ d: Data) -> Data? {
+        let b = [UInt8](d)
+        guard let first = b.first else { return nil }
+        return first == 0x03 ? Data(b[1...]) : nil
+    }
+
+    // ---- pure mailbox: the reference rendezvous-server brain (store + pair) ----
+    // A relay keeps this; the client never does. Kept here so it is production-tested, not just
+    // a harness fixture. Same-room peers land in the same bucket; a GET returns the OTHER tag's
+    // offer, so the two sides swap without the relay reading anything.
+    struct Mailbox {
+        private var buckets: [Data: [(tag: UInt64, offer: Data)]] = [:]
+        mutating func publish(_ p: Publish) {
+            var list = buckets[p.roomHash, default: []]
+            list.removeAll { $0.tag == p.selfTag }          // refresh, don't duplicate, my own slot
+            list.append((p.selfTag, p.offer))
+            buckets[p.roomHash] = list
+        }
+        func peerOffer(_ g: Get) -> Data? {
+            buckets[g.roomHash]?.first { $0.tag != g.selfTag }?.offer
+        }
+    }
+
+    // ---- client I/O (raw BSD UDP, matching MeshTransport) ----
+    // Publish is best-effort fire-and-forget (retransmitted by the caller loop if needed).
+    static func publish(roomHash: Data, selfTag: UInt64, offer: Data, host: String, port: UInt16) {
+        sendOne(encodePublish(selfTag: selfTag, roomHash: roomHash, offer: offer), host: host, port: port)
+    }
+    // Poll GET until the peer's offer appears or the deadline passes.
+    static func fetch(roomHash: Data, selfTag: UInt64, host: String, port: UInt16, timeoutMs: Int = 4000) -> Data? {
+        let fd = socket(AF_INET, SOCK_DGRAM, 0)
+        guard fd >= 0 else { return nil }
+        defer { close(fd) }
+        var tv = timeval(tv_sec: 0, tv_usec: 100_000)
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+        var srv = addr(host, port)
+        let req = encodeGet(selfTag: selfTag, roomHash: roomHash)
+        let deadline = Date().addingTimeInterval(Double(timeoutMs) / 1000.0)
+        var buf = [UInt8](repeating: 0, count: 2048)
+        while Date() < deadline {
+            _ = req.withUnsafeBytes { rp in
+                withUnsafePointer(to: &srv) { sp in
+                    sp.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                        sendto(fd, rp.baseAddress, req.count, 0, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+                    }
+                }
+            }
+            let n = recv(fd, &buf, buf.count, 0)
+            if n > 0, let offer = parseResponse(Data(buf.prefix(n))) { return offer }
+        }
+        return nil
+    }
+
+    private static func sendOne(_ data: Data, host: String, port: UInt16) {
+        let fd = socket(AF_INET, SOCK_DGRAM, 0)
+        guard fd >= 0 else { return }
+        defer { close(fd) }
+        var srv = addr(host, port)
+        _ = data.withUnsafeBytes { dp in
+            withUnsafePointer(to: &srv) { sp in
+                sp.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    sendto(fd, dp.baseAddress, data.count, 0, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+                }
+            }
+        }
+    }
+    private static func addr(_ host: String, _ port: UInt16) -> sockaddr_in {
+        var a = sockaddr_in()
+        a.sin_family = sa_family_t(AF_INET)
+        a.sin_port = port.bigEndian
+        inet_pton(AF_INET, host, &a.sin_addr)
+        return a
+    }
+    private static func be(_ x: UInt64) -> [UInt8] { (0..<8).map { UInt8((x >> (56 - 8 * $0)) & 0xFF) } }
+    private static func u64(_ s: ArraySlice<UInt8>) -> UInt64 { s.reduce(UInt64(0)) { ($0 << 8) | UInt64($1) } }
 }

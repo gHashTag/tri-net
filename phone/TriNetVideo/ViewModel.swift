@@ -262,6 +262,56 @@ class StreamViewModel: ObservableObject {
         }
         discovery.start()   // advertise + browse from launch
         startIdleListener() // listen on :7000 for incoming calls while idle
+        autoConnectViaRendezvousIfConfigured()   // NAT-traversal path (no-op unless configured)
+    }
+
+    // NAT-TRAVERSAL PATH — mirrors desktop CallManager.autoConnectViaRendezvousIfConfigured().
+    // Discover the peer through a blind rendezvous knowing only a shared room passphrase, then
+    // place the call on the pair a connectivity check punched, ON the socket that punched it.
+    // Additive and OFF unless configured, so the working same-subnet call is untouched:
+    //   TRINET_RENDEZVOUS=<host>:<port>  TRINET_ROOM=<passphrase>  TRINET_MEDIA_PORT=<port>
+    //   TRINET_TIEBREAK=<u64>            (optional ICE role tiebreaker)
+    private var punchedFd: Int32?
+    private var rzPeer: (host: String, port: UInt16)?
+    private var rzLocalPort: UInt16?
+    private func autoConnectViaRendezvousIfConfigured() {
+        let env = ProcessInfo.processInfo.environment
+        guard let rz = env["TRINET_RENDEZVOUS"], !rz.isEmpty,
+              let room = env["TRINET_ROOM"], !room.isEmpty,
+              let mediaPort = env["TRINET_MEDIA_PORT"].flatMap({ UInt16($0) }) else { return }
+        let parts = rz.split(separator: ":")
+        guard parts.count == 2, let rzPort = UInt16(parts[1]) else { NSLog("TRINET: bad TRINET_RENDEZVOUS"); return }
+        let rzHost = String(parts[0])
+        let tiebreak = env["TRINET_TIEBREAK"].flatMap { UInt64($0) } ?? UInt64.random(in: 0 ... UInt64.max)
+        NSLog("%@", "TRINET RZ: discovering peer via \(rzHost):\(rzPort) room=\(room) mediaPort=\(mediaPort)")
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            var cands = [Ice.Candidate(ip: "127.0.0.1", port: mediaPort, kind: .host)]
+            for ip in Stun.hostCandidates() { cands.append(Ice.Candidate(ip: ip, port: mediaPort, kind: .host)) }
+            if let srflx = Stun.gatherServerReflexive(host: "stun.l.google.com", port: 19302) {
+                cands.append(Ice.Candidate(ip: srflx.ip, port: srflx.port, kind: .srflx))
+            }
+            let rh = Rendezvous.roomHash(room)
+            let offer = CandidateOffer.make(candidates: cands, tiebreaker: tiebreak, room: room, ttlMs: 60_000)
+            for _ in 0..<3 { Rendezvous.publish(roomHash: rh, selfTag: tiebreak, offer: offer, host: rzHost, port: rzPort) }
+            guard let peerOffer = Rendezvous.fetch(roomHash: rh, selfTag: tiebreak, host: rzHost, port: rzPort, timeoutMs: 8000),
+                  let opened = CandidateOffer.open(peerOffer, room: room) else {
+                NSLog("%@", "TRINET RZ: no peer offer within 8s (relay down, or peer not in room yet)"); return
+            }
+            guard let connected = Ice.connect(localPort: mediaPort, remote: opened.candidates,
+                                              timeoutMs: 4000, keepSocket: true) else {
+                NSLog("%@", "TRINET RZ: connectivity check failed — no reachable candidate among \(opened.candidates.count)"); return
+            }
+            NSLog("%@", "TRINET RZ: connected pair -> \(connected.remote.ip):\(connected.remote.port) (local \(connected.localPort))")
+            DispatchQueue.main.async {
+                guard self.phase == .idle else { return }
+                self.remoteIP = connected.remote.ip
+                self.rzPeer = (connected.remote.ip, connected.remote.port)
+                self.rzLocalPort = connected.localPort
+                self.punchedFd = connected.fd
+                self.startCall()
+            }
+        }
     }
 
     // MARK: - Incoming call ("take the call")
@@ -757,8 +807,12 @@ class StreamViewModel: ObservableObject {
         if hosts.count > 1 { isGroup = true; startGroupCall(hosts: hosts); return }
         isGroup = false
 
-        // UDP: send to remoteIP:7000, listen on 7000 (same port for both)
-        transport.connect(host: remoteIP, port: 7000, recvPort: 7000)
+        // UDP: send to remoteIP:7000, listen on 7000 (same port for both). The NAT-traversal path
+        // overrides all three: the peer it DISCOVERED, the local port it punched, and the punched
+        // socket itself (a symmetric NAT drops media from any other socket).
+        transport.connect(host: rzPeer?.host ?? remoteIP, port: rzPeer?.port ?? 7000,
+                          recvPort: rzLocalPort ?? 7000, adoptFd: punchedFd)
+        punchedFd = nil   // ownership moved to the transport (or never existed)
         startBWE()
 
         // Peer PLI → force an IDR from our encoder
