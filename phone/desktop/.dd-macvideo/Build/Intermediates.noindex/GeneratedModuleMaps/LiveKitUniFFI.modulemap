@@ -1,4 +1,0 @@
-module LiveKitUniFFI {
-header "LiveKitUniFFI-Swift.h"
-export *
-}
