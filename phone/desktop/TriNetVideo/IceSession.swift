@@ -47,17 +47,23 @@ enum Ice {
         return out.count == count ? out : nil
     }
 
-    struct Connected: Equatable { let remote: Candidate; let localPort: UInt16 }
+    // fd is the socket that PUNCHED the pinhole. A symmetric NAT maps per-destination, so the hole
+    // belongs to that socket, not merely to the local port: media sent from a fresh socket gets a
+    // NEW mapping the peer's NAT drops. With keepSocket the caller adopts this fd (and must close
+    // it); without it fd is -1 and the socket is closed here.
+    struct Connected: Equatable { let remote: Candidate; let localPort: UInt16; let fd: Int32 }
 
     // Bind one UDP socket, then for the whole window: probe EVERY remote candidate, answer
     // every probe we receive (ack to the observed source — the pinhole), and note which
     // remote's ack echoes our txid. That remote is a working pair. We do not early-exit: a
     // peer that stopped answering the moment it succeeded would strand the other side, so we
     // keep answering and nominate the highest-priority pair that answered by the deadline.
-    static func connect(localPort: UInt16, remote: [Candidate], timeoutMs: Int = 1500) -> Connected? {
+    static func connect(localPort: UInt16, remote: [Candidate], timeoutMs: Int = 1500,
+                        keepSocket: Bool = false) -> Connected? {
         let fd = socket(AF_INET, SOCK_DGRAM, 0)
         guard fd >= 0 else { return nil }
-        defer { close(fd) }
+        var handedOff = false
+        defer { if !handedOff { close(fd) } }
         var one: Int32 = 1
         setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, socklen_t(MemoryLayout<Int32>.size))
 
@@ -128,7 +134,13 @@ enum Ice {
         }
         // nominate the highest-priority candidate that answered
         for (c, _) in remoteAddrs where winners.contains("\(c.ip):\(c.port)") {
-            return Connected(remote: c, localPort: boundPort)
+            guard keepSocket else { return Connected(remote: c, localPort: boundPort, fd: -1) }
+            // hand the punched socket to the caller: clear the probe-loop recv timeout first, or
+            // the adopting receive loop sees a spurious EAGAIN every 50ms.
+            var tv = timeval(tv_sec: 0, tv_usec: 0)
+            setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+            handedOff = true
+            return Connected(remote: c, localPort: boundPort, fd: fd)
         }
         return nil
     }

@@ -208,6 +208,9 @@ class CallManager: ObservableObject {
     // 1-1 call on launch with distinct local ports, so two instances on one machine can talk
     // over real UDP (INVITE bypassed). Never set in a shipping run.
     private var autoListenPort: UInt16?
+    // The socket a NAT connectivity check punched with, handed to the transport by startCall so the
+    // pinhole survives (a symmetric NAT would drop media from a freshly bound socket). nil = none.
+    private var punchedFd: Int32?
     private func autoCallIfConfigured() {
         let env = ProcessInfo.processInfo.environment
         guard let peer = env["TRINET_AUTOCALL"], !peer.isEmpty else { return }
@@ -262,7 +265,8 @@ class CallManager: ObservableObject {
                 NSLog("%@", "TRINET RZ: no peer offer within 8s (relay down, or peer not in room yet)"); return
             }
             // 4. connectivity check -> the pair that actually round-trips
-            guard let connected = Ice.connect(localPort: mediaPort, remote: opened.candidates, timeoutMs: 4000) else {
+            guard let connected = Ice.connect(localPort: mediaPort, remote: opened.candidates,
+                                              timeoutMs: 4000, keepSocket: true) else {
                 NSLog("%@", "TRINET RZ: connectivity check failed — no reachable candidate among \(opened.candidates.count)"); return
             }
             NSLog("%@", "TRINET RZ: connected pair -> \(connected.remote.ip):\(connected.remote.port) (local \(connected.localPort))")
@@ -272,6 +276,7 @@ class CallManager: ObservableObject {
                 self.remoteIP = connected.remote.ip
                 self.port = String(connected.remote.port)
                 self.autoListenPort = connected.localPort
+                self.punchedFd = connected.fd      // startCall hands it to the transport
                 self.startCall()
             }
         }
@@ -1055,7 +1060,8 @@ class CallManager: ObservableObject {
         } else {
             isGroup = false
             let listenP = autoListenPort ?? p   // rig: two local instances need distinct listen ports
-            transport.connect(peerHost: remoteIP, peerPort: p, listenPort: listenP)
+            transport.connect(peerHost: remoteIP, peerPort: p, listenPort: listenP, adoptFd: punchedFd)
+            punchedFd = nil                     // ownership moved to the transport (or never existed)
         }
         let hostStrs = hosts.map { String($0) }
         sendInvite(to: hostStrs, participants: [localIP] + hostStrs)   // ring the callee(s); carry the full roster

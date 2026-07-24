@@ -153,33 +153,42 @@ class MeshTransport {
     }
 
     // 1-1 (ephemeral forward-secret) — unchanged path.
-    func connect(peerHost: String, peerPort: UInt16, listenPort: UInt16) {
+    // adoptFd: take over a socket that a NAT connectivity check already punched a pinhole with,
+    // instead of binding a fresh one. A symmetric NAT maps per (source socket, destination), so a
+    // new socket on the same local port gets a NEW mapping the peer's NAT drops — the media must
+    // leave from the socket that did the punching. The transport owns the fd from here on.
+    func connect(peerHost: String, peerPort: UInt16, listenPort: UInt16, adoptFd: Int32? = nil) {
         disconnect()
         groupMode = false
         crypto.room = PeerDiscovery.myRoom   // bind the handshake to the room passphrase
         startFeedbackListener()
 
-        fd = socket(AF_INET, SOCK_DGRAM, 0)
-        guard fd >= 0 else {
-            NSLog("TRINET: socket() failed: \(String(cString: strerror(errno)))")
-            return
-        }
-        var on: Int32 = 1
-        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, 4)
-
-        var addr = sockaddr_in()
-        addr.sin_family = sa_family_t(AF_INET)
-        addr.sin_port = listenPort.bigEndian
-        addr.sin_addr.s_addr = 0
-        let r = withUnsafePointer(to: &addr) { p in
-            p.withMemoryRebound(to: sockaddr.self, capacity: 1) { s in
-                Darwin.bind(fd, s, socklen_t(MemoryLayout<sockaddr_in>.size))
+        if let adopted = adoptFd, adopted >= 0 {
+            fd = adopted
+            NSLog("%@", "TRINET: adopted the punched socket (fd \(adopted)) — the NAT pinhole survives")
+        } else {
+            fd = socket(AF_INET, SOCK_DGRAM, 0)
+            guard fd >= 0 else {
+                NSLog("TRINET: socket() failed: \(String(cString: strerror(errno)))")
+                return
             }
-        }
-        guard r == 0 else {
-            NSLog("TRINET: bind(:\(listenPort)) failed: \(String(cString: strerror(errno)))")
-            close(fd); fd = -1
-            return
+            var on: Int32 = 1
+            setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, 4)
+
+            var addr = sockaddr_in()
+            addr.sin_family = sa_family_t(AF_INET)
+            addr.sin_port = listenPort.bigEndian
+            addr.sin_addr.s_addr = 0
+            let r = withUnsafePointer(to: &addr) { p in
+                p.withMemoryRebound(to: sockaddr.self, capacity: 1) { s in
+                    Darwin.bind(fd, s, socklen_t(MemoryLayout<sockaddr_in>.size))
+                }
+            }
+            guard r == 0 else {
+                NSLog("TRINET: bind(:\(listenPort)) failed: \(String(cString: strerror(errno)))")
+                close(fd); fd = -1
+                return
+            }
         }
 
         peer = sockaddr_in()
