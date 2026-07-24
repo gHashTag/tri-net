@@ -7,6 +7,7 @@ import Vision
 import CoreImage
 import Network
 import CryptoKit
+import Security
 import UIKit   // UIDevice for the discovery default name
 
 // MARK: - Camera Controller
@@ -177,6 +178,7 @@ class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     // otherwise silently revert to the Wi-Fi cap.
     var meshMode = false { didSet { encoder?.meshMode = meshMode } }
     var bitrateKbps: Int { encoder?.bitrateKbps ?? 0 }
+    var activeHeight: Int32 { encoder?.activeHeight ?? 0 }   // adaptive send resolution for the in-call badge
 
     // Virtual background: blur all but the person on the outgoing frame.
     var blurBackground = false
@@ -410,6 +412,7 @@ class H264Encoder {
     private var maxBitrate = 900_000
     private var curBitrate = 0   // 0 = uninitialized; setup() seeds it (~540p worth) on the first frame
     private(set) var bitrateKbps = 0
+    var activeHeight: Int32 { height }   // current adaptive send resolution (ladder rung), for the in-call badge
     // AIMD, tuned on hardware (see specs/video_bridge.t27 dead-zone note).
     // Multiplicative decrease recovers fast; additive increase seeks the ceiling
     // without oscillating. Matches the Mac encoder.
@@ -483,6 +486,7 @@ class H264Encoder {
 
 class H264Decoder: ObservableObject {
     @Published var frameCount: Int = 0
+    private(set) var decodedHeight: Int32 = 0   // resolution of the frames we're RECEIVING from the peer
     @Published var currentFrame: CVImageBuffer?
 
     private var session: VTDecompressionSession?
@@ -560,6 +564,7 @@ class H264Decoder: ObservableObject {
                 NSLog("TRINET: CMVideoFormatDescriptionCreate status=\(status)")
                 guard status == noErr, let desc = desc else { return }
                 self.formatDesc = desc
+                self.decodedHeight = CMVideoFormatDescriptionGetDimensions(desc).height   // received resolution, for the badge
                 let refCon = Unmanaged.passUnretained(self).toOpaque()
                 var callback = VTDecompressionOutputCallbackRecord(
                     decompressionOutputCallback: { refCon, _, status, _, imageBuffer, _, _ in
@@ -666,14 +671,11 @@ class BSDTransport {
     private var groupMode = false
     private var peers: [sockaddr_in] = []
     var onDataFrom: ((Data, String) -> Void)?
-    private static let confKey = SymmetricKey(
-        data: HKDF<SHA256>.deriveKey(
-            inputKeyMaterial: SymmetricKey(data: SHA256.hash(data: Data("tri-net-psk-v1".utf8))),
-            salt: Data("trios-mesh/v1/conference".utf8),
-            info: Data("group-aead".utf8), outputByteCount: 32))
+    // Room-bound conference AEAD key, set at connectGroup (empty room == the legacy key).
+    private var groupKey = MeshCrypto.groupAuthKey(room: "")
     // per-(source, seq) fragment buffers -- group only, so two phones' same-seq NALs never collide
     private var groupFrag: [String: (parts: [Data?], have: Int)] = [:]
-    private var groupFec: [String: (xor: [UInt8], lastLen: Int, total: Int)] = [:]   // per-source parity (group FEC)
+    private var groupFec: [String: [Int: (xor: [UInt8], gLen: Int, lastLen: Int, total: Int)]] = [:]   // "src#seq" -> gStart -> parity
 
     // MARK: link feedback (see specs/video_bridge.t27)
     //
@@ -745,33 +747,44 @@ class BSDTransport {
         if fbFd >= 0 { close(fbFd); fbFd = -1 }
     }
 
-    func connect(host: String, port: UInt16, recvPort: UInt16) {
+    // adoptFd: take over a socket that a NAT connectivity check already punched a pinhole with,
+    // instead of binding a fresh one. A symmetric NAT maps per (source socket, destination), so a
+    // new socket on the same local port gets a NEW mapping the peer's NAT drops — the media must
+    // leave from the socket that did the punching. Mirrors desktop MeshTransport.connect.
+    func connect(host: String, port: UInt16, recvPort: UInt16, adoptFd: Int32? = nil) {
         disconnect()
         crypto = MeshCrypto()
         secureReadyEmitted = false
+        groupMode = false
+        crypto.room = PeerDiscovery.myRoom   // bind the handshake to the room passphrase
         startFeedbackListener()
 
-        fd = socket(AF_INET, SOCK_DGRAM, 0)
-        guard fd >= 0 else {
-            NSLog("TRINET: socket() failed: \(String(cString: strerror(errno)))")
-            return
-        }
-        var on: Int32 = 1
-        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, 4)
-
-        var addr = sockaddr_in()
-        addr.sin_family = sa_family_t(AF_INET)
-        addr.sin_port = recvPort.bigEndian
-        addr.sin_addr.s_addr = 0
-        let r = withUnsafePointer(to: &addr) { p in
-            p.withMemoryRebound(to: sockaddr.self, capacity: 1) { s in
-                Darwin.bind(fd, s, socklen_t(MemoryLayout<sockaddr_in>.size))
+        if let adopted = adoptFd, adopted >= 0 {
+            fd = adopted
+            NSLog("%@", "TRINET: adopted the punched socket (fd \(adopted)) — the NAT pinhole survives")
+        } else {
+            fd = socket(AF_INET, SOCK_DGRAM, 0)
+            guard fd >= 0 else {
+                NSLog("TRINET: socket() failed: \(String(cString: strerror(errno)))")
+                return
             }
-        }
-        guard r == 0 else {
-            NSLog("TRINET: bind(:\(recvPort)) failed: \(String(cString: strerror(errno)))")
-            close(fd); fd = -1
-            return
+            var on: Int32 = 1
+            setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, 4)
+
+            var addr = sockaddr_in()
+            addr.sin_family = sa_family_t(AF_INET)
+            addr.sin_port = recvPort.bigEndian
+            addr.sin_addr.s_addr = 0
+            let r = withUnsafePointer(to: &addr) { p in
+                p.withMemoryRebound(to: sockaddr.self, capacity: 1) { s in
+                    Darwin.bind(fd, s, socklen_t(MemoryLayout<sockaddr_in>.size))
+                }
+            }
+            guard r == 0 else {
+                NSLog("TRINET: bind(:\(recvPort)) failed: \(String(cString: strerror(errno)))")
+                close(fd); fd = -1
+                return
+            }
         }
 
         peer = sockaddr_in()
@@ -809,6 +822,7 @@ class BSDTransport {
     func connectGroup(hosts: [String], port: UInt16, recvPort: UInt16) {
         disconnect()
         groupMode = true
+        groupKey = MeshCrypto.groupAuthKey(room: PeerDiscovery.myRoom)   // room-bound conference key
         fd = socket(AF_INET, SOCK_DGRAM, 0)
         guard fd >= 0 else { NSLog("TRINET: group socket() failed"); return }
         var on: Int32 = 1
@@ -858,13 +872,14 @@ class BSDTransport {
                 let src = String(cString: inet_ntoa(from.sin_addr))
                 if self.groupMode {
                     guard let box = try? ChaChaPoly.SealedBox(combined: pkt),
-                          let plain = try? ChaChaPoly.open(box, using: BSDTransport.confKey),
+                          let plain = try? ChaChaPoly.open(box, using: self.groupKey),
+                          self.crypto.acceptNonce(pkt.prefix(12)),   // + anti-replay
                           let msg = self.groupReassemble(plain, from: src) else { continue }
                     DispatchQueue.main.async { self.onDataFrom?(msg, src) }
                     continue
                 }
                 if self.crypto.isHandshake(pkt) {
-                    self.crypto.consumeHandshake(pkt)
+                    self.crypto.consumeHandshake(pkt, from: src)
                     self.emitSecureReadyIfNeeded()
                     self.rawSendWire(self.crypto.handshakePacket())
                     continue
@@ -889,13 +904,14 @@ class BSDTransport {
     // Per-source reassembly for group mode: keyed by "src#seq" so two senders' equal seqs never mix.
     // Handles FEC parity too (group loss resilience) -- one lost fragment per NAL recovers without a keyframe.
     private func groupReassemble(_ d: Data, from src: String) -> Data? {
-        // FEC parity [0xFA 0xEC seqLo seqHi total lastLenLo lastLenHi] + xor(maxPayload)
-        if d.count > 7, d[0] == 0xFA, d[1] == 0xEC {
+        // FEC parity (per group): [FA EC][seq:2][total][gStart][gLen][lastLen:2] + xor(maxPayload)
+        if d.count > 9, d[0] == 0xFA, d[1] == 0xEC {
             let seq = UInt16(d[2]) | (UInt16(d[3]) << 8)
-            let total = Int(d[4]); let lastLen = Int(d[5]) | (Int(d[6]) << 8)
+            let total = Int(d[4]); let gStart = Int(d[5]); let gLen = Int(d[6])
+            let lastLen = Int(d[7]) | (Int(d[8]) << 8)
             guard total >= 2 else { return nil }
-            groupFec["\(src)#\(seq)"] = (Array(d[7...]), lastLen, total)
-            return groupTryFEC(src, seq)
+            groupFec["\(src)#\(seq)", default: [:]][gStart] = (Array(d[9...]), gLen, lastLen, total)
+            return groupTryFEC(src, seq, gStart)
         }
         if d.count > 1, d[0] == 0xFA, d[1] != 0xFB { return nil }   // other control
         guard d.count > 6, d[0] == 0xFA, d[1] == 0xFB else { return d }
@@ -912,28 +928,41 @@ class BSDTransport {
             if groupFrag.count > 48 { groupFrag.removeAll(); groupFec.removeAll() }   // bound memory
             return st.parts.compactMap { $0 }.reduce(Data(), +)
         }
-        return groupTryFEC(src, seq)   // one short? maybe parity can fill it
+        if let byGroup = groupFec[key] {   // a data fragment may complete any group whose parity is here
+            for gStart in byGroup.keys { if let r = groupTryFEC(src, seq, gStart) { return r } }
+        }
+        return nil
     }
 
-    // Recover a single missing fragment from parity (mirror of the 1-1 FEC), per source.
-    private func groupTryFEC(_ src: String, _ seq: UInt16) -> Data? {
+    // XOR-reconstruct the one missing fragment of a single GROUP from its parity, per source.
+    private func groupTryFEC(_ src: String, _ seq: UInt16, _ gStart: Int) -> Data? {
         let key = "\(src)#\(seq)"
-        guard let fec = groupFec[key], var st = groupFrag[key],
-              st.parts.count == fec.total, st.have == fec.total - 1,
-              let miss = st.parts.firstIndex(where: { $0 == nil }) else { return nil }
-        var xor = fec.xor
-        for p in st.parts where p != nil { let b = [UInt8](p!); for k in 0..<b.count { xor[k] ^= b[k] } }
-        let len = (miss == fec.total - 1) ? fec.lastLen : maxPayload
-        guard len <= xor.count else { return nil }
-        st.parts[miss] = Data(xor[0..<len])
-        groupFrag[key] = nil; groupFec[key] = nil
-        return st.parts.compactMap { $0 }.reduce(Data(), +)
+        guard let fec = groupFec[key]?[gStart], var st = groupFrag[key], st.parts.count == fec.total else { return nil }
+        var present = [Int: [UInt8]]()
+        let end = min(gStart + fec.gLen, fec.total)
+        for i in gStart..<end { if let p = st.parts[i] { present[i] = [UInt8](p) } }
+        guard let (idx, bytes) = VideoFEC.recover(parity: fec.xor, present: present, gStart: gStart,
+                                                  gLen: fec.gLen, total: fec.total, lastLen: fec.lastLen,
+                                                  maxPayload: maxPayload) else { return nil }
+        st.parts[idx] = Data(bytes); st.have += 1
+        if st.have == fec.total {
+            groupFrag[key] = nil; groupFec[key] = nil
+            return st.parts.compactMap { $0 }.reduce(Data(), +)
+        }
+        groupFrag[key] = st
+        return nil
     }
 
     // MARK: forward-secret session (see MeshCrypto). Data is sealed under a
     // per-connection ephemeral session key; the static PSK only authenticates
     // the handshake, so a later PSK leak can't decrypt recorded traffic.
     private var crypto = MeshCrypto()
+    // Security surface for the UI (1-1): safety number pairs our identity with the peer's.
+    var peerSafetyNumber: String? {
+        guard let peer = crypto.peerIdentity else { return nil }
+        return MeshCrypto.safetyNumber(crypto.identityPub, peer)
+    }
+    var mitmDetected: Bool { crypto.mitmDetected }
     private var handshakeTimer: DispatchSourceTimer?
 
     private func emitSecureReadyIfNeeded() {
@@ -956,7 +985,7 @@ class BSDTransport {
     private var fragTick: UInt64 = 0
     private let fragBufsCap = 24
     // FEC parity per fragment group (XOR over padded cells, last-cell length).
-    private var fecBufs: [UInt16: (xor: [UInt8], lastLen: Int, total: Int)] = [:]
+    private var fecBufs: [UInt16: [Int: (xor: [UInt8], gLen: Int, lastLen: Int, total: Int)]] = [:]
     // Send parity only when the peer is known to understand it (see send()).
     // Receiving parity is always safe, so only the send side is gated.
     private let fecEnabled = true
@@ -970,11 +999,13 @@ class BSDTransport {
         let total = (data.count + maxPayload - 1) / maxPayload
         guard total <= 255 else { return }
         fragSeqOut &+= 1
+        var wire = [Data]()
         for i in 0..<total {
             let start = i * maxPayload
             let end = min(start + maxPayload, data.count)
             var pkt = Data([0xFA, 0xFB, UInt8(fragSeqOut & 0xFF), UInt8(fragSeqOut >> 8), UInt8(i), UInt8(total)])
             pkt.append(data.subdata(in: start..<end))
+            wire.append(pkt)
             rawSend(pkt)
         }
         // Forward error correction: one XOR-parity packet over all fragments so
@@ -984,27 +1015,101 @@ class BSDTransport {
         // magic straight to its H.264 decoder (see MeshTransport.send), which
         // caused a PLI/keyframe storm and frozen video.
         if fecEnabled, total >= 2 {
-            var xor = [UInt8](repeating: 0, count: maxPayload)
-            data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
-                for i in 0..<total {
-                    let start = i * maxPayload
-                    let end = min(start + maxPayload, data.count)
-                    for k in 0..<(end - start) { xor[k] ^= raw[start + k] }
-                }
-            }
+            // One XOR parity per GROUP of fecGroup fragments (adaptive; shrinks under loss).
+            let payload = [UInt8](data)
             let lastLen = data.count - (total - 1) * maxPayload
-            var parity = Data([0xFA, 0xEC, UInt8(fragSeqOut & 0xFF), UInt8(fragSeqOut >> 8),
-                               UInt8(total), UInt8(lastLen & 0xFF), UInt8(lastLen >> 8)])
-            parity.append(contentsOf: xor)
-            rawSend(parity)
+            for gStart in VideoFEC.groupStarts(total: total, group: fecGroup) {
+                let gLen = min(fecGroup, total - gStart)
+                let xor = VideoFEC.parity(payload, maxPayload: maxPayload, gStart: gStart, gLen: gLen, total: total)
+                var parity = Data([0xFA, 0xEC, UInt8(fragSeqOut & 0xFF), UInt8(fragSeqOut >> 8),
+                                   UInt8(total), UInt8(gStart), UInt8(gLen), UInt8(lastLen & 0xFF), UInt8(lastLen >> 8)])
+                parity.append(contentsOf: xor)
+                wire.append(parity)
+                rawSend(parity)
+            }
         }
+        if !groupMode { bufferSentNAL(fragSeqOut, wire) }   // NACK retransmit buffer (1-1)
     }
+
+    // MARK: NACK retransmission (1-1). Recovers a fully-lost NAL — including a single-
+    // fragment P-frame, which FEC (needs >=2 frags) and the frozen-video path cannot.
+    // sentNALs/sentOrder cross threads (bufferSentNAL on the send thread, resend* on
+    // the rx queue) -> guard with a lock; Swift Dictionary races SIGSEGV otherwise.
+    private var sentNALs: [UInt16: [Data]] = [:]
+    private var sentOrder: [UInt16] = []
+    private let nackLock = NSLock()
+    private var highestVideoSeq = -1
+    private var nackedAt: [UInt16: Date] = [:]
+    private var fragNackedAt: [UInt16: Date] = [:]
+    private let nackWindow = 30
+    // Drop fragments of an already-delivered NAL so a resend can't double-decode a frame.
+    private var deliveredSeqs: Set<UInt16> = []
+    private var deliveredOrder: [UInt16] = []
+    private func markDelivered(_ seq: UInt16) {
+        guard !groupMode, deliveredSeqs.insert(seq).inserted else { return }
+        deliveredOrder.append(seq)
+        while deliveredOrder.count > 256 { deliveredSeqs.remove(deliveredOrder.removeFirst()) }
+    }
+
+    private func bufferSentNAL(_ seq: UInt16, _ wire: [Data]) {
+        nackLock.lock()
+        sentNALs[seq] = wire
+        sentOrder.append(seq)
+        while sentOrder.count > 64 { sentNALs.removeValue(forKey: sentOrder.removeFirst()) }
+        nackLock.unlock()
+    }
+
+    func resendNAL(_ seq: UInt16) {
+        nackLock.lock(); let wire = sentNALs[seq]; nackLock.unlock()
+        guard let wire = wire else { return }
+        for w in wire { rawSend(w) }
+    }
+
+    func resendFragments(_ seq: UInt16, _ idxs: [Int]) {
+        nackLock.lock(); let wire = sentNALs[seq]; nackLock.unlock()
+        guard let wire = wire else { return }
+        for i in idxs where i >= 0 && i < wire.count { rawSend(wire[i]) }
+    }
+
+    // (1) whole-NAL NACK for fully-skipped seqs; (2) per-FRAGMENT NACK the recent NALs
+    // that are partly here but short. Modular gap => u16-wrap-safe.
+    private func noteVideoSeq(_ s: Int) {
+        if highestVideoSeq < 0 { highestVideoSeq = s; return }
+        let gap = (s - highestVideoSeq + 65536) % 65536
+        if gap == 0 || gap > 32768 { return }
+        let now = Date()
+        if gap > 1 {
+            for j in max(1, gap - nackWindow)..<gap {
+                let mseq = UInt16((highestVideoSeq + j) & 0xFFFF)
+                if let t = nackedAt[mseq], now.timeIntervalSince(t) < 0.12 { continue }
+                nackedAt[mseq] = now
+                send(Data([0xFD, 0x4E, UInt8(mseq & 0xFF), UInt8(mseq >> 8)]))
+            }
+            if nackedAt.count > 256 { nackedAt = nackedAt.filter { now.timeIntervalSince($0.value) < 1.0 } }
+        }
+        highestVideoSeq = s
+        for back in 1...8 { nackMissingFragments(UInt16((s - back) & 0xFFFF), now) }
+        if fragNackedAt.count > 256 { fragNackedAt = fragNackedAt.filter { now.timeIntervalSince($0.value) < 1.0 } }
+    }
+
+    private func nackMissingFragments(_ seq: UInt16, _ now: Date) {
+        guard let entry = fragBufs[seq], entry.have < entry.parts.count else { return }
+        if let t = fragNackedAt[seq], now.timeIntervalSince(t) < 0.08 { return }
+        let missing = (0..<entry.parts.count).filter { entry.parts[$0] == nil }
+        guard !missing.isEmpty else { return }
+        fragNackedAt[seq] = now
+        var pkt = Data([0xFD, 0x4F, UInt8(seq & 0xFF), UInt8(seq >> 8)])
+        for idx in missing.prefix(64) { pkt.append(UInt8(idx)) }
+        send(pkt)
+    }
+    // Fragments covered by one parity; the call shrinks it toward VideoFEC.lossyGroup under loss.
+    var fecGroup = VideoFEC.cleanGroup
 
     // Encrypt a fragment under the session key, then wire it out
     private func rawSend(_ data: Data) {
         guard fd >= 0 else { return }
         if groupMode {
-            guard let wire = try? ChaChaPoly.seal(data, using: BSDTransport.confKey).combined else { return }
+            guard let wire = try? ChaChaPoly.seal(data, using: self.groupKey).combined else { return }
             for i in peers.indices {
                 _ = wire.withUnsafeBytes { raw in withUnsafePointer(to: &peers[i]) { pp in
                     pp.withMemoryRebound(to: sockaddr.self, capacity: 1) { s in
@@ -1067,14 +1172,15 @@ class BSDTransport {
     // Multi-slot: chunks of several NALs may interleave (video + a peer
     // restart, or future multi-stream), so partial buffers are keyed by seq.
     private func reassemble(_ d: Data) -> Data? {
-        // FEC parity packet: store it, then try to recover a single lost fragment.
-        if d.count > 7, d[0] == 0xFA, d[1] == 0xEC {
+        // FEC parity packet (per group): store it, then try to repair that group.
+        // Wire: [FA EC][seq:2][total][gStart][gLen][lastLen:2] + xor.
+        if d.count > 9, d[0] == 0xFA, d[1] == 0xEC {
             let seq = UInt16(d[2]) | (UInt16(d[3]) << 8)
-            let total = Int(d[4])
-            let lastLen = Int(d[5]) | (Int(d[6]) << 8)
+            let total = Int(d[4]); let gStart = Int(d[5]); let gLen = Int(d[6])
+            let lastLen = Int(d[7]) | (Int(d[8]) << 8)
             guard total >= 2 else { return nil }
-            fecBufs[seq] = (Array(d[7...]), lastLen, total)
-            return tryFEC(seq)
+            fecBufs[seq, default: [:]][gStart] = (Array(d[9...]), gLen, lastLen, total)
+            return tryFEC(seq, gStart)
         }
         // 0xFA is reserved for this framing layer (raw NALs start 00 00 00 01 and
         // control packets use 0xFB..0xFE). Drop an unknown 0xFA subtype instead of
@@ -1086,6 +1192,10 @@ class BSDTransport {
         let idx = Int(d[4])
         let total = Int(d[5])
         guard total > 0, idx < total else { return nil }
+        if !groupMode {
+            if deliveredSeqs.contains(seq) { return nil }   // resend/late dupe of a delivered NAL -> drop
+            noteVideoSeq(Int(seq))                          // NACK any NAL skipped before this one
+        }
         var entry = fragBufs[seq] ?? (Array(repeating: nil, count: total), 0, 0)
         if entry.parts.count != total { entry = (Array(repeating: nil, count: total), 0, 0) }
         if entry.parts[idx] == nil {
@@ -1094,12 +1204,15 @@ class BSDTransport {
         }
         if entry.have == total {
             fragBufs.removeValue(forKey: seq); fecBufs.removeValue(forKey: seq)
+            markDelivered(seq)
             return entry.parts.compactMap { $0 }.reduce(Data(), +)
         }
         fragTick &+= 1
         entry.tick = fragTick
         fragBufs[seq] = entry
-        if let recovered = tryFEC(seq) { return recovered }  // parity may already be here
+        if let byGroup = fecBufs[seq] {   // a data fragment may complete any group whose parity is here
+            for gStart in byGroup.keys { if let recovered = tryFEC(seq, gStart) { return recovered } }
+        }
         // GC by RECENCY, never "keep only the current seq" — audio and video
         // fragments interleave, so wiping every other partial group silently
         // destroyed in-flight audio groups once video filled the table.
@@ -1112,26 +1225,21 @@ class BSDTransport {
         return nil
     }
 
-    // XOR-reconstruct exactly one missing fragment from parity + the rest.
-    private func tryFEC(_ seq: UInt16) -> Data? {
-        guard let fec = fecBufs[seq], var entry = fragBufs[seq],
+    // XOR-reconstruct the one missing fragment of a single GROUP from its parity.
+    private func tryFEC(_ seq: UInt16, _ gStart: Int) -> Data? {
+        guard let fec = fecBufs[seq]?[gStart], var entry = fragBufs[seq],
               entry.parts.count == fec.total else { return nil }
-        let missing = (0..<fec.total).filter { entry.parts[$0] == nil }
-        guard missing.count == 1 else { return nil }
-        let j = missing[0]
-        var rec = fec.xor
-        for i in 0..<fec.total where i != j {
-            guard let part = entry.parts[i] else { return nil }
-            part.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
-                for k in 0..<part.count { rec[k] ^= raw[k] }
-            }
-        }
-        let len = (j == fec.total - 1) ? fec.lastLen : maxPayload
-        guard len >= 0, len <= rec.count else { return nil }
-        entry.parts[j] = Data(rec.prefix(len))
+        var present = [Int: [UInt8]]()
+        let end = min(gStart + fec.gLen, fec.total)
+        for i in gStart..<end { if let p = entry.parts[i] { present[i] = [UInt8](p) } }
+        guard let (idx, bytes) = VideoFEC.recover(parity: fec.xor, present: present, gStart: gStart,
+                                                  gLen: fec.gLen, total: fec.total, lastLen: fec.lastLen,
+                                                  maxPayload: maxPayload) else { return nil }
+        entry.parts[idx] = Data(bytes)
         entry.have += 1
         if entry.have == fec.total {
             fragBufs.removeValue(forKey: seq); fecBufs.removeValue(forKey: seq)
+            markDelivered(seq)
             return entry.parts.compactMap { $0 }.reduce(Data(), +)
         }
         fragBufs[seq] = entry
@@ -1144,6 +1252,8 @@ class BSDTransport {
         if fd >= 0 { close(fd); fd = -1 }
         isReady = false
         groupMode = false; peers = []; groupFrag.removeAll(); groupFec.removeAll()
+        nackLock.lock(); sentNALs = [:]; sentOrder = []; nackLock.unlock()
+        highestVideoSeq = -1; nackedAt = [:]; fragNackedAt = [:]; deliveredSeqs = []; deliveredOrder = []   // fresh per call (rx-queue-only)
         stopFeedbackListener()
     }
 
@@ -1251,6 +1361,11 @@ final class AudioController {
     private var pcmTx = 0
     // Leftover samples between taps, so no frame is ever short (see the tap).
     private var txAccum = [Float]()
+    // RED (audio redundancy): rolling send seq + the last Opus frame to piggyback.
+    private var redSeq: UInt8 = 0
+    private var redRing: [Data] = []        // last few Opus frames, newest first, for RED redundancy
+    // Frames carried per packet: 2 survives an isolated loss, 3 survives a 2-loss burst.
+    var redDepth = 2
     private var vpEnabled = true
     private var observers: [NSObjectProtocol] = []
     private var converterInFormat: AVAudioFormat?
@@ -1324,6 +1439,8 @@ final class AudioController {
 
     func start() {
         guard !started else { return }
+        redSeq = 0; redRing = []; redRecv = AudioREDReceiver()        // fresh RED state per call
+        opusTx = 0; opusRx = 0; redRecovered = 0                      // fresh delivery stats per call
         installObservers()
         #if os(iOS)
         let sess = AVAudioSession.sharedInstance()
@@ -1418,7 +1535,13 @@ final class AudioController {
                 var pkt: Data
                 var sentOpus = false
                 if AudioController.opusEnabled, let frame = self.opus?.encode(raw) {
-                    pkt = Data([0xFD, 0xC0]); pkt.append(frame)   // ~65B
+                    // RED: carry this frame plus redDepth-1 previous ones, so a lost
+                    // packet (or a short burst) is reconstructed from the next (audio has no FEC).
+                    self.redRing.insert(frame, at: 0)
+                    if self.redRing.count > AudioRED.maxFrames { self.redRing.removeLast() }
+                    let depth = max(1, min(self.redDepth, self.redRing.count))
+                    pkt = Data([0xFD, 0xC0]); pkt.append(AudioRED.pack(seq: self.redSeq, frames: Array(self.redRing.prefix(depth))))
+                    self.redSeq = self.redSeq &+ 1
                     sentOpus = true
                     self.opusTx += 1
                 } else {
@@ -1451,23 +1574,38 @@ final class AudioController {
     // A silent `return` here dropped EVERY incoming Opus packet with no log, no
     // meter, nothing — indistinguishable from the peer not sending at all. That
     // is precisely how "no audio from the Mac" looked from this side.
-    func playOpus(_ frame: Data) {
+    func playOpus(_ payload: Data) {
         guard let codec = opus else {
             opusDecodeFails += 1
             if opusDecodeFails <= 3 { NSLog("TRINET: opus RX dropped — codec unavailable on this device") }
             return
         }
-        guard let pcm = codec.decode(frame) else {
+        // payload = RED-wrapped: [seq][count][lens][frames]. Reconstruct any lost
+        // packets from the redundant copies, then decode+play each in order.
+        guard let (seq, carried) = AudioRED.parse(payload) else {
             opusDecodeFails += 1
-            if opusDecodeFails <= 3 || opusDecodeFails % 200 == 0 {
-                NSLog("TRINET: opus decode FAILED (\(frame.count)B) #\(opusDecodeFails) — audio dropped")
-            }
+            if opusDecodeFails <= 3 { NSLog("TRINET: opus RED parse failed (\(payload.count)B)") }
             return
         }
-        opusRx += 1
-        playPacket(pcm, wire: "OPUS \(frame.count)B")
+        let frames = redRecv.receive(seq: seq, frames: carried)
+        if frames.count > 1 { redRecovered += frames.count - 1 }   // lost packet(s) reconstructed from the copies
+        for frame in frames {
+            guard let pcm = codec.decode(frame) else {
+                opusDecodeFails += 1
+                if opusDecodeFails <= 3 || opusDecodeFails % 200 == 0 {
+                    NSLog("TRINET: opus decode FAILED (\(frame.count)B) #\(opusDecodeFails) — audio dropped")
+                }
+                continue
+            }
+            opusRx += 1
+            playPacket(pcm, wire: "OPUS \(frame.count)B")
+        }
     }
+    private var redRecv = AudioREDReceiver()
+    private var redRecovered = 0
     private var opusDecodeFails = 0
+    // Aligned call stats, sampled together (never from mismatched per-N log cadences).
+    var audioStats: (sent: Int, decoded: Int, recovered: Int) { (opusTx, opusRx, redRecovered) }
     private var opusRx = 0
     private var pcmRx = 0
 
@@ -1532,31 +1670,157 @@ final class MeshCrypto {
     private let ephPriv = Curve25519.KeyAgreement.PrivateKey()
     private var sessionKey: SymmetricKey?
     private var dropCount = 0
+    private var replayCount = 0
+    // ANTI-REPLAY: ChaChaPoly.seal picks a RANDOM nonce per call, so a repeat is a replayed
+    // datagram. A bounded seen-nonce set catches replays within a window with zero false drops.
+    private var seenNonces = Set<Data>()
+    private var nonceRing: [Data] = []
+    private static let replayWindow = 8192
+    func acceptNonce(_ nonce: Data) -> Bool {
+        let n = Data(nonce)
+        if seenNonces.contains(n) { return false }
+        seenNonces.insert(n)
+        nonceRing.append(n)
+        if nonceRing.count > MeshCrypto.replayWindow { seenNonces.remove(nonceRing.removeFirst()) }
+        return true
+    }
+
+    // Shared room passphrase mixed into the auth keys. Empty room keeps the legacy
+    // PSK-only keys BIT-FOR-BIT (open lobby, old-build interop); a set room means an
+    // attacker must know the room secret, not merely possess the app's hardcoded PSK.
+    var room = ""
+
+    // ---- persistent device IDENTITY (Ed25519) + trust-on-first-use pinning ----
+    // Stops an active MITM who knows the room from impersonating a pinned peer: only
+    // the identity holder can sign the ephemeral key. Pin on first contact; a changed
+    // idPub at a pinned peer flags a MITM. Private key in UserDefaults (Keychain is the
+    // hardening follow-up); it never leaves the device.
+    let identityPriv: Curve25519.Signing.PrivateKey
+    var identityPub: Data { identityPriv.publicKey.rawRepresentation }
+    private(set) var peerIdentity: Data?
+    private(set) var mitmDetected = false
+
+    init(identity: Curve25519.Signing.PrivateKey = MeshCrypto.deviceIdentity()) {
+        self.identityPriv = identity
+    }
+
+    // Long-term signing key in the KEYCHAIN (not a plaintext plist). Migrates a legacy
+    // UserDefaults key once; falls back to UserDefaults only if the Keychain is unavailable.
+    static let kcService = "com.trinet.identity"
+    // TRINET_KC_ACCOUNT / TRINET_PINS_KEY give the two-endpoint rig distinct identities +
+    // pin stores per instance (Mac rig only; inert on iOS where the env vars are unset).
+    static let kcAccount: String = {
+        if let s = ProcessInfo.processInfo.environment["TRINET_KC_ACCOUNT"], !s.isEmpty { return "device-ed25519-" + s }
+        return "device-ed25519"
+    }()
+    static let pinsKey: String = {
+        if let s = ProcessInfo.processInfo.environment["TRINET_PINS_KEY"], !s.isEmpty { return "trinetPeerPins-" + s }
+        return "trinetPeerPins"
+    }()
+    private static func kcQuery() -> [String: Any] {
+        [kSecClass as String: kSecClassGenericPassword,
+         kSecAttrService as String: kcService, kSecAttrAccount as String: kcAccount]
+    }
+    static func keychainLoad() -> Data? {
+        var q = kcQuery(); q[kSecReturnData as String] = true
+        var out: CFTypeRef?
+        return SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess ? (out as? Data) : nil
+    }
+    @discardableResult static func keychainSave(_ data: Data) -> Bool {
+        SecItemDelete(kcQuery() as CFDictionary)
+        var add = kcQuery()
+        add[kSecValueData as String] = data
+        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        return SecItemAdd(add as CFDictionary, nil) == errSecSuccess
+    }
+
+    static func deviceIdentity() -> Curve25519.Signing.PrivateKey {
+        let legacyKey = "trinetIdentityKeyV1"
+        if let raw = keychainLoad(), let key = try? Curve25519.Signing.PrivateKey(rawRepresentation: raw) { return key }
+        if let b64 = UserDefaults.standard.string(forKey: legacyKey), let raw = Data(base64Encoded: b64),
+           let key = try? Curve25519.Signing.PrivateKey(rawRepresentation: raw) {
+            if keychainSave(raw) { UserDefaults.standard.removeObject(forKey: legacyKey) }
+            return key
+        }
+        let key = Curve25519.Signing.PrivateKey()
+        if !keychainSave(key.rawRepresentation) {
+            UserDefaults.standard.set(key.rawRepresentation.base64EncodedString(), forKey: legacyKey)
+        }
+        return key
+    }
+
+    private var pins: [String: Data] = (UserDefaults.standard.dictionary(forKey: MeshCrypto.pinsKey) as? [String: String] ?? [:])
+        .compactMapValues { Data(base64Encoded: $0) }
+    private func pin(_ ip: String, _ idPub: Data) {
+        pins[ip] = idPub
+        UserDefaults.standard.set(pins.mapValues { $0.base64EncodedString() }, forKey: MeshCrypto.pinsKey)
+    }
+
+    static func safetyNumber(_ a: Data, _ b: Data) -> String {
+        let pair = a.lexicographicallyPrecedes(b) ? a + b : b + a
+        let h = SHA256.hash(data: pair)
+        let n = h.prefix(5).reduce(UInt64(0)) { ($0 << 8) | UInt64($1) }
+        return String(format: "%011llu", n % 100_000_000_000)
+    }
+
+    static func handshakeAuthKey(room: String) -> SymmetricKey {
+        room.isEmpty ? psk : SymmetricKey(data: HKDF<SHA256>.deriveKey(
+            inputKeyMaterial: psk, salt: Data("trios-mesh/v1/room".utf8),
+            info: Data(room.utf8), outputByteCount: 32))
+    }
+    static func inviteAuthKey(room: String) -> SymmetricKey {
+        SymmetricKey(data: HKDF<SHA256>.deriveKey(
+            inputKeyMaterial: psk,
+            salt: room.isEmpty ? Data("trios-mesh/v1/invite".utf8) : Data(("trios-mesh/v1/invite/" + room).utf8),
+            info: Data("invite-auth".utf8), outputByteCount: 32))
+    }
+    static func groupAuthKey(room: String) -> SymmetricKey {
+        SymmetricKey(data: HKDF<SHA256>.deriveKey(
+            inputKeyMaterial: psk,
+            salt: room.isEmpty ? Data("trios-mesh/v1/conference".utf8) : Data(("trios-mesh/v1/conference/" + room).utf8),
+            info: Data("group-aead".utf8), outputByteCount: 32))
+    }
 
     var established: Bool { sessionKey != nil }
 
     func handshakePacket() -> Data {
         let pub = ephPriv.publicKey.rawRepresentation
-        let mac = HMAC<SHA256>.authenticationCode(for: pub, using: MeshCrypto.psk)
+        let mac = HMAC<SHA256>.authenticationCode(for: pub, using: MeshCrypto.handshakeAuthKey(room: room))
         var d = Data(MeshCrypto.handshakeMagic)
         d.append(pub)
         d.append(Data(mac))
+        d.append(identityPub)
+        d.append((try? identityPriv.signature(for: pub)) ?? Data(count: 64))
         return d
     }
 
     func isHandshake(_ d: Data) -> Bool {
-        d.count == 66 && d[0] == MeshCrypto.handshakeMagic[0] && d[1] == MeshCrypto.handshakeMagic[1]
+        d.count == 162 && d[0] == MeshCrypto.handshakeMagic[0] && d[1] == MeshCrypto.handshakeMagic[1]
     }
 
     @discardableResult
-    func consumeHandshake(_ d: Data) -> Bool {
+    func consumeHandshake(_ d: Data, from peerIP: String = "") -> Bool {
         guard isHandshake(d) else { return false }
         let pub = d.subdata(in: 2..<34)
         let mac = d.subdata(in: 34..<66)
-        guard HMAC<SHA256>.isValidAuthenticationCode(mac, authenticating: pub, using: MeshCrypto.psk) else {
-            NSLog("TRINET: handshake HMAC invalid — rejected")
+        let idPub = d.subdata(in: 66..<98)
+        let sig = d.subdata(in: 98..<162)
+        guard HMAC<SHA256>.isValidAuthenticationCode(mac, authenticating: pub, using: MeshCrypto.handshakeAuthKey(room: room)) else {
+            NSLog("TRINET: handshake HMAC invalid — wrong room secret or not a TRI-NET peer — rejected")
             return true
         }
+        guard let idKey = try? Curve25519.Signing.PublicKey(rawRepresentation: idPub),
+              idKey.isValidSignature(sig, for: pub) else {
+            NSLog("TRINET: handshake identity signature invalid — rejected")
+            return true
+        }
+        if let pinned = pins[peerIP], pinned != idPub {
+            if !mitmDetected { NSLog("TRINET: MITM — peer %@ identity CHANGED from the pinned key; session refused", peerIP) }
+            mitmDetected = true   // latch; subsequent impostor handshakes still refused, not re-logged
+            return true
+        }
+        if pins[peerIP] == nil, !peerIP.isEmpty { pin(peerIP, idPub) }
+        peerIdentity = idPub
         guard let peerPub = try? Curve25519.KeyAgreement.PublicKey(rawRepresentation: pub),
               let shared = try? ephPriv.sharedSecretFromKeyAgreement(with: peerPub) else {
             return true
@@ -1584,6 +1848,11 @@ final class MeshCrypto {
             if dropCount <= 3 || dropCount % 1000 == 0 {
                 NSLog("TRINET: dropped unauthenticated datagram \(wire.count)B (#\(dropCount))")
             }
+            return nil
+        }
+        guard acceptNonce(wire.prefix(12)) else {   // authentic, but a REPLAY -> drop
+            replayCount += 1
+            if replayCount <= 3 || replayCount % 1000 == 0 { NSLog("TRINET: dropped REPLAYED datagram (#\(replayCount))") }
             return nil
         }
         return plain
@@ -2090,4 +2359,721 @@ final class PeerDiscovery: ObservableObject {
         conn.start(queue: .main)
         DispatchQueue.main.asyncAfter(deadline: .now() + 4) { finish(nil) }
     }
+}
+
+// ===== AudioRED (embedded copy — iOS target has a STATIC file list, so shared
+// types live inside an existing file; keep BYTE-IDENTICAL to desktop/TriNetVideo/AudioRED.swift
+// which the standalone harness compiles). See that file for the full rationale. =====
+// compile the exact production framing — no re-implementation that could drift.
+import Foundation
+
+enum AudioRED {
+    static let maxFrames = 3    // current + up to two previous (survives a 2-loss burst)
+
+    // Pack newest-first frames (frame[0] = current). Depth is min(frames.count, maxFrames).
+    static func pack(seq: UInt8, frames: [Data]) -> Data {
+        let count = min(frames.count, maxFrames)
+        var b = [UInt8]()
+        b.append(seq)
+        b.append(UInt8(count))
+        for i in 0..<count {
+            let n = min(frames[i].count, 0xFFFF)
+            b.append(UInt8(n & 0xFF)); b.append(UInt8((n >> 8) & 0xFF))
+        }
+        for i in 0..<count { b.append(contentsOf: frames[i]) }
+        return Data(b)
+    }
+
+    // Split back into (seq, newest-first frames). nil on a malformed header/length
+    // so a corrupt datagram is dropped, never decoded as garbage.
+    static func parse(_ d: Data) -> (seq: UInt8, frames: [Data])? {
+        let b = [UInt8](d)
+        guard b.count >= 2 else { return nil }
+        let seq = b[0]
+        let count = Int(b[1])
+        guard count >= 1, count <= maxFrames else { return nil }
+        guard b.count >= 2 + count * 2 else { return nil }
+        var lens = [Int](); var off = 2
+        for _ in 0..<count { lens.append(Int(b[off]) | (Int(b[off + 1]) << 8)); off += 2 }
+        let total = lens.reduce(0, +)
+        guard b.count >= off + total else { return nil }
+        var frames = [Data]()
+        for L in lens { frames.append(Data(b[off ..< off + L])); off += L }
+        return (seq, frames)
+    }
+}
+
+// Receiver-side gap filler. Feed it every parsed packet; it returns the Opus
+// frames to decode+play IN ORDER, reconstructing up to (count-1) CONSECUTIVE lost
+// frames from the redundant copies the newest packet carries. Duplicates and late
+// (reordered) packets return [] so nothing plays twice or out of order. seq is a
+// rolling u8, so distances wrap at 256.
+struct AudioREDReceiver {
+    private var lastSeq = -1
+
+    // A 1-byte seq can't tell a large FORWARD jump (a long outage) from a small
+    // BACKWARD step (a reorder): a 130-packet gap and a 126-late packet both read
+    // as gap==130. RTP (RFC 3550) resolves this with a narrow misorder window and
+    // treats anything past it as forward progress / a sender resync. Without it, a
+    // >128-packet (~2.5s) outage was misread as reorder and EVERY packet after it
+    // was dropped until the u8 seq lapped back to lastSeq+1 — a ~5s audio blackout.
+    private static let misorderWindow = 16   // tolerate reorders up to 16 packets (~320ms at 50fps)
+
+    // frames are newest-first: frames[k] is the sender's frame (seq - k).
+    mutating func receive(seq: UInt8, frames: [Data]) -> [Data] {
+        guard !frames.isEmpty else { return [] }
+        let s = Int(seq)
+        if lastSeq < 0 { lastSeq = s; return [frames[0]] }   // first packet of the call
+        let gap = (s - lastSeq + 256) % 256
+        if gap == 0 { return [] }                            // exact duplicate
+        if gap >= 256 - Self.misorderWindow { return [] }    // small backward step = genuine reorder, ignore
+        // Forward progress. `gap` frames are missing in (lastSeq, s]; the packet supplies
+        // the newest `count`. Emit the newest min(gap, count) of them, oldest-first, so up
+        // to count-1 consecutive losses are filled and older gaps are simply skipped. Using
+        // `gap` (not raw s/lastSeq) keeps this correct across the u8 wrap (s can be < lastSeq).
+        lastSeq = s
+        let m = min(gap, frames.count)
+        var out = [Data]()
+        for k in stride(from: m - 1, through: 0, by: -1) { out.append(frames[k]) }
+        return out
+    }
+}
+
+// ===== VideoFEC (embedded copy — iOS static file list; keep BYTE-IDENTICAL to
+// desktop/TriNetVideo/VideoFEC.swift, which the standalone harness compiles). =====
+enum VideoFEC {
+    static let cleanGroup = 16   // fragments per parity on a clean link (low overhead)
+    static let lossyGroup = 4    // fragments per parity while the link is dropping frames
+
+    // Contiguous group start indices for `total` fragments at the given group size.
+    static func groupStarts(total: Int, group: Int) -> [Int] {
+        let g = max(1, group)
+        return Array(stride(from: 0, to: total, by: g))
+    }
+
+    // XOR parity over data fragments [gStart, gStart+gLen) of `payload`, each cell
+    // padded to maxPayload. `payload` is the whole NAL; fragment i is
+    // payload[i*maxPayload ..< min((i+1)*maxPayload, count)].
+    static func parity(_ payload: [UInt8], maxPayload: Int, gStart: Int, gLen: Int, total: Int) -> [UInt8] {
+        var xor = [UInt8](repeating: 0, count: maxPayload)
+        let end = min(gStart + gLen, total)
+        for i in gStart..<end {
+            let start = i * maxPayload
+            let stop = min(start + maxPayload, payload.count)
+            for k in 0..<(stop - start) { xor[k] ^= payload[start + k] }
+        }
+        return xor
+    }
+
+    // Rebuild the single missing fragment in a group from its parity + the present
+    // fragments, or nil if the group has zero or >1 missing (XOR can only fix one).
+    static func recover(parity: [UInt8], present: [Int: [UInt8]],
+                        gStart: Int, gLen: Int, total: Int, lastLen: Int, maxPayload: Int) -> (idx: Int, bytes: [UInt8])? {
+        let end = min(gStart + gLen, total)
+        guard end > gStart else { return nil }
+        var missing = -1
+        for i in gStart..<end where present[i] == nil {
+            if missing != -1 { return nil }   // more than one missing -> unrecoverable
+            missing = i
+        }
+        guard missing != -1 else { return nil }   // nothing missing
+        var rec = parity
+        for i in gStart..<end where i != missing {
+            guard let p = present[i] else { return nil }
+            for k in 0..<p.count { rec[k] ^= p[k] }
+        }
+        let len = (missing == total - 1) ? lastLen : maxPayload
+        guard len >= 0, len <= rec.count else { return nil }
+        return (missing, Array(rec.prefix(len)))
+    }
+}
+
+// ============================================================================
+// NAT traversal stack (embedded copies — iOS target has a STATIC file list, so
+// shared types live inside an existing file). Each enum below is kept
+// BYTE-IDENTICAL to its desktop/TriNetVideo/*.swift source, which the standalone
+// harnesses in smoke/harness/ compile and verify (waves #42-46).
+// ============================================================================
+
+// ===== Stun — keep BYTE-IDENTICAL to desktop/TriNetVideo/StunClient.swift =====
+enum Stun {
+    static let magicCookie: UInt32 = 0x2112_A442
+    private static let bindingRequestType: UInt16 = 0x0001
+    private static let attrXorMappedAddress: UInt16 = 0x0020
+
+    struct MappedAddress: Equatable { let ip: String; let port: UInt16 }
+
+    // A 20-byte Binding Request: type, length 0 (no attributes), magic cookie, 96-bit
+    // transaction ID. The caller supplies the transaction ID so a reply can be matched to
+    // its request and so the encoder is deterministic under test.
+    static func bindingRequest(transactionID: Data) -> Data {
+        precondition(transactionID.count == 12, "STUN transaction ID is 96 bits")
+        var d = Data(capacity: 20)
+        d.append(UInt8(bindingRequestType >> 8)); d.append(UInt8(bindingRequestType & 0xFF))
+        d.append(0); d.append(0)                                        // message length = 0
+        for shift: UInt32 in [24, 16, 8, 0] { d.append(UInt8((magicCookie >> shift) & 0xFF)) }
+        d.append(transactionID)
+        return d
+    }
+
+    // Parse a Binding success response and return the XOR-MAPPED-ADDRESS it carries. We do
+    // NOT verify MESSAGE-INTEGRITY / FINGERPRINT: those authenticate an ICE session, not a
+    // plain address query, and a basic candidate gather does not need them. Returns nil on
+    // a malformed message or a wrong magic cookie (i.e. not a STUN response).
+    static func parseBindingResponse(_ data: Data, transactionID: Data) -> MappedAddress? {
+        let b = [UInt8](data)
+        guard b.count >= 20 else { return nil }
+        let cookie = UInt32(b[4]) << 24 | UInt32(b[5]) << 16 | UInt32(b[6]) << 8 | UInt32(b[7])
+        guard cookie == magicCookie else { return nil }
+        let msgLen = Int(b[2]) << 8 | Int(b[3])
+        guard 20 + msgLen <= b.count else { return nil }
+        var i = 20
+        while i + 4 <= 20 + msgLen {
+            let type = UInt16(b[i]) << 8 | UInt16(b[i + 1])
+            let len  = Int(b[i + 2]) << 8 | Int(b[i + 3])
+            let valueStart = i + 4
+            guard valueStart + len <= b.count else { return nil }
+            if type == attrXorMappedAddress {
+                return decodeXorMapped(Array(b[valueStart ..< valueStart + len]), transactionID: transactionID)
+            }
+            i = valueStart + len + ((4 - (len & 3)) & 3)                // attributes are 4-byte aligned
+        }
+        return nil
+    }
+
+    // XOR-MAPPED-ADDRESS value: [reserved 0x00][family][X-Port:2][X-Address:4 or 16].
+    //   X-Port    = port XOR (magic cookie >> 16)
+    //   X-Address = addr XOR magic cookie              (IPv4)
+    //   X-Address = addr XOR (magic cookie || txid)    (IPv6)
+    private static func decodeXorMapped(_ v: [UInt8], transactionID: Data) -> MappedAddress? {
+        guard v.count >= 8 else { return nil }
+        let family = v[1]
+        let port = (UInt16(v[2]) << 8 | UInt16(v[3])) ^ UInt16(magicCookie >> 16)
+        let cookieBytes: [UInt8] = [0x21, 0x12, 0xA4, 0x42]
+        if family == 0x01 {                                            // IPv4
+            let a = (0..<4).map { v[4 + $0] ^ cookieBytes[$0] }
+            return MappedAddress(ip: a.map(String.init).joined(separator: "."), port: port)
+        } else if family == 0x02 {                                     // IPv6
+            guard v.count >= 20 else { return nil }
+            let mask = cookieBytes + [UInt8](transactionID)            // 16-byte XOR mask
+            guard mask.count == 16 else { return nil }
+            let a = (0..<16).map { v[4 + $0] ^ mask[$0] }
+            return MappedAddress(ip: formatIPv6(a), port: port)
+        }
+        return nil
+    }
+
+    // RFC 5952 basic form: each 16-bit group in hex with leading zeros stripped. The one
+    // vector we validate (RFC 5769 §2.3) has no zero run to compress, so "::" is not needed.
+    private static func formatIPv6(_ a: [UInt8]) -> String {
+        stride(from: 0, to: 16, by: 2)
+            .map { String(UInt16(a[$0]) << 8 | UInt16(a[$0 + 1]), radix: 16) }
+            .joined(separator: ":")
+    }
+
+    // This machine's non-loopback IPv4 interface addresses — the host candidates.
+    static func hostCandidates() -> [String] {
+        var out: [String] = []
+        var ifap: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&ifap) == 0 else { return out }
+        defer { freeifaddrs(ifap) }
+        var p = ifap
+        while let cur = p {
+            defer { p = cur.pointee.ifa_next }
+            guard let sa = cur.pointee.ifa_addr, sa.pointee.sa_family == UInt8(AF_INET) else { continue }
+            var addr = sa.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee.sin_addr }
+            var buf = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
+            inet_ntop(AF_INET, &addr, &buf, socklen_t(INET_ADDRSTRLEN))
+            let ip = String(cString: buf)
+            if ip != "127.0.0.1", !out.contains(ip) { out.append(ip) }
+        }
+        return out
+    }
+
+    // Server-reflexive candidate: send a Binding Request to a public STUN server (host may
+    // be a name or an IP) and parse the address it saw. Raw BSD UDP, matching MeshTransport.
+    // Best-effort: returns nil if the network blocks it — no server dependency is baked into
+    // the hermetic tests, which prove the codec offline against the RFC vectors.
+    static func gatherServerReflexive(host: String, port: UInt16, timeoutMs: Int32 = 2000) -> MappedAddress? {
+        var hints = addrinfo()
+        hints.ai_family = AF_INET
+        hints.ai_socktype = SOCK_DGRAM
+        var res: UnsafeMutablePointer<addrinfo>?
+        guard getaddrinfo(host, String(port), &hints, &res) == 0, let info = res else { return nil }
+        defer { freeaddrinfo(res) }
+
+        let fd = socket(AF_INET, SOCK_DGRAM, 0)
+        guard fd >= 0 else { return nil }
+        defer { close(fd) }
+        var tv = timeval(tv_sec: Int(timeoutMs / 1000), tv_usec: (timeoutMs % 1000) * 1000)
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+
+        let txid = Data((0..<12).map { _ in UInt8.random(in: 0...255) })
+        let req = bindingRequest(transactionID: txid)
+        let sent = req.withUnsafeBytes { rp in
+            sendto(fd, rp.baseAddress, req.count, 0, info.pointee.ai_addr, info.pointee.ai_addrlen)
+        }
+        guard sent == req.count else { return nil }
+
+        var buf = [UInt8](repeating: 0, count: 512)
+        let n = recv(fd, &buf, buf.count, 0)
+        guard n > 0 else { return nil }
+        return parseBindingResponse(Data(buf.prefix(n)), transactionID: txid)
+    }
+}
+
+// ===== HolePunch — keep BYTE-IDENTICAL to desktop/TriNetVideo/HolePunch.swift =====
+enum HolePunch {
+    // 0xFD is the control family; 0x1C/0x1D are free (0x11/0x4E/0x4F/0xAD/0xBE/0xC0 are taken).
+    private static let probeTag: [UInt8] = [0xFD, 0x1C]
+    private static let ackTag:   [UInt8] = [0xFD, 0x1D]
+
+    // ---- candidates + ICE-style priority (RFC 8445 §5.1.2 / §6.1.2) ----
+    enum Kind: Int { case host = 126, srflx = 100 }        // type preferences
+    struct Candidate: Equatable { let ip: String; let port: UInt16; let kind: Kind }
+
+    static func priority(_ c: Candidate) -> UInt32 {
+        (UInt32(c.kind.rawValue) << 24) | 255              // component 1 -> (256 - 1)
+    }
+    // Pair priority, RFC 8445 §6.1.2.3: G is the controlling agent's candidate priority,
+    // D the controlled agent's. min/max make the value symmetric across the two agents.
+    static func pairPriority(local: Candidate, remote: Candidate, controlling: Bool) -> UInt64 {
+        let g = UInt64(priority(controlling ? local : remote))
+        let d = UInt64(priority(controlling ? remote : local))
+        return (UInt64(1) << 32) * min(g, d) + 2 * max(g, d) + (g > d ? 1 : 0)
+    }
+    // All candidate pairs, highest priority first — the check order.
+    static func orderedPairs(local: [Candidate], remote: [Candidate], controlling: Bool) -> [(Candidate, Candidate)] {
+        var pairs: [(Candidate, Candidate)] = []
+        for l in local { for r in remote { pairs.append((l, r)) } }
+        return pairs.sorted { pairPriority(local: $0.0, remote: $0.1, controlling: controlling)
+                            > pairPriority(local: $1.0, remote: $1.1, controlling: controlling) }
+    }
+    // Nominate: the controlling agent picks the highest-priority pair that PASSED its check.
+    static func nominate(ordered: [(Candidate, Candidate)], succeeded: Set<Int>) -> (Candidate, Candidate)? {
+        for (i, pair) in ordered.enumerated() where succeeded.contains(i) { return pair }
+        return nil
+    }
+
+    // ---- probe / ack wire codec ----
+    static func probePacket(txid: UInt64) -> Data { Data(probeTag + be(txid)) }
+    static func ackPacket(txid: UInt64) -> Data { Data(ackTag + be(txid)) }
+    static func probeTxid(_ d: Data) -> UInt64? { txid(d, tag: probeTag) }
+    static func ackTxid(_ d: Data)   -> UInt64? { txid(d, tag: ackTag) }
+
+    private static func be(_ x: UInt64) -> [UInt8] { (0..<8).map { UInt8((x >> (56 - 8 * $0)) & 0xFF) } }
+    private static func txid(_ d: Data, tag: [UInt8]) -> UInt64? {
+        let b = [UInt8](d)
+        guard b.count == 10, b[0] == tag[0], b[1] == tag[1] else { return nil }
+        return b[2..<10].reduce(UInt64(0)) { ($0 << 8) | UInt64($1) }
+    }
+
+    // ---- the actual hole-punch over one UDP socket ----
+    // Bind boundPort, then for the whole window: retransmit our probe toward the peer, answer
+    // every probe we receive with an ack (replying to the OBSERVED source, which is what a
+    // symmetric NAT rewrites the port to), and watch for an ack that echoes OUR txid. Success
+    // = we heard an ack for our own probe, i.e. this pair round-tripped. Retransmission is
+    // what makes the simultaneous open robust to which side sends first.
+    static func punch(boundPort: UInt16, peerHost: String, peerPort: UInt16, timeoutMs: Int = 1200) -> Bool {
+        let fd = socket(AF_INET, SOCK_DGRAM, 0)
+        guard fd >= 0 else { return false }
+        defer { close(fd) }
+        var one: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, socklen_t(MemoryLayout<Int32>.size))
+
+        var me = sockaddr_in()
+        me.sin_family = sa_family_t(AF_INET)
+        me.sin_port = boundPort.bigEndian
+        me.sin_addr.s_addr = 0                              // INADDR_ANY
+        let bound = withUnsafePointer(to: &me) { p in
+            p.withMemoryRebound(to: sockaddr.self, capacity: 1) { Foundation.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
+        }
+        guard bound == 0 else { return false }
+
+        var tv = timeval(tv_sec: 0, tv_usec: 50_000)        // 50ms: re-probe ~20x/sec
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+
+        var peer = sockaddr_in()
+        peer.sin_family = sa_family_t(AF_INET)
+        peer.sin_port = peerPort.bigEndian
+        inet_pton(AF_INET, peerHost, &peer.sin_addr)
+
+        let myTxid = UInt64.random(in: 0 ... UInt64.max)
+        let probe = probePacket(txid: myTxid)
+        let deadline = Date().addingTimeInterval(Double(timeoutMs) / 1000.0)
+        var gotAck = false
+        var buf = [UInt8](repeating: 0, count: 64)
+
+        while Date() < deadline {
+            _ = probe.withUnsafeBytes { pb in
+                withUnsafePointer(to: &peer) { pp in
+                    pp.withMemoryRebound(to: sockaddr.self, capacity: 1) { sp in
+                        sendto(fd, pb.baseAddress, probe.count, 0, sp, socklen_t(MemoryLayout<sockaddr_in>.size))
+                    }
+                }
+            }
+            var from = sockaddr_in()
+            var fromLen = socklen_t(MemoryLayout<sockaddr_in>.size)
+            let n = withUnsafeMutablePointer(to: &from) { fp in
+                fp.withMemoryRebound(to: sockaddr.self, capacity: 1) { sp in
+                    recvfrom(fd, &buf, buf.count, 0, sp, &fromLen)
+                }
+            }
+            guard n > 0 else { continue }                   // timeout -> re-probe
+            let pkt = Data(buf.prefix(n))
+            if let t = probeTxid(pkt) {                      // peer's probe -> ack the observed source
+                let ack = ackPacket(txid: t)
+                _ = ack.withUnsafeBytes { ab in
+                    withUnsafeMutablePointer(to: &from) { fp in
+                        fp.withMemoryRebound(to: sockaddr.self, capacity: 1) { sp in
+                            sendto(fd, ab.baseAddress, ack.count, 0, sp, fromLen)
+                        }
+                    }
+                }
+            } else if let t = ackTxid(pkt), t == myTxid {    // ack for OUR probe -> this pair works
+                gotAck = true
+            }
+        }
+        return gotAck
+    }
+}
+
+// ===== Ice — keep BYTE-IDENTICAL to desktop/TriNetVideo/IceSession.swift =====
+enum Ice {
+    typealias Candidate = HolePunch.Candidate
+
+    // ---- candidate-list wire format (crosses the signaling channel) ----
+    // [count:2 BE] then per candidate [kind:1][port:2 BE][ipLen:1][ip utf8].
+    static func encode(_ cands: [Candidate]) -> Data {
+        var d = Data()
+        d.append(UInt8(cands.count >> 8)); d.append(UInt8(cands.count & 0xFF))
+        for c in cands {
+            let ip = Array(c.ip.utf8)
+            d.append(UInt8(c.kind.rawValue))
+            d.append(UInt8(c.port >> 8)); d.append(UInt8(c.port & 0xFF))
+            d.append(UInt8(ip.count))
+            d.append(contentsOf: ip)
+        }
+        return d
+    }
+
+    static func decode(_ data: Data) -> [Candidate]? {
+        let b = [UInt8](data)
+        guard b.count >= 2 else { return nil }
+        let count = Int(b[0]) << 8 | Int(b[1])
+        var i = 2
+        var out: [Candidate] = []
+        for _ in 0..<count {
+            guard i + 4 <= b.count, let kind = HolePunch.Kind(rawValue: Int(b[i])) else { return nil }
+            let port = UInt16(b[i + 1]) << 8 | UInt16(b[i + 2])
+            let ipLen = Int(b[i + 3])
+            let ipStart = i + 4
+            guard ipStart + ipLen <= b.count, let ip = String(bytes: b[ipStart ..< ipStart + ipLen], encoding: .utf8) else { return nil }
+            out.append(Candidate(ip: ip, port: port, kind: kind))
+            i = ipStart + ipLen
+        }
+        return out.count == count ? out : nil
+    }
+
+    // fd is the socket that PUNCHED the pinhole. A symmetric NAT maps per-destination, so the hole
+    // belongs to that socket, not merely to the local port: media sent from a fresh socket gets a
+    // NEW mapping the peer's NAT drops. With keepSocket the caller adopts this fd (and must close
+    // it); without it fd is -1 and the socket is closed here.
+    struct Connected: Equatable { let remote: Candidate; let localPort: UInt16; let fd: Int32 }
+
+    // Bind one UDP socket, then for the whole window: probe EVERY remote candidate, answer
+    // every probe we receive (ack to the observed source — the pinhole), and note which
+    // remote's ack echoes our txid. That remote is a working pair. We do not early-exit: a
+    // peer that stopped answering the moment it succeeded would strand the other side, so we
+    // keep answering and nominate the highest-priority pair that answered by the deadline.
+    static func connect(localPort: UInt16, remote: [Candidate], timeoutMs: Int = 1500,
+                        keepSocket: Bool = false) -> Connected? {
+        let fd = socket(AF_INET, SOCK_DGRAM, 0)
+        guard fd >= 0 else { return nil }
+        var handedOff = false
+        defer { if !handedOff { close(fd) } }
+        var one: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, socklen_t(MemoryLayout<Int32>.size))
+
+        var me = sockaddr_in()
+        me.sin_family = sa_family_t(AF_INET)
+        me.sin_port = localPort.bigEndian
+        me.sin_addr.s_addr = 0
+        let bound = withUnsafePointer(to: &me) { p in
+            p.withMemoryRebound(to: sockaddr.self, capacity: 1) { Foundation.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
+        }
+        guard bound == 0 else { return nil }
+        let boundPort = localBoundPort(fd) ?? localPort
+
+        var tv = timeval(tv_sec: 0, tv_usec: 50_000)
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+
+        // precompute a sockaddr for each remote candidate, ordered by priority
+        let ordered = remote.sorted { HolePunch.priority($0) > HolePunch.priority($1) }
+        var remoteAddrs: [(Candidate, sockaddr_in)] = ordered.map { c in
+            var a = sockaddr_in()
+            a.sin_family = sa_family_t(AF_INET)
+            a.sin_port = c.port.bigEndian
+            inet_pton(AF_INET, c.ip, &a.sin_addr)
+            return (c, a)
+        }
+
+        let myTxid = UInt64.random(in: 0 ... UInt64.max)
+        let probe = HolePunch.probePacket(txid: myTxid)
+        let deadline = Date().addingTimeInterval(Double(timeoutMs) / 1000.0)
+        var winners: Set<String> = []                       // "ip:port" of remotes that acked us
+        var buf = [UInt8](repeating: 0, count: 64)
+
+        while Date() < deadline {
+            for (_, a) in remoteAddrs {
+                var aa = a
+                _ = probe.withUnsafeBytes { pb in
+                    withUnsafePointer(to: &aa) { pp in
+                        pp.withMemoryRebound(to: sockaddr.self, capacity: 1) { sp in
+                            sendto(fd, pb.baseAddress, probe.count, 0, sp, socklen_t(MemoryLayout<sockaddr_in>.size))
+                        }
+                    }
+                }
+            }
+            var from = sockaddr_in()
+            var fromLen = socklen_t(MemoryLayout<sockaddr_in>.size)
+            let n = withUnsafeMutablePointer(to: &from) { fp in
+                fp.withMemoryRebound(to: sockaddr.self, capacity: 1) { sp in
+                    recvfrom(fd, &buf, buf.count, 0, sp, &fromLen)
+                }
+            }
+            guard n > 0 else { continue }
+            let pkt = Data(buf.prefix(n))
+            if let t = HolePunch.probeTxid(pkt) {            // peer's probe -> ack the observed source
+                let ack = HolePunch.ackPacket(txid: t)
+                _ = ack.withUnsafeBytes { ab in
+                    withUnsafeMutablePointer(to: &from) { fp in
+                        fp.withMemoryRebound(to: sockaddr.self, capacity: 1) { sp in
+                            sendto(fd, ab.baseAddress, ack.count, 0, sp, fromLen)
+                        }
+                    }
+                }
+                // PEER-REFLEXIVE candidate. A symmetric NAT allocates a different external port per
+                // destination, so the peer's probes arrive from an address that is NOT in the list it
+                // advertised (that one was learned from a STUN server and is useless to us). Learn the
+                // observed source as a candidate, or we probe the dead advertised address forever and
+                // never nominate anything.
+                var oa = from.sin_addr
+                var ipbuf = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
+                inet_ntop(AF_INET, &oa, &ipbuf, socklen_t(INET_ADDRSTRLEN))
+                let oip = String(cString: ipbuf), oport = UInt16(bigEndian: from.sin_port)
+                if !remoteAddrs.contains(where: { $0.0.ip == oip && $0.0.port == oport }) {
+                    var na = sockaddr_in()
+                    na.sin_family = sa_family_t(AF_INET)
+                    na.sin_port = oport.bigEndian
+                    inet_pton(AF_INET, oip, &na.sin_addr)
+                    remoteAddrs.append((Candidate(ip: oip, port: oport, kind: .srflx), na))
+                }
+            } else if let t = HolePunch.ackTxid(pkt), t == myTxid {   // our probe was answered
+                var addr = from.sin_addr
+                var ipbuf = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
+                inet_ntop(AF_INET, &addr, &ipbuf, socklen_t(INET_ADDRSTRLEN))
+                winners.insert("\(String(cString: ipbuf)):\(UInt16(bigEndian: from.sin_port))")
+            }
+        }
+        // nominate the highest-priority candidate that answered
+        for (c, _) in remoteAddrs where winners.contains("\(c.ip):\(c.port)") {
+            guard keepSocket else { return Connected(remote: c, localPort: boundPort, fd: -1) }
+            // hand the punched socket to the caller: clear the probe-loop recv timeout first, or
+            // the adopting receive loop sees a spurious EAGAIN every 50ms.
+            var tv = timeval(tv_sec: 0, tv_usec: 0)
+            setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+            handedOff = true
+            return Connected(remote: c, localPort: boundPort, fd: fd)
+        }
+        return nil
+    }
+
+    private static func localBoundPort(_ fd: Int32) -> UInt16? {
+        var a = sockaddr_in()
+        var len = socklen_t(MemoryLayout<sockaddr_in>.size)
+        let ok = withUnsafeMutablePointer(to: &a) { p in
+            p.withMemoryRebound(to: sockaddr.self, capacity: 1) { getsockname(fd, $0, &len) }
+        }
+        return ok == 0 ? UInt16(bigEndian: a.sin_port) : nil
+    }
+}
+
+// ===== CandidateOffer — keep BYTE-IDENTICAL to desktop/TriNetVideo/CandidateOffer.swift =====
+enum CandidateOffer {
+    static let version: UInt8 = 1
+
+    // Domain-separated offer key: HKDF(invite-key) so it is cryptographically independent of
+    // the invite path while still gated on the room passphrase.
+    static func offerKey(room: String) -> SymmetricKey {
+        SymmetricKey(data: HKDF<SHA256>.deriveKey(
+            inputKeyMaterial: MeshCrypto.inviteAuthKey(room: room),
+            salt: Data("trinet/candidate-offer/v1".utf8),
+            info: Data(room.utf8), outputByteCount: 32))
+    }
+
+    // Sealed inner plaintext: [version:1][tiebreaker:8 BE][expiry unix-ms:8 BE][Ice list].
+    static func make(candidates: [Ice.Candidate], tiebreaker: UInt64, room: String, ttlMs: Int, now: Date = Date()) -> Data {
+        let expiry = UInt64((now.timeIntervalSince1970 * 1000).rounded()) + UInt64(ttlMs)
+        var inner = Data([version])
+        inner.append(contentsOf: be(tiebreaker))
+        inner.append(contentsOf: be(expiry))
+        inner.append(Ice.encode(candidates))
+        return ((try? ChaChaPoly.seal(inner, using: offerKey(room: room)))?.combined) ?? Data()
+    }
+
+    struct Offer: Equatable { let candidates: [Ice.Candidate]; let tiebreaker: UInt64 }
+
+    // nil if: wrong room passphrase, tampered ciphertext, bad version, expired, or a malformed
+    // candidate list. Every rejection is silent-safe (no crash on any input).
+    static func open(_ data: Data, room: String, now: Date = Date()) -> Offer? {
+        guard let box = try? ChaChaPoly.SealedBox(combined: data),
+              let inner = try? ChaChaPoly.open(box, using: offerKey(room: room)) else { return nil }
+        let b = [UInt8](inner)
+        guard b.count >= 17, b[0] == version else { return nil }
+        let tiebreaker = u64(b[1..<9])
+        let expiry = u64(b[9..<17])
+        let nowMs = UInt64((now.timeIntervalSince1970 * 1000).rounded())
+        guard expiry >= nowMs else { return nil }                     // stale: cannot be replayed later
+        guard let cands = Ice.decode(Data(b[17...])) else { return nil }
+        return Offer(candidates: cands, tiebreaker: tiebreaker)
+    }
+
+    // ICE role (RFC 8445 §6.1.1): the peer with the higher tiebreaker is controlling. 64-bit
+    // random tiebreakers never tie in practice; resolve a tie deterministically anyway.
+    static func isControlling(mine: UInt64, peer: UInt64) -> Bool { mine > peer }
+
+    private static func be(_ x: UInt64) -> [UInt8] { (0..<8).map { UInt8((x >> (56 - 8 * $0)) & 0xFF) } }
+    private static func u64(_ s: ArraySlice<UInt8>) -> UInt64 { s.reduce(UInt64(0)) { ($0 << 8) | UInt64($1) } }
+}
+
+// ===== NatDiagnostics — keep BYTE-IDENTICAL to desktop/TriNetVideo/NatDiagnostics.swift =====
+enum NatDiagnostics {
+    static func run() {
+        DispatchQueue.global(qos: .utility).async {
+            let room = UserDefaults.standard.string(forKey: "trinetRoom") ?? ""
+            let hosts = Stun.hostCandidates()
+            var cands = hosts.map { Ice.Candidate(ip: $0, port: 0, kind: .host) }
+            var srflx = "none"
+            if let m = Stun.gatherServerReflexive(host: "stun.l.google.com", port: 19302) {
+                cands.append(Ice.Candidate(ip: m.ip, port: m.port, kind: .srflx))
+                srflx = "\(m.ip):\(m.port)"
+            }
+            let offer = CandidateOffer.make(candidates: cands, tiebreaker: UInt64.random(in: 0 ... UInt64.max),
+                                            room: room, ttlMs: 60_000)
+            NSLog("%@", "TRINET NAT: candidates host=\(hosts) srflx=\(srflx) -> sealed offer \(offer.count)B (room=\(room.isEmpty ? "lobby" : room))")
+        }
+    }
+}
+
+// ===== Rendezvous — keep BYTE-IDENTICAL to desktop/TriNetVideo/Rendezvous.swift =====
+enum Rendezvous {
+    // Public rendezvous key: the relay is addressed by this, never by the passphrase itself.
+    static func roomHash(_ room: String) -> Data {
+        Data(SHA256.hash(data: Data(room.utf8)).prefix(16))
+    }
+
+    // ---- wire codec ----
+    // PUBLISH [0x01][selfTag:8 BE][roomHash:16][offer]   store (tag, offer) under roomHash
+    // GET     [0x02][selfTag:8 BE][roomHash:16]          fetch an offer whose tag != selfTag
+    // OFFER   [0x03][offer]                              response: the peer's sealed offer
+    // NONE    [0x04]                                     response: no peer has published yet
+    static func encodePublish(selfTag: UInt64, roomHash: Data, offer: Data) -> Data {
+        Data([0x01] + be(selfTag)) + roomHash + offer
+    }
+    static func encodeGet(selfTag: UInt64, roomHash: Data) -> Data {
+        Data([0x02] + be(selfTag)) + roomHash
+    }
+    static func encodeOffer(_ offer: Data) -> Data { Data([0x03]) + offer }
+    static let encodeNone = Data([0x04])
+
+    struct Publish: Equatable { let selfTag: UInt64; let roomHash: Data; let offer: Data }
+    struct Get: Equatable { let selfTag: UInt64; let roomHash: Data }
+
+    static func parsePublish(_ d: Data) -> Publish? {
+        let b = [UInt8](d)
+        guard b.count >= 25, b[0] == 0x01 else { return nil }
+        return Publish(selfTag: u64(b[1..<9]), roomHash: Data(b[9..<25]), offer: Data(b[25...]))
+    }
+    static func parseGet(_ d: Data) -> Get? {
+        let b = [UInt8](d)
+        guard b.count == 25, b[0] == 0x02 else { return nil }
+        return Get(selfTag: u64(b[1..<9]), roomHash: Data(b[9..<25]))
+    }
+    // Returns the peer offer bytes for an OFFER response, or nil for NONE / anything malformed.
+    static func parseResponse(_ d: Data) -> Data? {
+        let b = [UInt8](d)
+        guard let first = b.first else { return nil }
+        return first == 0x03 ? Data(b[1...]) : nil
+    }
+
+    // ---- pure mailbox: the reference rendezvous-server brain (store + pair) ----
+    // A relay keeps this; the client never does. Kept here so it is production-tested, not just
+    // a harness fixture. Same-room peers land in the same bucket; a GET returns the OTHER tag's
+    // offer, so the two sides swap without the relay reading anything.
+    struct Mailbox {
+        private var buckets: [Data: [(tag: UInt64, offer: Data)]] = [:]
+        mutating func publish(_ p: Publish) {
+            var list = buckets[p.roomHash, default: []]
+            list.removeAll { $0.tag == p.selfTag }          // refresh, don't duplicate, my own slot
+            list.append((p.selfTag, p.offer))
+            buckets[p.roomHash] = list
+        }
+        func peerOffer(_ g: Get) -> Data? {
+            buckets[g.roomHash]?.first { $0.tag != g.selfTag }?.offer
+        }
+    }
+
+    // ---- client I/O (raw BSD UDP, matching MeshTransport) ----
+    // Publish is best-effort fire-and-forget (retransmitted by the caller loop if needed).
+    static func publish(roomHash: Data, selfTag: UInt64, offer: Data, host: String, port: UInt16) {
+        sendOne(encodePublish(selfTag: selfTag, roomHash: roomHash, offer: offer), host: host, port: port)
+    }
+    // Poll GET until the peer's offer appears or the deadline passes.
+    static func fetch(roomHash: Data, selfTag: UInt64, host: String, port: UInt16, timeoutMs: Int = 4000) -> Data? {
+        let fd = socket(AF_INET, SOCK_DGRAM, 0)
+        guard fd >= 0 else { return nil }
+        defer { close(fd) }
+        var tv = timeval(tv_sec: 0, tv_usec: 100_000)
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+        var srv = addr(host, port)
+        let req = encodeGet(selfTag: selfTag, roomHash: roomHash)
+        let deadline = Date().addingTimeInterval(Double(timeoutMs) / 1000.0)
+        var buf = [UInt8](repeating: 0, count: 2048)
+        while Date() < deadline {
+            _ = req.withUnsafeBytes { rp in
+                withUnsafePointer(to: &srv) { sp in
+                    sp.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                        sendto(fd, rp.baseAddress, req.count, 0, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+                    }
+                }
+            }
+            let n = recv(fd, &buf, buf.count, 0)
+            if n > 0, let offer = parseResponse(Data(buf.prefix(n))) { return offer }
+        }
+        return nil
+    }
+
+    private static func sendOne(_ data: Data, host: String, port: UInt16) {
+        let fd = socket(AF_INET, SOCK_DGRAM, 0)
+        guard fd >= 0 else { return }
+        defer { close(fd) }
+        var srv = addr(host, port)
+        _ = data.withUnsafeBytes { dp in
+            withUnsafePointer(to: &srv) { sp in
+                sp.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    sendto(fd, dp.baseAddress, data.count, 0, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+                }
+            }
+        }
+    }
+    private static func addr(_ host: String, _ port: UInt16) -> sockaddr_in {
+        var a = sockaddr_in()
+        a.sin_family = sa_family_t(AF_INET)
+        a.sin_port = port.bigEndian
+        inet_pton(AF_INET, host, &a.sin_addr)
+        return a
+    }
+    private static func be(_ x: UInt64) -> [UInt8] { (0..<8).map { UInt8((x >> (56 - 8 * $0)) & 0xFF) } }
+    private static func u64(_ s: ArraySlice<UInt8>) -> UInt64 { s.reduce(UInt64(0)) { ($0 << 8) | UInt64($1) } }
 }

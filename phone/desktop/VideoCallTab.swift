@@ -14,6 +14,13 @@ import CoreMedia
 import CoreVideo
 import LiveKit
 
+// Group the 11-digit safety number into readable blocks (e.g. 123 4567 8901) for reading aloud.
+func groupDigits(_ s: String) -> String {
+    let d = Array(s)
+    guard d.count == 11 else { return s }
+    return String(d[0..<3]) + " " + String(d[3..<7]) + " " + String(d[7..<11])
+}
+
 struct VideoCallTab: View {
     @StateObject private var call = CallManager()
 
@@ -683,17 +690,33 @@ private struct PeerRoster: View {
 
 private struct InCallView: View {
     @ObservedObject var call: CallManager
+    @ObservedObject private var internet: InternetCallController
     @State private var pipOffset: CGSize = .zero
     @State private var showChat = false
     @State private var showLinkStats = false
     @State private var draft = ""
     private let reactions = ["👍", "❤️", "😂", "👏", "🔥"]
 
+    init(call: CallManager) {
+        self.call = call
+        _internet = ObservedObject(wrappedValue: call.internet)
+    }
+
     private var hasRemoteMedia: Bool {
         if call.activeRoute == .internet {
-            return call.internet.remoteVideoTrack != nil
+            return internet.hasRemoteParticipant
         }
         return call.framesReceived > 0 || !call.groupDecoders.isEmpty
+    }
+
+    private var internetStatusText: String {
+        if internet.hasRemoteParticipant {
+            return "WebRTC | peer connected"
+        }
+        if internet.state == .connected {
+            return "WebRTC | waiting for peer"
+        }
+        return "WebRTC | \(internet.state.rawValue)"
     }
 
     var body: some View {
@@ -705,7 +728,7 @@ private struct InCallView: View {
                         .clipShape(RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
                         .overlay(RoundedRectangle(cornerRadius: DS.radius, style: .continuous).stroke(DS.hairline, lineWidth: 1))
                 } else if call.activeRoute == .internet {
-                    MonitorInternetVideo(controller: call.internet, peer: call.callee)
+                    MonitorInternetVideo(controller: internet, peer: call.callee)
                         .clipShape(RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
                         .overlay(RoundedRectangle(cornerRadius: DS.radius, style: .continuous).stroke(DS.hairline, lineWidth: 1))
                 } else {
@@ -727,14 +750,32 @@ private struct InCallView: View {
                         StatusTag(text: hasRemoteMedia ? "Secure" : "Connecting",
                                   live: hasRemoteMedia)
                             .background(DS.ink.opacity(0.5), in: Capsule())
-                        // Make link trouble visible instead of a silent freeze.
-                        if call.linkHealth != .good {
-                            StatusTag(text: call.linkHealth == .stalled ? "Reconnecting…" : "Weak connection", live: false)
-                                .background((call.linkHealth == .stalled ? DS.danger : Color.orange).opacity(0.9), in: Capsule())
-                        } else if call.linkRestored {
-                            StatusTag(text: "Connection restored", live: true)
-                                .background(DS.live.opacity(0.9), in: Capsule())
-                                .transition(.opacity)
+                        if call.activeRoute == .internet {
+                            StatusTag(
+                                text: internetStatusText,
+                                live: internet.hasRemoteParticipant
+                            )
+                            .background(DS.ink.opacity(0.5), in: Capsule())
+                        } else {
+                            // MITM alarm: the peer's pinned identity changed. Loud + persistent.
+                            if call.mitmWarning {
+                                StatusTag(text: "⚠︎ IDENTITY CHANGED — POSSIBLE MITM", live: false)
+                                    .background(DS.danger, in: Capsule())
+                            }
+                            // Safety number (1-1): read it aloud to your peer to confirm no MITM (Signal-style).
+                            if let sn = call.safetyNumber {
+                                StatusTag(text: "🔒 " + groupDigits(sn), live: false)
+                                    .background(DS.ink.opacity(0.6), in: Capsule())
+                            }
+                            // Make link trouble visible instead of a silent freeze.
+                            if call.linkHealth != .good {
+                                StatusTag(text: call.linkHealth == .stalled ? "Reconnecting…" : "Weak connection", live: false)
+                                    .background((call.linkHealth == .stalled ? DS.danger : Color.orange).opacity(0.9), in: Capsule())
+                            } else if call.linkRestored {
+                                StatusTag(text: "Connection restored", live: true)
+                                    .background(DS.live.opacity(0.9), in: Capsule())
+                                    .transition(.opacity)
+                            }
                         }
                         if call.roster.count > 1 {
                             StatusTag(text: "\(call.roster.count) in call", live: true).background(DS.ink.opacity(0.5), in: Capsule())
@@ -742,13 +783,21 @@ private struct InCallView: View {
                         if call.isScreenSharing {
                             StatusTag(text: "Sharing Screen", live: true).background(DS.ink.opacity(0.5), in: Capsule())
                         }
-                        LinkBadge(link: call.link)
-                        // Live BWE readout: what the PEER's receiver measures (jitter) + our encode rate.
-                        // Green under 40ms (the back-off threshold), red above — network health at a glance.
-                        Text("net \(call.peerJitterMs)ms · \(call.camera.bitrateKbps)k")
-                            .font(DS.mono(10)).foregroundColor(call.peerJitterMs > 40 ? DS.danger : DS.live)
-                            .padding(.horizontal, 8).padding(.vertical, 4)
-                            .background(DS.ink.opacity(0.5), in: Capsule())
+                        if call.activeRoute != .internet {
+                            LinkBadge(link: call.link)
+                            // Live BWE readout: what the PEER's receiver measures (jitter) + our encode rate.
+                            // Green under 40ms (the back-off threshold), red above — network health at a glance.
+                            Text("TX \(call.camera.activeHeight > 0 ? "\(call.camera.activeHeight)p · " : "")net \(call.peerJitterMs)ms · \(call.camera.bitrateKbps)k")
+                                .font(DS.mono(10)).foregroundColor(call.peerJitterMs > 40 ? DS.danger : DS.live)
+                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .background(DS.ink.opacity(0.5), in: Capsule())
+                            // Receive-side health: frames/sec + resolution DECODED from the peer. Red when 0 fps
+                            // (no video arriving) — the fastest read on the recurring "no video" complaint.
+                            Text("RX \(call.rxFps)fps\(call.isGroup ? " · \(call.rxSources) src" : (call.rxHeight > 0 ? " · \(call.rxHeight)p" : ""))")
+                                .font(DS.mono(10)).foregroundColor(call.rxFps > 0 ? DS.live : DS.danger)
+                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .background(DS.ink.opacity(0.5), in: Capsule())
+                        }
                     }
                     Spacer()
                     if let s = call.previewSession {
@@ -793,24 +842,34 @@ private struct InCallView: View {
 
             // Control bar
             HStack(spacing: 16) {
-                Meter(label: "Mic", level: call.txLevel, muted: call.isMuted)
-                Meter(label: "In", level: call.rxLevel, muted: false)
+                if call.activeRoute != .internet {
+                    Meter(label: "Mic", level: call.txLevel, muted: call.isMuted)
+                    Meter(label: "In", level: call.rxLevel, muted: false)
+                }
                 Spacer()
-                // Link-quality at a glance (what Zoom/Meet show as "bars"): encode bitrate + peer's jitter.
-                // Tap to expand a 60s sparkline of both.
-                Button { showLinkStats.toggle() } label: {
-                    Text("\(call.bitrateKbps)k · jit \(call.peerJitterMs)ms")
-                        .font(DS.mono(11)).foregroundColor(call.peerJitterMs > 40 ? DS.danger : DS.faint)
+                if call.activeRoute == .internet {
+                    Text(internetStatusText)
+                        .font(DS.mono(11))
+                        .foregroundColor(hasRemoteMedia ? DS.live : DS.faint)
+                } else {
+                    // Link-quality at a glance (what Zoom/Meet show as "bars"): encode bitrate + peer's jitter.
+                    // Tap to expand a 60s sparkline of both.
+                    Button { showLinkStats.toggle() } label: {
+                        Text("\(call.bitrateKbps)k · jit \(call.peerJitterMs)ms")
+                            .font(DS.mono(11)).foregroundColor(call.peerJitterMs > 40 ? DS.danger : DS.faint)
+                    }
+                    .buttonStyle(.plain)
+                    .popover(isPresented: $showLinkStats, arrowEdge: .top) {
+                        LinkStatsPanel(call: call).frame(width: 300)
+                    }
+                    Text("↑\(call.framesSent)  ↓\(call.framesReceived)")
+                        .font(DS.mono(11)).foregroundColor(DS.faint)
                 }
-                .buttonStyle(.plain)
-                .popover(isPresented: $showLinkStats, arrowEdge: .top) {
-                    LinkStatsPanel(call: call).frame(width: 300)
+                IconPill(system: call.isMuted ? "mic.slash.fill" : "mic.fill", active: call.isMuted, tint: DS.danger) { call.toggleMute() }
+                if call.activeRoute != .internet {
+                    IconPill(system: call.isScreenSharing ? "rectangle.inset.filled.on.rectangle" : "rectangle.on.rectangle",
+                             active: call.isScreenSharing, tint: DS.live) { call.toggleScreenShare() }
                 }
-                Text("↑\(call.framesSent)  ↓\(call.framesReceived)")
-                    .font(DS.mono(11)).foregroundColor(DS.faint)
-                IconPill(system: call.isMuted ? "mic.slash.fill" : "mic.fill", active: call.isMuted, tint: DS.danger) { call.isMuted.toggle() }
-                IconPill(system: call.isScreenSharing ? "rectangle.inset.filled.on.rectangle" : "rectangle.on.rectangle",
-                         active: call.isScreenSharing, tint: DS.live) { call.toggleScreenShare() }
                 ZStack(alignment: .topTrailing) {
                     IconPill(system: "bubble.left.and.bubble.right\(call.chat.isEmpty ? "" : ".fill")", active: showChat) {
                         showChat.toggle(); call.chatOpen = showChat
@@ -821,20 +880,24 @@ private struct InCallView: View {
                             .background(DS.danger, in: Capsule()).offset(x: 6, y: -6)
                     }
                 }
-                IconPill(system: call.isRecording ? "record.circle.fill" : "record.circle", active: call.isRecording, tint: DS.danger) { call.toggleRecording() }
-                IconPill(system: call.isBlurred ? "person.crop.rectangle.badge.plus.fill" : "person.crop.rectangle", active: call.isBlurred, tint: DS.live) { call.toggleBlur() }
-                IconPill(system: call.isMeshProfile ? "antenna.radiowaves.left.and.right.circle.fill" : "antenna.radiowaves.left.and.right",
-                         active: call.isMeshProfile, tint: DS.live) { call.toggleMeshProfile() }
-                Menu {
-                    ForEach(call.cameras, id: \.uniqueID) { cam in
-                        Button(cam.localizedName) { call.selectCamera(cam.uniqueID) }
+                if call.activeRoute != .internet {
+                    IconPill(system: call.isRecording ? "record.circle.fill" : "record.circle", active: call.isRecording, tint: DS.danger) { call.toggleRecording() }
+                    IconPill(system: call.isBlurred ? "person.crop.rectangle.badge.plus.fill" : "person.crop.rectangle", active: call.isBlurred, tint: DS.live) { call.toggleBlur() }
+                    IconPill(system: call.isMeshProfile ? "antenna.radiowaves.left.and.right.circle.fill" : "antenna.radiowaves.left.and.right",
+                             active: call.isMeshProfile, tint: DS.live) { call.toggleMeshProfile() }
+                    Menu {
+                        ForEach(call.cameras, id: \.uniqueID) { cam in
+                            Button(cam.localizedName) { call.selectCamera(cam.uniqueID) }
+                        }
+                    } label: {
+                        Image(systemName: "arrow.triangle.2.circlepath.camera")
+                            .font(.system(size: 14)).foregroundColor(DS.text)
+                            .frame(width: 40, height: 40).overlay(Circle().stroke(DS.hairlineStrong, lineWidth: 1))
                     }
-                } label: {
-                    Image(systemName: "arrow.triangle.2.circlepath.camera")
-                        .font(.system(size: 14)).foregroundColor(DS.text)
-                        .frame(width: 40, height: 40).overlay(Circle().stroke(DS.hairlineStrong, lineWidth: 1))
-                }.menuStyle(.borderlessButton).frame(width: 44)
-                IconPill(system: call.cameraOff ? "video.slash.fill" : "video.fill", active: call.cameraOff, tint: DS.danger) { call.cameraOff.toggle() }
+                    .menuStyle(.borderlessButton)
+                    .frame(width: 44)
+                }
+                IconPill(system: call.cameraOff ? "video.slash.fill" : "video.fill", active: call.cameraOff, tint: DS.danger) { call.toggleCamera() }
                 Button(action: { call.endCall() }) {
                     Image(systemName: "phone.down.fill").font(.system(size: 15)).foregroundColor(DS.onFill)
                         .frame(width: 56, height: 40).background(DS.danger, in: Capsule())

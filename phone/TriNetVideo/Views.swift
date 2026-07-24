@@ -4,6 +4,13 @@ import AVFoundation
 import LiveKit
 import AudioToolbox
 
+// Group the 11-digit safety number into readable blocks (e.g. 164 0819 8304) for reading aloud.
+func groupDigits(_ s: String) -> String {
+    let d = Array(s)
+    guard d.count == 11 else { return s }
+    return String(d[0..<3]) + " " + String(d[3..<7]) + " " + String(d[7..<11])
+}
+
 // MARK: - Home Screen
 
 struct HomeView: View {
@@ -758,6 +765,12 @@ struct CallScreen: View {
                         StatusTag(text: mediaConnected ? "Secure" : (vm.activeRoute != .internet && vm.noAnswer ? "No answer" : "Calling…"),
                                   live: mediaConnected)
                             .background(DS.ink.opacity(0.5), in: Capsule())
+                        if vm.mitmWarning {
+                            StatusTag(text: "⚠︎ MITM?", live: false).background(DS.danger, in: Capsule())
+                        }
+                        if let sn = vm.safetyNumber {
+                            StatusTag(text: "🔒 " + groupDigits(sn), live: false).background(DS.ink.opacity(0.6), in: Capsule())
+                        }
                         // Make link trouble visible instead of a silent freeze.
                         if vm.linkHealth != .good {
                             StatusTag(text: vm.linkHealth == .stalled ? "Reconnecting…" : "Weak connection", live: false)
@@ -796,8 +809,11 @@ struct CallScreen: View {
                         // Live BWE readout: peer's receive jitter + our encode rate. Green under the 40ms
                         // back-off threshold, red above — network health at a glance (Zoom-style indicator).
                         if vm.activeRoute != .internet {
-                            Text("\(vm.peerJitterMs)ms·\(vm.camera.bitrateKbps)k")
+                            Text("TX \(vm.camera.activeHeight > 0 ? "\(vm.camera.activeHeight)p·" : "")\(vm.peerJitterMs)ms·\(vm.camera.bitrateKbps)k")
                                 .font(DS.mono(10)).foregroundColor(vm.peerJitterMs > 40 ? DS.danger : .green)
+                            // Receive-side: frames/sec + resolution DECODED from the peer. Red at 0 fps (no video in).
+                            Text("RX \(vm.rxFps)fps\(vm.isGroup ? "·\(vm.rxSources)src" : (vm.rxHeight > 0 ? "·\(vm.rxHeight)p" : ""))")
+                                .font(DS.mono(10)).foregroundColor(vm.rxFps > 0 ? .green : DS.danger)
                         }
                         Text(vm.activeRoute == .internet ? vm.callee : vm.remoteIP)
                             .font(DS.mono(11)).foregroundColor(DS.faint)

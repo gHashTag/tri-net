@@ -46,6 +46,12 @@ final class AudioController {
     private var pcmTx = 0
     // Leftover samples between taps, so no frame is ever short (see the tap).
     private var txAccum = [Float]()
+    // RED (audio redundancy): rolling send seq + the last Opus frame to piggyback.
+    private var redSeq: UInt8 = 0
+    private var redRing: [Data] = []        // last few Opus frames, newest first, for RED redundancy
+    // Frames carried per packet: 2 survives an isolated loss, 3 survives a 2-loss burst.
+    // Raised by the call's loss controller only while the far end is dropping frames.
+    var redDepth = 2
 
     // RMS -> perceptual 0...1 (sqrt gives a livelier meter than raw RMS)
     static func level(_ sumSq: Float, _ n: Int) -> Float {
@@ -66,6 +72,8 @@ final class AudioController {
     private let opus = OpusCodec()
 
     func start() {
+        redSeq = 0; redRing = []; redRecv = AudioREDReceiver()        // fresh RED state per call
+        opusTx = 0; opusRx = 0; redRecovered = 0                      // fresh delivery stats per call
         startPlayback()
         startCapture()
         installObservers()
@@ -205,7 +213,13 @@ final class AudioController {
                 var pkt: Data
                 var sentOpus = false
                 if AudioController.opusEnabled, let frame = self.opus?.encode(raw) {
-                    pkt = Data([0xFD, 0xC0]); pkt.append(frame)   // ~65B
+                    // RED: carry this frame AND the previous one, so a single lost
+                    // packet is reconstructed from the next (audio has no FEC).
+                    self.redRing.insert(frame, at: 0)
+                    if self.redRing.count > AudioRED.maxFrames { self.redRing.removeLast() }
+                    let depth = max(1, min(self.redDepth, self.redRing.count))
+                    pkt = Data([0xFD, 0xC0]); pkt.append(AudioRED.pack(seq: self.redSeq, frames: Array(self.redRing.prefix(depth))))
+                    self.redSeq = self.redSeq &+ 1
                     sentOpus = true
                     self.opusTx += 1
                 } else {
@@ -239,18 +253,35 @@ final class AudioController {
     // One Opus frame off the wire (magic stripped) -> PCM -> normal playback.
     // Always accepted regardless of opusEnabled: receiving a better codec is
     // never the risky direction, only sending one is.
-    func playOpus(_ frame: Data) {
-        guard let pcm = opus?.decode(frame) else {
+    func playOpus(_ payload: Data) {
+        // payload = RED-wrapped: [seq][count][lens][frames]. Reconstruct any lost
+        // packets from the redundant copies, then decode+play each in order.
+        guard let (seq, carried) = AudioRED.parse(payload) else {
             opusDecodeFails += 1
-            if opusDecodeFails <= 3 { NSLog("TRINET: opus decode failed (\(frame.count)B)") }
+            if opusDecodeFails <= 3 { NSLog("TRINET: opus RED parse failed (\(payload.count)B)") }
             return
         }
-        opusRx += 1
-        playPacket(pcm, wire: "OPUS \(frame.count)B")
+        let frames = redRecv.receive(seq: seq, frames: carried)
+        if frames.count > 1 { redRecovered += frames.count - 1 }   // lost packet(s) reconstructed from the copies
+        for frame in frames {
+            guard let pcm = opus?.decode(frame) else {
+                opusDecodeFails += 1
+                if opusDecodeFails <= 3 { NSLog("TRINET: opus decode failed (\(frame.count)B)") }
+                continue
+            }
+            opusRx += 1
+            playPacket(pcm, wire: "OPUS \(frame.count)B")
+        }
     }
+    private var redRecv = AudioREDReceiver()
     private var opusRx = 0
     private var pcmRx = 0
+    private var redRecovered = 0
     private var opusDecodeFails = 0
+    // Aligned call stats, sampled together (never from mismatched per-N log cadences,
+    // which is how a loopback delivery ratio read a nonsensical "110%"). sent/decoded
+    // are cumulative Opus-frame counts; recovered is frames rebuilt from RED redundancy.
+    var audioStats: (sent: Int, decoded: Int, recovered: Int) { (opusTx, opusRx, redRecovered) }
 
     // payload = Int16 LE samples (magic already stripped). `wire` says what
     // ACTUALLY arrived: this logs the DECODED size, so an Opus frame and a raw

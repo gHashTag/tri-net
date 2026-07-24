@@ -8,6 +8,19 @@ import Darwin
 import CryptoKit
 
 class MeshTransport {
+    // DEBUG-only network fault injection (0 = off), read once from env so a loopback call can be driven under
+    // real loss with no root privileges. Never set in a shipping build.
+    //   TRINET_DROP=<pct>  drops that % of received packets. This is the CORRECT instrument for the loss-based
+    //     controller (it honestly lowers the peer's received-frame count); a run PROVED 25% drop -> sustained
+    //     residual-loss back-off + a 720->540->360 resolution step-down.
+    //   TRINET_JITTER=<ms>  sleeps a random 0..ms on the recv thread. NOTE: this models a SLOW CONSUMER, not
+    //     network reordering, and it perturbs the very thread that measures arrival gaps (a broken-ruler
+    //     instrument) — do not trust a jitter figure derived from it. The delay-based controller is better
+    //     exercised by the closed-loop bandwidth-step harness.
+    // Camera frames only flow when the app runs WITH A WINDOW (`open -n --env TRINET_DROP=25 ...`); the bare
+    // binary delivers no video, and jitter==0/probe-up then means "no stream", not "clean link".
+    private let dropPercent = Int(ProcessInfo.processInfo.environment["TRINET_DROP"] ?? "") ?? 0
+    private let jitterMs = Int(ProcessInfo.processInfo.environment["TRINET_JITTER"] ?? "") ?? 0
     private var fd: Int32 = -1
     private var peer = sockaddr_in()          // 1-1 peer (ephemeral session)
     private var peerHostStr = ""              // the connected peer's IP, for drop diagnostics
@@ -101,11 +114,6 @@ class MeshTransport {
     // broadcast to 2-4 nodes, the right topology for a zero-server mesh.
     private var groupMode = false
     private var groupKey: SymmetricKey?
-    private static let confKey = SymmetricKey(
-        data: HKDF<SHA256>.deriveKey(
-            inputKeyMaterial: SymmetricKey(data: SHA256.hash(data: Data("tri-net-psk-v1".utf8))),
-            salt: Data("trios-mesh/v1/conference".utf8),
-            info: Data("group-aead".utf8), outputByteCount: 32))
 
     /// Audio goes to the node's express ingress (AUDIO_IN_PORT 7002): its own
     /// budget, never paced, so it cannot queue behind a keyframe -- and it skips
@@ -146,34 +154,44 @@ class MeshTransport {
     }
 
     // 1-1 (ephemeral forward-secret) — unchanged path.
-    func connect(peerHost: String, peerPort: UInt16, listenPort: UInt16) {
+    // adoptFd: take over a socket that a NAT connectivity check already punched a pinhole with,
+    // instead of binding a fresh one. A symmetric NAT maps per (source socket, destination), so a
+    // new socket on the same local port gets a NEW mapping the peer's NAT drops — the media must
+    // leave from the socket that did the punching. The transport owns the fd from here on.
+    func connect(peerHost: String, peerPort: UInt16, listenPort: UInt16, adoptFd: Int32? = nil) {
         disconnect()
         crypto = MeshCrypto()
         secureReadyEmitted = false
         groupMode = false
+        crypto.room = PeerDiscovery.myRoom   // bind the handshake to the room passphrase
         startFeedbackListener()
 
-        fd = socket(AF_INET, SOCK_DGRAM, 0)
-        guard fd >= 0 else {
-            NSLog("TRINET: socket() failed: \(String(cString: strerror(errno)))")
-            return
-        }
-        var on: Int32 = 1
-        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, 4)
-
-        var addr = sockaddr_in()
-        addr.sin_family = sa_family_t(AF_INET)
-        addr.sin_port = listenPort.bigEndian
-        addr.sin_addr.s_addr = 0
-        let r = withUnsafePointer(to: &addr) { p in
-            p.withMemoryRebound(to: sockaddr.self, capacity: 1) { s in
-                Darwin.bind(fd, s, socklen_t(MemoryLayout<sockaddr_in>.size))
+        if let adopted = adoptFd, adopted >= 0 {
+            fd = adopted
+            NSLog("%@", "TRINET: adopted the punched socket (fd \(adopted)) — the NAT pinhole survives")
+        } else {
+            fd = socket(AF_INET, SOCK_DGRAM, 0)
+            guard fd >= 0 else {
+                NSLog("TRINET: socket() failed: \(String(cString: strerror(errno)))")
+                return
             }
-        }
-        guard r == 0 else {
-            NSLog("TRINET: bind(:\(listenPort)) failed: \(String(cString: strerror(errno)))")
-            close(fd); fd = -1
-            return
+            var on: Int32 = 1
+            setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, 4)
+
+            var addr = sockaddr_in()
+            addr.sin_family = sa_family_t(AF_INET)
+            addr.sin_port = listenPort.bigEndian
+            addr.sin_addr.s_addr = 0
+            let r = withUnsafePointer(to: &addr) { p in
+                p.withMemoryRebound(to: sockaddr.self, capacity: 1) { s in
+                    Darwin.bind(fd, s, socklen_t(MemoryLayout<sockaddr_in>.size))
+                }
+            }
+            guard r == 0 else {
+                NSLog("TRINET: bind(:\(listenPort)) failed: \(String(cString: strerror(errno)))")
+                close(fd); fd = -1
+                return
+            }
         }
 
         peer = sockaddr_in()
@@ -218,12 +236,18 @@ class MeshTransport {
                     }
                 }
                 if n > 0 {
+                    // DEBUG fault injection: drop a % of received packets (env TRINET_DROP=25) to test the
+                    // adaptive loop under real loss without root/dummynet. Random drops also add inter-arrival
+                    // jitter, which drives the BWE. No-op in production (default 0).
+                    if self.dropPercent > 0, Int.random(in: 0..<100) < self.dropPercent { continue }
+                    if self.jitterMs > 0 { usleep(useconds_t(Int.random(in: 0...self.jitterMs) * 1000)) }
                     let pkt = Data(bytes: buf, count: n)
                     let senderIP = String(cString: inet_ntoa(from.sin_addr))
                     if self.groupMode {
                         guard let key = self.groupKey,
                               let box = try? ChaChaPoly.SealedBox(combined: pkt),
-                              let plain = try? ChaChaPoly.open(box, using: key) else { continue }
+                              let plain = try? ChaChaPoly.open(box, using: key),
+                              self.crypto.acceptNonce(pkt.prefix(12)) else { continue }   // + anti-replay
                         if let msg = self.reassemble(plain) {
                             self.onReceiveFrom?(msg, senderIP)
                         }
@@ -231,7 +255,7 @@ class MeshTransport {
                     }
                     // 1-1 ephemeral path
                     if self.crypto.isHandshake(pkt) {
-                        self.crypto.consumeHandshake(pkt)
+                        self.crypto.consumeHandshake(pkt, from: senderIP)
                         self.emitSecureReadyIfNeeded()
                         self.rawSendWire(self.crypto.handshakePacket())
                         continue
@@ -284,8 +308,11 @@ class MeshTransport {
     private var fragBufs: [UInt16: (parts: [Data?], have: Int, tick: UInt64)] = [:]
     private var fragTick: UInt64 = 0
     private let fragBufsCap = 24
-    // FEC parity per fragment group (XOR over padded cells, last-cell length).
-    private var fecBufs: [UInt16: (xor: [UInt8], lastLen: Int, total: Int)] = [:]
+    // FEC parity per fragment GROUP: seq -> gStart -> (xor, gLen, lastLen, total).
+    private var fecBufs: [UInt16: [Int: (xor: [UInt8], gLen: Int, lastLen: Int, total: Int)]] = [:]
+    // Fragments covered by one parity. cleanGroup on a good link; the call shrinks it
+    // toward lossyGroup while the far end is dropping frames (more parity where needed).
+    var fecGroup = VideoFEC.cleanGroup
     // Send parity only when the peer is known to understand it (see send()).
     // Receiving parity is always safe, so only the send side is gated.
     private let fecEnabled = true
@@ -304,6 +331,15 @@ class MeshTransport {
         DispatchQueue.main.async { self.onSecureSessionReady?() }
     }
 
+    // Security surface for the UI (1-1): the safety number pairs OUR identity with the
+    // peer's; nil until the peer's signed handshake is in. mitmDetected latches when a
+    // pinned peer's identity changes.
+    var peerSafetyNumber: String? {
+        guard let peer = crypto.peerIdentity else { return nil }
+        return MeshCrypto.safetyNumber(crypto.identityPub, peer)
+    }
+    var mitmDetected: Bool { crypto.mitmDetected }
+
     func send(_ data: Data) {
         guard fd >= 0 else { return }
         if data.count <= maxPayload {
@@ -313,11 +349,13 @@ class MeshTransport {
         let total = (data.count + maxPayload - 1) / maxPayload
         guard total <= 255 else { return }
         fragSeqOut &+= 1
+        var wire = [Data]()
         for i in 0..<total {
             let start = i * maxPayload
             let end = min(start + maxPayload, data.count)
             var pkt = Data([0xFA, 0xFB, UInt8(fragSeqOut & 0xFF), UInt8(fragSeqOut >> 8), UInt8(i), UInt8(total)])
             pkt.append(data.subdata(in: start..<end))
+            wire.append(pkt)
             rawSend(pkt)
         }
         // Forward error correction: one XOR-parity packet over all fragments
@@ -331,20 +369,111 @@ class MeshTransport {
         // probe an old peer either (any new magic chokes it the same way), so this
         // stays a build-time gate rather than a negotiation.
         if fecEnabled, total >= 2 {
-            var xor = [UInt8](repeating: 0, count: maxPayload)
-            data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
-                for i in 0..<total {
-                    let start = i * maxPayload
-                    let end = min(start + maxPayload, data.count)
-                    for k in 0..<(end - start) { xor[k] ^= raw[start + k] }
-                }
-            }
+            // One XOR parity per GROUP of fecGroup fragments (adaptive: shrinks under loss).
+            // A big keyframe gets several parities instead of one, so a scattered loss no
+            // longer sinks the whole frame. Wire adds gStart/gLen naming the covered range.
+            let payload = [UInt8](data)
             let lastLen = data.count - (total - 1) * maxPayload
-            var parity = Data([0xFA, 0xEC, UInt8(fragSeqOut & 0xFF), UInt8(fragSeqOut >> 8),
-                               UInt8(total), UInt8(lastLen & 0xFF), UInt8(lastLen >> 8)])
-            parity.append(contentsOf: xor)
-            rawSend(parity)
+            for gStart in VideoFEC.groupStarts(total: total, group: fecGroup) {
+                let gLen = min(fecGroup, total - gStart)
+                let xor = VideoFEC.parity(payload, maxPayload: maxPayload, gStart: gStart, gLen: gLen, total: total)
+                var parity = Data([0xFA, 0xEC, UInt8(fragSeqOut & 0xFF), UInt8(fragSeqOut >> 8),
+                                   UInt8(total), UInt8(gStart), UInt8(gLen), UInt8(lastLen & 0xFF), UInt8(lastLen >> 8)])
+                parity.append(contentsOf: xor)
+                wire.append(parity)
+                rawSend(parity)
+            }
         }
+        // Buffer this NAL's wire packets so a NACK can re-send them. 1-1 only: group
+        // is best-effort. seal() uses a random nonce (MeshCrypto), so re-sealing on
+        // resend is safe — no counter to collide across threads.
+        if !groupMode { bufferSentNAL(fragSeqOut, wire) }
+    }
+
+    // MARK: NACK retransmission (1-1). The ONLY loss recovery that reaches a fully
+    // lost single-fragment P-frame: FEC needs >=2 fragments, and the frozen-video
+    // path needs SOME fragment to arrive, so a whole small NAL vanishing is invisible
+    // to both. The monotonic per-NAL seq makes it visible — a gap means a NAL is gone.
+    private var sentNALs: [UInt16: [Data]] = [:]
+    private var sentOrder: [UInt16] = []
+    private var highestVideoSeq = -1
+    private var nackedAt: [UInt16: Date] = [:]
+    private let nackWindow = 30          // only chase the last ~30 missing NALs (~0.5s of video)
+
+    // sentNALs/sentOrder are WRITTEN by bufferSentNAL on the encoder/send thread and
+    // READ by resend* on the rx queue — a real cross-thread race (Swift Dictionary is
+    // not thread-safe; it SIGSEGV'd under the frequent per-fragment NACK). Guard both,
+    // and copy the wire array out under the lock so rawSend (crypto) runs lock-free.
+    private let nackLock = NSLock()
+    private var fragNackedAt: [UInt16: Date] = [:]
+    // Seqs already delivered to the decoder. NACK resends can re-complete a NAL that was
+    // already handed up -> the decoder would get the SAME frame twice (recv > sent, and
+    // real double-decode artifacts). Drop any fragment for an already-delivered seq. 1-1
+    // only (group has no resends and shares the seq space across sources). rx-queue-only.
+    private var deliveredSeqs: Set<UInt16> = []
+    private var deliveredOrder: [UInt16] = []
+    private func markDelivered(_ seq: UInt16) {
+        guard !groupMode, deliveredSeqs.insert(seq).inserted else { return }
+        deliveredOrder.append(seq)
+        while deliveredOrder.count > 256 { deliveredSeqs.remove(deliveredOrder.removeFirst()) }
+    }
+
+    private func bufferSentNAL(_ seq: UInt16, _ wire: [Data]) {
+        nackLock.lock()
+        sentNALs[seq] = wire
+        sentOrder.append(seq)
+        while sentOrder.count > 64 { sentNALs.removeValue(forKey: sentOrder.removeFirst()) }
+        nackLock.unlock()
+    }
+
+    // Peer asked us to re-send a whole NAL it never got. Re-seal (fresh random nonce) and wire it out.
+    func resendNAL(_ seq: UInt16) {
+        nackLock.lock(); let wire = sentNALs[seq]; nackLock.unlock()
+        guard let wire = wire else { return }   // already evicted -> too old to help
+        for w in wire { rawSend(w) }
+    }
+
+    // Peer asked for SPECIFIC missing fragments of a NAL it partly got. Data fragments
+    // occupy wire[0..<total] in idx order (parities follow), so idx maps straight in.
+    func resendFragments(_ seq: UInt16, _ idxs: [Int]) {
+        nackLock.lock(); let wire = sentNALs[seq]; nackLock.unlock()
+        guard let wire = wire else { return }
+        for i in idxs where i >= 0 && i < wire.count { rawSend(wire[i]) }
+    }
+
+    // A video data fragment arrived: (1) NACK any NAL seq skipped entirely since the
+    // last one (whole-NAL, since we don't know its `total`); (2) per-FRAGMENT NACK the
+    // recent NALs that are partly here but still short — resend only the holes, not the
+    // whole keyframe, and retry while they stay incomplete. Modular gap => u16-wrap-safe.
+    private func noteVideoSeq(_ s: Int) {
+        if highestVideoSeq < 0 { highestVideoSeq = s; return }
+        let gap = (s - highestVideoSeq + 65536) % 65536
+        if gap == 0 || gap > 32768 { return }            // duplicate / reorder / old
+        let now = Date()
+        if gap > 1 {
+            for j in max(1, gap - nackWindow)..<gap {
+                let mseq = UInt16((highestVideoSeq + j) & 0xFFFF)
+                if let t = nackedAt[mseq], now.timeIntervalSince(t) < 0.12 { continue }   // rate-limit per seq
+                nackedAt[mseq] = now
+                send(Data([0xFD, 0x4E, UInt8(mseq & 0xFF), UInt8(mseq >> 8)]))             // "resend whole NAL mseq"
+            }
+            if nackedAt.count > 256 { nackedAt = nackedAt.filter { now.timeIntervalSince($0.value) < 1.0 } }
+        }
+        highestVideoSeq = s
+        for back in 1...8 { nackMissingFragments(UInt16((s - back) & 0xFFFF), now) }   // retry recent partials
+        if fragNackedAt.count > 256 { fragNackedAt = fragNackedAt.filter { now.timeIntervalSince($0.value) < 1.0 } }
+    }
+
+    // If NAL `seq` is present but short, ask for exactly its missing fragment indices.
+    private func nackMissingFragments(_ seq: UInt16, _ now: Date) {
+        guard let entry = fragBufs[seq], entry.have < entry.parts.count else { return }
+        if let t = fragNackedAt[seq], now.timeIntervalSince(t) < 0.08 { return }         // rate-limit per NAL
+        let missing = (0..<entry.parts.count).filter { entry.parts[$0] == nil }
+        guard !missing.isEmpty else { return }
+        fragNackedAt[seq] = now
+        var pkt = Data([0xFD, 0x4F, UInt8(seq & 0xFF), UInt8(seq >> 8)])
+        for idx in missing.prefix(64) { pkt.append(UInt8(idx)) }                          // idx < total <= 255
+        send(pkt)
     }
 
     // Encrypt a fragment (group key in conference mode, else the ephemeral
@@ -392,7 +521,7 @@ class MeshTransport {
     func connectGroup(peerHosts: [String], peerPort: UInt16, listenPort: UInt16) {
         disconnect()
         groupMode = true
-        groupKey = MeshTransport.confKey
+        groupKey = MeshCrypto.groupAuthKey(room: PeerDiscovery.myRoom)   // room-bound conference key
 
         fd = socket(AF_INET, SOCK_DGRAM, 0)
         guard fd >= 0 else { NSLog("TRINET: socket() failed"); return }
@@ -426,14 +555,15 @@ class MeshTransport {
     // Multi-slot: chunks of several NALs may interleave (video + a peer
     // restart, or future multi-stream), so partial buffers are keyed by seq.
     private func reassemble(_ d: Data) -> Data? {
-        // FEC parity packet: store it, then try to recover a single lost fragment.
-        if d.count > 7, d[0] == 0xFA, d[1] == 0xEC {
+        // FEC parity packet (per group): store it, then try to repair that group.
+        // Wire: [FA EC][seq:2][total][gStart][gLen][lastLen:2] + xor.
+        if d.count > 9, d[0] == 0xFA, d[1] == 0xEC {
             let seq = UInt16(d[2]) | (UInt16(d[3]) << 8)
-            let total = Int(d[4])
-            let lastLen = Int(d[5]) | (Int(d[6]) << 8)
+            let total = Int(d[4]); let gStart = Int(d[5]); let gLen = Int(d[6])
+            let lastLen = Int(d[7]) | (Int(d[8]) << 8)
             guard total >= 2 else { return nil }
-            fecBufs[seq] = (Array(d[7...]), lastLen, total)
-            return tryFEC(seq)
+            fecBufs[seq, default: [:]][gStart] = (Array(d[9...]), gLen, lastLen, total)
+            return tryFEC(seq, gStart)
         }
         // 0xFA is reserved for this framing layer (raw NALs start 00 00 00 01 and
         // control packets use 0xFB..0xFE). Drop an unknown 0xFA subtype instead of
@@ -445,6 +575,10 @@ class MeshTransport {
         let idx = Int(d[4])
         let total = Int(d[5])
         guard total > 0, idx < total else { return nil }
+        if !groupMode {
+            if deliveredSeqs.contains(seq) { return nil }   // resend/late dupe of a delivered NAL -> drop
+            noteVideoSeq(Int(seq))                          // NACK any NAL skipped before this one
+        }
         var entry = fragBufs[seq] ?? (Array(repeating: nil, count: total), 0, 0)
         if entry.parts.count != total { entry = (Array(repeating: nil, count: total), 0, 0) }
         if entry.parts[idx] == nil {
@@ -453,12 +587,16 @@ class MeshTransport {
         }
         if entry.have == total {
             fragBufs.removeValue(forKey: seq); fecBufs.removeValue(forKey: seq)
+            markDelivered(seq)
             return entry.parts.compactMap { $0 }.reduce(Data(), +)
         }
         fragTick &+= 1
         entry.tick = fragTick
         fragBufs[seq] = entry
-        if let recovered = tryFEC(seq) { return recovered }  // parity may already be here
+        // A data fragment may complete any group whose parity is already here.
+        if let byGroup = fecBufs[seq] {
+            for gStart in byGroup.keys { if let recovered = tryFEC(seq, gStart) { return recovered } }
+        }
         // GC by RECENCY, never "keep only the current seq". Audio and video
         // fragments interleave, so wiping every other partial group silently
         // destroyed in-flight audio groups the moment video filled the table —
@@ -474,26 +612,21 @@ class MeshTransport {
         return nil
     }
 
-    // XOR-reconstruct exactly one missing fragment from parity + the rest.
-    private func tryFEC(_ seq: UInt16) -> Data? {
-        guard let fec = fecBufs[seq], var entry = fragBufs[seq],
+    // XOR-reconstruct the one missing fragment of a single GROUP from its parity.
+    private func tryFEC(_ seq: UInt16, _ gStart: Int) -> Data? {
+        guard let fec = fecBufs[seq]?[gStart], var entry = fragBufs[seq],
               entry.parts.count == fec.total else { return nil }
-        let missing = (0..<fec.total).filter { entry.parts[$0] == nil }
-        guard missing.count == 1 else { return nil }
-        let j = missing[0]
-        var rec = fec.xor                       // parity = XOR of all padded cells
-        for i in 0..<fec.total where i != j {
-            guard let part = entry.parts[i] else { return nil }
-            part.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
-                for k in 0..<part.count { rec[k] ^= raw[k] }
-            }
-        }
-        let len = (j == fec.total - 1) ? fec.lastLen : maxPayload
-        guard len >= 0, len <= rec.count else { return nil }
-        entry.parts[j] = Data(rec.prefix(len))
+        var present = [Int: [UInt8]]()
+        let end = min(gStart + fec.gLen, fec.total)
+        for i in gStart..<end { if let p = entry.parts[i] { present[i] = [UInt8](p) } }
+        guard let (idx, bytes) = VideoFEC.recover(parity: fec.xor, present: present, gStart: gStart,
+                                                  gLen: fec.gLen, total: fec.total, lastLen: fec.lastLen,
+                                                  maxPayload: maxPayload) else { return nil }
+        entry.parts[idx] = Data(bytes)
         entry.have += 1
         if entry.have == fec.total {
             fragBufs.removeValue(forKey: seq); fecBufs.removeValue(forKey: seq)
+            markDelivered(seq)
             return entry.parts.compactMap { $0 }.reduce(Data(), +)
         }
         fragBufs[seq] = entry
@@ -506,6 +639,8 @@ class MeshTransport {
         if fd >= 0 { close(fd); fd = -1 }
         stopFeedbackListener()
         connected = false
+        nackLock.lock(); sentNALs = [:]; sentOrder = []; nackLock.unlock()
+        highestVideoSeq = -1; nackedAt = [:]; fragNackedAt = [:]; deliveredSeqs = []; deliveredOrder = []   // fresh per call (rx-queue-only)
     }
 
     deinit { disconnect() }

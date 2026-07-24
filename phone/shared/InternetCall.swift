@@ -804,6 +804,7 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
     @Published private(set) var state: InternetCallState = .idle
     @Published private(set) var callID: String?
     @Published private(set) var participantName = ""
+    @Published private(set) var hasRemoteParticipant = false
     @Published private(set) var localVideoTrack: LocalVideoTrack?
     @Published private(set) var remoteVideoTrack: RemoteVideoTrack?
     @Published private(set) var errorMessage: String?
@@ -899,7 +900,12 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
 
     private func connect(session: InternetCallSession, audio: Bool, video: Bool) async throws {
         setState(.connecting)
-        setMain { self.callID = session.callID }
+        setMain {
+            self.callID = session.callID
+            self.participantName = ""
+            self.hasRemoteParticipant = false
+            self.remoteVideoTrack = nil
+        }
         NSLog("TRINET: LiveKit connecting call=%@ url=%@", session.callID, session.liveKitURL)
         let encryption = session.mediaKey.map { EncryptionOptions.sharedKey($0) }
         let options = RoomOptions(adaptiveStream: true,
@@ -923,6 +929,7 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
                 self.localVideoTrack = cameraPublication?.track as? LocalVideoTrack
                 if let existingParticipant {
                     self.participantName = self.participantLabel(existingParticipant)
+                    self.hasRemoteParticipant = true
                 }
                 if let existingVideo { self.remoteVideoTrack = existingVideo }
                 self.isCameraEnabled = video
@@ -996,6 +1003,7 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
             self.state = .ended
             self.callID = nil
             self.participantName = ""
+            self.hasRemoteParticipant = false
             self.localVideoTrack = nil
             self.remoteVideoTrack = nil
         }
@@ -1023,7 +1031,20 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
     func room(_ room: Room, participantDidConnect participant: RemoteParticipant) {
         let label = participantLabel(participant)
         NSLog("TRINET: LiveKit participant connected %@", label)
-        setMain { self.participantName = label }
+        setMain {
+            self.participantName = label
+            self.hasRemoteParticipant = true
+        }
+    }
+
+    func room(_ room: Room, participantDidDisconnect participant: RemoteParticipant) {
+        let label = participantLabel(participant)
+        NSLog("TRINET: LiveKit participant disconnected %@", label)
+        setMain {
+            self.participantName = ""
+            self.hasRemoteParticipant = false
+            self.remoteVideoTrack = nil
+        }
     }
 
     func room(_ room: Room,
@@ -1074,6 +1095,11 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
         setMain {
             self.state = state
             if state != .failed { self.errorMessage = nil }
+            if state == .ended {
+                self.participantName = ""
+                self.hasRemoteParticipant = false
+                self.remoteVideoTrack = nil
+            }
         }
     }
 
@@ -1086,6 +1112,9 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
         setMain {
             self.state = .failed
             self.errorMessage = error.localizedDescription
+            self.participantName = ""
+            self.hasRemoteParticipant = false
+            self.remoteVideoTrack = nil
         }
     }
 

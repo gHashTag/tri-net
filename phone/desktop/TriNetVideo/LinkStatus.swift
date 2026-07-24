@@ -29,6 +29,11 @@ final class LogBus: ObservableObject {
     // Persistent log FILE, so the detailed log survives quitting (the in-memory `lines` does not).
     // Standard macOS location -> visible in Console.app and Finder.
     let logURL: URL = {
+        // TRINET_LOG lets a second instance write its own log — needed by the two-endpoint
+        // test rig so each process's counters can be read independently (never set in a real run).
+        if let p = ProcessInfo.processInfo.environment["TRINET_LOG"], !p.isEmpty {
+            return URL(fileURLWithPath: (p as NSString).expandingTildeInPath)
+        }
         let dir = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Logs/TriNetMonitor", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

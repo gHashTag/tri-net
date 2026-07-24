@@ -40,10 +40,18 @@ targets:
       - path: TriNetVideo/VideoDecoder.swift
       - path: TriNetVideo/VideoEncoder.swift
       - path: TriNetVideo/AudioController.swift
+      - path: TriNetVideo/AudioRED.swift
+      - path: TriNetVideo/VideoFEC.swift
       - path: TriNetVideo/MeshCrypto.swift
       - path: TriNetVideo/LinkStatus.swift
       - path: TriNetVideo/OpusCodec.swift
       - path: TriNetVideo/PeerDiscovery.swift
+      - path: TriNetVideo/StunClient.swift
+      - path: TriNetVideo/HolePunch.swift
+      - path: TriNetVideo/IceSession.swift
+      - path: TriNetVideo/CandidateOffer.swift
+      - path: TriNetVideo/Rendezvous.swift
+      - path: TriNetVideo/NatDiagnostics.swift
     dependencies:
       - package: LiveKit
     info:

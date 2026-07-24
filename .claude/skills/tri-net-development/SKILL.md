@@ -2114,3 +2114,1038 @@ phi^2 + phi^-2 = 3 | TRINITY
 - **Honest residual:** a 15s window still allows an immediate replay; a nonce/seen-MAC cache would close it fully
   (cheap: remember recent INVITE MACs for ~30s and drop dups). Left as an option — the demonstrated risk
   (later replay) is closed. Wire is now `[FD 11][HMAC:8][name\nips\nROOM\nTS_MS]`.
+
+## WAVE 2026-07-23 #17 — Codex branch broken by the gen/ trap; landed clean anti-replay in main
+
+- **Diagnosed the 31 compile errors on Codex's feat/regen-final tip: ALL in generated gen/*.rs, from Codex's
+  new specs.** 26x E0107 "missing generics for Vec" (t27c emits `find_flow_by_sender(flows: Vec, ...)` — bare
+  `Vec` with no `<T>`) in flow_control/health_dashboard/anomaly_detector; plus multipath_routing E0425
+  `path_valid` not found, E0308 type mismatches, E0277 bool-vs-u32. These are t27c CODEGEN bugs on Codex's
+  Vec-using / complex specs — exactly the "gen/ is a trap, unfixable from inside this repo" case in CLAUDE.md.
+- **NOT fixable autonomously without overreach:** hand-editing gen/ is hook-blocked and build.rs overwrites it;
+  fixing t27c is a different repo with golden-pipeline-wide impact; altering Codex's WIP specs changes their
+  design. So the branch build stays Codex's to resolve (fix t27c's Vec codegen, or change the specs).
+- **Safe completion: landed the clean, verified anti-replay (#16) into main directly** (b467cd1 = 8eec0e1
+  auth + anti-replay, builds + live-tested), bypassing Codex's broken tip. origin/main now has the FULL INVITE
+  security fix (HMAC auth + freshness), builds clean. feat/regen-final keeps Codex's WIP + a cherry-pick of #16
+  but does not build until they fix the t27c/gen errors.
+- **Two-agent-on-one-branch lesson: when the other actor's tip won't build, don't try to fix their WIP —
+  verify your own change in isolation and land it on the clean base (main) via a worktree cherry-pick or a
+  direct fast-forward; report their break as theirs to fix.**
+
+## WAVE 2026-07-23 #18 — INVITE seen-MAC cache (defense-in-depth, honest about verification)
+
+- **Closes the last replay edge in the INVITE auth chain:** a seen-MAC cache (dict of the 8-byte tag -> time,
+  pruned >30s, main-queue only) drops a duplicate INVITE, so a captured one can't be replayed within the 15s
+  freshness window after a decline/hangup returns the app to idle. Standard WireGuard/IPsec-style nonce cache;
+  the sender's own 4x UDP re-sends share a tag and are already ignored, so dedup is safe. Both platforms.
+- **HONEST verification limit:** builds on both; smoke PASSes (fresh INVITEs each have a distinct tag, unaffected);
+  a duplicate authenticated INVITE -> exactly one join, no crash. BUT the dedup's SPECIFIC firing could NOT be
+  isolated headlessly — the pre-existing `!isInCall`/`incomingCall == nil` guards catch a duplicate FIRST in
+  every headlessly-reachable path (auto-join makes the app in-call before the second arrives; a ring blocks new
+  INVITEs for 40s > the 15s window). The edge it uniquely covers (replay after an interactive decline/hangup
+  within 15s) needs a human to reproduce. So this is clearly-correct standard code, NOT a live-verified drop —
+  reported as such.
+- **Decision to keep it:** cheap, correct, textbook anti-replay complement to the freshness window; not
+  speculative. Landed on the clean main (does not touch Codex's broken branch).
+
+## WAVE 2026-07-23 #19 — BWE recovery 26s -> 17s (harness-chosen, conservative)
+
+- **Fixed the slow-recovery finding from #11** (26s to regain full rate after congestion clears). Used the
+  closed-loop harness (scratchpad/bwe_tune_harness.swift) to compare retune candidates on the 900k->400k->900k
+  bandwidth step, measuring recovery-time AND stability (settles at the knee? climbs while still congested?):
+  baseline gate3/cap64k=26s; gate2/cap64k=17s; gate2/cap128k=13s; gate1/cap128k=6s — ALL settled at the same
+  502k knee with no oscillation.
+- **Chose the MINIMAL change: probe-up gate 3 -> 2** (climb every 2 clean reports instead of 3), keeping the
+  step-size cap at 64k. Rationale: only the probe FREQUENCY changes, not the step size, so no extra overshoot
+  on a capacity-limited link (the harness's deterministic jitter can't model real-world noise-induced pumping,
+  so I did NOT chase the 6s gate1 option). 26s -> 17s, a 1.5x win, harness-proven stable. Both platforms.
+- Builds; smoke PASSes (normal call path unaffected). Landed on clean main. Data-driven control-loop tuning:
+  compare candidates in the harness, pick the smallest change that clearly wins, don't over-optimize a model.
+
+## WAVE 2026-07-23 #20 — adaptive video chain VERIFIED end-to-end + resolution in the badge
+
+- **Verified the CORE product feature ("video adapts to bandwidth") as ONE integrated closed loop** (BWE
+  step-law -> curBitrate -> resolution ladder targetRung + 3s rate-limit) — something neither lossless loopback
+  nor the separate bitrate-only / ladder-only harnesses showed together. Harness
+  (scratchpad/adaptive_chain_harness.swift) on the bandwidth step, 3 link capacities:
+  400k -> settles 540p, 250k -> 360p, 120k -> 270p, all recovering to 720p, no thrash (the 3s rate-limit never
+  blocks a needed step because rung transitions are >3s apart). NO bug — the chain is correct. Sometimes the
+  win is "core feature proven end-to-end," not a fix.
+- **Added the adaptive send resolution to the in-call net badge** ("720p · net 5ms · 640k") on both platforms:
+  exposed `encoder.activeHeight` (the ladder rung's height, updated on each session-recreate) -> camera ->
+  badge. Directly serves the user's recurring real-device pain ("video not working"): they can now WATCH the
+  resolution step down/up as bandwidth changes, instead of only reading logs. Builds; smoke PASSes (720p on the
+  clean loopback). Landed on clean main.
+
+## WAVE 2026-07-23 #21 — receive-side stats in the badge (the "no video" diagnostic)
+
+- **The in-call badge showed only OUR TX stats** (send resolution/bitrate + peer jitter). But "video not working"
+  is almost always a RECEIVE problem. Added an RX capsule: frames/sec DECODED from the peer + received
+  resolution, RED when 0 fps (no video arriving) — the fastest read on the recurring complaint. Badge now:
+  `TX 720p·net 5ms·640k` + `RX 30fps·720p`. Both platforms.
+- Plumbing: decoder exposes `decodedHeight` (from CMVideoFormatDescriptionGetDimensions on the SPS) +
+  frameCount; CallManager/ViewModel sample `rxFps = frameCount - last` in the existing 1s BWE timer, reset on
+  call end. Builds; smoke PASSes.
+- **HONEST limit: the RX badge is the 1-1 path (`self.decoder`).** The loopback smoke is the GROUP path
+  (3-participant auto-join -> groupDecoders), so it can't isolate the 1-1 rxFps headlessly (a 1-1 loopback is
+  impossible — auto-join is group-only). Code is straightforward + correct; a real Mac<->iPhone 1-1 call
+  populates it. Group calls show video in per-source tiles, so the RX badge reading 0 there is expected, not a
+  bug. Landed on clean main.
+
+## WAVE 2026-07-23 #22 — RX badge now covers GROUP calls (closes #21's 1-1-only gap)
+
+- Extended the receive-side badge to conference calls: in a group, rxFps sums every source's decoder frameCount
+  and the badge shows `RX Nfps · Ksrc` (source count) instead of a single resolution; 1-1 still shows
+  `RX Nfps · Hp`. Both platforms; reset on call end.
+- **Verifiable now, unlike #21:** the loopback smoke IS the group path (3-participant auto-join -> groupDecoders),
+  so the group RX counter is exercised. Verified: smoke PASSes, `GROUP video from 127.0.0.1 — now 1 source(s)`,
+  the group decoder decodes -> rxFps/rxSources are driven by real frameCount. (The @Published badge VALUE still
+  isn't headlessly readable, but its input counter is confirmed flowing — the honest ceiling for a UI-stat.)
+- Landed on clean main. Full call telemetry now: `TX <res>·net <jit>ms·<br>k` + `RX <fps>fps·<res-or-Nsrc>`,
+  red RX at 0 fps.
+
+## WAVE 2026-07-23 #23 — frozen-video recovery (closes a real gap in keyframe requests)
+
+- **Found a genuine gap between the two existing keyframe-request triggers:** (1) the decoder's own request
+  fires only on NALs it RECEIVES (missing IDR / SPS change), (2) the LinkHealth stall fires only when PACKETS
+  stop for 5s. Neither covers "fragments keep ARRIVING but reassembly never completes a NAL" (persistent loss) —
+  the picture freezes (rxFps == 0) with packets flowing and NOTHING asks for a fresh IDR. Now that rxFps exists
+  (WAVE #21), added a third trigger: 1-1, video decoded before (framesReceived>0), rxFps==0 now, and packets
+  arriving (<3s since last video packet) -> request a keyframe, rate-limited ~2s. Guard `framesReceived>0` means
+  it only fires on a MID-CALL freeze, not startup (the decoder handles the first IDR). Both platforms.
+- **HONEST verification limit:** builds + smoke PASSes, but the trigger can't be live-isolated headlessly — the
+  loopback smoke is the GROUP path (this recovery is `!isGroup`), and inducing a reassembly-failure freeze needs
+  real persistent loss (sudo/dummynet). The logic is guarded + rate-limited; a false positive costs one extra
+  IDR (harmless). Reported as such. Landed on clean main.
+
+## WAVE 2026-07-23 #24 — loss-based congestion controller + the headless-loopback broken ruler
+
+**Weakness:** the adaptive rate control was DELAY-only. `handleBWEReport` acted solely on
+the peer's jitter (`j>40` back off, `j<20` probe up). A path that drops frames WITHOUT
+queueing — Wi-Fi with link-layer retransmits, a radio behind strong FEC — never raised
+jitter, so the encoder never stepped down. Competitor check: WebRTC's GCC runs TWO
+controllers in parallel (an arrival-time delay filter AND a loss ratio: >10% decrease,
+<2% increase); we shipped only the delay half.
+
+**Fix (both platforms, `handleBWEReport`):** the receiver ALREADY reports its per-second
+decoded-frame count in the BWE packet's `p` field — and the sender parsed it NOWHERE.
+Now the sender diffs `framesSent` per report against `p` and, when residual (post-FEC)
+frame loss ≥15% for 2 consecutive reports, calls `nudgeBitrate(down:)`. Gated `!isGroup`
+(in a group `p` sums every source, so my-sent vs their-total is apples-to-oranges). A
+loss signal ≥5% also VETOES the delay controller's probe-up (`j<20 && !lossElevated`) so
+the two halves can't fight (delay: "spare capacity, climb" vs loss: "we're dropping").
+
+**THE BROKEN RULER (this is the durable lesson):** every headless loss test earlier in
+the session was CONFOUNDED. Running the bare binary
+(`.../Contents/MacOS/TriNetMonitor &`) delivers NO camera frames — AVCaptureSession
+needs the app to run WITH A WINDOW. With no video, `jitterMs` stays 0, so "BWE probe-up —
+peer jitter 0ms" prints forever and LOOKS like a clean live stream. It is not; it is the
+absence of a stream. I read a signal (probe-up/jitter=0) from inside the failure domain
+(§5). The tell was in plain sight: video rx packets were 64–90B (control only), never the
+1234B fragments a real NAL produces, and "no answer after 30s" (framesReceived==0) was
+firing the whole time. **Rule: to test any video-path behaviour, launch with
+`open -n --env KEY=VAL /Applications/TriNetMonitor.app` and CONFIRM `FIRST FRAME DECODED!`
++ 1234B rx fragments BEFORE trusting any adaptive-loop number.** A 1-1 loopback needs a
+room match to auto-accept headless: `defaults write com.trinet.monitor trinetRoom LOOP`
+and put `LOOP` in the INVITE's room field (participants=1 → 1-1, not the >2 group path).
+
+**Verified end-to-end** (windowed 1-1 loopback, `TRINET_DROP=25`, real video flowing):
+15× `BWE back-off — residual loss 20–66% (sent N, peer rx M)` and a live
+1280x720@900k → 960x540@539k → 640x360@361k step-down. The delay-only build left the same
+25%-loss link running at full 720p.
+
+**Debug knobs added** (`MeshTransport`, env-gated, off in shipping): `TRINET_DROP=%` is the
+CORRECT loss instrument (it honestly lowers the peer's frame count). `TRINET_JITTER=ms`
+sleeps the recv thread — but that models a SLOW CONSUMER and perturbs the same thread that
+measures arrival gaps, so it's itself a broken ruler for jitter; use the closed-loop
+bandwidth-step harness for the delay controller, not this.
+
+Landed on main a1a55c8 (ruleset admin-override, restored active). iOS mirror + Mac both
+build; iOS fault-injection intentionally NOT mirrored (no headless on-device rig).
+
+## WAVE 2026-07-23 #25 — audio RED (recover a lost voice packet from the next)
+
+**Weakness:** the video path has XOR-FEC parity; the AUDIO path had ZERO loss
+protection. One dropped 20ms Opus packet was an audible gap with no concealment —
+so on a lossy link the picture (FEC-protected) survived while the VOICE broke up,
+which is backwards for a call. AVAudioConverter (AudioToolbox) exposes neither
+Opus in-band FEC nor PLC, so neither codec-level fix was reachable.
+
+**Competitor check:** WebRTC/Zoom/Teams all protect audio with Opus in-band FEC
+(LBRR) + RED (RFC 2198) + PLC. We shipped raw Opus frames with none of it.
+
+**Fix — application-level RED:** each packet carries the CURRENT Opus frame AND a
+copy of the PREVIOUS one, so seq N lost => seq N+1 still contains frame N. Payload
+after [0xFD 0xC0]: `[seq:1][curLen:2 LE][cur][prev]`. A rolling u8 seq detects the
+gap; duplicates and reordered-late packets return [] (no double / out-of-order
+playout); consecutive losses recover the most recent only (1-deep). Cost ~2x the
+tiny audio bitrate (25->50 kbps), still one datagram (65B -> ~114B, far under the
+1200B fragment budget). BOTH ENDS must run it (the 0xC0 layout changed) — rolls
+out like Opus did. New pure `AudioRED.swift` (Mac target, added to project.yml +
+xcodegen); iOS embeds a BYTE-IDENTICAL copy at the end of VideoPipeline.swift
+(static file list — can't add files).
+
+**Verification pattern worth reusing:** the standalone swiftc harness compiles the
+ACTUAL production `AudioRED.swift` (not a re-implementation), so it cannot drift.
+It proved recovery exhaustively — single-loss at every position in a 20-frame
+stream, consecutive-loss 1-deep, spaced-double, dedup, reorder, u8 wraparound —
+ALL PASS. Top-level test code must live in a file named `main.swift` when
+swiftc-compiling multiple files, else "expressions are not allowed at top level".
+
+**Honest limit (measurement broken-ruler #2):** a live windowed loopback under
+TRINET_DROP=25 confirmed the redundant copy is on the wire (packets 65B->114B) and
+0 parse/decode failures over 2000+ frames — but the LOOPBACK LOG CANNOT give a
+clean delivery ratio: `audio tx` logs every 500 and `audio rx` every 200, so a
+stale tx snapshot vs a later rx snapshot gave a nonsensical "110%". Don't compute
+a rate from two counters sampled at different cadences. The harness is the
+authority on the recovery rate; the live run only proves correct wiring.
+
+Landed main 58c3b1c (ruleset admin-override, restored active). Both platforms build.
+
+## WAVE 2026-07-23 #26 — aligned delivery stats (kill the measurement broken ruler)
+
+**Weakness:** two waves in a row the loopback could not report a clean delivery
+ratio. `audio tx` logs every 500 frames, `audio rx` every 200, so comparing a
+stale tx snapshot to a later rx snapshot gave a nonsensical "110%". The
+instrument WAS the broken ruler — two cumulative counters sampled at different
+cadences. This blocked honest reporting (the thing the user cares about most).
+
+**Competitor check:** WebRTC exposes getStats (packetsSent/Received, packetsLost,
+fecPacketsReceived, concealmentEvents) sampled coherently. We had raw counters at
+mismatched log cadences.
+
+**Fix:** sample sent vs decoded AT THE SAME INSTANT in the existing 1s BWE timer,
+print every 5s: `STATS audio sent=.. decoded=.. recovered=.. delivery=% | video
+sent=.. recv=..`. AudioController counts RED-reconstructed frames (redRecovered)
+and exposes an aligned `audioStats` tuple; reset per call. Both platforms. No new
+files.
+
+**Result — finally an honest number for the prior wave's RED:** windowed 1-1
+loopback, clean = audio 100% (recovered ~0); 25% induced loss = audio 1586/1705 =
+**93%, recovered 314** (no-RED floor is exactly 75%; the 314 recovered accounts
+for the 307-frame gain — matches ~93.75% isolated-recovery theory). Same run:
+video (FEC-only) 60% under identical loss — RED protects every frame, FEC's
+one-repair-per-group ceiling fails on multi-fragment frames. An honest contrast
+worth keeping.
+
+**Durable rule:** never compute a rate from two counters read off separate per-N
+log lines. Sample both in one place, one instant. Instrument the number the
+decision (or the report) is made on — a probe against invisible/misaligned state
+is the broken-ruler error. Landed main 83dd434 (admin-override, restored active).
+
+## WAVE 2026-07-23 #27 — RED long-outage blackout (a real bug in my own prior code)
+
+**Found by AUDITING** the RED receiver from wave #25 (finding a real bug > adding a
+feature). The 1-byte seq can't distinguish a large FORWARD jump (long outage) from
+a small BACKWARD step (reorder): a 130-packet gap and a 126-late packet both
+compute gap==130. The old `case 2...128` recovered, `default` (gap>128) dropped as
+"reordered/old". So after an outage > ~128 packets (~2.5s), EVERY valid packet was
+ignored until the u8 seq lapped back to lastSeq+1 — a 3s dropout became a ~5s
+audio blackout.
+
+**Reproduced before fixing** (§4/§5): harness showed a 130-frame outage dropped
+126 MORE frames before resume; 200-frame -> 56 more. Fix = RTP (RFC 3550)
+semantics: a narrow misorder window (16 pkts) is the ONLY backward range treated
+as reorder; everything else is forward progress and resyncs immediately (`prev` is
+always frame s-1, so 1 frame still recovers at any gap). After: every outage
+(10..255) resumes within 1 packet; full regression harness stays ALL PASS; live
+loopback under 25% loss still 93% (recovered 272). iOS embedded copy byte-identical.
+
+**Two durable lessons:**
+1. A rolling 1-byte (or any wrapping) sequence needs an explicit misorder window +
+   resync rule (RTP MAX_MISORDER/MAX_DROPOUT). "gap > half" is NOT "old" — it's
+   ambiguous, and the wrong branch strands the stream for a full lap.
+2. **Never put backticks in a `git commit -m "..."` double-quoted string** — the
+   shell runs them as command substitution. `` `prev` `` executed the `prev`
+   command and silently deleted the word from the message body (can't fix cleanly
+   once pushed to a protected branch). Use a heredoc/-F file, or single quotes, or
+   avoid backticks in commit messages.
+
+Landed main 9bcbcee (admin-override, restored active).
+
+## WAVE 2026-07-23 #28 — group calls were SILENT on Mac (dispatch-divergence bug)
+
+Started as the wrap-audit sweep from #27's option A. Result of the sweep: video
+reassembly is SAFE (recency GC by a UInt64 tick, never a seq compare — the comment
+even says why) and the crypto replay window is SAFE (a non-wrapping counter capped
+at 2^24 + rekey, lane-split, already differentially verified). The RED receiver was
+the only real wrap instance (fixed #27). Good — the sweep hardened confidence.
+
+But the sweep into the GROUP receive path turned up a worse, unrelated bug. The
+transport calls onReceive+onReceiveFrom for a 1-1 datagram but ONLY onReceiveFrom
+in group mode (MeshTransport groupMode branch). When Opus was wired in (task #43),
+the 0xFD 0xC0 handler landed in onReceive (1-1) but was never mirrored into the
+Mac's onReceiveFrom (group). With opusEnabled=true (ALL audio is Opus), every group
+audio packet hit the `first byte >= 0xFB -> drop` guard: **a Mac group call had ZERO
+audio.** The dead raw-PCM 0xAD branch masked it in a read-through. iOS's group path
+(onDataFrom) already had the 0xC0 branch — the platforms had silently diverged.
+
+Second bug, same root: framesReceived is set only in onReceive, which never runs in
+group mode, so it stayed 0 all call — misfiring the 30s "No answer" timer and never
+flipping status to "Connected". Fixed by driving framesReceived from the per-source
+decoders in the BWE tick (both platforms).
+
+Verified on a Mac group loopback (3 participants), honest STATS line:
+  before: audio decoded=0 delivery=0 | video recv=0
+  after:  audio decoded=1206 delivery=100% | video recv=380
+(The #26 aligned-STATS instrument is what made both bugs visible at a glance.)
+
+**Durable lessons:**
+1. When two receive callbacks split by mode (onReceive=1-1, onReceiveFrom=group),
+   EVERY subtype handler must exist in BOTH — a handler added to one path is silently
+   missing from the other. Grep every `0x..` subtype across both dispatchers when
+   touching either.
+2. Cross-platform parity is not automatic. Diff the Mac vs iOS handler tables when a
+   feature "works on one, not the other" — they drift.
+3. A dead legacy branch (raw-PCM 0xAD) next to the live one (Opus 0xC0) hides a
+   missing handler in a read-through: "audio is handled here" looked true.
+
+Landed main 6842d8e (admin-override, restored active). Both platforms build.
+
+## WAVE 2026-07-23 #29 — dispatcher-parity audit closed + a permanent guard
+
+Finished #28's option A. Built the full subtype x dispatcher matrix over all four
+receive paths (Mac onReceive/onReceiveFrom, iOS onData/onDataFrom):
+
+  subtype            Mac1-1 MacGrp iOS1-1 iOSGrp
+  0xFC PLI             ok     ok     ok     ok
+  0xFD 0xAD audioPCM   ok     ok     ok     ok
+  0xFD 0xBE BWE        ok     ok     ok     ok
+  0xFD 0xC0 audioOpus  ok     ok*    ok     ok     (*fixed #28)
+  0xFB 0xCA chat       ok     ok     ok     ok
+  0xFE 0xAC reaction   ok     ok     ok    MISS -> fixed this wave
+  0xFD 0x53 RTI SLEW    -      -     ok      -     (iOS-only RTI, NOT a call subtype)
+
+Two anomalies: (1) reactions were missing from iOS group (dropped by the group MVP
+`>=0xFB` guard) — mirrored the 1-1 handler in. (2) 0xFD 0x53 is an intentional
+iOS-only RTI-fusion command with no phone-app sender — correctly excluded, not a bug.
+The audit distinguishing a real gap from a legitimate specialization is the point.
+
+**Permanent guard: smoke/dispatcher_parity.sh** — extracts each dispatcher's handled
+subtypes and fails if any CORE call subtype is missing from any of the four paths.
+Proven both ways (PASS on fixed tree; FAIL pinpointing the missing path when a handler
+is deleted; would have caught #28's group Opus too). Wired into lefthook pre-commit,
+gated to fire only when CallManager.swift or ViewModel.swift is staged. The `body()`
+awk extractor bounds each dispatcher at the next `transport.on... =` so it's robust to
+line drift.
+
+**Lesson:** when a receive path is split by mode/platform into N dispatchers, don't
+just fix the missing handler — add a parity guard that enumerates the subtype x
+dispatcher matrix, or the next added subtype re-opens the same silent-drop class.
+CORE list lives in the script; extend it whenever a new cross-platform call subtype
+ships. Landed main 611bf65 (admin-override, restored active).
+
+## WAVE 2026-07-23 #30 — adaptive-depth RED (survive a 2-loss burst)
+
+Option B from #29. 1-deep RED recovered an ISOLATED loss but not two CONSECUTIVE —
+and consecutive loss is what a fading radio / full socket buffer actually produces.
+Generalized AudioRED to a self-describing variable-depth frame:
+  [seq:1][count:1][len:2 LE]*count [frames]  (frame[0]=cur, [1]=prev, [2]=prev2)
+Sender keeps a newest-first ring and packs `redDepth` frames; the loss controller
+raises redDepth 2->3 only while residual loss to the peer is high (clean call ~2x,
+lossy ~3x, never more). Receiver fills up to count-1 consecutive gaps.
+
+**Bug caught by the harness before shipping:** the first receiver used raw numeric
+`s`/`lastSeq` in the fill loop, which breaks across the u8 wrap (s=1 < lastSeq=255
+even though it's forward) -> the wraparound test FAILED. Rewrote the fill as
+`min(gap, count)` newest-first — expressed via `gap`, wrap-safe. This is the SAME
+wrap-class trap as #27; the harness's wraparound case caught it instantly. Keep
+that test.
+
+Harness (compiles the real AudioRED.swift): pack/parse every depth, single-loss,
+2-consecutive BOTH recovered at depth 3 (new capability), 3-consecutive hits the
+2-deep ceiling, depth changing mid-stream with a burst, dup/reorder/wrap/outage —
+ALL PASS. iOS embedded copy byte-identical (re-ran harness against the extracted
+iOS body — ALL PASS).
+
+Live 1-1 loopback, 25% induced loss, aligned STATS: **audio delivery 93% (1-deep)
+-> 98% (recovered 458)**, loss controller bumped depth to 3 (back-off 19x), audio
+packets grew 114B -> ~176B. The +5% is exactly the 2-consecutive bucket 1-deep
+missed. Landed main a77ce81 (admin-override, restored active). dispatcher-parity
+hook re-confirmed no dispatcher regression.
+
+**Lesson:** any receiver logic over a wrapping sequence must express distances via
+the modular `gap`, never raw index arithmetic — and a wraparound test is the cheap
+guard that catches it (twice now).
+
+## WAVE 2026-07-23 #31 — grouped adaptive video FEC + an HONEST negative finding
+
+Option C from #30, attacking the weakness MY OWN measurement exposed: video 60%
+delivery at 25% loss vs audio 98%. Root cause: the transport sent ONE XOR parity
+per whole NAL -> repairs exactly 1 lost fragment no matter the NAL size -> a big
+keyframe losing several fragments is unrecoverable -> PLI -> bigger keyframe ->
+stall cascade.
+
+Built pure VideoFEC.swift (Mac target + xcodegen; iOS embeds byte-identical) = one
+parity per GROUP of `fecGroup` fragments; loss controller shrinks group 16->4 under
+loss. STRICT SUPERSET: a NAL with <= group fragments still makes exactly one parity
+(old behavior). Parity wire gains gStart/gLen. Standalone harness (compiles the real
+file): single-loss, 2-in-one-group graceful-fail (no corruption), smaller-group-
+survives-more, exhaustive, and a 400-random-pattern model check (recovers IFF no
+group has >1 loss) — ALL PASS. Wired into BOTH Mac paths and BOTH iOS paths (1-1 +
+group; iOS has two FEC implementations — don't miss the group one).
+
+**HONEST NEGATIVE FINDING (the real payoff):** live 1-1 loopback at 25% loss moved
+aggregate video only ~60% -> ~64%. Why: most video frames are SINGLE-FRAGMENT
+P-frames, and intra-NAL XOR FEC needs >= 2 fragments, so it cannot protect them AT
+ALL. Grouped FEC only helps large keyframes (breaks the PLI cascade — real QoE value
+the flat frame-count metric under-weights, but I could not isolate it in loopback).
+The lever for small frames is CROSS-FRAME FEC (parity across several NALs, like
+FlexFEC) or NACK retransmission — not stronger per-NAL parity. Don't chase per-NAL
+FEC further; the next video-resilience wave should be cross-frame FEC or NACK.
+
+Shipped anyway because it's correct, harness-verified, a strict superset (no
+regression), adaptive (no cost when clean), and the right foundation for cross-frame
+FEC. Landed main a09b5a1. dispatcher-parity hook re-confirmed no regression.
+
+**Lesson:** measure the delivery of the thing that actually dominates (frame COUNT
+is mostly tiny P-frames), not the thing that's easy to reason about (big keyframes).
+A correct optimization aimed at the wrong bottleneck yields a correct, tiny result.
+
+## WAVE 2026-07-23 #32 — NACK retransmission (1-1) + a crypto thread-safety audit
+
+Followed #31's honest finding (grouped FEC only reached ~64% because single-fragment
+P-frames can't be FEC-protected). NACK is the recovery that reaches a FULLY-lost NAL:
+the monotonic per-NAL seq makes a vanished NAL visible as a seq gap, so the receiver
+NACKs it and the sender re-sends from a 64-NAL buffer.
+
+**Crypto audit first (§5, de-risking the design):** NACK re-sends from the rx queue,
+so I checked MeshCrypto.seal for a tx-counter nonce-reuse race across threads.
+FINDING: the Swift path uses `ChaChaPoly.seal` with a RANDOM nonce (NOT the counter-
+nonce of the Rust crypto_frame.t27 spec) — so concurrent/cross-thread sends are safe
+(collision ~1e-15), no shared counter. Negative-but-valuable: also noted the Swift
+path has NO replay window (unlike the Rust spec); in-call control replay is low-impact
+(dupes gated by reassembly/RED) but worth a future hardening note.
+
+NACK details: receiver tracks highest video seq, NACKs the last ~30 skipped seqs,
+rate-limited 1/120ms/seq, gap computed MODULARLY (u16-wrap-safe — the recurring
+lesson). Sender buffers 64 NALs' wire fragments, re-seals on resend. Subtype
+[0xFD 0x4E seq]; 1-1 only (handled in Mac onReceive + iOS onData, NOT group — it's
+path-specific like RTI SLEW, so it stays OUT of the dispatcher-parity CORE list).
+
+Live 1-1 loopback at 25% loss: video ~64% -> ~73%, audio unchanged 97%, no anomalies.
+HONEST remaining gap: a fully-lost LARGE keyframe is re-sent WHOLE and loses fragments
+again under loss (0.75^N), and seq-gap logic NACKs it only once -> keyframes recover
+poorly. Next: per-FRAGMENT NACK (request only the missing idx of a stalled NAL) + a
+completion-timed retry. This wave banks the small-frame recovery FEC couldn't reach.
+
+Landed main a0edfdb. dispatcher-parity re-confirmed no regression.
+
+**Lesson:** layer loss recovery by what each tool can reach — FEC for partial NALs
+(some fragments arrive), NACK for fully-lost NALs (nothing arrives). Neither alone
+covers both; measure which category dominates before picking.
+
+## WAVE 2026-07-23 #33 — per-fragment NACK: video loss recovery reaches audio parity (60->96%)
+
+Closed #32's gap. Whole-NAL NACK re-sent a lost keyframe WHOLE (lost fragments again
+-> ~73%). Now a stalled partial NAL is NACKed by its SPECIFIC missing idx
+([0xFD 0x4F seq idx...]); sender re-sends only those; receiver retries the last ~8
+incomplete NALs each advance (80ms/NAL rate-limit). Whole-NAL NACK (0xFD 0x4E) still
+covers fully-lost NALs (unknown total).
+
+**TWO real pre-existing bugs, exposed by the frequent per-fragment traffic:**
+1. DATA RACE -> SIGSEGV: `sentNALs` (resend buffer) written on the encoder thread,
+   read on the rx queue. Swift Dictionary is not thread-safe; it crashed (crash report
+   named resendFragments -> Dictionary.subscript). Fix: NSLock; copy the wire array out
+   under it so crypto (rawSend) stays lock-free. The prior whole-NAL NACK had the SAME
+   latent race, just rarer — I shipped it last wave without noticing. Lesson: any state
+   touched by both send() (encoder/main thread) and a resend/rx handler is cross-thread.
+2. DUPLICATE DELIVERY: a resend re-completed an already-delivered NAL -> decoder got the
+   same frame twice (recv > sent: 807/780, real double-decode artifacts). Fix: track
+   delivered seqs (bounded ring), drop any fragment for one already handed up. This also
+   kills the resend storm (a delivered NAL's resends are dropped at ingress).
+
+Live 1-1 loopback at 25% loss, the full arc: 60% (baseline) -> 64% (grouped FEC) ->
+73% (whole-NAL NACK) -> **~96%** (per-fragment NACK, recv<=sent, no crash), matching
+audio's 94-97%. Both platforms. Landed main b369ae8.
+
+**Lessons:**
+- recv > sent on a loss test is never "great delivery" — it's DUPLICATE delivery. A
+  delivery ratio that exceeds 100% is a bug indicator, not a win.
+- Retransmission needs BOTH a resend buffer (locked, cross-thread) AND a delivered-set
+  dedup, or it double-decodes and can storm. Ship them together.
+- The layered loss-recovery stack is now complete: FEC (partial NALs) + whole-NAL NACK
+  (fully-lost small NALs) + per-fragment NACK (stalled large NALs) -> video ~= audio.
+
+## WAVE 2026-07-23 #34 — room-bound crypto (the PSK alone authenticated nothing)
+
+The media loss-recovery stack reached audio parity (#33), so security became the top
+weakness — the audit (#32) had already named it: the PSK is SHA256("tri-net-psk-v1"),
+a constant in every binary, so anyone with the app can MITM the handshake, forge an
+INVITE, or decrypt a group call. Real per-node identity keys are the root cure; this
+wave does the contained, verifiable step: mix the existing `room` code into the auth
+keys, moving the bar to "anyone who knows the room secret".
+
+Three derivations consolidated in MeshCrypto (both platforms, byte-identical):
+  handshakeAuthKey / inviteAuthKey / groupAuthKey, each = HKDF(PSK, salt+room).
+EMPTY room reproduces the legacy keys BIT-FOR-BIT (open lobby unchanged, old builds
+interop); a set room is opt-in security. Transport sets crypto.room / groupKey from
+PeerDiscovery.myRoom at connect.
+
+Verified: standalone harness over the REAL MeshCrypto (both platforms) — same room ->
+session; different/absent room -> handshake rejected; empty room == legacy keys
+bit-for-bit; room-bound group key not openable with the legacy key. Live 1-1 loopback
+(room=LOOP): correct room-INVITE establishes (FIRST FRAME DECODED); 5 legacy-key
+INVITEs all rejected.
+
+**TWO measurement traps hit and corrected this wave (log discipline):**
+1. A wide grep window (`date -v-1M`) counted a STALE "accepting call" from a prior run
+   and mis-reported the legacy-key attack as ACCEPTED. Fixed by marking a precise
+   timestamp AFTER the send and grepping `$0 > marker` only. Inspect the actual line's
+   TIMESTAMP before trusting a count — the same broken-ruler class as the video STATS.
+2. An f-string with a backslash escape crashed the python probe before it sent, so a
+   "REJECTED" verdict was vacuous (nothing was tested). A green result from a probe
+   that errored out is not a pass — confirm the probe actually ran.
+
+CAVEAT shipped in the commit: a room code is a user passphrase, not high-entropy key
+material, and does NOT replace per-enrollment identity keys (still the root cure).
+Landed main 5336194. dispatcher-parity unaffected.
+
+## WAVE 2026-07-23 #35 — anti-replay on the data path (bounded seen-nonce window)
+
+Second item from the #32 crypto audit (room-binding #34 was the first). The Swift path
+had NO replay protection: a captured sealed datagram replays and decrypts (authentic
+bytes), so an attacker who only echoes ciphertext — no key needed, works even off-room
+— could duplicate a chat message or re-inject a stale BWE report. Room-binding doesn't
+help; a replay reuses a legit peer's own sealing.
+
+KEY design fact: the Swift path seals with ChaChaPoly's RANDOM 12-byte nonce (no app
+counter), so an IPsec counter-window doesn't apply. But a random nonce is seen at most
+ONCE for legit traffic, so a REPEAT is a replay. MeshCrypto.acceptNonce keeps a bounded
+set of the last 8192 nonces; unseal (1-1) and the group recv path both check it. ZERO
+false positives (each legit nonce inserted once), and NACK resends are safe because
+rawSend re-seals with a fresh nonce (verified live: 0 false drops under 25% loss + heavy
+resends). Both platforms byte-identical.
+
+Harness over the real MeshCrypto (both platforms): replay rejected / fresh pass / 5000
+distinct frames no false drop / acceptNonce pure predicate / and honestly a replay AFTER
+window eviction succeeds (documented bound). Landed main df55009.
+
+**Lessons:**
+- Anti-replay does NOT require a counter: with random per-message nonces, a bounded
+  seen-nonce set gives a zero-false-positive window at no wire cost. A counter+AAD gives
+  an UNBOUNDED guarantee but costs a wire change — name the trade in the commit.
+- Re-seal on retransmit (fresh nonce) is what lets replay-protection and NACK coexist;
+  had resends reused the nonce, the replay window would have eaten them.
+- Security posture now: room-binding (who can connect) + anti-replay (no message reinjection).
+  Still open (root cure): per-enrollment identity keys so a room-knowing peer can't MITM.
+
+## WAVE 2026-07-23 #36 — identity keys + TOFU pinning (closes the MITM hole)
+
+The last open item from the crypto audit. Room-binding gates WHO connects, but an
+on-path attacker who also knows the room could substitute their ephemeral key and
+MITM (the handshake had no stable identity). Now each device has a persistent Ed25519
+key; the handshake grows 66 -> 162 bytes appending [idPub 32][sig over ephPub 64], so
+only the identity holder can authorize a session. Receiver pins idPub per peer IP
+(TOFU); a different idPub at a pinned peer -> mitmDetected + session refused.
+safetyNumber(a,b) = order-independent 11-digit code over both identities for
+out-of-band comparison (catches a first-call MITM). Room HMAC kept ADDITIVE (unchanged).
+
+ADDITIVE > rewrite: I kept the existing room-HMAC path byte-for-byte and only appended
+the identity fields, so the change is a superset, not a protocol rewrite — much lower
+risk on a security-critical path. (isHandshake count 66->162 is the only break; both
+ends ship together, like every wire change here.)
+
+Harness over the real MeshCrypto (both platforms): 162B signed handshake; mutual
+establish+pin; changed-identity-at-pinned-IP -> MITM detected + refused; tampered sig /
+wrong room -> rejected; safety number symmetric/deterministic. The MITM test relies on
+pins PERSISTING (UserDefaults) across MeshCrypto instances -- clear "trinetPeerPins" at
+harness start or a fresh identity each run false-flags MITM. Live loopback: call
+establishes with the new handshake, zero false MITM (a node pins its own identity for
+127.0.0.1). Landed main cd9f897.
+
+Security posture now COMPLETE for the threat model: ChaCha20-Poly1305 + forward-secret
+ephemeral X25519 + room-binding (who) + anti-replay (no reinjection) + Ed25519 identity
++ TOFU MITM-detection. Remaining hardening (not holes): Keychain for the identity key
+(it's in UserDefaults), and SHOWING the safety number / MITM warning in the call UI (the
+data — peerIdentity, mitmDetected — is already exposed; the dialog is the next step).
+
+**Lesson:** X25519 keys agree, they don't sign — a signed handshake needs a SEPARATE
+Ed25519 identity key (CryptoKit Curve25519.Signing), not the X25519 agreement key.
+
+## WAVE 2026-07-23 #37 — surface the safety number + MITM warning in the call UI
+
+The crypto stack (#34-36) was invisible — a user could neither confirm a 1-1 call is
+end-to-end nor see a MITM alarm, so identity pinning gave no user-actionable value.
+Signal's whole model is the user comparing a short safety number out-of-band; now the
+call shows it. Transport exposes peerSafetyNumber (nil until the peer's signed
+handshake lands) + mitmDetected; CallManager/ViewModel publish safetyNumber +
+mitmWarning (sampled each BWE tick, reset per call). 1-1 call view shows a
+"🔒 164 0819 8304" tag + a loud "IDENTITY CHANGED — POSSIBLE MITM" banner; group shows
+neither (no pairwise identity). Both platforms; groupDigits() formats 11 digits as 3-4-4.
+
+Verified: both build. DATA pipeline confirmed LIVE (Mac loopback log: "1-1 peer identity
+verified — safety number 16408198304") — handshake identity -> peerSafetyNumber -> the
+@Published the view binds. safetyNumber() harness-proven earlier.
+
+**HONEST verification limit (new environment constraint):** screencapture fails here
+("could not create image from display") and the iOS Simulator can't establish a call
+by itself (no camera/peer), so there is NO pixel screenshot of the rendered tag — the
+binding + data are verified, the visual layout is COMPILE-checked only. When a UI needs
+pixel proof, that needs the two-endpoint rig (a real 2-process call is screenshottable).
+Do not claim a layout is verified from a compile + a data-pipeline log.
+
+Landed main e930d55. dispatcher-parity re-confirmed no regression.
+
+## WAVE 2026-07-23 #38 — device identity key -> Keychain (off the plaintext plist)
+
+Closes the storage caveat from #36: the persistent Ed25519 identity key sat in
+UserDefaults (a base64 plist on disk), so a local read could lift it and impersonate
+the device forever. Moved it to the Keychain (kSecClassGenericPassword,
+AccessibleAfterFirstUnlock). deviceIdentity(): load from Keychain -> else MIGRATE a
+legacy UserDefaults key into the Keychain and scrub the plist (existing installs keep
+their identity + peers' TOFU pins stay valid) -> else first-run generate+store. Falls
+back to UserDefaults if the Keychain is unavailable (unsigned build), so the app still
+runs. Both platforms.
+
+**Probe-before-commit (§5) mattered:** I did NOT assume Keychain works headless. A tiny
+SecItemAdd/CopyMatching probe (with a background-watchdog kill in case a prompt hung)
+confirmed status 0 both ways, no prompt — THEN I committed to the wave. macOS Keychain
+for an app's OWN generic-password item does not prompt; a standalone swiftc binary can
+also use the default keychain here. (`timeout` is absent on macOS — use a bg PID + a
+kill-after-N-seconds loop as the watchdog.)
+
+Harness over the real MeshCrypto (both platforms): stores in Keychain not the plist;
+persists; raw round-trip; migration returns the SAME identity + scrubs the plist — ALL
+PASS. Live on the SIGNED Mac app: loopback call establishes, safety number is
+16408198304 — the SAME as before migration (identity preserved) — and
+`defaults read ... trinetIdentityKeyV1` is now empty. Landed main e5a8581.
+
+**Lesson:** a migration is only correct if it preserves the SAME identity (a new key
+would silently invalidate every TOFU pin). Verify the post-migration value equals the
+pre-migration one, not merely that "a key exists".
+
+Security posture: real AEAD + forward secrecy + room-binding + anti-replay + Ed25519
+identity/TOFU + visible safety-number/MITM UI + Keychain-stored key. The call's crypto
+is now a complete, verified, user-visible stack.
+
+## WAVE 2026-07-23 #39 — the two-endpoint rig EXISTS (kills the broken-ruler root)
+
+Deferred ~7 waves, finally built. Single-process loopback confounded every metric —
+sent/recv were the SAME node's counters (>100% "delivery"), jitter==0 meant "no stream",
+a cross-thread race hid until it fired, and the UI/MITM couldn't be verified. Now TWO
+real TriNetMonitor instances dial each other over real UDP on one Mac.
+
+Three dev-only env hooks (inert in a shipping run):
+  TRINET_LOG=<path>          per-instance LogBus file (read each process's counters apart)
+  TRINET_LISTEN=<port>       this instance's UDP listen port
+  TRINET_AUTOCALL=host:port  auto-dial a 1-1 call on launch (INVITE bypassed)
+startCall honors a distinct listen port so two locals don't collide. The Video tab is the
+DEFAULT tab, so CallManager inits on launch and the autocall fires with no UI driving.
+smoke/two_endpoint_rig.sh orchestrates A(:8000)<->B(:8100) and reports CROSS-process
+delivery A->B = (B received)/(A sent) — the honest number.
+
+Key realizations that made it work:
+- macOS SHARES the camera across processes (unlike iOS), so both instances send AND
+  receive — a full bidirectional call, two real cameras.
+- Run the SAME app bundle twice (shared UserDefaults/Keychain => same identity). That's
+  FINE for delivery tests: both handshakes carry the same idPub, both pin 127.0.0.1 to it,
+  no MITM false-positive. Distinct identities (for a real over-the-wire MITM test) need
+  bundle-id duplication or a per-instance keychain account — a follow-up.
+- The in-process STATS delivery% is MEANINGLESS in a 2-process call (it compares a node's
+  own tx to its own rx = two independent streams). The real metric is CROSS-process.
+
+Verified live: clean link A->B 98.7% / B->A 93.4%; with 25% induced loss on B, A->B still
+96.7% -- the whole layered loss-recovery stack (grouped FEC + whole-NAL + per-fragment
+NACK, #31-33) proven end-to-end over two genuine processes. Landed main 97980fa.
+
+**This unblocks honest verification for every future wave** (UI pixels, MITM-over-wire,
+adaptive control, latency) — reach for smoke/two_endpoint_rig.sh instead of self-loopback.
+
+## WAVE 2026-07-23 #40 — verify identity/MITM security OVER THE WIRE (using the rig)
+
+First real test of the identity crypto (#36-37) against a genuine second endpoint. Single-
+process loopback self-pairs (safety number over ONE identity, degenerate) and can't stage a
+MITM. The rig can, once each instance has a DISTINCT identity: added TRINET_KC_ACCOUNT
+(keychain account suffix) + TRINET_PINS_KEY (pin-store suffix) so two local instances hold
+separate identities + separate TOFU pins (dev-only, byte-identical on both platforms).
+
+smoke/two_endpoint_security.sh, verified live:
+  TEST 1  two honest peers with DISTINCT identities derive the SAME safety number
+          (24514929508 == 24514929508), zero false MITM — the Signal-style check loopback
+          could not do (it would compute a code over one identity paired with itself).
+  TEST 2  A pins B, then impostor M (different identity) answers at B's address -> A logs
+          "identity CHANGED — session refused" and decodes ZERO video from M. Real
+          over-the-wire MITM detection of the pinning feature.
+
+Also fixed MITM log spam: rejection now logs ONCE on the false->true transition (the rig saw
+65196 lines from repeated impostor handshakes; now 2). Latch + refusal unchanged.
+
+Key rig realizations for SECURITY (beyond delivery):
+- Distinct identities REQUIRE distinct pin stores too, or the shared pins map 127.0.0.1 to
+  two identities and false-flag MITM. Isolate BOTH (kc account + pins key).
+- Persisted TOFU is what makes Test 2 work: A pins B in run 1 (to UserDefaults pins-A),
+  reuses that pin in run 2, and catches M. Clean the test keychain items + pin keys before
+  a run (via `security delete-generic-password` + `defaults delete`) or a stale pin false-flags.
+- `security delete-generic-password -s <svc> -a <acct>` is how the shell cleans a rig identity.
+
+Landed main bb97911. The rig now verifies BOTH delivery (#39) and security over real processes.
+
+## WAVE 2026-07-23 #41 — the verification suite is now REPRODUCIBLE (smoke/verify.sh)
+Forty waves of correctness proofs — every codec, every crypto property — lived in
+throwaway swiftc harnesses under the session scratchpad. Scratchpad is wiped between
+sessions, so a fresh checkout could re-prove NOTHING: the doctrine says "PROVEN requires
+reproduction" and the repo could not reproduce a single claim. That is itself a defect.
+
+Fix: committed the six harnesses to `smoke/harness/*.swift` and added `smoke/verify.sh`,
+one runner that compiles each against the REAL production file and reports a single
+PASS/FAIL:
+  AudioRED, VideoFEC            (codec round-trips through naked wire bytes)
+  MeshCrypto room/replay/identity/keychain  (the four crypto properties)
+  + dispatcher-parity static guard
+The harnesses compile the actual source (never a copy) so they cannot drift from it.
+
+Realizations:
+- Swift only accepts top-level code from a file literally named `main.swift` in a
+  multi-file build. The runner stages each harness as `$TMP/main.swift` before compiling;
+  that is why the scratchpad copies were always called main.swift.
+- The crypto harnesses touch the Keychain + UserDefaults; each wipes at start AND end, so
+  the suite is safe to run repeatedly on a dev Mac. Keep that self-cleaning property when
+  adding crypto harnesses, or `verify.sh` leaves identity turds behind.
+- Compiling MeshCrypto+CryptoKit four times is slow (~2 min total). That is the cost of
+  compiling the real file four ways; do not "optimize" by importing a stale copy.
+- The two-endpoint rigs (delivery + security) need TWO running apps and a camera, which a
+  compile-and-run harness cannot stage — they stay separate and self-report. verify.sh
+  names them in its footer so the split is documented, not forgotten.
+Committing `.swift` under smoke/ is clean: hooks gate .rs/.t27/.v (ascii) and .sh outside
+smoke/ (no-shell-scripts); a smoke/*.swift harness trips neither. phone/ is hand-written,
+outside the golden pipeline, so no gen/ concern.
+
+## WAVE 2026-07-23 #42 — STUN client: the first VERIFIABLE brick of NAT traversal
+The call has connected only same-subnet peers for its entire life; every wave report v0.7..
+v0.11 listed "add STUN" as the #1 usability unlock and deferred it. Codecs/FEC/crypto/BWE
+are polish on a call that cannot even be established across two networks. Root cause: neither
+side knows its own PUBLIC address, so there is nothing to hole-punch toward.
+
+First brick, chosen because it is fully verifiable OFFLINE: a minimal STUN (RFC 5389) Binding
+client — phone/desktop/TriNetVideo/StunClient.swift (pure + standalone like MeshCrypto). It
+encodes a Binding Request and parses XOR-MAPPED-ADDRESS (IPv4 + IPv6). The unmasking is the
+error-prone part:
+  X-Port = port XOR (cookie>>16);  X-Addr = addr XOR cookie  (IPv4);
+  X-Addr = addr XOR (cookie||txid)                            (IPv6 — txid is load-bearing).
+
+Verified two independent ways:
+  * OFFLINE, bit-exact against the IETF's OWN reference bytes (RFC 5769 2.2 -> 192.0.2.1:32853,
+    2.3 -> [2001:db8:1234:5678:11:2233:4455:6677]:32853) in smoke/harness/stun_vectors.swift,
+    now the 8th test in verify.sh. A green run == agreement with every conformant STUN server.
+  * LIVE end-to-end: gatherServerReflexive("stun.l.google.com",19302) returned this machine's
+    real public ip:port. host candidates via getifaddrs returned the LAN IPv4.
+
+Lessons:
+- RFC 5769 gives official STUN test vectors — use them. They make the endian-sensitive XOR
+  unmask provable with ZERO network dependency, so the gate stays hermetic (contrast the #41
+  Keychain hang: never put an environment-dependent op in verify.sh).
+- IPv4 X-Address XORs the cookie ALONE; IPv6 XORs cookie||transaction-id. A harness that only
+  tests IPv4 cannot catch a txid-handling bug — include the IPv6 vector with the RFC's exact txid.
+- Bound every attribute walk by the buffer AND the declared msg-length; a length field that
+  runs past the end must return nil, never read out of bounds (tested explicitly).
+- Live STUN worked here, but the gate must not depend on it — the RFC vectors are the proof of
+  record; the live query is a bonus, honestly reported when the network cooperates.
+NOT yet wired into the transport (no signaling to exchange candidates, no hole-punch); that is
+the next brick. StunClient.swift is harness-proven but not in project.yml until it is used.
+
+## WAVE 2026-07-23 #43 — hole-punch: the SECOND brick of NAT traversal (verified on loopback)
+#42 gave each side its public address (STUN); the missing half is USING two addresses to
+connect. HolePunch.swift is the connectivity check: both peers send probes to each other's
+candidates AT THE SAME TIME, and that simultaneous open is what punches a pinhole through each
+NAT (NAT B admits A's inbound because B just sent outbound toward A). The pair that completes
+a probe/ack round-trip is the one the media call uses.
+
+Pure + standalone (like StunClient). Three verified layers in smoke/harness/holepunch.swift
+(the 9th verify.sh test):
+  1. probe/ack wire codec bit-exact (0xFD 0x1C probe / 0xFD 0x1D ack + big-endian txid).
+  2. ICE-style pair priority (RFC 8445 6.1.2.3) + nomination on synthetic candidates:
+     host outranks srflx; pair priority is IDENTICAL from the controlling and controlled
+     views (min/max makes it symmetric); nominate returns the best SUCCEEDED pair, not the
+     best pair overall.
+  3. TWO real agents actually hole-punch each other over loopback UDP (real sockets, two
+     threads) and both hear an ack.
+
+Lessons:
+- What a single machine CAN prove: the check state machine + wire format + selection, over
+  real UDP. What it CANNOT: traversal of a real NAT (needs two separate NATs). State the
+  boundary; do not claim NAT traversal from a loopback pass.
+- The one non-pure test (real sockets, thread scheduling) is the flake risk. Made it robust,
+  not lucky: each agent RETRANSMITS its probe every 50ms for the whole 1.2s window on a
+  lossless loopback and answers every probe it sees, so an ack is guaranteed regardless of
+  who sends first. Then ran it 5x — 5/5 ALL PASS — before trusting it ("PROVEN"=reproduced,
+  one success is an anecdote).
+- Reply the ack to the OBSERVED source (recvfrom's from-addr), not a preconfigured peer addr:
+  a symmetric NAT rewrites the source port, and the observed source is the pinhole.
+- Retransmission IS the algorithm, not a workaround: simultaneous open routinely needs a few
+  tries because the two sides never start in lockstep.
+NOT yet wired into the transport: exchanging candidate lists over a signaling/rendezvous
+channel and running punch() before the media socket opens is the third brick. HolePunch.swift
+is harness-proven but not in project.yml until used.
+
+## WAVE 2026-07-23 #44 — ICE session: gather -> exchange -> connect (the third NAT brick)
+#42 gave each side its public address, #43 punched between two KNOWN ports. The missing glue:
+serialize the candidate LIST for the signaling channel, and orchestrate a real connect that
+probes ALL of the peer's candidates and nominates the one that answers. IceSession.swift does
+both (pure + standalone; reuses HolePunch's codec + priority):
+  * Ice.encode/decode: [count:2][kind:1][port:2][ipLen:1][ip utf8] per candidate, bounds-checked.
+  * Ice.connect(localPort, remote[]): bind one socket, probe every remote candidate for the
+    whole window, ack observed sources, nominate the highest-priority remote that answered.
+
+Verified in smoke/harness/ice_session.swift (10th verify.sh test): serialization round-trips
++ rejects garbage; and TWO real in-process sessions exchange serialized blobs and CONNECT over
+loopback UDP while correctly discarding a decoy candidate (192.0.2.2, RFC 5737 unroutable) that
+never answers. Ran 3x -> 3/3.
+
+Lessons:
+- A decoy candidate must be genuinely dead AND not local: 127.0.0.1:<closed> triggers an ICMP
+  port-unreachable that can surface as ECONNREFUSED on the next recvfrom and disturb the loop.
+  Use an RFC 5737 unroutable address (192.0.2.0/24) so probes simply go nowhere.
+- Nominate by "did it ACK", never by "is it highest priority": the whole point is that a NAT
+  may silently drop some pairs. connect() records which remote answered and picks the best
+  AMONG THOSE, so a dead higher-priority candidate is skipped, not selected.
+- Don't early-exit connect() on first success — a peer that stops answering the instant it
+  succeeds strands the other side mid-handshake. Run the full window, keep acking, nominate at
+  the end. (Same lesson as #43's punch, now at the multi-candidate layer.)
+- verify.sh now allows a multi-FILE source per harness (IceSession needs HolePunch too): $src
+  is left unquoted so each path is a separate swiftc arg (TriNetVideo paths have no spaces).
+Boundary unchanged: loopback proves serialize/exchange/connect/nominate over real UDP, NOT
+real-NAT traversal (two separate NATs). The three bricks (#42 STUN, #43 punch, #44 session) are
+harness-proven but still not in project.yml / not wired into CallManager — that integration
+(run connect() before the media socket opens, feed it the room's exchanged candidates) is next.
+
+## WAVE 2026-07-23 #45 — confidential candidate exchange (secure the rendezvous BEFORE building it)
+The three NAT bricks (#42-44) all assume the peers already hold each other's candidate lists.
+Whatever rendezvous carries that list must NOT be trusted to read or forge it: an injected
+candidate redirects the call to an attacker's machine (classic ICE candidate-injection / call
+hijack; WebRTC blocks it with signed SDP + DTLS fingerprint). This is a prerequisite for a
+rendezvous, not an afterthought -- shipping candidate exchange unsealed is a call-hijack hole.
+
+CandidateOffer.swift (pure; reuses MeshCrypto.inviteAuthKey + Ice serialization): seal
+[version][tiebreaker:8][expiry:8][Ice list] under a room-derived key, with an expiry so a
+captured offer cannot be replayed later, and an ICE controlling/controlled tiebreaker.
+smoke/harness/candidate_offer.swift (11th verify.sh test, 13 checks): honest round-trip;
+wrong room -> nil (confidential); flipped tag -> nil (unforgeable); expired -> nil (fresh);
+role resolves oppositely for the two peers.
+
+Lessons:
+- Domain-separate the offer key from the invite key with one HKDF step (ikm = inviteAuthKey,
+  distinct salt) so a candidate offer and an invite can never be cross-interpreted even though
+  both are room-authenticated. Verified: the offer does NOT open under the raw invite key.
+- The pre-handshake exchange cannot use the forward-secret SESSION key (no handshake yet); the
+  ROOM key (inviteAuthKey) is the right trust boundary -- "anyone with the room passphrase",
+  which is exactly who is allowed to join the call, and excludes a passphrase-less rendezvous.
+- A long-lived room key has no built-in anti-replay (unlike the session-key seal path, which
+  runs acceptNonce). Put an EXPIRY inside the sealed blob and check it on open, or a captured
+  offer is replayable forever.
+- Pass the clock in (now: Date = Date()) so expiry tests are deterministic -- never let a test
+  depend on wall-clock time.
+verify.sh already supported multi-file sources (#44); CandidateOffer needs four
+(MeshCrypto+HolePunch+IceSession+CandidateOffer). Uses only static room-key derivation, so no
+MeshCrypto() is built and the Keychain is never touched (the #41 hang cannot recur). Four
+harness-proven NAT/exchange modules now exist, none yet in project.yml / wired into CallManager.
+
+## WAVE 2026-07-23 #46 — wire the NAT stack INTO the app (break the unwired-module streak)
+Four waves (#42-45) built harness-proven but UNWIRED NAT modules. Four modules sitting outside
+the binary is a debt: proven-in-a-harness is not proven-in-the-product. This wave put them in
+the shipping Mac app and proved they run there, WITHOUT touching the working same-subnet call.
+- project.yml: added StunClient, HolePunch, IceSession, CandidateOffer, NatDiagnostics; xcodegen
+  regenerated the tracked pbxproj (clean +20 lines, only the 5 files, zero churn).
+- NatDiagnostics.run(): off-main at launch (.onAppear), gathers host + STUN srflx candidates and
+  seals a CandidateOffer under the current room, then logs it. Additive-only: nothing in the
+  call/media path changes.
+Verified LIVE in the built binary (not a harness): launched with TRINET_LOG and read back
+  TRINET NAT: candidates host=["192.168.1.104"] srflx=182.232.218.171:59434 -> sealed offer 83B (room=lobby)
+i.e. StunClient.hostCandidates + gatherServerReflexive (real public address via Google STUN) +
+CandidateOffer.make all execute inside the app; the app did not crash (working call intact).
+
+Lessons:
+- Break an unwired-module streak deliberately: accumulating proven modules is not progress until
+  they run in the product. But wire ADDITIVELY around a known-good path (off-main diagnostic, no
+  change to connect/media) so integration cannot regress the working call.
+- The tracked xcodegen pbxproj must be committed WITH the project.yml change, or a checkout that
+  does not re-run xcodegen builds without the new files. Verify the pbxproj diff is only the new
+  files (grep the added lines) so a stale/newer xcodegen version does not sneak churn into the commit.
+- LogBus tees stderr, so a plain NSLog("%@", ...) in a new module is visible in the per-instance
+  TRINET_LOG file with no wiring — the cheapest way to prove a new code path ran live.
+- Deferred deliberately: iOS embed (static file list is fragile per CLAUDE.md) and the real
+  integration (exchange the offer via a rendezvous, run Ice.connect before the media socket). The
+  Mac app now HOLDS its sealed candidate offer; delivering it + connecting on it is next.
+
+## WAVE 2026-07-23 #47 — mirror the NAT stack to iOS (restore the byte-identical invariant)
+Five waves added NAT modules Mac-only, violating the codebase invariant that shared logic
+(crypto, codecs) is BYTE-IDENTICAL across Mac and iOS. An iPhone user needs the NAT stack too.
+This wave mirrors StunClient/HolePunch/IceSession/CandidateOffer/NatDiagnostics into iOS.
+
+- The iOS target has a STATIC file list (never regenerate it -- breaks signing), so shared
+  types live embedded inside an existing file. Appended all five enums to VideoPipeline.swift
+  (where MeshCrypto/AudioRED/VideoFEC already live), each with a "keep BYTE-IDENTICAL" header.
+- Guaranteed byte-identical by EXTRACTING the enum blocks straight from the Mac files with
+  `sed -n '/^enum X {/,$p'` and appending them -- a manual retype risks silent drift. Then
+  verified: `diff` of each of the 5 enums (Mac source vs the block in VideoPipeline.swift) ->
+  all BYTE-IDENTICAL. iOS uses the same "trinetRoom" UserDefaults key + has LogBus, so
+  NatDiagnostics is correct verbatim.
+- NatDiagnostics.run() added to TriNetVideoApp.init() after LogBus.shared.start().
+
+Verified: iOS `** BUILD SUCCEEDED **` (the embed compiles into the static target); all 5 enums
+byte-identical to Mac (which ran live in #46); and the iOS app, launched in the Simulator,
+LIVE made a network path check to Hostname:19302 -- the STUN port used ONLY by NatDiagnostics --
+proving it executed on iOS.
+
+Lessons:
+- iOS LogBus dup2's stderr into the in-app Log pane, so a plain NSLog does NOT reach the
+  unified log; `simctl spawn booted log stream --predicate 'eventMessage CONTAINS ...'` finds
+  nothing. Verify a code path RAN on iOS via an independent channel instead -- here the OS's own
+  os_log for the outbound STUN connection (`log show --predicate 'process == "TriNetVideo"'`
+  shows Hostname:19302). Broken-ruler: don't diagnose through the signal the app swallowed.
+- Embedding by sed-extraction + diff is how you keep the Mac/iOS invariant provable, not
+  aspirational. Do it for every shared module, every time it changes.
+- iOS build for the Simulator: `xcodebuild -scheme TriNetVideo -sdk iphonesimulator -configuration
+  Debug -derivedDataPath .dd-ios CODE_SIGNING_ALLOWED=NO build`. Boot + install + launch via
+  `simctl`; bundle id com.trinet.video.
+Both platforms now hold the NAT stack. Still not wired into the call path (exchange the offer via
+a rendezvous, run Ice.connect before the media socket) -- that is the integration wave.
+
+## WAVE 2026-07-23 #48 — rendezvous: two peers who share only a room passphrase connect
+Both platforms hold a sealed candidate offer (#45-47) but had no way to DELIVER it to the peer.
+Even serverless P2P needs a meeting point for the first exchange (WebRTC=signaling server,
+BitTorrent=tracker/DHT, tri-net=the mesh). Rendezvous.swift is the CLIENT: address the relay by
+roomHash = SHA256(passphrase) (so it never sees the passphrase), publish your sealed offer, fetch
+the peer's. The relay is a BLIND pairing service -- offers are sealed, so it cannot read or forge
+candidates; it only matches "someone else who hashed the same room" with you.
+
+Verified in smoke/harness/rendezvous.swift (12th verify.sh test, 15 checks): pure layer -- wire
+codec round-trips, roomHash blinding (same room->same hash, different->different), and the mailbox
+pairing logic (returns the OTHER tag's offer, refresh-not-duplicate, unknown room->nil); LIVE layer
+-- a reference UDP rendezvous server + two clients that gather -> seal -> publish -> fetch -> open
+-> Ice.connect and actually connect over loopback KNOWING ONLY A SHARED ROOM NAME. This is the WHOLE
+serverless-connection chain end-to-end on one machine. Ran 5x -> 5/5 (concurrency: server + 2
+client threads, so reproduce before trusting).
+
+Lessons:
+- roomHash blinds the passphrase from the relay AND prevents cross-room correlation -- a relay that
+  saw the passphrase could join the call; one that sees only SHA256(room) cannot. The seal (#45) and
+  the hash are two independent defenses: hash hides WHICH room, seal hides WHAT candidates.
+- The mailbox needs a per-peer selfTag (a cleartext session nonce, distinct from the sealed
+  tiebreaker the relay can't read) so GET returns the OTHER peer's offer, not your own echo.
+- publish is fire-and-forget (retransmit); fetch POLLS (GET every 100ms until the peer publishes or
+  the deadline) -- this absorbs arrival order, so it does not matter who joins the room first.
+- A UDP socket buffers datagrams, so a publish that arrives while the server is mid-processing is not
+  lost; still retransmit a few times for a lossy real link.
+Boundary: loopback proves the full chain (discover + exchange + punch + connect) over real UDP; a
+real deployment needs the relay HOST (a tiny stateless public service, or the mesh) and two separate
+NATs to prove real traversal. Rendezvous.swift is client-only + harness-proven, not yet wired into
+CallManager, and (deliberately, this wave) Mac-only -- iOS mirror + the CallManager integration are
+the last two steps.
+
+### #48 addendum — the app launch POISONED the keychain harness (identity before shared medium)
+Adding Rendezvous did NOT break verify.sh; the keychain harness did -- it hung (caught by the #41
+watchdog as a 60s timeout, not a silent wedge). Root cause via the debugging doctrine (independent
+channel, don't assume): waves #46/#47 launched the REAL signed app (Team 5EM4M85VSQ), which stored
+its device identity in the keychain under the default account "device-ed25519". A fresh UNSIGNED
+harness binary that then touches that signed item blocks on a GUI SecurityAgent authorization prompt
+-> hang. The app launch poisoned the shared keychain medium for the harness -- textbook "identity
+before shared medium": a real app writing to a shared store makes an unsigned test hang on it.
+Fix: isolate, do NOT clean. `export TRINET_KC_ACCOUNT="verify"` in verify.sh so the keychain harness
+uses a harness-owned account it can freely create/read/delete; the app's real identity item is left
+untouched (verified it still exists after). Proven: keychain harness passes fast with the isolated
+account, and the app item survives. Lesson: any test that touches a store the SHIPPING app also
+writes must use an isolated key/account, or launching the app once turns the test into a hang.
+
+## WAVE 2026-07-23 #49 — fuzz the untrusted-input parsers (harden the attacker-facing surface)
+The whole NAT stack is proven for CORRECT input, but its parsers read bytes straight off the
+network -- a STUN response from any server, a candidate offer from any rendezvous, a probe/ack from
+any peer. A malformed datagram must return nil, never crash (an out-of-bounds read is a remote DoS)
+and never hang. Point tests covered a few bad cases; nothing covered the surface systematically.
+
+smoke/harness/nat_fuzz.swift (13th verify.sh test): a deterministic xorshift64 PRNG throws 20k
+inputs at each of 8 parsers (Stun.parseBindingResponse, HolePunch.probe/ackTxid, Ice.decode,
+CandidateOffer.open, Rendezvous.parsePublish/parseGet/parseResponse) -- half pure noise, half
+mutations of a VALID message (flip / truncate / extend / splice), because mutations near valid
+structure hit boundary bugs pure noise misses. The harness REACHING its final line is the proof:
+any trap would abort the process and fail the run. Result: 160k inputs (default seed) + 640k across
+4 more seeds = ~800k untrusted inputs, ZERO crashes. The "parsed as valid" tallies (Stun 3413, Ice
+3077, Rendezvous.parsePublish 8881, ...) confirm the fuzz exercised the ACCEPT paths, not just
+trivial length rejections.
+
+Lessons:
+- Fuzz found nothing -- which is the point being MADE, not a wasted wave: the bounds guards written
+  into each parser (guard count>=N, guard start+len<=buf.count, gap-based never index-based) hold
+  under adversarial input, and that is now a permanent reproducible gate before the stack faces the
+  internet. A clean fuzz is a proof, provided the corpus actually reaches the accept paths (check the
+  valid-count, or you fuzzed only the front-door reject).
+- Seed the PRNG from a fixed constant so verify.sh is reproducible; expose TRINET_FUZZ_SEED to widen
+  the search ad-hoc without touching the committed default. Never fuzz with Date/Math.random -- an
+  irreproducible crash you cannot replay is nearly worthless.
+- Structured mutation > pure noise for parsers with a magic prefix (0x2112A442 cookie, 0xFD tag): a
+  random 500-byte string almost never passes the first guard, so without mutation you would fuzz
+  only the reject path and prove nothing about the interior.
+NAT stack status: 6 modules, correctness + end-to-end (loopback) + crash-robustness all proven;
+Rendezvous still Mac-only; nothing wired into CallManager yet.
+
+## WAVE 2026-07-23 #50 — THE MAIN THING: a real call establishes across a rendezvous (Mac)
+Everything before wired the NAT stack as proven-but-unused modules. This wave made the actual call
+use them: CallManager gained autoConnectViaRendezvousIfConfigured() -- gather (STUN) -> seal
+(CandidateOffer) -> publish/fetch (Rendezvous) -> open -> Ice.connect -> then startCall() on the
+punched pair. Entirely additive + env-gated (TRINET_RENDEZVOUS / TRINET_ROOM / TRINET_MEDIA_PORT),
+so the working same-subnet call is untouched (default OFF, no-op guard).
+
+VERIFIED LIVE on a new rig (smoke/rendezvous_call.sh + smoke/rendezvous_serverd.swift, a runnable
+relay built from the real Rendezvous.swift Mailbox): two TriNetMonitor processes, knowing ONLY a
+shared room name (NO peer IP), discovered each other through the blind relay and established a
+forward-secret ENCRYPTED media session -- audio decoded 1705/1705 BOTH ways. Reproduced.
+
+Lessons (all found by reading the logs, broken-ruler style, not guessing):
+- Rendezvous.swift was created harness-only in #48 and never added to desktop/project.yml, so
+  "cannot find 'Rendezvous' in scope" the moment CallManager referenced it. When a module graduates
+  from harness to app use, add it to project.yml + xcodegen + commit the pbxproj. (Stun/Ice/
+  CandidateOffer were already added in #46; only Rendezvous was missing.)
+- Two instances on one machine SHARE the keychain identity + TOFU pin store, so each sees the
+  other's handshake at 127.0.0.1 as an identity CHANGE and the security layer (#40) REFUSES the
+  session -- audio "sent" climbed but decoded stayed 0. Not a call bug: give each rig instance a
+  distinct TRINET_KC_ACCOUNT + TRINET_PINS_KEY and clean them (the #40 pattern). After that, decoded
+  went 0 -> 1705 both ways. "identity before shared medium" again -- the app's own identity poisoned
+  the peer check on a shared host.
+- Video recv=0 in the rig: video "sent" was also 0, i.e. the camera produced no NAL units in this
+  headless run (an environment condition -- the two_endpoint delivery rig hits it too when no camera
+  is live), NOT the transport. Audio proves handshake + encrypted transport + decode over the
+  rendezvous-discovered pair; video rides the identical transport.send path. Report the boundary,
+  do not claim video from an audio-only run.
+- The build log was piped through `tail -30`, which kept only warnings + "BUILD FAILED" and HID the
+  real error. Capture the full log (or grep ': error:' from the whole file) -- a truncated build log
+  is a broken ruler.
+Cone-NAT scope: CallManager hands the transport the discovered (remote, localPort) and reuses the
+punched local port; a symmetric NAT needs the punch socket handed to the transport (fd hand-off) --
+the next step. Still Mac-only (iOS CallManager equivalent is ViewModel; mirror is a follow-up).
+
+## WAVE 2026-07-24 #51 — A+B+C: punched-socket hand-off, iOS parity, real NAT semantics
+Three fronts in one wave, each verified.
+
+A. THE PINHOLE BELONGS TO THE SOCKET, not the port. Ice.connect(keepSocket:) now returns its fd and
+MeshTransport/iOS-transport connect(adoptFd:) take it over instead of binding a fresh socket.
+Clear the 50ms probe recv timeout before handing off, or the adopting receive loop eats a spurious
+EAGAIN every tick. Verified live: both rig instances logged "adopted the punched socket (fd 20/12)"
+and the call ran audio 1206/1206 AND VIDEO 696/695 both ways -- a full encrypted video call over the
+rendezvous. (Earlier video=0 runs were a dead camera, not the transport; same rig, camera live, video
+flows.)
+
+C. iOS PARITY. Re-mirrored Ice (it had changed) + added Rendezvous, all six NAT enums verified
+BYTE-IDENTICAL by sed-extract + diff; iOS transport got adoptFd; ViewModel got the same env-gated
+rendezvous path (its startCall now uses the DISCOVERED peer + punched port + punched socket instead
+of hard-coded :7000). VERIFIED CROSS-PLATFORM: Mac + iOS-Simulator, given only a shared room name,
+found each other through the relay and ran an encrypted session -- the MAC decoded 1228 audio frames
+from the iPhone. Verified from the MAC log deliberately: iOS LogBus dup2's stderr into its in-app
+pane, so the phone's own lines never reach the unified log -- THE PEER IS THE INDEPENDENT CHANNEL.
+
+B. REAL NAT SEMANTICS (and an honest correction).
+- Kernel NAT emulation is BLOCKED here: `sudo -n true` -> "a password is required", so pfctl/dnctl
+  are unavailable. Said plainly rather than faked.
+- But the property that actually breaks hole punching IS testable without root: a symmetric NAT
+  allocates a different external port PER DESTINATION, so the peer's probes arrive from an address
+  that is NOT in the candidate list it advertised (that one was learned from a STUN server).
+  smoke/harness/symmetric_nat.swift models exactly that (peer advertises a dead port, speaks from
+  another) -- and it FAILED against the then-current code: Ice.connect only ever probed the
+  advertised list, so it never nominated anything. A REAL gap, found by building the adversarial case.
+- Fix: PEER-REFLEXIVE candidates. When a probe arrives from an unknown source, learn that source as a
+  candidate (so it gets probed and can be nominated). 3/3 runs pass after the fix.
+- CORRECTION to the #51-A commit wording: the fd hand-off alone is NOT "symmetric-NAT support". What
+  makes a ONE-SIDED symmetric NAT work is ack-to-the-observed-source (#43) + peer-reflexive discovery
+  (this wave) + the fd hand-off keeping that mapping. Symmetric-on-BOTH-sides still cannot punch
+  (neither side's first packet is admitted) and needs a relay (TURN-style) -- that gap is real and
+  remains open. Do not claim symmetric-NAT traversal from a one-sided test.

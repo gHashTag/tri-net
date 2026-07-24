@@ -73,6 +73,7 @@ class CameraCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     func forceKeyframe() { encoder?.forceKeyframe() }
     func nudgeBitrate(down: Bool) { encoder?.nudgeBitrate(down: down) }
     var bitrateKbps: Int { encoder?.bitrateKbps ?? 0 }
+    var activeHeight: Int32 { encoder?.activeHeight ?? 0 }   // adaptive send resolution for the in-call badge
     // Mesh profile — held here too, because the encoder is re-created on a camera
     // switch and would otherwise silently revert to the Wi-Fi bitrate cap.
     var meshMode = false { didSet { encoder?.meshMode = meshMode } }

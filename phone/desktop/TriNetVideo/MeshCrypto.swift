@@ -13,6 +13,7 @@
 // Wire (data): ChaChaPoly.combined sealed under the derived session key.
 import Foundation
 import CryptoKit
+import Security
 
 final class MeshCrypto {
     // PSK authenticates the ephemeral exchange (not the data). Swap for real
@@ -25,33 +26,187 @@ final class MeshCrypto {
     private let ephPriv = Curve25519.KeyAgreement.PrivateKey()
     private var sessionKey: SymmetricKey?
     private var dropCount = 0
+    private var replayCount = 0
+
+    // ANTI-REPLAY. ChaChaPoly.seal picks a RANDOM 12-byte nonce per call, so a nonce is
+    // seen at most once for legitimate traffic — a REPEAT is a captured datagram replayed
+    // (e.g. to duplicate a chat message or nudge the rate controller). We can't run a
+    // counter window (there is no application counter in the frame), but a bounded set of
+    // recently-seen nonces gives the same bounded-window guarantee with ZERO false drops:
+    // a legit nonce is inserted once and never re-seen. Called only on the rx queue.
+    private var seenNonces = Set<Data>()
+    private var nonceRing: [Data] = []
+    private static let replayWindow = 8192   // ~a few seconds at video rates
+
+    // Returns true if the nonce is fresh (and records it); false if it's a replay.
+    func acceptNonce(_ nonce: Data) -> Bool {
+        let n = Data(nonce)
+        if seenNonces.contains(n) { return false }
+        seenNonces.insert(n)
+        nonceRing.append(n)
+        if nonceRing.count > MeshCrypto.replayWindow { seenNonces.remove(nonceRing.removeFirst()) }
+        return true
+    }
+
+    // Shared room passphrase. The hardcoded PSK ships in every binary, so it authenticates
+    // NOTHING on its own — anyone with the app can complete a handshake or forge an INVITE.
+    // Mixing a room secret in means an attacker must ALSO know the room to MITM/forge. Empty
+    // room keeps the legacy PSK-only key BIT-FOR-BIT, so open-lobby calls are unaffected and
+    // an old build still interops. The transport sets this from PeerDiscovery.myRoom.
+    var room = ""
+
+    // ---- persistent device IDENTITY (Ed25519) + trust-on-first-use pinning ----
+    // Room-binding says WHO may connect (knows the room); it does NOT stop an active
+    // MITM who also knows the room from substituting their own ephemeral key. A stable
+    // per-device signing key does: the handshake carries idPub + a signature over the
+    // ephemeral key, so only the identity holder can authorize a session. On first
+    // contact we PIN a peer's idPub; a later handshake with a different idPub at the
+    // same peer flags a MITM. Users compare the safetyNumber out-of-band to catch a
+    // first-call MITM. NOTE: the private key is stored in UserDefaults (base64) — real
+    // hardening puts it in the Keychain; it still never leaves the device.
+    let identityPriv: Curve25519.Signing.PrivateKey
+    var identityPub: Data { identityPriv.publicKey.rawRepresentation }
+    private(set) var peerIdentity: Data?     // the pinned/observed peer idPub for this session
+    private(set) var mitmDetected = false     // peer's idPub changed vs a prior pin
+
+    init(identity: Curve25519.Signing.PrivateKey = MeshCrypto.deviceIdentity()) {
+        self.identityPriv = identity
+    }
+
+    // Load (or first-run generate + persist) this device's long-term signing key.
+    // The long-term signing key lives in the KEYCHAIN, not UserDefaults — a private key
+    // must not sit in a plaintext plist on disk. Order: (1) load from Keychain; (2) migrate
+    // a legacy UserDefaults key into the Keychain once (so existing installs keep their
+    // identity + peers' pins stay valid); (3) first run — generate + store. If the Keychain
+    // is unavailable (unsigned build), fall back to UserDefaults so the app still works.
+    static let kcService = "com.trinet.identity"
+    // TRINET_KC_ACCOUNT / TRINET_PINS_KEY give the two-endpoint rig DISTINCT identities +
+    // pin stores per instance on one machine (so an over-the-wire MITM test is real). No-op
+    // in a shipping run.
+    static let kcAccount: String = {
+        if let s = ProcessInfo.processInfo.environment["TRINET_KC_ACCOUNT"], !s.isEmpty { return "device-ed25519-" + s }
+        return "device-ed25519"
+    }()
+    static let pinsKey: String = {
+        if let s = ProcessInfo.processInfo.environment["TRINET_PINS_KEY"], !s.isEmpty { return "trinetPeerPins-" + s }
+        return "trinetPeerPins"
+    }()
+    private static func kcQuery() -> [String: Any] {
+        [kSecClass as String: kSecClassGenericPassword,
+         kSecAttrService as String: kcService, kSecAttrAccount as String: kcAccount]
+    }
+    static func keychainLoad() -> Data? {
+        var q = kcQuery(); q[kSecReturnData as String] = true
+        var out: CFTypeRef?
+        return SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess ? (out as? Data) : nil
+    }
+    @discardableResult static func keychainSave(_ data: Data) -> Bool {
+        SecItemDelete(kcQuery() as CFDictionary)
+        var add = kcQuery()
+        add[kSecValueData as String] = data
+        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        return SecItemAdd(add as CFDictionary, nil) == errSecSuccess
+    }
+
+    static func deviceIdentity() -> Curve25519.Signing.PrivateKey {
+        let legacyKey = "trinetIdentityKeyV1"
+        if let raw = keychainLoad(), let key = try? Curve25519.Signing.PrivateKey(rawRepresentation: raw) { return key }
+        if let b64 = UserDefaults.standard.string(forKey: legacyKey), let raw = Data(base64Encoded: b64),
+           let key = try? Curve25519.Signing.PrivateKey(rawRepresentation: raw) {
+            if keychainSave(raw) { UserDefaults.standard.removeObject(forKey: legacyKey) }   // migrate + scrub the plist
+            return key
+        }
+        let key = Curve25519.Signing.PrivateKey()
+        if !keychainSave(key.rawRepresentation) {
+            UserDefaults.standard.set(key.rawRepresentation.base64EncodedString(), forKey: legacyKey)   // fallback
+        }
+        return key
+    }
+
+    // Persisted TOFU pins: peer IP -> idPub. In-memory mirror for speed.
+    private var pins: [String: Data] = (UserDefaults.standard.dictionary(forKey: MeshCrypto.pinsKey) as? [String: String] ?? [:])
+        .compactMapValues { Data(base64Encoded: $0) }
+    private func pin(_ ip: String, _ idPub: Data) {
+        pins[ip] = idPub
+        UserDefaults.standard.set(pins.mapValues { $0.base64EncodedString() }, forKey: MeshCrypto.pinsKey)
+    }
+
+    // Short digit string over BOTH identity keys (order-independent) for out-of-band checks.
+    static func safetyNumber(_ a: Data, _ b: Data) -> String {
+        let pair = a.lexicographicallyPrecedes(b) ? a + b : b + a
+        let h = SHA256.hash(data: pair)
+        let n = h.prefix(5).reduce(UInt64(0)) { ($0 << 8) | UInt64($1) }
+        return String(format: "%011llu", n % 100_000_000_000)   // 11 digits, grouped by the UI
+    }
+
+    static func handshakeAuthKey(room: String) -> SymmetricKey {
+        room.isEmpty ? psk : SymmetricKey(data: HKDF<SHA256>.deriveKey(
+            inputKeyMaterial: psk, salt: Data("trios-mesh/v1/room".utf8),
+            info: Data(room.utf8), outputByteCount: 32))
+    }
+
+    // INVITE authenticator key. Empty room reproduces the legacy key exactly.
+    static func inviteAuthKey(room: String) -> SymmetricKey {
+        SymmetricKey(data: HKDF<SHA256>.deriveKey(
+            inputKeyMaterial: psk,
+            salt: room.isEmpty ? Data("trios-mesh/v1/invite".utf8) : Data(("trios-mesh/v1/invite/" + room).utf8),
+            info: Data("invite-auth".utf8), outputByteCount: 32))
+    }
+
+    // Group-conference AEAD key (there is no pairwise handshake in group mode, so the
+    // static conference key IS the confidentiality boundary). Empty room reproduces the
+    // legacy key exactly; a set room means only same-room peers can decrypt the call.
+    static func groupAuthKey(room: String) -> SymmetricKey {
+        SymmetricKey(data: HKDF<SHA256>.deriveKey(
+            inputKeyMaterial: psk,
+            salt: room.isEmpty ? Data("trios-mesh/v1/conference".utf8) : Data(("trios-mesh/v1/conference/" + room).utf8),
+            info: Data("group-aead".utf8), outputByteCount: 32))
+    }
 
     var established: Bool { sessionKey != nil }
 
-    // 66-byte authenticated handshake to send to the peer.
+    // 162-byte handshake: [TH][ephPub 32][room-HMAC 32][idPub 32][Ed25519 sig(ephPub) 64].
     func handshakePacket() -> Data {
         let pub = ephPriv.publicKey.rawRepresentation // 32B
-        let mac = HMAC<SHA256>.authenticationCode(for: pub, using: MeshCrypto.psk)
+        let mac = HMAC<SHA256>.authenticationCode(for: pub, using: MeshCrypto.handshakeAuthKey(room: room))
         var d = Data(MeshCrypto.handshakeMagic)
         d.append(pub)
         d.append(Data(mac))
+        d.append(identityPub)                                                     // who I am
+        d.append((try? identityPriv.signature(for: pub)) ?? Data(count: 64))      // I authorize this ephemeral key
         return d
     }
 
     func isHandshake(_ d: Data) -> Bool {
-        d.count == 66 && d[0] == MeshCrypto.handshakeMagic[0] && d[1] == MeshCrypto.handshakeMagic[1]
+        d.count == 162 && d[0] == MeshCrypto.handshakeMagic[0] && d[1] == MeshCrypto.handshakeMagic[1]
     }
 
     // Verify + install the session. Returns true if a (valid) handshake was consumed.
     @discardableResult
-    func consumeHandshake(_ d: Data) -> Bool {
+    func consumeHandshake(_ d: Data, from peerIP: String = "") -> Bool {
         guard isHandshake(d) else { return false }
         let pub = d.subdata(in: 2..<34)
         let mac = d.subdata(in: 34..<66)
-        guard HMAC<SHA256>.isValidAuthenticationCode(mac, authenticating: pub, using: MeshCrypto.psk) else {
-            NSLog("TRINET: handshake HMAC invalid — rejected")
+        let idPub = d.subdata(in: 66..<98)
+        let sig = d.subdata(in: 98..<162)
+        guard HMAC<SHA256>.isValidAuthenticationCode(mac, authenticating: pub, using: MeshCrypto.handshakeAuthKey(room: room)) else {
+            NSLog("TRINET: handshake HMAC invalid — wrong room secret or not a TRI-NET peer — rejected")
             return true // it was a handshake, just a bad one; don't treat as data
         }
+        // IDENTITY: the signature proves the idPub holder authorized THIS ephemeral key.
+        guard let idKey = try? Curve25519.Signing.PublicKey(rawRepresentation: idPub),
+              idKey.isValidSignature(sig, for: pub) else {
+            NSLog("TRINET: handshake identity signature invalid — rejected")
+            return true
+        }
+        // TOFU: a different idPub at a peer we've pinned is a MITM. Refuse the session.
+        if let pinned = pins[peerIP], pinned != idPub {
+            if !mitmDetected { NSLog("TRINET: MITM — peer %@ identity CHANGED from the pinned key; session refused", peerIP) }
+            mitmDetected = true   // latch; every subsequent impostor handshake is still refused, just not re-logged
+            return true
+        }
+        if pins[peerIP] == nil, !peerIP.isEmpty { pin(peerIP, idPub) }   // trust on first use
+        peerIdentity = idPub
         guard let peerPub = try? Curve25519.KeyAgreement.PublicKey(rawRepresentation: pub),
               let shared = try? ephPriv.sharedSecretFromKeyAgreement(with: peerPub) else {
             return true
@@ -81,6 +236,12 @@ final class MeshCrypto {
             if dropCount <= 3 || dropCount % 1000 == 0 {
                 NSLog("TRINET: dropped unauthenticated datagram \(wire.count)B (#\(dropCount))")
             }
+            return nil
+        }
+        // Authentic, but reject a REPLAY (the nonce is the first 12 bytes of ChaChaPoly.combined).
+        guard acceptNonce(wire.prefix(12)) else {
+            replayCount += 1
+            if replayCount <= 3 || replayCount % 1000 == 0 { NSLog("TRINET: dropped REPLAYED datagram (#\(replayCount))") }
             return nil
         }
         return plain

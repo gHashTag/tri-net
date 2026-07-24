@@ -66,6 +66,7 @@ class CallManager: ObservableObject {
     @Published var unreadChat = 0                       // badge count on the chat icon
     var chatOpen = false { didSet { if chatOpen { unreadChat = 0 } } }  // panel open => clear the badge
     private let chatChime = ChatChime()                 // Trinity-style blip on an incoming chat message
+    private var seenInviteMACs: [Data: Date] = [:]      // recent INVITE auth tags -> replay dedup (main queue only)
     @Published var recentIPs: [String] = []
     @Published var cameras: [AVCaptureDevice] = []
     @Published var selectedCameraID: String = ""
@@ -258,6 +259,90 @@ class CallManager: ObservableObject {
         groupChat.startPolling()
         discovery.start()   // advertise + browse from launch
         startIdleListener() // listen on :7000 for incoming calls while idle
+        autoCallIfConfigured()   // two-endpoint test rig hook (no-op in a real run)
+        autoConnectViaRendezvousIfConfigured()   // NAT-traversal path (no-op unless a rendezvous is configured)
+    }
+
+    // TEST RIG ONLY: TRINET_AUTOCALL=<host>:<peerPort> + TRINET_LISTEN=<myPort> auto-dials a
+    // 1-1 call on launch with distinct local ports, so two instances on one machine can talk
+    // over real UDP (INVITE bypassed). Never set in a shipping run.
+    private var autoListenPort: UInt16?
+    // The socket a NAT connectivity check punched with, handed to the transport by startCall so the
+    // pinhole survives (a symmetric NAT would drop media from a freshly bound socket). nil = none.
+    private var punchedFd: Int32?
+    private func autoCallIfConfigured() {
+        let env = ProcessInfo.processInfo.environment
+        guard let peer = env["TRINET_AUTOCALL"], !peer.isEmpty else { return }
+        let parts = peer.split(separator: ":")
+        guard parts.count == 2, let peerPort = UInt16(parts[1]) else { NSLog("TRINET: bad TRINET_AUTOCALL"); return }
+        remoteIP = String(parts[0])
+        port = String(peerPort)
+        autoListenPort = env["TRINET_LISTEN"].flatMap { UInt16($0) }
+        NSLog("TRINET: RIG autocall -> \(remoteIP):\(peerPort) listen \(autoListenPort.map(String.init) ?? "same")")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+            guard let self = self, !self.isInCall else { return }
+            self.activeRoute = .mesh
+            self.startMeshCall()
+        }
+    }
+
+    // NAT-TRAVERSAL PATH. Instead of dialing a hard-coded peer IP, discover the peer through a
+    // blind rendezvous knowing only a shared room passphrase, then place the media call on the
+    // pair a connectivity check actually punched. Entirely additive and OFF unless configured, so
+    // the working same-subnet call is untouched:
+    //   TRINET_RENDEZVOUS=<host>:<port>   the blind relay (StunClient/CandidateOffer/Rendezvous/Ice)
+    //   TRINET_ROOM=<passphrase>          both peers must share it (hashed to address the relay)
+    //   TRINET_MEDIA_PORT=<port>          the local UDP port the call runs on (also our host candidate)
+    //   TRINET_TIEBREAK=<u64>             optional ICE role tiebreaker (default random)
+    // Cone-NAT scope: we hand the media transport the discovered (remote, localPort); the punched
+    // mapping stays warm because we reuse the same local port. A symmetric NAT needs the punch
+    // socket handed to the transport (fd hand-off) -- that is the next step, not this one.
+    private func autoConnectViaRendezvousIfConfigured() {
+        let env = ProcessInfo.processInfo.environment
+        guard let rz = env["TRINET_RENDEZVOUS"], !rz.isEmpty,
+              let configuredRoom = env["TRINET_ROOM"], !configuredRoom.isEmpty,
+              let mediaPort = env["TRINET_MEDIA_PORT"].flatMap({ UInt16($0) }) else { return }
+        let room = configuredRoom.uppercased()
+        discovery.setRoom(room)
+        let parts = rz.split(separator: ":")
+        guard parts.count == 2, let rzPort = UInt16(parts[1]) else { NSLog("TRINET: bad TRINET_RENDEZVOUS"); return }
+        let rzHost = String(parts[0])
+        let tiebreak = env["TRINET_TIEBREAK"].flatMap { UInt64($0) } ?? UInt64.random(in: 0 ... UInt64.max)
+        NSLog("%@", "TRINET RZ: discovering peer via \(rzHost):\(rzPort) room=\(room) mediaPort=\(mediaPort)")
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            // 1. gather our candidates: host (loopback + LAN) on the media port, + STUN reflexive
+            var cands = [Ice.Candidate(ip: "127.0.0.1", port: mediaPort, kind: .host)]
+            for ip in Stun.hostCandidates() { cands.append(Ice.Candidate(ip: ip, port: mediaPort, kind: .host)) }
+            if let srflx = Stun.gatherServerReflexive(host: "stun.l.google.com", port: 19302) {
+                cands.append(Ice.Candidate(ip: srflx.ip, port: srflx.port, kind: .srflx))
+            }
+            // 2. seal our candidate offer under the room + publish it to the relay
+            let rh = Rendezvous.roomHash(room)
+            let offer = CandidateOffer.make(candidates: cands, tiebreaker: tiebreak, room: room, ttlMs: 60_000)
+            for _ in 0..<3 { Rendezvous.publish(roomHash: rh, selfTag: tiebreak, offer: offer, host: rzHost, port: rzPort) }
+            // 3. fetch + open the peer's offer
+            guard let peerOffer = Rendezvous.fetch(roomHash: rh, selfTag: tiebreak, host: rzHost, port: rzPort, timeoutMs: 8000),
+                  let opened = CandidateOffer.open(peerOffer, room: room) else {
+                NSLog("%@", "TRINET RZ: no peer offer within 8s (relay down, or peer not in room yet)"); return
+            }
+            // 4. connectivity check -> the pair that actually round-trips
+            guard let connected = Ice.connect(localPort: mediaPort, remote: opened.candidates,
+                                              timeoutMs: 4000, keepSocket: true) else {
+                NSLog("%@", "TRINET RZ: connectivity check failed — no reachable candidate among \(opened.candidates.count)"); return
+            }
+            NSLog("%@", "TRINET RZ: connected pair -> \(connected.remote.ip):\(connected.remote.port) (local \(connected.localPort))")
+            // 5. place the real media call on the punched pair
+            DispatchQueue.main.async {
+                guard !self.isInCall else { return }
+                self.remoteIP = connected.remote.ip
+                self.port = String(connected.remote.port)
+                self.autoListenPort = connected.localPort
+                self.punchedFd = connected.fd      // startCall hands it to the transport
+                self.activeRoute = .mesh
+                self.startMeshCall()
+            }
+        }
     }
 
     // MARK: - Incoming call ("take the call")
@@ -357,7 +442,16 @@ class CallManager: ObservableObject {
     private var rxPktsThisSec = 0
     private var bweTimer: Timer?
     private var highJitterStreak = 0
+    private var lossStreak = 0             // consecutive high-residual-loss reports (loss-based back-off)
+    private var lastFramesSentSample = 0   // framesSent at the previous BWE report, for the per-second send delta
+    private var statsTick = 0              // 1s BWE ticks; the aligned STATS line prints every 5th
     @Published var peerJitterMs = 0    // what the far end reports (drives our sender)
+    @Published var rxFps = 0           // frames/sec we're DECODING from the peer(s) (0 = no video arriving)
+    @Published var rxHeight: Int32 = 0 // resolution of the received frames, for the in-call badge (1-1)
+    @Published var rxSources = 0       // live decoding sources in a group call (badge shows this instead of resolution)
+    @Published var safetyNumber: String? = nil   // 1-1 identity code for out-of-band verification (Signal-style)
+    @Published var mitmWarning = false           // peer's pinned identity changed -> possible MITM
+    private var lastRxFrameCount = 0
 
     private func noteVideoArrival() {
         let now = Date()
@@ -381,14 +475,104 @@ class CallManager: ObservableObject {
             var pkt = Data([0xFD, 0xBE])
             pkt.append(contentsOf: [UInt8(j >> 8), UInt8(j & 0xFF), UInt8(p >> 8), UInt8(p & 0xFF)])
             self.transport.send(pkt)
+            // Sample receive-side video health for the badge (frames DECODED in the last second). In a group
+            // call, sum across every source's decoder and report the source count instead of one resolution.
+            let fc: Int
+            if self.isGroup {
+                fc = self.groupDecoders.values.reduce(0) { $0 + $1.frameCount }
+                self.rxSources = self.groupDecoders.values.filter { $0.frameCount > 0 }.count
+                self.rxHeight = self.groupDecoders.values.first?.decodedHeight ?? 0
+            } else {
+                fc = self.decoder.frameCount
+                self.rxSources = 0
+                self.rxHeight = self.decoder.decodedHeight
+            }
+            self.rxFps = max(0, fc - self.lastRxFrameCount)
+            self.lastRxFrameCount = fc
+            // Security surface: the 1-1 safety number appears once the peer's signed handshake lands.
+            let sn = self.isGroup ? nil : self.transport.peerSafetyNumber
+            if self.safetyNumber != sn {
+                self.safetyNumber = sn
+                if let sn = sn { NSLog("TRINET: 1-1 peer identity verified — safety number \(sn)") }
+            }
+            if self.mitmWarning != self.transport.mitmDetected {
+                self.mitmWarning = self.transport.mitmDetected
+                if self.mitmWarning { NSLog("TRINET: SECURITY WARNING shown — peer identity changed (possible MITM)") }
+            }
+            // framesReceived is otherwise set only in onReceive, which the transport does NOT call in group mode
+            // (only onReceiveFrom) — so in a group call it stayed 0, misfiring the 30s "No answer" timer and
+            // never flipping status to "Connected". Drive it from the per-source decoders here.
+            if self.isGroup {
+                self.framesReceived = fc
+                if fc > 0 && self.status != "Connected" { self.status = "Connected" }
+            }
+            // ALIGNED delivery stats: sample sent vs decoded AT THE SAME INSTANT, every ~5s. Reading these from
+            // the per-500 tx / per-200 rx log lines gave a stale-vs-late mismatch (a nonsensical "110%"); this is
+            // the honest end-to-end number. audio delivery = decoded/sent (recovered = frames RED rebuilt);
+            // video delivery = framesReceived/framesSent (1-1; a group sums sources so it's logged sent/received raw).
+            self.statsTick += 1
+            if self.statsTick % 5 == 0 {
+                let a = self.audio.audioStats
+                if a.sent > 0 {
+                    let d = a.decoded * 100 / max(1, a.sent)
+                    NSLog("TRINET: STATS audio sent=\(a.sent) decoded=\(a.decoded) recovered=\(a.recovered) delivery=\(d)% | video sent=\(self.framesSent) recv=\(self.framesReceived)")
+                }
+            }
+            // FROZEN-VIDEO recovery (1-1): a gap between the decoder's own keyframe request (fires only on NALs
+            // it RECEIVES) and the LinkHealth stall (fires only when PACKETS stop). If fragments keep ARRIVING
+            // but reassembly never completes a NAL, the picture freezes (rxFps == 0) with packets flowing and
+            // nothing asks for an IDR. Detect it (video decoded before, 0 fps now, packets still arriving) and
+            // request a keyframe, rate-limited to ~2s so it can't storm.
+            if !self.isGroup, self.framesReceived > 0, self.rxFps == 0 {
+                let msSincePacket = self.lastVideoArrival.map { Int(Date().timeIntervalSince($0) * 1000) } ?? 99_999
+                if msSincePacket < 3_000 {   // packets ARE flowing -> reassembly/decode is stuck, not a link stall
+                    if self.rxFrozenSince == nil { self.rxFrozenSince = Date() }
+                    if Date().timeIntervalSince(self.rxFrozenSince!) > 2.0 {
+                        self.transport.send(Data([0xFC, 0x00]))
+                        NSLog("TRINET: RX video frozen (0 fps, packets flowing) — requesting keyframe")
+                        self.rxFrozenSince = Date()   // reset -> ~2s cadence
+                    }
+                } else { self.rxFrozenSince = nil }
+            } else { self.rxFrozenSince = nil }
         }
     }
+    private var rxFrozenSince: Date?   // start of a decoded-frame freeze while packets still arrive (1-1)
 
     // Sender side: the peer's report arrived — react to a rising queue before loss does.
     private func handleBWEReport(_ data: Data) {
         let j = Int(data[2]) << 8 | Int(data[3])
+        let rxCount = Int(data[4]) << 8 | Int(data[5])   // frames the peer DECODED last second (was parsed nowhere)
         DispatchQueue.main.async {
             self.peerJitterMs = j
+            // LOSS-based controller — the missing half of GCC. The delay controller below only reacts to a rising
+            // QUEUE (jitter); a low-latency-but-lossy path (Wi-Fi retransmit, an FEC radio) drops frames WITHOUT
+            // adding delay, so nothing backed off — measured, 25% induced loss produced ZERO step-down. Compare
+            // frames WE sent last second to frames the peer actually received. 1-1 only: in a group the peer's
+            // count sums every source, not just us. FEC/PLI repair some loss first, so this is RESIDUAL frame loss.
+            var lossElevated = false
+            if !self.isGroup {
+                let sent = self.framesSent - self.lastFramesSentSample
+                self.lastFramesSentSample = self.framesSent
+                if sent >= 5 {                                   // enough frames for a meaningful ratio
+                    let lossPct = max(0, sent - rxCount) * 100 / sent
+                    lossElevated = lossPct >= 5
+                    if lossPct >= 15 {
+                        self.lossStreak += 1
+                        if self.lossStreak >= 2 {
+                            self.camera.nudgeBitrate(down: true)
+                            self.audio.redDepth = 3               // audio: carry an extra Opus copy (survive a 2-burst)
+                            self.transport.fecGroup = VideoFEC.lossyGroup   // video: 1 parity per 4 frags, not per NAL
+                            NSLog("TRINET: BWE back-off — residual loss \(lossPct)% (sent \(sent), peer rx \(rxCount))")
+                        }
+                    } else {
+                        self.lossStreak = 0
+                        if lossPct < 5 {                          // link clean -> relax both (save bandwidth)
+                            self.audio.redDepth = 2
+                            self.transport.fecGroup = VideoFEC.cleanGroup
+                        }
+                    }
+                }
+            }
             if j > 40 {           // sustained queueing at the receiver
                 self.highJitterStreak += 1
                 self.cleanStreak = 0
@@ -396,10 +580,13 @@ class CallManager: ObservableObject {
                     self.camera.nudgeBitrate(down: true)
                     NSLog("TRINET: BWE back-off — peer jitter \(j)ms")
                 }
-            } else if j < 20 {    // GCC probe-up: confirmed spare capacity -> an EXTRA climb tick (on the real
+            } else if j < 20 && !lossElevated {    // GCC probe-up: spare capacity AND no loss -> an EXTRA climb tick (real
                 self.highJitterStreak = 0   // stream, never padding bursts — the mesh's pacing is fragile).
                 self.cleanStreak += 1       // Overshoot is caught instantly by the back-off above.
-                if self.cleanStreak >= 3 {
+                // Probe every 2 clean reports (was 3): a closed-loop harness on the 900k->400k->900k bandwidth
+                // step showed this cuts recovery ~26s -> ~17s while STILL settling at the same congestion knee
+                // with no oscillation. Only the probe FREQUENCY changed (not the step size), so no extra overshoot.
+                if self.cleanStreak >= 2 {
                     self.camera.nudgeBitrate(down: false)
                     self.cleanStreak = 0
                     NSLog("TRINET: BWE probe-up — peer jitter \(j)ms, capacity spare")
@@ -418,16 +605,11 @@ class CallManager: ObservableObject {
     private static let inviteMagic: [UInt8] = [0xFD, 0x11]   // "someone is calling you"
     // AUTH: the INVITE is plaintext (call setup precedes crypto), so without this ANY LAN host could send a
     // 3-participant INVITE and FORCE the camera on to attacker-chosen IPs (confirmed vuln). Authenticate the
-    // payload with an 8-byte HMAC keyed by a secret derived from the shared PSK, so only a real TRI-NET app
-    // (which knows the PSK) can make you ring or auto-join. Wire: [FD 11][mac:8][payload utf8]. Same key both
-    // platforms. (A peer that HAS the app can still forge — the root cure is per-enrollment keys — but this
-    // closes the "any script blasts a UDP packet at :7000" attack.)
-    static let inviteKey = SymmetricKey(data: HKDF<SHA256>.deriveKey(
-        inputKeyMaterial: SymmetricKey(data: SHA256.hash(data: Data("tri-net-psk-v1".utf8))),
-        salt: Data("trios-mesh/v1/invite".utf8),
-        info: Data("invite-auth".utf8), outputByteCount: 32))
+    // payload with an 8-byte HMAC. The key is now bound to the room passphrase (empty room => the legacy
+    // PSK-only key), so with a room set only a peer that knows the room secret can ring or auto-join you —
+    // not merely anyone holding the app's hardcoded PSK. Wire: [FD 11][mac:8][payload utf8].
     static func inviteMAC(_ payload: Data) -> [UInt8] {
-        Array(HMAC<SHA256>.authenticationCode(for: payload, using: inviteKey).prefix(8))
+        Array(HMAC<SHA256>.authenticationCode(for: payload, using: MeshCrypto.inviteAuthKey(room: PeerDiscovery.myRoom)).prefix(8))
     }
 
     func startIdleListener() {
@@ -488,8 +670,16 @@ class CallManager: ObservableObject {
                 let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
                 guard tsMs != 0, abs(nowMs - tsMs) <= 15_000 else { continue }
                 let ip = String(cString: inet_ntoa(from.sin_addr))
+                let macKey = Data(buf[2..<10])   // 8-byte auth tag, used as the replay-dedup key
                 DispatchQueue.main.async {
                     guard let self = self, !self.isInCall, self.incomingCall == nil else { return }  // don't ring mid-call / twice
+                    // SEEN-MAC dedup closes the immediate-replay gap inside the 15s freshness window. Each INVITE's
+                    // tag is unique per (payload+timestamp); the sender's own 4x UDP re-sends share it and are
+                    // already ignored above, so dropping duplicates is safe and stops a captured INVITE being
+                    // replayed within the window. Accessed only on the main queue -> serialized, thread-safe.
+                    self.seenInviteMACs = self.seenInviteMACs.filter { Date().timeIntervalSince($0.value) < 30 }
+                    guard self.seenInviteMACs[macKey] == nil else { return }
+                    self.seenInviteMACs[macKey] = Date()
                     self.incomingCall = IncomingCall(name: name, ip: ip, participants: participants)
                     // AUTO-ACCEPT a GROUP call (>2 participants = caller + me + others) or a same-room caller,
                     // so "call from the Mac -> both iPhones just join" works with no manual Accept. A plain
@@ -567,7 +757,8 @@ class CallManager: ObservableObject {
         let hosts = mesh.filter { !$0.isEmpty }.sorted()
         remoteIP = hosts.isEmpty ? inc.ip : hosts.joined(separator: ",")
         NSLog("TRINET: accepting call -> mesh back to \(remoteIP)")
-        startCall()
+        activeRoute = .mesh
+        startMeshCall()
     }
     func declineIncoming() { incomingTimer?.invalidate(); incomingCall = nil }
 
@@ -995,6 +1186,14 @@ class CallManager: ObservableObject {
                 self.handleBWEReport(data)
                 return
             }
+            if data.count == 4, data[0] == 0xFD, data[1] == 0x4E { // NACK: peer never got this NAL -> re-send it
+                self.transport.resendNAL(UInt16(data[2]) | (UInt16(data[3]) << 8))
+                return
+            }
+            if data.count >= 5, data[0] == 0xFD, data[1] == 0x4F { // per-fragment NACK -> re-send just those frags
+                self.transport.resendFragments(UInt16(data[2]) | (UInt16(data[3]) << 8), data[4...].map { Int($0) })
+                return
+            }
             // Doctrine: NEVER hand an unknown control subtype to the H.264 decoder. Real NALs start 00 00 00 01.
             if data.first.map({ $0 >= 0xFB }) == true { return }
             self.noteVideoArrival()
@@ -1015,6 +1214,9 @@ class CallManager: ObservableObject {
             if data.count > 2, data[0] == 0xFD, data[1] == 0xAD {
                 self.audio.playPacket(data.subdata(in: 2..<data.count)); return
             }
+            if data.count > 2, data[0] == 0xFD, data[1] == 0xC0 {   // audio (Opus) — the 1-1 path had this but the
+                self.audio.playOpus(data.subdata(in: 2..<data.count)); return   // group path did NOT, so with Opus
+            }                                                        // always on, group calls were SILENT.
             if data.count > 2, data[0] == 0xFB, data[1] == 0xCA {
                 let msg = String(decoding: data.subdata(in: 2..<data.count), as: UTF8.self)
                 DispatchQueue.main.async { self.chat.append(ChatLine(who: .them, text: msg)); self.chatChime.play(); if !self.chatOpen { self.unreadChat += 1 } }
@@ -1091,7 +1293,10 @@ class CallManager: ObservableObject {
                 self.isStarting = false
                 self.status = "Connected via encrypted local UDP"
             }
-            transport.connect(peerHost: remoteIP, peerPort: p, listenPort: p)
+            let listenP = autoListenPort ?? p   // rig: two local instances need distinct listen ports
+            transport.connect(peerHost: remoteIP, peerPort: p, listenPort: listenP, adoptFd: punchedFd)
+            punchedFd = nil                     // ownership moved to the transport (or never existed)
+            autoListenPort = nil
             DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
                 guard let self, self.meshAttemptID == attemptID, self.isStarting else { return }
                 self.error = "The local peer did not accept the call within 30 seconds."
@@ -1146,6 +1351,8 @@ class CallManager: ObservableObject {
         abrTimer?.invalidate(); abrTimer = nil
         bweTimer?.invalidate(); bweTimer = nil
         lastVideoArrival = nil; meanGapMs = 0; jitterMs = 0; rxPktsThisSec = 0; highJitterStreak = 0; cleanStreak = 0; peerJitterMs = 0
+        lossStreak = 0; lastFramesSentSample = 0
+        safetyNumber = nil; mitmWarning = false
         bitrateHistory = []; jitterHistory = []; linkHealth = .good; linkRestored = false; lastRecoveryAt = nil; stalledSince = nil
         link.end()
         camera.stop()
@@ -1161,6 +1368,7 @@ class CallManager: ObservableObject {
         status = "Idle"
         framesSent = 0
         framesReceived = 0
+        rxFps = 0; rxHeight = 0; rxSources = 0; lastRxFrameCount = 0; rxFrozenSince = nil
         previewSession = nil
         activeRoute = nil
         startIdleListener()   // resume listening for incoming mesh calls
