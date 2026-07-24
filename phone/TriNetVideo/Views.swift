@@ -94,33 +94,28 @@ struct HomeView: View {
 
                     // Peer field
                     VStack(spacing: 14) {
-                        // Route picker collapsed behind a disclosure: Auto is
-                        // what nearly everyone wants (Internet when the peer is
-                        // reachable, LAN mesh on the same Wi-Fi).
-                        DisclosureGroup("Connection") {
-                            Picker("Route", selection: $vm.route) {
-                                ForEach(CallRoute.allCases) { route in
-                                    Text(route.displayName).tag(route)
-                                }
+                        Picker("Route", selection: $vm.route) {
+                            ForEach(CallRoute.allCases) { route in
+                                Text(route.displayName).tag(route)
                             }
-                            .pickerStyle(.segmented)
-                            .padding(.top, 4)
                         }
-                        .font(DS.mono(10)).foregroundColor(DS.dim)
+                        .pickerStyle(.segmented)
 
                         HStack {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundColor(DS.dim)
-                            TextField("Search by @nickname", text: Binding(
+                            SectionLabel(text: "Find")
+                            TextField(vm.route == .mesh ? "nickname or IP" : "nickname", text: Binding(
                                 get: { vm.directory.searchQuery },
                                 set: { vm.directory.searchQuery = $0 }
                             ))
                                 .textInputAutocapitalization(.never).autocorrectionDisabled()
                                 .font(DS.mono(16)).foregroundColor(DS.text)
-                                .multilineTextAlignment(.leading)
+                                .multilineTextAlignment(.center)
                                 .onSubmit { vm.searchNicknames() }
-                            Button("Search") { vm.searchNicknames() }
-                                .font(DS.mono(12, .medium)).foregroundColor(DS.text)
+                            Button(action: { vm.searchNicknames() }) {
+                                Image(systemName: "magnifyingglass")
+                                    .foregroundColor(DS.text)
+                                    .frame(width: 34, height: 34)
+                            }
                         }
                         .padding(.horizontal, 18).padding(.vertical, 14)
                         .background(DS.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -128,32 +123,39 @@ struct HomeView: View {
 
                         if !vm.directory.results.isEmpty {
                             VStack(spacing: 8) {
-                                // Tap a contact to call them directly — select
-                                // and start the call in one action.
-                                ForEach(vm.directory.results.prefix(6)) { contact in
+                                ForEach(vm.directory.results.prefix(3)) { contact in
                                     DirectoryContactButton(contact: contact) {
                                         vm.selectContact(contact)
                                         vm.directory.searchQuery = contact.nickname
-                                        vm.startCall()
                                     }
                                 }
                             }
                         }
 
                         if !vm.callee.isEmpty {
-                            Text("Calling @\(vm.callee)")
+                            Text("CALL TARGET | @\(vm.callee)")
                                 .font(DS.mono(11, .medium)).foregroundColor(DS.live)
                         }
 
-                        Text(directory.currentNickname.map { "You are @\($0)" } ?? "Create your nickname to be callable")
+                        Text("SELF | \(directory.currentNickname.map { "@\($0)" } ?? vm.identity.displayName) | \(vm.identity.keyFingerprint)")
                             .font(DS.mono(12)).foregroundColor(DS.faint)
 
                         if let error = vm.callError {
                             Text(error).font(DS.ui(12)).foregroundColor(DS.danger).multilineTextAlignment(.center)
                         }
 
-                        // Recent raw-IP quick-dial removed: the nickname
-                        // directory above is the supported way to reach someone.
+                        if !vm.recentIPs.isEmpty {
+                            HStack(spacing: 10) {
+                                ForEach(vm.recentIPs.prefix(3), id: \.self) { ip in
+                                    Button(action: { vm.remoteIP = ip }) {
+                                        Text(ip).font(DS.mono(11)).foregroundColor(DS.dim)
+                                            .padding(.horizontal, 12).padding(.vertical, 7)
+                                            .overlay(Capsule().stroke(DS.hairline, lineWidth: 1))
+                                    }
+                                }
+                            }
+                        }
+
                         iPeerRoster(vm: vm, discovery: vm.discovery)
 
                         // Missed calls — one-tap call back (newest first, capped at 5).
