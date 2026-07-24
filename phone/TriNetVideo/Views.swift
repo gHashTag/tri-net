@@ -403,48 +403,71 @@ struct IncomingCallOverlay: View {
 
     var body: some View {
         ZStack {
-            DS.ink.opacity(0.98).ignoresSafeArea()
+            // Deep vertical gradient + a live-colored glow that breathes behind the avatar.
+            LinearGradient(colors: [DS.ink, .black], startPoint: .top, endPoint: .bottom)
+                .ignoresSafeArea()
+            RadialGradient(colors: [DS.live.opacity(0.20), .clear], center: .center, startRadius: 8, endRadius: 340)
+                .ignoresSafeArea()
+                .scaleEffect(pulse ? 1.12 : 0.92)
+
             VStack(spacing: 0) {
-                Spacer()
-                ZStack {
-                    // Two expanding rings — "ringing, live now" (Reduce-Motion aware).
-                    Circle().stroke(DS.live.opacity(0.55), lineWidth: 3)
-                        .frame(width: 150, height: 150)
-                        .scaleEffect(pulse ? 1.45 : 1.0).opacity(pulse ? 0 : 0.7)
-                    Circle().stroke(DS.live.opacity(0.30), lineWidth: 2)
-                        .frame(width: 150, height: 150)
-                        .scaleEffect(pulse ? 1.18 : 0.9).opacity(pulse ? 0 : 0.5)
-                    Circle().fill(DS.surfaceHi)
-                        .overlay(Circle().stroke(DS.hairlineStrong, lineWidth: 1))
-                        .frame(width: 118, height: 118)
-                    Text(initial).font(.system(size: 46, weight: .semibold)).foregroundColor(DS.text)
+                // Signature security badge — this is a TRI-NET encrypted call, not a stock ring.
+                HStack(spacing: 7) {
+                    Image(systemName: "lock.shield.fill").font(.system(size: 12, weight: .bold))
+                    Text("E N C R Y P T E D   ·   F O R W A R D - S E C R E T").font(DS.ui(11))
                 }
-                Text(inc.name).font(DS.display(26, .semibold)).foregroundColor(DS.text)
-                    .padding(.top, 26).lineLimit(1)
-                Text("Incoming call · TRI-NET").font(DS.ui(14)).foregroundColor(DS.dim).padding(.top, 6)
-                Text(inc.ip).font(DS.mono(12)).foregroundColor(DS.faint).padding(.top, 2)
+                .foregroundColor(DS.live)
+                .padding(.top, 72)
+
                 Spacer()
-                HStack(spacing: 80) {
-                    answerButton(system: "phone.down.fill", label: "Decline", bg: DS.danger) {
+
+                // Avatar: three outward-rippling rings + a glowing gradient disc with the caller's initial.
+                ZStack {
+                    ForEach(0..<3) { i in
+                        Circle().stroke(DS.live.opacity(0.5 - Double(i) * 0.14), lineWidth: 2)
+                            .frame(width: 168, height: 168)
+                            .scaleEffect(pulse ? 1.1 + Double(i) * 0.24 : 1.0)
+                            .opacity(pulse ? 0 : 0.75)
+                    }
+                    Circle()
+                        .fill(LinearGradient(colors: [DS.live.opacity(0.95), DS.live.opacity(0.45)],
+                                             startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .frame(width: 136, height: 136)
+                        .overlay(Circle().stroke(.white.opacity(0.22), lineWidth: 1))
+                        .shadow(color: DS.live.opacity(0.55), radius: 34)
+                    Text(initial).font(.system(size: 54, weight: .bold, design: .rounded)).foregroundColor(.white)
+                }
+
+                // Caller identity — nickname first (that IS the identity), then a soft subtitle + route.
+                Text(inc.name).font(DS.display(30, .bold)).foregroundColor(DS.text)
+                    .padding(.top, 32).lineLimit(1).minimumScaleFactor(0.7)
+                Text("is calling you").font(DS.ui(15)).foregroundColor(DS.dim).padding(.top, 6)
+                Text(inc.ip).font(DS.mono(12)).foregroundColor(DS.faint).padding(.top, 4)
+
+                Spacer()
+
+                HStack(spacing: 88) {
+                    answerButton(system: "phone.down.fill", label: "Decline", bg: DS.danger, glow: false) {
                         stopRing(); vm.declineIncoming()
                     }
-                    answerButton(system: "phone.fill", label: "Accept", bg: DS.live) {
+                    answerButton(system: "phone.fill", label: "Accept", bg: DS.live, glow: true) {
                         stopRing(); vm.acceptIncoming()
                     }
                 }
-                .padding(.bottom, 70)
+                .padding(.bottom, 78)
             }
         }
         .onAppear { startRing() }
         .onDisappear { stopRing() }
     }
 
-    private func answerButton(system: String, label: String, bg: Color, action: @escaping () -> Void) -> some View {
+    private func answerButton(system: String, label: String, bg: Color, glow: Bool, action: @escaping () -> Void) -> some View {
         VStack(spacing: 10) {
             Button(action: action) {
                 Image(systemName: system).font(.system(size: 30, weight: .semibold))
-                    .foregroundColor(.white).frame(width: 76, height: 76)
+                    .foregroundColor(.white).frame(width: 78, height: 78)
                     .background(Circle().fill(bg))
+                    .shadow(color: glow ? bg.opacity(0.6) : .clear, radius: glow ? 22 : 0)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("\(label) call")
