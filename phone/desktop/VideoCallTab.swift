@@ -227,6 +227,17 @@ private struct StartCallView: View {
                     Button(action: { showGroupChats = true }) {
                         Image(systemName: groupChat.chats.isEmpty ? "bubble.left.and.bubble.right" : "bubble.left.and.bubble.right.fill")
                             .foregroundColor(DS.dim).frame(width: 36, height: 36)
+                            .overlay(alignment: .topTrailing) {
+                                if groupChat.totalUnread > 0 {
+                                    Text("\(min(groupChat.totalUnread, 99))")
+                                        .font(.caption2.weight(.bold))
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 5).padding(.vertical, 1)
+                                        .background(Capsule().fill(Color.red))
+                                        .offset(x: 6, y: -4)
+                                        .accessibilityLabel("\(groupChat.totalUnread) unread group messages")
+                                }
+                            }
                     }.buttonStyle(.plain)
                     Button(action: { showInternetSettings = true }) {
                         Image(systemName: "gearshape").foregroundColor(DS.dim).frame(width: 36, height: 36)
@@ -531,8 +542,20 @@ private struct MonitorGroupChatPanel: View {
                                     .background(group.activeChatID == chat.chatID ? DS.surfaceHi : DS.surface,
                                                 in: RoundedRectangle(cornerRadius: 10))
                                     .overlay(RoundedRectangle(cornerRadius: 10).stroke(DS.hairline, lineWidth: 1))
+                                    .overlay(alignment: .topTrailing) {
+                                        if let unread = group.unreadByChat[chat.chatID], unread > 0 {
+                                            Text("\(min(unread, 99))")
+                                                .font(.caption2.weight(.bold))
+                                                .foregroundColor(.white)
+                                                .padding(.horizontal, 6).padding(.vertical, 2)
+                                                .background(Capsule().fill(Color.accentColor))
+                                                .padding(6)
+                                                .accessibilityLabel("\(unread) unread")
+                                        }
+                                    }
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityLabel(Text(chat.title))
                             }
                         }
                     }

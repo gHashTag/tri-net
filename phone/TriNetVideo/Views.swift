@@ -37,6 +37,17 @@ struct HomeView: View {
                                 .font(.system(size: 18)).foregroundColor(DS.dim)
                                 .frame(width: 42, height: 42)
                                 .overlay(Circle().stroke(DS.hairlineStrong, lineWidth: 1))
+                                .overlay(alignment: .topTrailing) {
+                                    if groupChat.totalUnread > 0 {
+                                        Text("\(min(groupChat.totalUnread, 99))")
+                                            .font(.caption2.weight(.bold))
+                                            .foregroundColor(.white)
+                                            .padding(.horizontal, 5).padding(.vertical, 2)
+                                            .background(Capsule().fill(Color.red))
+                                            .offset(x: 6, y: -6)
+                                            .accessibilityLabel("\(groupChat.totalUnread) unread group messages")
+                                    }
+                                }
                         }
                         Button(action: { showSettings = true }) {
                             Image(systemName: "gearshape").font(.system(size: 18)).foregroundColor(DS.dim)
@@ -1055,15 +1066,29 @@ private struct GroupChatCenterView: View {
                 }
                 ForEach(group.chats) { chat in
                     Button(action: { group.open(chat) }) {
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text(chat.title).font(.headline).foregroundColor(.primary)
-                            Text(chat.members.map { "@\($0)" }.joined(separator: ", "))
-                                .font(.caption).foregroundColor(.secondary).lineLimit(1)
-                            if let lastMessage = chat.lastMessage {
-                                Text(lastMessage).font(.subheadline).foregroundColor(.secondary).lineLimit(1)
+                        HStack(alignment: .top, spacing: 10) {
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text(chat.title).font(.headline).foregroundColor(.primary)
+                                Text(chat.members.map { "@\($0)" }.joined(separator: ", "))
+                                    .font(.caption).foregroundColor(.secondary).lineLimit(1)
+                                if let lastMessage = chat.lastMessage {
+                                    Text(lastMessage).font(.subheadline).foregroundColor(.secondary).lineLimit(1)
+                                }
+                            }
+                            Spacer(minLength: 0)
+                            if let unread = group.unreadByChat[chat.chatID], unread > 0 {
+                                Text("\(min(unread, 99))")
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 3)
+                                    .background(Capsule().fill(Color.accentColor))
+                                    .accessibilityLabel("\(unread) unread")
                             }
                         }
                     }
+                    .accessibilityLabel(Text(chat.title))
+                    .accessibilityHint(Text("Open group chat"))
                 }
             }
 

@@ -296,6 +296,10 @@ class StreamViewModel: ObservableObject {
         directory = NicknameDirectoryController(identity: loadedIdentity, configuration: loadedConfiguration)
         account = AccountDeviceController(identity: loadedIdentity, configuration: loadedConfiguration)
         groupChat = GroupChatController(identity: loadedIdentity, configuration: loadedConfiguration)
+        // Chime on a newly-arrived group message authored by someone else.
+        groupChat.onNewMessage = { [weak self] _ in
+            DispatchQueue.main.async { self?.chatChime.play() }
+        }
         myIP = getLocalIP()
         if let saved = UserDefaults.standard.array(forKey: "recentCallIPs") as? [String] {
             recentIPs = saved
