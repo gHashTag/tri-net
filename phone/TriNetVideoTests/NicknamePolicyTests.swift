@@ -30,6 +30,32 @@ final class NicknamePolicyTests: XCTestCase {
         XCTAssertTrue(suggestions.allSatisfy { !NicknamePolicy.isConfusing($0, with: "alice") })
     }
 
+    func testStalePrivateAPIEndpointUsesBundledLocalHostname() {
+        let bundled = "http://SSDs-MacBook-Pro.local:8080"
+
+        XCTAssertEqual(
+            InternetCallConfiguration.preferredAPIBaseURL(
+                saved: "http://172.20.10.5:8080",
+                bundled: bundled
+            ),
+            bundled
+        )
+        XCTAssertEqual(
+            InternetCallConfiguration.preferredAPIBaseURL(
+                saved: "https://calls.example.com",
+                bundled: bundled
+            ),
+            "https://calls.example.com"
+        )
+        XCTAssertEqual(
+            InternetCallConfiguration.preferredAPIBaseURL(
+                saved: "http://192.168.50.2:8080",
+                bundled: "https://calls.example.com"
+            ),
+            "http://192.168.50.2:8080"
+        )
+    }
+
     func testFingerprintIsDerivedFromPublicKey() {
         let publicKey = P256.Signing.PrivateKey().publicKey.x963Representation
         let encoded = publicKey.base64EncodedString()

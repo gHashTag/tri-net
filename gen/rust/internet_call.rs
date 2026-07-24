@@ -63,6 +63,10 @@ pub fn select_route(mesh_reachable: bool, internet_reachable: bool) -> u8 {
     return ROUTE_NONE;
 }
 
+pub fn should_migrate_private_api_endpoint(saved_is_private_literal: bool, bundled_is_local_hostname: bool) -> bool {
+    return (saved_is_private_literal && bundled_is_local_hostname);
+}
+
 pub fn invite_is_fresh(created_at: u32, now: u32) -> bool {
     if (now < created_at) {
         return false;

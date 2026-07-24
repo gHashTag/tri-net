@@ -49,12 +49,44 @@ struct InternetCallConfiguration: Equatable {
             return bundle.object(forInfoDictionaryKey: plistKey) as? String ?? ""
         }
 
+        let bundledAPIBaseURL = bundle.object(forInfoDictionaryKey: "TRINET_API_BASE_URL") as? String ?? ""
+        let savedAPIBaseURL = defaults.string(forKey: "internetAPIBaseURL")
+        let apiBaseURL = preferredAPIBaseURL(saved: savedAPIBaseURL, bundled: bundledAPIBaseURL)
+        if let savedAPIBaseURL,
+           !savedAPIBaseURL.isEmpty,
+           savedAPIBaseURL != apiBaseURL {
+            defaults.set(apiBaseURL, forKey: "internetAPIBaseURL")
+        }
+
         return InternetCallConfiguration(
-            apiBaseURL: value("internetAPIBaseURL", "TRINET_API_BASE_URL"),
+            apiBaseURL: apiBaseURL,
             liveKitURL: value("liveKitURL", "TRINET_LIVEKIT_URL"),
             accessToken: value("serviceAccessToken", "TRINET_SERVICE_ACCESS_TOKEN"),
             developmentRoomToken: value("developmentRoomToken", "TRINET_DEVELOPMENT_ROOM_TOKEN")
         )
+    }
+
+    static func preferredAPIBaseURL(saved: String?, bundled: String) -> String {
+        guard let saved, !saved.isEmpty else { return bundled }
+        guard let savedHost = URL(string: saved)?.host,
+              let bundledHost = URL(string: bundled)?.host,
+              isPrivateIPv4(savedHost),
+              bundledHost.lowercased().hasSuffix(".local") else {
+            return saved
+        }
+        return bundled
+    }
+
+    private static func isPrivateIPv4(_ host: String) -> Bool {
+        let components = host.split(separator: ".", omittingEmptySubsequences: false)
+        guard components.count == 4 else { return false }
+        let octets = components.compactMap { UInt8($0) }
+        guard octets.count == 4 else { return false }
+        return octets[0] == 10 ||
+            (octets[0] == 172 && (16...31).contains(octets[1])) ||
+            (octets[0] == 192 && octets[1] == 168) ||
+            (octets[0] == 169 && octets[1] == 254) ||
+            (octets[0] == 100 && (64...127).contains(octets[1]))
     }
 
     func save(defaults: UserDefaults = .standard) {

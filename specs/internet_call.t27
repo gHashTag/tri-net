@@ -59,6 +59,13 @@ module InternetCall {
         return ROUTE_NONE;
     }
 
+    // A private numeric address is tied to one LAN or tethering session. When
+    // the build provides a stable Bonjour hostname, migrate the stale literal
+    // instead of pinning the client to an unreachable previous network.
+    fn should_migrate_private_api_endpoint(saved_is_private_literal: bool, bundled_is_local_hostname: bool) -> bool {
+        return saved_is_private_literal && bundled_is_local_hostname;
+    }
+
     fn invite_is_fresh(created_at: u32, now: u32) -> bool {
         if (now < created_at) {
             return false;
@@ -140,6 +147,12 @@ module InternetCall {
         assert(select_route(false, false) == ROUTE_NONE, "offline");
     }
 
+    test stale_private_api_endpoint_uses_stable_local_hostname {
+        assert(should_migrate_private_api_endpoint(true, true) == true, "migrate stale LAN literal");
+        assert(should_migrate_private_api_endpoint(false, true) == false, "keep public endpoint");
+        assert(should_migrate_private_api_endpoint(true, false) == false, "keep explicit private endpoint");
+    }
+
     test expired_invite_cannot_be_answered {
         assert(may_answer(CALL_RINGING, invite_is_fresh(100, 131), true) == false, "expired");
     }
@@ -198,6 +211,9 @@ module InternetCall {
 
     invariant presence_outlives_poll_interval
         assert PRESENCE_TTL_SECONDS > INVITE_TTL_SECONDS
+
+    invariant public_api_endpoint_is_never_migrated
+        assert should_migrate_private_api_endpoint(false, true) == false
 
     bench route_selection_latency
         measure: nanoseconds to select_route(true, true)

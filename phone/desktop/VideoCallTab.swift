@@ -12,6 +12,7 @@ import AVFoundation
 import CoreImage
 import CoreMedia
 import CoreVideo
+import LiveKit
 
 struct VideoCallTab: View {
     @StateObject private var call = CallManager()
@@ -688,12 +689,23 @@ private struct InCallView: View {
     @State private var draft = ""
     private let reactions = ["👍", "❤️", "😂", "👏", "🔥"]
 
+    private var hasRemoteMedia: Bool {
+        if call.activeRoute == .internet {
+            return call.internet.remoteVideoTrack != nil
+        }
+        return call.framesReceived > 0 || !call.groupDecoders.isEmpty
+    }
+
     var body: some View {
         VStack(spacing: 12) {
             ZStack(alignment: .topLeading) {
                 // Group → adaptive grid of per-source decoders; 1-1 → single feed
                 if call.isGroup {
                     GroupGrid(call: call)
+                        .clipShape(RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: DS.radius, style: .continuous).stroke(DS.hairline, lineWidth: 1))
+                } else if call.activeRoute == .internet {
+                    MonitorInternetVideo(controller: call.internet, peer: call.callee)
                         .clipShape(RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
                         .overlay(RoundedRectangle(cornerRadius: DS.radius, style: .continuous).stroke(DS.hairline, lineWidth: 1))
                 } else {
@@ -712,8 +724,8 @@ private struct InCallView: View {
 
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 6) {
-                        StatusTag(text: call.framesReceived > 0 || !call.groupDecoders.isEmpty ? "Secure" : "Connecting",
-                                  live: call.framesReceived > 0 || !call.groupDecoders.isEmpty)
+                        StatusTag(text: hasRemoteMedia ? "Secure" : "Connecting",
+                                  live: hasRemoteMedia)
                             .background(DS.ink.opacity(0.5), in: Capsule())
                         // Make link trouble visible instead of a silent freeze.
                         if call.linkHealth != .good {
@@ -907,6 +919,31 @@ private struct Meter: View {
 
 // MARK: - Display helpers (self-contained: the Monitor target does not compile
 // the standalone app's Views.swift)
+
+private struct MonitorInternetVideo: View {
+    @ObservedObject var controller: InternetCallController
+    let peer: String
+
+    var body: some View {
+        ZStack {
+            DS.surface
+            if let track = controller.remoteVideoTrack {
+                SwiftUIVideoView(track, layoutMode: .fit)
+            } else {
+                VStack(spacing: 10) {
+                    ProgressView().controlSize(.small)
+                    Text(controller.state.rawValue.uppercased())
+                        .font(DS.mono(11, .medium))
+                        .tracking(1)
+                        .foregroundColor(DS.faint)
+                    Text(controller.participantName.isEmpty ? peer : controller.participantName)
+                        .font(DS.mono(10))
+                        .foregroundColor(DS.faint)
+                }
+            }
+        }
+    }
+}
 
 private struct MonitorRemoteVideo: View {
     @ObservedObject var decoder: VideoDecoder
