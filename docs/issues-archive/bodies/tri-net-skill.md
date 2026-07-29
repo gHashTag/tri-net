@@ -1,3 +1,16 @@
+> **Archived issue body. Point-in-time record, not current status.**
+>
+> Written before milestone M1 ran on hardware. Two statements below are superseded:
+>
+> - the crypto core has since run on-device, twice, with RC=0 and recorded binary
+>   hashes - see [`smoke/M1_RESULTS.md`](../../../smoke/M1_RESULTS.md), runs dated
+>   2026-07-01 and 2026-07-04;
+> - `gHashTag/trios-mesh` now exists as a repository.
+>
+> Current status is the table in the repository [`README.md`](../../../README.md).
+> The body text below is preserved unedited so the record of what was believed at
+> the time stays intact.
+
 ## Goal
 Create an on-disk `tri-net` Claude skill under `trinity/.claude/skills/tri-net/` that captures the honest Phase-0 status of the TRI-NET drone-mesh track (both boards now physically connected), with `-sim` markers on every unverified claim.
 
