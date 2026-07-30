@@ -13,6 +13,7 @@ struct HomeView: View {
     @State private var showSettings = false
     @State private var showNicknameSetup = false
     @State private var showGroupChats = false
+    @State private var newContactNick = ""
 
     init(vm: StreamViewModel) {
         self.vm = vm
@@ -29,21 +30,41 @@ struct HomeView: View {
                     .transition(.opacity)
             } else {
                 VStack(spacing: 22) {
-                    HStack {
+                    HStack(spacing: 12) {
                         Text("TRI-NET").font(DS.display(22, .bold)).tracking(1).foregroundColor(DS.text)
                         Spacer()
                         Button(action: { showGroupChats = true }) {
                             Image(systemName: groupChat.chats.isEmpty ? "bubble.left.and.bubble.right" : "bubble.left.and.bubble.right.fill")
-                                .font(.system(size: 18)).foregroundColor(DS.dim)
-                                .frame(width: 42, height: 42)
+                                .font(.system(size: 20)).foregroundColor(DS.dim)
+                                .frame(width: 48, height: 48)
+                                .background(Circle().fill(DS.surface))
                                 .overlay(Circle().stroke(DS.hairlineStrong, lineWidth: 1))
+                                .contentShape(Circle())
+                                .overlay(alignment: .topTrailing) {
+                                    if groupChat.totalUnread > 0 {
+                                        Text("\(min(groupChat.totalUnread, 99))")
+                                            .font(.caption2.weight(.bold))
+                                            .foregroundColor(.white)
+                                            .padding(.horizontal, 5).padding(.vertical, 2)
+                                            .background(Capsule().fill(Color.red))
+                                            .offset(x: 6, y: -6)
+                                            .accessibilityLabel("\(groupChat.totalUnread) unread group messages")
+                                    }
+                                }
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Group chats")
                         Button(action: { showSettings = true }) {
-                            Image(systemName: "gearshape").font(.system(size: 18)).foregroundColor(DS.dim)
-                                .frame(width: 42, height: 42).overlay(Circle().stroke(DS.hairlineStrong, lineWidth: 1))
+                            Image(systemName: "gearshape").font(.system(size: 20)).foregroundColor(DS.dim)
+                                .frame(width: 48, height: 48)
+                                .background(Circle().fill(DS.surface))
+                                .overlay(Circle().stroke(DS.hairlineStrong, lineWidth: 1))
+                                .contentShape(Circle())
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Settings")
                     }
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, 20)
 
                     Text("Encrypted mesh | WebRTC internet")
                         .font(DS.ui(13)).foregroundColor(DS.dim)
@@ -81,68 +102,117 @@ struct HomeView: View {
                     .buttonStyle(.plain)
                     .disabled(!vm.cameraAuthorized)
 
-                    // Peer field
+                    // ===== Calling flow =====
                     VStack(spacing: 14) {
-                        Picker("Route", selection: $vm.route) {
-                            ForEach(CallRoute.allCases) { route in
-                                Text(route.displayName).tag(route)
+                        // Route: Internet (default) or Local Mesh. Collapsed under
+                        // a disclosure so the common case is one tap fewer.
+                        DisclosureGroup("Connection: \(vm.route.displayName)") {
+                            Picker("Route", selection: $vm.route) {
+                                ForEach(CallRoute.allCases) { route in
+                                    Text(route.displayName).tag(route)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .padding(.top, 4)
+                        }
+                        .font(DS.mono(11)).foregroundColor(DS.dim)
+
+                        // Add a contact by nickname, then tap them to call.
+                        HStack(spacing: 10) {
+                            Image(systemName: "person.badge.plus").foregroundColor(DS.dim)
+                            TextField("add by @nickname", text: $newContactNick)
+                                .textInputAutocapitalization(.never).autocorrectionDisabled()
+                                .font(DS.mono(16)).foregroundColor(DS.text)
+                                .submitLabel(.done)
+                                .onSubmit {
+                                    vm.addContact(newContactNick)
+                                    newContactNick = ""
+                                }
+                            Button {
+                                vm.addContact(newContactNick)
+                                newContactNick = ""
+                            } label: {
+                                Text("Add").font(DS.mono(13, .bold)).foregroundColor(.white)
+                                    .padding(.horizontal, 14).padding(.vertical, 7)
+                                    .background(Capsule().fill(DS.fill))
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(newContactNick.trimmingCharacters(in: .whitespaces).count < 3)
+                        }
+                        .padding(.horizontal, 16).padding(.vertical, 12)
+                        .background(DS.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(DS.hairline, lineWidth: 1))
+
+                        // Saved contacts: tap the phone button to call on the
+                        // selected route (Internet by default, Mesh if chosen).
+                        if !vm.savedContacts.isEmpty {
+                            VStack(spacing: 8) {
+                                ForEach(vm.savedContacts, id: \.self) { nick in
+                                    HStack(spacing: 12) {
+                                        Image(systemName: "person.crop.circle.fill")
+                                            .font(.system(size: 26)).foregroundColor(DS.live)
+                                        Text("@\(nick)").font(DS.mono(15, .medium)).foregroundColor(DS.text)
+                                        Spacer()
+                                        // Call button — Internet or Mesh per the route above.
+                                        Button {
+                                            vm.callNickname(nick)
+                                        } label: {
+                                            Image(systemName: "phone.fill")
+                                                .font(.system(size: 14)).foregroundColor(.white)
+                                                .frame(width: 40, height: 40)
+                                                .background(Circle().fill(DS.live))
+                                        }
+                                        .buttonStyle(.plain)
+                                        .accessibilityLabel("Call @\(nick)")
+                                        Button {
+                                            vm.removeContact(nick)
+                                        } label: {
+                                            Image(systemName: "minus.circle.fill")
+                                                .font(.system(size: 16)).foregroundColor(DS.faint)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .accessibilityLabel("Remove @\(nick)")
+                                    }
+                                    .padding(.horizontal, 14).padding(.vertical, 10)
+                                    .background(DS.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(DS.hairline, lineWidth: 1))
+                                }
                             }
                         }
-                        .pickerStyle(.segmented)
 
+                        // Directory search: find who's online right now.
                         HStack {
-                            SectionLabel(text: "Find")
-                            TextField(vm.route == .mesh ? "nickname or IP" : "nickname", text: Binding(
+                            Image(systemName: "magnifyingglass").foregroundColor(DS.dim)
+                            TextField("search online by @nickname", text: Binding(
                                 get: { vm.directory.searchQuery },
                                 set: { vm.directory.searchQuery = $0 }
                             ))
                                 .textInputAutocapitalization(.never).autocorrectionDisabled()
-                                .font(DS.mono(16)).foregroundColor(DS.text)
-                                .multilineTextAlignment(.center)
+                                .font(DS.mono(15)).foregroundColor(DS.text)
                                 .onSubmit { vm.searchNicknames() }
-                            Button(action: { vm.searchNicknames() }) {
-                                Image(systemName: "magnifyingglass")
-                                    .foregroundColor(DS.text)
-                                    .frame(width: 34, height: 34)
-                            }
+                            Button("Search") { vm.searchNicknames() }
+                                .font(DS.mono(12, .medium)).foregroundColor(DS.text)
                         }
-                        .padding(.horizontal, 18).padding(.vertical, 14)
+                        .padding(.horizontal, 16).padding(.vertical, 12)
                         .background(DS.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(DS.hairline, lineWidth: 1))
 
                         if !vm.directory.results.isEmpty {
                             VStack(spacing: 8) {
-                                ForEach(vm.directory.results.prefix(3)) { contact in
+                                ForEach(vm.directory.results.prefix(5)) { contact in
                                     DirectoryContactButton(contact: contact) {
-                                        vm.selectContact(contact)
-                                        vm.directory.searchQuery = contact.nickname
+                                        vm.addContact(contact.nickname)
+                                        vm.callNickname(contact.nickname)
                                     }
                                 }
                             }
                         }
 
-                        if !vm.callee.isEmpty {
-                            Text("CALL TARGET | @\(vm.callee)")
-                                .font(DS.mono(11, .medium)).foregroundColor(DS.live)
-                        }
-
-                        Text("SELF | \(directory.currentNickname.map { "@\($0)" } ?? vm.identity.displayName) | \(vm.identity.keyFingerprint)")
+                        Text(directory.currentNickname.map { "You are @\($0)" } ?? "Create your nickname to be callable")
                             .font(DS.mono(12)).foregroundColor(DS.faint)
 
                         if let error = vm.callError {
                             Text(error).font(DS.ui(12)).foregroundColor(DS.danger).multilineTextAlignment(.center)
-                        }
-
-                        if !vm.recentIPs.isEmpty {
-                            HStack(spacing: 10) {
-                                ForEach(vm.recentIPs.prefix(3), id: \.self) { ip in
-                                    Button(action: { vm.remoteIP = ip }) {
-                                        Text(ip).font(DS.mono(11)).foregroundColor(DS.dim)
-                                            .padding(.horizontal, 12).padding(.vertical, 7)
-                                            .overlay(Capsule().stroke(DS.hairline, lineWidth: 1))
-                                    }
-                                }
-                            }
                         }
 
                         iPeerRoster(vm: vm, discovery: vm.discovery)
@@ -403,48 +473,71 @@ struct IncomingCallOverlay: View {
 
     var body: some View {
         ZStack {
-            DS.ink.opacity(0.98).ignoresSafeArea()
+            // Deep vertical gradient + a live-colored glow that breathes behind the avatar.
+            LinearGradient(colors: [DS.ink, .black], startPoint: .top, endPoint: .bottom)
+                .ignoresSafeArea()
+            RadialGradient(colors: [DS.live.opacity(0.20), .clear], center: .center, startRadius: 8, endRadius: 340)
+                .ignoresSafeArea()
+                .scaleEffect(pulse ? 1.12 : 0.92)
+
             VStack(spacing: 0) {
-                Spacer()
-                ZStack {
-                    // Two expanding rings — "ringing, live now" (Reduce-Motion aware).
-                    Circle().stroke(DS.live.opacity(0.55), lineWidth: 3)
-                        .frame(width: 150, height: 150)
-                        .scaleEffect(pulse ? 1.45 : 1.0).opacity(pulse ? 0 : 0.7)
-                    Circle().stroke(DS.live.opacity(0.30), lineWidth: 2)
-                        .frame(width: 150, height: 150)
-                        .scaleEffect(pulse ? 1.18 : 0.9).opacity(pulse ? 0 : 0.5)
-                    Circle().fill(DS.surfaceHi)
-                        .overlay(Circle().stroke(DS.hairlineStrong, lineWidth: 1))
-                        .frame(width: 118, height: 118)
-                    Text(initial).font(.system(size: 46, weight: .semibold)).foregroundColor(DS.text)
+                // Signature security badge — this is a TRI-NET encrypted call, not a stock ring.
+                HStack(spacing: 7) {
+                    Image(systemName: "lock.shield.fill").font(.system(size: 12, weight: .bold))
+                    Text("E N C R Y P T E D   ·   F O R W A R D - S E C R E T").font(DS.ui(11))
                 }
-                Text(inc.name).font(DS.display(26, .semibold)).foregroundColor(DS.text)
-                    .padding(.top, 26).lineLimit(1)
-                Text("Incoming call · TRI-NET").font(DS.ui(14)).foregroundColor(DS.dim).padding(.top, 6)
-                Text(inc.ip).font(DS.mono(12)).foregroundColor(DS.faint).padding(.top, 2)
+                .foregroundColor(DS.live)
+                .padding(.top, 72)
+
                 Spacer()
-                HStack(spacing: 80) {
-                    answerButton(system: "phone.down.fill", label: "Decline", bg: DS.danger) {
+
+                // Avatar: three outward-rippling rings + a glowing gradient disc with the caller's initial.
+                ZStack {
+                    ForEach(0..<3) { i in
+                        Circle().stroke(DS.live.opacity(0.5 - Double(i) * 0.14), lineWidth: 2)
+                            .frame(width: 168, height: 168)
+                            .scaleEffect(pulse ? 1.1 + Double(i) * 0.24 : 1.0)
+                            .opacity(pulse ? 0 : 0.75)
+                    }
+                    Circle()
+                        .fill(LinearGradient(colors: [DS.live.opacity(0.95), DS.live.opacity(0.45)],
+                                             startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .frame(width: 136, height: 136)
+                        .overlay(Circle().stroke(.white.opacity(0.22), lineWidth: 1))
+                        .shadow(color: DS.live.opacity(0.55), radius: 34)
+                    Text(initial).font(.system(size: 54, weight: .bold, design: .rounded)).foregroundColor(.white)
+                }
+
+                // Caller identity — nickname first (that IS the identity), then a soft subtitle + route.
+                Text(inc.name).font(DS.display(30, .bold)).foregroundColor(DS.text)
+                    .padding(.top, 32).lineLimit(1).minimumScaleFactor(0.7)
+                Text("is calling you").font(DS.ui(15)).foregroundColor(DS.dim).padding(.top, 6)
+                Text(inc.ip).font(DS.mono(12)).foregroundColor(DS.faint).padding(.top, 4)
+
+                Spacer()
+
+                HStack(spacing: 88) {
+                    answerButton(system: "phone.down.fill", label: "Decline", bg: DS.danger, glow: false) {
                         stopRing(); vm.declineIncoming()
                     }
-                    answerButton(system: "phone.fill", label: "Accept", bg: DS.live) {
+                    answerButton(system: "phone.fill", label: "Accept", bg: DS.live, glow: true) {
                         stopRing(); vm.acceptIncoming()
                     }
                 }
-                .padding(.bottom, 70)
+                .padding(.bottom, 78)
             }
         }
         .onAppear { startRing() }
         .onDisappear { stopRing() }
     }
 
-    private func answerButton(system: String, label: String, bg: Color, action: @escaping () -> Void) -> some View {
+    private func answerButton(system: String, label: String, bg: Color, glow: Bool, action: @escaping () -> Void) -> some View {
         VStack(spacing: 10) {
             Button(action: action) {
                 Image(systemName: system).font(.system(size: 30, weight: .semibold))
-                    .foregroundColor(.white).frame(width: 76, height: 76)
+                    .foregroundColor(.white).frame(width: 78, height: 78)
                     .background(Circle().fill(bg))
+                    .shadow(color: glow ? bg.opacity(0.6) : .clear, radius: glow ? 22 : 0)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("\(label) call")
@@ -1032,15 +1125,29 @@ private struct GroupChatCenterView: View {
                 }
                 ForEach(group.chats) { chat in
                     Button(action: { group.open(chat) }) {
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text(chat.title).font(.headline).foregroundColor(.primary)
-                            Text(chat.members.map { "@\($0)" }.joined(separator: ", "))
-                                .font(.caption).foregroundColor(.secondary).lineLimit(1)
-                            if let lastMessage = chat.lastMessage {
-                                Text(lastMessage).font(.subheadline).foregroundColor(.secondary).lineLimit(1)
+                        HStack(alignment: .top, spacing: 10) {
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text(chat.title).font(.headline).foregroundColor(.primary)
+                                Text(chat.members.map { "@\($0)" }.joined(separator: ", "))
+                                    .font(.caption).foregroundColor(.secondary).lineLimit(1)
+                                if let lastMessage = chat.lastMessage {
+                                    Text(lastMessage).font(.subheadline).foregroundColor(.secondary).lineLimit(1)
+                                }
+                            }
+                            Spacer(minLength: 0)
+                            if let unread = group.unreadByChat[chat.chatID], unread > 0 {
+                                Text("\(min(unread, 99))")
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 3)
+                                    .background(Capsule().fill(Color.accentColor))
+                                    .accessibilityLabel("\(unread) unread")
                             }
                         }
                     }
+                    .accessibilityLabel(Text(chat.title))
+                    .accessibilityHint(Text("Open group chat"))
                 }
             }
 

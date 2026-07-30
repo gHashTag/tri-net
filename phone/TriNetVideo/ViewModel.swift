@@ -70,6 +70,21 @@ class StreamViewModel: ObservableObject {
     var chatOpen = false { didSet { if chatOpen { unreadChat = 0 } } }  // panel open => clear the badge
     private let chatChime = ChatChime()                 // Trinity-style blip on an incoming chat message
     @Published var recentIPs: [String] = []
+    /// Saved nicknames the user has added for one-tap calling. Persisted across
+    /// launches so "I added @bob" stays. Tapping a contact calls them on the
+    /// currently-selected route (Internet by default; switch to Mesh in the
+    /// Connection disclosure to use the local-network path).
+    @Published var savedContacts: [String] = UserDefaults.standard.stringArray(forKey: "savedContacts") ?? [] {
+        didSet { UserDefaults.standard.set(savedContacts, forKey: "savedContacts") }
+    }
+    func addContact(_ raw: String) {
+        let nick = NicknamePolicy.normalize(raw)
+        guard nick.count >= 3, !savedContacts.contains(nick) else { return }
+        savedContacts.append(nick)
+    }
+    func removeContact(_ nick: String) {
+        savedContacts.removeAll { $0 == nick }
+    }
     // Live audio levels (0...1) for the TX/RX meters, peak-held with decay.
     @Published var txLevel: Float = 0
     @Published var rxLevel: Float = 0
@@ -296,6 +311,10 @@ class StreamViewModel: ObservableObject {
         directory = NicknameDirectoryController(identity: loadedIdentity, configuration: loadedConfiguration)
         account = AccountDeviceController(identity: loadedIdentity, configuration: loadedConfiguration)
         groupChat = GroupChatController(identity: loadedIdentity, configuration: loadedConfiguration)
+        // Chime on a newly-arrived group message authored by someone else.
+        groupChat.onNewMessage = { [weak self] _ in
+            DispatchQueue.main.async { self?.chatChime.play() }
+        }
         myIP = getLocalIP()
         if let saved = UserDefaults.standard.array(forKey: "recentCallIPs") as? [String] {
             recentIPs = saved
@@ -307,10 +326,18 @@ class StreamViewModel: ObservableObject {
             self?.showReaction(value)
         }
         internet.onIncomingCall = { [weak self] incoming in
-            guard let self, self.phase == .idle else { return }
+            guard let self, self.phase == .idle, self.incomingCall == nil else { return }
+            // Report to CallKit (system call UI + VoIP push path) AND show the
+            // in-app overlay with the custom tri-tone ringtone. Previously only
+            // mesh calls got the in-app ring; internet calls were silent in-app.
             CallKitCoordinator.shared.reportIncoming(callID: incoming.callID,
                                                      caller: incoming.caller,
                                                      video: incoming.video)
+            self.incomingCall = IncomingCall(name: incoming.caller,
+                                             ip: "",
+                                             participants: [],
+                                             internetCallID: incoming.callID)
+            self.beginIncomingTimeout()
         }
         directory.onIdentityChanged = { [weak self] updatedIdentity in
             guard let self else { return }
@@ -366,7 +393,15 @@ class StreamViewModel: ObservableObject {
     // While idle we hold a light listener on :7000; a caller sends a tiny plaintext INVITE there and we
     // pop the full-screen ringing sheet. Torn down when a call starts (the encrypted transport owns :7000),
     // restarted when it ends.
-    struct IncomingCall: Equatable { let name: String; let ip: String; let participants: [String] }
+    // internetCallID is set when the incoming call arrived over the Internet
+    // path (LiveKit) rather than mesh UDP; nil means it's a mesh call. The
+    // overlay's Accept button branches on this so one UI serves both routes.
+    struct IncomingCall: Equatable {
+        let name: String
+        let ip: String
+        let participants: [String]
+        var internetCallID: String? = nil
+    }
     @Published var incomingCall: IncomingCall?
     // Missed calls: an incoming that timed out unanswered (NOT a decline — that was a choice). Newest first.
     // Persisted across restarts so you don't lose "who called while I was away".
@@ -657,16 +692,7 @@ class StreamViewModel: ObservableObject {
                         return
                     }
                     NSLog("TRINET: INCOMING call from \(name) (\(ip))")
-                    self.incomingTimer?.invalidate()
-                    self.incomingTimer = Timer.scheduledTimer(withTimeInterval: 40, repeats: false) { [weak self] _ in
-                        guard let self = self else { return }
-                        if let m = self.incomingCall {   // auto-miss after 40s -> log it for one-tap call-back
-                            self.missedCalls.insert(MissedCall(name: m.name, ip: m.ip, at: Date()), at: 0)
-                            if self.missedCalls.count > 5 { self.missedCalls.removeLast() }
-                            NSLog("TRINET: MISSED call from \(m.name) (\(m.ip))")
-                        }
-                        self.incomingCall = nil
-                    }
+                    self.beginIncomingTimeout()
                 }
             }
         }
@@ -715,8 +741,16 @@ class StreamViewModel: ObservableObject {
     func acceptIncoming() {
         guard let inc = incomingCall else { return }
         incomingTimer?.invalidate(); incomingCall = nil
-        // Rebuild the exact call: caller + every other participant, minus myself. For a 1-1 invite the
-        // participant list is just {caller, me}, so this collapses to a plain 1-1 back to the caller.
+        // Internet (LiveKit) call: answer via the call-id we were handed.
+        if let callID = inc.internetCallID {
+            NSLog("TRINET: accepting INTERNET call \(callID) from \(inc.name)")
+            callee = inc.name
+            activeRoute = .internet
+            answerInternetCall(callID: callID)
+            return
+        }
+        // Mesh call: rebuild the exact call — caller + every other participant, minus myself. For a 1-1
+        // invite the participant list is just {caller, me}, so this collapses to a plain 1-1 back to the caller.
         var mesh = Set(inc.participants); mesh.insert(inc.ip); mesh.remove(myIP)
         let hosts = mesh.filter { !$0.isEmpty }.sorted()
         remoteIP = hosts.isEmpty ? inc.ip : hosts.joined(separator: ",")
@@ -724,6 +758,21 @@ class StreamViewModel: ObservableObject {
         startCall()
     }
     func declineIncoming() { incomingTimer?.invalidate(); incomingCall = nil }
+
+    /// Auto-miss after 40s: log the unanswered call so the user has a one-tap
+    /// call-back. Shared by mesh and internet incoming paths.
+    func beginIncomingTimeout() {
+        incomingTimer?.invalidate()
+        incomingTimer = Timer.scheduledTimer(withTimeInterval: 40, repeats: false) { [weak self] _ in
+            guard let self = self else { return }
+            if let m = self.incomingCall {
+                self.missedCalls.insert(MissedCall(name: m.name, ip: m.ip, at: Date()), at: 0)
+                if self.missedCalls.count > 5 { self.missedCalls.removeLast() }
+                NSLog("TRINET: MISSED call from \(m.name)")
+            }
+            self.incomingCall = nil
+        }
+    }
 
     func checkPermission() {
         let s = AVCaptureDevice.authorizationStatus(for: .video)
@@ -804,6 +853,14 @@ class StreamViewModel: ObservableObject {
         let target = NicknamePolicy.normalize(directory.searchQuery)
         if !target.isEmpty { callee = target }
         directory.search()
+    }
+
+    /// One-tap call to a saved nickname. Sets callee + searchQuery so startCall()
+    /// targets the right person, then starts the call on the selected route.
+    func callNickname(_ nick: String) {
+        callee = nick
+        directory.searchQuery = nick
+        startCall()
     }
 
     func selectContact(_ contact: DirectoryContact) {

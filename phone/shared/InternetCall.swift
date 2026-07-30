@@ -134,6 +134,9 @@ struct GroupChatSummary: Decodable, Identifiable, Equatable {
     let createdAt: Int64
     let lastMessage: String?
     let lastMessageAt: Int64?
+    /// Unread count for the requesting account, supplied by the server. Defaults
+    /// to 0 when the field is absent so old servers keep working.
+    let unreadCount: Int
 
     var id: String { chatID }
 
@@ -144,6 +147,18 @@ struct GroupChatSummary: Decodable, Identifiable, Equatable {
         case createdAt = "created_at"
         case lastMessage = "last_message"
         case lastMessageAt = "last_message_at"
+        case unreadCount = "unread_count"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        chatID = try container.decode(String.self, forKey: .chatID)
+        title = try container.decode(String.self, forKey: .title)
+        members = try container.decode([String].self, forKey: .members)
+        createdAt = try container.decode(Int64.self, forKey: .createdAt)
+        lastMessage = try container.decodeIfPresent(String.self, forKey: .lastMessage)
+        lastMessageAt = try container.decodeIfPresent(Int64.self, forKey: .lastMessageAt)
+        unreadCount = try container.decodeIfPresent(Int.self, forKey: .unreadCount) ?? 0
     }
 }
 
@@ -173,6 +188,20 @@ private struct IncomingInternetCallsResponse: Decodable {
 
 private struct GroupChatsResponse: Decodable {
     let chats: [GroupChatSummary]
+    /// Total unread across all of the account's chats, supplied by the server.
+    /// Optional so an older server that omits it still decodes.
+    let totalUnreadCount: Int?
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        chats = try container.decode([GroupChatSummary].self, forKey: .chats)
+        totalUnreadCount = try container.decodeIfPresent(Int.self, forKey: .totalUnreadCount)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case chats
+        case totalUnreadCount = "total_unread_count"
+    }
 }
 
 private struct GroupMessagesResponse: Decodable {
@@ -346,7 +375,7 @@ final class InternetCallAPI {
                                  identity: identity)
     }
 
-    func groupChats(identity: DeviceIdentity) async throws -> [GroupChatSummary] {
+    func groupChats(identity: DeviceIdentity) async throws -> (chats: [GroupChatSummary], totalUnread: Int) {
         struct ListRequest: Encodable {
             let userID: String
             let deviceID: String
@@ -356,7 +385,7 @@ final class InternetCallAPI {
                                                              method: "POST",
                                                              body: body,
                                                              identity: identity)
-        return response.chats
+        return (response.chats, response.totalUnreadCount ?? 0)
     }
 
     func sendGroupMessage(chatID: String,
@@ -606,6 +635,16 @@ final class GroupChatController: ObservableObject {
     @Published var membersInput = ""
     @Published var draft = ""
 
+    /// Per-chat unread counts. Seeded from the server's `unread_count` on each
+    /// refresh, then incremented locally as new messages arrive while the chat
+    /// is not open, and cleared when the user opens the chat.
+    @Published private(set) var unreadByChat: [String: Int] = [:]
+    /// Total unread across all chats (server-supplied, 0 on older servers).
+    @Published private(set) var totalUnread: Int = 0
+    /// Fired for each newly-arrived message authored by someone else, so the
+    /// view layer can play a chime. Set by the owning view model.
+    var onNewMessage: ((GroupChatMessage) -> Void)?
+
     var activeChat: GroupChatSummary? {
         chats.first { $0.chatID == activeChatID }
     }
@@ -615,6 +654,8 @@ final class GroupChatController: ObservableObject {
     private var api: InternetCallAPI
     private var pollTimer: Timer?
     private var refreshInFlight = false
+    /// Locally-counted unread that hasn't been reconciled with the server yet.
+    private var localUnreadByChat: [String: Int] = [:]
 
     init(identity: DeviceIdentity, configuration: InternetCallConfiguration) {
         self.identity = identity
@@ -680,7 +721,27 @@ final class GroupChatController: ObservableObject {
             guard let self else { return }
             defer { self.refreshInFlight = false }
             do {
-                self.chats = try await api.groupChats(identity: identity)
+                let (chats, totalUnread) = try await api.groupChats(identity: identity)
+                self.chats = chats
+                self.totalUnread = totalUnread
+                // Reconcile unread counts: prefer the server's authoritative
+                // per-chat count, then overlay any locally-counted unread that
+                // arrived since the last refresh.
+                var reconciled: [String: Int] = [:]
+                for chat in chats where chat.unreadCount > 0 {
+                    reconciled[chat.chatID] = chat.unreadCount
+                }
+                for (chatID, count) in self.localUnreadByChat {
+                    let serverValue = reconciled[chatID] ?? 0
+                    if count > serverValue {
+                        reconciled[chatID] = count
+                    }
+                }
+                // The open chat is being read right now — never show unread.
+                if let openID = self.activeChatID {
+                    reconciled[openID] = 0
+                }
+                self.unreadByChat = reconciled
                 if let selectedChatID {
                     let received = try await api.groupMessages(chatID: selectedChatID,
                                                                afterMessageID: afterMessageID,
@@ -728,6 +789,11 @@ final class GroupChatController: ObservableObject {
     func open(_ chat: GroupChatSummary) {
         activeChatID = chat.chatID
         messages = []
+        // Reading the chat clears its unread badge locally and on the server
+        // (the messages fetch above marks it read server-side via the cursor).
+        unreadByChat[chat.chatID] = 0
+        localUnreadByChat[chat.chatID] = 0
+        totalUnread = unreadByChat.values.reduce(0, +)
         loadMessages(chatID: chat.chatID, afterMessageID: 0)
     }
 
@@ -795,6 +861,15 @@ final class GroupChatController: ObservableObject {
     private func merge(_ received: [GroupChatMessage]) {
         for message in received where !messages.contains(where: { $0.messageID == message.messageID }) {
             messages.append(message)
+            // A message from someone else is unread unless this chat is open.
+            let fromSelf = message.senderUserID == identity.userID
+            if !fromSelf && activeChatID != message.chatID {
+                let next = (localUnreadByChat[message.chatID] ?? 0) + 1
+                localUnreadByChat[message.chatID] = next
+                unreadByChat[message.chatID] = max(unreadByChat[message.chatID] ?? 0, next)
+                totalUnread = unreadByChat.values.reduce(0, +)
+                onNewMessage?(message)
+            }
         }
         messages.sort { $0.messageID < $1.messageID }
     }
