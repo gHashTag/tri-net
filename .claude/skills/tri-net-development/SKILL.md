@@ -2114,3 +2114,51 @@ phi^2 + phi^-2 = 3 | TRINITY
 - **Honest residual:** a 15s window still allows an immediate replay; a nonce/seen-MAC cache would close it fully
   (cheap: remember recent INVITE MACs for ~30s and drop dups). Left as an option — the demonstrated risk
   (later replay) is closed. Wire is now `[FD 11][HMAC:8][name\nips\nROOM\nTS_MS]`.
+
+## WAVE 2026-07-24 #51 — the UNIFIED Internet-call app (call-api + LiveKit) + the ONE-REPO trap
+There is ONE repo: `gHashTag/tri-net`. It contains TWO diverged lines under the same branch name
+`feat/regen-final`, and confusing them wastes hours:
+- The **UNIFIED app** (`InternetCall.swift`, `NicknameDirectory.swift`, `CallKitCoordinator.swift`,
+  `services/call-api`, LiveKit SPM dep) lives on **origin `feat/regen-final` (90869fc -> 8f66561+)**.
+  This is what ships on the iPhone: nickname identity, Internet calls via LiveKit, mesh UDP, group chat.
+- A local checkout may sit on an OLDER **P2P-only** line (mesh, no nicknames, no LiveKit). Building the
+  iPhone from that DOWNGRADES the app. Always build the call app from the unified branch.
+Never make a second working folder to "get the unified code" — check out the unified branch in the ONE
+repo instead (`git fetch origin && git checkout feat/regen-final`). Two folders => confusion + lost work.
+
+Architecture of the unified app:
+- **Identity = a P-256 signing key per install (client UUID) + a unique nickname** claimed in the
+  `call-api` directory (atomic, DB PRIMARY KEY, confusable-rejection). Nickname is currently ACCOUNT-bound;
+  hard device/Secure-Enclave binding is a further step (needs a physical iPhone).
+- **Media**: Internet path = `call-api` mints a short-lived LiveKit room token, media over LiveKit (SFU).
+  Mesh path = local encrypted UDP + Bonjour `_trinet-call._udp`, no server. Transport auto-selects.
+- **call-api server** (`services/call-api`, Rust/axum/SQLite). The user's newest server binary ALREADY
+  implements full APNs: VoIP push for calls (`api.push.apple.com`, `apns-push-type:voip`, ES256 JWT,
+  payload `IncomingCall{call_id,call_uuid,caller}`) AND Alert push for chat (`badge`,`sound`,`thread-id`),
+  and returns `unread_count`/`total_unread_count`. iOS side (PushKit+CallKit+entitlements) is fully wired.
+
+How to run the whole thing (LAN test, one Mac + iPhones on the same WiFi):
+1. Server: `TRINET_BIND=0.0.0.0:8080 TRINET_DB_PATH=/tmp/trinet-call.sqlite TRINET_LIVEKIT_URL=ws://<lan-ip>:7880
+   LIVEKIT_API_KEY=devkey LIVEKIT_API_SECRET=secret ./trinet-call-api` (add `TRINET_APNS_*` for closed-app push).
+2. LiveKit: `livekit-server --dev --bind 0.0.0.0 --node-ip <lan-ip>` (devkey/secret, ws :7880).
+3. Mac client: `xcodegen generate --spec phone/desktop/project_video.yml` then xcodebuild the `TriNetVideo`
+   scheme for macOS (ad-hoc signed). iOS: Run `phone/TriNetVideo.xcodeproj` to the device.
+4. Point the client at the server via **UserDefaults, NOT env**: the client reads
+   `internetAPIBaseURL`/`liveKitURL` from UserDefaults(`com.trinet.video`) then Info.plist — env vars are
+   ignored (`CallIdentity.swift` `InternetCallConfiguration.load`). `defaults write com.trinet.video
+   internetAPIBaseURL http://<lan-ip>:8080` (+ `liveKitURL ws://<lan-ip>:7880`), or the in-app Settings.
+
+Feature status of the 4 requests (files are in the unified branch):
+- Incoming-call-when-closed: server (APNs) + iOS ready — needs the user's APNs `.p8` + Key ID + Team ID
+  (`TRINET_APNS_*`) and a PHYSICAL iPhone (VoIP push never reaches the Simulator). No code needed.
+- Beautiful incoming-call screen: redesigned `IncomingCallOverlay` (phone/TriNetVideo/Views.swift).
+- Group-chat chime + unread badge: implemented (commit dc16487, iOS+macOS) — server already provided the data.
+- Nickname unique + bound: unique done; nickname-first call flow added (9499992); tighten device binding as needed.
+
+Gotchas that burned time this session:
+- The user's `call-api.zip` was only `services/call-api/` WITHOUT its generated `gen/rust/*` (monorepo #[path]
+  `../../../gen/rust`), so the source did not compile standalone; the zip's PREBUILT arm64 binary runs, and it
+  is NEWER than the 90869fc source (has APNs). macOS quarantined the downloaded binary (XProtect deletes it on
+  first exec) -> `xattr -cr` + ad-hoc `codesign -s -` to keep it.
+- The phone's Settings pointed at a hostname (`SSDs-MacBook-Pro.local`) that did NOT resolve to this Mac
+  (`MacBook-Pro.local` / 192.168.1.102). Use the plain LAN IP.
