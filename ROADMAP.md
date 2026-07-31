@@ -21,7 +21,7 @@ DePIN на одной P203 Mini. Часть Trinity Project. Anchor: **φ² + φ
 | M5 self-heal convergence | undefined | B11 unlanded |
 | DePIN four-arm proofs (Transport/Compute/Coverage/Sensor) | `-sim` (mock) | see `docs/LOCAL_FLASH.md#5` |
 | trinity-contracts on Base L2 mainnet | not deployed | Sepolia only |
-| TT SKY26b silicon 1 GOPS @ 50 MHz @ 1 W | projected | tape-out 2026-12-16 |
+| Trinity silicon 1 GOPS @ 50 MHz @ 1 W | NO ROUTE | кристалла нет, изготовление не запланировано, прежний маршрут закрыт |
 | Energy multiplier ×4-8 (95% CI [3, 10]) | projected | `[Open conjecture]` |
 
 ## Boards
@@ -48,7 +48,7 @@ DePIN на одной P203 Mini. Часть Trinity Project. Anchor: **φ² + φ
   телеметрию + видео.
 - **P4 — tethered drone (Flying-COW analog)** — постоянно висящий узел.
 - **P5 — free swarm** — self-organizing swarm, каждый узел = DePIN operator.
-- **P6 — Trinity silicon back** — tape-out 2026-12-16 → returned silicon →
+- **P6 — Trinity silicon (BLOCKED, маршрута нет)** — кристалла нет, изготовление не запланировано →
   BitNet-ternary benchmark on die → закрытие `[Open conjecture]` compute-anchor'а.
 - **P7 — Genesis Day** — mainnet deploy `trinity-contracts` на Base L2,
   `EmissionController.renounceOwnership()`, первый public proof-of-inference за TRI.
