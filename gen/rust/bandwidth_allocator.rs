@@ -197,6 +197,7 @@ pub fn find_reclaimable_bandwidth(state: u32, flow_array: u64) -> u32 {
 }
 
 pub fn prioritize_bandwidth(flow_array: u64, available_bw: u32) -> u64 {
+    let remaining_bw = available_bw;
     let f0 = get_flow_req(flow_array, 0);
     let f1 = get_flow_req(flow_array, 1);
     let f2 = get_flow_req(flow_array, 2);

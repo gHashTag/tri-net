@@ -24,6 +24,7 @@ pub fn base_probability(quality_q8: u8) -> u8 { unimplemented!() }
 
 pub fn retry_success_probability(attempt: u8, quality_q8: u8) -> u8 {
     let base_prob: u8 = base_probability(quality_q8);
+    let decay: u8 = ((base_prob / 4) * attempt);
 }
 
 pub fn total_retry_time(max_retries: u8) -> u16 { unimplemented!() }

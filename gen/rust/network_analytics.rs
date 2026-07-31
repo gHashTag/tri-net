@@ -115,6 +115,7 @@ pub fn update_traffic(stats: u32, sent_add: u32, recv_add: u32, packets_add: u32
 pub fn needs_attention(data: u64) -> bool {
     let pattern = get_analysis_pattern(data);
     let traffic = get_analysis_traffic(data);
+    let stats = traffic;
     return ((pattern != PATTERN_NORMAL) || is_high_error_rate(traffic));
 }
 
