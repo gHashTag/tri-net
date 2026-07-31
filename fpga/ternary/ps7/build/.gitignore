@@ -1,0 +1,8 @@
+# generated artifacts: regenerate with run_openxc7.sh
+chipdb/
+*.bit
+*.frames
+*.json
+*.fasm
+ps7_tern.v
+ps7_tern.xdc
