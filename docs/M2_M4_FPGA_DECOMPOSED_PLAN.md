@@ -8,9 +8,9 @@
 
 ## 0. Одно предложение стратегии
 
-Разгоняем M2→M3→M4 real-network smoke на трёх P203 Mini через image-bake unlock, параллельно открываем **FPGA-attestation** трек как interim identity-source, чтобы Compute-arm экономики не висел на tape-out'е 2026-12-16.
+Разгоняем M2→M3→M4 real-network smoke на трёх P203 Mini через image-bake unlock, параллельно открываем **FPGA-attestation** трек как interim identity-source, чтобы Compute-arm экономики не висел на изготовлении кремния, маршрута и сроков которого сейчас нет.
 
-**Что это не есть**: не отказ от silicon SKY26b. Silicon остаётся financial anchor и proof-of-work substrate. FPGA-anchor — interim (уровень 3 по собственной шкале M7 из BENCHMARK_VS_MANET) на 6-12 месяцев до кремния.
+**Что это не есть**: не отказ от кремния как цели. Но маршрута изготовления сейчас нет, кристалла не существует, сроков нет, поэтому FPGA-anchor — не промежуточная ступень к близкому кремнию, а единственный работающий уровень. FPGA-anchor — interim (уровень 3 по собственной шкале M7 из BENCHMARK_VS_MANET) на 6-12 месяцев до кремния.
 
 ---
 
@@ -227,7 +227,7 @@ Assumption: 2ч/день от human'а, 8ч/день от cloud agent'а.
 
 - **Track A kill-switch**: если image-bake milestone не сходится за 3 недели (target 2026-07-27) — remote pair-programming session с внешним embedded engineer (Nova Labs alumni, Xilinx forums, Puzhi vendor support).
 - **Track B kill-switch**: если A4 PUF intra-device HD > 15% (нестабильный) — pivot на pure device-DNA + eFUSE (без PUF), сохранив A2+A3. Не убивает трек.
-- **Silicon slip kill-switch** (per W7 finding #1): если tape-out 2026-12-16 slips > 3 месяца — extend Track B roadmap ещё на 3 месяца, formally publish Proof of FPGA v1 as long-term Compute-arm substitute (не только interim).
+- **Silicon slip kill-switch** (per W7 finding #1): сработал. Маршрута изготовления нет, даты нет, поэтому Track B является основным, а не запасным. Прежняя формулировка (extend Track B ещё на 3 месяца, formally publish Proof of FPGA v1 as long-term Compute-arm substitute (не только interim).
 
 ---
 

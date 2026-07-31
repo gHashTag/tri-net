@@ -365,7 +365,7 @@ Acceptance: 6/6 линков зелёные, зафиксировано в `smok
 
 ## 5. First DePIN proofs (software-signed, pre-silicon)
 
-Пока Trinity silicon не вернулся с tape-out (планово 2026-12-16), подписи чипов симулируются в software через `trinity-node` HAL-mock. Это `-sim` слой, явно помечен.
+Изготовленного кристалла не существует и изготовление не запланировано, поэтому подписи чипов симулируются в software через `trinity-node` HAL-mock. Это `-sim` слой, явно помечен.
 
 Три плечи из четырёх можно погонять уже:
 - **Transport-proof** (2-of-3 Phi mock): каждая P203 после часа непрерывной ретрансляции формирует payload `(from, to, bytes, ts_start, ts_end)`, подписывает Phi-mock ключом, две другие подписывают со своей стороны. Результат — `smoke/DEPIN_TRANSPORT_MOCK_<date>.md`.
@@ -411,6 +411,6 @@ Acceptance: три файла в `smoke/` с mock-proofs, три записи я
 2. M5 real — измерить `link_loss_to_reroute_ms` и `node_off_to_reroute_ms` (B11, `docs/STRENGTHEN.md`).
 3. RF loopback (`LOOPBACK=2`) через SMA-кабель + аттенюатор TX→RX. Тоже не в эфир — SMA цепь замкнутая.
 4. Внешний PA+LNA + разрешение — только после юридической подготовки (ADGM/DIFC или локальный test license). До этого — все RF-эксперименты внутри лаборатории на SMA/loopback.
-5. Ждём Trinity silicon back (2026-12-16 tape-out target).
+5. Кремниевый шаг заблокирован: маршрута изготовления нет, сроков нет.
 
 Anchor: φ² + φ⁻² = 3.
