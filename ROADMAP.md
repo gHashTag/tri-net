@@ -21,7 +21,7 @@ DePIN на одной P203 Mini. Часть Trinity Project. Anchor: **φ² + φ
 | M5 self-heal convergence | undefined | B11 unlanded |
 | DePIN four-arm proofs (Transport/Compute/Coverage/Sensor) | `-sim` (mock) | see `docs/LOCAL_FLASH.md#5` |
 | trinity-contracts on Base L2 mainnet | not deployed | Sepolia only |
-| TT SKY26b silicon 1 GOPS @ 50 MHz @ 1 W | projected | tape-out 2026-12-16 |
+| TT SKY26b silicon 1 GOPS @ 50 MHz @ 1 W | WITHDRAWN | the TTSKY26b submission (2026-05-17) was withdrawn and refunded; no die will be produced |
 | Energy multiplier ×4-8 (95% CI [3, 10]) | projected | `[Open conjecture]` |
 
 ## Boards
