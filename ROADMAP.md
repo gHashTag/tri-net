@@ -48,8 +48,11 @@ DePIN на одной P203 Mini. Часть Trinity Project. Anchor: **φ² + φ
   телеметрию + видео.
 - **P4 — tethered drone (Flying-COW analog)** — постоянно висящий узел.
 - **P5 — free swarm** — self-organizing swarm, каждый узел = DePIN operator.
-- **P6 — Trinity silicon back** — tape-out 2026-12-16 → returned silicon →
-  BitNet-ternary benchmark on die → закрытие `[Open conjecture]` compute-anchor'а.
+- **P6 — Trinity silicon (BLOCKED, маршрута нет)** — прежний маршрут (зарубежный
+  шаттл TTSKY26b, подан 2026-05-17) **отозван, средства возвращены**; кристаллов
+  нет и по этой линии не будет. Пункт открыт до выбора нового маршрута
+  изготовления; до тех пор compute-anchor остаётся `[Open conjecture]`, а
+  BitNet-ternary benchmark on die невыполним.
 - **P7 — Genesis Day** — mainnet deploy `trinity-contracts` на Base L2,
   `EmissionController.renounceOwnership()`, первый public proof-of-inference за TRI.
 - **P8 — VAK papers acceptance** — публикация arXiv:2606.05017 (GoldenFloat) и
