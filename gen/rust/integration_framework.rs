@@ -81,13 +81,14 @@ pub const MSG_ERROR: u32 = 3;
 
 pub const MSG_EVENT: u32 = 4;
 
-pub fn send_message(modules: Vec<>, message: u32) -> u32 {
+pub fn send_message(modules: [u32; MAX_MODULES as usize], message: u32) -> u32 {
     let dest: u32 = get_integration_message_dest(message);
+    let msg_type: u32 = get_integration_message_type(message);
     let mut i: u32 = 0;
     while (i < MAX_MODULES) {
-        let module_id: u32 = get_registered_module_id(modules[i]);
+        let module_id: u32 = get_registered_module_id(modules[(i) as usize]);
         if (module_id == dest) {
-            let status: u32 = get_registered_module_status(modules[i]);
+            let status: u32 = get_registered_module_status(modules[(i) as usize]);
             if ((status == STATUS_ACTIVE) || (status == STATUS_BUSY)) {
                 return 1;
             } else {
@@ -99,10 +100,10 @@ pub fn send_message(modules: Vec<>, message: u32) -> u32 {
     return 0;
 }
 
-pub fn receive_message(messages: Vec<>, message_count: u32, module_id: u32) -> u32 {
+pub fn receive_message(messages: [u32; MAX_MESSAGES as usize], message_count: u32, module_id: u32) -> u32 {
     let mut i: u32 = 0;
     while (i < message_count) {
-        let dest: u32 = get_integration_message_dest(messages[i]);
+        let dest: u32 = get_integration_message_dest(messages[(i) as usize]);
         if (dest == module_id) {
             return i;
         }
@@ -141,12 +142,12 @@ pub const EVENT_SIMULATION_STEP: u32 = 3;
 
 pub const EVENT_VISUALIZATION_UPDATE: u32 = 4;
 
-pub fn subscribe_to_event(module_id: u32, event_type: u32, subscriptions: Vec<>) -> u32 {
+pub fn subscribe_to_event(module_id: u32, event_type: u32, subscriptions: [u32; MAX_EVENTS as usize]) -> u32 {
     let subscription_id: u32 = ((module_id * 10) + event_type);
     let mut i: u32 = 0;
     while (i < MAX_EVENTS) {
-        if (subscriptions[i] == 0) {
-            subscriptions[i] = create_event(subscription_id, event_type, module_id, 0);
+        if (subscriptions[(i) as usize] == 0) {
+            subscriptions[(i) as usize] = create_event(subscription_id, event_type, module_id, 0);
             return 1;
         }
         i = (i + 1);
@@ -154,14 +155,14 @@ pub fn subscribe_to_event(module_id: u32, event_type: u32, subscriptions: Vec<>)
     return 0;
 }
 
-pub fn publish_event(event: u32, subscriptions: Vec<>, modules: Vec<>) -> u32 {
+pub fn publish_event(event: u32, subscriptions: [u32; MAX_EVENTS as usize], modules: [u32; MAX_MODULES as usize]) -> u32 {
     let event_type: u32 = get_event_type(event);
     let mut notified_count: u32 = 0;
     let mut i: u32 = 0;
     while (i < MAX_EVENTS) {
-        let sub_event_type: u32 = get_event_type(subscriptions[i]);
+        let sub_event_type: u32 = get_event_type(subscriptions[(i) as usize]);
         if (sub_event_type == event_type) {
-            let source: u32 = get_event_source(subscriptions[i]);
+            let source: u32 = get_event_source(subscriptions[(i) as usize]);
             let module_id: u32 = source;
             let msg: u32 = create_integration_message(i, 0, module_id, MSG_EVENT);
             if (send_message(modules, msg) == 1) {
@@ -193,12 +194,12 @@ pub fn get_sync_checksum(sync: u32) -> u32 {
     return (sync & 0xFF);
 }
 
-pub fn synchronize_states(modules: Vec<>, module_count: u32, sync_requests: u32) -> u32 {
+pub fn synchronize_states(modules: [u32; MAX_MODULES as usize], module_count: u32, sync_requests: u32) -> u32 {
     let mut synced_count: u32 = 0;
     let mut i: u32 = 0;
     while (i < module_count) {
-        let module_id: u32 = get_registered_module_id(modules[i]);
-        let status: u32 = get_registered_module_status(modules[i]);
+        let module_id: u32 = get_registered_module_id(modules[(i) as usize]);
+        let status: u32 = get_registered_module_status(modules[(i) as usize]);
         if ((status == STATUS_ACTIVE) && (sync_requests > 0)) {
             let state_version: u32 = 1;
             let state_data: u32 = (i * 10);
@@ -239,12 +240,12 @@ pub const SEVERITY_ERROR: u32 = 2;
 
 pub const SEVERITY_CRITICAL: u32 = 3;
 
-pub fn propagate_error(error: u32, modules: Vec<>, module_count: u32) -> u32 {
+pub fn propagate_error(error: u32, modules: [u32; MAX_MODULES as usize], module_count: u32) -> u32 {
     let severity: u32 = get_error_severity(error);
     let mut notified_count: u32 = 0;
     let mut i: u32 = 0;
     while (i < module_count) {
-        let module_type: u32 = get_registered_module_type(modules[i]);
+        let module_type: u32 = get_registered_module_type(modules[(i) as usize]);
         if (severity == SEVERITY_CRITICAL) {
             let msg: u32 = create_integration_message(0, 0, i, MSG_ERROR);
             if (send_message(modules, msg) == 1) {
@@ -265,11 +266,11 @@ pub fn propagate_error(error: u32, modules: Vec<>, module_count: u32) -> u32 {
     return notified_count;
 }
 
-pub fn load_module(module_id: u32, module_type: u32, priority: u32, modules: Vec<>) -> u32 {
+pub fn load_module(module_id: u32, module_type: u32, priority: u32, modules: [u32; MAX_MODULES as usize]) -> u32 {
     let mut i: u32 = 0;
     while (i < MAX_MODULES) {
-        if (get_registered_module_id(modules[i]) == 0) {
-            modules[i] = create_module_registration(module_id, module_type, priority, STATUS_IDLE);
+        if (get_registered_module_id(modules[(i) as usize]) == 0) {
+            modules[(i) as usize] = create_module_registration(module_id, module_type, priority, STATUS_IDLE);
             return 1;
         }
         i = (i + 1);
@@ -277,12 +278,12 @@ pub fn load_module(module_id: u32, module_type: u32, priority: u32, modules: Vec
     return 0;
 }
 
-pub fn unload_module(module_id: u32, modules: Vec<>) -> u32 {
+pub fn unload_module(module_id: u32, modules: [u32; MAX_MODULES as usize]) -> u32 {
     let mut i: u32 = 0;
     while (i < MAX_MODULES) {
-        let registered_id: u32 = get_registered_module_id(modules[i]);
+        let registered_id: u32 = get_registered_module_id(modules[(i) as usize]);
         if (registered_id == module_id) {
-            modules[i] = 0;
+            modules[(i) as usize] = 0;
             return 1;
         }
         i = (i + 1);
@@ -310,19 +311,19 @@ pub fn get_dependency_required(dep: u32) -> u32 {
     return (dep & 0xFFF);
 }
 
-pub fn check_dependencies(module_id: u32, dependencies: Vec<>, loaded_modules: Vec<>, module_count: u32) -> u32 {
+pub fn check_dependencies(module_id: u32, dependencies: [u32; MAX_MODULES as usize], loaded_modules: [u32; MAX_MODULES as usize], module_count: u32) -> u32 {
     let mut satisfied: u32 = 1;
     let mut i: u32 = 0;
     while (i < MAX_MODULES) {
-        let dep_module_id: u32 = get_dependency_module_id(dependencies[i]);
+        let dep_module_id: u32 = get_dependency_module_id(dependencies[(i) as usize]);
         if (dep_module_id == module_id) {
-            let depends_on: u32 = get_dependency_depends_on(dependencies[i]);
-            let required: u32 = get_dependency_required(dependencies[i]);
+            let depends_on: u32 = get_dependency_depends_on(dependencies[(i) as usize]);
+            let required: u32 = get_dependency_required(dependencies[(i) as usize]);
             if (required == 1) {
                 let mut j: u32 = 0;
                 let mut found: u32 = 0;
                 while (j < module_count) {
-                    let loaded_id: u32 = get_registered_module_id(loaded_modules[j]);
+                    let loaded_id: u32 = get_registered_module_id(loaded_modules[(j) as usize]);
                     if (loaded_id == depends_on) {
                         found = 1;
                         break;
@@ -367,12 +368,12 @@ pub const RESOURCE_BANDWIDTH: u32 = 2;
 
 pub const RESOURCE_STORAGE: u32 = 3;
 
-pub fn allocate_resources(requests: Vec<>, request_count: u32, available_resources: u32) -> u32 {
+pub fn allocate_resources(requests: [u32; MAX_MESSAGES as usize], request_count: u32, available_resources: u32) -> u32 {
     let mut total_requested: u32 = 0;
     let mut allocated_count: u32 = 0;
     let mut i: u32 = 0;
     while (i < request_count) {
-        let amount: u32 = get_resource_request_amount(requests[i]);
+        let amount: u32 = get_resource_request_amount(requests[(i) as usize]);
         total_requested = (total_requested + amount);
         i = (i + 1);
     }
@@ -382,8 +383,8 @@ pub fn allocate_resources(requests: Vec<>, request_count: u32, available_resourc
         let mut allocated: u32 = 0;
         let mut j: u32 = 0;
         while ((j < request_count) && (allocated < available_resources)) {
-            let amount: u32 = get_resource_request_amount(requests[j]);
-            let priority: u32 = get_resource_request_priority(requests[j]);
+            let amount: u32 = get_resource_request_amount(requests[(j) as usize]);
+            let priority: u32 = get_resource_request_priority(requests[(j) as usize]);
             if ((priority > 7) && ((allocated + amount) <= available_resources)) {
                 allocated = (allocated + amount);
                 allocated_count = (allocated_count + 1);
@@ -398,13 +399,14 @@ pub fn create_integration_report(loaded_modules: u32, active_messages: u32, even
     return (((((loaded_modules & 0xFF) << 24) | ((active_messages & 0xFF) << 16)) | ((events_processed & 0xFF) << 8)) | (errors_handled & 0xFF));
 }
 
-pub fn generate_integration_stats(modules: Vec<>, module_count: u32, messages: Vec<>, message_count: u32, events: Vec<>, event_count: u32) -> u32 {
+pub fn generate_integration_stats(modules: [u32; MAX_MODULES as usize], module_count: u32, messages: [u32; MAX_MESSAGES as usize], message_count: u32, events: [u32; MAX_EVENTS as usize], event_count: u32) -> u32 {
     let mut active_modules: u32 = 0;
     let mut active_messages: u32 = 0;
     let mut events_processed: u32 = 0;
+    let errors_handled: u32 = 0;
     let mut i: u32 = 0;
     while (i < module_count) {
-        let status: u32 = get_registered_module_status(modules[i]);
+        let status: u32 = get_registered_module_status(modules[(i) as usize]);
         if ((status == STATUS_ACTIVE) || (status == STATUS_BUSY)) {
             active_modules = (active_modules + 1);
         }
@@ -423,12 +425,12 @@ pub fn generate_integration_stats(modules: Vec<>, module_count: u32, messages: V
     return create_integration_report(active_modules, active_messages, events_processed, 0);
 }
 
-pub fn validate_integration_health(modules: Vec<>, module_count: u32) -> u32 {
+pub fn validate_integration_health(modules: [u32; MAX_MODULES as usize], module_count: u32) -> u32 {
     let mut active_count: u32 = 0;
     let mut error_count: u32 = 0;
     let mut i: u32 = 0;
     while (i < module_count) {
-        let status: u32 = get_registered_module_status(modules[i]);
+        let status: u32 = get_registered_module_status(modules[(i) as usize]);
         if (status == STATUS_ACTIVE) {
             active_count = (active_count + 1);
         } else {

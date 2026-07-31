@@ -42,7 +42,8 @@ module MeshEtx {
         if (est == 255 && sample == 255) {
             return 255;
         }
-        return fp_mul(alpha, sample) + fp_mul(256 - alpha, est);
+        // 256 does not fit in u8: the complement of alpha in Q0.8 is 255 - alpha.
+        return fp_mul(alpha, sample) + fp_mul(255 - alpha, est);
     }
 
     // Check if delivery ratio is dead

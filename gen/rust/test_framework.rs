@@ -148,8 +148,10 @@ pub fn check_assertion(assertion: u32) -> u32 {
 
 pub fn run_test_case(test_case: u32, function_ptr: u32) -> u32 {
     let test_id: u32 = get_test_case_id(test_case);
+    let function_id: u32 = get_function_id(test_case);
     let input: u32 = get_test_input(test_case);
     let expected: u32 = get_expected_output(test_case);
+    let actual: u32 = input;
     let assertion: u32 = create_assertion(ASSERT_EQUAL, input, expected, 0);
     let passed: u32 = check_assertion(assertion);
     if (passed == 1) {
@@ -179,14 +181,14 @@ pub fn get_teardown_id(suite: u32) -> u32 {
     return (suite & 0xFF);
 }
 
-pub fn run_test_suite(suite: u32, tests: Vec<>, test_count: u32) -> u32 {
+pub fn run_test_suite(suite: u32, tests: [u32; MAX_TESTS as usize], test_count: u32) -> u32 {
     let suite_id: u32 = get_suite_id(suite);
     let mut total_assertions: u32 = 0;
     let mut total_failures: u32 = 0;
     let mut passed_tests: u32 = 0;
     let mut i: u32 = 0;
     while (i < test_count) {
-        let result: u32 = run_test_case(tests[i], 0);
+        let result: u32 = run_test_case(tests[(i) as usize], 0);
         let assertions: u32 = get_assertion_count(result);
         let failures: u32 = get_failure_count(result);
         let status: u32 = get_test_status(result);
@@ -230,13 +232,13 @@ pub fn calculate_coverage_percentage(coverage: u32) -> u32 {
     }
 }
 
-pub fn aggregate_coverage(coverage_data: Vec<>, count: u32) -> u32 {
+pub fn aggregate_coverage(coverage_data: [u32; MAX_TESTS as usize], count: u32) -> u32 {
     let mut total_branches: u32 = 0;
     let mut total_covered: u32 = 0;
     let mut i: u32 = 0;
     while (i < count) {
-        total_branches = (total_branches + get_branch_count(coverage_data[i]));
-        total_covered = (total_covered + get_covered_branches(coverage_data[i]));
+        total_branches = (total_branches + get_branch_count(coverage_data[(i) as usize]));
+        total_covered = (total_covered + get_covered_branches(coverage_data[(i) as usize]));
         i = (i + 1);
     }
     if (total_branches > 0) {
@@ -284,6 +286,7 @@ pub fn generate_test_input(generator_id: u32, seed: u32) -> u32 {
 }
 
 pub fn run_property_test(prop_id: u32, generator_count: u32, test_count: u32) -> u32 {
+    let failures: u32 = 0;
     let mut i: u32 = 0;
     while (i < test_count) {
         let mut j: u32 = 0;
@@ -337,6 +340,7 @@ pub fn meets_coverage_target(coverage_percentage: u32, target: u32) -> u32 {
 pub fn generate_test_report(summary: u32, coverage: u32, duration_ms: u32) -> u32 {
     let pass_rate: u32 = calculate_pass_rate(summary);
     let coverage_pct: u32 = calculate_coverage_percentage(coverage);
+    let mut status: u32 = 0;
     if ((pass_rate >= 90) && (coverage_pct >= COVERAGE_TARGET)) {
         status = 1;
     } else {
