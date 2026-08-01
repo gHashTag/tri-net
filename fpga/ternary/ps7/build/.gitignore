@@ -6,3 +6,5 @@ chipdb/
 *.fasm
 ps7_tern.v
 ps7_tern.xdc
+ps7_probe.v
+ps7_probe.xdc
