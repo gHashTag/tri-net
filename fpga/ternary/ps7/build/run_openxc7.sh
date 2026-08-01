@@ -1,9 +1,10 @@
 #!/bin/bash
-# Phase A: reproduce ps7_tern.bit through the fully open flow (no Vivado).
+# Phase A: reproduce $DESIGN.bit through the fully open flow (no Vivado).
 # Runs INSIDE regymm/openxc7. Every step logged with timing and hashes.
 set -euo pipefail
 source /prjxray/env/bin/activate 2>/dev/null || true
 cd /work
+DESIGN="${1:-ps7_tern}"   # $DESIGN or ps7_probe
 PART=xc7z020clg400-1
 DEVICE=xc7z020
 DB=/nextpnr-xilinx/xilinx/external/prjxray-db/zynq7
@@ -29,21 +30,21 @@ else
 fi
 
 echo "=== 1/5 yosys ==="
-time yosys -p "read_verilog ps7_tern.v; synth_xilinx -flatten; write_json ps7_tern.json"
+time yosys -p "read_verilog $DESIGN.v; synth_xilinx -flatten; write_json $DESIGN.json"
 
 echo "=== 2/5 nextpnr-xilinx ==="
-time nextpnr-xilinx --chipdb "$CHIPDB/$DEVICE.bin" --xdc ps7_tern.xdc \
-     --json ps7_tern.json --fasm ps7_tern.fasm --seed 1
+time nextpnr-xilinx --chipdb "$CHIPDB/$DEVICE.bin" --xdc $DESIGN.xdc \
+     --json $DESIGN.json --fasm $DESIGN.fasm --seed 1
 
 echo "=== 3/5 fasm2frames ==="
-time fasm2frames --db-root "$DB" --part "$PART" ps7_tern.fasm ps7_tern.frames
-echo "frames_lines=$(wc -l < ps7_tern.frames)"
+time fasm2frames --db-root "$DB" --part "$PART" $DESIGN.fasm $DESIGN.frames
+echo "frames_lines=$(wc -l < $DESIGN.frames)"
 
 echo "=== 4/5 xc7frames2bit ==="
-time xc7frames2bit --part_file "$DB/$PART/part.yaml" --part_name "$PART" --frm_file ps7_tern.frames --output_file ps7_tern.bit
+time xc7frames2bit --part_file "$DB/$PART/part.yaml" --part_name "$PART" --frm_file $DESIGN.frames --output_file $DESIGN.bit
 
 echo "=== 5/5 RESULT ==="
-ls -l ps7_tern.bit
-echo "size_bytes=$(stat -c %s ps7_tern.bit)"
-sha256sum ps7_tern.bit ps7_tern.fasm ps7_tern.json ps7_tern.v ps7_tern.xdc
+ls -l $DESIGN.bit
+echo "size_bytes=$(stat -c %s $DESIGN.bit)"
+sha256sum $DESIGN.bit $DESIGN.fasm $DESIGN.json $DESIGN.v $DESIGN.xdc
 echo "=== done: $(date -u +%FT%TZ) ==="
