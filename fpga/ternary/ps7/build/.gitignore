@@ -8,3 +8,7 @@ ps7_tern.v
 ps7_tern.xdc
 ps7_probe.v
 ps7_probe.xdc
+ps7_corr.v
+ps7_corr.xdc
+tern_corr8.v
+tern_corr8_stream.v

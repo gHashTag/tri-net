@@ -30,7 +30,9 @@ else
 fi
 
 echo "=== 1/5 yosys ==="
-time yosys -p "read_verilog $DESIGN.v; synth_xilinx -flatten; write_json $DESIGN.json"
+SRC="$DESIGN.v"
+[ "$DESIGN" = "ps7_corr" ] && SRC="tern_corr8.v tern_corr8_stream.v ps7_corr.v"
+time yosys -p "read_verilog $SRC; synth_xilinx -top $DESIGN -flatten; write_json $DESIGN.json"
 
 echo "=== 2/5 nextpnr-xilinx ==="
 time nextpnr-xilinx --chipdb "$CHIPDB/$DEVICE.bin" --xdc $DESIGN.xdc \
