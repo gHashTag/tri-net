@@ -112,11 +112,12 @@ Proven, on silicon:
   control it, with register values predicted from source before measurement;
 - the samples reaching the correlator are non-zero and traceable to the
   stimulus, and the correlation output is non-zero, signed, and varies with the
-  data.
-
-- **bit-exactness inside the datapath**, closed the following cycle. See below.
+  data;
+- **bit-exactness against the software model**, closed in the following cycle --
+  see the second half of this file.
 
 Not proven, and not claimed:
+
 - **the IOB capture stage**, for the structural reason given above. It needs a
   design with real pins, which needs the per-pin direction map that
   `PINOUT.md` records as still unresolved.
