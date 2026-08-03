@@ -32,54 +32,57 @@ until the divider bits are implemented. Silence is the worst option available.
 
 ---
 
-## 2. `is_string` assertion in post-routing legalisation
+## 2. `is_string` assertion writing the FASM for a DSP48E1 -- FIXED, patch below
 
-**Severity: medium.** It aborts after all the work is done -- placement,
-routing and timing all complete successfully -- so it costs the whole run.
+**Severity: medium.** It aborts after all the work is done -- placement, routing
+and timing all complete -- so it costs the entire run.
 
 ```
-Info: Running post-routing legalisation...
 libc++abi: terminating due to uncaught exception of type
   nextpnr_xilinx::assertion_failure: Assertion failure: is_string
   (common/nextpnr.h:365)
 ```
 
-`common/nextpnr.h:365` is `Property::as_string()`, which asserts `is_string`.
-Something reached from `xilinx/arch_place.cc:922` (`log_info("Running
-post-routing legalisation...")`) reads a Property as a string when yosys stored
-it as numeric. Yosys emits numeric Properties for attribute values that look
-like bit-strings, so an attribute whose value happens to be e.g. `"0"` or `"10"`
-takes the numeric path.
+**The location matters and an earlier version of this file got it wrong.** The
+last line printed before the abort is `Running post-routing legalisation...`
+(`xilinx/arch_place.cc:922`), which made the legalisation pass the obvious
+suspect. It is not. Instrumenting `Property::as_string()` to print a backtrace
+gives:
 
-**The codebase already knows this failure mode and documents the remedy**, in
-`xilinx/fasm.cc` (the `dsp_str` lambda):
+```
+=== as_string() on a NUMERIC Property, str="000000000000000000000000000000000000000000000000" ===
+  Property::as_string()
+  <- FasmBackend::write_dsp_cell(CellInfo*)
+  <- FasmBackend::write_fasm()
+  <- Arch::writeFasm()
+  <- customBitstream()
+```
 
-> *"SVS/yosys store all-binary parameter values ... as numeric Properties, on
-> which `str_or_default()`/`as_string()` assert (`is_string == false`).
-> `Property::str` holds the literal for string params AND the `[01xz]`
-> bit-string for numeric ones (exactly what `as_string()` would have returned),
-> so reading it directly is bit-for-bit equivalent but never aborts."*
+It is **`write_dsp_cell`**, and the value is a 48-bit all-zero parameter --
+`PATTERN` or `MASK` on a DSP48E1. yosys stores all-binary parameter values as
+*numeric* Properties; `str_or_default()` and `as_string()` assert on those.
 
-**What was tried, and what it tells you.** Applying that same tolerant read to
-the two `X_ORIG_PORT_*` sites inside the legalisation function
-(`arch_place.cc:972,974` at revision `96bb068`) does **not** fix it -- the crash
-persists at the same line. So the offending read is in a function *called from*
-post-routing legalisation, not in the function itself. That narrows it usefully
-and is worth stating in the report.
+Patching the two `X_ORIG_PORT_*` reads inside the legalisation function, as an
+earlier attempt did, changes nothing -- which is worth knowing, because the
+printed message points at the wrong pass.
 
-**Reproduction.** ADI `analogdevicesinc/hdl` master, `axi_ad9361` with
-`FPGA_TECHNOLOGY=1`, `CMOS_OR_LVDS_N=1`, five small patches (documented in
-`primtest/RESULTS_AD9361.md`), yosys 0.67, nextpnr-xilinx `96bb068`,
-xc7z020clg400-1. Routing converges -- 692 791 wires, overuse 0, archfail 0,
-timing passing on both clock domains -- and a 19 MB FASM is written. Then it
-aborts.
+**Fix, verified.** `write_dsp_cell` at revision `96bb068` reads nine parameters
+and one attribute with `str_or_default`. Replacing them with a direct
+`Property::str` read -- exactly the `dsp_str` lambda upstream added to this
+function later, and for this reason -- makes the run complete:
 
-**Suggested fix:** replace `as_string()` with a direct `.str` read on every
-attribute access reachable from post-routing legalisation, exactly as `dsp_str`
-already does, or make `as_string()` return `str` instead of asserting when the
-Property is numeric.
+```
+exit: 0    692 791 wires    overused 0    archfail 0
+'o_l_clk'    349.04 MHz (PASS at 12.00 MHz)
+'FCLKCLK[0]'  62.46 MHz (PASS at 30.72 MHz)
+FASM: 19 MB
+```
 
----
+So on a current openXC7 this may already be fixed; on `96bb068`, which is what
+nixpkgs ships for aarch64-darwin, it is not. The useful report is therefore:
+**backport the `dsp_str` tolerant read**, and separately consider making
+`as_string()` return `str` rather than assert, since every call site that has
+hit this has wanted the characters either way.
 
 ## Three smaller things worth reporting together
 

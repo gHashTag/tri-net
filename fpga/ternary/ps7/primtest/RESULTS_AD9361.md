@@ -602,3 +602,50 @@ container image that was deleted to free disk. So the honest status is: **a
 FASM of unverified completeness, and no bitstream.**
 
 Log: `results/pnr_axi_ad9361_patched.log`.
+
+---
+
+## nextpnr completes: `exit 0`
+
+The assertion is defeated. A backtrace from an instrumented
+`Property::as_string()` named the site exactly, and it was **not** where the
+printed message pointed:
+
+```
+=== as_string() on a NUMERIC Property, str="000000000000000000000000000000000000000000000000" ===
+  Property::as_string()  <-  FasmBackend::write_dsp_cell  <-  write_fasm  <-  writeFasm
+```
+
+`write_dsp_cell`, on a 48-bit all-zero DSP48E1 parameter. The last line printed
+before the abort is `Running post-routing legalisation...`, which is why an
+earlier cycle patched that pass and changed nothing. **Instrumenting beat
+guessing, and it took one run.**
+
+Replacing the nine parameter reads and one attribute read in `write_dsp_cell`
+with a direct `Property::str` -- the tolerant pattern upstream added to this
+same function later -- gives:
+
+```
+exit: 0        elapsed 291 s
+iter=5   wires = 692 791   overused = 0   archfail = 0
+'o_l_clk'    : 349.04 MHz  (PASS at 12.00 MHz)
+'FCLKCLK[0]' :  62.46 MHz  (PASS at 30.72 MHz)
+FASM: 19 MB
+```
+
+**ADI's AD9361 receive core now goes end to end through yosys and
+nextpnr-xilinx, with no errors and no aborts.**
+
+Patch: `../nextpnr-dsp-fasm-fix.patch`. Log: `results/pnr_axi_ad9361_exit0.log`.
+
+### What is still missing for a loadable bitstream
+
+`fasm2frames` and `xc7frames2bit`, which turn the FASM into a `.bit`. They lived
+in the container image deleted to free disk, and nixpkgs has no `prjxray` for
+aarch64-darwin. The prjxray **database** is present (it came with nextpnr), so
+the remaining work is either building those two tools for this platform or
+writing the conversion against the database directly -- `bitcanon.py` already
+documents the `.bit` container format from the other direction.
+
+So: **placement, routing, timing and FASM all complete and clean; one file
+format conversion short of a bitstream.**
