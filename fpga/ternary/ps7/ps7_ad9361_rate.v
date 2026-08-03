@@ -383,8 +383,18 @@ module ps7_ad9361_rate;
     //     out[j] = sum over i of tp[i] * in[j-2-i]
     //
     // exactly, with no alignment to discover.
+    // One extra bit per sample settles the lag exactly instead of assuming it.
+    // m_data is registered from corr every clock while corr advances only on
+    // s_valid, so the value standing at the capture edge is corr over j-1..j-63
+    // when the previous cycle was idle, and over j-2..j-64 when it was another
+    // valid. A strobe whose duty varies therefore has no constant lag at all --
+    // reproduced in simulation, see capture_duty_tb.v -- which is exactly what
+    // 31.25 and 41.67 MHz showed in the rate sweep.
     reg [15:0] in_mem  [0:127];
     reg [23:0] out_mem [0:127];
+    reg        pv_mem  [0:127];
+    reg        prev_valid = 1'b0;
+    always @(posedge lclk) prev_valid <= o_adc_valid_i0;
     reg [7:0]  cap_idx = 0;
     reg        capturing = 0;
     reg        pending = 0;
@@ -412,6 +422,7 @@ module ps7_ad9361_rate;
             if (o_adc_valid_i0 && !cap_idx[7]) begin
                 in_mem [cap_idx[6:0]] <= o_adc_data_i0;
                 out_mem[cap_idx[6:0]] <= m_data;
+                pv_mem [cap_idx[6:0]] <= prev_valid;
                 cap_idx <= cap_idx + 1'b1;
             end
             if (cap_idx[7]) capturing <= 1'b0;
@@ -495,7 +506,8 @@ module ps7_ad9361_rate;
             if (loc_arready) begin
                 loc_rvalid <= 1'b1;
                 if (m_araddr[11:10] == 2'b01)      loc_rdata <= {16'd0, in_mem [m_araddr[9:2]]};
-                else if (m_araddr[11:10] == 2'b10) loc_rdata <= { 8'd0, out_mem[m_araddr[9:2]]};
+                else if (m_araddr[11:10] == 2'b10) loc_rdata <= { 7'd0, pv_mem[m_araddr[9:2]],
+                                                   out_mem[m_araddr[9:2]]};
                 else case (m_araddr[7:2])
                     6'h0: loc_rdata <= 32'h5A5A_47C0;                 // bridge alive
                     6'h1: loc_rdata <= {8'd0, corr_hold};             // correlator output

@@ -22,6 +22,15 @@ because each of those is cheap to prevent once and expensive to rediscover:
   concurrent sessions; polling the board during a transfer makes both fail. One
   multiplexed connection does everything.
 
+* **A watchdog that fires into a reboot.** The watchdog existed because a script
+  that unbinds the network cannot report failure; it slept a fixed time and then
+  forced a reboot regardless. When the run finished early and rebooted itself,
+  the watchdog could land during the boot that followed. The watchdog now checks
+  for a completion flag first, and reboots gracefully rather than with -f:
+  twenty-odd forced reboots skip the unmount entirely, which is hard on a flash
+  filesystem and is the most likely reason this board eventually stopped coming
+  back at all.
+
 Usage:
     ./board_run.py --bit build/x.swab.bin --script run.sh --log /mnt/jffs2/x.log
     ./board_run.py --bit ... --script ... --log ... --wait 180
@@ -129,10 +138,16 @@ def main():
             print("transfer never completed")
             return 1
 
-    body = open(a.script).read()
-    # The marker goes in first, so a truncated or stale log is detectable.
+    # Reboot policy lives here, not in the run scripts. A script that reboots
+    # itself cannot also leave a completion flag afterwards -- the first version
+    # of this appended the flag after the body and it was never reached.
+    body = "\n".join(l for l in open(a.script).read().splitlines()
+                     if l.strip() not in ("reboot", "reboot -f",
+                                          "sync; sleep 2; reboot",
+                                          "sync; sleep 2; reboot -f"))
     payload = (f"#!/bin/sh\necho '{marker}' > {a.log}\n"
-               f"sync\n" + body)
+               f"sync\n" + body +
+               "\ntouch /tmp/board_run.done\nsync\nsleep 2\nreboot\n")
     ssh(f"rm -f {a.log}")
     p = subprocess.run(["sshpass", "-p", PASS, "ssh"] + SSH_OPTS +
                        [f"root@{HOST}", "cat > /tmp/board_run.sh"],
@@ -142,7 +157,10 @@ def main():
         return 1
     ssh("chmod +x /tmp/board_run.sh")
 
-    ssh(f'setsid sh -c "sleep {a.watchdog}; sync; reboot -f" '
+    # The watchdog stands down if the run left its flag, and reboots gracefully.
+    ssh("rm -f /tmp/board_run.done")
+    ssh(f'setsid sh -c "sleep {a.watchdog}; '
+        f'[ -f /tmp/board_run.done ] || {{ sync; reboot; }}" '
         f'</dev/null >/dev/null 2>&1 & '
         f'setsid /tmp/board_run.sh </dev/null >/dev/null 2>&1 & echo LAUNCHED')
     print("launched")

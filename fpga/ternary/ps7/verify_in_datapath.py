@@ -58,6 +58,10 @@ ACC = 24        # accumulator width
 # to find its own alignment can always find one.
 DEFAULT_LAG = 1
 
+# Captures taken before the per-sample bit existed have no bit 24 set; the
+# flag is honoured only when asked for, so old fixtures still verify.
+PER_SAMPLE_LAG = False
+
 
 def taps():
     """tp[a] from ps7_ad9361_axi.v: (a[0] ^ a[2] ^ a[4]) ? 2'b01 : 2'b10."""
@@ -88,6 +92,9 @@ def model(samples):
 
 def main(argv):
     lag = DEFAULT_LAG
+    if "--per-sample-lag" in argv:
+        globals()["PER_SAMPLE_LAG"] = True
+        argv = [a for a in argv if a != "--per-sample-lag"]
     if "--lag" in argv:
         lag = int(argv[argv.index("--lag") + 1])
         argv = [a for i, a in enumerate(argv)
@@ -100,7 +107,8 @@ def main(argv):
         print(f"expected an even count (half in, half out), got {len(words)}")
         return 2
     n = len(words) // 2
-    ins, outs = words[:n], [signed(w, ACC) for w in words[n:]]
+    raw_outs = words[n:]
+    ins, outs = words[:n], [signed(w, ACC) for w in raw_outs]
 
     # Outputs before index N depend on samples from before the capture window.
     # That was harmless while the capture began with the correlator in reset, but
@@ -115,13 +123,18 @@ def main(argv):
     # relation is fixed by construction rather than discovered: m_data is
     # registered from corr on the previous s_valid, and corr is combinational
     # over the shift register before that sample entered.
-    lagged = lag
-    first = N + lagged if warm else 0
+    # Bit 24 of each output word, when present, says whether the cycle before
+    # that sample was also a valid. That settles the lag per sample instead of
+    # assuming one, which matters because a strobe of varying duty has no
+    # constant lag -- see capture_duty_tb.v.
+    lags = [(2 if (raw_outs[j] >> 24) & 1 else 1) for j in range(n)] \
+        if PER_SAMPLE_LAG else [lag] * n
+    first = N + 2 if warm else 0
     if warm:
-        expected = [None] * (N + lagged) + [
-            signed(sum(tp[i] * signed(ins[j - lagged - i], W) for i in range(N)),
-                   ACC)
-            for j in range(N + lagged, n)]
+        expected = [None] * first + [
+            signed(sum(tp[i] * signed(ins[j - lags[j] - i], W)
+                       for i in range(N)), ACC)
+            for j in range(first, n)]
     else:
         expected = model(ins)
     mismatches = [(j, expected[j], outs[j]) for j in range(first, n)

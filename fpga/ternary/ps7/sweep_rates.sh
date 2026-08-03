@@ -37,4 +37,4 @@ for DIV in 40 32 20 16 12 10 8; do
   say "ENDDIV"
 done
 say ALLDONE
-sync; sleep 2; reboot -f
+sync; sleep 2; reboot

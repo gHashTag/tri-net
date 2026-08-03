@@ -654,14 +654,31 @@ So: **bit-exact inside the vendor datapath at a 50 MHz bus clock**, against a
 tool estimate of 37.75 MHz -- the tool understates by a third, consistent with
 `ATSPEED.md`. At 62.5 MHz, above the AD9361's 61.44, 62 of 64 outputs agree.
 
-## What is not explained
+## The two unexplained points, explained
 
-31.25 and 41.67 MHz fail in a way no constant offset repairs, while 50 and 62.5
-pass. That is not the shape of a timing failure, which would worsen
-monotonically with frequency. It is stated here as unexplained rather than
-rounded off: the ratio of bus clock to the fixed 50 MHz readback clock is 1.25
-and 1.667 at exactly those two points, and 0.5, 0.625, 1, 2 and 2.5 at the
-others, which is suggestive of a capture-start interaction rather than of speed.
+31.25 and 41.67 MHz failed in a way no constant offset repaired, while 50 and
+62.5 passed -- not the shape of a timing failure, which would worsen
+monotonically. The cause turned out to be in the comparison, not the hardware,
+and it was settled in simulation with no clock domains and no vendor logic
+involved (`capture_duty_tb.v`):
 
-Claiming "runs at 62.5 MHz" on the strength of 62 of 64 would be the kind of
-rounding this file exists to avoid. The defensible claim is 50 MHz clean.
+| valid strobe | best lag | mismatches |
+|---|---|---|
+| sparse -- one valid, one gap | 1 | **0** |
+| back-to-back -- valid every cycle | 2 | **0** |
+| **mixed duty** | 1 | **32** |
+
+`m_data` is registered from `corr` on **every** clock while `corr` advances only
+on `s_valid`. So the value standing at the capture edge is the correlation over
+`j-1 .. j-63` when the previous cycle was idle and over `j-2 .. j-64` when it
+was another valid. **A strobe whose duty varies has no constant lag at all**,
+and assuming one is what produced those two failures.
+
+The fix is one bit per sample, recorded in hardware: whether the cycle before
+that sample was also a valid. The model then uses the right lag for each sample
+instead of a single lag for the capture. Nothing is searched for.
+
+Claiming "runs at 62.5 MHz" on the strength of 62 of 64 would still be the kind
+of rounding this file exists to avoid. The defensible claim remains 50 MHz
+clean, and the sweep needs re-running with the per-sample bit before more can be
+said.
