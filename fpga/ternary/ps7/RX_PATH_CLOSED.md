@@ -114,14 +114,9 @@ Proven, on silicon:
   stimulus, and the correlation output is non-zero, signed, and varies with the
   data.
 
-Not proven, and not claimed:
+- **bit-exactness inside the datapath**, closed the following cycle. See below.
 
-- **bit-exactness against the software model in this configuration.** The 256/256
-  agreement at 8 and 63 taps in `ATSPEED.md` stands, but it was measured with
-  samples pushed directly into the correlator. Predicting the exact value here
-  requires modelling the vendor path's sample sequence, including the frame
-  phase above. That is the next piece of work, and it is the one that would turn
-  "non-zero and plausible" into "correct".
+Not proven, and not claimed:
 - **the IOB capture stage**, for the structural reason given above. It needs a
   design with real pins, which needs the per-pin direction map that
   `PINOUT.md` records as still unresolved.
@@ -153,3 +148,86 @@ Not proven, and not claimed:
 0x40010014  l_clk heartbeat  free-running, proves the clock lives
 0x40010018  frame codes seen bit n set = frame code n occurred
 ```
+
+
+---
+
+# Bit-exact, inside the datapath
+
+Added 2026-08-03, closing the one claim the section above left open.
+
+A snapshot of a free-running stream read over AXI is a number that can be
+admired but not checked, so the capture was made deterministic. Writing 1 to
+`0x40010020` resets the correlator, reloads its taps, records exactly 64 input
+samples and 64 outputs into two fabric memories, and freezes. The result is then
+a function of the stimulus.
+
+`verify_in_datapath.py` re-derives every output from the inputs. The model is
+written from `tern_corr_pn_tree.v` rather than from intent, and the point that
+matters is the alignment: `m_data <= corr` is registered while `corr` is
+combinational over the shift register *before* the current sample enters it, so
+the value emitted alongside the j-th valid sample is the correlation over
+samples j-1 .. j-63, and the first output is necessarily zero. That is the same
+off-by-one `FIRST_LOAD.md` records getting wrong once already.
+
+## Result
+
+Six captures, 384 sample-output pairs, every one matching:
+
+| capture | input range | negative inputs | output range | verdict |
+|---|---|---|---|---|
+| ramp, unsigned | 183 .. 435 | 0/64 | -187 .. 187 | 64/64 bit-exact |
+| round 1 | 699 .. 951 | 0/64 | -703 .. 703 | 64/64 bit-exact |
+| round 2 | -809 .. -557 | **64/64** | -817 .. 817 | 64/64 bit-exact |
+| round 3 | -841 .. -589 | **64/64** | -849 .. 849 | 64/64 bit-exact |
+| round 4 | 1111 .. 1363 | 0/64 | -1115 .. 1115 | 64/64 bit-exact |
+| round 5 | 959 .. 1211 | 0/64 | -963 .. 963 | 64/64 bit-exact |
+
+Negative inputs were reached without rebuilding anything, by enabling the
+vendor's own data-format register: `0x40000400 = 0x51` sets sign extension
+(bit 6) and the format block (bit 4) alongside the channel enable (bit 0), so a
+12-bit sample with bit 11 set arrives as a negative 16-bit value. Two of the
+five rounds landed entirely in that half, which is why signed arithmetic is
+covered in place rather than only in the bench.
+
+## The comparison can fail
+
+A match is worth what the test's ability to fail is worth, so that was measured
+too. Against the round-one capture:
+
+| perturbation | outcome |
+|---|---|
+| baseline | match |
+| tap 0 sign flipped | mismatch |
+| tap 31 sign flipped | mismatch |
+| tap 62 sign flipped | mismatch |
+| alignment shifted by one sample | mismatch |
+| one input sample changed by one LSB | mismatch |
+| first two input samples swapped | mismatch |
+
+The model itself is cross-checked against a second, independently formulated
+implementation -- a shift-register simulation against a padded-history slice --
+over 200 random 64-sample sequences.
+
+## What this does and does not extend
+
+It extends the 256/256 result in `ATSPEED.md` from "the correlator is correct
+when samples are pushed into it" to "the correlator is correct on samples
+delivered by ADI's capture, frame delineation and channel logic, under control
+from Linux over a real AXI bus".
+
+It does not extend to the IOB capture stage, which `PINLESS = 1` removes by
+construction, nor to the real bus rate. Those limits are unchanged.
+
+## A stale log read as a fresh result
+
+Worth recording because it nearly published a wrong finding. Two capture runs
+reported `BUSERROR` on every read. The cause was not the hardware: `/tmp` on
+this board is tmpfs and the reboot at the end of each run wipes it, taking the
+runner script with it, so the second run never executed at all -- and
+`/mnt/jffs2`, which persists, still held the first run's log. The failing output
+being read was several minutes old.
+
+The fix is procedural: write the script and copy the bitstream in the same
+session as the run, and delete the log before starting so a stale one cannot be
+mistaken for a new one.
