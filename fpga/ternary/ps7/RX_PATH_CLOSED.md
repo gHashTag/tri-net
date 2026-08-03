@@ -506,12 +506,84 @@ that they are the wrong pins: the classifier's identification of them as inputs
 in the vendor bitstream stands on a round trip, and the vendor design is not
 running while ours is.
 
-The remaining hypothesis, and it is a hypothesis: the AD9361's `RESETB` is
-driven by the FPGA in the vendor design and is therefore floating under ours. A
-part held in reset drives nothing, which fits every observation including this
-one. `rx_path_rates` and `ensm_mode` reading sensibly from Linux does not
-contradict it -- those are the driver's cached state, not a live read of the
-part.
+The hypothesis was that the AD9361's `RESETB` floats under our bitstream. It was
+tested and the answer turned out to be broader than the question. See below.
 
-That is testable in one step: read an AD9361 register over SPI with our
-bitstream loaded. A part in reset returns defaults.
+
+---
+
+# Why the radio cannot answer us, structurally
+
+Added 2026-08-03. This is the answer to the whole "no data" line of enquiry, and
+it is not about pin identification.
+
+## The measurement
+
+An AD9361 register read over SPI, before and after loading our bitstream. The
+prediction was written first: register `0x037` is the product ID and reads
+`0x0A` on a working part.
+
+```
+vendor design running          our bitstream loaded
+  reg 0x37  = 0xA                reg 0x37  = 0x0
+  reg 0x002 = 0x5C               reg 0x002 = 0x0
+  reg 0x017 = 0x1A               reg 0x017 = 0x0
+  reg 0x014 = 0x29               reg 0x014 = 0x0
+  reg 0x3fd = 0xFF               reg 0x3fd = 0x0
+```
+
+Every register goes to zero. Not defaults -- zero, including `0x3fd` which reads
+`0xFF` normally.
+
+## The structural reason
+
+ADI's own top level says it plainly. From `projects/pluto/system_top.v`:
+
+```verilog
+output          enable,
+output          txnrx,
+inout           gpio_resetb,
+output          spi_csn,
+output          spi_clk,
+output          spi_mosi,
+input           spi_miso,
+```
+
+**The entire control path to the AD9361 runs through the PL.** SPI chip select,
+clock and MOSI are FPGA outputs; reset and the ENSM control pins are FPGA
+outputs. The processor does not reach the radio except through whatever design
+is loaded in the fabric.
+
+Our bitstream drives no outputs at all -- deliberately, because that is what
+makes it safe to load. So it breaks SPI, `RESETB`, `ENABLE` and `TXNRX` at the
+same moment. All-zero register reads are exactly what a severed SPI bus gives,
+with no need to invoke anything about the part's state.
+
+(The pin numbers in that constraint file are for `xc7z010clg225`, a different
+package -- but the *topology* is the property that matters, and it is a property
+of the silicon design, not the package.)
+
+## What this means for the goal
+
+"Load our bitstream and expect the radio to keep streaming" was never going to
+work, and no amount of pin identification would have fixed it. Reading the
+receive bus requires a design that also:
+
+- passes the PS SPI controller through to the radio's SPI pins,
+- drives `gpio_resetb` to hold the part out of reset,
+- drives `enable` and `txnrx` for the ENSM.
+
+That is not a pin puzzle, it is the rest of the vendor's `system_top` -- and a
+good part of it is already built here. `axi_ad9361` synthesises, places, routes,
+loads and runs through the open flow; the correlator inside it is bit-exact over
+1219 sample pairs; the AXI bridge reaches its registers from Linux. What is
+missing is the control plane around it.
+
+## A risk worth naming
+
+With the SPI lines floating, the radio's chip-select is undriven, and stray
+transitions could in principle write its configuration. Every load in this
+directory is followed by a reboot, which reloads the vendor bitstream and
+reconfigures the part from scratch, so nothing has been observed to persist. It
+is still a reason to drive `spi_csn` high rather than leave it floating, the
+moment this design has any outputs at all.
