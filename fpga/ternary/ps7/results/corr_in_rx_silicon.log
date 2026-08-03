@@ -1,0 +1,8 @@
+=== our correlator INSIDE the AD9361 receive datapath ===
+state: operating
+bank2=0x000047C0 bank3=0x00012500
+anchor  : 0x47C0   (47C0 = our design in the fabric)
+corr    : 0
+count   : 37
+adc_valid ever seen: 1
+DONE
