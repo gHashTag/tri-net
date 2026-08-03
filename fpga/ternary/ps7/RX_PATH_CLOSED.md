@@ -373,3 +373,72 @@ accordingly instead of reporting a mismatch it cannot resolve.
 | **total** | **19** | **1219** |
 
 Every one exact.
+
+
+---
+
+# Real pins: built, loaded, and the radio is silent
+
+Added 2026-08-03.
+
+`ps7_ad9361_real.v` is the first design here with real package pins. Every port
+is an input -- the fourteen bank-34 pins `pin_directions.py` identifies as
+single-ended inputs in the vendor bitstream -- and `PINLESS` is 0, so the
+vendor's own `IBUF` and `IDDR` are instantiated. Fourteen input buffers and
+thirteen DDR capture registers: the IOB stage a pinless harness cannot exercise
+by construction, and which nextpnr rejected when fed from fabric.
+
+It places, routes, builds and loads. The classifier applied to our own bitstream
+reports **14 inputs and 0 outputs**, which is both a round trip against a pinout
+that is known because it was written, and the safety argument for loading it: a
+bitstream that configures no pin as an output cannot drive against another
+driver.
+
+On silicon:
+
+```
+state       : operating
+bridge      : 0x5A5A47C0
+heartbeat A : 0x00000000
+heartbeat B : 0x00000000      <- unchanged
+frame codes : 0x00000000
+saw_valid   : 0
+```
+
+**The bus clock is not running.** The heartbeat is a free-running counter on
+`l_clk`; zero on two reads two seconds apart means the pin is not toggling. That
+is a clean negative, and it is the reading the counter exists to produce: it
+separates "no clock" from "no data" without a hypothesis.
+
+## The likely reason, stated as a hypothesis
+
+The AD9361 gates its data clock on its own state machine, and that machine is
+driven by the `ENABLE` and `TXNRX` pins -- which are **FPGA outputs** in the
+vendor design. This bitstream drives no outputs at all, so those pins float, and
+a floating `ENABLE` leaves the part in a state where it does not clock the bus.
+
+Two ways forward, and they differ in risk:
+
+- **Drive `ENABLE` ourselves.** No contention: those pins are outputs in the
+  vendor design too, so the direction matches. It needs identifying which of the
+  46 output sites they are, which the classifier does not yet do.
+- **Configure the part over SPI to keep the receive chain running** regardless
+  of the pins, then reload. This touches no pin directions at all.
+
+The second is the safer first attempt, and it is testable in one reading with
+the same heartbeat.
+
+## A check that could not fail correctly
+
+Four rounds were spent diagnosing a file transfer that had in fact succeeded.
+The size probe was `busybox stat -c %s FILE || echo missing`; this busybox does
+not implement `-c`, so `stat` failed, printed nothing, and the fallback reported
+`missing` -- for a file that was present and complete at 4 045 564 bytes.
+
+The fallback fired on *the checking program* failing, not on the condition it
+was meant to check. That is the fourth error of this shape in the project:
+a DRIVE/SLEW heuristic, segbits signatures with no positive bits, the bank-wide
+`STEPDOWN` setting, and now this. Each concluded something from the absence of
+evidence rather than from evidence.
+
+`ls -la` reports the size on this busybox and is what the scripts use now.
