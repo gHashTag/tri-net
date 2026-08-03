@@ -152,3 +152,52 @@ on a model with **no sequential timing component at all** -- the silicon sweep
 in this file measured 83-91 MHz where the tool predicted 58.
 
 Log: `results/pnr_scale_2x63tap.log`.
+
+---
+
+## The whole flow, validated on silicon
+
+A bitstream built with **no vendor tool and no container anywhere in the chain**
+was loaded into the PL and verified:
+
+```
+state: operating
+EMIO : 0x000047C0            <- our anchor; our design is in the fabric
+=== VERDICT: 256 of 256 bit-exact against the software reference ===
+EXIT=0
+```
+
+The chain: **yosys 0.67** (Homebrew) -> **nextpnr-xilinx 96bb068**, built from
+source here with the DSP FASM fix -> **fasm2frames** (prjxray's own, on the
+Python library) -> **xc7frames2bit**, built from source here. All on
+aarch64-darwin, none of it available prebuilt for this platform.
+
+That is the toolchain question answered from both ends: it builds, and what it
+builds runs.
+
+### And the AD9361 bitstream was verified without touching the board
+
+`axi_ad9361`'s bitstream exists and round-trips cleanly:
+
+```
+fed in    : 7 802 frames, 101 words each
+read back : 9 996 frames (the extra 2 194 are padding)
+addresses in both      : 7 802
+in both, data differs  : 0
+non-zero frames fed in : 5 544, all identical on read-back
+```
+
+**It was not loaded, and that is deliberate.** Every previous load in this
+project was safe for a reason `FIRST_LOAD.md` states plainly: those designs
+"declare no ports at all ... cannot drive a board pin and cannot conflict with
+the AD9361 front end." The AD9361 harness is the opposite -- 30 real package
+pins, **16 of them outputs**, assigned arbitrarily from banks 34 and 35 rather
+than from this board's schematic. If any lands on a pin something else drives,
+that is contention on real hardware.
+
+So it was verified by construction instead: `bitread` extracts the frames back
+out and every one matches what went in. That proves the bitstream encodes the
+intended configuration. It does not prove the pinout is safe for this board,
+and nothing short of the schematic would.
+
+Log: `results/newflow_silicon.log`.
