@@ -232,3 +232,64 @@ being read was several minutes old.
 The fix is procedural: write the script and copy the bitstream in the same
 session as the run, and delete the log before starting so a stale one cannot be
 mistaken for a new one.
+
+
+---
+
+# Full bus range, and a reproducibility question answered no
+
+Added 2026-08-03.
+
+The previous section's captures ran on a counter: a ramp of step 4 spanning 252
+of the bus's 4096 codes, never changing sign. That proves the plumbing and
+leaves the adder tree's carries untested, so the stimulus is now selectable from
+AXI at `0x40010028` -- bit 0 picks a maximal-length 12-bit LFSR over the counter,
+bit 1 reloads its seed on arming.
+
+With the core's sign-extension bit set, the LFSR covers the full signed range of
+the bus and changes sign repeatedly inside the 63-tap window, which is what
+makes carries propagate through the whole reduction.
+
+| capture | input range | distinct | sign changes | output range | verdict |
+|---|---|---|---|---|---|
+| `lfsr1` | -2003 .. 1955 | 64/64 | 41/63 | -14960 .. 14719 | 64/64 bit-exact |
+| `lfsr2` | -2045 .. 2031 | 64/64 | 32/63 | -21239 .. 17020 | 64/64 bit-exact |
+| `lfsr3` | -1894 .. 1976 | 64/64 | 33/63 | -16458 .. 14841 | 64/64 bit-exact |
+| `seed1` | -1941 .. 1762 | 64/64 | 39/63 | -20004 .. 19561 | 64/64 bit-exact |
+| `seed2` | -2009 .. 2032 | 64/64 | 23/63 | -10394 ..  9383 | 64/64 bit-exact |
+
+The bus carries 12 bits, so -2048 .. 2047 is the range, and -2045 .. 2031 is
+effectively all of it. Output magnitude reaches 21 239 against 187 before --
+a hundredfold wider excursion through the same adder tree.
+
+Running total across both sections: **eleven captures, 704 sample-output pairs,
+every one bit-exact.**
+
+## Reproducible? No -- and that is worth knowing
+
+Two captures with the LFSR reseeded on arming should have been identical. They
+were not: **all 64 input samples differ.**
+
+The stimulus itself is deterministic -- it reloads the same seed -- so what
+varies is the phase between the arm pulse and the vendor's frame. Arming comes
+from a software register write at an arbitrary moment, the capture start is
+synchronised into the bus-clock domain, and where that lands within the frame
+cycle decides which slice of the LFSR sequence reaches the correlator.
+
+This does not weaken anything above. The model is fed the *measured* inputs, so
+a shifted window changes which samples are checked, not whether the check is
+valid. What it does cost is a golden vector: a fixed input array that a
+regression could compare against byte for byte, on any board, at any time. That
+needs the capture to start on a known frame boundary rather than whenever
+software happens to ask.
+
+The question was posed before the measurement precisely because the answer was
+not obvious, and guessing "yes" would have been the comfortable error.
+
+## The case still missing
+
+None of these captures approaches the accumulator's real limit. The maximum is
+63 x 2047 = 128 961, reached when the input *is* the tap sequence scaled --
+which is exactly the matched-filter peak a despreader exists to produce. Driving
+the stimulus with the PN sequence itself would test the accumulator's full
+magnitude and demonstrate the function rather than only the arithmetic.
