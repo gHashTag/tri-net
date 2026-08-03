@@ -682,3 +682,59 @@ Claiming "runs at 62.5 MHz" on the strength of 62 of 64 would still be the kind
 of rounding this file exists to avoid. The defensible claim remains 50 MHz
 clean, and the sweep needs re-running with the per-sample bit before more can be
 said.
+
+
+---
+
+# The whole experiment, offline
+
+Added 2026-08-03, with the board unreachable.
+
+`fullpath_tb.v` runs `ps7_ad9361_rate` exactly as built, with `sim_stubs.v`
+standing in for the processor. The testbench performs the same AXI transactions
+Linux performs through `devmem` -- release the core reset, enable channel 0 with
+sign extension, select the matched PN stimulus, arm the capture -- and reads the
+capture memories back over the same `axi3_to_lite` bridge. Nothing is bypassed.
+
+```
+bridge magic  : 5a5a47c0      (expect 5A5A47C0)
+ADI version   : 000a0300      (expect 000A0300)
+
+lclk 12.50 MHz  ->  0 mismatches of 63
+lclk 25.00 MHz  ->  0 mismatches of 63
+lclk 62.50 MHz  ->  0 mismatches of 63
+```
+
+The per-sample lag bit gives a clean result at every rate including 62.5 MHz,
+where the hardware sweep had two mismatches under the constant-lag assumption.
+The fix is confirmed before a board run is spent on it.
+
+**What this does not show.** iverilog is functional, not timed. It cannot say
+the design meets timing at 62.5 MHz on silicon; the measured claim there remains
+50 MHz clean, from `ATSPEED.md`-style silicon measurement. What the simulation
+settles is functional correctness and the correctness of the comparison.
+
+## A real defect the simulator found that synthesis did not
+
+Four of the top-level files declared the same eight wires twice --
+`core_awready`, `core_wready` and the rest, once as a group and again
+individually. yosys accepted it silently through every build in this directory.
+iverilog rejects it, correctly.
+
+Nothing was broken by it, but it is worth recording that a second front end
+found a real error in sources that had passed synthesis, place, route and
+silicon a dozen times. Two tools disagreeing is information; only one of them
+was being consulted.
+
+## The stubs, and one that would be wrong if the design changed
+
+Most stubs are for primitives that appear in files iverilog elaborates but that
+this configuration never instantiates -- empty bodies are correct precisely
+because nothing reaches them.
+
+`DSP48E1` is not one of those. It is instantiated in `ad_dcfilter`, which *is*
+elaborated. Its product reaches the datapath only through `data_dcfilt`, and
+that is selected only when `dcfilt_enb` is 1; this configuration leaves the DC
+filter off, so the multiplier's result is discarded and a zeroed stub changes
+nothing. **Enable the DC filter and this stub makes the simulation wrong.** It
+says so in the file rather than passing quietly.

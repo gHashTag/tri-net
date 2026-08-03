@@ -69,8 +69,63 @@ module ps7_ad9361_axi;
     always @(posedge clk) rxclk <= ~rxclk;
     reg rxframe = 1'b0;
     always @(posedge clk) if (rxclk) rxframe <= ~rxframe;
-    reg [11:0] stim = 12'd0;
-    always @(posedge clk) stim <= stim + 1'b1;
+    // Two stimuli, selected from AXI at 0x40010028:
+    //   bit 0 = 0  counter. Steps by one per clk, which after the vendor path's
+    //              decimation becomes a ramp of step 4 -- fine for proving the
+    //              plumbing, but it spans 252 of the bus's 4096 codes and never
+    //              changes sign, so it leaves the adder tree's carries untested.
+    //   bit 0 = 1  maximal-length 12-bit LFSR. Covers the full bus range, and
+    //              with the core's sign-extension bit set it changes sign
+    //              inside the 63-tap window, which is what makes carries
+    //              propagate through the whole reduction.
+    //   bit 1 = 1  reload the seed on arming, so two captures should be
+    //              identical. Whether they actually are is a real question about
+    //              this harness, not a formality: the sampling phase between the
+    //              arm pulse and the frame is not obviously deterministic.
+    //   mode 2    the tap sequence itself, at full scale. corr = sum tp[i]*xr[i]
+    //             is maximised when xr[i] carries +2047 wherever tp[i] is +1 and
+    //             -2047 wherever it is -1, so feeding the correlator its own
+    //             matched sequence must produce 63 * 2047 = 128961 once every 63
+    //             samples. That is the accumulator's real limit and it is also
+    //             the function a despreader exists to perform, so it tests the
+    //             arithmetic and demonstrates the purpose in the same capture.
+    //
+    // The vendor path decimates by exactly four -- measured, every one of the 63
+    // intervals in the ramp capture stepped by 4 -- so the PN index advances
+    // once per four clocks to put consecutive chips on consecutive samples.
+    reg [11:0] stim = 12'd1;
+    wire [11:0] stim_lfsr = {stim[10:0], stim[11]^stim[10]^stim[9]^stim[3]};
+    reg [1:0] arm_edge = 2'b00;
+    always @(posedge clk) arm_edge <= {arm_edge[0], cap_arm};
+    wire arm_rise_clk = arm_edge[0] & ~arm_edge[1];
+
+    reg [5:0] pn_idx = 6'd0;
+    reg [1:0] div4 = 2'd0;
+    // Reversed relative to the tap order, and that is not cosmetic. After 63
+    // samples xr[i] holds the sample from i steps ago, so xr[i] = in[62-i]. For
+    // xr[i] to carry tp[i]'s sign -- which is what makes every term add rather
+    // than cancel -- the chip emitted at step k must be tp[62-k].
+    wire [5:0] pn_rev = 6'd62 - pn_idx;
+    wire pn_bit = pn_rev[0] ^ pn_rev[2] ^ pn_rev[4];
+    wire [11:0] pn_chip = pn_bit ? 12'h7FF : 12'h801;   // +2047 / -2047, sign-extended by the core
+    // capture start, brought back from the bus-clock domain. lclk is derived
+    // from clk, so this crossing has a fixed phase rather than an arbitrary one.
+    reg [1:0] go_sync = 2'b00;
+    always @(posedge clk) go_sync <= {go_sync[0], cap_go};
+    wire go_rise_clk = go_sync[0] & ~go_sync[1];
+
+    always @(posedge clk) begin
+        if (arm_rise_clk && stim_reseed) begin
+            stim <= 12'd1; pn_idx <= 6'd0; div4 <= 2'd0;
+        end else if (go_rise_clk) begin
+            pn_idx <= 6'd0; div4 <= 2'd0;
+        end else begin
+            stim <= stim_sel[0] ? stim_lfsr : stim + 1'b1;
+            div4 <= div4 + 1'b1;
+            if (div4 == 2'd3) pn_idx <= (pn_idx == 6'd62) ? 6'd0 : pn_idx + 1'b1;
+        end
+    end
+    wire [11:0] stim_out = (stim_sel == 2'd2) ? pn_chip : stim;
     wire o_tx_clk_out_p;
     wire o_tx_clk_out_n;
     wire o_tx_frame_out_p;
@@ -131,6 +186,15 @@ module ps7_ad9361_axi;
 
     // local status block: always ready, one-cycle response
     reg loc_bvalid = 0, loc_rvalid = 0; reg [31:0] loc_rdata = 0;
+    // Deterministic capture. Sampling a free-running stream over AXI gives a
+    // value that cannot be predicted, only admired. Arming resets the
+    // correlator and records exactly 64 input samples and 64 of its outputs,
+    // then freezes -- so the result is a function of the stimulus and can be
+    // compared with the software model rather than eyeballed.
+    reg cap_arm = 1'b0;
+    reg [1:0] stim_sel = 2'd0;   // 0 counter, 1 LFSR, 2 matched PN
+    reg stim_reseed = 1'b0;   // reload the seed when armed
+    reg cap_align   = 1'b0;   // start on a frame boundary, not on the write
     wire loc_awready = sel_loc_w & m_awvalid & ~loc_bvalid;
     wire loc_wready  = sel_loc_w & m_wvalid  & ~loc_bvalid;
     wire loc_arready = sel_loc_r & m_arvalid & ~loc_rvalid;
@@ -161,14 +225,6 @@ module ps7_ad9361_axi;
         .m_araddr(m_araddr), .m_arvalid(m_arvalid), .m_arready(m_arready),
         .m_rdata(m_rdata), .m_rresp(m_rresp), .m_rvalid(m_rvalid), .m_rready(m_rready));
 
-    wire core_awready;
-    wire core_wready;
-    wire core_bvalid;
-    wire [1:0] core_bresp;
-    wire core_arready;
-    wire core_rvalid;
-    wire [31:0] core_rdata;
-    wire [1:0] core_rresp;
     wire [31:0] o_up_dac_gpio_out;
     wire [31:0] o_up_adc_gpio_out;
 
@@ -181,7 +237,7 @@ module ps7_ad9361_axi;
         .rx_data_in_n (lfsr[5:0]),
         .rx_clk_in (rxclk),
         .rx_frame_in (rxframe),
-        .rx_data_in (stim),
+        .rx_data_in (stim_out),
         .dac_sync_in (lfsr[9]),
         .tdd_sync (lfsr[10]),
         .gps_pps (lfsr[11]),
@@ -264,8 +320,12 @@ module ps7_ad9361_axi;
     wire lclk = o_l_clk;
     wire signed [ACC-1:0] m_data; wire m_valid;
     reg [AW-1:0] tap_addr = 0; reg tap_wr = 0; reg taps_done = 0;
+    reg [1:0] arm_sync = 2'b00;
+    always @(posedge lclk) arm_sync <= {arm_sync[0], cap_arm};
+    wire arm_pulse = arm_sync[0] & ~arm_sync[1];
+
     always @(posedge lclk) begin
-        if (rst) begin tap_addr<=0; tap_wr<=0; taps_done<=0; end
+        if (rst || arm_pulse) begin tap_addr<=0; tap_wr<=0; taps_done<=0; end
         else if (!taps_done) begin
             tap_wr <= 1'b1;
             if (tap_wr) begin
@@ -282,6 +342,50 @@ module ps7_ad9361_axi;
         .s_valid(o_adc_valid_i0), .s_data(o_adc_data_i0),
         .c_wr(tap_wr), .c_addr(tap_addr), .c_data(tap_code),
         .m_valid(m_valid), .m_data(m_data));
+
+    // 128 deep, not 64, and the reason is the peak. The shift register is 63
+    // long, so with a 64-sample capture only the very last output has a full
+    // window -- everything before it is still filling. A matched-filter peak
+    // then has to land on exactly that one sample, which needs the stimulus
+    // phase to survive a clock-domain crossing, and it did not: the measured
+    // out[63] came to 37 * 2047, the signature of a shifted window. With 128
+    // samples the first half warms the register and every output in the second
+    // half has a full window, so a 63-periodic input must put the peak in one
+    // of them regardless of phase.
+    reg [15:0] in_mem  [0:127];  // full width: the correlator sees all 16 bits
+    reg [23:0] out_mem [0:127];
+    reg [7:0]  in_idx = 0, out_idx = 0;
+    reg        capturing = 0;
+    reg        pending = 0;
+    reg        cap_go = 0;
+    always @(posedge lclk) begin
+        if (rst) begin capturing<=0; in_idx<=0; out_idx<=0; pending<=0; cap_go<=0; end
+        else if (arm_pulse) begin
+            in_idx<=0; out_idx<=0; cap_go<=1'b0;
+            // Without alignment the capture begins wherever the software write
+            // landed, and two reseeded runs then sample different slices of the
+            // same sequence -- measured, all 64 samples differed. Waiting for a
+            // known frame code makes the start deterministic.
+            if (cap_align) begin pending<=1'b1; capturing<=1'b0; end
+            else            begin pending<=1'b0; capturing<=1'b1; end
+        end
+        else if (pending && taps_done) begin
+            if ({fr_p, fr_n} == 2'b01) begin
+                pending <= 1'b0; capturing <= 1'b1; cap_go <= 1'b1;
+            end
+        end
+        else if (capturing && taps_done) begin
+            if (o_adc_valid_i0 && !in_idx[7]) begin
+                in_mem[in_idx[6:0]] <= o_adc_data_i0;
+                in_idx <= in_idx + 1'b1;
+            end
+            if (m_valid && !out_idx[7]) begin
+                out_mem[out_idx[6:0]] <= m_data;
+                out_idx <= out_idx + 1'b1;
+            end
+            if (in_idx[7] && out_idx[7]) capturing <= 1'b0;
+        end
+    end
 
     reg signed [ACC-1:0] corr_hold = 0; reg [7:0] cnt = 0; reg saw_valid = 0;
     always @(posedge lclk) begin
@@ -326,11 +430,21 @@ module ps7_ad9361_axi;
     always @(posedge clk) begin
         if (!FCLKRESETN[0]) begin loc_bvalid <= 0; loc_rvalid <= 0; end
         else begin
-            if (loc_wready) loc_bvalid <= 1'b1;
+            if (loc_wready) begin
+                loc_bvalid <= 1'b1;
+                if (m_awaddr[9:2] == 8'h08) cap_arm <= m_wdata[0];   // 0x40010020
+                if (m_awaddr[9:2] == 8'h0A) begin                    // 0x40010028
+                    stim_sel    <= m_wdata[1:0];
+                    stim_reseed <= m_wdata[2];
+                    cap_align   <= m_wdata[3];
+                end
+            end
             else if (loc_bvalid && m_bready) loc_bvalid <= 1'b0;
             if (loc_arready) begin
                 loc_rvalid <= 1'b1;
-                case (m_araddr[7:2])
+                if (m_araddr[11:10] == 2'b01)      loc_rdata <= {16'd0, in_mem [m_araddr[9:2]]};
+                else if (m_araddr[11:10] == 2'b10) loc_rdata <= { 8'd0, out_mem[m_araddr[9:2]]};
+                else case (m_araddr[7:2])
                     6'h0: loc_rdata <= 32'h5A5A_47C0;                 // bridge alive
                     6'h1: loc_rdata <= {8'd0, corr_hold};             // correlator output
                     6'h2: loc_rdata <= {24'd0, cnt};                  // samples counted
@@ -339,6 +453,9 @@ module ps7_ad9361_axi;
                     6'h4: loc_rdata <= {20'd0, last_sample};          // last sample
                     6'h5: loc_rdata <= {16'd0, lclk_beats};          // does l_clk run?
                     6'h6: loc_rdata <= {28'd0, frame_seen};          // frame codes observed
+                    6'h8: loc_rdata <= {31'd0, cap_arm};             // capture arm
+                    6'h9: loc_rdata <= {14'd0, capturing, out_idx, 1'd0, in_idx};  // idx now 8 bits each
+                    6'hA: loc_rdata <= {28'd0, cap_align, stim_reseed, stim_sel};
                     default: loc_rdata <= 32'h0000_0000;
                 endcase
             end else if (loc_rvalid && m_rready) loc_rvalid <= 1'b0;

@@ -236,14 +236,6 @@ module ps7_ad9361_real (
         .m_araddr(m_araddr), .m_arvalid(m_arvalid), .m_arready(m_arready),
         .m_rdata(m_rdata), .m_rresp(m_rresp), .m_rvalid(m_rvalid), .m_rready(m_rready));
 
-    wire core_awready;
-    wire core_wready;
-    wire core_bvalid;
-    wire [1:0] core_bresp;
-    wire core_arready;
-    wire core_rvalid;
-    wire [31:0] core_rdata;
-    wire [1:0] core_rresp;
     wire [31:0] o_up_dac_gpio_out;
     wire [31:0] o_up_adc_gpio_out;
 
