@@ -1,0 +1,5 @@
+payload_bytes=4045564
+payload_sha256=a67c8659f5e5d6ebf343ef3ee48498e773bd3986c42f4f19f8a41097f9d9f89b
+design=/tmp/a25.frm;Generator=xc7frames2bit
+part=xc7z020clg400-1
+built=2026/08/03 04:00:14
