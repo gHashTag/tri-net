@@ -115,6 +115,35 @@ something else in the decoded feature set.
 
 Until direction per pin is known, the pin *set* is not enough to build a safe
 constraint file: assigning an output to a pin the AD9361 drives is exactly the
-contention this whole exercise exists to avoid. The remaining work is to read
-the IOB33 segbits documentation for the feature that actually distinguishes
-input from output, rather than to guess a third time.
+contention this whole exercise exists to avoid.
+
+### The feature that distinguishes them -- found 2026-08-03
+
+`segbits_liob33.db` and `segbits_riob33.db` carry 83 features each. Stripping
+out everything to do with drive strength, slew, termination and pull leaves one
+that names direction outright:
+
+```
+RIOB33.IOB_Y0.LVCMOS12_LVCMOS15_LVCMOS18_LVCMOS25_LVCMOS33_LVDS_25_LVTTL_
+       SSTL135_SSTL15_TMDS_33.IN_ONLY
+```
+
+`IN_ONLY` is set for a site configured as an input and not for one that can
+drive. Alongside the `.OUT` and `.OUT_DIFF` features this makes the
+classification **three-way**, which is what the earlier attempt lacked:
+
+| `IN_ONLY` | any `OUT` / `DRIVE` feature | conclusion |
+|---|---|---|
+| set | -- | input |
+| clear | set | output |
+| clear | clear | unused |
+
+A two-way test cannot separate "output" from "unused", which is precisely how
+all 78 tiles came to be called outputs. Both `LIOB33` and `RIOB33` carry the
+feature for both `IOB_Y0` and `IOB_Y1`, so every site on the device is covered.
+
+**Still to do:** apply it. That needs the vendor bitstream, which lives inside
+the FIT image in `mtd3` rather than as a file in the rootfs, so it has to be
+extracted again -- the earlier extraction was to `/tmp`, which this board's
+reboot wipes. The classification itself is then a join between the set-bit map
+already built and the `IN_ONLY` bit position, keyed on tile and site.
