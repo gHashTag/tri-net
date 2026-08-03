@@ -61,3 +61,60 @@ input that turns a working bitstream into contention on somebody's board.
 read each one's `bits` block descriptor for the correct block type key, and
 intersect its frame range with the set-bit map already built. Then join to
 `package_pins.csv` on tile plus site.
+
+---
+
+## The pinout question, answered enough to matter
+
+The vendor bitstream was extracted from `mtd3` and analysed two independent
+ways. Both give the same number, and a control design pins the method down.
+
+| method | IOB tiles carrying configuration |
+|---|---|
+| counting set bits in each IOB tile's frame range | **78** |
+| `FasmDisassembler.find_features_in_bitstream` | **78** |
+| **control: our portless `ps7_pn_tree`** | **0** |
+
+The control matters as much as the agreement: a design that declares no ports
+produces zero IOB configuration, so the method detects real usage and does not
+manufacture it.
+
+Used sites by bank: **bank 34 = 50, bank 35 = 50, bank 13 = 25**.
+
+The densest tiles form contiguous runs that read like a bus. `RIOB33_X73Y57`
+through `Y69` is seven tiles, fourteen sites -- `V18 V17 R18 T17 R17 R16 W16
+V16 Y19 Y18 W20 V20 U20 T20` -- which is the shape of twelve data lines plus
+frame plus clock. A second run in bank 35, `Y133`-`Y143`, gives twelve.
+
+## The finding that justifies not having loaded anything
+
+The place-and-route harness assigned 30 pins picked from banks 34 and 35 in
+`package_pins.csv` order, on the reasoning that any valid pins would do for
+measuring placement.
+
+**All 30 collide with pins the vendor design drives.**
+
+```
+A20 B19 B20 C20 D18 D19 D20 E17 E18 E19 F16 F17 F19 F20 G15 G17 G18 G19 G20
+H15 H16 H17 H18 H20 J14 J16 J18 J19 J20 K14
+```
+
+Sixteen of those thirty are **outputs** in that harness. Loading it would have
+driven them onto pins wired to the AD9361 and to whatever else sits on those
+banks. The earlier decision to verify by round-trip instead of by loading was
+made on the general principle that an unchecked pinout is unsafe; this is that
+principle turning out to be concretely true.
+
+## What is still not established
+
+**Per-pin direction.** The obvious heuristic -- treat a tile as an output if it
+carries `DRIVE` or `SLEW` features -- classifies all 78 as outputs, which cannot
+be right: the receive bus must be inputs. So those features are evidently
+emitted for configured IOBs regardless of direction, and the real indicator is
+something else in the decoded feature set.
+
+Until direction per pin is known, the pin *set* is not enough to build a safe
+constraint file: assigning an output to a pin the AD9361 drives is exactly the
+contention this whole exercise exists to avoid. The remaining work is to read
+the IOB33 segbits documentation for the feature that actually distinguishes
+input from output, rather than to guess a third time.
