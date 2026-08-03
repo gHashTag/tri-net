@@ -29,6 +29,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 GOLDEN = os.path.join(HERE, "golden", "pn63_matched.txt")
+GOLDEN_LAG = "1"
 VERIFY = os.path.join(HERE, "verify_in_datapath.py")
 
 # Everything here is regenerable from committed sources. Nothing that took a
@@ -76,7 +77,7 @@ def check_disk(clean):
 
 def run_verify(path, label):
     print(f"\n--- {label}: {os.path.basename(path)} ---")
-    r = subprocess.run([sys.executable, VERIFY, path],
+    r = subprocess.run([sys.executable, VERIFY, path, "--lag", GOLDEN_LAG],
                        capture_output=True, text=True)
     print(r.stdout.rstrip())
     if r.stderr.strip():

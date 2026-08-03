@@ -27,7 +27,7 @@ That last point is the one worth stating explicitly, because it is exactly the
 off-by-one that `FIRST_LOAD.md` records getting wrong once already.
 
 Usage:
-    ./verify_in_datapath.py captured.txt
+    ./verify_in_datapath.py captured.txt [--lag 1|2]
 
 where captured.txt holds N input words then N output words, one hex value per
 line, as read from 0x40010400.. and 0x40010800.. on the board. N is 128: the
@@ -41,6 +41,22 @@ import sys
 N = 63          # taps
 W = 16          # sample width
 ACC = 24        # accumulator width
+# How far the recorded output sits behind the recorded input.
+#
+# 1 for both the two-counter and the single-index capture, and the second of
+# those was established by simulation rather than by reasoning -- the reasoning
+# said 2 and was wrong.
+#
+# m_data is registered from corr on EVERY clock, not only on s_valid, while corr
+# is combinational over a shift register that advances only on s_valid. With a
+# sparse strobe -- which is what the vendor's delineation produces, one valid
+# every other bus cycle -- the value standing at the capture edge is therefore
+# corr over samples j-1..j-63, not j-2. Lag 2 would be right only if s_valid
+# were asserted on consecutive cycles.
+#
+# Kept as a flag rather than discovered by search, because a comparison that has
+# to find its own alignment can always find one.
+DEFAULT_LAG = 1
 
 
 def taps():
@@ -71,6 +87,11 @@ def model(samples):
 
 
 def main(argv):
+    lag = DEFAULT_LAG
+    if "--lag" in argv:
+        lag = int(argv[argv.index("--lag") + 1])
+        argv = [a for i, a in enumerate(argv)
+                if i not in (argv.index("--lag"), argv.index("--lag") + 1)]
     if len(argv) < 2:
         print(__doc__.strip().split("\n\n")[-1])
         return 2
@@ -90,11 +111,17 @@ def main(argv):
     # against data that was never recorded.
     tp = taps()
     warm = n > N and any(outs[:1]) is not None and outs[0] != 0
-    first = N if warm else 0
+    # Both memories are written on the same strobe with the same index, so the
+    # relation is fixed by construction rather than discovered: m_data is
+    # registered from corr on the previous s_valid, and corr is combinational
+    # over the shift register before that sample entered.
+    lagged = lag
+    first = N + lagged if warm else 0
     if warm:
-        expected = [None] * N + [
-            signed(sum(tp[i] * signed(ins[j - 1 - i], W) for i in range(N)), ACC)
-            for j in range(N, n)]
+        expected = [None] * (N + lagged) + [
+            signed(sum(tp[i] * signed(ins[j - lagged - i], W) for i in range(N)),
+                   ACC)
+            for j in range(N + lagged, n)]
     else:
         expected = model(ins)
     mismatches = [(j, expected[j], outs[j]) for j in range(first, n)
@@ -115,7 +142,7 @@ def main(argv):
         print(f"{checked}/{checked} bit-exact -- silicon matches the model on "
               f"every fully-determined output")
         if warm:
-            print(f"  outputs 0..{N-1} skipped: the shift register was already"
+            print(f"  outputs 0..{first-1} skipped: the shift register was already"
                   f" warm at capture start (out[0] = {outs[0]}), so they depend"
                   f" on samples that were never recorded")
         print(f"  largest magnitude: {peak}")

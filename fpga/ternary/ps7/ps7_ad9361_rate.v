@@ -366,38 +366,55 @@ module ps7_ad9361_rate;
     // samples the first half warms the register and every output in the second
     // half has a full window, so a 63-periodic input must put the peak in one
     // of them regardless of phase.
-    reg [15:0] in_mem  [0:127];  // full width: the correlator sees all 16 bits
+    // ONE index for both memories, not two.
+    //
+    // The previous revision advanced in_idx on s_valid and out_idx on m_valid,
+    // two free-running counters. Whether the first m_valid lands before or after
+    // the first s_valid depends on the phase at capture start, so the two
+    // streams could end up offset by a sample -- and the rate sweep duly showed
+    // exactly that at 12.5 and 50 MHz, repaired only by searching for the lag.
+    // A comparison that needs a lag search is weaker than one that does not.
+    //
+    // Both memories are now written on the same strobe with the same index, so
+    // the relation between them is fixed by construction: m_data is registered
+    // from corr on the previous s_valid, and corr is combinational over the
+    // shift register before that sample entered. Therefore
+    //
+    //     out[j] = sum over i of tp[i] * in[j-2-i]
+    //
+    // exactly, with no alignment to discover.
+    reg [15:0] in_mem  [0:127];
     reg [23:0] out_mem [0:127];
-    reg [7:0]  in_idx = 0, out_idx = 0;
+    reg [7:0]  cap_idx = 0;
     reg        capturing = 0;
     reg        pending = 0;
     reg        cap_go = 0;
+    // Start phase, so the sweep's unexplained points can be described rather
+    // than guessed at: the frame code seen at the instant capture began, and
+    // the low bits of the free-running bus-clock counter at that instant.
+    reg [1:0]  start_frame = 2'd0;
+    reg [3:0]  start_phase = 4'd0;
     always @(posedge lclk) begin
-        if (rst) begin capturing<=0; in_idx<=0; out_idx<=0; pending<=0; cap_go<=0; end
+        if (rst) begin capturing<=0; cap_idx<=0; pending<=0; cap_go<=0; end
         else if (arm_pulse) begin
-            in_idx<=0; out_idx<=0; cap_go<=1'b0;
-            // Without alignment the capture begins wherever the software write
-            // landed, and two reseeded runs then sample different slices of the
-            // same sequence -- measured, all 64 samples differed. Waiting for a
-            // known frame code makes the start deterministic.
+            cap_idx<=0; cap_go<=1'b0;
             if (cap_align) begin pending<=1'b1; capturing<=1'b0; end
             else            begin pending<=1'b0; capturing<=1'b1; end
         end
         else if (pending && taps_done) begin
             if ({fr_p, fr_n} == 2'b01) begin
                 pending <= 1'b0; capturing <= 1'b1; cap_go <= 1'b1;
+                start_frame <= {fr_p, fr_n};
+                start_phase <= lclk_beats[3:0];
             end
         end
         else if (capturing && taps_done) begin
-            if (o_adc_valid_i0 && !in_idx[7]) begin
-                in_mem[in_idx[6:0]] <= o_adc_data_i0;
-                in_idx <= in_idx + 1'b1;
+            if (o_adc_valid_i0 && !cap_idx[7]) begin
+                in_mem [cap_idx[6:0]] <= o_adc_data_i0;
+                out_mem[cap_idx[6:0]] <= m_data;
+                cap_idx <= cap_idx + 1'b1;
             end
-            if (m_valid && !out_idx[7]) begin
-                out_mem[out_idx[6:0]] <= m_data;
-                out_idx <= out_idx + 1'b1;
-            end
-            if (in_idx[7] && out_idx[7]) capturing <= 1'b0;
+            if (cap_idx[7]) capturing <= 1'b0;
         end
     end
 
@@ -490,7 +507,7 @@ module ps7_ad9361_rate;
                     6'hC: loc_rdata <= {8'd0, rate_reg};             // lclk cycles per 2^16 clk
                     6'h6: loc_rdata <= {28'd0, frame_seen};          // frame codes observed
                     6'h8: loc_rdata <= {31'd0, cap_arm};             // capture arm
-                    6'h9: loc_rdata <= {14'd0, capturing, out_idx, 1'd0, in_idx};  // idx now 8 bits each
+                    6'h9: loc_rdata <= {18'd0, start_phase, start_frame, capturing, 1'd0, cap_idx};
                     6'hA: loc_rdata <= {28'd0, cap_align, stim_reseed, stim_sel};
                     default: loc_rdata <= 32'h0000_0000;
                 endcase
