@@ -9,7 +9,7 @@ channel logic deliver, and a snapshot of a free-running stream read over AXI is
 a number that can only be admired, not checked.
 
 So the hardware captures deterministically: arming resets the correlator, records
-exactly 64 input samples and 64 outputs, and freezes. This script reads both
+exactly 128 input samples and 128 outputs, and freezes. This script reads both
 arrays and re-derives every output from the inputs.
 
 The model is written from `tern_corr_pn_tree.v` rather than from intent:
@@ -29,8 +29,11 @@ off-by-one that `FIRST_LOAD.md` records getting wrong once already.
 Usage:
     ./verify_in_datapath.py captured.txt
 
-where captured.txt holds 64 input words then 64 output words, one hex value per
-line, as read from 0x40010100.. and 0x40010200.. on the board.
+where captured.txt holds N input words then N output words, one hex value per
+line, as read from 0x40010400.. and 0x40010800.. on the board. N is 128: the
+first 64 warm the 63-deep shift register, and every output in the second half
+therefore has a full window, which is what lets a 63-periodic input show its
+matched-filter peak at any phase.
 """
 
 import sys
@@ -72,13 +75,29 @@ def main(argv):
         print(__doc__.strip().split("\n\n")[-1])
         return 2
     words = [int(w, 16) for w in open(argv[1]).read().split() if w.strip()]
-    if len(words) != 128:
-        print(f"expected 128 words (64 in, 64 out), got {len(words)}")
+    if len(words) % 2:
+        print(f"expected an even count (half in, half out), got {len(words)}")
         return 2
-    ins, outs = words[:64], [signed(w, ACC) for w in words[64:]]
+    n = len(words) // 2
+    ins, outs = words[:n], [signed(w, ACC) for w in words[n:]]
 
-    expected = model(ins)
-    mismatches = [(j, expected[j], outs[j]) for j in range(64)
+    # Outputs before index N depend on samples from before the capture window.
+    # That was harmless while the capture began with the correlator in reset, but
+    # a frame-aligned start deliberately begins after the reset has lifted, so
+    # the shift register is already warm and out[0] is not zero. Only outputs
+    # from index N onward are determined by the captured inputs alone; checking
+    # the earlier ones against a cleared-register model would be comparing
+    # against data that was never recorded.
+    tp = taps()
+    warm = n > N and any(outs[:1]) is not None and outs[0] != 0
+    first = N if warm else 0
+    if warm:
+        expected = [None] * N + [
+            signed(sum(tp[i] * signed(ins[j - 1 - i], W) for i in range(N)), ACC)
+            for j in range(N, n)]
+    else:
+        expected = model(ins)
+    mismatches = [(j, expected[j], outs[j]) for j in range(first, n)
                   if expected[j] != outs[j]]
 
     print(f"input samples  : {len(ins)}")
@@ -89,24 +108,31 @@ def main(argv):
         print("  ALL ZERO -- nothing was captured; the comparison below is vacuous")
     print(f"first eight in : {' '.join('0x%04X' % s for s in ins[:8])}")
     print(f"first eight out: {' '.join('%d' % o for o in outs[:8])}")
-    print(f"model first 8  : {' '.join('%d' % o for o in expected[:8])}")
     print()
+    checked = n - first
+    peak = max(outs[first:], key=abs)
     if not mismatches:
-        print(f"64/64 bit-exact -- silicon matches the model on every sample")
-        if outs[0] != 0:
-            print("  NOTE: out[0] is non-zero, so the capture did not start from"
-                  " a cleared shift register")
+        print(f"{checked}/{checked} bit-exact -- silicon matches the model on "
+              f"every fully-determined output")
+        if warm:
+            print(f"  outputs 0..{N-1} skipped: the shift register was already"
+                  f" warm at capture start (out[0] = {outs[0]}), so they depend"
+                  f" on samples that were never recorded")
+        print(f"  largest magnitude: {peak}")
+        if abs(peak) == N * 2047:
+            print(f"  that is exactly {N} x 2047 -- the matched-filter peak,"
+                  f" the accumulator's true maximum")
         return 0
 
-    print(f"MISMATCH on {len(mismatches)} of 64")
+    print(f"MISMATCH on {len(mismatches)} of {n}")
     for j, e, g in mismatches[:8]:
         print(f"  [{j:2d}] model {e:>9}   silicon {g:>9}   diff {g - e}")
 
     # A constant lag is the likeliest single cause, and saying which lag it is
     # turns a failure into a finding. Try the neighbouring alignments.
     for lag in (-2, -1, 1, 2):
-        a = expected[max(0, lag):64 + min(0, lag)]
-        b = outs[max(0, -lag):64 + min(0, -lag)]
+        a = expected[max(0, lag):n + min(0, lag)]
+        b = outs[max(0, -lag):n + min(0, -lag)]
         if a and a == b:
             print(f"  but the sequences agree exactly at a lag of {lag}"
                   f" -- the model's pipeline depth is off by {lag}, not the RTL")

@@ -293,3 +293,83 @@ None of these captures approaches the accumulator's real limit. The maximum is
 which is exactly the matched-filter peak a despreader exists to produce. Driving
 the stimulus with the PN sequence itself would test the accumulator's full
 magnitude and demonstrate the function rather than only the arithmetic.
+
+
+---
+
+# The matched-filter peak, and reproducibility achieved
+
+Added 2026-08-03, taking the two items the previous section left open.
+
+## The peak
+
+The accumulator's true maximum is 63 x 2047 = **128 961**, reached when the
+input carries +2047 wherever a tap is +1 and -2047 wherever it is -1. That is
+not an arithmetic curiosity: it *is* the despreading operation, so hitting it
+tests the full magnitude and demonstrates the function in one capture.
+
+A third stimulus mode emits that sequence, and one detail in it is not
+cosmetic. After 63 samples `xr[i]` holds the sample from `i` steps ago, so
+`xr[i] = in[j-1-i]`; for every term to add rather than cancel, the chip emitted
+at step `k` must be `tp[62-k]` -- **the tap sequence reversed**. Emitted forward,
+the result is the autocorrelation at lag 62 instead.
+
+The first attempt captured 64 samples and read 75 739 = **37 x 2047**, the
+signature of a shifted window. With a 63-deep shift register and a 64-sample
+capture, only the very last output has a full window, so the peak has to land on
+exactly that one sample -- which requires the stimulus phase to survive a
+clock-domain crossing, and it did not.
+
+The fix is general rather than a phase adjustment: **capture 128 samples**. The
+first 64 warm the register, every output in the second half has a full window,
+and a 63-periodic input must therefore put the peak in one of them at any phase.
+Checked over all 63 phases in software before the build: reachable at every one.
+
+Measured:
+
+```
+pn1: outputs 63..127  65/65 bit-exact   |max| 128961 = 63 x 2047, at index 68
+pn2: outputs 63..127  65/65 bit-exact   |max| 128961 = 63 x 2047, at index 68
+lf1: outputs 63..127  65/65 bit-exact   |max|  30303
+```
+
+## Reproducibility
+
+`pn1` and `pn2` are **identical in all 256 words** -- every input sample and
+every output. The previous cycle's answer to "are two reseeded captures the
+same?" was no, with all 64 samples differing. Arming now waits for a known frame
+code before starting, and the stimulus index resets at that instant, so the
+capture no longer depends on when software happened to write the register.
+
+That is a golden vector: a fixed array a regression can compare byte for byte.
+
+The alignment is not unconditional. Of the three captures taken with an earlier
+build that reset the sequence at the frame match but before the taps had
+reloaded, two agreed and the third did not. Waiting for `taps_done` as well as
+the frame code is what made it hold.
+
+## An assumption the change invalidated
+
+The model asserts the shift register starts cleared, which was true while the
+capture began with the correlator in reset. A frame-aligned start deliberately
+begins *after* the reset lifts, so the register is already warm -- `out[0]` came
+back as -2047, not 0 -- and the first 63 outputs depend on samples that were
+never recorded.
+
+Reported honestly rather than tuned away: those 63 outputs are **not checked**,
+because checking them would mean comparing against data that does not exist.
+Outputs from index 63 onward depend only on captured inputs and are checked in
+full. `verify_in_datapath.py` now detects the warm start and narrows its window
+accordingly instead of reporting a mismatch it cannot resolve.
+
+## Running total
+
+| cycle | captures | verified pairs |
+|---|---|---|
+| bit-exactness | 6 | 384 |
+| full bus range | 5 | 320 |
+| matched PN, 64-deep | 5 | 320 |
+| matched PN, 128-deep | 3 | 195 |
+| **total** | **19** | **1219** |
+
+Every one exact.
