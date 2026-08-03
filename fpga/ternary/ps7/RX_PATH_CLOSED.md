@@ -776,9 +776,50 @@ not for 31.25, and the residual could be a timing effect on silicon or a
 difference in the phase the capture happened to start at -- `start_phase` is
 recorded for exactly this reason and the values do vary across the sweep.
 
-That point stays open until the board can be reached again. What is settled is
-that the comparison method was wrong and is now right, and that the design is
-functionally correct through 62.5 MHz.
+That point was then closed as far as simulation can close it -- see below.
 
 What simulation still cannot say: whether the design meets *timing* at those
 rates on silicon. The measured claim remains 50 MHz clean.
+
+
+---
+
+# The 31.25 MHz residual is not in this logic
+
+Added 2026-08-03.
+
+Hardware failed at 31.25 MHz; simulation did not. The obvious suspect was the
+phase at which the capture happened to start, so the testbench arms the capture
+at eight different delays relative to the readback clock and checks each.
+
+```
+arm delay 0 clk : idx 128, phase  5 | back-to-back 0 | per-sample 0 bad
+arm delay 1 clk : idx 128, phase  5 | back-to-back 0 | per-sample 0 bad
+arm delay 2 clk : idx 128, phase 13 | back-to-back 0 | per-sample 0 bad
+arm delay 3 clk : idx 128, phase  5 | back-to-back 0 | per-sample 0 bad
+arm delay 4 clk : idx 128, phase  5 | back-to-back 0 | per-sample 0 bad
+arm delay 5 clk : idx 128, phase 13 | back-to-back 0 | per-sample 0 bad
+arm delay 6 clk : idx 128, phase  5 | back-to-back 0 | per-sample 0 bad
+arm delay 7 clk : idx 128, phase 13 | back-to-back 0 | per-sample 0 bad
+```
+
+The start phase really does vary -- the recorded value moves between 5 and 13
+and the status word differs across delays, so the register is doing its job.
+**No phase reproduces the failure.** Every capture completes, none shows a
+back-to-back strobe, and all are bit-exact.
+
+So the 41.67 and 62.5 MHz failures are explained and fixed, and the 31.25 MHz
+one is not a property of this logic at any start alignment. It is attributable
+to the silicon -- timing, or something outside the RTL -- and settling that
+needs the board.
+
+## A small instance of the same recurring error, in the testbench this time
+
+The first run of the phase sweep printed a status of `00fed825` for every
+delay, which is not a value that register can hold. The status was read into
+`rdval` and then printed *after* 256 further reads had overwritten it, so the
+number displayed was the last output word rather than the status. The
+verification itself used the right data throughout, so no conclusion was
+affected -- but a diagnostic that reports something other than what it claims is
+the same family of error as the four already recorded in this directory, and
+this one was in code written to avoid them.
