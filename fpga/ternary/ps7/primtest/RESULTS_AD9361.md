@@ -649,3 +649,58 @@ documents the `.bit` container format from the other direction.
 
 So: **placement, routing, timing and FASM all complete and clean; one file
 format conversion short of a bitstream.**
+
+---
+
+## Half of the bitstream conversion is done, and the other half is named
+
+`fasm2frames_open.py` assembles nextpnr's FASM into configuration frames using
+the prjxray **Python** library, which installs on aarch64-darwin even though the
+C++ `prjxray` package does not. On the `axi_ad9361` FASM:
+
+```
+frames assembled : 5 936
+words per frame  : 101
+address range    : 0x00000900 .. 0x0042241D
+non-zero words   : 288 992
+```
+
+So the FASM is real, and every feature in it resolves against the database.
+
+*(A note on a number I nearly published: `set_feature_callback` fires on **every**
+feature, not only unknown ones -- `add_fasm_line` calls it unconditionally.
+Counting its invocations and labelling the result "missing" reported 557 061
+unresolved features in a design that has 594 173 FASM lines, which would have
+meant the assembly was empty. It is not; that figure is the total processed.
+Genuinely unresolved features come back through `parse_fasm_filename`'s own
+list.)*
+
+### Why the second half was not simply written
+
+A working xc7z020 bitstream -- taken from `ps7_corr.swab.bin`, produced by the
+real `xc7frames2bit` -- has this shape:
+
+```
+sync 0xAA995566 at offset 48
+Type-1 setup packets: IDCODE 0x03727093, FAR, COR, CTL ...
+FDRI Type-2 at byte 232: 1 010 808 words = exactly 10 008 frames of 101
+explicit CRC register writes: 0
+2 096 bytes of closing commands
+```
+
+Two useful facts fall out: **no CRC is written**, so nothing has to be
+recomputed; and the payload is one contiguous FDRI packet, so substituting
+frame data is a byte-range replacement rather than a packet-stream synthesis.
+
+But **the bitstream holds 10 008 frames and the database knows 7 802.** The
+2 206 extra are padding the 7-series configuration stream carries at row and
+block boundaries, which are not database entries. Address-sorted order is
+therefore *not* the payload order, and a wrong mapping yields a bitstream that
+loads and then misbehaves -- strictly worse than no bitstream, and exactly the
+failure mode this project has spent the whole session trying not to produce.
+
+**The derivation is empirical and self-validating**: assemble the FASM of a
+design whose `.bit` is already known good, then locate each frame's 101 words
+inside that template's FDRI payload. Every frame must be found exactly once; if
+any is not, the mapping is wrong and says so. That is the next step, and it
+needs one nextpnr run of a small design to produce the matching FASM.
