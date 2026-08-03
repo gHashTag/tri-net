@@ -738,3 +738,47 @@ that is selected only when `dcfilt_enb` is 1; this configuration leaves the DC
 filter off, so the multiplier's result is discarded and a zeroed stub changes
 nothing. **Enable the DC filter and this stub makes the simulation wrong.** It
 says so in the file rather than passing quietly.
+
+
+---
+
+# The full sweep, offline, with the mechanism measured
+
+Added 2026-08-03.
+
+The seven rates of the hardware sweep, run in `fullpath_tb.v`, with the number
+of back-to-back valid strobes counted rather than inferred:
+
+| l_clk | back-to-back samples | per-sample lag | best constant lag |
+|---|---|---|---|
+| 12.50 MHz | 0 of 128 | **0 bad** | 0 bad |
+| 15.62 | 0 | **0** | 0 |
+| 25.00 | 0 | **0** | 0 |
+| 31.25 | 0 | **0** | 0 |
+| **41.67** | **52** | **0** | **26 bad** |
+| 50.00 | 0 | **0** | 0 |
+| **62.50** | **52** | **0** | **24 bad** |
+
+The mechanism is now measured, not argued. At 41.67 and 62.5 MHz the vendor's
+delineation emits valid on consecutive bus cycles for 52 of the 128 captured
+samples, and a single constant lag cannot describe a capture whose lag changes
+sample by sample. Everywhere the strobe is uniformly sparse, a constant lag
+works and agrees with the per-sample one.
+
+**The per-sample lag bit gives zero mismatches at every one of the seven rates,
+including 62.5 MHz.**
+
+## One difference from the hardware run, stated rather than smoothed
+
+Hardware showed 31.25 MHz failing; simulation shows it clean, with a uniformly
+sparse strobe. So the mechanism confirmed here accounts for 41.67 and 62.5 but
+not for 31.25, and the residual could be a timing effect on silicon or a
+difference in the phase the capture happened to start at -- `start_phase` is
+recorded for exactly this reason and the values do vary across the sweep.
+
+That point stays open until the board can be reached again. What is settled is
+that the comparison method was wrong and is now right, and that the design is
+functionally correct through 62.5 MHz.
+
+What simulation still cannot say: whether the design meets *timing* at those
+rates on silicon. The measured claim remains 50 MHz clean.

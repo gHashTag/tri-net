@@ -54,7 +54,7 @@ module tb;
   endtask
 
   integer tp [0:N-1];
-  integer i, j, k, errs, expect_, lag, sweep;
+  integer i, j, k, errs, errs2, expect_, lag, sweep, pv, best, bestlag;
   reg [15:0] ins  [0:127];
   reg [31:0] outs [0:127];
 
@@ -66,11 +66,16 @@ module tb;
     axi_read(32'h4000_0000);
     $display("ADI version   : %h  (expect 000A0300)", rdval);
 
-    for (sweep = 0; sweep < 3; sweep = sweep + 1) begin
+    for (sweep = 0; sweep < 7; sweep = sweep + 1) begin
+      // the same seven points the hardware sweep used, by FPGA1 divisor
       case (sweep)
-        0: bper = 20;   // bclk 25 MHz -> lclk 12.5
-        1: bper = 10;   // bclk 50     -> lclk 25
-        2: bper = 4;    // bclk 125    -> lclk 62.5
+        0: bper = 20;   // div 40, bclk  25.0 MHz -> lclk 12.50
+        1: bper = 16;   // div 32, bclk  31.2     -> lclk 15.62
+        2: bper = 10;   // div 20, bclk  50.0     -> lclk 25.00
+        3: bper = 8;    // div 16, bclk  62.5     -> lclk 31.25
+        4: bper = 6;    // div 12, bclk  83.3     -> lclk 41.67
+        5: bper = 5;    // div 10, bclk 100.0     -> lclk 50.00
+        6: bper = 4;    // div  8, bclk 125.0     -> lclk 62.50
       endcase
       axi_write(32'h4000_0040, 32'h3);
       axi_write(32'h4000_0400, 32'h51);
@@ -78,7 +83,7 @@ module tb;
       axi_write(32'h4001_0020, 32'h0);
       #2000;
       axi_write(32'h4001_0020, 32'h1);
-      #400000;
+      #700000;
       axi_read(32'h4001_0024);
       $display("");
       $display("bclk half-period %0d ns -> lclk %0.2f MHz, capture status %h",
@@ -87,6 +92,10 @@ module tb;
         axi_read(32'h4001_0400 + k*4); ins[k]  = rdval[15:0];
         axi_read(32'h4001_0800 + k*4); outs[k] = rdval;
       end
+      // how many samples were preceded by another valid? That is the duty
+      // variation itself, measured rather than inferred.
+      pv = 0;
+      for (k=0;k<128;k=k+1) if (outs[k][24]) pv = pv + 1;
       errs = 0;
       for (k=N+2;k<128;k=k+1) begin
         lag = outs[k][24] ? 2 : 1;
@@ -94,9 +103,20 @@ module tb;
         for (i=0;i<N;i=i+1) expect_ = expect_ + tp[i]*$signed(ins[k-lag-i]);
         if ($signed(outs[k][23:0]) !== $signed(expect_[ACC-1:0])) errs = errs + 1;
       end
-      $display("  per-sample lag: %0d mismatches of %0d", errs, 128-(N+2));
+      // and what a single constant lag would have concluded
+      best = 9999;
+      for (j=1;j<4;j=j+1) begin
+        errs2 = 0;
+        for (k=N+j;k<128;k=k+1) begin
+          expect_ = 0;
+          for (i=0;i<N;i=i+1) expect_ = expect_ + tp[i]*$signed(ins[k-j-i]);
+          if ($signed(outs[k][23:0]) !== $signed(expect_[ACC-1:0])) errs2 = errs2 + 1;
+        end
+        if (errs2 < best) begin best = errs2; bestlag = j; end
+      end
+      $display("  back-to-back %0d/128 | per-sample lag: %0d bad | best constant lag %0d: %0d bad", pv, errs, bestlag, best);
     end
     $finish;
   end
-  initial begin #8000000; $display("TIMEOUT"); $finish; end
+  initial begin #40000000; $display("TIMEOUT"); $finish; end
 endmodule
