@@ -170,23 +170,51 @@ The control holds too: our own portless design classifies **0** sites in any
 used category and 208 as unused. A classifier that finds structure in a design
 with no ports would be finding it in noise.
 
-### The receive bus, named
+### The receive bus -- and a correction to the guess above
 
-The inputs in bank 34 are exactly the contiguous run this file predicted from
-tile density alone, before any direction was known:
+The inputs land on the contiguous bank-34 run this file predicted from tile
+density. But the first reading of that run, "twelve data lines plus frame plus
+clock", was **wrong in kind**, and the pin functions say so plainly.
+
+Sorted into differential pairs, the 23 inputs give **eight complete pairs**:
 
 ```
-V18 V17  R18 T17  R17  W16 V16  Y19 Y18  W20 V20  U20 T20     (13 sites)
-P19  IO_L13N_T2_MRCC_34                                        (clock-capable)
+bank 34   L15 T20/U20   L16 V20/W20   L17 Y18/Y19
+          L18 V16/W16   L20 T17/R18   L21 V17/V18
+bank 35   L6  F16/F17   L7  M19/M20
 ```
 
-Thirteen data and frame lines plus an **MRCC** pin -- multi-region clock
-capable, which is what a recovered bus clock must land on. The structural guess
-was "twelve data lines plus frame plus clock"; the configuration says the same
-thing, and says which pin carries the clock.
+The AD9361 LVDS receive interface is exactly six data pairs, one frame pair and
+one clock pair -- **eight**. Six of ours are in one bank and two in another,
+which is the layout that split implies. The interface on this board is LVDS,
+not CMOS.
 
-A further eight inputs sit in bank 35 (`H17`, `L17`, `M18`, `M20`, `M19`,
-`F17`, `F16`) with two more in bank 34 (`V13`, `T12`).
+That matters well beyond tidiness. Every harness in this directory is built
+with `CMOS_OR_LVDS_N(1)`, the CMOS path. Driving the real pins means the LVDS
+path instead: `axi_ad9361_lvds_if.v`, which brings back the `IDELAYE2` and
+`ISERDESE2` primitives that were deliberately excluded, and with them the
+openXC7 constraints recorded in `UPSTREAM_BUGS.md`.
+
+Seven single-ended inputs remain unattributed: `R17` and `P19` (MRCC), `V13`,
+`T12` in bank 34; `H17` (MRCC), `L17` (SRCC), `M18` in bank 35. Two of them are
+clock-capable, which is suggestive, but suggestive is all it is.
+
+### On corroboration, and a source that turned out not to be one
+
+`hdl/projects/pluto/system_constr.xdc` names `rx_clk_in` on `L12`, `rx_frame_in`
+on `N13` and `rx_data_in[11:0]` on `H14 J13 G14 H13 G12 H12 G11 J14 J15 K15 H11
+J11`. None of that contradicts the above, because most of those pins **do not
+exist in this package**: the project targets `xc7z010clg225-1`.
+
+This board is not an ADI PlutoSDR. Its device tree reads `PUZHI PZSDR P201MINI`
+and `/sys/devices/soc0/soc_id` reads `0x7`, which is XC7Z020 -- consistent with
+every bitstream in this directory being built for `xc7z020clg400-1` and loading.
+
+So there is no authoritative pinout for this board, and the classification here
+is the only source. It is worth being explicit that the "eight pairs" reading is
+an inference from pin function and count, corroborated by nothing external. It
+is a much better inference than the one it replaces, and it is still an
+inference.
 
 ### The trap that had to be avoided first
 
