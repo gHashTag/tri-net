@@ -214,14 +214,42 @@ is **CMOS**, as this file originally guessed.
 So the receive bus is:
 
 ```
-V18 V17  R18 T17  R17  W16 V16  Y19 Y18  W20 V20  U20 T20    13 data and frame
-P19  IO_L13N_T2_MRCC_34                                       clock, MRCC
+V17 V18  T17 R18  R16  V16 W16  Y18 Y19  V20 W20  T20 U20    12 data + frame
+N18  IO_L13P_T2_MRCC_34                                       clock, MRCC
 ```
 
-Fourteen single-ended inputs: twelve data lines, frame, and a clock on a
-clock-capable pin. The remaining nine inputs are in bank 35 (`H17` -- also MRCC
--- `L17`, `M18`, `M20`, `M19`, `F17`, `F16`) plus `V13` and `T12` in bank 34,
-and they are not attributed to anything.
+Fourteen single-ended inputs: twelve data lines, frame on `R16`, and the clock
+on `N18` -- the **P side** of an MRCC pair, which is the side a clock buffer
+must be driven from. The remaining nine inputs are in bank 35 (`H16` -- also
+MRCC -- `L16`, `M17`, `M19`, `M20`, `F16`, `F17`) plus `U13` and `U12` in bank
+34, and they are not attributed to anything.
+
+### The site mapping, established rather than assumed
+
+`package_pins.csv` names sites absolutely (`IOB_X1Y73`) while segbits names them
+relative to the tile (`IOB_Y0`, `IOB_Y1`). The join runs **downward**: `IOB_Y1`
+is the *lower* absolute Y.
+
+That was measured, not guessed, and the measurement needed a design built for
+the purpose. Constraining `rx_clk_in` to `P19` -- `IOB_X1Y73`, the lower of its
+tile's two sites -- makes nextpnr emit `IN_ONLY` on `IOB_Y1`. An earlier version
+of this script had it the other way round.
+
+Twelve of the fourteen pins could not have revealed the error: they occupy both
+halves of six tiles, so the pin *set* is identical under either mapping. Only
+the two tiles with a single site in use expose it -- and those two are the frame
+and the clock, the pins where being wrong costs the most.
+
+### Round trip
+
+The classifier is validated end to end against a design whose pinout is known
+because it was written: constrain fourteen pins, build, decode the bitstream,
+classify. It reports **14 inputs, 0 outputs**, naming exactly the fourteen pins
+in the constraint file.
+
+That the same design reports **zero outputs** is also the safety argument for
+loading it. A bitstream that configures no pin as an output cannot drive a pin
+against another driver, whatever else is wrong with it.
 
 The practical consequence is the opposite of what the LVDS reading implied:
 every harness here is already built with `CMOS_OR_LVDS_N(1)`, so **the existing

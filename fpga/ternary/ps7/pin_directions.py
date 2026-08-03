@@ -170,10 +170,14 @@ def main(argv):
 
     # tile+site -> package pin.
     # package_pins.csv names sites absolutely (IOB_X1Y62) while segbits names
-    # them relative to the tile (IOB_Y0, IOB_Y1). Within a tile the lower
-    # absolute Y is Y0 and the higher is Y1, so the join is by rank, not by
-    # string -- comparing the two forms directly is what an earlier attempt in
-    # this project did with path names, to its cost.
+    # them relative to the tile (IOB_Y0, IOB_Y1). The join is by rank, not by
+    # string -- but the rank runs DOWNWARD: IOB_Y1 is the lower absolute Y.
+    #
+    # That was established, not assumed. A design constraining rx_clk_in to P19
+    # (IOB_X1Y73, the lower of its tile's two) emits IN_ONLY on IOB_Y1 in the
+    # FASM. Twelve of the fourteen pins could not have shown this, because they
+    # occupy both halves of six tiles and the pin set is identical either way;
+    # only the two tiles with a single site in use reveal it.
     pins = {}
     by_tile = {}
     pp = os.path.join(DB, PART, "package_pins.csv")
@@ -185,7 +189,7 @@ def main(argv):
                 by_tile.setdefault(row["tile"], []).append(
                     (int(m.group(1)), row["pin"], row.get("pin_function", "")))
     for tile, entries in by_tile.items():
-        for rank, (_, pin, func) in enumerate(sorted(entries)):
+        for rank, (_, pin, func) in enumerate(sorted(entries, reverse=True)):
             pins[(tile, f"IOB_Y{rank}")] = (pin, func)
 
     classes = {"input": [], "output": [], "unresolved": [], "unused": []}
