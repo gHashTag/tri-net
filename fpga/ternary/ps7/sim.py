@@ -174,42 +174,72 @@ def run(name, local, vendor, checker, verbose):
     return checker(out)
 
 
-TREE = os.path.join(HERE, "..", "tern_corr_pn_tree.v")
-INJECT_TAP = 1          # parity of bits 0,2,4 is 1, so its code is 2'b01
-INJECT_FROM = "assign term[i] = (tp[i] == 2'b01) ?  sx :"
-INJECT_TO = "assign term[i] = (tp[i] == 2'b01) ? ((i==%d) ? -sx : sx) :"
+# One injection per bench, each aimed at what that bench exists to catch.
+# `note` records why the edited line is actually reached, because two earlier
+# attempts at this were vacuous: one edited a default parameter the testbench
+# overrides, the other a branch the chosen index never takes.
+INJECTIONS = [
+    dict(name="tap sign",
+         file=os.path.join(HERE, "..", "tern_corr_pn_tree.v"),
+         frm="assign term[i] = (tp[i] == 2'b01) ?  sx :",
+         to="assign term[i] = (tp[i] == 2'b01) ? ((i==1) ? -sx : sx) :",
+         benches=["capture_lag", "capture_duty", "fullpath", "realpin"],
+         note="tap 1's code is 2'b01, so it takes the edited branch"),
+    dict(name="bridge read timeout",
+         file=os.path.join(HERE, "axi3_to_lite.v"),
+         frm="end else if (rtmo == TIMEOUT) begin",
+         to="end else if (1'b0) begin",
+         benches=["axi3_to_lite"],
+         note="the dead-slave read must then hang instead of answering"),
+    dict(name="per-sample lag bit",
+         file=os.path.join(HERE, "ps7_ad9361_rate.v"),
+         frm="pv_mem [cap_idx[6:0]] <= prev_valid;",
+         to="pv_mem [cap_idx[6:0]] <= 1'b0;",
+         benches=["fullpath"],
+         note="the rates with a back-to-back strobe must then mismatch"),
+    dict(name="captured sample",
+         file=os.path.join(HERE, "ps7_ad9361_real.v"),
+         frm="in_mem[in_idx[6:0]] <= o_adc_data_i0;",
+         to="in_mem[in_idx[6:0]] <= o_adc_data_i0 ^ 16'h0001;",
+         benches=["realpin"],
+         note="one bit of every recorded sample is wrong"),
+]
 
 
 def selftest(verbose):
-    """Break one tap and require the suite to notice."""
-    parity = (INJECT_TAP & 1) ^ ((INJECT_TAP >> 2) & 1) ^ ((INJECT_TAP >> 4) & 1)
-    if not parity:
-        print(f"  tap {INJECT_TAP} has code 2'b10 and never reaches the edited "
-              f"branch -- this injection would be vacuous")
+    """Inject one fault per bench and require the right bench to catch it."""
+    failures = 0
+    for inj in INJECTIONS:
+        original = open(inj["file"]).read()
+        if inj["frm"] not in original:
+            print(f"  [{inj['name']}] target not present -- this control would "
+                  f"be vacuous, which is how two earlier ones passed")
+            failures += 1
+            continue
+        print(f"  [{inj['name']}] {inj['note']}")
+        try:
+            open(inj["file"], "w").write(
+                original.replace(inj["frm"], inj["to"], 1))
+            caught = []
+            for name, local, vendor, checker in BENCHES:
+                if name not in inj["benches"]:
+                    continue
+                ok, _ = run(name, local, vendor, checker, verbose)
+                caught.append(ok is False)
+                if verbose or ok is not False:
+                    print(f"      {name}: "
+                          f"{'caught' if ok is False else 'did NOT catch'}")
+            hit = sum(1 for c in caught if c)
+            print(f"      caught by {hit} of {len(caught)} benches")
+            if not hit:
+                failures += 1
+        finally:
+            open(inj["file"], "w").write(original)
+    if failures:
+        print(f"  SELFTEST FAIL -- {failures} injections went unnoticed")
         return 1
-    original = open(TREE).read()
-    if INJECT_FROM not in original:
-        print("  injection target not present -- the control would be vacuous")
-        return 1
-    print(f"  injecting: tap {INJECT_TAP} sign inverted (its code is 2'b01, so "
-          f"the edited branch is the one it takes)")
-    try:
-        open(TREE, "w").write(original.replace(
-            INJECT_FROM, INJECT_TO % INJECT_TAP, 1))
-        caught = []
-        for name, local, vendor, checker in BENCHES:
-            if name not in ("capture_lag", "capture_duty"):
-                continue
-            ok, msg = run(name, local, vendor, checker, verbose)
-            print(f"    {name}: {'still passes' if ok else 'caught it'} -- {msg}")
-            caught.append(ok is False)
-        if not any(caught):
-            print("  SELFTEST FAIL -- the suite did not notice a broken tap")
-            return 1
-        print("  SELFTEST PASS -- the injected fault was caught")
-        return 0
-    finally:
-        open(TREE, "w").write(original)
+    print(f"  SELFTEST PASS -- all {len(INJECTIONS)} injections were caught")
+    return 0
 
 
 def main(argv):

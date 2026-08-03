@@ -924,9 +924,27 @@ all-negated segbits signatures, the bank-wide `STEPDOWN` bit, and the
 `stat -c` probe. Concluding from the absence of a failure, without first
 establishing that a failure was possible.
 
-`sim.py --selftest` now does injection 3 automatically, and refuses to run if
-the chosen tap's code does not take the branch it edits -- so the control cannot
-quietly become vacuous again.
+`sim.py --selftest` now does this automatically, one injection per bench, and
+each injection records *why* the line it edits is actually reached -- see below.
 
 `regress.py` runs the suite, so the simulations are part of the regression
 rather than a separate ritual.
+
+## Every bench proved able to fail
+
+One injection per bench, each aimed at what that bench exists to catch:
+
+| injection | why the edited line is reached | caught by |
+|---|---|---|
+| tap 1's sign inverted | tap 1's code is `2'b01`, the edited branch | 4 of 4 |
+| bridge read timeout disabled | the dead-slave read must then hang | 1 of 1 |
+| per-sample lag bit forced to 0 | rates with a back-to-back strobe must mismatch | 1 of 1 |
+| one bit of every captured sample flipped | the capture no longer matches the model | 1 of 1 |
+
+All four caught. Before this, only the two correlator benches had a
+demonstrated ability to fail; the bridge, the full path and the real-pin design
+had none, and a suite of five in which three cannot fail is a suite of two.
+
+The `note` field in each injection exists because of the two vacuous attempts
+recorded above -- a control has to say why the line it edits is on a path the
+test actually takes, or it is asserting nothing.
