@@ -879,3 +879,54 @@ recording: the wrong address returned *plausible-looking data* rather than an
 error, and the first value was a recognisable constant from elsewhere in the
 same register file. Reading a memory at the wrong offset is not a failure mode
 that announces itself.
+
+
+---
+
+# One command for all five testbenches, and three vacuous controls
+
+Added 2026-08-03.
+
+`sim.py` builds and runs every testbench here and checks what each one claims:
+
+```
+[PASS] axi3_to_lite   single beats, bursts, ID echo, and a dead slave answered
+[PASS] capture_lag    lag 1 clean, lag 0 rejected
+[PASS] capture_duty   uniform strobes clean at lags 1 and 2; mixed duty 32 bad
+[PASS] fullpath       rate sweep 7 checks all zero; phase sweep 8 all zero
+[PASS] realpin        all samples are PN chips, capture bit-exact
+```
+
+Two of those checks are inverted on purpose. `capture_duty` **must** report
+mismatches in its mixed-duty case -- that bench exists to show a constant-lag
+comparison cannot work there, and a clean run would mean it had stopped testing
+anything. `axi3_to_lite` must show its dead-slave case answered rather than
+hung, because a bridge that stalls costs a power cycle.
+
+## The part worth reading: three controls that proved nothing
+
+A suite is worth what its ability to fail is worth, so a fault was injected and
+the suite required to catch it. It took three attempts.
+
+1. **Changed a module's default parameter.** `axi3_to_lite_tb.v` instantiates
+   with `TIMEOUT(64)`, overriding the default. The edit could not reach the
+   simulation.
+2. **Inverted tap 7's sign** in the correlator's term selection -- on the
+   `2'b01` branch. Tap 7's code is `2'b10`. The injection landed on a line that
+   index never executes.
+3. **Inverted tap 1**, whose code *is* `2'b01`. `lag 1` went from 0 mismatches
+   to 64, and both benches that use the correlator failed.
+
+The first two reported PASS, and both times that was correct: nothing had been
+broken. **A control that passes has to be checked for vacuity before it can be
+read as evidence** -- which is the same error as the DRIVE/SLEW heuristic, the
+all-negated segbits signatures, the bank-wide `STEPDOWN` bit, and the
+`stat -c` probe. Concluding from the absence of a failure, without first
+establishing that a failure was possible.
+
+`sim.py --selftest` now does injection 3 automatically, and refuses to run if
+the chosen tap's code does not take the branch it edits -- so the control cannot
+quietly become vacuous again.
+
+`regress.py` runs the suite, so the simulations are part of the regression
+rather than a separate ritual.

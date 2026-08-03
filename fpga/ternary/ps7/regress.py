@@ -112,6 +112,15 @@ def main(argv):
             print(f"  {d} of {len(a)} words differ -- the arithmetic may still "
                   f"be correct (both are checked against the model above); what "
                   f"this shows is that the capture is no longer phase-aligned")
+    # The simulations are part of the regression, not a separate ritual. They
+    # are where most of the recent findings came from while the board was
+    # unreachable.
+    print("\n--- simulation suite ---")
+    r = subprocess.run([sys.executable, os.path.join(HERE, "sim.py")],
+                       capture_output=True, text=True)
+    print(r.stdout.rstrip())
+    ok &= (r.returncode == 0)
+
     print()
     print("REGRESSION PASS" if ok else "REGRESSION FAIL")
     if not roomy:
