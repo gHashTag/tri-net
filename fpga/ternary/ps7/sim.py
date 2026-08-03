@@ -105,6 +105,12 @@ def check_spi(out):
     return True, "bit order, sampling edge, duplex and chip-select framing"
 
 
+def check_ctrlplane(out):
+    if "CONTROL PLANE OK" not in out:
+        return False, "control-plane testbench did not report OK"
+    return True, "control pins follow their register; a write becomes a transfer"
+
+
 def check_bridge(out):
     if "BRIDGE OK" not in out:
         return False, "bridge testbench did not report OK"
@@ -140,6 +146,8 @@ def check_realpin(out):
 
 BENCHES = [
     ("spi_master", ["spi_master_tb.v", "spi_master.v"], [], check_spi),
+    ("ctrlplane", ["ctrlplane_tb.v", "sim_stubs.v", "ps7_ad9361_ctrl.v",
+                   "spi_master.v"] + CORE, VENDOR, check_ctrlplane),
     ("axi3_to_lite", ["axi3_to_lite_tb.v", "axi3_to_lite.v"], [], check_bridge),
     ("capture_lag", ["capture_lag_tb.v", "../tern_corr_pn_tree.v"], [],
      check_lag),
@@ -212,6 +220,12 @@ INJECTIONS = [
          to="shift_in <= {spi_miso, shift_in[WIDTH-1:1]};",
          benches=["spi_master"],
          note="MISO would then assemble least-significant bit first"),
+    dict(name="control register",
+         file=os.path.join(HERE, "ps7_ad9361_ctrl.v"),
+         frm="if (m_awaddr[9:2] == 8'h0E) radio_ctl <= m_wdata[2:0];",
+         to="if (m_awaddr[9:2] == 8'h0E) radio_ctl <= 3'b000;",
+         benches=["ctrlplane"],
+         note="resetb, enable and txnrx would stop following their register"),
     dict(name="captured sample",
          file=os.path.join(HERE, "ps7_ad9361_real.v"),
          frm="in_mem[in_idx[6:0]] <= o_adc_data_i0;",

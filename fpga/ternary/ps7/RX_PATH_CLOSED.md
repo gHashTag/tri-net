@@ -1002,3 +1002,72 @@ SELFTEST PASS -- all 5 injections were caught
 
 The SPI injection inverts the MISO assembly order, so the read-back direction
 would collect bits least-significant first. Caught.
+
+
+---
+
+# The control plane, assembled
+
+Added 2026-08-03.
+
+`ps7_ad9361_ctrl.v` is the rate design with the radio's control pins added:
+`spi_master` driven from AXI, and `gpio_resetb`, `enable` and `txnrx` driven
+from a register.
+
+```
+0x40010034  write -> 24-bit SPI word, starts the transfer
+            read  -> [31] busy, [23:0] what came back on MISO
+0x40010038  write -> [0] resetb, [1] enable, [2] txnrx
+```
+
+`ctrlplane_tb.v` drives it through the same AXI path Linux uses:
+
+```
+1. control pins follow their register
+2. a register write becomes a transaction on the pins
+CONTROL PLANE OK
+```
+
+Four transfers, each checked in both directions: what the processor wrote
+arrived at the slave, and what the slave sent came back readable at the same
+address. Together with the `resetb`/`enable`/`txnrx` register, that is exactly
+what a bitstream with no outputs severed.
+
+## This one must not be loaded
+
+Every design here so far configured **no pin as an output**, and that is what
+made loading it safe: it cannot drive against another driver whatever else is
+wrong with it. `ps7_ad9361_ctrl` drives seven.
+
+It must not go near the board until the pins carrying those six signals in the
+vendor design are identified. Driving an output onto a pin another device drives
+is the contention this project has refused from the start, and the fact that the
+design is now correct in simulation does not change which pin is which.
+
+## Suite
+
+Seven benches, and all seven have a demonstrated ability to fail:
+
+```
+[PASS] spi_master     bit order, sampling edge, duplex and chip-select framing
+[PASS] ctrlplane      control pins follow their register; a write becomes a transfer
+[PASS] axi3_to_lite   single beats, bursts, ID echo, and a dead slave answered
+[PASS] capture_lag    lag 1 clean, lag 0 rejected
+[PASS] capture_duty   uniform strobes clean at lags 1 and 2; mixed duty 32 bad
+[PASS] fullpath       rate sweep 7 checks all zero; phase sweep 8 all zero
+[PASS] realpin        all samples are PN chips, capture bit-exact
+
+SELFTEST PASS -- all 6 injections were caught
+```
+
+## What is still missing to talk to the radio
+
+Two things, and neither is in the RTL.
+
+1. **Which pins.** The classifier names 46 output sites in the vendor bitstream;
+   it does not say which six are SPI and control. That needs routing analysis of
+   the vendor image, tracing from the PS to the IOBs.
+2. **The command format.** `spi_master` shifts words; it does not know how the
+   AD9361 frames an address, a read, or a burst. That must come from the
+   datasheet or the Linux driver, not from a guess -- a master and a model that
+   agree only with each other would give a passing test and a silent radio.
