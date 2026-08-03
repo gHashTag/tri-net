@@ -62,8 +62,22 @@ module MULT_MACRO #(parameter DEVICE="7SERIES", parameter LATENCY=3,
 endmodule
 module IBUFDS (output O, input I, input IB); endmodule
 module OBUFDS (output O, output OB, input I); endmodule
-module IDDR #(parameter DDR_CLK_EDGE="SAME_EDGE")
+// Behavioural IDDR, SAME_EDGE. Q1 carries the bit sampled on the rising edge,
+// Q2 the bit sampled on the falling edge that preceded it -- so both change on
+// the rising edge but come from different half cycles, which is what SAME_EDGE
+// means and why it costs no extra latency.
+//
+// This is the primitive a pinless harness cannot have, so it is also the one
+// part of the receive path that has never been simulated here.
+module IDDR #(parameter DDR_CLK_EDGE="SAME_EDGE", parameter INIT_Q1=1'b0,
+              parameter INIT_Q2=1'b0, parameter SRTYPE="SYNC")
   (output Q1, output Q2, input C, input CE, input D, input R, input S);
+  reg q_rise = INIT_Q1;
+  reg q_fall = INIT_Q2;
+  always @(posedge C) if (R) q_rise <= 1'b0; else if (CE) q_rise <= D;
+  always @(negedge C) if (R) q_fall <= 1'b0; else if (CE) q_fall <= D;
+  assign Q1 = q_rise;
+  assign Q2 = q_fall;
 endmodule
 module ODDR #(parameter DDR_CLK_EDGE="SAME_EDGE", parameter INIT=0,
               parameter SRTYPE="SYNC")

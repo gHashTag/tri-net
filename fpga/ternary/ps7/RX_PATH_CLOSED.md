@@ -823,3 +823,59 @@ verification itself used the right data throughout, so no conclusion was
 affected -- but a diagnostic that reports something other than what it claims is
 the same family of error as the four already recorded in this directory, and
 this one was in code written to avoid them.
+
+
+---
+
+# The real-pin design, verified
+
+Added 2026-08-03.
+
+`ps7_ad9361_real.v` has real package pins: fourteen inputs, the vendor's own
+`IBUF` and `IDDR`, no outputs at all. It was built and loaded on silicon in an
+earlier cycle and read nothing, because nothing was driving those pins -- and it
+had never been checked functionally, because the IOB capture stage is exactly
+what a pinless harness cannot instantiate.
+
+`realpin_tb.v` drives the stimulus onto the ports, as the radio would.
+
+```
+bridge magic : 5a5a47c0        ADI version : 000a0300
+l_clk heartbeat : 537 -> 1040  (running, from the port)
+saw_valid 1    enable 1    any_nonzero 1
+128 of 128 samples non-zero: 63 at +2047, 65 at -2047, 0 anything else
+per-sample lag: 0 mismatches of 63
+```
+
+Every sample is one of the two PN chip values and nothing else, and the
+correlator output matches the model on every fully-determined sample. **The
+design is correct end to end when a signal arrives on its pins.** What was
+missing on hardware was the signal, not the logic.
+
+## The IDDR model, and what it is worth
+
+`SAME_EDGE` presents both bits on the rising edge but they come from different
+half cycles: `Q1` is the bit sampled on that rising edge, `Q2` the bit sampled
+on the falling edge before it. That is what the model implements, and it is
+worth being explicit that it is *my* model of the primitive, written from the
+described behaviour rather than taken from a vendor library. A simulation is
+only as good as its models, and this is the one place in this testbench where
+that caveat bites.
+
+It is corroborated by construction, though: the `PINLESS` substitute in
+`ad_data_in.v` -- two fabric flops, one on each edge -- was written
+independently and produces the same pairing, and the pinless design has been
+bit-exact on silicon over 1219 sample pairs.
+
+## An address that was wrong and looked plausible
+
+The first run read `47c0 37f9 007d 000b ...` from the capture memory: nine
+non-zero samples out of sixty-four and nothing resembling a PN chip. The cause
+was a stale address map -- `0x40010100`/`0x40010200` from the 64-deep capture,
+against a design that had moved to 128 entries at `0x40010400`/`0x40010800`.
+
+`47c0` is the low half of the bridge magic, which is what makes this worth
+recording: the wrong address returned *plausible-looking data* rather than an
+error, and the first value was a recognisable constant from elsewhere in the
+same register file. Reading a memory at the wrong offset is not a failure mode
+that announces itself.
