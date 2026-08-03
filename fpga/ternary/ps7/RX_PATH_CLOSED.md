@@ -587,3 +587,81 @@ directory is followed by a reboot, which reloads the vendor bitstream and
 reconfigures the part from scratch, so nothing has been observed to persist. It
 is still a reason to drive `spi_csn` high rather than leave it floating, the
 moment this design has any outputs at all.
+
+
+---
+
+# How fast does it actually run, inside the datapath
+
+Added 2026-08-03.
+
+`ATSPEED.md` measured the standalone correlator's silicon Fmax at 83.3 MHz clean
+against a tool estimate of 58.26 -- the tool understates, because nextpnr has no
+sequential timing model. The open question was the same number *inside* ADI's
+receive datapath, where the AD9361's real bus clock is 61.44 MHz.
+
+`ps7_ad9361_rate.v` puts the simulated bus on **FCLK1** so the rate can be swept
+from Linux by writing `FPGA1_CLK_CTRL` at `0xF8000180`, while the AXI bridge,
+the status registers and the capture readback stay on FCLK0 at a fixed 50 MHz.
+Sweeping the clock that carries the measurement would confound the two.
+
+## The meter, and why its window size is the whole design
+
+A divider write that did not take effect is indistinguishable from one that did,
+so the design counts `l_clk` cycles over a fixed window of the 50 MHz clock.
+
+The first version used a 2^20 window and a 16-bit difference. At the top of the
+sweep that counts 1.3 million cycles, so it overflows -- and **every
+power-of-two divisor then reads exactly zero**. The meter would have agreed with
+itself at every rate while measuring nothing. 2^16 keeps the count under 82 000.
+
+Measured against values computed beforehand:
+
+| divisor | FCLK1 | l_clk | expected | measured |
+|---|---|---|---|---|
+| 40 | 25.0 MHz | 12.50 MHz | 16384 | 16384 |
+| 32 | 31.2 | 15.62 | 20480 | 20480 |
+| 20 | 50.0 | 25.00 | 32768 | 32768 |
+| 16 | 62.5 | 31.25 | 40960 | 40960 |
+| 12 | 83.3 | 41.67 | 54613 | 54613 |
+| 10 | 100.0 | 50.00 | 65536 | 65536 |
+| 8 | 125.0 | 62.50 | 81920 | 81920 |
+
+Every one exact. The clock really did move.
+
+## Result
+
+Captured inputs are the clean PN at **every** rate -- two distinct values,
++/-2047 -- so the stimulus and the vendor path deliver correctly throughout.
+What varies is the agreement between the captured outputs and the model:
+
+| l_clk | offset | mismatches |
+|---|---|---|
+| 12.50 MHz | 1 | **0 of 64** |
+| 15.62 | 0 | **0** |
+| 25.00 | 0 | **0** |
+| 31.25 | 3 | 62 |
+| 41.67 | 3 | 62 |
+| 50.00 | 1 | **0** |
+| 62.50 | 0 | 2 |
+
+A constant one-sample offset is a property of *when the capture started*, not of
+the arithmetic: the input and output streams are recorded by two counters, and
+whether the first `m_valid` lands before or after the first `s_valid` depends on
+the phase at capture start.
+
+So: **bit-exact inside the vendor datapath at a 50 MHz bus clock**, against a
+tool estimate of 37.75 MHz -- the tool understates by a third, consistent with
+`ATSPEED.md`. At 62.5 MHz, above the AD9361's 61.44, 62 of 64 outputs agree.
+
+## What is not explained
+
+31.25 and 41.67 MHz fail in a way no constant offset repairs, while 50 and 62.5
+pass. That is not the shape of a timing failure, which would worsen
+monotonically with frequency. It is stated here as unexplained rather than
+rounded off: the ratio of bus clock to the fixed 50 MHz readback clock is 1.25
+and 1.667 at exactly those two points, and 0.5, 0.625, 1, 2 and 2.5 at the
+others, which is suggestive of a capture-start interaction rather than of speed.
+
+Claiming "runs at 62.5 MHz" on the strength of 62 of 64 would be the kind of
+rounding this file exists to avoid. The defensible claim is 50 MHz clean.
