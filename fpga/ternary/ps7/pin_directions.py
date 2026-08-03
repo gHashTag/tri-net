@@ -121,6 +121,30 @@ def matches(frames, base, offset, entries):
     return True
 
 
+def site_used(frames, base, offset, sb, ttype, site):
+    """Is *this site* configured, as opposed to its tile?
+
+    Asking per tile treats both halves of a used tile as candidates even when
+    only one is really in use, which is what left 87 sites unresolved. Every
+    feature belonging to a site names bit positions that only that site owns, so
+    the union of their must-be-set positions is a site-local mask.
+    """
+    prefix = f"{ttype}.{site}."
+    for name, entries in sb.items():
+        if not name.startswith(prefix):
+            continue
+        # STEPDOWN is a bank-level property written into every site of a bank
+        # running at a low VCCO, used or not. Counting it as evidence of use
+        # made 75 empty sites look configured -- every one of them matched
+        # STEPDOWN and nothing else.
+        if name.endswith(".STEPDOWN"):
+            continue
+        for frame_off, bit_index, want in entries:
+            if want and bit_set(frames, base, offset, frame_off, bit_index):
+                return True
+    return False
+
+
 def any_bit_set(frames, base, offset, words_count, frames_count):
     for f in range(frames_count):
         words = frames.get(base + f)
@@ -178,8 +202,9 @@ def main(argv):
         nwords = bits["words"]
         sb = segbits.get(ttype, {})
 
-        used = any_bit_set(frames, base, offset, nwords, nframes)
+        tile_used = any_bit_set(frames, base, offset, nwords, nframes)
         for site in ("IOB_Y0", "IOB_Y1"):
+            used = tile_used and site_used(frames, base, offset, sb, ttype, site)
             in_only = [f for f in sb if f.startswith(f"{ttype}.{site}.")
                        and f.endswith(".IN_ONLY")]
             drive = [f for f in sb if f.startswith(f"{ttype}.{site}.")

@@ -160,11 +160,27 @@ classifies every I/O site four ways. Against the vendor image:
 |---|---|
 | input | 23 |
 | output | 46 |
-| configured, direction unresolved | 87 |
-| unused | 52 |
+| configured, direction unresolved | 0 |
+| unused | 139 |
 
-23 + 46 + 87 = 156 = **78 tiles x 2 sites**, which is the same 78 this file
-arrived at independently by counting set bits. Two methods, one number.
+Every site is accounted for. Getting there took two corrections, both worth
+keeping because both are the same mistake in different clothes: treating the
+absence of a distinguishing mark as a mark.
+
+**First**, asking "is this configured" per *tile* left 87 sites unresolved,
+because both halves of a used tile were treated as candidates. Asking per site
+-- using the union of each site's own must-be-set bit positions -- brought that
+to 75.
+
+**Second**, all 75 survivors matched exactly one feature and nothing else:
+`STEPDOWN`. That is a bank-level property, written into every site of a bank
+running at a low VCCO whether the site is used or not. Excluding it takes the
+unresolved count to zero.
+
+That also revises the "78 configured tiles" figure this file arrived at earlier
+by counting set bits. 78 tiles carry *some* set bit; only **69 sites** are
+genuinely configured. The two numbers measure different things, and the earlier
+one was inflated by exactly the bank-wide setting described above.
 
 The control holds too: our own portless design classifies **0** sites in any
 used category and 208 as unused. A classifier that finds structure in a design
