@@ -97,6 +97,14 @@ def check_duty(out):
                   f"{b2b.group(1)}; mixed duty {mixed.group(2)} bad, as it must")
 
 
+def check_spi(out):
+    if "SPI MASTER OK" not in out:
+        return False, "spi testbench did not report OK"
+    if "HANG" in out:
+        return False, "a transfer never completed"
+    return True, "bit order, sampling edge, duplex and chip-select framing"
+
+
 def check_bridge(out):
     if "BRIDGE OK" not in out:
         return False, "bridge testbench did not report OK"
@@ -131,6 +139,7 @@ def check_realpin(out):
 
 
 BENCHES = [
+    ("spi_master", ["spi_master_tb.v", "spi_master.v"], [], check_spi),
     ("axi3_to_lite", ["axi3_to_lite_tb.v", "axi3_to_lite.v"], [], check_bridge),
     ("capture_lag", ["capture_lag_tb.v", "../tern_corr_pn_tree.v"], [],
      check_lag),
@@ -197,6 +206,12 @@ INJECTIONS = [
          to="pv_mem [cap_idx[6:0]] <= 1'b0;",
          benches=["fullpath"],
          note="the rates with a back-to-back strobe must then mismatch"),
+    dict(name="spi bit order",
+         file=os.path.join(HERE, "spi_master.v"),
+         frm="shift_in <= {shift_in[WIDTH-2:0], spi_miso};",
+         to="shift_in <= {spi_miso, shift_in[WIDTH-1:1]};",
+         benches=["spi_master"],
+         note="MISO would then assemble least-significant bit first"),
     dict(name="captured sample",
          file=os.path.join(HERE, "ps7_ad9361_real.v"),
          frm="in_mem[in_idx[6:0]] <= o_adc_data_i0;",

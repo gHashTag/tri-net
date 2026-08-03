@@ -948,3 +948,57 @@ had none, and a suite of five in which three cannot fail is a suite of two.
 The `note` field in each injection exists because of the two vacuous attempts
 recorded above -- a control has to say why the line it edits is on a path the
 test actually takes, or it is asserting nothing.
+
+
+---
+
+# The control plane, started: an SPI master
+
+Added 2026-08-03.
+
+Cycle 41 established by measurement that the radio is unreachable except through
+the PL -- `spi_csn`, `spi_clk`, `spi_mosi`, `gpio_resetb`, `enable` and `txnrx`
+are all FPGA outputs in the vendor design, and a bitstream with no outputs
+severs every one of them. That is a structural obstacle, not a pin puzzle, and
+it needs the rest of the vendor's control plane rebuilt.
+
+`spi_master.v` is the shift engine for it. The vendor design passes the PS SPI
+controller through to those pins; this does the same job with a fabric master
+driven from AXI, because the software here is `devmem` rather than a driver, and
+a register write is far easier to issue than a configured SPI controller.
+
+CPOL 0, CPHA 0: clock idles low, MOSI changes on the falling edge, MISO is
+sampled on the rising edge -- what the AD9361 expects and what ADI's designs use.
+
+## What it proves, and what it deliberately does not
+
+The testbench's slave is a shift register, not an AD9361 model. That is the
+point: **a master and a protocol model that agree only with each other prove
+nothing about the real part.** What is settled is the mechanism -- bit order,
+sampling edge, chip-select framing, and that what goes out on MOSI arrives at
+the slave while what the slave sends comes back on MISO, in both directions at
+once.
+
+What is not modelled, and is stated in the source rather than implied: the
+AD9361's command format. Which bit is read versus write, how many bits are
+address, how a burst is framed -- that belongs in software and must come from
+the datasheet or the Linux driver. Inventing it here would produce a test that
+passes and a radio that does not answer.
+
+## Suite
+
+Six benches now, and all six have a demonstrated ability to fail:
+
+```
+[PASS] spi_master     bit order, sampling edge, duplex and chip-select framing
+[PASS] axi3_to_lite   single beats, bursts, ID echo, and a dead slave answered
+[PASS] capture_lag    lag 1 clean, lag 0 rejected
+[PASS] capture_duty   uniform strobes clean at lags 1 and 2; mixed duty 32 bad
+[PASS] fullpath       rate sweep 7 checks all zero; phase sweep 8 all zero
+[PASS] realpin        all samples are PN chips, capture bit-exact
+
+SELFTEST PASS -- all 5 injections were caught
+```
+
+The SPI injection inverts the MISO assembly order, so the read-back direction
+would collect bits least-significant first. Caught.
