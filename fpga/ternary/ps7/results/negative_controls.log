@@ -1,0 +1,18 @@
+=== NEGATIVE CONTROLS: can this harness fail at all? ===
+state: operating   FCLK 50 MHz
+  POSITIVE  correct input, correct taps
+      expect: 256 of 256 bit-exact
+      got   : === VERDICT: 256 of 256 bit-exact against the software reference === The 63-tap PN despreader ran in the fabric on real over-the-air samples. 
+  NEGATIVE  wrong input (rx_off)
+      expect: must FAIL
+      got   : ingest counter 0 -> 1 (delta 1) VERDICT: 256 of 256 differ. first: index 0 fabric=1 reference=6 
+  NEGATIVE  tap 7 sign flipped
+      expect: must FAIL (~248 differ)
+      got   : ingest counter 0 -> 1 (delta 1) VERDICT: 248 of 256 differ. first: index 7 fabric=111 reference=99 
+  NEGATIVE  taps rotated by one
+      expect: must FAIL (~251 differ)
+      got   : ingest counter 0 -> 1 (delta 1) VERDICT: 251 of 256 differ. first: index 5 fabric=-119 reference=-107 
+  POSITIVE  repeat, to show recovery
+      expect: 256 of 256 again
+      got   : === VERDICT: 256 of 256 bit-exact against the software reference === The 63-tap PN despreader ran in the fabric on real over-the-air samples. 
+NEGCTL_DONE

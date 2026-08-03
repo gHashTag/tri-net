@@ -12,3 +12,6 @@ ps7_corr.v
 ps7_corr.xdc
 tern_corr8.v
 tern_corr8_stream.v
+*.bin
+*.swab.bin
+tools/

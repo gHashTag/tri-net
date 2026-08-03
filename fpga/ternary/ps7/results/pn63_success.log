@@ -1,0 +1,8 @@
+=== 63-tap PN despreader in the fabric ===
+state: operating
+anchor: 0x47C0 (expected 0x47C0)
+ingest counter 0 -> 1 (delta 1)
+=== VERDICT: 256 of 256 bit-exact against the software reference ===
+The 63-tap PN despreader ran in the fabric on real over-the-air samples.
+EXIT_CODE=0
+DONE

@@ -83,3 +83,121 @@ README remains undone.
 - The hardware step is a separate piece of work with its own preconditions.
 
 `phi^2 + phi^-2 = 3`
+
+---
+
+## Resolved 2026-08-03: it was a timestamp, and the flow is reproducible
+
+The conclusion above -- that `xc7frames2bit` is nondeterministic and a SHA-256
+seal "attests to nothing" -- was based on hashing the whole file. Hashing the
+whole file was the mistake.
+
+Two runs on an identical `ps7_corr.frames`:
+
+```
+differing bytes: 1
+offset 100 (1-indexed): '4' vs '8'
+```
+
+One byte. It is the seconds digit of the build time in the header:
+
+```
+field 'c' = 2026/08/02        build date
+field 'd' = 18:37:14          run A
+field 'd' = 18:37:18          run B
+```
+
+Skipping the 200-byte header, both payloads hash to
+`ad22ca18735dc6ccd649687082390565b0a8944804ceaaa72f44d8c5c9fd36c1`. Every one of
+the 4 045 470 configuration bytes -- everything that reaches the silicon -- was
+identical all along. The tool stamps the wall clock into a metadata field, which
+is the most common single cause of an unreproducible build in any toolchain, and
+the standard remedy applies.
+
+`bitcanon.py` pins the two header fields to a fixed epoch. Five consecutive
+runs, one second apart:
+
+| | SHA-256, first 16 |
+|---|---|
+| raw run 1..5 | `c3c63083979d115d` `3cff9d3233a9d3a2` `487d6b999b3a9faf` `0c90507e769cf09f` `20bf14d576d6dce8` |
+| canonicalised 1..5 | `6bba2955d5dd6bdb` x5 |
+
+`distinct hashes: 1`.
+
+**The correct claim is now: the open flow is byte-reproducible end to end, and
+the seal belongs on the canonicalised bitstream or on the payload hash, not on
+the raw file.** Two engineers building the same source do get the same
+bitstream. That question is the one defence assurance actually asks, and until
+today this project was answering it wrongly against itself.
+
+Reproduce:
+
+```
+docker run --platform linux/amd64 -v "$PWD":/work -w /work regymm/openxc7 \
+  bash -c 'source /prjxray/env/bin/activate; cd /work; \
+  for i in 1 2 3 4 5; do xc7frames2bit \
+    --part_file /nextpnr-xilinx/xilinx/external/prjxray-db/zynq7/xc7z020clg400-1/part.yaml \
+    --part_name xc7z020clg400-1 --frm_file ps7_corr.frames --output_file run$i.bit; sleep 1; done'
+for i in 1 2 3 4 5; do python3 ../bitcanon.py run$i.bit -o c$i.bit; done
+sha256sum c*.bit | awk '{print $1}' | sort -u | wc -l    # must print 1
+```
+
+---
+
+## Two corrections to this document, 2026-08-03
+
+**The headline Fmax in this file does not match its own log.** The prose above
+says "stable at **302.85 MHz**" across five seeded runs and asks that 308 MHz be
+re-quoted as 302.85. But `build/REPRODUCTION.log:1790` — produced by
+`run_openxc7.sh`, which hard-codes `--seed 1` — reports **308.07 MHz**, and the
+string `302.85` appears in no log anywhere in the repository. One of the two is
+wrong and the log is the artifact. Until a fresh seeded run settles it, quote
+neither.
+
+**The five-run reproducibility demonstration covers one stage, not four.** The
+experiment recorded above re-runs `xc7frames2bit` five times on a single
+pre-existing `ps7_corr.frames`. That is exactly the right test for the defect it
+was chasing, and it settles that stage. It is **not** an end-to-end result, and
+saying "the open flow is byte-reproducible end to end" on the strength of it
+overstates what was done. The earlier stages were shown byte-stable in the
+separate five-seeded-run experiment described at the top of this file.
+
+Two experiments, each sound, joined by inference. The honest sentence is:
+*"the final stage is deterministic once the timestamp is pinned, and the earlier
+stages were separately shown stable."* A single sweep of five complete builds
+would collapse both into one claim and costs nothing but wall-clock.
+
+---
+
+## Settled 2026-08-03: five COMPLETE builds, end to end
+
+The correction above asked for five full builds instead of five runs of the last
+stage. Done. `ps7_pn_tree`, `--seed 1`, the whole flow each time:
+
+| Artefact | distinct hashes across 5 full builds |
+|---|---|
+| `.json` (yosys) | **1 of 5** |
+| `.fasm` (nextpnr) | **1 of 5** |
+| `.frames` (fasm2frames) | **1 of 5** |
+| `.bit` raw | 5 of 5 |
+| **`.bit` payload only** | **1 of 5** -- `24e8e27f8518ff41...` |
+| `.bit` canonicalised | **1 of 5** -- `8638c6f02a4ac94e...` |
+
+Reported Fmax was 58.36 MHz on every one of the five.
+
+**Three of four stages are byte-identical, and the fourth differs only in
+metadata.** The configuration payload -- every bit that reaches the silicon --
+is identical across five independent builds from the same source. The claim
+"byte-reproducible end to end" is now supported by the experiment it needed.
+
+### A defect in bitcanon.py, found by this experiment
+
+The first attempt at canonicalising the five still gave five distinct hashes.
+The cause was in my own tool: `xc7frames2bit` copies its **input filename** into
+header field `'a'`, and the five builds wrote `f1.frames` .. `f5.frames`.
+`bitcanon.py` normalised the date and time but not the name, so it removed two
+of the three sources of variation and reported success on neither.
+
+Fixed: field `'a'` is now pinned as well. The lesson is the one this project
+keeps relearning -- a normaliser that is not tested against a genuinely varying
+input will silently normalise the wrong things.

@@ -1,0 +1,9 @@
+=== narrowing the bracket between 83.3 (clean) and 100.0 (190 errors) ===
+load state: operating
+  76.9 MHz : errors=0 of 256
+  83.3 MHz : errors=0 of 256
+  90.9 MHz : errors=21 of 256
+  100.0 MHz : errors=181 of 256
+  90.9-repeat MHz : errors=20 of 256
+  50.0-control MHz : errors=0 of 256
+NARROW_DONE

@@ -1,0 +1,37 @@
+diff --git a/library/xilinx/common/ad_data_clk.v b/library/xilinx/common/ad_data_clk.v
+index 6f28e8d..42f92a3 100644
+--- a/library/xilinx/common/ad_data_clk.v
++++ b/library/xilinx/common/ad_data_clk.v
+@@ -59,11 +59,11 @@ module ad_data_clk #(
+ 
+   generate
+   if (SINGLE_ENDED == 1) begin
+-  IBUFG i_rx_clk_ibuf (
++  IBUF  /*was IBUFG*/ i_rx_clk_ibuf (
+     .I (clk_in_p),
+     .O (clk_ibuf_s));
+   end else begin
+-  IBUFGDS i_rx_clk_ibuf (
++  IBUFDS  /*was IBUFGDS: unknown to nextpnr; BUFG follows anyway*/ i_rx_clk_ibuf (
+     .I (clk_in_p),
+     .IB (clk_in_n),
+     .O (clk_ibuf_s));
+diff --git a/library/xilinx/common/ad_serdes_clk.v b/library/xilinx/common/ad_serdes_clk.v
+index 24c4fc1..1378b38 100644
+--- a/library/xilinx/common/ad_serdes_clk.v
++++ b/library/xilinx/common/ad_serdes_clk.v
+@@ -88,7 +88,7 @@ module ad_serdes_clk #(
+ 
+   generate
+   if (CLKIN_DS_OR_SE_N == 1) begin
+-    IBUFGDS i_clk_in_ibuf (
++    IBUFDS  /*was IBUFGDS: unknown to nextpnr; BUFG follows anyway*/ i_clk_in_ibuf (
+       .I (clk_in_p),
+       .IB (clk_in_n),
+       .O (clk_in_s));
+
+--- NOTE ---
+The second change this port needs is not a diff: library/xilinx/common/ad_mul.v
+instantiates MULT_MACRO, a Xilinx UNIMACRO that yosys does not ship. Replace it
+with ad_mul_open.v from this directory (bit-exact in simulation, and structurally
+identical after synthesis: AREG=BREG=MREG=PREG=1, zero fabric flops).

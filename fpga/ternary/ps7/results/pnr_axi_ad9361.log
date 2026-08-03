@@ -1,0 +1,1345 @@
+Info: Packing constants..
+Info: Inserting IO buffers..
+Info:     IO port 'enable' driven by OBUF 'u_dut.genblk1.i_dev_if.i_enable.genblk7.i_tx_data_obuf'
+Info:     IO port 'rx_clk_in' driven by IBUF 'u_dut.genblk1.i_dev_if.genblk7.i_clk.genblk1.i_rx_clk_ibuf'
+Info:     IO port 'rx_frame_in' driven by IBUF 'u_dut.genblk1.i_dev_if.i_rx_frame.genblk2.i_rx_data_ibuf'
+Info:     IO port 'tx_clk_out' driven by OBUF 'u_dut.genblk1.i_dev_if.i_tx_clk.genblk7.i_tx_data_obuf'
+Info:     IO port 'tx_frame_out' driven by OBUF 'u_dut.genblk1.i_dev_if.i_tx_frame.genblk7.i_tx_data_obuf'
+Info:     IO port 'txnrx' driven by OBUF 'u_dut.genblk1.i_dev_if.i_txnrx.genblk7.i_tx_data_obuf'
+Info:     IO port 'rx_data_in[0]' driven by IBUF 'u_dut.genblk1.i_dev_if.g_rx_data[0].i_rx_data.genblk2.i_rx_data_ibuf'
+Info:     IO port 'rx_data_in[10]' driven by IBUF 'u_dut.genblk1.i_dev_if.g_rx_data[10].i_rx_data.genblk2.i_rx_data_ibuf'
+Info:     IO port 'rx_data_in[11]' driven by IBUF 'u_dut.genblk1.i_dev_if.g_rx_data[11].i_rx_data.genblk2.i_rx_data_ibuf'
+Info:     IO port 'rx_data_in[1]' driven by IBUF 'u_dut.genblk1.i_dev_if.g_rx_data[1].i_rx_data.genblk2.i_rx_data_ibuf'
+Info:     IO port 'rx_data_in[2]' driven by IBUF 'u_dut.genblk1.i_dev_if.g_rx_data[2].i_rx_data.genblk2.i_rx_data_ibuf'
+Info:     IO port 'rx_data_in[3]' driven by IBUF 'u_dut.genblk1.i_dev_if.g_rx_data[3].i_rx_data.genblk2.i_rx_data_ibuf'
+Info:     IO port 'rx_data_in[4]' driven by IBUF 'u_dut.genblk1.i_dev_if.g_rx_data[4].i_rx_data.genblk2.i_rx_data_ibuf'
+Info:     IO port 'rx_data_in[5]' driven by IBUF 'u_dut.genblk1.i_dev_if.g_rx_data[5].i_rx_data.genblk2.i_rx_data_ibuf'
+Info:     IO port 'rx_data_in[6]' driven by IBUF 'u_dut.genblk1.i_dev_if.g_rx_data[6].i_rx_data.genblk2.i_rx_data_ibuf'
+Info:     IO port 'rx_data_in[7]' driven by IBUF 'u_dut.genblk1.i_dev_if.g_rx_data[7].i_rx_data.genblk2.i_rx_data_ibuf'
+Info:     IO port 'rx_data_in[8]' driven by IBUF 'u_dut.genblk1.i_dev_if.g_rx_data[8].i_rx_data.genblk2.i_rx_data_ibuf'
+Info:     IO port 'rx_data_in[9]' driven by IBUF 'u_dut.genblk1.i_dev_if.g_rx_data[9].i_rx_data.genblk2.i_rx_data_ibuf'
+Info:     IO port 'tx_data_out[0]' driven by OBUF 'u_dut.genblk1.i_dev_if.g_tx_data[0].i_tx_data.genblk7.i_tx_data_obuf'
+Info:     IO port 'tx_data_out[10]' driven by OBUF 'u_dut.genblk1.i_dev_if.g_tx_data[10].i_tx_data.genblk7.i_tx_data_obuf'
+Info:     IO port 'tx_data_out[11]' driven by OBUF 'u_dut.genblk1.i_dev_if.g_tx_data[11].i_tx_data.genblk7.i_tx_data_obuf'
+Info:     IO port 'tx_data_out[1]' driven by OBUF 'u_dut.genblk1.i_dev_if.g_tx_data[1].i_tx_data.genblk7.i_tx_data_obuf'
+Info:     IO port 'tx_data_out[2]' driven by OBUF 'u_dut.genblk1.i_dev_if.g_tx_data[2].i_tx_data.genblk7.i_tx_data_obuf'
+Info:     IO port 'tx_data_out[3]' driven by OBUF 'u_dut.genblk1.i_dev_if.g_tx_data[3].i_tx_data.genblk7.i_tx_data_obuf'
+Info:     IO port 'tx_data_out[4]' driven by OBUF 'u_dut.genblk1.i_dev_if.g_tx_data[4].i_tx_data.genblk7.i_tx_data_obuf'
+Info:     IO port 'tx_data_out[5]' driven by OBUF 'u_dut.genblk1.i_dev_if.g_tx_data[5].i_tx_data.genblk7.i_tx_data_obuf'
+Info:     IO port 'tx_data_out[6]' driven by OBUF 'u_dut.genblk1.i_dev_if.g_tx_data[6].i_tx_data.genblk7.i_tx_data_obuf'
+Info:     IO port 'tx_data_out[7]' driven by OBUF 'u_dut.genblk1.i_dev_if.g_tx_data[7].i_tx_data.genblk7.i_tx_data_obuf'
+Info:     IO port 'tx_data_out[8]' driven by OBUF 'u_dut.genblk1.i_dev_if.g_tx_data[8].i_tx_data.genblk7.i_tx_data_obuf'
+Info:     IO port 'tx_data_out[9]' driven by OBUF 'u_dut.genblk1.i_dev_if.g_tx_data[9].i_tx_data.genblk7.i_tx_data_obuf'
+Info:     Constraining 'enable' to site 'IOB_X1Y116'
+Info:     Tile 'RIOB33_X73Y115'
+Info:     Constraining 'rx_clk_in' to site 'IOB_X1Y145'
+Info:     Tile 'RIOB33_X73Y145'
+Info:     Constraining 'rx_frame_in' to site 'IOB_X1Y146'
+Info:     Tile 'RIOB33_X73Y145'
+Info:     Constraining 'tx_clk_out' to site 'IOB_X1Y111'
+Info:     Tile 'RIOB33_X73Y111'
+Info:     Constraining 'tx_frame_out' to site 'IOB_X1Y118'
+Info:     Tile 'RIOB33_X73Y117'
+Info:     Constraining 'txnrx' to site 'IOB_X1Y110'
+Info:     Tile 'RIOB33_X73Y109'
+Info:     Constraining 'rx_data_in[0]' to site 'IOB_X1Y147'
+Info:     Tile 'RIOB33_X73Y147'
+Info:     Constraining 'rx_data_in[10]' to site 'IOB_X1Y120'
+Info:     Tile 'RIOB33_X73Y119'
+Info:     Constraining 'rx_data_in[11]' to site 'IOB_X1Y119'
+Info:     Tile 'RIOB33_X73Y119'
+Info:     Constraining 'rx_data_in[1]' to site 'IOB_X1Y148'
+Info:     Tile 'RIOB33_X73Y147'
+Info:     Constraining 'rx_data_in[2]' to site 'IOB_X1Y143'
+Info:     Tile 'RIOB33_X73Y143'
+Info:     Constraining 'rx_data_in[3]' to site 'IOB_X1Y142'
+Info:     Tile 'RIOB33_X73Y141'
+Info:     Constraining 'rx_data_in[4]' to site 'IOB_X1Y141'
+Info:     Tile 'RIOB33_X73Y141'
+Info:     Constraining 'rx_data_in[5]' to site 'IOB_X1Y144'
+Info:     Tile 'RIOB33_X73Y143'
+Info:     Constraining 'rx_data_in[6]' to site 'IOB_X1Y140'
+Info:     Tile 'RIOB33_X73Y139'
+Info:     Constraining 'rx_data_in[7]' to site 'IOB_X1Y139'
+Info:     Tile 'RIOB33_X73Y139'
+Info:     Constraining 'rx_data_in[8]' to site 'IOB_X1Y138'
+Info:     Tile 'RIOB33_X73Y137'
+Info:     Constraining 'rx_data_in[9]' to site 'IOB_X1Y137'
+Info:     Tile 'RIOB33_X73Y137'
+Info:     Constraining 'tx_data_out[0]' to site 'IOB_X1Y117'
+Info:     Tile 'RIOB33_X73Y117'
+Info:     Constraining 'tx_data_out[10]' to site 'IOB_X1Y122'
+Info:     Tile 'RIOB33_X73Y121'
+Info:     Constraining 'tx_data_out[11]' to site 'IOB_X1Y129'
+Info:     Tile 'RIOB33_X73Y129'
+Info:     Constraining 'tx_data_out[1]' to site 'IOB_X1Y114'
+Info:     Tile 'RIOB33_X73Y113'
+Info:     Constraining 'tx_data_out[2]' to site 'IOB_X1Y113'
+Info:     Tile 'RIOB33_X73Y113'
+Info:     Constraining 'tx_data_out[3]' to site 'IOB_X1Y112'
+Info:     Tile 'RIOB33_X73Y111'
+Info:     Constraining 'tx_data_out[4]' to site 'IOB_X1Y124'
+Info:     Tile 'RIOB33_X73Y123'
+Info:     Constraining 'tx_data_out[5]' to site 'IOB_X1Y123'
+Info:     Tile 'RIOB33_X73Y123'
+Info:     Constraining 'tx_data_out[6]' to site 'IOB_X1Y121'
+Info:     Tile 'RIOB33_X73Y121'
+Info:     Constraining 'tx_data_out[7]' to site 'IOB_X1Y115'
+Info:     Tile 'RIOB33_X73Y115'
+Info:     Constraining 'tx_data_out[8]' to site 'IOB_X1Y109'
+Info:     Tile 'RIOB33_X73Y109'
+Info:     Constraining 'tx_data_out[9]' to site 'IOB_X1Y101'
+Info:     Tile 'RIOB33_X73Y101'
+Info: Generating output buffer for 'u_dut.genblk1.i_dev_if.i_enable.genblk7.i_tx_data_obuf'
+Info: Generating input buffer for 'u_dut.genblk1.i_dev_if.genblk7.i_clk.genblk1.i_rx_clk_ibuf'
+Info: Generating input buffer for 'u_dut.genblk1.i_dev_if.i_rx_frame.genblk2.i_rx_data_ibuf'
+Info: Generating output buffer for 'u_dut.genblk1.i_dev_if.i_tx_clk.genblk7.i_tx_data_obuf'
+Info: Generating output buffer for 'u_dut.genblk1.i_dev_if.i_tx_frame.genblk7.i_tx_data_obuf'
+Info: Generating output buffer for 'u_dut.genblk1.i_dev_if.i_txnrx.genblk7.i_tx_data_obuf'
+Info: Generating input buffer for 'u_dut.genblk1.i_dev_if.g_rx_data[0].i_rx_data.genblk2.i_rx_data_ibuf'
+Info: Generating input buffer for 'u_dut.genblk1.i_dev_if.g_rx_data[10].i_rx_data.genblk2.i_rx_data_ibuf'
+Info: Generating input buffer for 'u_dut.genblk1.i_dev_if.g_rx_data[11].i_rx_data.genblk2.i_rx_data_ibuf'
+Info: Generating input buffer for 'u_dut.genblk1.i_dev_if.g_rx_data[1].i_rx_data.genblk2.i_rx_data_ibuf'
+Info: Generating input buffer for 'u_dut.genblk1.i_dev_if.g_rx_data[2].i_rx_data.genblk2.i_rx_data_ibuf'
+Info: Generating input buffer for 'u_dut.genblk1.i_dev_if.g_rx_data[3].i_rx_data.genblk2.i_rx_data_ibuf'
+Info: Generating input buffer for 'u_dut.genblk1.i_dev_if.g_rx_data[4].i_rx_data.genblk2.i_rx_data_ibuf'
+Info: Generating input buffer for 'u_dut.genblk1.i_dev_if.g_rx_data[5].i_rx_data.genblk2.i_rx_data_ibuf'
+Info: Generating input buffer for 'u_dut.genblk1.i_dev_if.g_rx_data[6].i_rx_data.genblk2.i_rx_data_ibuf'
+Info: Generating input buffer for 'u_dut.genblk1.i_dev_if.g_rx_data[7].i_rx_data.genblk2.i_rx_data_ibuf'
+Info: Generating input buffer for 'u_dut.genblk1.i_dev_if.g_rx_data[8].i_rx_data.genblk2.i_rx_data_ibuf'
+Info: Generating input buffer for 'u_dut.genblk1.i_dev_if.g_rx_data[9].i_rx_data.genblk2.i_rx_data_ibuf'
+Info: Generating output buffer for 'u_dut.genblk1.i_dev_if.g_tx_data[0].i_tx_data.genblk7.i_tx_data_obuf'
+Info: Generating output buffer for 'u_dut.genblk1.i_dev_if.g_tx_data[10].i_tx_data.genblk7.i_tx_data_obuf'
+Info: Generating output buffer for 'u_dut.genblk1.i_dev_if.g_tx_data[11].i_tx_data.genblk7.i_tx_data_obuf'
+Info: Generating output buffer for 'u_dut.genblk1.i_dev_if.g_tx_data[1].i_tx_data.genblk7.i_tx_data_obuf'
+Info: Generating output buffer for 'u_dut.genblk1.i_dev_if.g_tx_data[2].i_tx_data.genblk7.i_tx_data_obuf'
+Info: Generating output buffer for 'u_dut.genblk1.i_dev_if.g_tx_data[3].i_tx_data.genblk7.i_tx_data_obuf'
+Info: Generating output buffer for 'u_dut.genblk1.i_dev_if.g_tx_data[4].i_tx_data.genblk7.i_tx_data_obuf'
+Info: Generating output buffer for 'u_dut.genblk1.i_dev_if.g_tx_data[5].i_tx_data.genblk7.i_tx_data_obuf'
+Info: Generating output buffer for 'u_dut.genblk1.i_dev_if.g_tx_data[6].i_tx_data.genblk7.i_tx_data_obuf'
+Info: Generating output buffer for 'u_dut.genblk1.i_dev_if.g_tx_data[7].i_tx_data.genblk7.i_tx_data_obuf'
+Info: Generating output buffer for 'u_dut.genblk1.i_dev_if.g_tx_data[8].i_tx_data.genblk7.i_tx_data_obuf'
+Info: Generating output buffer for 'u_dut.genblk1.i_dev_if.g_tx_data[9].i_tx_data.genblk7.i_tx_data_obuf'
+Info:     Created 30 PAD cells from:
+Info:             30x PAD
+Info:     Created 1 PS7_PS7 cells from:
+Info:              1x PS7
+Info: Preparing clocking...
+Info: Packing constants..
+Info: Packing cfg...
+Info: Packing PLLs...
+Info: Packing Gigabit Transceivers..
+Info: Packing global buffers...
+Info:     Constrained BUFGCTRL '$auto$clkbufmap.cc:261:execute$176420' to bel 'BUFGCTRL_X0Y16/BUFGCTRL' based on dedicated routing
+Info: Packing MUX[789]s..
+Info: Packing carries..
+Info:    Grouped 6088 MUXCYs and 6088 XORCYs into 387 chains.
+Info:    Blasted 0 non-chain MUXCYs and 0 non-chain XORCYs to soft logic
+Info:     Created 638 SLICE_LUTX cells from:
+Info:            638x SRL16E
+Info: Packing LUTs..
+Info:     Created 25109 SLICE_LUTX cells from:
+Info:          14841x LUT1
+Info:           6290x LUT2
+Info:           1340x LUT3
+Info:            461x LUT4
+Info:            740x LUT5
+Info:           1437x LUT6
+Info: Packing DRAM..
+Info:    Transformed 0 tied-low DRAM address inputs to be tied-high
+Info: Packing BRAM..
+Info: Packing DSPs..
+Info:     Created 28 DSP48E1_DSP48E1 cells from:
+Info:             28x DSP48E1
+Info: Packing flipflops..
+Info:     Created 14109 SLICE_FFX cells from:
+Info:           4132x FDCE
+Info:             10x FDPE
+Info:           9794x FDRE
+Info:            173x FDSE
+Info:     Created 324 SELMUX2_1 cells from:
+Info:            277x MUXF7
+Info:             47x MUXF8
+Info: Constrained 2207 LUTFF pairs.
+
+Info: Annotating ports with timing budgets for target frequency 12.00 MHz
+Info: Checksum: 0xad14f886
+
+Info: Device utilisation:
+Info: 	          SLICE_LUTX: 25747/106400    24%
+Info: 	           SLICE_FFX: 14109/106400    13%
+Info: 	              CARRY4:  1524/13300    11%
+Info: 	          PSEUDO_GND:     1/29359     0%
+Info: 	          PSEUDO_VCC:     1/29359     0%
+Info: 	               HARD0:     0/ 1584     0%
+Info: 	            RAMB18E1:     0/  280     0%
+Info: 	            FIFO18E1:     0/  140     0%
+Info: 	        RAMBFIFO36E1:     0/  140     0%
+Info: 	            RAMB36E1:     0/  140     0%
+Info: 	             DSP48E1:    28/  220    12%
+Info: 	                 PAD:    30/  392     7%
+Info: 	       IOB33M_OUTBUF:     0/   96     0%
+Info: 	       IOB33S_OUTBUF:     0/   96     0%
+Info: 	        IOB33_OUTBUF:    16/  200     8%
+Info: 	     IOB33M_INBUF_EN:     0/   96     0%
+Info: 	     IOB33S_INBUF_EN:     0/   96     0%
+Info: 	      IOB33_INBUF_EN:    14/  200     7%
+Info: 	IOB33M_TERM_OVERRIDE:     0/   96     0%
+Info: 	IOB33S_TERM_OVERRIDE:     0/   96     0%
+Info: 	 IOB33_TERM_OVERRIDE:     0/  200     0%
+Info: 	       PULL_OR_KEEP1:     0/  392     0%
+Info: 	            IDELAYE2:    13/  200     6%
+Info: 	        OLOGICE3_TFF:     0/  200     0%
+Info: 	      OLOGICE3_OUTFF:    16/  200     8%
+Info: 	       OLOGICE3_MISR:     0/  200     0%
+Info: 	           OSERDESE2:     0/  200     0%
+Info: 	        ILOGICE3_IFF:    13/  200     6%
+Info: 	ILOGICE3_ZHOLD_DELAY:     0/  200     0%
+Info: 	           ISERDESE2:     0/  200     0%
+Info: 	               BUFIO:     0/   16     0%
+Info: 	          IDELAYCTRL:     1/    4    25%
+Info: 	            BUFGCTRL:     2/   32     6%
+Info: 	                 PS7:     1/    1   100%
+Info: 	               BSCAN:     0/    4     0%
+Info: 	                BUFG:     0/   32     0%
+Info: 	              BUFHCE:     0/   72     0%
+Info: 	            DCIRESET:     0/    1     0%
+Info: 	            DNA_PORT:     0/    1     0%
+Info: 	           EFUSE_USR:     0/    1     0%
+Info: 	           FRAME_ECC:     0/    1     0%
+Info: 	                ICAP:     0/    2     0%
+Info: 	            INVERTER:     0/   96     0%
+Info: 	          MMCME2_ADV:     0/    4     0%
+Info: 	        OLOGICE2_TFF:     0/  200     0%
+Info: 	      OLOGICE2_OUTFF:     0/  200     0%
+Info: 	           PLLE2_ADV:     0/    4     0%
+Info: 	           SELMUX2_1:   324/40700     0%
+Info: 	             STARTUP:     0/    1     0%
+Info: 	          USR_ACCESS:     0/    1     0%
+Info: 	        ILOGICE2_IFF:     0/  200     0%
+Info: 	       OLOGICE2_MISR:     0/  200     0%
+
+Info: Placed 105 cells based on constraints.
+Info: Creating initial analytic placement for 25563 cells, random placement wirelen = 5421115.
+Info:     at initial placer iter 0, wirelen = 40891
+Info:     at initial placer iter 1, wirelen = 40151
+Info:     at initial placer iter 2, wirelen = 40016
+Info:     at initial placer iter 3, wirelen = 39969
+Info: Running main analytical placer.
+Info:     at iteration #1, type ALL: wirelen solved = 39972, spread = 1617120, legal = 2360432; time = 23.12s
+Info:     at iteration #2, type ALL: wirelen solved = 169163, spread = 865895, legal = 1616999; time = 22.93s
+Info:     at iteration #3, type ALL: wirelen solved = 237682, spread = 686713, legal = 1341774; time = 18.47s
+Info:     at iteration #4, type ALL: wirelen solved = 276028, spread = 726263, legal = 1260589; time = 14.25s
+Info:     at iteration #5, type ALL: wirelen solved = 295142, spread = 683177, legal = 1094451; time = 10.61s
+Info:     at iteration #6, type ALL: wirelen solved = 307992, spread = 715975, legal = 1026170; time = 8.14s
+Info:     at iteration #7, type ALL: wirelen solved = 318662, spread = 769953, legal = 1115222; time = 9.43s
+Info:     at iteration #8, type ALL: wirelen solved = 324527, spread = 725293, legal = 1091184; time = 9.82s
+Info:     at iteration #9, type ALL: wirelen solved = 328972, spread = 763079, legal = 1115240; time = 9.64s
+Info:     at iteration #10, type ALL: wirelen solved = 333881, spread = 787218, legal = 1187601; time = 10.92s
+Info:     at iteration #11, type ALL: wirelen solved = 339015, spread = 681932, legal = 1164809; time = 13.35s
+Info: HeAP Placer Time: 154.28s
+Info:   of which solving equations: 4.86s
+Info:   of which spreading cells: 1.46s
+Info:   of which strict legalisation: 145.88s
+
+Info: Running simulated annealing placer for refinement.
+Info:   at iteration #1: temp = 0.000000, timing cost = 928, wirelen = 1026170
+Info:   at iteration #5: temp = 0.000000, timing cost = 1062, wirelen = 933325
+Info:   at iteration #10: temp = 0.000000, timing cost = 979, wirelen = 910212
+Info:   at iteration #15: temp = 0.000000, timing cost = 928, wirelen = 906690
+Info:   at iteration #20: temp = 0.000000, timing cost = 920, wirelen = 905465
+Info:   at iteration #25: temp = 0.000000, timing cost = 927, wirelen = 905090
+Info:   at iteration #28: temp = 0.000000, timing cost = 923, wirelen = 904946 
+Info: SA placement time 27.84s
+
+Info: Max frequency for clock    'o_l_clk': 413.22 MHz (PASS at 12.00 MHz)
+Info: Max frequency for clock 'FCLKCLK[0]': 69.60 MHz (PASS at 30.72 MHz)
+
+Info: Max delay posedge FCLKCLK[0] -> posedge o_l_clk   : 4.55 ns
+Info: Max delay posedge o_l_clk    -> posedge FCLKCLK[0]: 0.92 ns
+
+Info: Slack histogram:
+Info:  legend: * represents 215 endpoint(s)
+Info:          + represents [1,215) endpoint(s)
+Info: Checksum: 0x087ebbb7
+Info: Running post-placement legalisation...
+Info: Tieing unused PS7 inputs to constants...
+Info: Routing global clocks...
+Info:     routing clock 'o_l_clk'
+Info:     routing clock 'FCLKCLK[0]'
+Info: Running router2...
+Info: Setting up routing resources...
+Info: Running main router loop...
+Info:     iter=1 wires=685953 overused=21626 overuse=22664 archfail=NA
+Info:     iter=2 wires=700999 overused=476 overuse=480 archfail=NA
+Info:     iter=3 wires=701406 overused=18 overuse=18 archfail=NA
+Info:     iter=4 wires=701422 overused=0 overuse=0 archfail=0
+Info: 1000 slowest nets by runtime:
+                                                                                lfsr[21]   5145 3284.1ms
+                                                                     u_dut.up_raddr_s[1]    523 1454.6ms
+                                                                     u_dut.up_raddr_s[0]    540 1365.1ms
+                                                    u_dut.i_tx.i_up_dac_common.dac_rst_n    660 1254.9ms
+                                                    u_dut.i_rx.i_up_adc_common.adc_rst_n   1108 1199.8ms
+                                                                     u_dut.up_raddr_s[3]    289 1031.8ms
+                                                                     u_dut.up_raddr_s[2]    375 1015.9ms
+         u_dut.i_tx.i_tx_channel_1.genblk2.i_up_dac_channel.i_xfer_cntrl.d_xfer_toggle_s    157 844.4ms
+                                                                    u_dut.up_waddr_s[12]     83 830.1ms
+                                                                         $PACKER_GND_NET  13752 822.0ms
+                                                                     u_dut.up_wdata_s[0]    132 806.9ms
+                                                                     u_dut.up_waddr_s[5]    153 729.1ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_1.\genblk2.i_up_dac_channel.\i_xfer_cntrl.$logic_and$library/common/up_xfer_cntrl.v:97$5937_Y    157 717.5ms
+                                                                     u_dut.up_waddr_s[6]     90 688.8ms
+                                                                     u_dut.up_waddr_s[1]    105 682.3ms
+                                                                     u_dut.up_waddr_s[2]    105 681.0ms
+                                                                    u_dut.up_wdata_s[19]     74 648.2ms
+                                                                              gpio_i[16]      4 633.5ms
+                                                                     u_dut.up_waddr_s[0]    121 587.2ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_2.\genblk2.i_up_dac_channel.\i_xfer_cntrl.$logic_and$library/common/up_xfer_cntrl.v:97$5937_Y    157 582.1ms
+                                                                     u_dut.up_waddr_s[7]     93 559.5ms
+                                                                     u_dut.up_wdata_s[1]    128 552.2ms
+                                                                    u_dut.up_wdata_s[25]     44 546.4ms
+                                                                     u_dut.up_waddr_s[8]     88 529.7ms
+                                                                    u_dut.up_waddr_s[10]     88 521.3ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.\i_xfer_tdd_counter_values_tx_2.$logic_and$library/common/up_xfer_cntrl.v:97$5612_Y    144 508.4ms
+                                                                     u_dut.up_waddr_s[9]     88 500.6ms
+                                                                    u_dut.up_waddr_s[11]     82 495.3ms
+                                                                     u_dut.up_waddr_s[3]     91 492.8ms
+                                                                     u_dut.up_waddr_s[4]     90 492.2ms
+                                                                    u_dut.up_wdata_s[16]     76 475.5ms
+         u_dut.i_tx.i_tx_channel_2.genblk2.i_up_dac_channel.i_xfer_cntrl.d_xfer_toggle_s    157 466.1ms
+                  $techmap158105$abc$121031$auto$blifparse.cc:557:parse_blif$121986.A[0]     92 433.3ms
+                                                                    u_dut.up_wdata_s[21]     70 425.6ms
+                                                                    u_dut.up_wdata_s[23]     70 420.6ms
+                                                                    u_dut.up_wdata_s[22]     70 419.1ms
+                                $abc$121031$auto$blifparse.cc:557:parse_blif$124716.A[5]    141 416.9ms
+         u_dut.i_tx.i_tx_channel_3.genblk2.i_up_dac_channel.i_xfer_cntrl.d_xfer_toggle_s    157 415.2ms
+                                                                    u_dut.up_wdata_s[18]     74 411.0ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_rx_channel_0.\genblk2.i_up_adc_channel.\i_xfer_cntrl.$logic_and$library/common/up_xfer_cntrl.v:97$5526_Y     78 407.2ms
+                                                                    u_dut.up_wdata_s[20]     70 404.9ms
+                  $techmap157746$abc$121031$auto$blifparse.cc:557:parse_blif$121611.A[1]     82 404.3ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.\i_xfer_tdd_counter_values_tx_1.$logic_and$library/common/up_xfer_cntrl.v:97$5612_Y    144 402.9ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_3.\genblk2.i_up_dac_channel.\i_xfer_cntrl.$logic_and$library/common/up_xfer_cntrl.v:97$5937_Y    157 400.0ms
+                                                                    u_dut.up_waddr_s[13]     83 393.0ms
+                                                                    u_dut.up_wdata_s[27]     44 389.2ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_0.\genblk2.i_up_dac_channel.\i_xfer_cntrl.$logic_and$library/common/up_xfer_cntrl.v:97$5937_Y    157 373.8ms
+                                                                    u_dut.up_wdata_s[17]     74 364.0ms
+                   u_dut.genblk4.i_tdd.i_up_tdd_cntrl.i_xfer_tdd_control.d_xfer_toggle_s     61 360.7ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.\i_xfer_tdd_counter_values_rx_1.$logic_and$library/common/up_xfer_cntrl.v:97$5612_Y    144 339.1ms
+         u_dut.i_tx.i_tx_channel_0.genblk2.i_up_dac_channel.i_xfer_cntrl.d_xfer_toggle_s    157 330.0ms
+                                                                       u_dut.dac_valid_s    324 323.1ms
+        u_dut.genblk4.i_tdd.i_up_tdd_cntrl.i_xfer_tdd_counter_values_tx_1.d_xfer_toggle_s    144 315.2ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.\i_xfer_tdd_counter_values_rx_2.$logic_and$library/common/up_xfer_cntrl.v:97$5612_Y    144 314.8ms
+                                                                         $PACKER_VCC_NET  19511 313.3ms
+                                                                    u_dut.up_wdata_s[26]     44 299.5ms
+        u_dut.genblk4.i_tdd.i_up_tdd_cntrl.i_xfer_tdd_counter_values_tx_2.d_xfer_toggle_s    144 298.8ms
+                  $techmap157737$abc$121031$auto$blifparse.cc:557:parse_blif$121602.A[1]     82 296.7ms
+        u_dut.genblk4.i_tdd.i_up_tdd_cntrl.i_xfer_tdd_counter_values_rx_1.d_xfer_toggle_s    144 289.9ms
+                                                                    u_dut.up_wdata_s[30]     44 288.5ms
+        u_dut.genblk4.i_tdd.i_up_tdd_cntrl.i_xfer_tdd_counter_values_rx_2.d_xfer_toggle_s    144 276.9ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_rx_channel_3.\genblk2.i_up_adc_channel.\i_xfer_cntrl.$logic_and$library/common/up_xfer_cntrl.v:97$5526_Y     78 273.2ms
+                  $techmap157746$abc$121031$auto$blifparse.cc:557:parse_blif$121611.A[0]     90 263.1ms
+                                                                u_dut.i_tx.dac_data_sync    295 255.5ms
+                  $techmap160667$abc$121031$auto$blifparse.cc:557:parse_blif$124677.A[0]     78 254.6ms
+                                                                    u_dut.up_wdata_s[31]     44 241.1ms
+                                                                    u_dut.up_wdata_s[29]     44 234.9ms
+                     u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.sync_min_pulse_m[1]    129 234.1ms
+                                                                    u_dut.up_wdata_s[24]     44 229.5ms
+                                $abc$121031$auto$blifparse.cc:557:parse_blif$122413.A[5]     64 226.3ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_rx_channel_1.\genblk2.i_up_adc_channel.\i_xfer_cntrl.$logic_and$library/common/up_xfer_cntrl.v:97$5526_Y     78 224.5ms
+                  $techmap160413$abc$121031$auto$blifparse.cc:557:parse_blif$124388.A[0]     79 215.3ms
+                                                                    u_dut.up_wdata_s[28]     44 214.9ms
+                                $abc$121031$auto$blifparse.cc:557:parse_blif$124370.A[0]     79 211.7ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_rx_channel_2.\genblk2.i_up_adc_channel.\i_xfer_cntrl.$logic_and$library/common/up_xfer_cntrl.v:97$5526_Y     78 209.5ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.\i_xfer_tdd_control.$logic_and$library/common/up_xfer_cntrl.v:97$5639_Y     61 209.5ms
+                  $techmap166221$abc$121031$auto$blifparse.cc:557:parse_blif$130487.A[1]     48 205.9ms
+                                               u_dut.genblk4.i_tdd.tdd_counter_status[2]     42 205.1ms
+         u_dut.i_rx.i_rx_channel_2.genblk2.i_up_adc_channel.i_xfer_cntrl.d_xfer_toggle_s     78 197.8ms
+                  $techmap157751$abc$121031$auto$blifparse.cc:557:parse_blif$121621.A[2]     48 197.0ms
+         u_dut.i_rx.i_rx_channel_3.genblk2.i_up_adc_channel.i_xfer_cntrl.d_xfer_toggle_s     78 196.8ms
+                  $techmap158612$abc$121031$auto$blifparse.cc:557:parse_blif$122507.A[4]     66 195.5ms
+                                              u_dut.genblk4.i_tdd.tdd_counter_status[14]     43 193.5ms
+         u_dut.i_rx.i_rx_channel_0.genblk2.i_up_adc_channel.i_xfer_cntrl.d_xfer_toggle_s     78 185.8ms
+                                               u_dut.genblk4.i_tdd.tdd_counter_status[4]     45 183.2ms
+         u_dut.i_rx.i_rx_channel_1.genblk2.i_up_adc_channel.i_xfer_cntrl.d_xfer_toggle_s     78 170.7ms
+                  $techmap158401$abc$121031$auto$blifparse.cc:557:parse_blif$122290.A[5]     64 166.7ms
+                                                                       u_dut.adc_valid_s    130 164.5ms
+                                $abc$121031$auto$blifparse.cc:557:parse_blif$122376.A[6]     65 157.9ms
+                                              u_dut.genblk4.i_tdd.tdd_counter_status[13]     41 148.6ms
+                                $abc$121031$auto$blifparse.cc:557:parse_blif$124255.A[5]     55 146.5ms
+                                                                              gpio_i[18]      6 143.1ms
+                                $abc$121031$auto$blifparse.cc:557:parse_blif$121606.A[6]     44 136.6ms
+                  $techmap157794$abc$121031$auto$blifparse.cc:557:parse_blif$121669.A[0]     48 135.3ms
+                                                                              gpio_i[21]      6 135.2ms
+                                                    u_dut.i_tx.i_up_dac_common.up_wreq_s     47 133.5ms
+                                                                     u_dut.up_raddr_s[5]     48 128.4ms
+                                                    u_dut.i_tx.i_up_dac_common.dac_rst_s     44 124.9ms
+                                $abc$121031$auto$blifparse.cc:557:parse_blif$122376.A[5]     66 124.9ms
+                                                                     u_dut.up_raddr_s[4]     48 123.0ms
+                                                    u_dut.genblk1.i_dev_if.rx_frame_s[0]     51 116.3ms
+                                              u_dut.i_rx.i_rx_channel_0.adc_dfmt_valid_s    161 114.8ms
+                                                    u_dut.i_rx.i_up_adc_common.up_wreq_s     45 109.6ms
+                                                                                     rst     95 102.3ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[2][12]     45 96.8ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_0.\genblk2.i_dds.$logic_or$library/common/ad_dds.v:153$6642_Y    104 91.0ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[1][12]     46 86.9ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_up_adc_common.$logic_and$library/common/up_adc_common.v:366$7167_Y     32 83.0ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_up_dac_common.$logic_and$library/common/up_dac_common.v:233$6906_Y     32 75.4ms
+                  $techmap158737$abc$121031$auto$blifparse.cc:557:parse_blif$122634.A[2]     49 75.3ms
+                  $techmap159099$abc$121031$auto$blifparse.cc:557:parse_blif$123029.A[2]     49 73.8ms
+                                                                              gpio_i[23]      6 73.6ms
+                                                 u_dut.i_tx.i_tx_channel_2.dac_valid_sel     49 73.4ms
+                                                                              gpio_i[20]      6 71.8ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_up_adc_common.$logic_and$library/common/up_adc_common.v:416$7196_Y     32 71.7ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_2.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:220$7766_Y     32 71.1ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_0.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:306$7437_Y     32 71.1ms
+                                                                              gpio_i[22]      6 69.8ms
+                              u_dut.i_rx.i_rx_channel_0.genblk2.i_ad_dcfilter.data_d[15]     13 69.7ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_2.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:227$7772_Y     32 68.2ms
+                                                    u_dut.genblk1.i_dev_if.rx_frame_s[1]     51 68.1ms
+                                                                              gpio_i[19]      6 67.8ms
+                                                                              gpio_i[17]      3 67.1ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[2][12]     45 65.1ms
+                                               u_dut.genblk4.i_tdd.tdd_counter_status[9]     32 63.7ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_2.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:231$7775_Y     32 62.1ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_up_dac_common.$logic_and$library/common/up_dac_common.v:372$6954_Y     32 62.0ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[1][12]     46 61.9ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_3.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:227$7941_Y     32 61.7ms
+                                               u_dut.genblk4.i_tdd.tdd_counter_status[5]     39 60.9ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_3.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:306$7957_Y     32 60.8ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_rx_channel_1.\genblk2.i_up_adc_channel.$logic_and$library/common/up_adc_channel.v:318$8123_Y     32 59.7ms
+                                                       u_dut.genblk1.i_dev_if.rx_r1_mode     51 59.2ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_3.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:249$7851_Y     32 57.0ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_1.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:249$7500_Y     32 56.9ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:225$2553_Y     24 56.8ms
+                               $abc$121031$auto$opt_dff.cc:319:make_patterns_logic$17134     32 56.4ms
+                                    $abc$121031$auto$opt_dff.cc:360:combine_resets$16265     65 56.1ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_0.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:231$7424_Y     32 55.9ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[1][12]     46 55.8ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[2][12]     45 55.6ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:246$2574_Y     24 54.7ms
+                               $abc$121031$auto$opt_dff.cc:319:make_patterns_logic$16685     32 54.5ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[1][12]     46 54.2ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_up_adc_common.$logic_and$library/common/up_adc_common.v:230$7125_Y     32 54.2ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_up_dac_common.$logic_and$library/common/up_dac_common.v:422$6991_Y     32 54.1ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[2][12]     45 53.9ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_2.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:249$7682_Y     32 53.4ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_1.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:235$7596_Y     32 52.4ms
+                                               u_dut.genblk4.i_tdd.tdd_counter_status[0]     35 51.1ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_0.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:227$7421_Y     32 51.1ms
+                                              u_dut.genblk4.i_tdd.tdd_counter_status[16]     37 50.8ms
+                                                 u_dut.i_tx.i_tx_channel_1.dac_valid_sel     42 50.6ms
+                              u_dut.i_rx.i_rx_channel_1.genblk2.i_ad_dcfilter.data_d[15]     13 49.4ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_1.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:227$7590_Y     32 48.8ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_3.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:235$7947_Y     32 48.2ms
+                                              u_dut.genblk4.i_tdd.tdd_counter_status[11]     39 48.1ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_rx_channel_0.\genblk2.i_up_adc_channel.$logic_and$library/common/up_adc_channel.v:318$5227_Y     32 48.1ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_3.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:220$7935_Y     32 47.7ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[1][12]     46 47.4ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_2.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:235$7778_Y     32 47.0ms
+                                              u_dut.genblk4.i_tdd.tdd_counter_status[23]     38 46.9ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_1.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:231$7593_Y     32 46.8ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:196$2529_Y     32 46.6ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_0.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:249$7331_Y     32 46.6ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.rotation[1].pipe.dir_inv      9 46.5ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_up_dac_common.$logic_and$library/common/up_dac_common.v:295$6949_Y     32 46.4ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:231$2559_Y     24 46.2ms
+                                              u_dut.genblk4.i_tdd.tdd_counter_status[18]     37 46.2ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[1][12]     46 46.2ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_rx_channel_2.\genblk2.i_up_adc_channel.$logic_and$library/common/up_adc_channel.v:318$8381_Y     32 46.0ms
+                  $techmap162376$abc$121031$auto$blifparse.cc:557:parse_blif$126549.A[3]     32 45.4ms
+                  $techmap158920$abc$121031$auto$blifparse.cc:557:parse_blif$122832.A[2]     49 45.3ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[1][12]     46 43.7ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:237$2565_Y     24 43.5ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:267$2595_Y     24 42.8ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[1][12]     46 42.6ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_0.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:235$7427_Y     32 42.3ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_1.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:220$7584_Y     32 42.2ms
+                                                                     u_dut.up_raddr_s[6]     40 41.9ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:258$2586_Y     24 41.7ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_3.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:231$7944_Y     32 41.7ms
+                  $techmap159249$abc$121031$auto$blifparse.cc:557:parse_blif$123194.A[2]     49 41.5ms
+                                               u_dut.genblk4.i_tdd.tdd_counter_status[8]     31 41.3ms
+                                             u_dut.i_tx.i_tx_channel_0.dac_iqcor_valid_s     48 41.3ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_up_adc_common.$logic_and$library/common/up_adc_common.v:434$7201_Y     32 40.7ms
+                                               u_dut.genblk4.i_tdd.tdd_counter_status[1]     36 40.0ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_1.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:306$7606_Y     32 39.9ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_2.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:306$7788_Y     32 39.8ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_0.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:220$7415_Y     32 39.5ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:243$2571_Y     24 39.4ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[2][12]     45 39.3ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_rx_channel_3.\genblk2.i_up_adc_channel.$logic_and$library/common/up_adc_channel.v:318$8630_Y     32 38.9ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_up_adc_common.$logic_and$library/common/up_adc_common.v:356$7162_Y     32 38.7ms
+                                   $abc$121031$auto$opt_dff.cc:360:combine_resets$105972     25 38.7ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:279$2607_Y     24 38.6ms
+                                               u_dut.genblk4.i_tdd.tdd_counter_status[6]     40 38.5ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:252$2580_Y     24 38.1ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_rx_channel_3.\genblk2.i_up_adc_channel.$logic_and$library/common/up_adc_channel.v:339$8635_Y     32 38.1ms
+                                              u_dut.genblk4.i_tdd.tdd_counter_status[21]     33 37.7ms
+                                               u_dut.genblk4.i_tdd.tdd_counter_status[3]     33 37.5ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:270$2598_Y     24 36.9ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:264$2592_Y     24 36.5ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:222$2550_Y     24 36.2ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:261$2589_Y     24 36.2ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[2][12]     45 35.6ms
+                                              u_dut.genblk4.i_tdd.tdd_counter_status[22]     36 35.5ms
+                                   u_dut.i_tx.i_up_dac_common.i_clock_mon.d_count_run_m2     34 35.3ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:240$2568_Y     24 35.1ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[2][12]     45 35.0ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:210$2538_Y     24 34.9ms
+                                              u_dut.genblk4.i_tdd.tdd_counter_status[15]     32 34.8ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_rx_channel_0.\genblk2.i_up_adc_channel.$logic_and$library/common/up_adc_channel.v:339$5232_Y     32 34.6ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:273$2601_Y     24 34.3ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_0.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:217$7412_Y     16 33.7ms
+                              u_dut.i_rx.i_rx_channel_2.genblk2.i_ad_dcfilter.data_d[15]     13 33.7ms
+                              u_dut.i_rx.i_rx_channel_3.genblk2.i_ad_dcfilter.data_d[15]     13 33.6ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:219$2547_Y     24 33.5ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:288$2616_Y     24 33.2ms
+                  $techmap165032$abc$121031$auto$blifparse.cc:557:parse_blif$129263.A[1]     33 33.1ms
+                                               u_dut.genblk4.i_tdd.tdd_counter_status[7]     34 32.8ms
+                                   $abc$121031$auto$opt_dff.cc:360:combine_resets$105993     25 32.8ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_up_dac_common.\i_xfer_cntrl.$logic_and$library/common/up_xfer_cntrl.v:97$5871_Y     21 32.7ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_rx_channel_2.\genblk2.i_up_adc_channel.$logic_and$library/common/up_adc_channel.v:339$8386_Y     32 32.2ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_rx_channel_2.\genblk2.i_up_adc_channel.$logic_and$library/common/up_adc_channel.v:203$8286_Y      9 31.8ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_1.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:217$7581_Y     16 31.8ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:234$2562_Y     24 31.8ms
+                                              u_dut.genblk4.i_tdd.tdd_counter_status[20]     36 31.6ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:213$2541_Y     24 31.1ms
+                                $abc$121031$auto$blifparse.cc:557:parse_blif$124716.A[6]     34 30.9ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_2.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:217$7763_Y     16 30.7ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:285$2613_Y     24 30.6ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[5][12]     35 30.5ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:228$2556_Y     24 30.3ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.rotation[8].pipe.dir_inv     13 30.2ms
+                  $techmap165032$abc$121031$auto$blifparse.cc:557:parse_blif$129263.A[0]     39 30.1ms
+                                $abc$121031$auto$blifparse.cc:557:parse_blif$125827.A[6]     38 29.9ms
+                                                    u_dut.i_tx.i_up_dac_common.up_rreq_s     33 29.8ms
+                                                                              FCLKCLK[0]  14692 29.7ms
+                                            u_dut.genblk4.i_tdd.i_up_tdd_cntrl.up_wreq_s     31 29.5ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:249$2577_Y     24 29.5ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_up_dac_common.$logic_and$library/common/up_dac_common.v:272$6935_Y     12 29.4ms
+                  $techmap160454$abc$121031$auto$blifparse.cc:557:parse_blif$124432.A[0]     32 29.4ms
+                  $techmap162104$abc$121031$auto$blifparse.cc:557:parse_blif$126266.A[2]     25 29.2ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[2][12]     45 29.1ms
+                     u_dut.i_rx.i_rx_channel_2.genblk2.i_up_adc_channel.up_adc_crc_err_s     36 28.9ms
+                     u_dut.i_rx.i_rx_channel_0.genblk2.i_up_adc_channel.up_adc_crc_err_s     37 28.6ms
+                                              u_dut.genblk4.i_tdd.tdd_counter_status[12]     37 28.5ms
+                  $techmap165047$abc$121031$auto$blifparse.cc:557:parse_blif$129279.A[1]     22 28.4ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.rotation[2].pipe.dir_inv      8 27.9ms
+                                $abc$121031$auto$blifparse.cc:557:parse_blif$122376.A[2]     34 27.8ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[4][12]     37 27.7ms
+                            u_dut.i_rx.i_rx_channel_0.genblk2.i_rx_pnmon.adc_pn1_valid_s     29 27.7ms
+                                $abc$121031$auto$blifparse.cc:557:parse_blif$125090.A[6]     37 27.0ms
+                               $abc$121031$auto$opt_dff.cc:319:make_patterns_logic$17091     32 26.8ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:276$2604_Y     24 26.2ms
+                                              u_dut.genblk4.i_tdd.tdd_counter_status[17]     37 26.1ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_up_dac_common.$logic_and$library/common/up_dac_common.v:282$6938_Y     16 25.9ms
+                              u_dut.i_rx.i_rx_channel_0.genblk2.i_ad_dcfilter.data_d[14]      4 25.7ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:255$2583_Y     24 25.4ms
+                  $techmap158088$abc$121031$auto$blifparse.cc:557:parse_blif$121970.A[0]      8 25.3ms
+                                $abc$121031$auto$blifparse.cc:557:parse_blif$125465.A[6]     37 25.0ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_rx_channel_1.\genblk2.i_up_adc_channel.$logic_and$library/common/up_adc_channel.v:339$8128_Y     32 24.6ms
+                                                            u_dut.i_rx.up_rdata_s[5][10]     27 24.5ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[8][12]     28 24.5ms
+                  $techmap157698$abc$121031$auto$blifparse.cc:557:parse_blif$121558.A[2]     28 24.1ms
+                                   u_dut.i_tx.i_up_dac_common.i_clock_mon.d_count_run_m3     34 24.1ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[3][12]     39 23.3ms
+                            u_dut.i_rx.i_rx_channel_3.genblk2.i_rx_pnmon.adc_pn1_valid_s     39 22.9ms
+                  $techmap162784$abc$121031$auto$blifparse.cc:557:parse_blif$127007.A[0]     32 22.5ms
+                     u_dut.i_rx.i_rx_channel_3.genblk2.i_up_adc_channel.up_adc_crc_err_s     37 22.5ms
+                  $techmap157795$abc$121031$auto$blifparse.cc:557:parse_blif$121673.A[4]     32 22.4ms
+                                $abc$121031$auto$blifparse.cc:557:parse_blif$124716.A[0]     14 22.1ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_rx_channel_0.\genblk2.i_up_adc_channel.$logic_and$library/common/up_adc_channel.v:203$5132_Y      9 21.9ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:282$2610_Y     24 21.9ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_rx_channel_3.\genblk2.i_up_adc_channel.$logic_and$library/common/up_adc_channel.v:203$8535_Y      9 21.9ms
+                     u_dut.i_rx.i_rx_channel_1.genblk2.i_up_adc_channel.up_adc_crc_err_s     35 21.9ms
+                                              u_dut.genblk4.i_tdd.tdd_counter_status[10]     40 21.8ms
+                  $techmap157437$abc$121031$auto$blifparse.cc:557:parse_blif$121294.A[1]     26 21.8ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[4][12]     37 21.6ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[10][12]     23 21.6ms
+                                $abc$121031$auto$blifparse.cc:557:parse_blif$121618.A[6]     34 21.5ms
+                                $abc$121031$auto$blifparse.cc:557:parse_blif$122413.A[6]     28 21.4ms
+                                    $abc$121031$auto$opt_dff.cc:360:combine_resets$16495     33 21.3ms
+                                   $abc$121031$auto$opt_dff.cc:360:combine_resets$105979     25 21.2ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_3.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:217$7932_Y     16 21.2ms
+                                $abc$121031$auto$blifparse.cc:557:parse_blif$122376.A[1]     35 21.1ms
+                                      u_dut.i_tx.i_up_dac_common.i_clock_mon.d_count[32]     34 20.8ms
+                                $abc$121031$auto$blifparse.cc:557:parse_blif$124255.A[0]     31 20.6ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_rx_channel_1.\genblk2.i_up_adc_channel.$logic_and$library/common/up_adc_channel.v:203$8028_Y      9 20.6ms
+                  $techmap165040$abc$121031$auto$blifparse.cc:557:parse_blif$129272.A[1]     22 20.6ms
+                  $techmap162387$abc$121031$auto$blifparse.cc:557:parse_blif$126561.A[5]     24 20.5ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_1.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:224$7587_Y     16 20.4ms
+                                   $abc$121031$auto$opt_dff.cc:360:combine_resets$105986     25 20.3ms
+                                              u_dut.genblk4.i_tdd.tdd_counter_status[19]     34 20.3ms
+                                                    u_dut.i_rx.i_up_adc_common.up_rreq_s     33 20.1ms
+                                                                           o_dac_r1_mode     26 19.7ms
+                            u_dut.i_rx.i_rx_channel_1.genblk2.i_rx_pnmon.adc_pn1_valid_s     31 19.7ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_2.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:224$7769_Y     16 19.5ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_3.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:224$7938_Y     16 19.4ms
+                                             $auto$alumacc.cc:512:replace_alu$18728.Y[3]      1 19.2ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[7][12]     30 19.2ms
+                  $techmap157734$abc$121031$auto$blifparse.cc:557:parse_blif$121599.A[1]     29 19.0ms
+                               $abc$121031$auto$opt_dff.cc:319:make_patterns_logic$16784     32 19.0ms
+                              u_dut.i_rx.i_rx_channel_1.genblk2.i_ad_dcfilter.data_d[12]      4 19.0ms
+                                    $abc$121031$auto$opt_dff.cc:360:combine_resets$16532     10 18.8ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.rotation[10].pipe.dir_inv      2 18.8ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_up_adc_common.$logic_and$library/common/up_adc_common.v:245$7136_Y     12 18.8ms
+                  $techmap162106$abc$121031$auto$blifparse.cc:557:parse_blif$126268.A[4]     26 18.8ms
+                                                                  u_dut.i_up_axi.up_wsel     34 18.6ms
+                                                                         u_dut.up_wreq_s     32 18.3ms
+                                             $auto$alumacc.cc:512:replace_alu$18587.Y[3]      1 18.3ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[4][12]     37 18.1ms
+                                                                                 lfsr[9]      9 18.1ms
+                                                                                lfsr[13]      9 18.0ms
+                                                 u_dut.i_tx.i_tx_channel_3.dac_valid_sel     39 17.8ms
+                                $abc$121031$auto$blifparse.cc:557:parse_blif$124723.A[0]     17 17.7ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[4][12]     37 17.6ms
+                                                  u_dut.i_rx.i_rx_channel_0.adc_pn_oos_s     29 17.4ms
+                                                                                lfsr[11]      9 17.3ms
+                                                                u_dut.i_up_axi.up_rack_d     33 17.2ms
+                                                    u_dut.i_rx.i_up_adc_common.adc_rst_s     25 17.1ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.rotation[7].pipe.dir_inv     13 16.9ms
+                                                  u_dut.i_rx.i_rx_channel_2.adc_pn_oos_s     35 16.9ms
+                  $techmap158361$abc$121031$auto$blifparse.cc:557:parse_blif$122251.A[1]     24 16.8ms
+                              u_dut.i_rx.i_rx_channel_1.genblk2.i_ad_dcfilter.data_d[14]      4 16.7ms
+                  $techmap162392$abc$121031$auto$blifparse.cc:557:parse_blif$126570.A[4]     23 16.7ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_up_dac_channel.i_xfer_cntrl.up_xfer_data[117]      1 16.7ms
+                         u_dut.i_rx.i_rx_channel_1.genblk2.i_ad_dcfilter.dc_offset_s[37]      1 16.6ms
+                              u_dut.i_rx.i_rx_channel_0.genblk2.i_ad_dcfilter.data_d[13]      4 16.6ms
+                  $techmap162378$abc$121031$auto$blifparse.cc:557:parse_blif$126553.A[1]     16 16.6ms
+                  $techmap157746$abc$121031$auto$blifparse.cc:557:parse_blif$121611.A[4]     19 16.5ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[7][12]     30 16.5ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[6][12]     32 16.3ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.rotation[9].pipe.dir_inv     13 16.2ms
+                         u_dut.i_rx.i_rx_channel_2.genblk2.i_ad_dcfilter.dc_offset_s[44]      1 16.2ms
+                  $techmap157438$abc$121031$auto$blifparse.cc:557:parse_blif$121293.A[0]      8 16.1ms
+                                $abc$121031$auto$blifparse.cc:557:parse_blif$122413.A[1]     15 16.1ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[6][12]     32 16.0ms
+                                                 u_dut.i_tx.i_tx_channel_0.dac_valid_sel     38 16.0ms
+                                $abc$121031$auto$blifparse.cc:557:parse_blif$124392.A[0]     17 15.9ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$106930      1 15.8ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[3][12]     39 15.7ms
+                                                                                lfsr[25]      5 15.7ms
+                            u_dut.i_rx.i_rx_channel_2.genblk2.i_rx_pnmon.adc_pn1_valid_t     25 15.3ms
+                                                                                 lfsr[8]      9 15.3ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[5][12]     35 15.1ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.rotation[9].pipe.dir_inv     13 15.0ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_rx_channel_0.\genblk2.i_up_adc_channel.$logic_and$library/common/up_adc_channel.v:353$5166_Y      8 15.0ms
+             u_dut.i_tx.i_tx_channel_3.genblk2.i_up_dac_channel.up_dac_iqcor_coeff_1[15]     17 14.9ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z0[12]     25 14.9ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$107200      1 14.9ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[3][12]     39 14.8ms
+                                             $auto$alumacc.cc:512:replace_alu$18251.Y[7]      1 14.8ms
+                  $techmap158660$abc$121031$auto$blifparse.cc:557:parse_blif$122557.A[0]     32 14.7ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[5][12]     35 14.6ms
+                                                                     u_dut.adc_data_s[5]      6 14.6ms
+                              u_dut.genblk4.i_tdd.i_up_tdd_cntrl.up_tdd_counter_init[23]      2 14.6ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.rotation[5].pipe.dir_inv     12 14.6ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z0[12]     25 14.5ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_up_dac_channel.i_xfer_cntrl.up_xfer_data[177]      1 14.4ms
+                                                                                lfsr[10]     10 14.3ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[4][12]     37 14.2ms
+                                       u_dut.genblk4.i_tdd.i_tdd_control.tdd_endof_frame     27 14.2ms
+                          u_dut.i_rx.i_rx_channel_2.genblk2.i_ad_dcfilter.dc_offset_s[7]      1 14.2ms
+                  $techmap157731$abc$121031$auto$blifparse.cc:557:parse_blif$121596.A[1]     16 14.2ms
+                  $techmap165069$abc$121031$auto$blifparse.cc:557:parse_blif$129302.A[2]     12 14.2ms
+                                $abc$121031$auto$blifparse.cc:557:parse_blif$124327.A[2]     30 14.1ms
+                                                     u_dut.genblk4.i_tdd.tdd_secondary_s     12 14.1ms
+                                                                                lfsr[15]      9 14.0ms
+             u_dut.i_tx.i_tx_channel_2.genblk2.i_up_dac_channel.up_dac_dds_scale_tc_2[5]      1 14.0ms
+                                                  u_dut.i_rx.i_rx_channel_3.adc_pn_oos_s     40 13.9ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[5][12]     35 13.9ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z0[12]     25 13.8ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_rx_channel_1.\genblk2.i_ad_dcfilter.$0\data_int[15:0][15]     31 13.8ms
+                  $techmap157789$abc$121031$auto$blifparse.cc:557:parse_blif$121658.A[0]      7 13.7ms
+                  u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dac_dds_phase_0[1][11]      3 13.7ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[4][12]     37 13.6ms
+                                                                                lfsr[23]      4 13.6ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[5][12]     35 13.6ms
+                              u_dut.i_rx.i_rx_channel_1.genblk2.i_ad_dcfilter.data_d[10]      4 13.6ms
+                                $abc$121031$auto$blifparse.cc:557:parse_blif$124370.A[2]     13 13.5ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.rotation[2].pipe.dir_inv      8 13.4ms
+                  $techmap157724$abc$121031$auto$blifparse.cc:557:parse_blif$121589.A[1]     15 13.4ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[7][12]     30 13.4ms
+                                $abc$121031$auto$blifparse.cc:557:parse_blif$124255.A[6]     27 13.3ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[8][12]     28 13.3ms
+                              u_dut.i_rx.i_rx_channel_2.genblk2.i_ad_dcfilter.data_d[11]      4 13.2ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_rx_channel_3.\genblk2.i_up_adc_channel.$logic_and$library/common/up_adc_channel.v:353$8569_Y      8 13.1ms
+                                              u_dut.i_rx.i_delay_cntrl.genblk1.up_wreq_s     27 13.0ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.rotation[5].pipe.dir_inv     12 13.0ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_0.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:224$7418_Y     16 13.0ms
+                                             $auto$alumacc.cc:512:replace_alu$18752.Y[4]      1 13.0ms
+                                                                                 lfsr[7]      9 12.9ms
+                                             $auto$alumacc.cc:512:replace_alu$18701.Y[9]      1 12.9ms
+                                             u_dut.i_tx.i_tx_channel_2.dac_data_sel_s[0]     26 12.9ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[11][12]     21 12.8ms
+                                             u_dut.i_tx.i_tx_channel_1.dac_data_sel_s[0]     26 12.7ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.rotation[3].pipe.dir_inv     12 12.7ms
+                                                                                lfsr[12]      9 12.7ms
+                                             $auto$alumacc.cc:512:replace_alu$18536.Y[6]      1 12.6ms
+                              u_dut.i_rx.i_rx_channel_1.genblk2.i_ad_dcfilter.data_d[13]      4 12.6ms
+                                             $auto$alumacc.cc:512:replace_alu$18776.Y[5]      1 12.4ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[3][12]     39 12.4ms
+                  $techmap165062$abc$121031$auto$blifparse.cc:557:parse_blif$129295.A[1]     22 12.4ms
+                                  u_dut.genblk4.i_tdd.i_up_tdd_cntrl.up_tdd_tx_off_1[15]      2 12.3ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_1.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:286$7508_Y      4 12.3ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:207$2535_Y      8 12.3ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z0[12]     25 12.2ms
+                                             $auto$alumacc.cc:512:replace_alu$18674.Y[3]      1 12.2ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[7][12]     30 12.2ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$113288      1 12.0ms
+                                             $auto$alumacc.cc:512:replace_alu$18725.Y[6]      1 11.9ms
+                  $techmap158403$abc$121031$auto$blifparse.cc:557:parse_blif$122288.A[3]      1 11.9ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$117028      1 11.9ms
+                                             u_dut.i_tx.i_tx_channel_3.dac_data_sel_s[0]     21 11.8ms
+                                             $auto$alumacc.cc:512:replace_alu$18752.Y[8]      1 11.8ms
+                                             $auto$alumacc.cc:512:replace_alu$18140.Y[7]      1 11.8ms
+                              u_dut.i_rx.i_rx_channel_0.genblk2.i_ad_dcfilter.data_d[12]      4 11.7ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$119532      1 11.7ms
+                               $abc$121031$auto$opt_dff.cc:336:make_patterns_logic$16437      9 11.6ms
+                                            $auto$alumacc.cc:512:replace_alu$18227.Y[13]      1 11.6ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$111146      1 11.6ms
+        u_dut.i_rx.i_rx_channel_3.genblk2.i_up_adc_channel.i_xfer_status.up_xfer_toggle_s      3 11.6ms
+                                                                                lfsr[29]      6 11.5ms
+                                             $auto$alumacc.cc:512:replace_alu$18884.Y[0]      1 11.5ms
+                              u_dut.i_rx.i_rx_channel_0.genblk2.i_ad_dcfilter.data_d[11]      4 11.5ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[3][12]     39 11.4ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$116528      1 11.4ms
+                                                  u_dut.i_rx.i_rx_channel_1.adc_pn_oos_s     31 11.4ms
+                  $techmap157700$abc$121031$auto$blifparse.cc:557:parse_blif$121565.A[3]     14 11.4ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[5][12]     35 11.4ms
+                                u_dut.i_rx.i_up_adc_common.i_xfer_status.d_xfer_data[33]      1 11.4ms
+                                                                                lfsr[14]     10 11.3ms
+                                             $auto$alumacc.cc:512:replace_alu$18785.Y[5]      1 11.3ms
+                u_dut.i_tx.i_tx_channel_0.genblk2.i_up_dac_channel.up_dac_dds_scale_2[2]      3 11.3ms
+             u_dut.i_rx.i_rx_channel_0.genblk2.i_up_adc_channel.up_adc_iqcor_coeff_2[15]     17 11.3ms
+                                                                                 lfsr[5]      9 11.2ms
+                                u_dut.i_tx.i_up_dac_common.i_xfer_status.d_xfer_data[33]      1 11.2ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$113572      1 11.2ms
+                              u_dut.i_rx.i_rx_channel_2.genblk2.i_ad_dcfilter.data_d[12]      4 11.1ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z0[12]     25 11.1ms
+                                             $auto$alumacc.cc:512:replace_alu$17999.Y[7]      1 11.1ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[4][12]     37 11.1ms
+                   u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dac_dds_phase_0[1][5]      3 11.1ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[8][12]     28 11.0ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.rotation[9].pipe.dir_inv     13 11.0ms
+                                             $auto$alumacc.cc:512:replace_alu$18047.Y[9]      1 10.9ms
+                                                                    u_dut.adc_data_s[29]      6 10.9ms
+                  $techmap158146$abc$121031$auto$blifparse.cc:557:parse_blif$122031.A[0]     10 10.9ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.rotation[1].pipe.dir_inv      9 10.9ms
+                  $techmap158105$abc$121031$auto$blifparse.cc:557:parse_blif$121986.A[5]      8 10.9ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_up_dac_channel.i_xfer_cntrl.up_xfer_data[164]      1 10.8ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[9][12]     26 10.8ms
+                  $techmap165028$abc$121031$auto$blifparse.cc:557:parse_blif$129260.A[1]     14 10.7ms
+                                                                                 lfsr[6]      9 10.7ms
+                        u_dut.i_rx.i_rx_channel_2.genblk2.i_rx_pnmon.i_pnmon.adc_valid_d     10 10.7ms
+                                 u_dut.i_tx.i_up_dac_common.i_xfer_cntrl.d_xfer_toggle_s     21 10.6ms
+                                             $auto$alumacc.cc:512:replace_alu$18527.Y[1]      1 10.6ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.rotation[7].pipe.dir_inv     13 10.6ms
+                  $techmap158837$abc$121031$auto$blifparse.cc:557:parse_blif$122750.A[0]      6 10.6ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$111950      1 10.5ms
+                               u_dut.i_rx.i_rx_channel_2.genblk2.i_ad_dcfilter.data_d[8]      4 10.5ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[3][12]     39 10.5ms
+                                            $auto$alumacc.cc:512:replace_alu$18398.Y[10]      1 10.5ms
+               u_dut.i_tx.i_tx_channel_3.genblk2.i_up_dac_channel.up_dac_dds_scale_2[15]     17 10.5ms
+                              u_dut.i_rx.i_rx_channel_2.genblk2.i_ad_dcfilter.data_d[10]      4 10.5ms
+                                u_dut.genblk4.i_tdd.i_up_tdd_cntrl.up_tdd_rx_dp_on_1[23]      2 10.5ms
+                                  $abc$121031$auto$simplemap.cc:277:simplemap_eqne$52224     16 10.4ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.rotation[0].pipe.dir_inv     14 10.4ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.rotation[2].pipe.dir_inv      8 10.4ms
+                            u_dut.i_rx.i_rx_channel_2.genblk2.i_rx_pnmon.adc_pn1_valid_s     26 10.4ms
+                                                                                 lfsr[2]      5 10.4ms
+                                                                                 lfsr[4]      9 10.3ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_rx_channel_2.\genblk2.i_up_adc_channel.$logic_and$library/common/up_adc_channel.v:402$8325_Y      3 10.3ms
+                                                             u_dut.i_rx.up_rdata_s[3][1]      1 10.3ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$111182      1 10.2ms
+                                            $auto$alumacc.cc:512:replace_alu$18617.Y[10]      1 10.2ms
+                                                           u_dut.i_rx.up_adc_pn_err_s[1]      3 10.1ms
+                                             $auto$alumacc.cc:512:replace_alu$18650.Y[4]      1 10.1ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_rx_channel_2.\genblk2.i_up_adc_channel.$logic_and$library/common/up_adc_channel.v:353$8320_Y      8 10.0ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z0[12]     25 10.0ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[8][12]     28 10.0ms
+                                            $auto$alumacc.cc:512:replace_alu$18611.Y[12]      1 10.0ms
+                                             $auto$alumacc.cc:512:replace_alu$18863.Y[9]      1 10.0ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[9][12]     26 10.0ms
+                                             $auto$alumacc.cc:512:replace_alu$17801.Y[0]      1 9.9ms
+                   u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dac_dds_phase_0[1][9]      3 9.9ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$107042      1 9.9ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_up_dac_channel.i_xfer_cntrl.up_xfer_data[181]      1 9.9ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$109730      1 9.9ms
+                                             $auto$alumacc.cc:512:replace_alu$18701.Y[1]      1 9.8ms
+                                                                                 lfsr[0]      3 9.8ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$117700      1 9.8ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_rx_channel_2.\genblk2.i_ad_dcfilter.$0\data_int[15:0][15]     31 9.8ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[5][12]     35 9.8ms
+                                             $auto$alumacc.cc:512:replace_alu$18134.Y[5]      1 9.8ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[6][12]     32 9.7ms
+             u_dut.i_rx.i_rx_channel_3.genblk2.i_up_adc_channel.up_adc_iqcor_coeff_2[15]     17 9.7ms
+                 u_dut.i_tx.i_tx_channel_1.genblk2.i_up_dac_channel.up_dac_dds_init_2[4]      2 9.7ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.rotation[1].pipe.dir_inv      9 9.7ms
+                                                  u_dut.genblk4.i_tdd.tdd_tx_off_1_s[23]      1 9.7ms
+                                             $auto$alumacc.cc:512:replace_alu$17993.Y[3]      1 9.7ms
+             u_dut.i_tx.i_tx_channel_2.genblk2.i_up_dac_channel.up_dac_iqcor_coeff_1[15]     17 9.7ms
+                                            $auto$alumacc.cc:512:replace_alu$18629.Y[12]      1 9.6ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.rotation[4].pipe.dir_inv     12 9.6ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_rx_channel_0.\genblk2.i_up_adc_channel.$logic_and$library/common/up_adc_channel.v:402$5171_Y      3 9.6ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.rotation[4].pipe.dir_inv     12 9.6ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_up_dac_channel.i_xfer_cntrl.up_xfer_data[116]      1 9.6ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.rotation[6].pipe.dir_inv     13 9.6ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z0[12]     25 9.5ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[7][12]     30 9.5ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$111916      1 9.5ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.rotation[8].pipe.dir_inv     13 9.5ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[10][12]     23 9.5ms
+                              u_dut.i_rx.i_rx_channel_0.genblk2.i_ad_dcfilter.data_d[10]      4 9.5ms
+                                   u_dut.i_rx.i_up_adc_common.i_clock_mon.d_count_run_m3     34 9.4ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$117226      1 9.4ms
+                                               u_dut.i_rx.i_rx_channel_1.adc_iqcor_enb_s     16 9.4ms
+                  $techmap157437$abc$121031$auto$blifparse.cc:557:parse_blif$121294.A[4]     10 9.4ms
+                                             $auto$alumacc.cc:512:replace_alu$18476.Y[4]      1 9.4ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$119388      1 9.4ms
+                                             $auto$alumacc.cc:512:replace_alu$17945.Y[4]      1 9.4ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.rotation[0].pipe.dir_inv     14 9.4ms
+                                             $auto$alumacc.cc:512:replace_alu$18209.Y[5]      1 9.4ms
+                                            $auto$alumacc.cc:512:replace_alu$18410.Y[12]      1 9.4ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$118784      1 9.3ms
+                                             $auto$alumacc.cc:512:replace_alu$18068.Y[9]      1 9.3ms
+                               u_dut.i_rx.i_rx_channel_0.genblk2.i_ad_dcfilter.data_d[4]      4 9.3ms
+             u_dut.i_tx.i_tx_channel_3.genblk2.i_up_dac_channel.up_dac_iqcor_coeff_1[13]      3 9.3ms
+                  $techmap157728$abc$121031$auto$blifparse.cc:557:parse_blif$121592.A[1]     13 9.3ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$119226      1 9.3ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.rotation[8].pipe.dir_inv     13 9.3ms
+                                             $auto$alumacc.cc:512:replace_alu$18605.Y[3]      1 9.3ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$112850      1 9.3ms
+                   u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dac_dds_phase_1[1][5]      3 9.3ms
+             u_dut.i_tx.i_tx_channel_0.genblk2.i_up_dac_channel.up_dac_dds_scale_tc_2[8]      1 9.3ms
+                  $techmap157441$abc$121031$auto$blifparse.cc:557:parse_blif$121298.A[0]      7 9.3ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.rotation[2].pipe.dir_inv      8 9.3ms
+                               u_dut.i_rx.i_rx_channel_0.genblk2.i_ad_dcfilter.data_d[5]      4 9.2ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$111966      1 9.2ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[8][12]     28 9.2ms
+                                            u_dut.genblk4.i_tdd.i_tdd_control.tdd_cstate     20 9.2ms
+                                             $auto$alumacc.cc:512:replace_alu$18257.Y[1]      1 9.2ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_rx_channel_3.\genblk2.i_ad_dcfilter.$0\data_int[15:0][15]     31 9.2ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.rotation[6].pipe.dir_inv     13 9.2ms
+                               u_dut.i_tx.i_up_dac_common.i_xfer_status.up_xfer_toggle_s      3 9.2ms
+                              u_dut.i_rx.i_rx_channel_3.genblk2.i_ad_dcfilter.data_d[11]      4 9.2ms
+                                               u_dut.genblk4.i_tdd.tdd_vco_rx_on_2_s[14]      1 9.1ms
+                                             $auto$alumacc.cc:512:replace_alu$18806.Y[8]      1 9.1ms
+                                             $auto$alumacc.cc:512:replace_alu$18137.Y[0]      1 9.1ms
+                            u_dut.i_rx.i_rx_channel_0.genblk2.i_rx_pnmon.adc_pn1_valid_t     22 9.1ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_up_dac_channel.i_xfer_cntrl.up_xfer_data[43]      1 9.1ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[11][12]     21 9.0ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_0.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:286$7339_Y      4 9.0ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[3][12]     39 9.0ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$107018      1 9.0ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[11][12]     21 9.0ms
+                         u_dut.i_rx.i_rx_channel_2.genblk2.i_ad_dcfilter.dc_offset_s[45]      1 9.0ms
+                                            $auto$alumacc.cc:512:replace_alu$18731.Y[11]      1 9.0ms
+                                             u_dut.i_tx.i_tx_channel_3.dac_data_sel_s[1]     14 9.0ms
+                                            $auto$alumacc.cc:512:replace_alu$18512.Y[12]      1 9.0ms
+                                $abc$121031$auto$blifparse.cc:557:parse_blif$124348.A[2]     17 8.9ms
+                              u_dut.i_rx.i_rx_channel_2.genblk2.i_ad_dcfilter.data_d[14]      4 8.9ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_3.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:286$7859_Y      4 8.9ms
+                                             u_dut.i_tx.i_tx_channel_0.dac_data_sel_s[3]     14 8.9ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[6][12]     32 8.9ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$118018      1 8.9ms
+             u_dut.i_tx.i_tx_channel_1.genblk2.i_up_dac_channel.up_dac_iqcor_coeff_1[15]     17 8.9ms
+                               u_dut.i_rx.i_rx_channel_1.genblk2.i_ad_dcfilter.data_d[5]      4 8.9ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$114442      1 8.9ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[9][12]     26 8.9ms
+                                            $auto$alumacc.cc:512:replace_alu$18920.Y[12]      1 8.9ms
+                  $techmap157718$abc$121031$auto$blifparse.cc:557:parse_blif$121583.A[1]     12 8.8ms
+                   u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dac_dds_phase_1[1][9]      3 8.8ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$116514      1 8.8ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$113176      1 8.8ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_up_dac_channel.i_xfer_cntrl.up_xfer_data[34]      1 8.8ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_rx_channel_0.\genblk2.i_ad_dcfilter.$0\data_int[15:0][15]     31 8.8ms
+        $abc$121031$flatten\u_dut.\genblk4.i_tdd.\i_up_tdd_cntrl.$logic_and$library/common/up_tdd_cntrl.v:199$2532_Y      6 8.8ms
+                                 u_dut.genblk4.i_tdd.i_up_tdd_cntrl.up_tdd_tx_dp_on_1[9]      2 8.8ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[5][12]     35 8.8ms
+                                               u_dut.i_rx.i_rx_channel_0.adc_iqcor_enb_s     16 8.8ms
+                                             u_dut.i_tx.i_tx_channel_0.dac_data_sel_s[0]     26 8.7ms
+                                             $auto$alumacc.cc:512:replace_alu$18218.Y[3]      1 8.7ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$119600      1 8.7ms
+                         u_dut.i_rx.i_rx_channel_3.genblk2.i_ad_dcfilter.dc_offset_s[43]      1 8.7ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[10][12]     23 8.7ms
+                                             $auto$alumacc.cc:512:replace_alu$18182.Y[8]      1 8.7ms
+                  $techmap166754$abc$121031$auto$blifparse.cc:557:parse_blif$131030.A[0]      5 8.7ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$112698      1 8.7ms
+                               u_dut.i_rx.i_rx_channel_3.genblk2.i_ad_dcfilter.data_d[9]      4 8.7ms
+                          u_dut.i_rx.i_rx_channel_3.genblk2.i_ad_dcfilter.dc_offset_s[8]      1 8.7ms
+                          u_dut.i_rx.i_rx_channel_0.genblk2.i_ad_dcfilter.dc_offset_s[4]      1 8.7ms
+                                             $auto$alumacc.cc:512:replace_alu$18236.Y[3]      1 8.6ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_0.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:266$7432_Y      3 8.6ms
+                                             $auto$alumacc.cc:512:replace_alu$18263.Y[2]      1 8.6ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.x_s[1][2]      3 8.6ms
+               u_dut.i_tx.i_tx_channel_1.genblk2.i_up_dac_channel.up_dac_dds_scale_2[15]     17 8.6ms
+                  $techmap160347$abc$121031$auto$blifparse.cc:557:parse_blif$124316.A[4]      1 8.6ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[6][12]     32 8.6ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.rotation[2].pipe.dir_inv      8 8.6ms
+                                            $auto$alumacc.cc:512:replace_alu$18878.Y[13]      1 8.6ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.rotation[7].pipe.dir_inv     13 8.6ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.s1_data_s[19]      1 8.5ms
+                                   u_dut.genblk4.i_tdd.i_up_tdd_cntrl.up_tdd_rx_off_1[0]      2 8.5ms
+                                              u_dut.i_rx.i_rx_channel_0.adc_dcfilt_enb_s     16 8.5ms
+                                   u_dut.i_rx.i_up_adc_common.i_clock_mon.d_count_run_m2     34 8.5ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[4][12]     37 8.5ms
+                        u_dut.i_rx.i_rx_channel_3.genblk2.i_rx_pnmon.i_pnmon.adc_valid_d     10 8.5ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$109208      1 8.5ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.rotation[10].pipe.dir_inv      2 8.5ms
+                                             $auto$alumacc.cc:512:replace_alu$18674.Y[7]      1 8.5ms
+                  $techmap161925$abc$121031$auto$blifparse.cc:557:parse_blif$126087.A[0]     24 8.5ms
+                                             $auto$alumacc.cc:512:replace_alu$18551.Y[8]      1 8.4ms
+                         u_dut.i_rx.i_rx_channel_0.genblk2.i_ad_dcfilter.dc_offset_s[11]      1 8.4ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[7][12]     30 8.4ms
+                                             $auto$alumacc.cc:512:replace_alu$18896.Y[0]      1 8.4ms
+                                                                    o_up_dac_gpio_out[4]      5 8.4ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.rotation[7].pipe.dir_inv     13 8.4ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_up_dac_channel.i_xfer_cntrl.up_xfer_data[122]      1 8.4ms
+                                                                    u_dut.adc_data_s[23]      5 8.3ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$119554      1 8.3ms
+                  $techmap158902$abc$121031$auto$blifparse.cc:557:parse_blif$122814.A[2]     12 8.3ms
+               u_dut.i_tx.i_tx_channel_3.genblk2.i_up_dac_channel.up_dac_dds_scale_1[15]     17 8.3ms
+                              u_dut.i_rx.i_rx_channel_1.genblk2.i_ad_dcfilter.data_d[11]      4 8.3ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$117432      1 8.3ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.rotation[2].pipe.dir_inv      8 8.3ms
+                                             $auto$alumacc.cc:512:replace_alu$18728.Y[1]      1 8.3ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[3][12]     39 8.3ms
+                                             $auto$alumacc.cc:512:replace_alu$18098.Y[7]      1 8.3ms
+                                            $auto$alumacc.cc:512:replace_alu$18740.Y[10]      1 8.2ms
+                               u_dut.i_rx.i_rx_channel_1.genblk2.i_ad_dcfilter.data_d[9]      4 8.2ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[9][12]     26 8.2ms
+                                             $auto$alumacc.cc:512:replace_alu$17801.Y[5]      1 8.2ms
+             u_dut.i_rx.i_rx_channel_1.genblk2.i_up_adc_channel.up_adc_iqcor_coeff_1[15]     17 8.2ms
+                                             $auto$alumacc.cc:512:replace_alu$18110.Y[8]      1 8.2ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$115904      1 8.2ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.rotation[11].pipe.dir_inv      2 8.2ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z0[12]     25 8.2ms
+                        u_dut.i_rx.i_rx_channel_0.genblk2.i_up_adc_channel.up_adc_enable      2 8.2ms
+                                             $auto$alumacc.cc:512:replace_alu$18533.Y[0]      1 8.1ms
+                                             $auto$alumacc.cc:512:replace_alu$18638.Y[2]      1 8.1ms
+           u_dut.i_tx.i_tx_channel_1.genblk2.i_up_dac_channel.up_dac_iqcor_coeff_tc_1[4]      1 8.1ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$107932      1 8.1ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$107650      1 8.1ms
+                  u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dac_dds_phase_1[1][14]      3 8.1ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$113674      1 8.1ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.rotation[3].pipe.dir_inv     12 8.1ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.rotation[9].pipe.dir_inv     13 8.1ms
+            $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_3.$0\dac_data_out_int[11:0][1]      3 8.1ms
+                               $abc$121031$auto$opt_dff.cc:336:make_patterns_logic$16654     12 8.0ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$114838      1 8.0ms
+                                u_dut.genblk4.i_tdd.i_up_tdd_cntrl.up_tdd_tx_dp_off_1[6]      2 8.0ms
+                                                                        u_dut.tdd_mode_s      8 8.0ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.rotation[5].pipe.dir_inv     12 8.0ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[9][12]     26 8.0ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[7][12]     30 7.9ms
+                              u_dut.genblk4.i_tdd.i_up_tdd_cntrl.up_tdd_vco_tx_off_2[16]      2 7.9ms
+                                            $auto$alumacc.cc:512:replace_alu$17999.Y[11]      1 7.9ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[6][12]     32 7.9ms
+                                               u_dut.i_tx.i_up_dac_common.up_xfer_done_s      5 7.9ms
+                                                                     u_dut.adc_data_s[7]      6 7.9ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$111790      1 7.9ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$116192      1 7.9ms
+                                             $auto$alumacc.cc:512:replace_alu$18281.Y[3]      1 7.9ms
+                                                            u_dut.i_rx.up_rdata_s[2][22]      1 7.9ms
+                u_dut.i_tx.i_tx_channel_2.genblk2.i_up_dac_channel.up_dac_dds_scale_2[6]      3 7.8ms
+                                            $auto$alumacc.cc:512:replace_alu$18758.Y[11]      1 7.8ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$110292      1 7.8ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$120032      1 7.8ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$117412      1 7.8ms
+                               u_dut.i_rx.i_rx_channel_0.genblk2.i_ad_dcfilter.data_d[6]      4 7.8ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$111910      1 7.8ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[11][12]     21 7.8ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$120292      1 7.8ms
+                                            $auto$alumacc.cc:512:replace_alu$18320.Y[12]      1 7.8ms
+             u_dut.i_tx.i_tx_channel_3.genblk2.i_up_dac_channel.up_dac_iqcor_coeff_2[15]     17 7.8ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$115492      1 7.8ms
+        u_dut.genblk4.i_tdd.i_up_tdd_cntrl.i_xfer_tdd_counter_values_tx_1.up_xfer_data[9]      1 7.7ms
+                                            $auto$alumacc.cc:512:replace_alu$18041.Y[11]      1 7.7ms
+                                       u_dut.i_tx.i_tx_channel_1.dac_iqcor_coeff_1_s[15]     15 7.7ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[8][12]     28 7.7ms
+                               u_dut.i_rx.i_rx_channel_2.genblk2.i_ad_dcfilter.data_d[1]      4 7.7ms
+             u_dut.i_tx.i_tx_channel_1.genblk2.i_up_dac_channel.up_dac_iqcor_coeff_2[15]     17 7.7ms
+                                            $auto$alumacc.cc:512:replace_alu$18287.Y[11]      1 7.7ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_3.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:266$7952_Y      3 7.7ms
+                  $techmap158057$abc$121031$auto$blifparse.cc:557:parse_blif$121938.A[3]     10 7.7ms
+                                             $auto$alumacc.cc:512:replace_alu$18215.Y[7]      1 7.7ms
+                                             $auto$alumacc.cc:512:replace_alu$18692.Y[5]      1 7.7ms
+                                      u_dut.i_rx.i_up_adc_common.i_clock_mon.d_count[32]     34 7.7ms
+                                             $auto$alumacc.cc:512:replace_alu$18227.Y[9]      1 7.7ms
+                  $techmap157437$abc$121031$auto$blifparse.cc:557:parse_blif$121294.A[2]      7 7.7ms
+                                             $auto$alumacc.cc:512:replace_alu$18299.Y[5]      1 7.7ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_1.\genblk2.i_up_dac_channel.$logic_and$library/common/up_dac_channel.v:266$7601_Y      3 7.7ms
+                                             $auto$alumacc.cc:512:replace_alu$18863.Y[1]      1 7.6ms
+                                             u_dut.i_tx.i_tx_channel_1.dac_data_sel_s[3]     14 7.6ms
+                                                                    u_dut.adc_data_s[24]      6 7.6ms
+                                             $auto$alumacc.cc:512:replace_alu$18584.Y[0]      1 7.6ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$112456      1 7.6ms
+                                             $auto$alumacc.cc:512:replace_alu$18707.Y[7]      1 7.6ms
+                                                                  u_dut.i_up_axi.up_rsel     16 7.6ms
+                                            $auto$alumacc.cc:512:replace_alu$18116.Y[12]      1 7.6ms
+                                                                    u_dut.adc_data_s[10]      5 7.6ms
+                                            $auto$alumacc.cc:512:replace_alu$18443.A[10]     21 7.6ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.rotation[1].pipe.dir_inv      9 7.6ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$108102      1 7.6ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[9][12]     26 7.6ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$113340      1 7.6ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$108680      1 7.6ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[8][12]     28 7.5ms
+                                            $auto$alumacc.cc:512:replace_alu$18527.Y[13]      1 7.5ms
+                 u_dut.i_tx.i_tx_channel_1.genblk2.i_up_dac_channel.up_dac_dds_init_1[0]      2 7.5ms
+                                                                    u_dut.adc_data_s[31]      6 7.5ms
+               u_dut.i_rx.i_rx_channel_0.genblk2.i_up_adc_channel.up_adc_dcfilt_coeff[3]      2 7.5ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$110618      1 7.5ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[10][12]     23 7.5ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.rotation[4].pipe.dir_inv     12 7.5ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.rotation[3].pipe.dir_inv     12 7.5ms
+                                    $abc$121031$auto$opt_dff.cc:360:combine_resets$17153      3 7.5ms
+                u_dut.i_tx.i_tx_channel_0.genblk2.i_up_dac_channel.up_dac_dds_init_1[10]      2 7.5ms
+                         u_dut.i_rx.i_rx_channel_3.genblk2.i_ad_dcfilter.dc_offset_s[38]      1 7.5ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$106860      1 7.4ms
+                                                                     u_dut.adc_data_s[3]      6 7.4ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$107622      1 7.4ms
+        u_dut.genblk4.i_tdd.i_up_tdd_cntrl.i_xfer_tdd_counter_values_rx_1.up_xfer_data[123]      1 7.4ms
+                                   $abc$121031$auto$opt_dff.cc:360:combine_resets$105911      2 7.4ms
+                                                                     u_dut.adc_data_s[1]      6 7.4ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$112694      1 7.4ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$106984      1 7.4ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$113710      1 7.4ms
+                                             $auto$alumacc.cc:512:replace_alu$18605.Y[6]      1 7.4ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$113032      1 7.4ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$107358      1 7.4ms
+                                            $auto$alumacc.cc:512:replace_alu$18650.Y[11]      1 7.4ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$108654      1 7.4ms
+                u_dut.i_tx.i_tx_channel_0.genblk2.i_up_dac_channel.up_dac_dds_scale_1[0]      3 7.4ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[8][12]     28 7.4ms
+                                             $auto$alumacc.cc:512:replace_alu$18869.Y[0]      1 7.4ms
+                                             $auto$alumacc.cc:512:replace_alu$18815.Y[8]      1 7.3ms
+                 u_dut.i_tx.i_tx_channel_0.genblk2.i_up_dac_channel.up_dac_dds_incr_1[4]      2 7.3ms
+                                             $auto$alumacc.cc:512:replace_alu$18317.Y[5]      1 7.3ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$109550      1 7.3ms
+                                             $auto$alumacc.cc:512:replace_alu$18398.Y[0]      1 7.3ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$108018      1 7.3ms
+                                             u_dut.i_tx.i_tx_channel_1.dac_data_sel_s[1]     14 7.3ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[11][12]     21 7.3ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.rotation[2].pipe.dir_inv      8 7.3ms
+                                             $auto$alumacc.cc:512:replace_alu$18596.Y[3]      1 7.3ms
+                   u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dac_dds_phase_1[1][5]      3 7.3ms
+                 u_dut.i_tx.i_tx_channel_2.genblk2.i_up_dac_channel.up_dac_dds_init_1[9]      2 7.3ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.rotation[11].pipe.dir_inv      2 7.3ms
+                                             $auto$alumacc.cc:512:replace_alu$17816.Y[3]      1 7.3ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[6][12]     32 7.3ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.rotation[3].pipe.dir_inv     12 7.3ms
+                u_dut.i_tx.i_tx_channel_3.genblk2.i_up_dac_channel.up_dac_dds_scale_2[3]      3 7.3ms
+                                             $auto$alumacc.cc:512:replace_alu$18701.Y[8]      1 7.3ms
+           $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_0.$0\dac_data_out_int[11:0][11]     15 7.3ms
+                               u_dut.i_rx.i_rx_channel_1.genblk2.i_ad_dcfilter.data_d[0]      4 7.2ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_up_dac_channel.i_xfer_cntrl.up_xfer_data[196]      1 7.2ms
+                                             $auto$alumacc.cc:512:replace_alu$18554.Y[3]      1 7.2ms
+             u_dut.i_rx.i_rx_channel_2.genblk2.i_up_adc_channel.up_adc_iqcor_coeff_2[15]     17 7.2ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$116826      1 7.2ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$119192      1 7.2ms
+                                             $auto$alumacc.cc:512:replace_alu$18167.Y[3]      1 7.2ms
+                                                                     u_dut.adc_data_s[6]      6 7.2ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$110290      1 7.2ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$111354      1 7.2ms
+                                            $auto$alumacc.cc:512:replace_alu$18110.Y[12]      1 7.2ms
+                  $techmap157703$abc$121031$auto$blifparse.cc:557:parse_blif$121567.A[1]     12 7.2ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$118970      1 7.2ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$110676      1 7.2ms
+                                             $auto$alumacc.cc:512:replace_alu$18623.Y[5]      1 7.2ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$117532      1 7.1ms
+                                                                                lfsr[22]      5 7.1ms
+                                             $auto$alumacc.cc:512:replace_alu$18275.Y[0]      1 7.1ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.rotation[0].pipe.dir_inv     14 7.1ms
+                                                                    u_dut.adc_data_s[25]      6 7.1ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$117220      1 7.1ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$108800      1 7.1ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.rotation[11].pipe.dir_inv      2 7.1ms
+                u_dut.i_tx.i_tx_channel_2.genblk2.i_up_dac_channel.up_dac_pat_data_1[14]      2 7.1ms
+                         u_dut.i_rx.i_rx_channel_0.genblk2.i_ad_dcfilter.dc_offset_s[32]     16 7.1ms
+                        u_dut.i_rx.i_rx_channel_1.genblk2.i_rx_pnmon.i_pnmon.adc_valid_d     10 7.1ms
+                                                                    u_dut.adc_data_s[46]      5 7.1ms
+                                            $auto$alumacc.cc:512:replace_alu$18236.Y[10]      1 7.1ms
+                                             $auto$alumacc.cc:512:replace_alu$18023.Y[1]      1 7.1ms
+                                             $auto$alumacc.cc:512:replace_alu$18668.Y[8]      1 7.0ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.rotation[0].pipe.dir_inv     14 7.0ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.rotation[10].pipe.dir_inv      2 7.0ms
+                                             $auto$alumacc.cc:512:replace_alu$18923.Y[5]      1 7.0ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$117004      1 7.0ms
+                                                                         u_dut.up_rreq_s     12 7.0ms
+                  $techmap165980$abc$121031$auto$blifparse.cc:557:parse_blif$130241.A[0]      7 7.0ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$110408      1 7.0ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.rotation[9].pipe.dir_inv     13 7.0ms
+                                            $auto$alumacc.cc:512:replace_alu$18671.Y[13]      1 7.0ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$114596      1 7.0ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_rx_channel_1.\genblk2.i_up_adc_channel.$logic_and$library/common/up_adc_channel.v:353$8062_Y      8 7.0ms
+                              u_dut.genblk4.i_tdd.i_up_tdd_cntrl.up_tdd_counter_init[20]      2 7.0ms
+                                            $auto$alumacc.cc:512:replace_alu$18605.A[10]     15 7.0ms
+            $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_1.$0\dac_data_out_int[11:0][9]      3 7.0ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$116048      1 7.0ms
+             u_dut.i_rx.i_rx_channel_0.genblk2.i_up_adc_channel.up_adc_iqcor_coeff_1[15]     17 7.0ms
+                                             $auto$alumacc.cc:512:replace_alu$18113.Y[6]      1 7.0ms
+                                $abc$121031$auto$blifparse.cc:557:parse_blif$130220.A[0]      2 7.0ms
+                                             $auto$alumacc.cc:512:replace_alu$18239.Y[5]      1 7.0ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$112832      1 7.0ms
+                                             $auto$alumacc.cc:512:replace_alu$18644.Y[9]      1 6.9ms
+               u_dut.i_tx.i_tx_channel_2.genblk2.i_up_dac_channel.up_dac_dds_scale_1[15]     17 6.9ms
+                                $abc$121031$auto$blifparse.cc:557:parse_blif$122463.A[4]      1 6.9ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$106888      1 6.9ms
+                  $techmap157788$abc$121031$auto$blifparse.cc:557:parse_blif$121659.A[2]      6 6.9ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.rotation[6].pipe.dir_inv     13 6.9ms
+                                                                                lfsr[26]      4 6.9ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.z_s[7][12]     30 6.9ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$110608      1 6.9ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$115202      1 6.9ms
+                                            $auto$alumacc.cc:512:replace_alu$18170.Y[12]      1 6.9ms
+                               u_dut.genblk4.i_tdd.i_up_tdd_cntrl.up_tdd_vco_rx_on_1[19]      2 6.9ms
+                         u_dut.i_rx.i_rx_channel_1.genblk2.i_ad_dcfilter.dc_offset_s[30]      2 6.9ms
+           $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_2.$0\dac_data_out_int[11:0][11]     15 6.8ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.rotation[4].pipe.dir_inv     12 6.8ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$119686      1 6.8ms
+                                             $auto$alumacc.cc:512:replace_alu$18446.Y[1]      1 6.8ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$113628      1 6.8ms
+                                            $auto$alumacc.cc:512:replace_alu$18356.Y[11]      1 6.8ms
+                               u_dut.i_rx.i_rx_channel_1.genblk2.i_ad_dcfilter.data_d[8]      4 6.8ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$119662      1 6.8ms
+             u_dut.i_tx.i_tx_channel_0.genblk2.i_up_dac_channel.up_dac_iqcor_coeff_1[15]     17 6.8ms
+                  $techmap160294$abc$121031$auto$blifparse.cc:557:parse_blif$124257.A[5]      1 6.8ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.s1_data_s[14]      1 6.8ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$112534      1 6.8ms
+                               u_dut.i_rx.i_rx_channel_1.genblk2.i_ad_dcfilter.data_d[6]      4 6.8ms
+                                                                u_dut.i_up_axi.up_wack_s      8 6.8ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$109252      1 6.8ms
+                                    $abc$121031$auto$opt_dff.cc:360:combine_resets$16323      3 6.8ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$107908      1 6.8ms
+                                             $auto$alumacc.cc:512:replace_alu$18719.Y[5]      1 6.8ms
+                                             $auto$alumacc.cc:512:replace_alu$18116.Y[5]      1 6.8ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.rotation[6].pipe.dir_inv     13 6.8ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$115578      1 6.8ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$115266      1 6.7ms
+                                         u_dut.i_rx.i_rx_channel_0.adc_dcfilt_coeff_s[4]      1 6.7ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$118574      1 6.7ms
+                                             $auto$alumacc.cc:512:replace_alu$18641.Y[7]      1 6.7ms
+           $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_1.$0\dac_data_out_int[11:0][11]     15 6.7ms
+                                               u_dut.i_rx.i_rx_channel_3.adc_iqcor_enb_s     16 6.7ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$113336      1 6.7ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$120820      1 6.7ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$118430      1 6.7ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$116644      1 6.7ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.rotation[5].pipe.dir_inv     12 6.7ms
+                                    u_dut.genblk4.i_tdd.i_up_tdd_cntrl.up_tdd_tx_on_1[5]      2 6.7ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$111922      1 6.7ms
+                                             $auto$alumacc.cc:512:replace_alu$18410.Y[1]      1 6.6ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$113694      1 6.6ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$116490      1 6.6ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$111490      1 6.6ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$111748      1 6.6ms
+              u_dut.i_rx.i_rx_channel_2.genblk2.i_up_adc_channel.up_adc_dcfilt_offset[9]      2 6.6ms
+                                             $auto$alumacc.cc:512:replace_alu$17849.Y[4]      1 6.6ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$114730      1 6.6ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.rotation[3].pipe.dir_inv     12 6.6ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$110762      1 6.6ms
+                                                                     u_dut.adc_data_s[0]      6 6.6ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$114570      1 6.6ms
+             u_dut.i_tx.i_tx_channel_0.genblk2.i_up_dac_channel.up_dac_iqcor_coeff_2[15]     17 6.6ms
+                                             $auto$alumacc.cc:512:replace_alu$18452.Y[4]      1 6.6ms
+                                             $auto$alumacc.cc:512:replace_alu$18593.Y[9]      1 6.5ms
+                                           u_dut.i_tx.i_tx_channel_1.dac_dds_incr_1_s[8]      1 6.5ms
+                                            $auto$alumacc.cc:512:replace_alu$18383.Y[25]      1 6.5ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$119664      1 6.5ms
+        $abc$121031$flatten\u_dut.\i_tx.\i_up_dac_common.$logic_and$library/common/up_dac_common.v:239$6912_Y      3 6.5ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$116122      1 6.5ms
+                                                                    u_dut.adc_data_s[18]      5 6.5ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$110312      1 6.5ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$115710      1 6.5ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$111234      1 6.5ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_rx_channel_0.\genblk2.i_ad_dcfilter.$0\data_int[15:0][14]      3 6.5ms
+        u_dut.i_rx.i_rx_channel_2.genblk2.i_up_adc_channel.i_xfer_cntrl.up_xfer_data[59]      1 6.5ms
+                                             $auto$alumacc.cc:512:replace_alu$18539.Y[9]      1 6.5ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$119894      1 6.5ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_up_dac_channel.i_xfer_cntrl.up_xfer_data[33]      1 6.5ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$113660      1 6.5ms
+                                            u_dut.i_tx.i_up_dac_common.dac_sync_count[5]      9 6.5ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$114954      1 6.5ms
+                              u_dut.genblk4.i_tdd.i_up_tdd_cntrl.up_tdd_counter_init[15]      2 6.5ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$117038      1 6.4ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$118412      1 6.4ms
+                                             $auto$alumacc.cc:512:replace_alu$18092.Y[6]      1 6.4ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.z_s[10][12]     23 6.4ms
+           $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_3.$0\dac_data_out_int[11:0][11]     15 6.4ms
+                                             $auto$alumacc.cc:512:replace_alu$18713.Y[0]      1 6.4ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$118804      1 6.4ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_up_dac_channel.i_xfer_cntrl.up_xfer_data[121]      1 6.4ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$106882      1 6.4ms
+                                                                u_dut.i_up_axi.up_rack_s      7 6.4ms
+                                          u_dut.i_tx.i_up_dac_common.up_dac_custom_rd[0]      3 6.4ms
+                         u_dut.i_rx.i_rx_channel_0.genblk2.i_rx_pnmon.adc_pn0_data_in[6]      6 6.4ms
+                  $techmap157694$abc$121031$auto$blifparse.cc:557:parse_blif$121559.A[0]      5 6.4ms
+        u_dut.genblk4.i_tdd.i_up_tdd_cntrl.i_xfer_tdd_counter_values_rx_1.up_xfer_data[122]      1 6.4ms
+                               u_dut.genblk4.i_tdd.i_up_tdd_cntrl.up_tdd_rx_dp_off_1[20]      2 6.4ms
+                                                                    u_dut.adc_data_s[27]      6 6.3ms
+                  $techmap165039$abc$121031$auto$blifparse.cc:557:parse_blif$129273.A[0]      8 6.3ms
+                         u_dut.i_rx.i_rx_channel_3.genblk2.i_ad_dcfilter.dc_offset_s[46]      1 6.3ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.rotation[4].pipe.dir_inv     12 6.3ms
+        u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.rotation[6].pipe.dir_inv     13 6.3ms
+                                             $auto$alumacc.cc:512:replace_alu$18266.Y[8]      1 6.3ms
+                                                                    u_dut.adc_data_s[12]      5 6.3ms
+                         u_dut.i_rx.i_rx_channel_3.genblk2.i_ad_dcfilter.dc_offset_s[27]      2 6.3ms
+                              u_dut.i_rx.i_rx_channel_3.genblk2.i_ad_dcfilter.data_d[12]      4 6.3ms
+                                         u_dut.i_rx.i_rx_channel_2.adc_dcfilt_coeff_s[3]      1 6.3ms
+                                                                    u_dut.adc_data_s[43]      5 6.3ms
+                  $techmap165067$abc$121031$auto$blifparse.cc:557:parse_blif$129300.A[1]      6 6.3ms
+                                             $auto$alumacc.cc:512:replace_alu$18395.Y[9]      1 6.3ms
+                                            $auto$alumacc.cc:512:replace_alu$17831.Y[13]      1 6.3ms
+                                                                    u_dut.adc_data_s[11]      5 6.3ms
+                  $techmap157721$abc$121031$auto$blifparse.cc:557:parse_blif$121586.A[1]     12 6.3ms
+                                             $auto$alumacc.cc:512:replace_alu$18590.Y[2]      1 6.3ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$109330      1 6.3ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$117924      1 6.3ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$108612      1 6.3ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$115322      1 6.3ms
+            $abc$121031$flatten\u_dut.\i_tx.\i_tx_channel_2.$0\dac_data_out_int[11:0][9]      3 6.3ms
+                                             $auto$alumacc.cc:512:replace_alu$18146.Y[3]      1 6.3ms
+                               u_dut.i_rx.i_rx_channel_0.genblk2.i_ad_dcfilter.data_d[9]      4 6.3ms
+                                            $auto$alumacc.cc:512:replace_alu$18890.A[10]     22 6.3ms
+                                u_dut.genblk4.i_tdd.i_up_tdd_cntrl.up_tdd_rx_dp_on_2[12]      2 6.3ms
+                                            $auto$alumacc.cc:512:replace_alu$18884.Y[13]      1 6.3ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$117796      1 6.2ms
+                                                                    u_dut.adc_data_s[47]      5 6.2ms
+                                                                    u_dut.adc_data_s[30]      6 6.2ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$119462      1 6.2ms
+                  $techmap162651$abc$121031$auto$blifparse.cc:557:parse_blif$126875.A[0]      6 6.2ms
+                                                                    u_dut.adc_data_s[35]      5 6.2ms
+        $abc$121031$flatten\u_dut.\i_rx.\i_rx_channel_2.\genblk2.i_ad_dcfilter.$0\data_int[15:0][10]      3 6.2ms
+                  $techmap157698$abc$121031$auto$blifparse.cc:557:parse_blif$121558.A[0]      8 6.2ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$109834      1 6.2ms
+                                u_dut.genblk4.i_tdd.i_up_tdd_cntrl.up_tdd_vco_rx_on_2[5]      2 6.2ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$117506      1 6.2ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$113240      1 6.2ms
+                                             $auto$alumacc.cc:512:replace_alu$18503.Y[5]      1 6.2ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$113792      1 6.2ms
+                                            $auto$alumacc.cc:512:replace_alu$18245.Y[11]      1 6.2ms
+                                                                    u_dut.adc_data_s[37]      5 6.2ms
+                                             u_dut.i_tx.i_tx_channel_2.dac_data_sel_s[3]     14 6.2ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$118850      1 6.2ms
+             u_dut.i_rx.i_rx_channel_1.genblk2.i_up_adc_channel.up_adc_iqcor_coeff_2[15]     17 6.2ms
+                 u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dac_dds_phase_1_m[1][7]      1 6.2ms
+                                            $auto$alumacc.cc:512:replace_alu$18728.Y[12]      1 6.2ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$117082      1 6.2ms
+        u_dut.i_tx.i_tx_channel_0.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_0.genblk1.i_dds_sine.rotation[4].pipe.dir_inv     12 6.2ms
+                               u_dut.genblk4.i_tdd.i_up_tdd_cntrl.up_tdd_tx_dp_off_2[11]      2 6.2ms
+                                             $auto$alumacc.cc:512:replace_alu$18461.Y[9]      1 6.2ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$113702      1 6.2ms
+                                             $auto$alumacc.cc:512:replace_alu$18863.Y[8]      1 6.2ms
+                                            $auto$alumacc.cc:512:replace_alu$18575.Y[10]      1 6.1ms
+                 u_dut.i_tx.i_tx_channel_3.genblk2.i_up_dac_channel.up_dac_dds_incr_1[4]      2 6.1ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$109072      1 6.1ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$120818      1 6.1ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$113664      1 6.1ms
+                                             $auto$alumacc.cc:512:replace_alu$18632.Y[9]      1 6.1ms
+                                u_dut.genblk4.i_tdd.i_up_tdd_cntrl.up_tdd_tx_dp_on_2[16]      2 6.1ms
+                                             $auto$alumacc.cc:512:replace_alu$17882.Y[0]      1 6.1ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$116790      1 6.1ms
+                  $techmap159192$abc$121031$auto$blifparse.cc:557:parse_blif$123138.A[0]      6 6.1ms
+                                            $auto$alumacc.cc:512:replace_alu$18512.Y[11]      1 6.1ms
+                                             $auto$alumacc.cc:512:replace_alu$18137.Y[8]      1 6.1ms
+                                 u_dut.genblk4.i_tdd.i_up_tdd_cntrl.up_tdd_tx_dp_on_2[5]      2 6.1ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$114136      1 6.1ms
+        u_dut.i_tx.i_tx_channel_1.genblk2.i_dds.genblk1.dds_phase[1].i_dds_2.i_dds_1_1.genblk1.i_dds_sine.rotation[6].pipe.dir_inv     13 6.1ms
+                                            $auto$alumacc.cc:512:replace_alu$18923.Y[13]      1 6.1ms
+               u_dut.i_tx.i_tx_channel_1.genblk2.i_up_dac_channel.up_dac_dds_scale_1[15]     17 6.1ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$117206      1 6.1ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$119762      1 6.1ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$114258      1 6.1ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$120560      1 6.1ms
+                                            $auto$alumacc.cc:512:replace_alu$18725.Y[10]      1 6.1ms
+                               u_dut.i_rx.i_rx_channel_0.genblk2.i_ad_dcfilter.data_d[1]      4 6.1ms
+                                             $auto$alumacc.cc:512:replace_alu$18182.Y[6]      1 6.1ms
+                                                                                lfsr[24]      4 6.1ms
+           u_dut.i_tx.i_tx_channel_3.genblk2.i_up_dac_channel.up_dac_iqcor_coeff_tc_2[3]      1 6.1ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$119194      1 6.1ms
+                                                                    u_dut.adc_data_s[28]      6 6.1ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$116290      1 6.1ms
+                               u_dut.i_rx.i_rx_channel_1.genblk2.i_ad_dcfilter.data_d[4]      4 6.1ms
+                u_dut.i_tx.i_tx_channel_2.genblk2.i_dds.genblk1.dac_dds_phase_0_m[1][15]      6 6.1ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$110258      1 6.1ms
+          $abc$121031$techmap$auto$pmux2shiftx.cc:714:execute$17319.$16\buffer[511:0][6]      1 6.1ms
+                                             $auto$alumacc.cc:512:replace_alu$18557.Y[2]      1 6.1ms
+                                            $auto$alumacc.cc:512:replace_alu$18635.A[10]     22 6.1ms
+                                             $auto$alumacc.cc:512:replace_alu$18065.Y[0]      1 6.1ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$107904      1 6.1ms
+                            u_dut.i_rx.i_rx_channel_3.genblk2.i_rx_pnmon.adc_pn1_valid_t     12 6.1ms
+        u_dut.i_tx.i_tx_channel_3.genblk2.i_up_dac_channel.i_xfer_cntrl.up_xfer_data[221]      1 6.1ms
+                                           $abc$121031$auto$rtlil.cc:3501:NotGate$113278      1 6.0ms
+              u_dut.i_tx.i_tx_channel_1.genblk2.i_up_dac_channel.up_dac_iqcor_coeff_2[0]      3 6.0ms
+                                u_dut.genblk4.i_tdd.i_up_tdd_cntrl.up_tdd_rx_dp_on_1[22]      2 6.0ms
+                                            $auto$alumacc.cc:512:replace_alu$18560.Y[12]      1 6.0ms
+Info: Router2 time 72.82s
+Info: Running router1 to check that route is legal...
+
+Info: Routing..
+Info: Setting up routing queue.
+Info: Routing 0 arcs.
+Info:            |   (re-)routed arcs  |   delta    | remaining|       time spent     |
+Info:    IterCnt |  w/ripup   wo/ripup |  w/r  wo/r |      arcs| batch(sec) total(sec)|
+Info:          0 |        0          0 |    0     0 |         0|       0.92       0.92|
+Info: Routing complete.
+Info: Router1 time 0.92s
+Info: Checksum: 0xa1b39de5
+
+Info: Critical path report for clock 'o_l_clk' (posedge -> posedge):
+Info: curr total
+Info:  0.1  0.1  Source $auto$ff.cc:337:slice$37983.Q
+Info:  2.3  2.4    Net u_dut.genblk1.i_dev_if.rx_r1_mode budget 41.505001 ns (162,30) -> (169,3)
+Info:                Sink $auto$xilinx_dffopt.cc:341:execute$175196.A5
+Info:  0.1  2.6  Source $auto$xilinx_dffopt.cc:341:execute$175196.O6
+Info:  0.0  2.6    Net $auto$xilinx_dffopt.cc:347:execute$175197 budget 40.536999 ns (169,3) -> (169,3)
+Info:                Sink $auto$ff.cc:337:slice$105887.D
+Info:  0.1  2.7  Setup $auto$ff.cc:337:slice$105887.D
+Info: 0.3 ns logic, 2.4 ns routing
+
+Info: Critical path report for clock 'FCLKCLK[0]' (posedge -> posedge):
+Info: curr total
+Info:  0.1  0.1  Source $auto$ff.cc:337:slice$29247.Q
+Info:  5.5  5.6    Net u_dut.up_waddr_s[0] budget 7.872000 ns (78,86) -> (172,48)
+Info:                Sink $abc$121031$auto$blifparse.cc:557:parse_blif$121577.A1
+Info:  0.1  5.8  Source $abc$121031$auto$blifparse.cc:557:parse_blif$121577.O6
+Info:  0.3  6.0    Net $techmap157710$abc$121031$auto$blifparse.cc:557:parse_blif$121576.A[1] budget 5.004000 ns (172,48) -> (172,48)
+Info:                Sink $abc$121031$auto$blifparse.cc:557:parse_blif$121603.A3
+Info:  0.2  6.2  Source $abc$121031$auto$blifparse.cc:557:parse_blif$121603.O5
+Info:  6.8 13.0    Net $techmap157737$abc$121031$auto$blifparse.cc:557:parse_blif$121602.A[1] budget 8.195000 ns (172,48) -> (74,42)
+Info:                Sink $abc$121031$auto$blifparse.cc:557:parse_blif$129292.A2
+Info:  0.2 13.1  Source $abc$121031$auto$blifparse.cc:557:parse_blif$129292.O5
+Info:  7.5 20.6    Net $abc$121031$auto$opt_dff.cc:319:make_patterns_logic$17134 budget 5.204000 ns (74,42) -> (23,122)
+Info:                Sink $auto$ff.cc:337:slice$25193.CE
+Info:  0.1 20.7  Setup $auto$ff.cc:337:slice$25193.CE
+Info: 0.6 ns logic, 20.1 ns routing
+
+Info: Critical path report for cross-domain path 'posedge FCLKCLK[0]' -> 'posedge o_l_clk':
+Info: curr total
+Info:  0.1  0.1  Source $auto$ff.cc:337:slice$28212.Q
+Info:  2.9  3.0    Net o_adc_r1_mode budget 83.133003 ns (81,3) -> (162,30)
+Info:                Sink $auto$ff.cc:337:slice$37983.D
+Info:  0.1  3.1  Setup $auto$ff.cc:337:slice$37983.D
+Info: 0.2 ns logic, 2.9 ns routing
+
+Info: Critical path report for cross-domain path 'posedge o_l_clk' -> 'posedge FCLKCLK[0]':
+Info: curr total
+Info:  0.1  0.1  Source $auto$ff.cc:337:slice$105878.Q
+Info:  0.8  0.9    Net u_dut.genblk1.i_dev_if.adc_data_p[40] budget 32.351002 ns (163,7) -> (162,7)
+Info:                Sink $auto$ff.cc:337:slice$37974.D
+Info:  0.1  1.0  Setup $auto$ff.cc:337:slice$37974.D
+Info: 0.2 ns logic, 0.8 ns routing
+
+Info: Max frequency for clock    'o_l_clk': 370.92 MHz (PASS at 12.00 MHz)
+Info: Max frequency for clock 'FCLKCLK[0]': 48.25 MHz (PASS at 30.72 MHz)
+
+Info: Max delay posedge FCLKCLK[0] -> posedge o_l_clk   : 3.07 ns
+Info: Max delay posedge o_l_clk    -> posedge FCLKCLK[0]: 1.00 ns
+
+Info: Slack histogram:
+Info:  legend: * represents 247 endpoint(s)
+Info:          + represents [1,247) endpoint(s)
+Info: Running post-routing legalisation...
+libc++abi: terminating due to uncaught exception of type nextpnr_xilinx::assertion_failure: Assertion failure: is_string (/nix/var/nix/builds/nix-56260-1470540843/source/common/nextpnr.h:365)

@@ -1,0 +1,12 @@
+state=operating
+rest:       bank2=000047C0 bank3=00000000   (0x47C0 = ours)
+after taps: bank2=000047C0 bank3=00000000
+after rst:  bank2=000047C0 bank3=00000000
+  n=0 samp=6 strobe=1 -> bank2=000047C0 bank3=00001010
+  n=1 samp=65482 strobe=0 -> bank2=000047C0 bank3=00000020
+  n=2 samp=65468 strobe=1 -> bank2=000647C0 bank3=00001030
+  n=3 samp=65492 strobe=0 -> bank2=FFCA47C0 bank3=0000004F
+  n=4 samp=65535 strobe=1 -> bank2=FFB647C0 bank3=0000105F
+  n=5 samp=54 strobe=0 -> bank2=000447C0 bank3=00000060
+golden first 6: 6 -48 -122 -118 3 169 
+DIAG_DONE

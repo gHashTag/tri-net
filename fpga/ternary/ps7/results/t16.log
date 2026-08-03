@@ -1,0 +1,21 @@
+anchor bank2=000047C0
+-- 16 samples, deliberately slowed (extra reads between writes) --
+  n=0 cnt=1 corr=0  prev_expected=
+  n=1 cnt=2 corr=6  prev_expected=6
+  n=2 cnt=3 corr=-48  prev_expected=-48
+  n=3 cnt=4 corr=-122  prev_expected=-122
+  n=4 cnt=1 corr=0  prev_expected=-118
+  n=5 cnt=2 corr=0  prev_expected=3
+  n=6 cnt=3 corr=-1  prev_expected=169
+  n=7 cnt=4 corr=54  prev_expected=285
+  n=8 cnt=1 corr=0  prev_expected=229
+  n=9 cnt=2 corr=0  prev_expected=-30
+  n=10 cnt=3 corr=-12  prev_expected=-252
+  n=11 cnt=4 corr=-54  prev_expected=-332
+  n=12 cnt=5 corr=-58  prev_expected=-203
+  n=13 cnt=6 corr=32  prev_expected=63
+  n=14 cnt=7 corr=158  prev_expected=292
+  n=15 cnt=8 corr=227  prev_expected=335
+final counter=8 after 16 writes
+golden 0..15: 6 -48 -122 -118 3 169 285 229 -30 -252 -332 -203 63 292 335 160 
+T16_DONE

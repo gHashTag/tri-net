@@ -1,0 +1,7 @@
+=== corr_stream v2: final strobe added ===
+anchor: 0x47C0 (expected 0x47C0)
+ingest counter 0 -> 1 (delta 1, expected 0)
+=== VERDICT: 256 of 256 bit-exact against the software reference ===
+The ternary correlator ran in the fabric on real over-the-air samples.
+EXIT_CODE=0
+DONE

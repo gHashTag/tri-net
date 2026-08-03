@@ -1,0 +1,6 @@
+anchor=000047C0
+--- streaming 256, atomic two-bank read ---
+counter=4 after 256 pushes
+VERDICT: 255 of 256 differ. first: index 1: fabric=0 reference=-48
+EXIT=5
+ATOMIC_DONE

@@ -1,0 +1,7 @@
+=== corr_stream: C harness, single mmap, no forks ===
+state: operating
+anchor: 0x47C0 (expected 0x47C0)
+ingest counter 0 -> 0 (delta 0, expected 0)
+VERDICT: 1 of 256 differ. first: index 255 fabric=-207 reference=-338
+EXIT_CODE=5
+CSTREAM_DONE

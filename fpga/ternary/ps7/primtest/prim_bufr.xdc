@@ -1,0 +1,6 @@
+set_property PACKAGE_PIN H16 [get_ports clk_p]
+set_property IOSTANDARD LVDS_25 [get_ports clk_p]
+set_property PACKAGE_PIN H17 [get_ports clk_n]
+set_property IOSTANDARD LVDS_25 [get_ports clk_n]
+set_property PACKAGE_PIN D19 [get_ports dout]
+set_property IOSTANDARD LVCMOS33 [get_ports dout]

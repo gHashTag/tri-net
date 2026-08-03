@@ -1,0 +1,18 @@
+=== BITSTREAM MUTATION TEST: faults injected into the design itself ===
+  GOLDEN   unmutated design
+      state : operating
+      expect: 256 of 256 bit-exact
+      got   : === VERDICT: 256 of 256 bit-exact against the software reference ===
+  MUTANT A accumulator truncated to 18 bits
+      state : operating
+      expect: must fail with exactly 95 of 256
+      got   : VERDICT: 95 of 256 differ. first: index 32 fabric=94468 reference=-167676
+  MUTANT B delay line one stage short (tap 62)
+      state : operating
+      expect: must fail with exactly 182 of 256
+      got   : VERDICT: 182 of 256 differ. first: index 62 fabric=-311809 reference=-344576
+  GOLDEN   again, to show recovery
+      state : operating
+      expect: 256 of 256 again
+      got   : === VERDICT: 256 of 256 bit-exact against the software reference ===
+MUTANTS_DONE
