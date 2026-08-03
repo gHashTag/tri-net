@@ -442,3 +442,76 @@ a DRIVE/SLEW heuristic, segbits signatures with no positive bits, the bank-wide
 evidence rather than from evidence.
 
 `ls -la` reports the size on this busybox and is what the scripts use now.
+
+
+---
+
+# Measuring the pins instead of arguing about them
+
+Added 2026-08-03.
+
+The real-pin design loaded and read no clock. Rather than guess why, the next
+build counts transitions on **every** one of the fourteen pins, sampled on the
+PS clock over a window of 2^23 cycles. It assumes nothing about which pin is
+clock, frame or data -- the previous cycle inferred "N18 is the clock" from the
+pin being MRCC-capable, which is a property of the package, not a measurement.
+
+Two controls run through the identical counting path, because a counter that
+always reads zero is indistinguishable from a broken one:
+
+| | counter | expected |
+|---|---|---|
+| bit 14 | fabric divide-by-two | must equal the window length |
+| bit 15 | tied low | must stay zero |
+
+## Result
+
+```
+bit  0 : 0          bit  8 : 0
+bit  1 : 1          bit  9 : 1
+bit  2 : 0          bit 10 : 0
+bit  3 : 0          bit 11 : 0
+bit  4 : 0          bit 12 : 0
+bit  5 : 0          bit 13 : 0
+bit  6 : 1          bit 14 : 0x00800000   <- control, = window length
+bit  7 : 1          bit 15 : 0            <- control, tied low
+```
+
+The positive control counted **every** cycle of the window and the negative
+control counted none, so the instrument works. Against that, four pins made
+exactly one transition each in 8 388 608 cycles and the other ten made none.
+One edge in a window that long is a power-up settle, not a signal.
+
+**None of the fourteen pins carries anything** while this bitstream is loaded.
+
+## Two false results the controls caught first
+
+The first two builds of this monitor reported zero on all fourteen pins **and on
+the positive control**, which is the signature of a broken instrument rather than
+a quiet bus. Publishing the first would have been publishing nothing dressed as
+something.
+
+- **A sixteen-entry array, incremented sixteen ways per cycle and read with a
+  computed index, is inferred as a memory.** One write port; fifteen of the
+  sixteen increments silently dropped. Replaced with sixteen explicit counters
+  in a generate block.
+- **The read address collided with the capture memory.** `0x40010440` decodes to
+  the `in_mem` region, so every read returned an unwritten capture slot. The
+  counters live at `0x40010040`. The RTL had been correct for one build already.
+
+## What this does and does not establish
+
+It establishes that these pins are electrically quiet. It does **not** establish
+that they are the wrong pins: the classifier's identification of them as inputs
+in the vendor bitstream stands on a round trip, and the vendor design is not
+running while ours is.
+
+The remaining hypothesis, and it is a hypothesis: the AD9361's `RESETB` is
+driven by the FPGA in the vendor design and is therefore floating under ours. A
+part held in reset drives nothing, which fits every observation including this
+one. `rx_path_rates` and `ensm_mode` reading sensibly from Linux does not
+contradict it -- those are the driver's cached state, not a live read of the
+part.
+
+That is testable in one step: read an AD9361 register over SPI with our
+bitstream loaded. A part in reset returns defaults.
