@@ -147,3 +147,68 @@ the FIT image in `mtd3` rather than as a file in the rootfs, so it has to be
 extracted again -- the earlier extraction was to `/tmp`, which this board's
 reboot wipes. The classification itself is then a join between the set-bit map
 already built and the `IN_ONLY` bit position, keyed on tile and site.
+
+
+---
+
+## Direction resolved, 2026-08-03
+
+`pin_directions.py` applies the `IN_ONLY` signature to a decoded bitstream and
+classifies every I/O site four ways. Against the vendor image:
+
+| class | sites |
+|---|---|
+| input | 23 |
+| output | 46 |
+| configured, direction unresolved | 87 |
+| unused | 52 |
+
+23 + 46 + 87 = 156 = **78 tiles x 2 sites**, which is the same 78 this file
+arrived at independently by counting set bits. Two methods, one number.
+
+The control holds too: our own portless design classifies **0** sites in any
+used category and 208 as unused. A classifier that finds structure in a design
+with no ports would be finding it in noise.
+
+### The receive bus, named
+
+The inputs in bank 34 are exactly the contiguous run this file predicted from
+tile density alone, before any direction was known:
+
+```
+V18 V17  R18 T17  R17  W16 V16  Y19 Y18  W20 V20  U20 T20     (13 sites)
+P19  IO_L13N_T2_MRCC_34                                        (clock-capable)
+```
+
+Thirteen data and frame lines plus an **MRCC** pin -- multi-region clock
+capable, which is what a recovered bus clock must land on. The structural guess
+was "twelve data lines plus frame plus clock"; the configuration says the same
+thing, and says which pin carries the clock.
+
+A further eight inputs sit in bank 35 (`H17`, `L17`, `M18`, `M20`, `M19`,
+`F17`, `F16`) with two more in bank 34 (`V13`, `T12`).
+
+### The trap that had to be avoided first
+
+A first run reported **121 outputs** on a device with 78 configured tiles. The
+cause is worth recording because it generalises: most segbits signatures are
+dominated by must-be-*clear* bits, and a signature of only negated bits matches
+an all-zero region -- that is, it matches every unused tile. Matching therefore
+requires at least one bit that must be **set**. Evidence, not the absence of
+evidence.
+
+This is the same shape of error as the original `DRIVE`/`SLEW` heuristic: both
+concluded "output" from something that was never a positive indication.
+
+### What is still not resolved
+
+**87 sites remain unclassified**, and the reason is granularity: "is this tile
+configured" is answered per tile, not per site, so both sites of a used tile are
+treated as candidates even when only one is really in use. Refining that needs a
+per-site used-mask rather than a per-tile one.
+
+**Output classification is weaker than input classification.** `IN_ONLY` names
+direction outright; the output test infers it from drive and slew features,
+which is why 46 is a lower bound rather than a count. For the purpose at hand
+this asymmetry is the safe one: a pin called an input by `IN_ONLY` is positively
+identified, and everything else stays off limits.
