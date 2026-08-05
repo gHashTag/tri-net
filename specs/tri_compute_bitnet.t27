@@ -29,9 +29,22 @@ module TriComputeBitnet {
     // Count active (nonzero) ternary weights in a packed 4-trit word (2 bits each).
     // This is the sparsity the 0-DSP path exploits: zero weights contribute
     // nothing and cost nothing.
-    // A single 2-bit trit is active iff it is nonzero (zeros are the 0-DSP skip).
+    // A single 2-bit trit is ACTIVE (a real +1 or -1 weight) iff it is exactly 01
+    // or 10. The encoding is 01 = +1, 10 = -1, and BOTH 00 and 11 decode to 0 -- so
+    // 11 is a redundant zero, NOT active. The old `trit != 0` counted 11 as active,
+    // over-reporting sparsity/work: a packing of 11 codes (buggy or malicious, since
+    // the receipt attests untrusted weights) would inflate the attested active-
+    // weight count. Match the decode exactly, so only canonical nonzero trits count.
     fn is_active(trit: u32) -> u32 {
-        if (trit != 0) { return 1; } else { return 0; }
+        if (trit == 1) {
+            return 1;
+        } else {
+            if (trit == 2) {
+                return 1;
+            } else {
+                return 0;
+            }
+        }
     }
 
     fn active_weights4(packed: u32) -> u32 {
@@ -59,6 +72,21 @@ module TriComputeBitnet {
         assert(active_weights4(0x61) == 3, "three nonzero weights");
         assert(active_weights4(0x00) == 0, "all-zero weights -> nothing active");
         assert(active_weights4(0x55) == 4, "0x55 = four +1 trits -> 4 active");
+    }
+
+    // Trit decoding: 01/10 are the only active codes; 00 AND 11 are both zero. The
+    // redundant 11 code must NOT be counted as active (it was, under `trit != 0`).
+    test trit_11_is_a_zero {
+        assert(is_active(0) == 0, "00 -> zero -> inactive");
+        assert(is_active(1) == 1, "01 -> +1 -> active");
+        assert(is_active(2) == 1, "10 -> -1 -> active");
+        assert(is_active(3) == 0, "11 -> redundant zero -> inactive, NOT counted");
+        // a word of four 11-codes has ZERO active weights, not four -- the fix.
+        assert(active_weights4(0xFF) == 0, "four 11-codes all decode to zero -> 0 active");
+        // 0x1B = {t0=11(0), t1=10(-1), t2=01(+1), t3=00(0)} -> exactly the 2 real weights
+        assert(active_weights4(0x1B) == 2, "mixed word counts only the two canonical nonzero trits");
+        // an 11 code cannot inflate the count past the real active weights.
+        assert(active_weights4(0xF5) == 2, "0xF5 = {01,01,11,11} -> 2 active (the two 11s do not count)");
     }
 
     // The receipt binds the TERNARY WEIGHTS: flipping a weight changes the leaf.
