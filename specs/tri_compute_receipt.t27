@@ -39,6 +39,7 @@ module TriComputeReceipt {
     const TAG_LEDGER: u32 = 0x54524C47;      // "TRLG" -- ledger-entry domain tag
     const LEDGER_GENESIS: u32 = 0x54524C30;  // "TRL0" -- genesis head seed (word 0; rest 0)
     const LEDGER_MSG_BITS: u32 = 608;        // 19 message words * 32 bits = 76 bytes = 608 bits
+    const MERKLE_MSG_BITS: u32 = 512;        // 16 message words * 32 bits = 64 bytes = 512 bits
 
     // The GoldenFloat workload this receipt exists to attest. The actual GF
     // arithmetic is the proven GF line (t27 specs/numeric/gf*.t27 -> gen-verilog
@@ -224,6 +225,34 @@ module TriComputeReceipt {
         return 0;
     }
 
+    // Canonical two-block SHA-256 preimage of a Merkle inner node = H(left || right),
+    // where left and right are 256-bit child hashes (receipt digests at the leaves,
+    // node hashes above). Word `idx` (0..31): block 1 (0..15) = left(8) || right(8)
+    // (a full 512-bit block); block 2 (16..31) = the SHA-256 padding for a 64-byte
+    // message. Lets a node commit N receipts under ONE 256-bit root (batch settle
+    // with one signature + O(log N) inclusion proofs), composed via sha256_compress.
+    fn merkle_pair_pre(idx: u32, l0: u32, l1: u32, l2: u32, l3: u32, l4: u32, l5: u32, l6: u32, l7: u32, r0: u32, r1: u32, r2: u32, r3: u32, r4: u32, r5: u32, r6: u32, r7: u32) -> u32 {
+        if (idx == 0) { return l0; }
+        if (idx == 1) { return l1; }
+        if (idx == 2) { return l2; }
+        if (idx == 3) { return l3; }
+        if (idx == 4) { return l4; }
+        if (idx == 5) { return l5; }
+        if (idx == 6) { return l6; }
+        if (idx == 7) { return l7; }
+        if (idx == 8) { return r0; }
+        if (idx == 9) { return r1; }
+        if (idx == 10) { return r2; }
+        if (idx == 11) { return r3; }
+        if (idx == 12) { return r4; }
+        if (idx == 13) { return r5; }
+        if (idx == 14) { return r6; }
+        if (idx == 15) { return r7; }
+        if (idx == 16) { return SHA_PAD; }
+        if (idx == 31) { return MERKLE_MSG_BITS; }
+        return 0;
+    }
+
     fn verify_chain3_full(d0: u32, d1: u32, d2: u32, claimed: u32) -> bool {
         let h0: u32 = chain_step_full(RECEIPT_GENESIS, d0);
         let h1: u32 = chain_step_full(h0, d1);
@@ -404,5 +433,17 @@ module TriComputeReceipt {
         assert(ledger_entry_pre(19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == SHA_PAD, "SHA pad marker at idx 19");
         assert(ledger_entry_pre(31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == LEDGER_MSG_BITS, "608-bit length at idx 31");
         assert(ledger_entry_pre(24, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) == 0, "interior padding word is zero");
+    }
+
+    // A Merkle inner node hashes left(256) || right(256): block 1 is the two child
+    // hashes, block 2 the SHA padding for the 64-byte message. (Full two-block
+    // bit-exactness vs hashlib is proven by trinet_merkle_batch.)
+    test merkle_pair_layout {
+        assert(merkle_pair_pre(0, 0xA0, 1, 2, 3, 4, 5, 6, 7, 0xB0, 1, 2, 3, 4, 5, 6, 7) == 0xA0, "left child word 0 at idx 0");
+        assert(merkle_pair_pre(8, 0xA0, 1, 2, 3, 4, 5, 6, 7, 0xB0, 1, 2, 3, 4, 5, 6, 7) == 0xB0, "right child word 0 at idx 8");
+        assert(merkle_pair_pre(15, 0xA0, 1, 2, 3, 4, 5, 6, 7, 0xB0, 1, 2, 3, 4, 5, 6, 7) == 7, "right child word 7 at idx 15");
+        assert(merkle_pair_pre(16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == SHA_PAD, "SHA pad marker at idx 16");
+        assert(merkle_pair_pre(31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == MERKLE_MSG_BITS, "512-bit length at idx 31");
+        assert(merkle_pair_pre(20, 0xA0, 1, 2, 3, 4, 5, 6, 7, 0xB0, 1, 2, 3, 4, 5, 6, 7) == 0, "interior padding word is zero");
     }
 }
