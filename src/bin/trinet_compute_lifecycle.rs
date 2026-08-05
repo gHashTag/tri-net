@@ -92,6 +92,26 @@ fn main() {
     // Dispute at epoch 3 (inside the window): recompute == claim -> HONEST.
     let out_h = challenge::resolve_full(0, 3, challenge::FMT_GF_BINARY, challenge::FMT_GF_BINARY, leaf_ok, dispute_leaf, r_ok, r_ok);
     assert_eq!(out_h, challenge::RESOLVE_HONEST, "correct result on committed operands -> honest");
+    // The SAME dispute on the 256-bit receipt digest (not the 32-bit leaf): run the
+    // real tri_sha256 over digest_pre for a 2^128 anchor, then resolve_full_d256. A
+    // fabricated dispute (different committed result) yields a different digest ->
+    // leaf_match = 0 -> MALFORMED, closing the ~2^16 leaf collision for GF disputes.
+    let gf_digest = |out_val: u32| -> [u32; 8] {
+        let w = |i: u32| receipt::digest_pre(i, 0x2001, dev, exe, op, a, out_val, epoch, receipt::RECEIPT_GENESIS);
+        let mut d = [0u32; 8];
+        let mut j = 0u32;
+        while j < 8 {
+            d[j as usize] = sha::sha256_word(w(0), w(1), w(2), w(3), w(4), w(5), w(6), w(7), w(8), w(9), w(10), w(11), w(12), w(13), w(14), w(15), j);
+            j += 1;
+        }
+        d
+    };
+    let settled_gf = gf_digest(r_ok);
+    let gf_match = if gf_digest(r_ok) == settled_gf { 1u32 } else { 0u32 };
+    assert_eq!(challenge::resolve_full_d256(0, 3, challenge::FMT_GF_BINARY, challenge::FMT_GF_BINARY, gf_match, r_ok, r_ok), challenge::RESOLVE_HONEST, "256-bit-anchored GF dispute -> honest");
+    let gf_fab = if gf_digest(r_bad) == settled_gf { 1u32 } else { 0u32 };
+    assert_eq!(gf_fab, 0, "a different committed result yields a different 256-bit receipt digest (no collision)");
+    assert_eq!(challenge::resolve_full_d256(0, 3, challenge::FMT_GF_BINARY, challenge::FMT_GF_BINARY, gf_fab, r_bad, r_ok), challenge::RESOLVE_MALFORMED, "fabricated GF dispute -> malformed on the 256-bit anchor");
     // Window elapses (now >= settle_epoch + window) with no slash -> finalize, then
     // release the bond.
     let settle_epoch = 1u32;
@@ -281,6 +301,7 @@ fn main() {
 
     println!("  collateral: bond 100 carries task A(60); task B(->120) rejected; after A finalizes, B admitted");
     println!("  bitnet: canonical weights balance {} verified; ternary majority slashes a wrong-balance claim", claimed_balance);
+    println!("  gf-256: receipt SHA-256 digest 0x{:08X}..; honest GF dispute matches, fabricated result -> malformed (no 2^16 collision)", settled_gf[0]);
     println!("  bitnet-256: SHA-256 digest 0x{:08X}..; honest dispute matches, fabricated weight_code -> malformed (no 2^16 collision)", settled_d[0]);
     println!("OK: the compute-receipt / escrow / challenge / quorum / reputation / collateral / bitnet specs compose end-to-end on real Rust");
 }
