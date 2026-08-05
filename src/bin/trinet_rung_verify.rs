@@ -91,12 +91,25 @@ fn main() {
     let wrong = gfa::verify_gft_mul_full_p(13, 8, 13, 8, 14, 2, lad::gft_bias(lad::GFT16_ET), lad::gft_offset_max(lad::GFT16_ET), lad::gft_mant_one(lad::GFT16_ET));
     assert!(!wrong, "GF-T8 result checked with GF-T16 geometry is rejected");
 
+    // Wrong rung for ADD and SUB. Symmetric cases (1+1, 2-1) are mantissa-scale
+    // invariant -- the result is bias/scale-independent, so they cannot catch a rung
+    // swap. ASYMMETRIC operands do: the mantissa field is read against the rung's
+    // mant_one, so GF-T8's (mant_one 16) and GF-T16's (mant_one 512) diverge.
+    //   ADD 1.0+0.5: a=(13,0) b=(12,0). GF-T8 -> (13, 8); GF-T16 -> (13, 256).
+    //   SUB 1.5-0.5: a=(13,8) b=(12,0). GF-T8 -> (13, 0); GF-T16 -> (12, 16).
+    assert!(verify_add_for_width(8, 13, 0, 12, 0, 13, 8), "GF-T8 add 1.0+0.5=1.5");
+    let add_wrong_rung = gadd::verify_gft_add_p(13, 12, 0, 0, 13, 8, lad::gft_offset_max(lad::GFT16_ET), lad::gft_mant_one(lad::GFT16_ET), lad::gft_mant_bits(lad::GFT16_ET) + 1);
+    assert!(!add_wrong_rung, "GF-T8 add result checked with GF-T16 geometry is rejected");
+    assert!(verify_sub_for_width(8, 13, 8, 12, 0, 13, 0), "GF-T8 sub 1.5-0.5=1.0");
+    let sub_wrong_rung = gsub::verify_gft_sub_p(13, 12, 8, 0, 13, 0, lad::gft_mant_one(lad::GFT16_ET), lad::gft_mant_bits(lad::GFT16_ET));
+    assert!(!sub_wrong_rung, "GF-T8 sub result checked with GF-T16 geometry is rejected");
+
     println!("rung-aware verification (width -> geometry):");
     println!("  GF-T8  1.5*1.5 -> (exp 14, mant 2) accepted (bias {}, mant_one {})", lad::gft_bias(lad::width_to_et(8)), lad::gft_mant_one(lad::width_to_et(8)));
     println!("  GF-T16 1.5*1.5 -> (exp 43, mant 64) accepted (bias {})", lad::gft_bias(lad::width_to_et(16)));
     println!("  GF-T4  1.5*1.5 -> (exp 5, mant 0) accepted (bias {})", lad::gft_bias(lad::width_to_et(4)));
     println!("  GF-T32 1.5*1.5 -> (exp 365, mant 2^22) accepted via u64 (bias {}, mant_one {})", lad::gft_bias(lad::width_to_et(32)), lad::gft_mant_one(lad::width_to_et(32)) as u64);
     println!("  add 1+1=2 and sub 2-1=1 verified for GF-T4/8/16/32 under each rung's scale");
-    println!("  GF-T8 result checked with GF-T16 geometry -> rejected (wrong rung)");
+    println!("  wrong-rung rejected for mul, add AND sub (asymmetric operands expose the mant_one scale)");
     println!("OK: a receipt's GF width selects the rung geometry; each rung verifies with its own bias/mantissa scale");
 }
