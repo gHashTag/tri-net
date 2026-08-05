@@ -142,7 +142,13 @@ module TriComputeBitnet {
         let a: u32 = mix32(w ^ rotl(act_hash, 11));
         let r: u32 = mix32(a ^ rotl(gf_result, 17));
         let d: u32 = mix32(r ^ rotl(device, 23));
-        return mix32(d ^ rotl(executor + epoch, 29));
+        // Bind executor and epoch in SEPARATE mix rounds. The old `executor + epoch`
+        // summed the two identity fields, so (exec=5,epoch=3) and (exec=3,epoch=5)
+        // hashed identically -- a cross-executor leaf collision that let two distinct
+        // (executor, epoch) receipts share one commitment. Distinct rounds make a
+        // collision require a full hash collision, not a compensating sum.
+        let e: u32 = mix32(d ^ rotl(executor, 29));
+        return mix32(e ^ rotl(epoch, 13));
     }
 
     // ---- Tests / invariants ----
@@ -246,5 +252,20 @@ module TriComputeBitnet {
         res = bitnet_leaf(0x61, 0xABCD, 0x4200, 0xC0FFEE01, 0xE0E0, 1);
         assert(base != act, "changing the GF16 activation changes the receipt");
         assert(base != res, "changing the GF16 result changes the receipt");
+    }
+
+    // executor and epoch are bound DISTINCTLY: two receipts whose executor+epoch
+    // sum is equal but the pair differs (exec 5/epoch 3 vs exec 3/epoch 5) now hash
+    // differently -- the cross-executor collision the old `executor + epoch` allowed
+    // is closed. Each field also independently changes the leaf.
+    test executor_epoch_bound_distinctly {
+        a = bitnet_leaf(0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3);
+        b = bitnet_leaf(0x61, 0xABCD, 0x4100, 0xC0FFEE01, 3, 5);
+        assert(a != b, "same executor+epoch SUM, different pair -> different leaf (no collision)");
+        base = bitnet_leaf(0x61, 0xABCD, 0x4100, 0xC0FFEE01, 0xE0E0, 1);
+        exe = bitnet_leaf(0x61, 0xABCD, 0x4100, 0xC0FFEE01, 0xE0E1, 1);
+        ep = bitnet_leaf(0x61, 0xABCD, 0x4100, 0xC0FFEE01, 0xE0E0, 2);
+        assert(base != exe, "changing the executor changes the leaf");
+        assert(base != ep, "changing the epoch changes the leaf");
     }
 }
