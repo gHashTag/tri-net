@@ -13,6 +13,9 @@ module TriComputeBitnet {
 
     const OP_BITNET: u32 = 0x20;
     const B_C: u32 = 0x85EBCA77;
+    const TAG_BITNET: u32 = 0x54424E50;      // "TBNP" -- bitnet-preimage domain tag
+    const SHA_PAD: u32 = 0x80000000;         // SHA-256 padding: the 0x80 byte after the message
+    const BITNET_MSG_BITS: u32 = 224;        // 7 message words * 32 bits = 28 bytes = 224 bits
 
     fn rotl(x: u32, k: u32) -> u32 {
         return ((x << k) | (x >> (32 - k)));
@@ -151,6 +154,27 @@ module TriComputeBitnet {
         return mix32(e ^ rotl(epoch, 13));
     }
 
+    // 256-bit SHA-256 preimage for a BitNet attestation, mirroring tri_compute_
+    // receipt.digest_pre. bitnet_leaf above is a 32-bit commitment (~2^16 birthday
+    // collision); this lays out a one-block SHA-256 message so the caller (via
+    // tri_sha256, as trinet_settle_signed does for the receipt) gets a 256-bit
+    // digest (~2^128), the same 2^16-commitment gap ceae3e2 closed for the compute-
+    // receipt. Message = TAG + the six fields, with executor (word 5) and epoch
+    // (word 6) as SEPARATE words so the leaf's old sum-collision cannot recur;
+    // word 7 begins the padding, word 15 is the message bit-length.
+    fn bitnet_digest_pre(idx: u32, weight_code: u32, act_hash: u32, gf_result: u32, device: u32, executor: u32, epoch: u32) -> u32 {
+        if (idx == 0) { return TAG_BITNET; }
+        if (idx == 1) { return weight_code; }
+        if (idx == 2) { return act_hash; }
+        if (idx == 3) { return gf_result; }
+        if (idx == 4) { return device; }
+        if (idx == 5) { return executor; }
+        if (idx == 6) { return epoch; }
+        if (idx == 7) { return SHA_PAD; }
+        if (idx == 15) { return BITNET_MSG_BITS; }
+        return 0;
+    }
+
     // ---- Tests / invariants ----
 
     // Sparsity: nonzero trits are counted, zeros are skipped.
@@ -267,5 +291,22 @@ module TriComputeBitnet {
         ep = bitnet_leaf(0x61, 0xABCD, 0x4100, 0xC0FFEE01, 0xE0E0, 2);
         assert(base != exe, "changing the executor changes the leaf");
         assert(base != ep, "changing the epoch changes the leaf");
+    }
+
+    // The 256-bit preimage lays out one SHA-256 block: TAG, the six fields (executor
+    // and epoch as SEPARATE words 5/6), then padding and the 224-bit length.
+    test bitnet_digest_preimage {
+        assert(bitnet_digest_pre(0, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == TAG_BITNET, "word 0 is the bitnet domain tag");
+        assert(bitnet_digest_pre(1, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == 0x61, "word 1 is the weight_code");
+        assert(bitnet_digest_pre(2, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == 0xABCD, "word 2 is the activation hash");
+        assert(bitnet_digest_pre(3, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == 0x4100, "word 3 is the GF result");
+        assert(bitnet_digest_pre(4, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == 0xC0FFEE01, "word 4 is the device");
+        assert(bitnet_digest_pre(5, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == 5, "word 5 is the executor (distinct word)");
+        assert(bitnet_digest_pre(6, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == 3, "word 6 is the epoch (distinct -- no sum)");
+        assert(bitnet_digest_pre(7, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == SHA_PAD, "word 7 starts the SHA-256 padding");
+        assert(bitnet_digest_pre(10, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == 0, "middle padding words are zero");
+        assert(bitnet_digest_pre(15, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == BITNET_MSG_BITS, "word 15 is the 224-bit message length");
+        // The sum-colliding pair maps to different message words -> different digest.
+        assert(bitnet_digest_pre(5, 0, 0, 0, 0, 3, 5) == 3, "exec 3 -> word 5 = 3 (a different preimage than exec 5)");
     }
 }
