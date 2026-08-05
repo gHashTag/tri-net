@@ -15,11 +15,19 @@
 module TriGftLadder {
     use base::types;
 
-    // Exponent-trit count per confirmed GF-T rung.
+    // Exponent-trit count per GF-T rung (SSOT: t27 specs/numeric/gft*.t27). The
+    // ladder is NOT linear in Et: GF-T32 uses 6 exponent trits, not 5.
     const GFT4_ET:  u32 = 2;
     const GFT8_ET:  u32 = 3;
     const GFT16_ET: u32 = 4;
-    const GFT32_ET: u32 = 5;
+    const GFT32_ET: u32 = 6;
+
+    // Mantissa bit-width per rung (SSOT: t27 specs/numeric/gft*.t27). The significand
+    // is 1 + M / 2^MANT; a GF-T multiply/add recompute uses 2^MANT as its scale.
+    const GFT4_MANT:  u32 = 1;
+    const GFT8_MANT:  u32 = 4;
+    const GFT16_MANT: u32 = 9;
+    const GFT32_MANT: u32 = 25;
 
     // 3^Et for the ladder's exponent-trit counts (the count of representable
     // exponent offsets; the top one, 3^Et - 1, is the reserved special row).
@@ -60,6 +68,21 @@ module TriGftLadder {
         return (gft_pow3(exp_trits) - 1) / 2;
     }
 
+    // The mantissa bit-width for a rung, keyed by its exponent-trit count (SSOT).
+    // A per-rung multiply/add recompute uses 2^MANT as its significand scale.
+    fn gft_mant_bits(exp_trits: u32) -> u32 {
+        if (exp_trits == GFT4_ET) { return GFT4_MANT; }
+        if (exp_trits == GFT8_ET) { return GFT8_MANT; }
+        if (exp_trits == GFT16_ET) { return GFT16_MANT; }
+        if (exp_trits == GFT32_ET) { return GFT32_MANT; }
+        return 0;
+    }
+
+    // The significand scale 2^MANT for a rung (GF-T16 -> 512).
+    fn gft_mant_one(exp_trits: u32) -> u32 {
+        return 1 << gft_mant_bits(exp_trits);
+    }
+
     // ---- Tests / invariants ----
 
     // The reserved special row is 3^Et - 1 at each confirmed rung; GF-T16 == 80
@@ -68,7 +91,7 @@ module TriGftLadder {
         assert(gft_offset_max(GFT4_ET) == 8, "GF-T4: 3^2 - 1 = 8");
         assert(gft_offset_max(GFT8_ET) == 26, "GF-T8: 3^3 - 1 = 26");
         assert(gft_offset_max(GFT16_ET) == 80, "GF-T16: 3^4 - 1 = 80 (matches gfvalid)");
-        assert(gft_offset_max(GFT32_ET) == 242, "GF-T32: 3^5 - 1 = 242");
+        assert(gft_offset_max(GFT32_ET) == 728, "GF-T32: 3^6 - 1 = 728");
     }
 
     // Finiteness by the TERNARY rule across the ladder: just below the row is finite,
@@ -77,8 +100,8 @@ module TriGftLadder {
         assert(is_finite_gft_n(79, GFT16_ET) == true, "GF-T16 offset 79 is finite");
         assert(is_finite_gft_n(80, GFT16_ET) == false, "GF-T16 offset 80 is the special row");
         assert(is_finite_gft_n(40, GFT16_ET) == true, "GF-T16 unity exponent finite");
-        assert(is_finite_gft_n(241, GFT32_ET) == true, "GF-T32 offset 241 is finite");
-        assert(is_finite_gft_n(242, GFT32_ET) == false, "GF-T32 offset 242 is special");
+        assert(is_finite_gft_n(727, GFT32_ET) == true, "GF-T32 offset 727 is finite");
+        assert(is_finite_gft_n(728, GFT32_ET) == false, "GF-T32 offset 728 is the special row");
         assert(is_finite_gft_n(7, GFT4_ET) == true, "GF-T4 offset 7 is finite");
         assert(is_finite_gft_n(8, GFT4_ET) == false, "GF-T4 offset 8 is special");
     }
@@ -99,7 +122,18 @@ module TriGftLadder {
         assert(gft_bias(GFT4_ET) == 4, "GF-T4 bias (3^2-1)/2 = 4");
         assert(gft_bias(GFT8_ET) == 13, "GF-T8 bias (3^3-1)/2 = 13");
         assert(gft_bias(GFT16_ET) == 40, "GF-T16 bias = 40 (matches tri_gft_arith)");
-        assert(gft_bias(GFT32_ET) == 121, "GF-T32 bias (3^5-1)/2 = 121");
+        assert(gft_bias(GFT32_ET) == 364, "GF-T32 bias (3^6-1)/2 = 364");
         assert(gft_bias(GFT16_ET) * 2 == gft_offset_max(GFT16_ET), "bias*2 = offset_max");
+    }
+
+    // Per-rung mantissa geometry (SSOT: t27 specs/numeric/gft*.t27), so a recompute
+    // can scale by 2^MANT for ANY rung, not just GF-T16's 512.
+    test mantissa_per_rung {
+        assert(gft_mant_bits(GFT4_ET) == 1, "GF-T4 mantissa 1 bit");
+        assert(gft_mant_bits(GFT8_ET) == 4, "GF-T8 mantissa 4 bits");
+        assert(gft_mant_bits(GFT16_ET) == 9, "GF-T16 mantissa 9 bits");
+        assert(gft_mant_bits(GFT32_ET) == 25, "GF-T32 mantissa 25 bits");
+        assert(gft_mant_one(GFT16_ET) == 512, "GF-T16 significand scale 2^9 = 512");
+        assert(gft_mant_one(GFT8_ET) == 16, "GF-T8 scale 2^4 = 16");
     }
 }
