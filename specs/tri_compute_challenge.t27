@@ -364,6 +364,26 @@ module TriComputeChallenge {
         }
     }
 
+    // Verifier accountability on the 5-node quorum. The honest majority is the
+    // largest agreeing group (max_agree5); the dissenters are the rest (their votes
+    // differ from the quorum value, so they are provably wrong on a deterministic
+    // GF op). Their stake is burned and split among the honest, exactly as the
+    // 3-node case -- verifier_reward is already n-agnostic; these size the sets.
+    // (Valid only when a quorum formed; the caller gates on has_quorum_k first.)
+    fn dissenter_count5(v0: u32, v1: u32, v2: u32, v3: u32, v4: u32) -> u32 {
+        return 5 - max_agree5(v0, v1, v2, v3, v4);
+    }
+
+    // Total stake burned from the dissenters at a per-verifier stake.
+    fn burned_total5(v0: u32, v1: u32, v2: u32, v3: u32, v4: u32, stake: u32) -> u32 {
+        return dissenter_count5(v0, v1, v2, v3, v4) * stake;
+    }
+
+    // Each honest verifier's share of the burned dissenter stake on a 5-node quorum.
+    fn honest_share5(v0: u32, v1: u32, v2: u32, v3: u32, v4: u32, stake: u32) -> u32 {
+        return verifier_reward(burned_total5(v0, v1, v2, v3, v4, stake), max_agree5(v0, v1, v2, v3, v4));
+    }
+
     // ---- Tests / invariants ----
 
     // Honest executor: committed result matches the golden recomputation
@@ -572,5 +592,27 @@ module TriComputeChallenge {
         outcome = resolve_quorum5(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x9999, 0x9999, 0xBEEF);
         assert(outcome == RESOLVE_INDETERMINATE, "2-2-1 split has no 3-of-5 majority -> indeterminate");
         assert(executor_bond_after(1000, outcome) == 1000, "no slash without a quorum");
+    }
+
+    // 5-node verifier economics: 3 honest (0x41), 2 dissenters (0x99, 0xBE). The two
+    // dissenters' stake (50 each = 100) splits among the 3 honest -> 33 each; every
+    // honest verifier is net-positive (kept 50 + 33 = 83 > 50) and the dissenters
+    // are burned to zero.
+    test verifier_economics_5_two_dissenters {
+        assert(dissenter_count5(0x41, 0x41, 0x41, 0x99, 0xBE) == 2, "2 of 5 dissent from the 3-majority");
+        assert(max_agree5(0x41, 0x41, 0x41, 0x99, 0xBE) == 3, "3 honest form the quorum");
+        assert(burned_total5(0x41, 0x41, 0x41, 0x99, 0xBE, 50) == 100, "two 50-stakes burned");
+        assert(honest_share5(0x41, 0x41, 0x41, 0x99, 0xBE, 50) == 33, "100 split among 3 honest -> 33 each (floor)");
+        assert(verifier_stake_after(50, 0) + honest_share5(0x41, 0x41, 0x41, 0x99, 0xBE, 50) == 83, "honest net 50 + 33 = 83 > 50 staked");
+        assert(verifier_stake_after(50, 1) == 0, "each dissenter's whole stake is burned");
+        assert(3 * honest_share5(0x41, 0x41, 0x41, 0x99, 0xBE, 50) <= burned_total5(0x41, 0x41, 0x41, 0x99, 0xBE, 50), "no over-issuance: 3*33 <= 100");
+    }
+
+    // 4 honest, 1 dissenter: the lone 50 splits among 4 -> 12 each, still net-positive.
+    test verifier_economics_5_one_dissenter {
+        assert(dissenter_count5(0x41, 0x41, 0x41, 0x41, 0x99) == 1, "1 of 5 dissents from the 4-majority");
+        assert(burned_total5(0x41, 0x41, 0x41, 0x41, 0x99, 50) == 50, "one 50-stake burned");
+        assert(honest_share5(0x41, 0x41, 0x41, 0x41, 0x99, 50) == 12, "50 split among 4 -> 12 each (floor)");
+        assert(verifier_stake_after(50, 0) + honest_share5(0x41, 0x41, 0x41, 0x41, 0x99, 50) == 62, "honest net 62 > 50");
     }
 }
