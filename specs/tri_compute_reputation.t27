@@ -57,6 +57,18 @@ module TriComputeReputation {
         return raw_work * rep;
     }
 
+    // Admission gate: a node may be ASSIGNED new work only if its reputation
+    // clears a floor. Reputation weighting (weighted_work) only shrinks a bad
+    // node's SHARE -- a repeatedly-slashed node still occupies the assignment and
+    // challenge machinery and can grief. Bind admission to reputation: each proven
+    // fraud halves rep (rep_after_resolution), so after enough frauds the node
+    // falls below min_rep and is excluded from new tasks entirely. min_rep is a
+    // policy parameter and must sit at or below REP_INIT so fresh honest nodes are
+    // admissible. This is the entry-side counterpart to the pool-side weighting.
+    fn can_admit(rep: u32, min_rep: u32) -> bool {
+        return rep >= min_rep;
+    }
+
     // ---- Tests / invariants ----
 
     // Honest settlement raises reputation; it never exceeds the cap.
@@ -108,5 +120,28 @@ module TriComputeReputation {
     // A node with zero reputation earns zero weight regardless of raw work.
     test zero_reputation_zero_weight {
         assert(weighted_work(48, 0) == 0, "no reputation => no share");
+    }
+
+    // Admission floor: a fresh node clears a sane floor, a slashed-to-zero node is
+    // excluded, and the boundary is inclusive.
+    test admission_floor {
+        assert(can_admit(REP_INIT, 50) == true, "a fresh node (REP_INIT) is admissible");
+        assert(can_admit(50, 50) == true, "exactly at the floor is admitted");
+        assert(can_admit(49, 50) == false, "one below the floor is excluded");
+        assert(can_admit(0, 50) == false, "a slashed-to-zero node cannot take work");
+    }
+
+    // Fraud eventually locks a node out: a top-reputation node proven fraudulent
+    // enough times halves below the floor and stops being admitted -- the entry-
+    // side teeth the pool-side weighting alone did not have. 1000 -> 500 -> 250 ->
+    // 125 -> 62 -> 31; at floor 50 the fifth proven fraud excludes it.
+    test repeated_fraud_locks_out {
+        r1 = rep_after_resolution(1000, RESOLVE_SLASH, 0);
+        r2 = rep_after_resolution(r1, RESOLVE_SLASH, 0);
+        r3 = rep_after_resolution(r2, RESOLVE_SLASH, 0);
+        r4 = rep_after_resolution(r3, RESOLVE_SLASH, 0);
+        r5 = rep_after_resolution(r4, RESOLVE_SLASH, 0);
+        assert(can_admit(r4, 50) == true, "after 4 frauds (rep 62) still just admissible");
+        assert(can_admit(r5, 50) == false, "the fifth proven fraud (rep 31) locks the node out");
     }
 }
