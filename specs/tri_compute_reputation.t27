@@ -51,6 +51,26 @@ module TriComputeReputation {
         }
     }
 
+    // Symmetric driver for VERIFIERS (tri_compute_challenge.verifier_dissented):
+    // the same fraud proof that judges the executor also judges the verifiers who
+    // recomputed it. A verifier that dissented from a FORMED quorum is provably
+    // wrong (GF is deterministic) -> halve; one that agreed did honest work ->
+    // gain (capped). When no quorum formed (has_quorum == 0) nothing is proven, so
+    // reputation does not move -- the verifier analogue of the non-terminal no-op.
+    // Composed with can_admit, a verifier with a bad track record is locked out
+    // just like a fraudulent executor: both sides of a dispute are accountable.
+    fn rep_after_verifier(rep: u32, has_quorum: u32, dissented: u32, gain: u32) -> u32 {
+        if (has_quorum == 1) {
+            if (dissented == 1) {
+                return rep_after_slash(rep);
+            } else {
+                return rep_after_honest(rep, gain);
+            }
+        } else {
+            return rep;
+        }
+    }
+
     // Effective work for the pool split = raw work scaled by reputation. Feeds
     // tri_compute_pool.pool_share as (my_weighted, sum_weighted).
     fn weighted_work(raw_work: u32, rep: u32) -> u32 {
@@ -93,6 +113,27 @@ module TriComputeReputation {
         assert(rep_after_resolution(800, 2, 20) == 800, "MALFORMED does not move reputation");
         assert(rep_after_resolution(800, 3, 20) == 800, "STALE (replay) does not move reputation");
         assert(rep_after_resolution(800, 4, 20) == 800, "FAMILY_MISMATCH does not move reputation");
+    }
+
+    // Verifiers are accountable too: dissent from a formed quorum halves, agreement
+    // gains, and no quorum is a no-op. Symmetric with the executor driver.
+    test verifier_reputation_driver {
+        assert(rep_after_verifier(1000, 1, 1, 20) == 500, "dissenting verifier is halved");
+        assert(rep_after_verifier(100, 1, 0, 20) == 120, "agreeing verifier gains");
+        assert(rep_after_verifier(800, 0, 0, 20) == 800, "no quorum -> verifier reputation unchanged");
+        assert(rep_after_verifier(800, 0, 1, 20) == 800, "no quorum: even a 'dissent' flag is ignored");
+    }
+
+    // A repeatedly-dissenting verifier is locked out by can_admit, exactly like a
+    // fraudulent executor: five dissents (1000 -> 31) fall below floor 50.
+    test bad_verifier_is_locked_out {
+        d1 = rep_after_verifier(1000, 1, 1, 0);
+        d2 = rep_after_verifier(d1, 1, 1, 0);
+        d3 = rep_after_verifier(d2, 1, 1, 0);
+        d4 = rep_after_verifier(d3, 1, 1, 0);
+        d5 = rep_after_verifier(d4, 1, 1, 0);
+        assert(can_admit(d4, 50) == true, "after 4 dissents (62) still admissible");
+        assert(can_admit(d5, 50) == false, "the fifth dissent (31) locks the verifier out");
     }
 
     // Memory: a slash cannot be undone by one honest job -- 1000 -> slash 500 ->
