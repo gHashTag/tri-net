@@ -15,9 +15,11 @@ module TriSha256 {
     fn ssig0(x: u32) -> u32 { return rotr(x, 7) ^ rotr(x, 18) ^ shr(x, 3); }
     fn ssig1(x: u32) -> u32 { return rotr(x, 17) ^ rotr(x, 19) ^ shr(x, 10); }
 
-    // Compute SHA-256 of one padded 512-bit block (w0..w15) and return output word
-    // `which` (0..7). One function computes all 8 H words, then selects one.
-    fn sha256_word(w0: u32, w1: u32, w2: u32, w3: u32, w4: u32, w5: u32, w6: u32, w7: u32, w8: u32, w9: u32, w10: u32, w11: u32, w12: u32, w13: u32, w14: u32, w15: u32, which: u32) -> u32 {
+    // Compress one 512-bit block (w0..w15) into the 8-word chaining state s0..s7
+    // and return output word `which` (0..7). This is the SHA-256 block function
+    // from an ARBITRARY input state, so it composes across blocks: the second block
+    // starts from the first block's output, not the IV (multi-block / Merkle).
+    fn sha256_compress(s0: u32, s1: u32, s2: u32, s3: u32, s4: u32, s5: u32, s6: u32, s7: u32, w0: u32, w1: u32, w2: u32, w3: u32, w4: u32, w5: u32, w6: u32, w7: u32, w8: u32, w9: u32, w10: u32, w11: u32, w12: u32, w13: u32, w14: u32, w15: u32, which: u32) -> u32 {
         let w16: u32 = ssig1(w14) + w9 + ssig0(w1) + w0;
         let w17: u32 = ssig1(w15) + w10 + ssig0(w2) + w1;
         let w18: u32 = ssig1(w16) + w11 + ssig0(w3) + w2;
@@ -66,14 +68,14 @@ module TriSha256 {
         let w61: u32 = ssig1(w59) + w54 + ssig0(w46) + w45;
         let w62: u32 = ssig1(w60) + w55 + ssig0(w47) + w46;
         let w63: u32 = ssig1(w61) + w56 + ssig0(w48) + w47;
-        let a0: u32 = 0x6A09E667;
-        let b0: u32 = 0xBB67AE85;
-        let c0: u32 = 0x3C6EF372;
-        let d0: u32 = 0xA54FF53A;
-        let e0: u32 = 0x510E527F;
-        let f0: u32 = 0x9B05688C;
-        let g0: u32 = 0x1F83D9AB;
-        let h0: u32 = 0x5BE0CD19;
+        let a0: u32 = s0;
+        let b0: u32 = s1;
+        let c0: u32 = s2;
+        let d0: u32 = s3;
+        let e0: u32 = s4;
+        let f0: u32 = s5;
+        let g0: u32 = s6;
+        let h0: u32 = s7;
         let t1_0: u32 = h0 + bsig1(e0) + ch(e0, f0, g0) + 0x428A2F98 + w0;
         let t2_0: u32 = bsig0(a0) + maj(a0, b0, c0);
         let a1: u32 = t1_0 + t2_0;
@@ -714,14 +716,14 @@ module TriSha256 {
         let f64: u32 = e63;
         let g64: u32 = f63;
         let h64: u32 = g63;
-        let out0: u32 = 0x6A09E667 + a64;
-        let out1: u32 = 0xBB67AE85 + b64;
-        let out2: u32 = 0x3C6EF372 + c64;
-        let out3: u32 = 0xA54FF53A + d64;
-        let out4: u32 = 0x510E527F + e64;
-        let out5: u32 = 0x9B05688C + f64;
-        let out6: u32 = 0x1F83D9AB + g64;
-        let out7: u32 = 0x5BE0CD19 + h64;
+        let out0: u32 = s0 + a64;
+        let out1: u32 = s1 + b64;
+        let out2: u32 = s2 + c64;
+        let out3: u32 = s3 + d64;
+        let out4: u32 = s4 + e64;
+        let out5: u32 = s5 + f64;
+        let out6: u32 = s6 + g64;
+        let out7: u32 = s7 + h64;
         if (which == 0) { return out0; }
         else if (which == 1) { return out1; }
         else if (which == 2) { return out2; }
@@ -730,6 +732,29 @@ module TriSha256 {
         else if (which == 5) { return out5; }
         else if (which == 6) { return out6; }
         else { return out7; }
+    }
+
+    // Single-block SHA-256 from the standard IV (the original entry point; all
+    // existing callers and the abc test go through here unchanged).
+    fn sha256_word(w0: u32, w1: u32, w2: u32, w3: u32, w4: u32, w5: u32, w6: u32, w7: u32, w8: u32, w9: u32, w10: u32, w11: u32, w12: u32, w13: u32, w14: u32, w15: u32, which: u32) -> u32 {
+        return sha256_compress(0x6A09E667, 0xBB67AE85, 0x3C6EF372, 0xA54FF53A, 0x510E527F, 0x9B05688C, 0x1F83D9AB, 0x5BE0CD19, w0, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10, w11, w12, w13, w14, w15, which);
+    }
+
+    // Padding for a message that fills whole 512-bit blocks exactly (so all padding
+    // lands in a trailing block): word 0 is the 0x80 marker, word 15 is the total
+    // message bit length, all else 0. For a 64-byte (512-bit) message -- e.g. a
+    // 256-bit ledger head chained with a 256-bit leaf -- this is the second block.
+    const SHA_PAD_MARK: u32 = 0x80000000;
+    fn sha256_pad2_word(idx: u32, total_bits: u32) -> u32 {
+        if (idx == 0) {
+            return SHA_PAD_MARK;
+        } else {
+            if (idx == 15) {
+                return total_bits;
+            } else {
+                return 0;
+            }
+        }
     }
 
     // sha256("abc") -- the canonical test vector. Block: w0=0x61626380, w15=0x18.
@@ -764,5 +789,23 @@ module TriSha256 {
     test sha256_abc_h7 {
         h = sha256_word(0x61626380, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00000018, 7);
         assert(h == 0xF20015AD, "abc h7");
+    }
+
+    // The trailing padding block for a 64-byte (512-bit) message: 0x80 marker in
+    // word 0, the length in word 15, zero elsewhere. (Full two-block bit-exactness
+    // vs hashlib is proven by the trinet_ledger_head binary.)
+    test pad2_layout_512 {
+        assert(sha256_pad2_word(0, 512) == 0x80000000, "word 0 is the 0x80 marker");
+        assert(sha256_pad2_word(15, 512) == 512, "word 15 is the 512-bit length");
+        assert(sha256_pad2_word(7, 512) == 0, "interior words are zero");
+    }
+
+    // sha256_word is exactly sha256_compress from the standard IV (regression guard
+    // for the multi-block refactor: the single-block entry point is unchanged).
+    test compress_iv_equals_word {
+        a = sha256_word(0x61626380, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x18, 0);
+        b = sha256_compress(0x6A09E667, 0xBB67AE85, 0x3C6EF372, 0xA54FF53A, 0x510E527F, 0x9B05688C, 0x1F83D9AB, 0x5BE0CD19, 0x61626380, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x18, 0);
+        assert(a == b, "sha256_word == sha256_compress(IV, ...)");
+        assert(a == 0xBA7816BF, "and both equal the abc h0 vector");
     }
 }
