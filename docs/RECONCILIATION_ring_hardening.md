@@ -188,5 +188,21 @@ per-hunk conflict resolution across the ~14 files -- for each `<<<<`/`====`/`>>>
 keep both functions, dedup the handful both sides changed, fix the module braces -- then
 run the verify-gate. Budget ~30-45 min of careful editing, not a one-command merge.
 
+**Exact dedup list (the ONLY functions that duplicate under union -- keep the branch's
+version, drop main's original):** these are the functions I *hardened* that main still
+carries in its pre-hardening form, so union keeps both -> t27c "duplicate". Fix by
+deleting main's copy in each file:
+- `tri_compute_account`: `bal_after_settle` (main bare `+`; keep the `bal_add_sat` version)
+- `tri_compute_bitnet`: `is_active` (main `trit != 0`; keep the `== 1 || == 2` fix)
+- `tri_compute_gfvalid`: `is_finite_gft16` (keep the delegating `is_finite_gft_n(x,4)`)
+- `tri_compute_payout`: `weighted`, `total_weighted3` (keep the saturating versions)
+- `tri_compute_reputation`: `weighted_work` (keep the saturating version)
+- `tri_compute_settle`: `settle_checked` (+ 2 more by brace count; keep the branch versions)
+
+Every OTHER conflict is a pure add/add (new functions on both sides) -> keep both. After
+the dedup + brace-balance fix, `t27c typecheck` each of the six files, then the full
+verify-gate. That is the entire merge -- no design judgement, just this dedup list plus
+keep-both everywhere else.
+
 Contact: this branch's session. Do not autonomous-merge -- see memory
 `trinet-ring-hardening-divergence`.
