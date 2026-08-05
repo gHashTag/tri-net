@@ -168,5 +168,15 @@ reputation, safety, settle, trinet_a2a_node.rs. So the merge is a mechanical
 "accept-branch / keep-both" resolution across ~14 files, then the verify-gate -- no
 design decision anywhere.
 
+**Resolution strategy (verified -- do NOT use `-X ours`/`-X theirs`):** a second
+throwaway ran `git merge -X ours origin/main` and it **silently dropped main's
+`ledger_entry_pre` / `merkle_pair_pre` / `input_digest_pre`** (#106/#108) -- they share a
+conflict hunk with my digest additions in `tri_compute_receipt.t27`, so `-X ours` took my
+(shorter) side. `-X theirs` would symmetrically drop my hardening. **Resolve each add/add
+conflict as a UNION -- keep BOTH sides' functions** (both main's ledger/merkle AND my
+additions survive). The only take-mine-not-both hunks are the ~2 functions I *changed*
+that main left unchanged (`bond_state_after` non-terminal fix, `bal_after_settle`
+saturation), where a union would duplicate a function. Then run the verify-gate.
+
 Contact: this branch's session. Do not autonomous-merge -- see memory
 `trinet-ring-hardening-divergence`.
