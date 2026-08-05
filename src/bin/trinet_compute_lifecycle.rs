@@ -24,6 +24,8 @@ mod account;
 mod reputation;
 #[path = "../../gen/rust/tri_a2a.rs"]
 mod a2a;
+#[path = "../../gen/rust/tri_compute_bond.rs"]
+mod bond;
 
 fn main() {
     // Shared task: a GF16 MUL over committed operands. r_ok is the golden result,
@@ -203,6 +205,30 @@ fn main() {
     println!("  verifiers: colluder stake burned + rep->500; honest keep stake + rep->120 + share {} = net {}", each, honest_net);
     println!("  5-node quorum: 3 honest / 2 colluders -> slash; 2 burned stakes -> honest share {} net 83", share5);
     println!("  real recompute: 3 verifiers recompute the leaf; honest quorum 0x{:X}, tamperer flagged", qv_leaf);
+    // ---- Multi-task collateralization: the bond gate reads a maintained counter ----
+    // A node with bond 100 at 100% coverage can carry at most 100 of outstanding
+    // escrow. It admits a new task only if the bond covers the outstanding INCLUDING
+    // that task; a task leaving escrow (finalize/clawback) frees room again. This is
+    // the outstanding counter (account) feeding the collateralization gate (bond).
+    let node_bond = 100u32;
+    let cover_bps = 10000u32; // 100%
+    let mut outstanding_now = 0u32;
+    // Task A (escrow 60): prospective 60 <= 100 -> admitted.
+    let prospective_a = account::outstanding_after_escrow(outstanding_now, 60);
+    assert!(bond::bond_covers(node_bond, prospective_a, cover_bps), "bond covers the first task");
+    outstanding_now = prospective_a; // 60 now at risk
+    // Task B (escrow 60): prospective 120 > 100 -> REJECTED, outstanding stays 60.
+    let prospective_b = account::outstanding_after_escrow(outstanding_now, 60);
+    assert!(!bond::bond_covers(node_bond, prospective_b, cover_bps), "an under-collateralized second task is rejected");
+    assert_eq!(outstanding_now, 60, "the rejected task did not raise the at-risk counter");
+    // Task A finalizes -> outstanding drops to 0, freeing collateral room.
+    outstanding_now = account::outstanding_after_release(outstanding_now, 60);
+    assert_eq!(outstanding_now, 0, "finalizing task A releases its at-risk escrow");
+    // Task B retried now: prospective 60 <= 100 -> admitted.
+    let prospective_b2 = account::outstanding_after_escrow(outstanding_now, 60);
+    assert!(bond::bond_covers(node_bond, prospective_b2, cover_bps), "with room freed, task B is now admitted");
+
     println!("  guards: replay -> STALE, cross-family -> FAMILY_MISMATCH, premature finalize -> no-op");
-    println!("OK: the compute-receipt / escrow / challenge / quorum / reputation specs compose end-to-end on real Rust");
+    println!("  collateral: bond 100 carries task A(60); task B(->120) rejected; after A finalizes, B admitted");
+    println!("OK: the compute-receipt / escrow / challenge / quorum / reputation / collateral specs compose end-to-end on real Rust");
 }
