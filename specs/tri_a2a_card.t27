@@ -95,6 +95,54 @@ module TriA2ACard {
         return can_serve(card, skill_card_family(skill), skill_card_width(skill));
     }
 
+    // --- Operation advertisement. A host that serves a (family, width) may still not
+    // host every OP: a GF16-mul-only node must not receive a GF16-add task. Advertise
+    // the hosted ops in the card's high byte (bits 24+), so a requester matches
+    // op+format+width before routing. Ops match tri_compute_receipt: ADD 0x10, MUL
+    // 0x11; their bit is 1 << (op & 0xF) -> ADD bit 0, MUL bit 1.
+    const GF_OP_ADD: u32 = 0x10;
+    const GF_OP_MUL: u32 = 0x11;
+
+    fn op_bit(op: u32) -> u32 {
+        return 1 << (op & 0xF);
+    }
+
+    // A card that also advertises hosted ops (op_mask in bits 24+). make_card cards
+    // advertise NO ops (op byte 0); use this to host operations.
+    fn make_card_ops(family_mask: u32, width_mask: u32, op_mask: u32) -> u32 {
+        return (op_mask << 24) | (family_mask << 16) | (width_mask & 0xFFFF);
+    }
+
+    fn card_ops(card: u32) -> u32 {
+        return (card >> 24) & 0xFF;
+    }
+
+    fn hosts_op(card: u32, op: u32) -> bool {
+        return (card_ops(card) & op_bit(op)) != 0;
+    }
+
+    // The full routing decision: a host can serve a task requiring (family, width, op)
+    // iff it advertises all three.
+    fn can_serve_op(card: u32, family: u32, width: u32, op: u32) -> bool {
+        if (can_serve(card, family, width)) {
+            return hosts_op(card, op);
+        } else {
+            return card != card;
+        }
+    }
+
+    // Route a concrete skill id, op included: the skill's low byte is its op.
+    fn skill_op_suffix(skill: u32) -> u32 {
+        return skill & 0xFF;
+    }
+    fn can_serve_skill_op(card: u32, skill: u32) -> bool {
+        if (can_serve_skill(card, skill)) {
+            return hosts_op(card, skill_op_suffix(skill));
+        } else {
+            return card != card;
+        }
+    }
+
     // ---- Tests / invariants ----
 
     // A GF-T16-only host (family GF-T, width 16) serves GF-T16 but NOT GF16 or GF-T8.
@@ -129,5 +177,27 @@ module TriA2ACard {
         assert(can_serve_skill(gft, 0xA611) == true, "GF-T16 mul routes to a GF-T host");
         assert(can_serve_skill(gft, 0xA811) == true, "GF-T8 mul routes to a GF-T host");
         assert(can_serve_skill(gft, 0x1611) == false, "binary GF16 mul does NOT route to a GF-T-only host");
+    }
+
+    // A GF-T16 host that hosts ONLY multiply serves a mul task but rejects an add
+    // task -- op advertisement, not just (family, width).
+    test op_advertisement {
+        let mulonly: u32 = make_card_ops(family_bit(FMT_GFT), 16, op_bit(GF_OP_MUL));
+        assert(hosts_op(mulonly, GF_OP_MUL) == true, "hosts mul");
+        assert(hosts_op(mulonly, GF_OP_ADD) == false, "does NOT host add");
+        assert(can_serve_op(mulonly, FMT_GFT, 16, GF_OP_MUL) == true, "GF-T16 mul served");
+        assert(can_serve_op(mulonly, FMT_GFT, 16, GF_OP_ADD) == false, "GF-T16 add NOT served (op)");
+        assert(can_serve_op(mulonly, FMT_GF_BINARY, 16, GF_OP_MUL) == false, "wrong family still rejected");
+    }
+
+    // Routing a concrete skill id checks the op too: a mul-only host takes
+    // SKILL_GFT16_MUL (0xA611) but not SKILL_GFT16_ADD (0xA610).
+    test route_skill_with_op {
+        let both: u32 = make_card_ops(family_bit(FMT_GFT), 8 | 16, op_bit(GF_OP_MUL) | op_bit(GF_OP_ADD));
+        assert(can_serve_skill_op(both, 0xA611) == true, "hosts GF-T16 mul");
+        assert(can_serve_skill_op(both, 0xA610) == true, "hosts GF-T16 add");
+        let mulonly: u32 = make_card_ops(family_bit(FMT_GFT), 16, op_bit(GF_OP_MUL));
+        assert(can_serve_skill_op(mulonly, 0xA611) == true, "mul-only takes the mul skill");
+        assert(can_serve_skill_op(mulonly, 0xA610) == false, "mul-only rejects the add skill");
     }
 }
