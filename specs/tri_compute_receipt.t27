@@ -40,6 +40,7 @@ module TriComputeReceipt {
     const LEDGER_GENESIS: u32 = 0x54524C30;  // "TRL0" -- genesis head seed (word 0; rest 0)
     const LEDGER_MSG_BITS: u32 = 608;        // 19 message words * 32 bits = 76 bytes = 608 bits
     const MERKLE_MSG_BITS: u32 = 512;        // 16 message words * 32 bits = 64 bytes = 512 bits
+    const TAG_INPUT: u32 = 0x54524942;       // "TRIB" -- input-bound digest domain tag
 
     // The GoldenFloat workload this receipt exists to attest. The actual GF
     // arithmetic is the proven GF line (t27 specs/numeric/gf*.t27 -> gen-verilog
@@ -253,6 +254,36 @@ module TriComputeReceipt {
         return 0;
     }
 
+    // Input-bound digest (opt 4): digest_pre commits a 32-bit `in_hash` of the
+    // operands (~2^16 collision resistance -- a forger could find two operand sets
+    // with the same 32-bit in_hash). This commits the FULL 256-bit operand hash
+    // (oh0..oh7) instead, so a receipt binds its inputs at ~2^128. Canonical
+    // two-message-block SHA-256 preimage, word `idx` (0..31): block 1 is
+    //   TAG_INPUT | request_id | device | executor | task | operand_hash(8) | out |
+    //   epoch | prev_head  (16 words); block 2 is the SHA padding for the 64-byte
+    // message. The digest = SHA-256 over it (two-block, tri_sha256.sha256_compress).
+    fn input_digest_pre(idx: u32, request_id: u32, device: u32, executor: u32, task: u32, oh0: u32, oh1: u32, oh2: u32, oh3: u32, oh4: u32, oh5: u32, oh6: u32, oh7: u32, out: u32, epoch: u32, prev_head: u32) -> u32 {
+        if (idx == 0) { return TAG_INPUT; }
+        if (idx == 1) { return request_id; }
+        if (idx == 2) { return device; }
+        if (idx == 3) { return executor; }
+        if (idx == 4) { return task; }
+        if (idx == 5) { return oh0; }
+        if (idx == 6) { return oh1; }
+        if (idx == 7) { return oh2; }
+        if (idx == 8) { return oh3; }
+        if (idx == 9) { return oh4; }
+        if (idx == 10) { return oh5; }
+        if (idx == 11) { return oh6; }
+        if (idx == 12) { return oh7; }
+        if (idx == 13) { return out; }
+        if (idx == 14) { return epoch; }
+        if (idx == 15) { return prev_head; }
+        if (idx == 16) { return SHA_PAD; }
+        if (idx == 31) { return MERKLE_MSG_BITS; }
+        return 0;
+    }
+
     fn verify_chain3_full(d0: u32, d1: u32, d2: u32, claimed: u32) -> bool {
         let h0: u32 = chain_step_full(RECEIPT_GENESIS, d0);
         let h1: u32 = chain_step_full(h0, d1);
@@ -445,5 +476,17 @@ module TriComputeReceipt {
         assert(merkle_pair_pre(16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == SHA_PAD, "SHA pad marker at idx 16");
         assert(merkle_pair_pre(31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == MERKLE_MSG_BITS, "512-bit length at idx 31");
         assert(merkle_pair_pre(20, 0xA0, 1, 2, 3, 4, 5, 6, 7, 0xB0, 1, 2, 3, 4, 5, 6, 7) == 0, "interior padding word is zero");
+    }
+
+    // The input-bound preimage places the FULL 8-word operand hash in block 1 words
+    // 5..12 (vs digest_pre's single 32-bit in_hash), so the digest binds the inputs
+    // at ~2^128. (Two-block bit-exactness vs hashlib is proven by trinet_input_digest.)
+    test input_digest_layout {
+        assert(input_digest_pre(0, 9, 9, 9, 9, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 9, 9, 9) == TAG_INPUT, "tag at word 0");
+        assert(input_digest_pre(5, 9, 9, 9, 9, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 9, 9, 9) == 0xA0, "operand hash word 0 at idx 5");
+        assert(input_digest_pre(12, 9, 9, 9, 9, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 9, 9, 9) == 0xA7, "operand hash word 7 at idx 12");
+        assert(input_digest_pre(13, 9, 9, 9, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0x4100, 1, 0x54524352) == 0x4100, "out at idx 13");
+        assert(input_digest_pre(16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == SHA_PAD, "pad at idx 16");
+        assert(input_digest_pre(31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == MERKLE_MSG_BITS, "512-bit length at idx 31");
     }
 }
