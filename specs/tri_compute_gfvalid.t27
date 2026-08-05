@@ -39,11 +39,38 @@ module TriComputeGfValid {
     const FMT_GF_BINARY: u32 = 0;    // GF4..GF1024
     const FMT_GFT16: u32 = 1;        // GF-T16, balanced-ternary exponent
 
-    // GF-T16 validity: the exponent offset OFFSET_MAX (80 = 3^4 - 1) is the
-    // reserved special row (see t27 specs/numeric/gft16.t27). Finite iff below it.
+    // GF-T validity across the WHOLE ladder, not just width 16. A GF-T result
+    // (carried as its exponent offset) is special iff the offset hits the reserved
+    // row 3^Et - 1 for its exponent-trit count. is_finite_gft16 hardcoded Et=4
+    // (offset_max 80) and could not classify GF-T4/8/32. These three functions are
+    // byte-identical to tri_gft_ladder (gft_pow3/gft_offset_max/is_finite_gft_n),
+    // so the parallel GF-T ladder spec and this validity gate share ONE canonical
+    // finiteness rule -- a merge collapses the duplicate instead of reconciling two.
+    fn gft_pow3(exp_trits: u32) -> u32 {
+        if (exp_trits == 2) { return 9; }
+        if (exp_trits == 3) { return 27; }
+        if (exp_trits == 4) { return 81; }
+        if (exp_trits == 5) { return 243; }
+        if (exp_trits == 6) { return 729; }
+        if (exp_trits == 7) { return 2187; }
+        if (exp_trits == 8) { return 6561; }
+        return 0;
+    }
+
+    fn gft_offset_max(exp_trits: u32) -> u32 {
+        return gft_pow3(exp_trits) - 1;
+    }
+
+    // Finite iff the offset is below the reserved special row for its rung.
+    fn is_finite_gft_n(offset: u32, exp_trits: u32) -> bool {
+        return offset != gft_offset_max(exp_trits);
+    }
+
+    // GF-T16 validity: the Et=4 special case (offset_max 80 = 3^4 - 1). Kept as a
+    // thin alias for existing callers; delegates to the generalized rule.
     const GFT16_OFFSET_MAX: u32 = 80;
     fn is_finite_gft16(offset: u32) -> bool {
-        return offset != GFT16_OFFSET_MAX;
+        return is_finite_gft_n(offset, 4);
     }
 
     // ---- Tests / invariants ----
@@ -81,6 +108,20 @@ module TriComputeGfValid {
         assert(is_finite_gft16(40) == true, "GF-T16 unity exponent finite");
         assert(is_finite_gft16(79) == true, "GF-T16 near-top finite");
         assert(is_finite_gft16(80) == false, "GF-T16 offset 80 is special");
+    }
+
+    // The generalized rule classifies every confirmed rung by its own 3^Et-1
+    // special row, and is_finite_gft16 is exactly its Et=4 case.
+    test gft_ladder_finiteness {
+        assert(gft_offset_max(2) == 8, "GF-T4  special row = 3^2-1 = 8");
+        assert(gft_offset_max(3) == 26, "GF-T8  special row = 3^3-1 = 26");
+        assert(gft_offset_max(4) == 80, "GF-T16 special row = 3^4-1 = 80");
+        assert(gft_offset_max(5) == 242, "GF-T32 special row = 3^5-1 = 242");
+        assert(is_finite_gft_n(7, 2) == true, "GF-T4 offset 7 finite");
+        assert(is_finite_gft_n(8, 2) == false, "GF-T4 offset 8 is special");
+        assert(is_finite_gft_n(242, 5) == false, "GF-T32 offset 242 is special");
+        assert(is_finite_gft_n(80, 4) == is_finite_gft16(80), "the alias is the Et=4 case");
+        assert(is_finite_gft_n(40, 4) == is_finite_gft16(40), "alias agrees on finite too");
     }
 
     // has_inf gate: GF16 rejects all-ones exp (inf/nan); GF8 (no special row)
