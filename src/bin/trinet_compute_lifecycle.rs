@@ -26,6 +26,8 @@ mod reputation;
 mod a2a;
 #[path = "../../gen/rust/tri_compute_bond.rs"]
 mod bond;
+#[path = "../../gen/rust/tri_compute_bitnet.rs"]
+mod bitnet;
 
 fn main() {
     // Shared task: a GF16 MUL over committed operands. r_ok is the golden result,
@@ -229,6 +231,27 @@ fn main() {
     assert!(bond::bond_covers(node_bond, prospective_b2, cover_bps), "with room freed, task B is now admitted");
 
     println!("  guards: replay -> STALE, cross-family -> FAMILY_MISMATCH, premature finalize -> no-op");
+    // ---- BitNet-layer dispute: ternary recompute + GF value, under a quorum ----
+    // A BitNet layer commits canonical ternary weights (weight_code) whose sign
+    // balance a verifier recomputes (bitnet_balance_matches -> ternary_ok), plus a
+    // GF accumulate. resolve_bitnet_quorum takes the 3-of-3 majority of the value
+    // AND the ternary flag, so both parts are verified and a lone liar is outvoted.
+    let weight_code = 0x61u32; // canonical: pos 2, neg 1
+    let claimed_balance = bitnet::sign_balance_biased(weight_code); // 5
+    // Honest verifiers recompute the ternary part and agree it is valid.
+    let tern_ok = if bitnet::bitnet_balance_matches(weight_code, claimed_balance) { 1u32 } else { 0u32 };
+    assert_eq!(tern_ok, 1, "canonical weights + correct balance -> ternary verified");
+    // Honest BitNet layer: leaf bound, value majority r_ok, ternary majority OK -> honest.
+    let bn_leaf = receipt::receipt_leaf_gf_fmt(receipt::FMT_GF_BINARY, width, op, a, b, r_ok, dev, exe, epoch);
+    let bn_honest = challenge::resolve_bitnet_quorum(bn_leaf, bn_leaf, r_ok, r_ok, r_ok, r_bad, tern_ok, tern_ok, 0);
+    assert_eq!(bn_honest, challenge::RESOLVE_HONEST, "honest BitNet layer survives a value liar + a ternary liar");
+    // Ternary fraud: executor claims a WRONG sign balance -> ternary_ok=0 majority -> slash.
+    let tern_bad = if bitnet::bitnet_balance_matches(weight_code, 8) { 1u32 } else { 0u32 };
+    assert_eq!(tern_bad, 0, "a wrong claimed balance fails the ternary recompute");
+    let bn_fraud = challenge::resolve_bitnet_quorum(bn_leaf, bn_leaf, r_ok, r_ok, r_ok, r_ok, tern_bad, tern_bad, 1);
+    assert_eq!(bn_fraud, challenge::RESOLVE_SLASH, "a 2-of-3 ternary-bad majority slashes the BitNet layer");
+
     println!("  collateral: bond 100 carries task A(60); task B(->120) rejected; after A finalizes, B admitted");
-    println!("OK: the compute-receipt / escrow / challenge / quorum / reputation / collateral specs compose end-to-end on real Rust");
+    println!("  bitnet: canonical weights balance {} verified; ternary majority slashes a wrong-balance claim", claimed_balance);
+    println!("OK: the compute-receipt / escrow / challenge / quorum / reputation / collateral / bitnet specs compose end-to-end on real Rust");
 }
