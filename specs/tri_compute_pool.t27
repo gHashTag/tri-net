@@ -19,7 +19,15 @@ module TriComputePool {
         if (total == 0) {
             return 0;
         } else {
-            return (total_pool * my_work) / total;
+            // u64 intermediate: total_pool * my_work overflows u32 at realistic
+            // scale (e.g. 1e6 pool * 16000 reputation-weighted work = 1.6e10 >
+            // 2^32), silently WRAPPING the product and breaking the no-over-
+            // issuance invariant this spec claims. Widen the product so the floor-
+            // div stays exact -- the same fix tri_compute_payout.payout already
+            // carries (OpenZeppelin mulDiv / Uniswap FullMath discipline).
+            let num: u64 = (total_pool as u64) * (my_work as u64);
+            let den: u64 = total as u64;
+            return (num / den) as u32;
         }
     }
 
@@ -50,5 +58,18 @@ module TriComputePool {
     // More verified work strictly earns more (monotonic in work).
     test more_work_earns_more {
         assert(pool_share(1000, 48, 96) > pool_share(1000, 16, 96), "more work, bigger share");
+    }
+
+    // Overflow guard: a realistic pool and reputation-weighted work whose product
+    // exceeds u32 must still floor-div EXACTLY. 1_000_000 * 16_000 = 1.6e10 > 2^32;
+    // in bare u32 the product wraps to 3_115_098_112 and yields a garbage 129_795
+    // share -- the u64 widening keeps it exact, and the no-over-issuance invariant
+    // survives at scale (not just the toy 1000-pool rounds above).
+    test large_pool_no_overflow {
+        assert(pool_share(1000000, 16000, 24000) == 666666, "large pool*work floor-divides exactly (no u32 overflow)");
+        assert(pool_share(1000000, 8000, 24000) == 333333, "second node's share is exact too");
+        s0 = pool_share(1000000, 16000, 24000);
+        s1 = pool_share(1000000, 8000, 24000);
+        assert((s0 + s1) == 999999, "sum 999999 <= pool 1e6 at scale; floor loses one dust unit");
     }
 }
