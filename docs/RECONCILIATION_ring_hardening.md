@@ -5,20 +5,38 @@ compute-market economic-security ring on a base (`1d425ab`) that predates the
 parallel PR-train `#102-#110` now on `main`. The two evolved the same area
 independently. Below: every increment, its reconciliation class, and the recipe.
 
-**Status (2026-08-06):** 67 hardening increments on the branch; `feat/ring-hardening`
+**Status (2026-08-06):** 67 hardening increments on the branch; `feat/ring-hardening`.
+**UPDATE: the merge is NOT blocked on a design decision** -- the "256-bit digest
+collision" is convergent (my digest is byte-identical to and a subset of main's); the
+merge is a mechanical rebase (drop the redundant digest commit, apply ~78 additive
+functions). See the CORRECTION section below.
 cannot fast-forward `main` (`origin/main` last observed at `#95-#110`).
 The branch is verified in isolation and **the full ring is regression-free**: latest
 verify-gate = all `tri_compute_*` + `tri_a2a` typecheck clean (0 errors), gen-rust
 clean for all, 4 compute bins build, both lifecycle smokes pass. This is a
-**merge-strategy decision**, not a mechanical conflict.
+**mechanical rebase**, not a design decision (corrected below).
 
-## The one true collision (needs an owner pick)
+## CORRECTION: there is no design collision -- the digest CONVERGED
 
-| Mine | Main | Conflict |
-|------|------|----------|
-| `ceae3e2` 256-bit SHA-256 canonical receipt digest (`tri_compute_receipt`) | `#106`/`#107` 256-bit ledger head + hardened signed 256-bit path | **Two independent 256-bit digest designs.** A rebase stops at this commit first. Pick one canonical digest; re-express the other side's callers against it. |
+Earlier revisions of this doc claimed `ceae3e2` (my 256-bit receipt digest) collided
+with main's `#106/#107` and needed an owner "pick a canonical digest" decision. **That
+was wrong.** Verified against `origin/main` (`ded12d0`):
 
-Everything else is additive or complementary and does **not** collide this way.
+- My branch's `tri_compute_receipt.digest_pre` and `sign_digest` are **BYTE-IDENTICAL**
+  to main's -- both arrived at the same single-block SHA-256 preimage independently.
+- My branch's `tri_compute_receipt` is a strict **subset** of main's: main has every
+  function mine has, PLUS `input_digest_pre` / `ledger_entry_pre` / `merkle_pair_pre`
+  (#106/#108). Main also already has the `src/bin/trinet_receipt_digest.rs` bin.
+- So `ceae3e2` is **entirely redundant with main** -- a rebase drops it (the content
+  already exists). The conflict git reports there is **textual** (both added the
+  digest to the same file region), resolved by taking main's superset. **No design
+  choice.**
+
+**The merge is mechanically tractable, not blocked on a decision.** The real work on
+this branch is ~78 purely-additive functions (challenge 33, account 11, bitnet 11,
+gfvalid 7, settle 5, pool 4, reputation 3, bond 2, safety 2) that **do not exist on
+main** -- new functions in the same files, applying cleanly on top; any git conflict
+is textual (keep both), never semantic.
 
 ## Complementary to `#110` (GF-T arithmetic) -- they compose, keep both
 
@@ -125,9 +143,11 @@ GF recompute, so #110's arithmetic and this ternary check compose without confli
 
 ## Recommended recipe
 
-1. **Decide the digest** (`ceae3e2` vs `#106/#107`) -- the only design call.
-2. Rebase `feat/ring-hardening` onto `origin/main`; resolve the digest commit per (1);
-   `51adf59` collapses against `#109`; the additive commits apply cleanly (new fns).
+1. **No digest decision needed** -- `ceae3e2` is redundant with main (identical +
+   subset); `git rebase --skip` it (or resolve by taking main's `tri_compute_receipt`).
+2. Rebase `feat/ring-hardening` onto `origin/main`; the digest commit drops;
+   `51adf59` collapses against `#109`; the ~78 additive functions apply cleanly (new fns,
+   textual-only conflicts where two additions touch the same file region -- keep both).
 3. Wire challenge -> `#110 verify_gft_mul_full` for the recompute (drop the oracle input).
    The quorum layer (`resolve_quorum3`, `verifier_*`) already consumes a recomputed
    value as input, so #110's arithmetic slots in without touching the economics.
