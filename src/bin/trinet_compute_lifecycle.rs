@@ -28,6 +28,8 @@ mod a2a;
 mod bond;
 #[path = "../../gen/rust/tri_compute_bitnet.rs"]
 mod bitnet;
+#[path = "../../gen/rust/tri_sha256.rs"]
+mod sha;
 
 fn main() {
     // Shared task: a GF16 MUL over committed operands. r_ok is the golden result,
@@ -251,7 +253,34 @@ fn main() {
     let bn_fraud = challenge::resolve_bitnet_quorum(bn_leaf, bn_leaf, r_ok, r_ok, r_ok, r_ok, tern_bad, tern_bad, 1);
     assert_eq!(bn_fraud, challenge::RESOLVE_SLASH, "a 2-of-3 ternary-bad majority slashes the BitNet layer");
 
+    // ---- The BitNet attestation on the 256-bit digest (not the 32-bit leaf) ----
+    // Run the REAL SHA-256 over the BitNet preimage (bitnet_digest_pre) for a
+    // 2^128-collision commitment, then resolve the dispute on it (resolve_bitnet_
+    // d256). A dispute whose committed weight_code differs produces a different
+    // 256-bit digest -> leaf_match = 0 -> MALFORMED, closing the ~2^16 birthday
+    // collision the 32-bit leaf allowed.
+    let bn_digest = |wc: u32| -> [u32; 8] {
+        let w = |i: u32| bitnet::bitnet_digest_pre(i, wc, 0xABCD, r_ok, dev, exe, epoch);
+        let mut d = [0u32; 8];
+        let mut j = 0u32;
+        while j < 8 {
+            d[j as usize] = sha::sha256_word(w(0), w(1), w(2), w(3), w(4), w(5), w(6), w(7), w(8), w(9), w(10), w(11), w(12), w(13), w(14), w(15), j);
+            j += 1;
+        }
+        d
+    };
+    let settled_d = bn_digest(weight_code);
+    // Honest dispute: same committed weights -> digests match -> resolve on the strong anchor.
+    let leaf_match = if bn_digest(weight_code) == settled_d { 1u32 } else { 0u32 };
+    assert_eq!(leaf_match, 1, "the honest dispute reproduces the 256-bit digest");
+    assert_eq!(challenge::resolve_bitnet_d256(leaf_match, r_ok, r_ok, tern_ok), challenge::RESOLVE_HONEST, "256-bit-anchored honest layer");
+    // A fabricated dispute (different weight_code) -> different digest -> no match -> malformed.
+    let fabricated_match = if bn_digest(0x62) == settled_d { 1u32 } else { 0u32 };
+    assert_eq!(fabricated_match, 0, "a different weight_code yields a different 256-bit digest (no collision)");
+    assert_eq!(challenge::resolve_bitnet_d256(fabricated_match, r_ok, r_ok, tern_ok), challenge::RESOLVE_MALFORMED, "fabricated dispute -> malformed on the 256-bit anchor");
+
     println!("  collateral: bond 100 carries task A(60); task B(->120) rejected; after A finalizes, B admitted");
     println!("  bitnet: canonical weights balance {} verified; ternary majority slashes a wrong-balance claim", claimed_balance);
+    println!("  bitnet-256: SHA-256 digest 0x{:08X}..; honest dispute matches, fabricated weight_code -> malformed (no 2^16 collision)", settled_d[0]);
     println!("OK: the compute-receipt / escrow / challenge / quorum / reputation / collateral / bitnet specs compose end-to-end on real Rust");
 }
