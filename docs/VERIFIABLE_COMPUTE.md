@@ -62,8 +62,14 @@ mantissa bits]` (t27 `specs/numeric/gft16.t27`). A verifier recomputes:
   leading-zero renormalization (fixed if-ladder, round toward zero). **35,046,400**
   cases over ALL offset pairs 0..79 vs an exact i128 round-toward-zero oracle (a float
   oracle is insufficient here -- round-to-nearest loses the sub-ULP operand).
-- **ladder** (`tri_gft_ladder`): `gft_offset_max(Et)=3^Et-1`, `gft_bias(Et)=(3^Et-1)/2`
-  per rung (GF-T4->4, 8->13, 16->40, 32->121); `is_finite_gft_n` by the ternary rule.
+- **ladder** (`tri_gft_ladder`): exponent trits `Et = 2/3/4/6` for GF-T4/8/16/32, so
+  `gft_offset_max(Et)=3^Et-1` = 8/26/80/728 and `gft_bias(Et)=(3^Et-1)/2` = 4/13/40/364,
+  with `gft_mant_bits` = 1/4/9/25; `is_finite_gft_n` by the ternary rule.
+- **all rungs, not just GF-T16**: the multiply/add/subtract above are parametric (`_p`
+  fns take the rung's `mant_one`/`offset_max`), so GF-T4/8/16 recompute in u32 and
+  GF-T32 (25-bit mantissa) in u64. `trinet_a2a_node.compute_ok` selects the rung by
+  `width_to_et` and verifies a result under its own geometry -- all four rungs
+  end-to-end, each validated against its exact integer oracle.
 
 ### 2.3 Identity & signature -- `tri_node_identity`
 `executor_id = SHA-256(Ed25519 pubkey)[0..4]`; `who_ok` needs a valid signature AND
@@ -119,8 +125,12 @@ Two verification modes:
 - **Silicon**: **none**. No GF-T recompute has run on an FPGA. The GF-T arithmetic
   here is the reference a verifier runs; the on-silicon GF unit (t27 `specs/numeric`,
   gf16 @ ~322 MHz on AX7203) is a separate, not-yet-connected artifact.
-- **Coverage**: GF-T arithmetic recompute is GF-T16 only; other ladder rungs have
-  validity/geometry (`tri_gft_ladder`) but not full arithmetic.
+- **Coverage**: GF-T arithmetic recompute now spans **all four rungs** -- GF-T4/8/16
+  (u32) and GF-T32 (u64) -- for multiply, add, and subtract, each validated against its
+  exact integer oracle and wired into `trinet_a2a_node.compute_ok` (rung selected by
+  `width_to_et`). The exhaustive case counts quoted in section 2.2 are the GF-T16
+  sweeps; the other rungs are validated over representative-plus-boundary oracles, not
+  the full GF-T16-scale exhaustion.
 
 ## 5. Reproduce a proof locally
 
