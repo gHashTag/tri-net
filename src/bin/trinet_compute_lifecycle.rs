@@ -109,6 +109,17 @@ fn main() {
     assert_eq!(challenge::verifier_stake_after(50, d_collude), 0, "colluding verifier's stake is burned");
     assert_eq!(reputation::rep_after_verifier(1000, hq, d_collude, 20), 500, "colluding verifier reputation halved");
     assert_eq!(reputation::rep_after_verifier(100, hq, d_honest, 20), 120, "honest verifier reputation gains");
+    // The colluder's burned 50 is split among the 2 honest verifiers -> 25 each,
+    // so honest verification is NET-POSITIVE (kept 50 + 25 = 75 > 50 staked) and
+    // self-funding -- the verifier's dilemma is closed on real Rust, not just the
+    // spec harness.
+    let burned = 50 - challenge::verifier_stake_after(50, d_collude); // staked 50 minus retained 0 = 50 burned
+    let honest_count = 2u32;
+    let each = challenge::verifier_reward(burned, honest_count);
+    assert_eq!(each, 25, "burned 50 split between 2 honest -> 25 each");
+    let honest_net = challenge::verifier_stake_after(50, d_honest) + each;
+    assert_eq!(honest_net, 75, "honest verifier net = kept 50 + reward 25 = 75 > 50 staked");
+    assert!(honest_count * each <= burned, "no over-issuance: 2*25 <= 50");
 
     // ---- THE ECONOMIC-SECURITY INVARIANT ----
     assert_eq!(honest_total - fraud_total, reward + bond, "cheating costs exactly reward + bond");
@@ -128,7 +139,7 @@ fn main() {
     println!("  fraud:  settle {} into escrow, in-window SLASH -> clawback + bond slash -> total {}", reward, fraud_total);
     println!("  invariant: cheating costs reward+bond = {} (honest {} - fraud {})", reward + bond, honest_total, fraud_total);
     println!("  quorum: 3 verifiers (1 colluding) -> majority slashes; executor rep 1000->{}", exe_rep_after);
-    println!("  verifiers: colluder stake burned + rep->500; honest keep stake + rep->120");
+    println!("  verifiers: colluder stake burned + rep->500; honest keep stake + rep->120 + share {} = net {}", each, honest_net);
     println!("  guards: replay -> STALE, cross-family -> FAMILY_MISMATCH, premature finalize -> no-op");
     println!("OK: the compute-receipt / escrow / challenge / quorum / reputation specs compose end-to-end on real Rust");
 }
