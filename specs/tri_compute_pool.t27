@@ -9,8 +9,19 @@ module TriComputePool {
     use base::types;
 
     // Total verified work across three executors (extend as needed).
+    // Sum of three nodes' work, SATURATING: three large work totals (summed GF
+    // widths, untrusted) overflow a u32 sum and would wrap `total` below a single
+    // node's work, so pool_share(pool, my_work, total) would then divide by a value
+    // smaller than my_work and OVER-issue (my share > pool). Widen to u64 and cap
+    // at u32 max -- the last unsaturated weight-sum of the class fixed in
+    // tri_compute_payout.total_weighted3 / weighted / pool_share.
     fn total_work3(w0: u32, w1: u32, w2: u32) -> u32 {
-        return w0 + w1 + w2;
+        let sum: u64 = (w0 as u64) + (w1 as u64) + (w2 as u64);
+        if (sum > 4294967295) {
+            return 4294967295;
+        } else {
+            return sum as u32;
+        }
     }
 
     // One executor's proportional floor-div share of the pool. Guarded against a
@@ -104,6 +115,17 @@ module TriComputePool {
     test empty_round_pays_zero {
         assert(pool_share(1000, 0, 0) == 0, "empty round is safe and pays nothing");
         assert(total_work3(0, 0, 0) == 0, "no work summed");
+    }
+
+    // total_work3 is saturating: three large work totals cap instead of wrapping
+    // below a single node's work (which would let pool_share over-issue).
+    test total_work3_saturates {
+        assert(total_work3(16, 32, 48) == 96, "normal sum is exact");
+        assert(total_work3(4000000000, 400000000, 0) == 4294967295, "sum 4.4e9 > 2^32 saturates, no wrap");
+        assert(total_work3(4294967295, 4294967295, 4294967295) == 4294967295, "three max totals saturate");
+        // Over-issuance guard: with a saturated total, a node's share never exceeds
+        // the pool. Bare-u32 wrap would put total below my_work and over-issue.
+        assert(pool_share(1000, 3000000000, total_work3(3000000000, 3000000000, 3000000000)) <= 1000, "saturated total keeps the share within the pool");
     }
 
     // More verified work strictly earns more (monotonic in work).
