@@ -190,10 +190,34 @@ fn main() {
     let bhi = cf::replay_next_bhi(false, 0, 0, 0, result_ctr);
     assert!(!cf::replay_accept(true, top, blo, bhi, result_ctr), "replayed result counter rejected -> no double settle");
 
+    // NEGATIVE 4 (operand swap): a cheating executor received (41,256) but signs a receipt
+    // that commits DIFFERENT operands (41,0) -- a genuinely valid signature over its own
+    // digest. It seals and delivers that result. The requester recomputes the operand
+    // commitment from the operands IT ASSIGNED (41,256), so the signature does NOT verify
+    // -> gate is 0 -> nothing settles. This is the input binding as an adversarial claim.
+    let oh_cheat = operand_hash256(gfop, 41, 0, 41, 0); // operands the executor did NOT get
+    let d_cheat = input_digest(task, dev, exe, gfop, &oh_cheat, out, ep, receipt::RECEIPT_GENESIS);
+    let sig_cheat = sk.sign(&digest_bytes(&d_cheat)); // VALID signature, wrong operands
+    let mut cheat_pt: Vec<u8> = Vec::new();
+    for hw in [wire::MSG_TASK_RESULT, task, skill, out] { push_word(&mut cheat_pt, hw); }
+    cheat_pt.extend_from_slice(&sig_cheat.to_bytes());
+    let cheat_frame = seal(&cipher, dir_result, epoch, 0x2003u64, &cheat_pt);
+    let cheat_res = open(&cipher, dir_result, &cheat_frame).expect("cheat result opens (it is well-sealed)");
+    let mut csb = [0u8; 64];
+    csb.copy_from_slice(&cheat_res[16..80]);
+    let cheat_sig = Signature::from_bytes(&csb);
+    // Requester verifies against the digest over the ASSIGNED operands (41,256).
+    let cheat_sig_ok = vk.verify(&digest_bytes(&d_req), &cheat_sig).is_ok();
+    let cheat_gate = (cheat_sig_ok as u32) & (cok as u32) & 1u32;
+    let cheat_bal = settle::settle_signed(1000, 16, 1, out, 6, 9, 0, cheat_gate);
+    assert!(!cheat_sig_ok, "a receipt committing operands other than those assigned fails the binding");
+    assert_eq!(cheat_bal, 1000, "an operand-swapped receipt settles nothing");
+
     println!("full A2A compute exchange over the sealed mesh (real ChaCha20-Poly1305):");
     println!("  LEG1 assign  ctr {:#x}: operands (41,256)*(41,256) sealed, len {} (blind relay)", assign_ctr, assign_frame.len());
     println!("  LEG2 executor opened byte-exact -> recompute (43,64)={} -> signed receipt", exec_ok);
     println!("  LEG3 result  ctr {:#x}: opened -> sig_ok={} recompute={} fresh={} -> settle 1000 -> {}", result_ctr, sig_ok, cok, fresh, bal);
     println!("  tampered assign & result -> open FAILS; replayed counter -> rejected");
+    println!("  operand-swap: a valid signature over UNASSIGNED operands -> binding fails -> settle {}", cheat_bal);
     println!("OK: operands and receipt both cross real sealed datagrams; input binding holds end-to-end over the wire");
 }
