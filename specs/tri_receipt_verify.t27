@@ -19,6 +19,25 @@ module TriReceiptVerify {
     const NOT_IN_BATCH: u32 = 2;    // digest not under the signed Merkle root
     const BAD_COMPUTE: u32 = 3;     // claimed result does not recompute
 
+    // GoldenFloat ops (match tri_compute_receipt): the CORRECTNESS check must use the
+    // recompute for the ACTUAL op -- a multiply receipt is not checked with the add
+    // recompute. The binary wrapper computes each op's verify (tri_gft_arith for MUL,
+    // tri_gft_add / tri_gft_sub for ADD) and this selects the authoritative one.
+    const GF_OP_ADD: u32 = 0x10;
+    const GF_OP_MUL: u32 = 0x11;
+
+    fn compute_ok_for_op(gf_op: u32, mul_ok: u32, add_ok: u32) -> u32 {
+        if (gf_op == GF_OP_MUL) {
+            return mul_ok;
+        } else {
+            if (gf_op == GF_OP_ADD) {
+                return add_ok;
+            } else {
+                return 0;
+            }
+        }
+    }
+
     // Accept iff all three checks pass. (x != x is the literal-free `false`.)
     fn receipt_accepted(sig_ok: u32, included: u32, compute_ok: u32) -> bool {
         if (sig_ok == 1) {
@@ -74,5 +93,14 @@ module TriReceiptVerify {
         assert(reject_reason(0, 1, 1) == BAD_SIG, "bad sig first");
         assert(reject_reason(1, 0, 1) == NOT_IN_BATCH, "not-in-batch when sig ok");
         assert(reject_reason(0, 0, 0) == BAD_SIG, "signature checked first");
+    }
+
+    // The correctness check uses the recompute for the ACTUAL op: a MUL receipt is
+    // judged by mul_ok, an ADD receipt by add_ok, an unknown op is never correct.
+    test compute_dispatch_by_op {
+        assert(compute_ok_for_op(GF_OP_MUL, 1, 0) == 1, "MUL uses mul_ok");
+        assert(compute_ok_for_op(GF_OP_ADD, 0, 1) == 1, "ADD uses add_ok");
+        assert(compute_ok_for_op(GF_OP_MUL, 0, 1) == 0, "MUL ignores add_ok");
+        assert(compute_ok_for_op(0x99, 1, 1) == 0, "unknown op -> not recomputable");
     }
 }
