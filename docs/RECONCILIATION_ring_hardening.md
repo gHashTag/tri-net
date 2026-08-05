@@ -174,9 +174,19 @@ throwaway ran `git merge -X ours origin/main` and it **silently dropped main's
 conflict hunk with my digest additions in `tri_compute_receipt.t27`, so `-X ours` took my
 (shorter) side. `-X theirs` would symmetrically drop my hardening. **Resolve each add/add
 conflict as a UNION -- keep BOTH sides' functions** (both main's ledger/merkle AND my
-additions survive). The only take-mine-not-both hunks are the ~2 functions I *changed*
+additions survive). The only take-mine-not-both hunks are the functions I *changed*
 that main left unchanged (`bond_state_after` non-terminal fix, `bal_after_settle`
-saturation), where a union would duplicate a function. Then run the verify-gate.
+saturation), where a union would duplicate a function.
+
+**But an automatic union driver is NOT sufficient (verified):** a third throwaway set
+`*.t27 merge=union` and merged. Every function survived (main's ledger/merkle AND my
+hardening -- good), but the driver left **brace imbalances** (`t27c` reported "Expected
+RBrace, got Eof" in account/bitnet/gfvalid/payout/reputation/settle) and **duplicate
+functions** (`bal_after_settle`, `settle_checked`) where both sides edited near each
+other. So the merge is mechanical (no design decision) but **hands-on**: do a standard
+per-hunk conflict resolution across the ~14 files -- for each `<<<<`/`====`/`>>>>` block
+keep both functions, dedup the handful both sides changed, fix the module braces -- then
+run the verify-gate. Budget ~30-45 min of careful editing, not a one-command merge.
 
 Contact: this branch's session. Do not autonomous-merge -- see memory
 `trinet-ring-hardening-divergence`.
