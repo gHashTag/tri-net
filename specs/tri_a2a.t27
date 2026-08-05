@@ -116,6 +116,38 @@ module TriA2A {
         }
     }
 
+    // The OP the assigned skill implies must equal the op the receipt actually
+    // committed. skill_op was EXPOSED for exactly this ("an assigned mul must not
+    // settle an add receipt") but nothing enforced it: an executor assigned
+    // SKILL_GF16_MUL could commit a valid, fresh, family-matching GF_ADD receipt on
+    // the same operands and be paid for a DIFFERENT operation than requested. This
+    // makes the check a named gate.
+    fn op_matches(assigned_skill: u32, receipt_op: u32) -> bool {
+        return skill_op(assigned_skill) == receipt_op;
+    }
+
+    // The single correct "is this result valid for this assignment" gate: the
+    // result echoes the assigned task_id, the receipt commits that same task, AND
+    // the receipt's family and op both match what the skill advertised. Any one
+    // failing rejects -- no wrong-task splice (result_matches_assign), no cross-
+    // family (family_matches), no wrong-operation settlement (op_matches). Callers
+    // should use THIS instead of checking the pieces and forgetting one.
+    fn result_binds_assign(assign_task_id: u32, result_task_id: u32, receipt_task: u32, assigned_skill: u32, receipt_family: u32, receipt_op: u32) -> bool {
+        if (assign_task_id == result_task_id) {
+            if (result_task_id == receipt_task) {
+                if (skill_family(assigned_skill) == receipt_family) {
+                    return skill_op(assigned_skill) == receipt_op;
+                } else {
+                    return receipt_family != receipt_family;
+                }
+            } else {
+                return receipt_task != receipt_task;
+            }
+        } else {
+            return assign_task_id != assign_task_id;
+        }
+    }
+
     // ---- Tests / invariants ----
 
     // A2A is demultiplexed by PORT on KIND_DATA -- not by the (ciphertext) payload.
@@ -153,6 +185,24 @@ module TriA2A {
         assert(result_matches_assign(0x777, 0x777, 0x777) == true, "matching id + receipt binds");
         assert(result_matches_assign(0x777, 0x888, 0x777) == false, "wrong result task_id rejected");
         assert(result_matches_assign(0x777, 0x777, 0x999) == false, "receipt for another task rejected");
+    }
+
+    // The op gate: an assigned mul must not settle an add receipt (0x11 vs 0x10).
+    test op_must_match_the_skill {
+        assert(op_matches(SKILL_GF16_MUL, 0x11) == true, "mul skill + mul receipt op agree");
+        assert(op_matches(SKILL_GF16_MUL, 0x10) == false, "mul assignment must NOT accept an add receipt");
+        assert(op_matches(SKILL_GFT8_ADD, 0x10) == true, "GF-T8 add skill + add op agree");
+        assert(op_matches(SKILL_GFT8_ADD, 0x11) == false, "add assignment must NOT accept a mul receipt");
+    }
+
+    // The composed gate rejects if ANY of task / family / op is wrong. GF16 MUL
+    // assignment for task 0x777, binary family (0), op 0x11.
+    test composed_binding_gate {
+        assert(result_binds_assign(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11) == true, "all four bind -> valid");
+        assert(result_binds_assign(0x777, 0x888, 0x777, SKILL_GF16_MUL, 0, 0x11) == false, "wrong result id -> reject");
+        assert(result_binds_assign(0x777, 0x777, 0x999, SKILL_GF16_MUL, 0, 0x11) == false, "receipt for another task -> reject");
+        assert(result_binds_assign(0x777, 0x777, 0x777, SKILL_GF16_MUL, 1, 0x11) == false, "GF-T receipt for a binary skill -> reject");
+        assert(result_binds_assign(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x10) == false, "add receipt for a mul assignment -> reject");
     }
 
     // Monotonic freshness rejects replayed / stale results.
