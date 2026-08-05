@@ -27,6 +27,27 @@ mod sha;
 mod receipt;
 #[path = "../../gen/rust/tri_compute_settle.rs"]
 mod settle;
+#[path = "../../gen/rust/tri_gft_arith.rs"]
+mod gmul;
+#[path = "../../gen/rust/tri_gft_add.rs"]
+mod gadd;
+#[path = "../../gen/rust/tri_gft_sub.rs"]
+mod gsub;
+#[path = "../../gen/rust/tri_receipt_verify.rs"]
+mod rv;
+
+/// Recompute the claimed GF-T result from the assigned operands and the op: the
+/// endpoint checks the compute itself, not just the signature. Returns 1 if the
+/// claimed (offset, mant) recomputes for the op, else 0.
+fn compute_ok(gf_op: u32, sign_a: u32, sign_b: u32, oa: u32, ma: u32, ob: u32, mb: u32, claimed_off: u32, claimed_mant: u32) -> u32 {
+    let mul = if gmul::verify_gft_mul_full(oa, ma, ob, mb, claimed_off, claimed_mant, gmul::GFT16_BIAS, gmul::GFT16_OFFSET_MAX) { 1u32 } else { 0 };
+    let add = if sign_a == sign_b {
+        if gadd::verify_gft_add(oa, ob, ma, mb, claimed_off, claimed_mant, gmul::GFT16_OFFSET_MAX) { 1u32 } else { 0 }
+    } else {
+        if gsub::verify_gft_sub(oa, ob, ma, mb, claimed_off, claimed_mant) { 1u32 } else { 0 }
+    };
+    rv::compute_ok_for_op(gf_op, mul, add)
+}
 
 fn digest256(req: u32, dev: u32, exe: u32, task: u32, inh: u32, out: u32, epoch: u32, prev: u32) -> [u32; 8] {
     let w = |i: u32| receipt::digest_pre(i, req, dev, exe, task, inh, out, epoch, prev);
@@ -109,8 +130,17 @@ fn main() {
     let sig = sk.sign(&digest_bytes(&d));
     let ok = sig_ok(&vk, &digest_bytes(&d), &sig);
     assert_eq!(ok, 1, "honest result verifies");
-    let bal = settle::settle_signed(1000, 16, 1, out, 6, 9, 0, ok);
-    assert_eq!(bal, 1016, "valid signature + fresh + finite settles");
+
+    // The endpoint RECOMPUTES the compute from the assigned GF-T operands (parsed
+    // from the taskAssign body, tri_a2a_wire) and only settles if the claimed result
+    // recomputes -- a valid signature over a WRONG result is not enough. Here the
+    // task is GF-T16 mul phi^1 * phi^1 = phi^2: operands (41,0) & (41,0), result (42,0).
+    let (a_off, a_mant, b_off, b_mant) = (41u32, 0u32, 41u32, 0u32);
+    let (claimed_off, claimed_mant) = (42u32, 0u32);
+    let cok = compute_ok(gfop, 0, 0, a_off, a_mant, b_off, b_mant, claimed_off, claimed_mant);
+    assert_eq!(cok, 1, "the claimed GF-T product recomputes");
+    let bal = settle::settle_signed(1000, 16, 1, out, 6, 9, 0, ok & cok);
+    assert_eq!(bal, 1016, "valid signature AND correct compute settles");
 
     let genesis = [receipt::LEDGER_GENESIS, 0, 0, 0, 0, 0, 0, 0];
     let head = ledger_head256(&genesis, &d, bal, epoch);
@@ -122,10 +152,18 @@ fn main() {
     let bal_forge = settle::settle_signed(1000, 16, 1, 0x9999, 6, 9, 0, ok_forge);
     assert_eq!(bal_forge, 1000, "a forged result earns nothing at the endpoint");
 
-    println!("A2A-over-mesh node (hardened): demux(port) OK  relay=FORWARD  endpoint=LOCAL  sealed_len={}", sealed_len);
+    // A WRONG-COMPUTE result that is correctly signed: the operands are honest and
+    // the signature verifies, but the claimed product exponent is wrong (43 not 42).
+    // The recompute catches it -- signature is not correctness.
+    let cok_bad = compute_ok(gfop, 0, 0, a_off, a_mant, b_off, b_mant, 43, 0);
+    let bal_badcompute = settle::settle_signed(1000, 16, 1, out, 6, 9, 0, ok & cok_bad);
+    assert_eq!((cok_bad, bal_badcompute), (0, 1000), "a signed but miscomputed result earns nothing");
+
+    println!("A2A-over-mesh node (hardened + recompute): demux(port) OK  relay=FORWARD  endpoint=LOCAL  sealed_len={}", sealed_len);
     println!("  parse: task={:#06x} skill={:#06x}(GF-T16 mul) taskResult+receipt+signature family=GF-T", task, skill);
-    println!("  digest={:08x}..{:08x}  sig_ok={}  settle 1000 -> {}", d[0], d[7], ok, bal);
+    println!("  digest={:08x}..{:08x}  sig_ok={}  compute_ok={}  settle 1000 -> {}", d[0], d[7], ok, cok, bal);
     println!("  ledger head={:08x}..{:08x} (256-bit, commits the balance)", head[0], head[7]);
-    println!("  forged result: sig_ok={} -> settle stays 1000 (rejected at endpoint)", ok_forge);
-    println!("OK: hardened path -- digest_pre + tri_sha256 + Ed25519 verify + settle_signed + 256-bit head, all from specs");
+    println!("  forged result:     sig_ok={} -> settle stays 1000 (rejected at endpoint)", ok_forge);
+    println!("  signed but WRONG compute (claims phi^2=43): compute_ok={} -> settle stays 1000", cok_bad);
+    println!("OK: endpoint enforces WHO (Ed25519) + CORRECTNESS (GF-T recompute) before settling; signature alone is not enough");
 }

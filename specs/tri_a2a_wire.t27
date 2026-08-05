@@ -71,6 +71,22 @@ module TriA2AWire {
         return OFF_BODY + receipt_body_len + SIG_LEN;
     }
 
+    // A taskAssign body carries the two GF-T operands so a recipient can RECOMPUTE
+    // the result and reject a wrong compute (not just a bad signature):
+    //   [ op(1) | a_offset(1) | a_mant(2 BE) | b_offset(1) | b_mant(2 BE) ] = 7 bytes.
+    // The 9-bit mantissa needs 2 bytes. Fixed layout, so parsing is unambiguous.
+    const OFF_ASSIGN_OP:     u32 = 0;
+    const OFF_ASSIGN_A_OFF:  u32 = 1;
+    const OFF_ASSIGN_A_MANT: u32 = 2;
+    const OFF_ASSIGN_B_OFF:  u32 = 4;
+    const OFF_ASSIGN_B_MANT: u32 = 5;
+    const ASSIGN_BODY_LEN:   u32 = 7;
+
+    // Reassemble a 9-bit GF-T mantissa from its 2 big-endian body bytes.
+    fn assign_mant(hi: u32, lo: u32) -> u32 {
+        return (hi << 8) | lo;
+    }
+
     // ---- Tests / invariants ----
 
     // Big-endian task id / skill reassembly is exact.
@@ -104,5 +120,14 @@ module TriA2AWire {
         assert(body_has_signature(MSG_TASK_ASSIGN) == false, "an assign carries no signature");
         assert(sig_offset(36) == OFF_BODY + 36, "signature after a 36-byte receipt body");
         assert(signed_result_len(36) == OFF_BODY + 36 + SIG_LEN, "total = header + body + 64B signature");
+    }
+
+    // The taskAssign operand layout is fixed, and a 9-bit mantissa reassembles from
+    // its two big-endian bytes, so a recipient can parse operands and recompute.
+    test assign_operand_layout {
+        assert(ASSIGN_BODY_LEN == 7, "op(1)+a_off(1)+a_mant(2)+b_off(1)+b_mant(2)");
+        assert(OFF_ASSIGN_B_OFF == 4, "b operand after a");
+        assert(assign_mant(0x01, 0x00) == 256, "mantissa 256 from bytes 0x01 0x00");
+        assert(assign_mant(0x01, 0xFF) == 511, "mantissa 511 (max 9-bit) from 0x01 0xFF");
     }
 }
