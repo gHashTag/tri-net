@@ -73,8 +73,17 @@ module TriComputeReputation {
 
     // Effective work for the pool split = raw work scaled by reputation. Feeds
     // tri_compute_pool.pool_share as (my_weighted, sum_weighted).
+    // SATURATING: raw_work * rep overflows u32 for a busy node (raw_work = summed
+    // GF widths across many receipts, an untrusted input; rep up to REP_MAX=1000),
+    // wrapping the pool weight to garbage. Widen to u64 and cap at u32 max -- the
+    // same overflow fix tri_compute_payout.weighted carries (balance_add discipline).
     fn weighted_work(raw_work: u32, rep: u32) -> u32 {
-        return raw_work * rep;
+        let prod: u64 = (raw_work as u64) * (rep as u64);
+        if (prod > 4294967295) {
+            return 4294967295;
+        } else {
+            return prod as u32;
+        }
     }
 
     // Admission gate: a node may be ASSIGNED new work only if its reputation
@@ -184,5 +193,13 @@ module TriComputeReputation {
         r5 = rep_after_resolution(r4, RESOLVE_SLASH, 0);
         assert(can_admit(r4, 50) == true, "after 4 frauds (rep 62) still just admissible");
         assert(can_admit(r5, 50) == false, "the fifth proven fraud (rep 31) locks the node out");
+    }
+
+    // weighted_work is saturating: raw_work * rep past u32 caps at max, not wraps.
+    test weighted_work_saturates {
+        assert(weighted_work(16, 1000) == 16000, "normal weight is exact");
+        assert(weighted_work(48, 0) == 0, "zero reputation -> zero weight (regression)");
+        assert(weighted_work(100000, 1000) == 100000000, "1e5 * 1e3 = 1e8 fits, exact");
+        assert(weighted_work(5000000, 1000) == 4294967295, "overflowing weight saturates to u32 max, no wrap");
     }
 }
