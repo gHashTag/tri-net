@@ -138,6 +138,32 @@ module TriComputeSettle {
         }
     }
 
+    // has_inf-aware settlement: settle_full above treats an all-ones exponent as
+    // inf/nan (garbage) for EVERY format, but canonically only GF16 has Inf/NaN;
+    // GF4/GF8/GF12/... use every exponent as a normal value. Without has_inf a
+    // valid max-exponent GF8 result would be misclassified as garbage and pay 0.
+    fn settle_full_h(prev_balance: u32, gf_width: u32, fresh: u32, gf_result: u32, exp_bits: u32, mant_bits: u32, has_inf: u32, already_settled: u32) -> u32 {
+        let exp_mask: u32 = (1 << exp_bits) - 1;
+        let exp: u32 = (gf_result >> mant_bits) & exp_mask;
+        if (already_settled == 1) {
+            return balance_add(prev_balance, compute_reward(gf_width, 0));
+        } else {
+            if (fresh == 1) {
+                if (has_inf == 1) {
+                    if (exp == exp_mask) {
+                        return balance_add(prev_balance, compute_reward(gf_width, 0));
+                    } else {
+                        return balance_add(prev_balance, compute_reward(gf_width, 1));
+                    }
+                } else {
+                    return balance_add(prev_balance, compute_reward(gf_width, 1));
+                }
+            } else {
+                return balance_add(prev_balance, compute_reward(gf_width, 0));
+            }
+        }
+    }
+
     // ---- Tests / invariants ----
 
     // A fresh GF16 receipt pays its width; a replayed one pays zero.
@@ -211,5 +237,14 @@ module TriComputeSettle {
         assert(settle_full(100, 16, 1, 0x4200, 6, 9, 1) == 100, "already settled -> no double pay");
         assert(settle_full(100, 16, 1, 0x7E00, 6, 9, 0) == 100, "inf -> pays nothing");
         assert(settle_full(100, 16, 0, 0x4200, 6, 9, 0) == 100, "stale -> pays nothing");
+    }
+
+    // has_inf settlement: GF16 rejects inf (max-exp); GF8 (no special) pays for
+    // its max-exp result -- the value-layer form of the gfvalid has_inf fix.
+    test settle_full_h_gate {
+        assert(settle_full_h(100, 16, 1, 0x7E00, 6, 9, 1, 0) == 100, "GF16 inf -> pays 0");
+        assert(settle_full_h(100, 16, 1, 0x4200, 6, 9, 1, 0) == 116, "GF16 finite pays");
+        assert(settle_full_h(100, 8, 1, 0x70, 3, 4, 0, 0) == 108, "GF8 max-exp is normal -> pays");
+        assert(settle_full_h(100, 16, 1, 0x4200, 6, 9, 1, 1) == 100, "already settled -> no double pay");
     }
 }
