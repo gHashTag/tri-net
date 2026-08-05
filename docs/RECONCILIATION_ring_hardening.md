@@ -204,5 +204,41 @@ the dedup + brace-balance fix, `t27c typecheck` each of the six files, then the 
 verify-gate. That is the entire merge -- no design judgement, just this dedup list plus
 keep-both everywhere else.
 
+## VERIFIED: the merge is simpler than the dedup list -- and it compiles
+
+A fourth throwaway actually EXECUTED the merge (branch `feat/ring-hardening-merged`,
+local) and produced a **clean, compiling, fully-tested** result. Two findings that
+supersede the "~30-45 min of brace surgery" estimate above:
+
+1. **No brace surgery is needed.** For every one of the six both-modified files
+   (account/bitnet/gfvalid/payout/reputation/settle), a set-diff proved origin/main
+   adds **zero** functions, consts, or tests that this branch lacks -- main only carries
+   *older* versions of the same functions this branch hardened. So the branch file is a
+   strict superset. Resolve each simply by taking it whole:
+   `git checkout feat/ring-hardening -- specs/tri_compute_<f>.t27`.
+   No dedup, no missing-brace hunt. (The dedup list above is still accurate if you prefer
+   the union path, but take-mine-superset is strictly simpler and less error-prone.)
+
+2. **Every other conflicting spec is a pure add/add** -> the union driver keeps both
+   sides correctly with no cleanup.
+
+**The whole merge, verified end to end:**
+```
+git checkout -b <merge> feat/ring-hardening
+printf '*.t27 merge=union\n*.rs merge=union\n' > .gitattributes && git add .gitattributes && git commit
+git merge origin/main                                   # union keeps both on add/add
+for f in account bitnet gfvalid payout reputation settle; do
+    git checkout feat/ring-hardening -- specs/tri_compute_$f.t27   # take-mine superset
+done
+git add specs/tri_compute_*.t27 && git commit
+cargo build --release && cargo test --release           # PROOF
+```
+Measured result on `feat/ring-hardening-merged`: `cargo build --release` compiles the
+merged tree (build.rs regenerates every spec -- main's `tri_gft_arith`/`tri_gft_ladder`/
+`tri_receipt_verify`/`tri_a2a_wire`/`tri_compute_receipt`/`tri_compute_optimistic` PLUS
+this branch's hardened compute specs), and **101/101 generated unit tests pass** with
+all 15 compute+a2a specs parsing and typechecking clean. The merge carries no design
+decision and no fiddly editing -- it is the six take-mine lines above plus a union merge.
+
 Contact: this branch's session. Do not autonomous-merge -- see memory
 `trinet-ring-hardening-divergence`.
