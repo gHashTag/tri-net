@@ -20,6 +20,8 @@ mod challenge;
 mod settle;
 #[path = "../../gen/rust/tri_compute_account.rs"]
 mod account;
+#[path = "../../gen/rust/tri_compute_reputation.rs"]
+mod reputation;
 
 fn main() {
     // Shared task: a GF16 MUL over committed operands. r_ok is the golden result,
@@ -76,9 +78,13 @@ fn main() {
     // Challenger recomputes the leaf from the SAME committed operands (r_bad), so it
     // reproduces the settled leaf, then supplies the golden r_ok as the recompute.
     let dispute_leaf_bad = receipt::receipt_leaf_gf_fmt(receipt::FMT_GF_BINARY, width, op, a, b, r_bad, dev, exe, epoch);
-    // Dispute at epoch 5 (inside the window): leaf binds, claim(r_bad) != recompute(r_ok) -> SLASH.
-    let out_f = challenge::resolve_full(0, 5, challenge::FMT_GF_BINARY, challenge::FMT_GF_BINARY, leaf_bad, dispute_leaf_bad, r_bad, r_ok);
-    assert_eq!(out_f, challenge::RESOLVE_SLASH, "wrong result on committed operands -> slash");
+    // Dispute at epoch 5 (inside the window), resolved by a QUORUM of 3 verifiers
+    // who each recompute gf_op: two honest return the golden r_ok, one colludes and
+    // returns r_bad to shield the fraudster. Majority = r_ok, so the executor's
+    // claim r_bad is still slashed -- a single lying verifier cannot save the fraud.
+    let (ver0, ver1, ver2) = (r_ok, r_ok, r_bad); // two honest, one colluding
+    let out_f = challenge::resolve_quorum3(0, 5, challenge::FMT_GF_BINARY, challenge::FMT_GF_BINARY, leaf_bad, dispute_leaf_bad, r_bad, ver0, ver1, ver2);
+    assert_eq!(out_f, challenge::RESOLVE_SLASH, "majority recomputation slashes the fraud despite a colluding verifier");
     // In-window slash: clawback the escrowed reward (never spendable) + slash the bond.
     let bal_claw = account::bal_after_clawback(bal); // 800, reward reverted to pool
     let bond_after = challenge::executor_bond_after(bond, out_f); // 0 (slashed)
@@ -86,6 +92,23 @@ fn main() {
     assert_eq!(fraud_total, 800, "fraud: escrowed reward clawed + bond slashed");
     let cwin = challenge::challenger_reward(bond, out_f);
     assert_eq!(cwin, bond, "challenger wins the slashed bond");
+
+    // ---- TWO-SIDED ACCOUNTABILITY: the one proof judges executor AND verifiers ----
+    // Executor: the proven slash halves its reputation (memory the bond alone lacks).
+    let exe_rep_after = reputation::rep_after_resolution(1000, out_f, 20);
+    assert_eq!(exe_rep_after, 500, "proven fraud halves the executor's reputation");
+    // Verifiers: quorum value is r_ok; the colluding verifier (ver2) dissented ->
+    // stake burned + reputation halved; the two honest ones keep stake + gain rep.
+    let hq = challenge::verifier_quorum3(ver0, ver1, ver2);
+    let qv = challenge::quorum_result3(ver0, ver1, ver2);
+    assert_eq!(hq, 1);
+    assert_eq!(qv, r_ok);
+    let d_honest = challenge::verifier_dissented(ver0, qv, hq);
+    let d_collude = challenge::verifier_dissented(ver2, qv, hq);
+    assert_eq!(challenge::verifier_stake_after(50, d_honest), 50, "honest verifier keeps its stake");
+    assert_eq!(challenge::verifier_stake_after(50, d_collude), 0, "colluding verifier's stake is burned");
+    assert_eq!(reputation::rep_after_verifier(1000, hq, d_collude, 20), 500, "colluding verifier reputation halved");
+    assert_eq!(reputation::rep_after_verifier(100, hq, d_honest, 20), 120, "honest verifier reputation gains");
 
     // ---- THE ECONOMIC-SECURITY INVARIANT ----
     assert_eq!(honest_total - fraud_total, reward + bond, "cheating costs exactly reward + bond");
@@ -104,6 +127,8 @@ fn main() {
     println!("  honest: settle {} into escrow, window elapses, finalize + release -> total {}", reward, honest_total);
     println!("  fraud:  settle {} into escrow, in-window SLASH -> clawback + bond slash -> total {}", reward, fraud_total);
     println!("  invariant: cheating costs reward+bond = {} (honest {} - fraud {})", reward + bond, honest_total, fraud_total);
+    println!("  quorum: 3 verifiers (1 colluding) -> majority slashes; executor rep 1000->{}", exe_rep_after);
+    println!("  verifiers: colluder stake burned + rep->500; honest keep stake + rep->120");
     println!("  guards: replay -> STALE, cross-family -> FAMILY_MISMATCH, premature finalize -> no-op");
-    println!("OK: the compute-receipt / escrow / challenge specs compose end-to-end on real Rust");
+    println!("OK: the compute-receipt / escrow / challenge / quorum / reputation specs compose end-to-end on real Rust");
 }
