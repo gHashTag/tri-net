@@ -67,4 +67,17 @@ module TriComputePayout {
         assert(payout(1000, 0, 28000) == 0, "zero weight => zero payout");
         assert(payout(1000, 16000, 0) == 0, "empty round pays nobody, no divide-by-zero");
     }
+
+    // Overflow guard at scale, symmetric to tri_compute_pool.pool_share: a large
+    // pool times reputation-weighted work exceeds u32 (1e6 * 16000 = 1.6e10 > 2^32);
+    // in bare u32 the product wraps to a garbage 129_795 share -- the u64 widening
+    // this spec already carries keeps it exact and no-over-issuance survives at
+    // scale, not just the toy 1000-pool rounds above.
+    test large_payout_no_overflow {
+        assert(payout(1000000, 16000, 24000) == 666666, "large pool*weighted floor-divides exactly (no u32 overflow)");
+        assert(payout(1000000, 8000, 24000) == 333333, "second node's weighted share is exact too");
+        s0 = payout(1000000, 16000, 24000);
+        s1 = payout(1000000, 8000, 24000);
+        assert((s0 + s1) == 999999, "sum 999999 <= pool 1e6 at scale; no over-issuance under weighting");
+    }
 }
