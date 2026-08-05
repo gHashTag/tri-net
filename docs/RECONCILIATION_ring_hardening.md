@@ -5,7 +5,7 @@ compute-market economic-security ring on a base (`1d425ab`) that predates the
 parallel PR-train `#102-#110` now on `main`. The two evolved the same area
 independently. Below: every increment, its reconciliation class, and the recipe.
 
-**Status (2026-08-06):** 59 hardening increments on the branch; `feat/ring-hardening`
+**Status (2026-08-06):** 61 hardening increments on the branch; `feat/ring-hardening`
 cannot fast-forward `main` (`origin/main` last observed at `#95-#110`).
 The branch is verified in isolation and **the full ring is regression-free**: latest
 verify-gate = all `tri_compute_*` + `tri_a2a` typecheck clean (0 errors), gen-rust
@@ -77,6 +77,16 @@ All verified; none of these functions exist on `main`.
 | `999e5bc` `ac2f8c6` | is_hosted_skill + family_matches_strict, wired into result_binds_assign: an unhosted/wider-ladder skill can no longer default to binary and accept a wrong-family receipt | a2a |
 | `5238c58` | lifecycle smoke composes the BitNet dispute path (ternary recompute + quorum) end-to-end | src/bin |
 | `d016e95` `1114843` `2b9e6d5` | gfvalid GF-T validity completed: is_finite_dispatch (route by family), gft_offset_in_range (port from #109 canon, reject out-of-range), is_valid_gft (one payable gate = in-range AND finite) | gfvalid |
+| `cdd60c6` `80c9aa5` | account saturation: pending_after_settle (was wrapping while outstanding saturated -- broke the pending==outstanding invariant), and bal_add_sat for the settle/finalize mint path | account |
+
+### The u32 overflow class is fully closed
+
+Every product and weight-sum across the value layer is now overflow-safe: `pool_share`
+(u64 mulDiv) + `total_work3` (pool), `weighted` + `total_weighted3` (payout),
+`weighted_work` (reputation), `pending_after_settle` + `bal_add_sat` x3 (account). No
+addition or product wraps; large ones saturate at u32 max. The account fix
+`cdd60c6` was an invariant break (not mere overflow): `pending` wrapped while
+`outstanding` saturated, so they diverged at the ceiling.
 
 Note: the gfvalid GF-T functions (gft_pow3/gft_offset_max/is_finite_gft_n/gft_offset_
 in_range) are now **byte-identical to the #109 tri_gft_ladder canon** -- one more
