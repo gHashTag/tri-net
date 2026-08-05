@@ -160,18 +160,22 @@ module TriA2A {
     // family (family_matches), no wrong-operation settlement (op_matches). Callers
     // should use THIS instead of checking the pieces and forgetting one.
     fn result_binds_assign(assign_task_id: u32, result_task_id: u32, receipt_task: u32, assigned_skill: u32, receipt_family: u32, receipt_op: u32) -> bool {
-        if (assign_task_id == result_task_id) {
-            if (result_task_id == receipt_task) {
-                if (skill_family(assigned_skill) == receipt_family) {
-                    return skill_op(assigned_skill) == receipt_op;
+        if (is_hosted_skill(assigned_skill) == 1) {
+            if (assign_task_id == result_task_id) {
+                if (result_task_id == receipt_task) {
+                    if (skill_family(assigned_skill) == receipt_family) {
+                        return skill_op(assigned_skill) == receipt_op;
+                    } else {
+                        return receipt_family != receipt_family;
+                    }
                 } else {
-                    return receipt_family != receipt_family;
+                    return receipt_task != receipt_task;
                 }
             } else {
-                return receipt_task != receipt_task;
+                return assign_task_id != assign_task_id;
             }
         } else {
-            return assign_task_id != assign_task_id;
+            return assigned_skill != assigned_skill;
         }
     }
 
@@ -324,5 +328,19 @@ module TriA2A {
         assert(family_matches_strict(SKILL_GFT16_MUL, FMT_GFT) == true, "hosted GF-T skill + GF-T receipt matches");
         assert(family_matches_strict(SKILL_GF16_MUL, FMT_GF_BINARY) == true, "hosted binary skill + binary receipt matches");
         assert(family_matches_strict(SKILL_GFT16_MUL, FMT_GF_BINARY) == false, "hosted GF-T skill + binary receipt rejected");
+    }
+
+    // The strict hosting check is now WIRED into the ingress path: result_binds_
+    // assign (and admit_result through it) rejects an unhosted skill even when
+    // task, family (binary by default) and op would otherwise line up.
+    test ingress_rejects_unhosted_skill {
+        // A GF-T4-looking id 0xA412: op suffix 0x12, skill_family defaults binary.
+        // Everything lines up under the OLD bare check, but the skill is not hosted.
+        assert(result_binds_assign(0x777, 0x777, 0x777, 0xA412, FMT_GF_BINARY, 0x12) == false, "unhosted skill -> result does not bind");
+        // A genuine hosted skill still binds.
+        assert(result_binds_assign(0x777, 0x777, 0x777, SKILL_GF16_MUL, FMT_GF_BINARY, 0x11) == true, "hosted skill still binds");
+        // End-to-end at ingress: admit_result rejects the unhosted skill.
+        assert(admit_result(0x777, 0x777, 0x777, 0xA412, FMT_GF_BINARY, 0x12, 0x100, 100, 50) == false, "admit_result rejects an unhosted skill");
+        assert(admit_result(0x777, 0x777, 0x777, SKILL_GF16_MUL, FMT_GF_BINARY, 0x11, 0x100, 100, 50) == true, "admit_result still admits a hosted skill");
     }
 }
