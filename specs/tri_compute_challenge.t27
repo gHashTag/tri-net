@@ -94,11 +94,15 @@ module TriComputeChallenge {
         }
     }
 
-    // Stake disposition across every bound outcome. Challenger-fault outcomes
-    // (frivolous HONEST, fabricated MALFORMED, family-confusion FAMILY_MISMATCH)
-    // burn the stake to deter griefing. A correct SLASH keeps it. A STALE replay
-    // is a NO-OP -- the original dispute already moved the bonds, so the replay
-    // must touch nothing, stake included.
+    // Stake disposition across every bound outcome. Only CHALLENGER-FAULT outcomes
+    // burn the stake to deter griefing: a frivolous HONEST (executor proven
+    // correct), a fabricated MALFORMED (off-leaf operands), a family-confusion
+    // FAMILY_MISMATCH. The stake is KEPT otherwise: a correct SLASH earns it; a
+    // STALE replay is a no-op (the original dispute already moved the bonds); and
+    // an INDETERMINATE (the verifiers did not reach quorum) is NOT the challenger's
+    // fault -- it raised a valid dispute and the verifier set simply split, so
+    // burning its stake would penalize a legitimate challenge for verifier
+    // behavior and chill challenging whenever a quorum is uncertain.
     fn challenger_stake_after_bound(stake: u32, outcome: u32) -> u32 {
         if (outcome == RESOLVE_SLASH) {
             return stake;
@@ -106,7 +110,11 @@ module TriComputeChallenge {
             if (outcome == RESOLVE_STALE) {
                 return stake;
             } else {
-                return 0;
+                if (outcome == RESOLVE_INDETERMINATE) {
+                    return stake;
+                } else {
+                    return 0;
+                }
             }
         }
     }
@@ -572,6 +580,21 @@ module TriComputeChallenge {
         assert(outcome == RESOLVE_INDETERMINATE, "split verifiers -> indeterminate");
         assert(executor_bond_after(1000, outcome) == 1000, "no slash on an unresolved recomputation");
         assert(challenger_reward(1000, outcome) == 0, "no reward on an unresolved recomputation");
+        // The challenger is NOT at fault for a verifier split -- its stake is kept,
+        // not burned, so a quorum failure never penalizes a legitimate challenge.
+        assert(challenger_stake_after_bound(50, outcome) == 50, "INDETERMINATE keeps the challenger's stake");
+    }
+
+    // Stake disposition over every bound outcome: kept on SLASH/STALE/INDETERMINATE
+    // (correct, no-op, verifier-split), burned only on challenger-fault HONEST/
+    // MALFORMED/FAMILY_MISMATCH.
+    test stake_burns_only_on_challenger_fault {
+        assert(challenger_stake_after_bound(50, RESOLVE_SLASH) == 50, "correct challenge keeps stake");
+        assert(challenger_stake_after_bound(50, RESOLVE_STALE) == 50, "replay keeps stake");
+        assert(challenger_stake_after_bound(50, RESOLVE_INDETERMINATE) == 50, "verifier split keeps stake");
+        assert(challenger_stake_after_bound(50, RESOLVE_HONEST) == 0, "frivolous challenge burns stake");
+        assert(challenger_stake_after_bound(50, RESOLVE_MALFORMED) == 0, "fabricated operands burn stake");
+        assert(challenger_stake_after_bound(50, RESOLVE_FAMILY_MISMATCH) == 0, "family confusion burns stake");
     }
 
     // Verifier accountability: with a formed quorum (value 0x4100), the two
