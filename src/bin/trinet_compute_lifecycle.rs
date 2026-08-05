@@ -22,6 +22,8 @@ mod settle;
 mod account;
 #[path = "../../gen/rust/tri_compute_reputation.rs"]
 mod reputation;
+#[path = "../../gen/rust/tri_a2a.rs"]
+mod a2a;
 
 fn main() {
     // Shared task: a GF16 MUL over committed operands. r_ok is the golden result,
@@ -43,19 +45,41 @@ fn main() {
     // ---- HONEST PATH ----
     // Executor commits the correct result; the leaf binds (op,a,b,r_ok,...).
     let leaf_ok = receipt::receipt_leaf_gf_fmt(receipt::FMT_GF_BINARY, width, op, a, b, r_ok, dev, exe, epoch);
-    // Settle mints the reward into ESCROW through the GATED path: settle_canonical
-    // fed an empty pending bucket applies sig -> no-double-pay -> freshness ->
-    // payability, so only a valid, fresh, finite, once-only receipt escrows value.
-    // (An earlier version escrowed compute_reward(width, 1) directly, bypassing
-    // every gate but freshness -- a non-finite or unsigned result would still have
-    // escrowed the full reward. The gated path closes that hole.)
-    let pending = settle::settle_canonical(0, width, 1, 1, 0, settle::FMT_GF_BINARY, r_ok, 6, 9, 1, 0); // 16
+    // INGRESS GATE: the node admits the result before ANY settlement -- it must bind
+    // to the assignment (task + family + op), be fresh (beyond the watermark), and
+    // come from an executor above the reputation floor. Settlement is gated on it,
+    // so an unbound / stale / low-reputation result never reaches escrow.
+    let task_id = 0x777u32;
+    let watermark = 0x100u32;
+    let (exec_rep, min_rep) = (100u32, 50u32);
+    let admitted = a2a::admit_result(task_id, task_id, task_id, a2a::SKILL_GF16_MUL, receipt::FMT_GF_BINARY, op, watermark, exec_rep, min_rep);
+    assert!(admitted, "a bound, fresh, reputable result is admitted at ingress");
+    // Settle mints the reward into ESCROW through the GATED path (only if admitted):
+    // settle_canonical applies sig -> no-double-pay -> freshness -> payability, so
+    // only a valid, fresh, finite, once-only receipt escrows value.
+    let pending = if admitted {
+        settle::settle_canonical(0, width, 1, 1, 0, settle::FMT_GF_BINARY, r_ok, 6, 9, 1, 0)
+    } else {
+        0
+    }; // 16
     assert_eq!(pending, reward, "a valid finite receipt escrows exactly the width reward");
     assert_eq!(account::bal_after_clawback(bal), bal, "settled reward is not spendable yet");
     // The gate now bites in escrow: a non-finite result or an unsigned receipt
     // escrows ZERO (the bypass the old compute_reward path allowed).
     assert_eq!(settle::settle_canonical(0, width, 1, 1, 0, settle::FMT_GF_BINARY, 0x7E00, 6, 9, 1, 0), 0, "inf result escrows nothing");
     assert_eq!(settle::settle_canonical(0, width, 0, 1, 0, settle::FMT_GF_BINARY, r_ok, 6, 9, 1, 0), 0, "unsigned receipt escrows nothing");
+    // A result rejected AT INGRESS never reaches settlement at all. Each failure
+    // mode is independently disqualifying, and a rejected result escrows nothing.
+    let bad_op = a2a::admit_result(task_id, task_id, task_id, a2a::SKILL_GF16_MUL, receipt::FMT_GF_BINARY, 0x10, watermark, exec_rep, min_rep);
+    assert!(!bad_op, "an add receipt for a mul assignment is rejected at ingress");
+    let bad_pending = if bad_op {
+        settle::settle_canonical(0, width, 1, 1, 0, settle::FMT_GF_BINARY, r_ok, 6, 9, 1, 0)
+    } else {
+        0
+    };
+    assert_eq!(bad_pending, 0, "an ingress-rejected result is never settled");
+    assert!(!a2a::admit_result(task_id, watermark, watermark, a2a::SKILL_GF16_MUL, receipt::FMT_GF_BINARY, op, watermark, exec_rep, min_rep), "a stale (id == watermark) result is rejected at ingress");
+    assert!(!a2a::admit_result(task_id, task_id, task_id, a2a::SKILL_GF16_MUL, receipt::FMT_GF_BINARY, op, watermark, 40, min_rep), "a sub-floor-reputation executor is rejected at ingress");
     // Challenger recomputes the leaf from the committed operands + golden result;
     // it reproduces the settled leaf, so the dispute is anchored.
     let dispute_leaf = receipt::receipt_leaf_gf_fmt(receipt::FMT_GF_BINARY, width, op, a, b, r_ok, dev, exe, epoch);
@@ -153,6 +177,7 @@ fn main() {
     assert_eq!(account::bal_after_finalize_gated(bal, pending_f, settle_epoch, settle_epoch + 3, window), bal, "premature finalize keeps reward escrowed");
 
     println!("compute lifecycle end-to-end (receipt -> settle/escrow -> challenge window):");
+    println!("  ingress: result admitted (bound+fresh+reputable); wrong-op/stale/low-rep rejected before settle");
     println!("  honest: settle {} into escrow, window elapses, finalize + release -> total {}", reward, honest_total);
     println!("  fraud:  settle {} into escrow, in-window SLASH -> clawback + bond slash -> total {}", reward, fraud_total);
     println!("  invariant: cheating costs reward+bond = {} (honest {} - fraud {})", reward + bond, honest_total, fraud_total);
