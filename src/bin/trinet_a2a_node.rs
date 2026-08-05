@@ -175,8 +175,21 @@ fn main() {
     let (claimed_off, claimed_mant) = (42u32, 0u32);
     let cok = compute_ok(gfop, 0, 0, a_off, a_mant, b_off, b_mant, claimed_off, claimed_mant);
     assert_eq!(cok, 1, "the claimed GF-T product recomputes");
-    let bal = settle::settle_signed(1000, 16, 1, out, 6, 9, 0, ok & cok);
-    assert_eq!(bal, 1016, "valid signature AND correct compute settles");
+
+    // FRESHNESS (anti-replay): the node keeps a high-water mark of the last settled
+    // task_id; a taskResult settles only if its id is strictly newer (tri_a2a.is_fresh).
+    let watermark = 0x2000u32; // last settled id before this result
+    let fresh = if a2a::is_fresh(task, watermark) { 1u32 } else { 0 };
+    assert_eq!(fresh, 1, "task 0x2001 is newer than the watermark");
+    let bal = settle::settle_signed(1000, 16, 1, out, 6, 9, 0, ok & cok & fresh);
+    assert_eq!(bal, 1016, "fresh + signed + correct-compute settles");
+    let watermark = a2a::next_watermark(task, watermark); // advance to 0x2001
+
+    // REPLAY: the SAME taskResult arrives again (task id 0x2001, now == watermark).
+    // is_fresh is false -> no second payout, so a replay cannot double-settle.
+    let replay_fresh = if a2a::is_fresh(task, watermark) { 1u32 } else { 0 };
+    let bal_replay = settle::settle_signed(bal, 16, 1, out, 6, 9, 0, ok & cok & replay_fresh);
+    assert_eq!((replay_fresh, bal_replay), (0, bal), "a replayed result does not pay twice");
 
     let genesis = [receipt::LEDGER_GENESIS, 0, 0, 0, 0, 0, 0, 0];
     let head = ledger_head256(&genesis, &d, bal, epoch);
@@ -201,5 +214,6 @@ fn main() {
     println!("  ledger head={:08x}..{:08x} (256-bit, commits the balance)", head[0], head[7]);
     println!("  forged result:     sig_ok={} -> settle stays 1000 (rejected at endpoint)", ok_forge);
     println!("  signed but WRONG compute (claims phi^2=43): compute_ok={} -> settle stays 1000", cok_bad);
-    println!("OK: endpoint enforces WHO (Ed25519) + CORRECTNESS (GF-T recompute) before settling; signature alone is not enough");
+    println!("  REPLAY same task 0x2001: fresh={} -> balance stays {} (no double-pay)", replay_fresh, bal_replay);
+    println!("OK: endpoint enforces FRESHNESS (anti-replay) + WHO (Ed25519) + CORRECTNESS (recompute) before settling");
 }
