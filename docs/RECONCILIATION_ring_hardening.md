@@ -5,7 +5,7 @@ compute-market economic-security ring on a base (`1d425ab`) that predates the
 parallel PR-train `#102-#110` now on `main`. The two evolved the same area
 independently. Below: every increment, its reconciliation class, and the recipe.
 
-**Status (2026-08-06):** 61 hardening increments on the branch; `feat/ring-hardening`
+**Status (2026-08-06):** 62 hardening increments on the branch; `feat/ring-hardening`
 cannot fast-forward `main` (`origin/main` last observed at `#95-#110`).
 The branch is verified in isolation and **the full ring is regression-free**: latest
 verify-gate = all `tri_compute_*` + `tri_a2a` typecheck clean (0 errors), gen-rust
@@ -78,6 +78,12 @@ All verified; none of these functions exist on `main`.
 | `5238c58` | lifecycle smoke composes the BitNet dispute path (ternary recompute + quorum) end-to-end | src/bin |
 | `d016e95` `1114843` `2b9e6d5` | gfvalid GF-T validity completed: is_finite_dispatch (route by family), gft_offset_in_range (port from #109 canon, reject out-of-range), is_valid_gft (one payable gate = in-range AND finite) | gfvalid |
 | `cdd60c6` `80c9aa5` | account saturation: pending_after_settle (was wrapping while outstanding saturated -- broke the pending==outstanding invariant), and bal_add_sat for the settle/finalize mint path | account |
+| `01d692e` | bitnet_leaf bound executor and epoch distinctly: the old `executor + epoch` summed the two identity fields, so (exec 5,epoch 3) and (exec 3,epoch 5) hashed to one leaf -- a cross-executor commitment collision, now split into two mix rounds | bitnet |
+
+Audited but **not** an issue: `tri_compute_receipt` binds executor and epoch as
+separate SHA-256 message words (idx 3 and 7) and separate mix rounds in its 32-bit
+leaves -- it does **not** have the `bitnet_leaf` sum-collision. The commitment-
+collision class is confined to (and fixed in) bitnet.
 
 ### The u32 overflow class is fully closed
 
