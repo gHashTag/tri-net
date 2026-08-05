@@ -216,6 +216,28 @@ module TriComputeChallenge {
         }
     }
 
+    // Majority of five 0/1 flags: 1 iff at least three are set (odd count, no tie).
+    fn majority_flag5(a: u32, b: u32, c: u32, d: u32, e: u32) -> u32 {
+        if (a + b + c + d + e >= 3) {
+            return 1;
+        } else {
+            return 0;
+        }
+    }
+
+    // BitNet dispute under a 5-verifier quorum -- the GF dispute has resolve_quorum5
+    // but the BitNet one stopped at three, so a 5-node pool could not resolve a
+    // BitNet layer with all five votes. Take the 3-of-5 majority of each field: the
+    // recomputed value via quorum_value5, the ternary_ok via majority_flag5. TWO
+    // liars on either field are outvoted; no 3-of-5 value quorum -> INDETERMINATE.
+    fn resolve_bitnet_quorum5(settled_leaf: u32, dispute_leaf: u32, claimed_result: u32, v0: u32, v1: u32, v2: u32, v3: u32, v4: u32, t0: u32, t1: u32, t2: u32, t3: u32, t4: u32) -> u32 {
+        if (has_quorum_k(max_agree5(v0, v1, v2, v3, v4), quorum_threshold(5)) == 1) {
+            return resolve_bitnet(settled_leaf, dispute_leaf, claimed_result, quorum_value5(v0, v1, v2, v3, v4, quorum_threshold(5)), majority_flag5(t0, t1, t2, t3, t4));
+        } else {
+            return RESOLVE_INDETERMINATE;
+        }
+    }
+
     // ---- Quorum of verifiers: don't trust a single recomputation ----
     //
     // resolve_full takes ONE recomputed_result, as trustworthy as the single node
@@ -701,5 +723,28 @@ module TriComputeChallenge {
         // No value quorum (all three differ) -> indeterminate, no bond moves.
         assert(resolve_bitnet_quorum(0xAB, 0xAB, 0x4100, 0x1111, 0x2222, 0x3333, 1, 1, 1) == RESOLVE_INDETERMINATE, "split value set -> indeterminate");
         assert(executor_bond_after(1000, resolve_bitnet_quorum(0xAB, 0xAB, 0x4100, 0x1111, 0x2222, 0x3333, 1, 1, 1)) == 1000, "indeterminate keeps the bond");
+    }
+
+    // Five-flag majority: 1 iff at least three set.
+    test majority_flag5_basics {
+        assert(majority_flag5(1, 1, 1, 0, 0) == 1, "3-of-5 yes");
+        assert(majority_flag5(1, 1, 0, 0, 0) == 0, "2-of-5 -> no");
+        assert(majority_flag5(1, 1, 1, 1, 1) == 1, "unanimous yes");
+        assert(majority_flag5(0, 0, 0, 0, 0) == 0, "unanimous no");
+    }
+
+    // BitNet dispute under a 5-node quorum: TWO liars on either the value or the
+    // ternary flag are outvoted by the 3-of-5 majority. Leaf 0xAB both sides.
+    test bitnet_quorum5_outvotes_two_liars {
+        // 3 honest recompute r_ok, 2 liars r_bad; ternary all-OK; honest exec claim r_ok -> honest.
+        assert(resolve_bitnet_quorum5(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 0x9999, 0x9999, 1, 1, 1, 1, 1) == RESOLVE_HONEST, "2 value liars outvoted by 3-of-5");
+        // 2 verifiers falsely say ternary BAD; the 3-of-5 majority says OK -> honest.
+        assert(resolve_bitnet_quorum5(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 0x4100, 0x4100, 0, 0, 1, 1, 1) == RESOLVE_HONEST, "2 false ternary accusations outvoted");
+        // Real ternary fraud: 3-of-5 agree ternary is BAD -> slash.
+        assert(resolve_bitnet_quorum5(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 0x4100, 0x4100, 0, 0, 0, 1, 1) == RESOLVE_SLASH, "3-of-5 ternary-bad majority slashes");
+        // Real GF fraud: exec claimed r_bad, value majority recomputes r_ok -> slash.
+        assert(resolve_bitnet_quorum5(0xAB, 0xAB, 0x9999, 0x4100, 0x4100, 0x4100, 0x9999, 0x9999, 1, 1, 1, 1, 1) == RESOLVE_SLASH, "GF fraud caught by the 3-of-5 value majority");
+        // No 3-of-5 value quorum (2-2-1) -> indeterminate.
+        assert(resolve_bitnet_quorum5(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x9999, 0x9999, 0xBEEF, 1, 1, 1, 1, 1) == RESOLVE_INDETERMINATE, "2-2-1 split -> indeterminate");
     }
 }
