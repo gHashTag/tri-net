@@ -83,6 +83,17 @@ module TriGftLadder {
         return 1 << gft_mant_bits(exp_trits);
     }
 
+    // Nominal GF-T width (bits) -> its exponent-trit count. This is the routing key: a
+    // verifier reads a receipt's GF width and looks up the rung's geometry (bias,
+    // offset_max, mant_one) to recompute with the RIGHT parameters, not GF-T16's.
+    fn width_to_et(width: u32) -> u32 {
+        if (width == 4) { return GFT4_ET; }
+        if (width == 8) { return GFT8_ET; }
+        if (width == 16) { return GFT16_ET; }
+        if (width == 32) { return GFT32_ET; }
+        return 0;
+    }
+
     // ---- Tests / invariants ----
 
     // The reserved special row is 3^Et - 1 at each confirmed rung; GF-T16 == 80
@@ -135,5 +146,15 @@ module TriGftLadder {
         assert(gft_mant_bits(GFT32_ET) == 25, "GF-T32 mantissa 25 bits");
         assert(gft_mant_one(GFT16_ET) == 512, "GF-T16 significand scale 2^9 = 512");
         assert(gft_mant_one(GFT8_ET) == 16, "GF-T8 scale 2^4 = 16");
+    }
+
+    // Width -> rung geometry: a verifier routes a GF-T{4,8,16,32} receipt to the
+    // correct (bias, offset_max, mant_one) by its width.
+    test width_routing {
+        assert(width_to_et(8) == GFT8_ET, "width 8 -> Et 3");
+        assert(width_to_et(16) == GFT16_ET, "width 16 -> Et 4");
+        assert(gft_bias(width_to_et(8)) == 13, "GF-T8 bias via width");
+        assert(gft_offset_max(width_to_et(16)) == 80, "GF-T16 offset_max via width");
+        assert(gft_mant_one(width_to_et(4)) == 2, "GF-T4 mant scale via width");
     }
 }
