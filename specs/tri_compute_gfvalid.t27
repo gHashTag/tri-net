@@ -17,6 +17,21 @@ module TriComputeGfValid {
         return exp != exp_mask;
     }
 
+    // Canonically (gf_ref) ONLY GF16 reserves an all-ones exponent for Inf/NaN;
+    // every other GF width (GF4/GF8/GF12/...) uses EVERY exponent as a normal
+    // value. is_finite_gf above is the has_inf=1 case (correct for GF16 only) and
+    // would WRONGLY reject a valid max-exponent GF8 result as inf, paying zero.
+    // This gate takes the format's has_inf flag: with no special row, all finite.
+    fn is_finite_gf_h(result: u32, exp_bits: u32, mant_bits: u32, has_inf: u32) -> bool {
+        let exp_mask: u32 = (1 << exp_bits) - 1;
+        let exp: u32 = (result >> mant_bits) & exp_mask;
+        if (has_inf == 1) {
+            return exp != exp_mask;
+        } else {
+            return exp == exp;
+        }
+    }
+
     // Format families the validity gate serves. Binary-exponent GF uses the
     // all-ones-exponent rule above; GF-T16 (ternary-native) uses a balanced-
     // ternary exponent whose reserved special row is a different value entirely,
@@ -66,5 +81,14 @@ module TriComputeGfValid {
         assert(is_finite_gft16(40) == true, "GF-T16 unity exponent finite");
         assert(is_finite_gft16(79) == true, "GF-T16 near-top finite");
         assert(is_finite_gft16(80) == false, "GF-T16 offset 80 is special");
+    }
+
+    // has_inf gate: GF16 rejects all-ones exp (inf/nan); GF8 (no special row)
+    // treats the same all-ones exp as a NORMAL value -- the bug the flag fixes.
+    test has_inf_gate {
+        assert(is_finite_gf_h(0x7E00, 6, 9, 1) == false, "GF16 inf rejected (has_inf)");
+        assert(is_finite_gf_h(0x4200, 6, 9, 1) == true, "GF16 finite accepted");
+        assert(is_finite_gf_h(0x70, 3, 4, 0) == true, "GF8 max-exp is normal (no inf/nan)");
+        assert(is_finite_gf_h(0x70, 3, 4, 1) == false, "with has_inf it would (wrongly) reject");
     }
 }
