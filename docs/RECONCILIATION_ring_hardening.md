@@ -5,7 +5,7 @@ compute-market economic-security ring on a base (`1d425ab`) that predates the
 parallel PR-train `#102-#110` now on `main`. The two evolved the same area
 independently. Below: every increment, its reconciliation class, and the recipe.
 
-**Status (2026-08-06):** 51 hardening increments on the branch; `feat/ring-hardening`
+**Status (2026-08-06):** 56 hardening increments on the branch; `feat/ring-hardening`
 cannot fast-forward `main` (`origin/main` last observed at `#95-#110`).
 The branch is verified in isolation and **the full ring is regression-free**: latest
 verify-gate = all `tri_compute_*` + `tri_a2a` typecheck clean (0 errors), gen-rust
@@ -75,6 +75,22 @@ All verified; none of these functions exist on `main`.
 | `dbda24d` `aa12239` `4258d39` | close the u32 overflow class in every weight path: saturating payout.weighted/total_weighted3, reputation.weighted_work, pool.total_work3 (pool_share already u64-mulDiv) | payout, reputation, pool |
 | `b325877` | lifecycle smoke: multi-task collateralization with a maintained outstanding counter | src/bin |
 | `999e5bc` `ac2f8c6` | is_hosted_skill + family_matches_strict, wired into result_binds_assign: an unhosted/wider-ladder skill can no longer default to binary and accept a wrong-family receipt | a2a |
+| `5238c58` | lifecycle smoke composes the BitNet dispute path (ternary recompute + quorum) end-to-end | src/bin |
+
+### Security fixes -- the non-terminal-outcome / committed-transition class
+
+The challenge layer grew non-terminal outcomes (MALFORMED, STALE, FAMILY_MISMATCH,
+INDETERMINATE) over the ring, but three older consumers still treated "not honest" as
+"slash / advance". A systematic audit found and fixed all three, plus a task-level
+analogue -- these are **behavioral bug fixes** a reviewer should weigh, not pure
+additions:
+
+| Fix | Was | Now |
+|-----|-----|-----|
+| `50f1f40` bond_state_after | slashed the bond on ANY non-honest outcome | only a proven SLASH forfeits; non-terminal -> bond stays LOCKED (griefer can't forfeit an honest bond) |
+| `5c9b777` challenger_stake_after_bound | burned the stake on INDETERMINATE | verifier split is not the challenger's fault -> stake kept |
+| `e7c067e` resolver_epoch_after | advanced the dispute watermark on any non-STALE outcome | advance only on HONEST/SLASH -> a high-epoch MALFORMED can't stale-block legitimate disputes (replay-nonce DoS) |
+| `079aaee` next_watermark_settled (a2a) | next_watermark advanced on freshness alone | settled-gated: an unsettled result can't jump the task watermark (same DoS at the task level) |
 
 ### Note on the bitnet increments
 
