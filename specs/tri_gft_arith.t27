@@ -110,6 +110,52 @@ module TriGftArith {
         }
     }
 
+    // --- GF-T32 multiply (u64). GF-T32's 25-bit mantissa gives a significand product
+    // ~2^50 that overflows u32, so mantissa arithmetic runs in u64 (the offset stays
+    // u32). Same round-toward-zero renormalization as the u32 rungs. mant_one = 2^25.
+    // (Unblocked by the t27c u64-comparison codegen fix.)
+
+    fn gft_mul_mant_carry_u64(ma: u64, mb: u64, mant_one: u64) -> u32 {
+        let prod: u64 = (mant_one + ma) * (mant_one + mb);
+        if (prod >= (2 * mant_one) * mant_one) {
+            return 1;
+        } else {
+            return 0;
+        }
+    }
+
+    fn gft_mul_mant_u64(ma: u64, mb: u64, mant_one: u64) -> u32 {
+        let prod: u64 = (mant_one + ma) * (mant_one + mb);
+        if (prod >= (2 * mant_one) * mant_one) {
+            return ((prod / (2 * mant_one)) - mant_one) as u32;
+        } else {
+            return ((prod / mant_one) - mant_one) as u32;
+        }
+    }
+
+    fn gft_mul_offset_full_u64(offset_a: u32, ma: u64, offset_b: u32, mb: u64, bias: u32, offset_max: u32, mant_one: u64) -> u32 {
+        let carry: u32 = gft_mul_mant_carry_u64(ma, mb, mant_one);
+        let sum: u32 = offset_a + offset_b + carry;
+        if (sum < bias) {
+            return 0;
+        } else {
+            let result: u32 = sum - bias;
+            if (result >= offset_max) {
+                return offset_max;
+            } else {
+                return result;
+            }
+        }
+    }
+
+    fn verify_gft_mul_full_u64(offset_a: u32, ma: u64, offset_b: u32, mb: u64, claimed_offset: u32, claimed_mant: u32, bias: u32, offset_max: u32, mant_one: u64) -> bool {
+        if (gft_mul_offset_full_u64(offset_a, ma, offset_b, mb, bias, offset_max, mant_one) == claimed_offset) {
+            return gft_mul_mant_u64(ma, mb, mant_one) == claimed_mant;
+        } else {
+            return offset_a != offset_a;
+        }
+    }
+
     // GF-T16 (mant_one = 512): the original entry points, now thin views of the
     // parametric form (unchanged behavior; existing callers/tests unaffected).
     fn gft_mul_mant_carry(ma: u32, mb: u32) -> u32 {
@@ -231,5 +277,19 @@ module TriGftArith {
         // GF-T4: mant_one 2, M=1 is 1.5. 1.5*1.5=2.25 carries -> mantissa 0, exponent +1.
         assert(verify_gft_mul_full_p(4, 1, 4, 1, 5, 0, 4, 8, 2) == true, "GF-T4 1.5*1.5 = exp 5, mant 0");
         assert(verify_gft_mul_full_p(4, 1, 4, 1, 4, 0, 4, 8, 2) == false, "GF-T4 wrong exponent rejected");
+    }
+
+    // GF-T32 multiply (u64): mant_one 2^25 = 33554432, bias 364, offset_max 728.
+    // M = 2^24 is the significand 1.5; 2^22 is 1.125. Unity is offset 364.
+    test gft32_multiply {
+        // unity * unity = unity (no carry): offset 364, mantissa 0.
+        assert(gft_mul_mant_carry_u64(0, 0, 33554432) == 0, "GF-T32 1.0*1.0 no carry");
+        assert(gft_mul_mant_u64(0, 0, 33554432) == 0, "GF-T32 unity mantissa 0");
+        assert(verify_gft_mul_full_u64(364, 0, 364, 0, 364, 0, 364, 728, 33554432) == true, "GF-T32 unity*unity = offset 364, mant 0");
+        // 1.5 * 1.5 = 2.25 -> significand 1.125 (M 2^22), exponent +1: offset 365.
+        assert(gft_mul_mant_carry_u64(16777216, 16777216, 33554432) == 1, "GF-T32 1.5*1.5 carries");
+        assert(gft_mul_mant_u64(16777216, 16777216, 33554432) == 4194304, "GF-T32 1.5*1.5 -> mantissa 2^22");
+        assert(verify_gft_mul_full_u64(364, 16777216, 364, 16777216, 365, 4194304, 364, 728, 33554432) == true, "GF-T32 1.5*1.5 = offset 365, mant 2^22");
+        assert(verify_gft_mul_full_u64(364, 16777216, 364, 16777216, 364, 4194304, 364, 728, 33554432) == false, "GF-T32 missed carry rejected");
     }
 }
