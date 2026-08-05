@@ -87,6 +87,41 @@ module TriComputeAccount {
         return balance;
     }
 
+    // ---- The finality window on the one epoch axis ----
+    //
+    // finalize above is timeless -- it would let an executor cash out the instant
+    // it settles, defeating the escrow. Bind it to the SAME monotonic epoch the
+    // rest of the stack runs on (tri_a2a freshness -> tri_compute_challenge
+    // watermark -> here): a reward settled at settle_epoch is finalizable only
+    // once now_epoch has advanced a full challenge window past it. Inside the
+    // window the pending reward stays escrowed and clawback-able, so a fraud proof
+    // that lands before the window closes still reverts it.
+    //
+    // window is a parameter (policy), not hardcoded. is_final is underflow-safe:
+    // a clock reading before the settle epoch is never final.
+    fn is_final(settle_epoch: u32, now_epoch: u32, window: u32) -> bool {
+        if (now_epoch >= settle_epoch) {
+            return (now_epoch - settle_epoch) >= window;
+        } else {
+            return false;
+        }
+    }
+
+    // finalize is PERMITTED only once the window has elapsed; a premature call is
+    // a no-op on balance (the reward stays pending, still escrowed). The time
+    // condition is inlined (not is_final) so it composes inside a fn body.
+    fn bal_after_finalize_gated(balance: u32, pending: u32, settle_epoch: u32, now_epoch: u32, window: u32) -> u32 {
+        if (now_epoch >= settle_epoch) {
+            if ((now_epoch - settle_epoch) >= window) {
+                return balance + pending;
+            } else {
+                return balance;
+            }
+        } else {
+            return balance;
+        }
+    }
+
     // ---- Tests / invariants ----
 
     // Locking collateral conserves total holdings (value only shifts buckets).
@@ -162,5 +197,25 @@ module TriComputeAccount {
         assert(honest == 1016, "honest keeps balance + reward + returned bond");
         assert(fraud == 800, "fraud loses the escrowed reward and the slashed bond");
         assert(honest - fraud == 16 + 200, "cheating costs exactly reward + bond vs honesty");
+    }
+
+    // The finality window: not final until now_epoch is a full window past the
+    // settle epoch; underflow-safe for a clock reading before settle.
+    test finality_window_boundary {
+        assert(is_final(100, 105, 10) == false, "5 < 10 epochs: still in the window");
+        assert(is_final(100, 109, 10) == false, "one epoch short: not final");
+        assert(is_final(100, 110, 10) == true, "exactly a window elapsed: final");
+        assert(is_final(100, 200, 10) == true, "well past the window: final");
+        assert(is_final(100, 90, 10) == false, "clock before settle epoch: never final");
+    }
+
+    // A premature finalize is a no-op: inside the window the reward stays pending
+    // (escrowed, clawback-able); only after the window does it become spendable.
+    test finalize_is_gated_by_the_window {
+        assert(bal_after_finalize_gated(800, 16, 100, 105, 10) == 800, "premature finalize leaves balance put");
+        assert(bal_after_finalize_gated(800, 16, 100, 110, 10) == 816, "post-window finalize releases the reward");
+        // A fraud proof at epoch 105 (inside the window) can still clawback,
+        // because finalize could not have fired yet.
+        assert(bal_after_finalize_gated(800, 16, 100, 105, 10) == bal_after_clawback(800), "in-window: reward not yet spendable, clawback still bites");
     }
 }
