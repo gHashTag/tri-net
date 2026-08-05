@@ -69,8 +69,19 @@ module TriComputeAccount {
 
     // settle (optimistic): mint the reward into PENDING, never straight to
     // spendable balance. Nothing is withdrawable until the window closes.
+    // SATURATING and byte-identical to outstanding_after_escrow: escrow_consistent
+    // pins pending == outstanding, but outstanding_after_escrow saturates while a
+    // bare `pending + reward` would WRAP at the u32 ceiling -- the two would then
+    // diverge (outstanding=max, pending=small), breaking the invariant and splitting
+    // the collateralization gate (reads outstanding) from conservation (reads
+    // pending). Saturate here too so they stay equal at every value.
     fn pending_after_settle(pending: u32, reward: u32) -> u32 {
-        return pending + reward;
+        let sum: u32 = pending + reward;
+        if (sum < pending) {
+            return 0xFFFFFFFF;
+        } else {
+            return sum;
+        }
     }
 
     // finalize: the challenge window elapsed with no successful challenge, so the
@@ -309,6 +320,17 @@ module TriComputeAccount {
         // The invariant detects a drift (defensive: they must be kept equal).
         assert(escrow_consistent(48, 48) == true, "equal -> consistent");
         assert(escrow_consistent(48, 32) == false, "a drift is flagged, never silently gated on");
+    }
+
+    // At the u32 ceiling the two MUST still agree: pending_after_settle saturates
+    // exactly like outstanding_after_escrow, so an overflowing escrow keeps them
+    // equal instead of wrapping pending below a saturated outstanding.
+    test escrow_saturation_keeps_them_equal {
+        assert(pending_after_settle(0xFFFFFFF0, 32) == 0xFFFFFFFF, "overflowing escrow saturates pending, no wrap");
+        assert(pending_after_settle(0xFFFFFFF0, 32) == outstanding_after_escrow(0xFFFFFFF0, 32), "pending == outstanding at the ceiling");
+        assert(escrow_consistent(pending_after_settle(0xFFFFFFF0, 32), outstanding_after_escrow(0xFFFFFFF0, 32)) == true, "still consistent under overflow");
+        // exact below the ceiling (regression).
+        assert(pending_after_settle(1000, 500) == 1500, "normal accumulation is exact");
     }
 
     // total3 with outstanding as the escrow bucket is the node's full holdings, and
