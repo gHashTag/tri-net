@@ -1,0 +1,83 @@
+// TRI-NET GF-T (ternary-native GoldenFloat) verifiable multiply arithmetic.
+//
+// A compute receipt binds {format, op, operands, result} and is SIGNED, but a
+// signature only attests WHO produced the result, not that the result is CORRECT.
+// This spec lets a verifier RECOMPUTE the checkable core of a GF-T multiply -- its
+// exponent -- and reject a receipt whose claimed exponent is wrong (compute fraud),
+// independent of any signature.
+//
+// GF-T's defining feature is that the exponent is a balanced-ternary number added
+// NATIVELY: phi^a * phi^b = phi^(a+b). Carried as an OFFSET (exp + bias, so it is a
+// small unsigned int, the reserved special row at offset_max = 3^Et - 1), a GF-T
+// multiply's result exponent is offset_a + offset_b - bias, saturating to 0 on
+// underflow and to the special row (inf) on overflow. For GF-T16 (Et=4): bias = 40
+// (unity exponent phi^0 sits at offset 40), offset_max = 80 (matches
+// tri_compute_gfvalid.GFT16_OFFSET_MAX and tri_gft_ladder.gft_offset_max(4)).
+
+module TriGftArith {
+    use base::types;
+
+    const GFT16_BIAS: u32 = 40;        // GF-T16 unity exponent offset (phi^0)
+    const GFT16_OFFSET_MAX: u32 = 80;  // GF-T16 reserved special row (3^4 - 1)
+
+    // The result exponent-offset of a GF-T multiply: add the two exponents (native
+    // balanced-ternary add, here in decoded offset form) and re-bias. Saturating:
+    // underflow -> 0 (smallest), overflow -> offset_max (inf/special row).
+    fn gft_mul_offset(offset_a: u32, offset_b: u32, bias: u32, offset_max: u32) -> u32 {
+        let sum: u32 = offset_a + offset_b;
+        if (sum < bias) {
+            return 0;
+        } else {
+            let result: u32 = sum - bias;
+            if (result >= offset_max) {
+                return offset_max;
+            } else {
+                return result;
+            }
+        }
+    }
+
+    // A verifier accepts a claimed GF-T-multiply result exponent iff it equals the
+    // recomputed one: this catches a receipt that claims a wrong product exponent,
+    // with no signature needed.
+    fn verify_gft_mul_offset(offset_a: u32, offset_b: u32, claimed: u32, bias: u32, offset_max: u32) -> bool {
+        return gft_mul_offset(offset_a, offset_b, bias, offset_max) == claimed;
+    }
+
+    // Sign of a GF-T multiply: XOR of operand signs (0 = +, 1 = -).
+    fn gft_mul_sign(sign_a: u32, sign_b: u32) -> u32 {
+        return sign_a ^ sign_b;
+    }
+
+    // ---- Tests / invariants ----
+
+    // phi^0 * phi^0 = phi^0 (unity), phi^1 * phi^1 = phi^2, etc., in GF-T16 offsets.
+    test mul_exponent_law {
+        assert(gft_mul_offset(40, 40, GFT16_BIAS, GFT16_OFFSET_MAX) == 40, "unity * unity = unity (offset 40)");
+        assert(gft_mul_offset(41, 41, GFT16_BIAS, GFT16_OFFSET_MAX) == 42, "phi^1 * phi^1 = phi^2");
+        assert(gft_mul_offset(50, 60, GFT16_BIAS, GFT16_OFFSET_MAX) == 70, "phi^10 * phi^20 = phi^30");
+        assert(gft_mul_offset(40, 55, GFT16_BIAS, GFT16_OFFSET_MAX) == 55, "unity * x = x");
+    }
+
+    // Saturation: overflow to the special (inf) row, underflow to the smallest offset.
+    test mul_saturation {
+        assert(gft_mul_offset(79, 79, GFT16_BIAS, GFT16_OFFSET_MAX) == 80, "big * big overflows to the inf row");
+        assert(gft_mul_offset(70, 60, GFT16_BIAS, GFT16_OFFSET_MAX) == 80, "90 >= offset_max -> inf");
+        assert(gft_mul_offset(10, 10, GFT16_BIAS, GFT16_OFFSET_MAX) == 0, "tiny * tiny underflows to offset 0");
+        assert(gft_mul_offset(0, 0, GFT16_BIAS, GFT16_OFFSET_MAX) == 0, "min * min = min");
+    }
+
+    // The verifier accepts an honest receipt and REJECTS a forged product exponent.
+    test verify_catches_fraud {
+        assert(verify_gft_mul_offset(41, 41, 42, GFT16_BIAS, GFT16_OFFSET_MAX) == true, "honest phi^2 accepted");
+        assert(verify_gft_mul_offset(41, 41, 43, GFT16_BIAS, GFT16_OFFSET_MAX) == false, "wrong product exponent rejected");
+        assert(verify_gft_mul_offset(50, 60, 71, GFT16_BIAS, GFT16_OFFSET_MAX) == false, "off-by-one exponent rejected");
+    }
+
+    // Sign law: like signs -> +, unlike -> -.
+    test sign_law {
+        assert(gft_mul_sign(0, 0) == 0, "(+)(+) = +");
+        assert(gft_mul_sign(1, 1) == 0, "(-)(-) = +");
+        assert(gft_mul_sign(0, 1) == 1, "(+)(-) = -");
+    }
+}
