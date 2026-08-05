@@ -108,6 +108,10 @@ Two verification modes:
 | `trinet_a2a_node` | the composed endpoint: freshness + WHO + input(256) + correctness + membership |
 | `trinet_challenge` / `trinet_optimistic_settle` | challenge/slash; optimistic finalize/reverse lifecycle |
 | `trinet_compute_over_mesh` | the receipt actually crosses the wire: both legs (assign + result) sealed with real ChaCha20-Poly1305, blind relay, WHO+input+recompute+freshness gate, 5 adversarial negatives |
+| `trinet_batch_over_mesh` | throughput: ONE signature over a 256-bit Merkle root settles N receipts by O(log N) inclusion over the wire; a receipt not under the root is isolated, a wrong signer fails WHO |
+| `trinet_ledger_over_mesh` | auditable settled-balance history: R rounds chained into a 256-bit ledger head; the verifier recomputes the chain from the received rounds; rewriting any past round diverges the head |
+| `trinet_challenge_over_mesh` | optimistic fraud-proof over the wire: a challenger opens a sealed bonded claim, INDEPENDENTLY recomputes, and slashes+reverses fraud (bond→0, credit clawed back) while an honest claim is kept |
+| `trinet_ratchet_over_mesh` | multi-hop blind relay + forward secrecy: 2 blind hops, then an HKDF-SHA256 key ratchet (should_ratchet@2^20, must_reject@2^24) where each epoch key opens ONLY its epoch |
 
 ## 4. Boundaries (what is proven, and where)
 
@@ -131,6 +135,11 @@ Two verification modes:
   assign, a tampered result, a replayed counter, an operand-swapped receipt, and an
   identity-swapped receipt (valid signature, unheld executor id). Keys are fixed KATs
   here; the authenticated key agreement is the mesh handshake (trios-mesh), out of scope.
+  The over-wire suite grows core->outward on the same sealed transport: `_batch_` (one
+  signature over a Merkle root settles N receipts by inclusion), `_ledger_` (rounds
+  chained into a tamper-evident audited head), `_challenge_` (an optimistic fraud-proof
+  where the challenger recomputes and slashes), and `_ratchet_` (multi-hop blind relay +
+  a real HKDF-SHA256 forward-secret key ratchet, exercising `should_ratchet`/`must_reject`).
 - **Silicon**: **none**. No GF-T recompute has run on an FPGA. The GF-T arithmetic
   here is the reference a verifier runs; the on-silicon GF unit (t27 `specs/numeric`,
   gf16 @ ~322 MHz on AX7203) is a separate, not-yet-connected artifact.
@@ -150,6 +159,10 @@ cargo run --release --bin trinet_receipt_digest   # 256-bit receipt digest vs ha
 cargo run --release --bin trinet_a2a_node         # the composed hardened endpoint
 cargo run --release --bin trinet_optimistic_settle # optimistic finalize/reverse lifecycle
 cargo run --release --bin trinet_compute_over_mesh # receipt across a real sealed A2A datagram
+cargo run --release --bin trinet_batch_over_mesh   # one signature settles N receipts by inclusion
+cargo run --release --bin trinet_ledger_over_mesh  # auditable settled-balance head across rounds
+cargo run --release --bin trinet_challenge_over_mesh # optimistic fraud-proof: recompute and slash
+cargo run --release --bin trinet_ratchet_over_mesh # multi-hop blind relay + forward-secret ratchet
 ```
 
 (Run in `--release`: the generated hash uses wrapping arithmetic; a debug build panics
