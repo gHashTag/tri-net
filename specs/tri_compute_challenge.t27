@@ -169,6 +169,29 @@ module TriComputeChallenge {
         }
     }
 
+    // ---- BitNet-layer dispute: verify BOTH the ternary part and the GF value ----
+    //
+    // A BitNet layer is a ternary weight matmul (0-DSP) plus a GF16 accumulate. A
+    // dispute that only checks the GF value misses ternary-weight fraud, and one
+    // that only checks the weights misses a wrong accumulate. Resolve on BOTH:
+    // anchor to the settled leaf first, then require the ternary recompute to pass
+    // (ternary_ok = tri_compute_bitnet.bitnet_balance_matches, a cross-module check
+    // the caller precomputes and passes as a flag -- 1 = canonical weights AND the
+    // claimed sign balance matches). A failed ternary recompute is proven-bad
+    // BitNet compute -> SLASH; only a valid ternary part defers to the GF-value
+    // resolution (resolve_bound). A fabricated dispute stays MALFORMED, no slash.
+    fn resolve_bitnet(settled_leaf: u32, dispute_leaf: u32, claimed_result: u32, recomputed_result: u32, ternary_ok: u32) -> u32 {
+        if (settled_leaf == dispute_leaf) {
+            if (ternary_ok == 1) {
+                return resolve_bound(settled_leaf, dispute_leaf, claimed_result, recomputed_result);
+            } else {
+                return RESOLVE_SLASH;
+            }
+        } else {
+            return RESOLVE_MALFORMED;
+        }
+    }
+
     // ---- Quorum of verifiers: don't trust a single recomputation ----
     //
     // resolve_full takes ONE recomputed_result, as trustworthy as the single node
@@ -614,5 +637,19 @@ module TriComputeChallenge {
         assert(burned_total5(0x41, 0x41, 0x41, 0x41, 0x99, 50) == 50, "one 50-stake burned");
         assert(honest_share5(0x41, 0x41, 0x41, 0x41, 0x99, 50) == 12, "50 split among 4 -> 12 each (floor)");
         assert(verifier_stake_after(50, 0) + honest_share5(0x41, 0x41, 0x41, 0x41, 0x99, 50) == 62, "honest net 62 > 50");
+    }
+
+    // BitNet dispute resolves on BOTH the ternary recompute and the GF value. Same
+    // leaf (0xAB) bound both sides; ternary_ok is the caller's bitnet check.
+    test bitnet_dispute_needs_both_parts {
+        // ternary OK + GF value correct (claim == recompute) -> honest.
+        assert(resolve_bitnet(0xAB, 0xAB, 0x4100, 0x4100, 1) == RESOLVE_HONEST, "valid ternary + correct GF -> honest");
+        // ternary OK but GF value wrong -> slash (the accumulate is fraudulent).
+        assert(resolve_bitnet(0xAB, 0xAB, 0x9999, 0x4100, 1) == RESOLVE_SLASH, "valid ternary but wrong GF value -> slash");
+        // ternary FAILS (non-canonical weights or wrong balance) -> slash even if GF matches.
+        assert(resolve_bitnet(0xAB, 0xAB, 0x4100, 0x4100, 0) == RESOLVE_SLASH, "bad ternary recompute -> slash despite a matching GF value");
+        // a fabricated dispute (leaf mismatch) is malformed, never slashes, even with bad ternary.
+        assert(resolve_bitnet(0xAB, 0xAC, 0x4100, 0x4100, 0) == RESOLVE_MALFORMED, "unbound dispute -> malformed, no slash");
+        assert(executor_bond_after(1000, resolve_bitnet(0xAB, 0xAC, 0x4100, 0x4100, 0)) == 1000, "malformed keeps the bond");
     }
 }
