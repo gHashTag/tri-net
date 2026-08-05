@@ -94,17 +94,78 @@ module TriComputeChallenge {
         }
     }
 
-    // A malformed challenge (fabricated operands) is challenger-fault: burn its
-    // stake exactly like a frivolous (HONEST-outcome) challenge, so griefing an
-    // honest executor with off-leaf operands costs the same as spamming it. The
-    // stake is retained ONLY on a correct slash. (executor_bond_after already
-    // keeps the bond on anything but RESOLVE_SLASH, so an honest executor is safe
-    // under MALFORMED with no change to it.)
+    // Stake disposition across every bound outcome. Challenger-fault outcomes
+    // (frivolous HONEST, fabricated MALFORMED, family-confusion FAMILY_MISMATCH)
+    // burn the stake to deter griefing. A correct SLASH keeps it. A STALE replay
+    // is a NO-OP -- the original dispute already moved the bonds, so the replay
+    // must touch nothing, stake included.
     fn challenger_stake_after_bound(stake: u32, outcome: u32) -> u32 {
         if (outcome == RESOLVE_SLASH) {
             return stake;
         } else {
-            return 0;
+            if (outcome == RESOLVE_STALE) {
+                return stake;
+            } else {
+                return 0;
+            }
+        }
+    }
+
+    // ---- Anti-replay: a resolved dispute must not be replayable ----
+    //
+    // resolve_bound has no notion of time: the same (settled_leaf, dispute_leaf,
+    // results) can be re-submitted forever, and a ledger that applies the outcome
+    // each time double-slashes or double-rewards. Each dispute carries a strictly
+    // increasing epoch (as tri_a2a binds request freshness). A resolver holding a
+    // watermark of the last epoch it processed accepts only a STRICTLY greater
+    // one; a stale-or-equal epoch is a replay -> RESOLVE_STALE, a pure no-op.
+    const RESOLVE_STALE: u32 = 3;
+
+    fn dispute_is_fresh(last_epoch: u32, dispute_epoch: u32) -> bool {
+        return dispute_epoch > last_epoch;
+    }
+
+    // The watermark advances only when the dispute was actually processed; a
+    // stale replay leaves it untouched (idempotent).
+    fn resolver_epoch_after(last_epoch: u32, dispute_epoch: u32, outcome: u32) -> u32 {
+        if (outcome == RESOLVE_STALE) {
+            return last_epoch;
+        } else {
+            return dispute_epoch;
+        }
+    }
+
+    // ---- GF-T family binding: close the fraud proof on BOTH ladders ----
+    //
+    // receipt_leaf_gf_fmt tags the leaf with the format family (FMT_GF_BINARY for
+    // GF4..GF1024, FMT_GFT for the balanced-ternary GF-T ladder). A family-
+    // confusion attack disputes a binary-committed result as if GF-T (or vice
+    // versa): the leaf differs, so resolve_bound already returns MALFORMED, but
+    // that hides WHY. Carry the family explicitly and reject a mismatch with a
+    // distinct code so operators see family confusion, not a generic bad leaf.
+    const FMT_GF_BINARY: u32 = 0;         // matches tri_compute_receipt
+    const FMT_GFT: u32 = 1;
+    const RESOLVE_FAMILY_MISMATCH: u32 = 4;
+
+    fn family_matches(settled_family: u32, dispute_family: u32) -> bool {
+        return settled_family == dispute_family;
+    }
+
+    // ---- The single correct resolution path ----
+    //
+    // Chains all three guards in the only safe order: freshness first (a stale
+    // replay short-circuits before any bond logic), then family (cross-family is
+    // rejected before the leaf is trusted), then the leaf-anchor + bit-exact
+    // honesty of resolve_bound. Callers should use this, not the bare layers.
+    fn resolve_full(last_epoch: u32, dispute_epoch: u32, settled_family: u32, dispute_family: u32, settled_leaf: u32, dispute_leaf: u32, claimed_result: u32, recomputed_result: u32) -> u32 {
+        if (dispute_epoch > last_epoch) {
+            if (settled_family == dispute_family) {
+                return resolve_bound(settled_leaf, dispute_leaf, claimed_result, recomputed_result);
+            } else {
+                return RESOLVE_FAMILY_MISMATCH;
+            }
+        } else {
+            return RESOLVE_STALE;
         }
     }
 
@@ -156,5 +217,41 @@ module TriComputeChallenge {
         assert(executor_bond_after(1000, outcome) == 1000, "honest executor bond safe");
         assert(challenger_reward(1000, outcome) == 0, "griefer earns nothing");
         assert(challenger_stake_after_bound(50, outcome) == 0, "griefer stake burned");
+    }
+
+    // Anti-replay: a fresh dispute (epoch beyond the watermark) is processed and
+    // advances the watermark; re-submitting it (epoch == watermark) is STALE and
+    // moves nothing -- bond, reward and stake all untouched (idempotent replay).
+    test replay_is_a_noop {
+        outcome = resolve_full(5, 6, FMT_GF_BINARY, FMT_GF_BINARY, 0x1234ABCD, 0x1234ABCD, 0x9999, 0x4100);
+        assert(dispute_is_fresh(5, 6) == true, "epoch 6 beyond watermark 5 is fresh");
+        assert(outcome == RESOLVE_SLASH, "fresh valid fraud -> slash");
+        assert(resolver_epoch_after(5, 6, outcome) == 6, "watermark advances to 6");
+        replay = resolve_full(6, 6, FMT_GF_BINARY, FMT_GF_BINARY, 0x1234ABCD, 0x1234ABCD, 0x9999, 0x4100);
+        assert(dispute_is_fresh(6, 6) == false, "epoch 6 == watermark is stale");
+        assert(replay == RESOLVE_STALE, "replay -> stale");
+        assert(executor_bond_after(1000, replay) == 1000, "replay does not re-slash bond");
+        assert(challenger_reward(1000, replay) == 0, "replay pays nothing");
+        assert(challenger_stake_after_bound(50, replay) == 50, "replay does not burn stake");
+        assert(resolver_epoch_after(6, 6, replay) == 6, "stale leaves watermark put");
+    }
+
+    // GF-T ladder: a well-formed GF-T dispute (both sides FMT_GFT, matching leaf)
+    // slashes a wrong result exactly as the binary path -- the fraud proof now
+    // covers the ternary-exponent ladder too.
+    test gft_dispute_slashes {
+        outcome = resolve_full(0, 1, FMT_GFT, FMT_GFT, 0xBEEF01, 0xBEEF01, 0x0050, 0x0028);
+        assert(outcome == RESOLVE_SLASH, "GF-T wrong result on committed operands -> slash");
+        assert(executor_bond_after(1000, outcome) == 0, "GF-T bond forfeited");
+    }
+
+    // Family confusion: a GF-T-committed dispute presented as binary is rejected
+    // with a DISTINCT code (not a generic malformed leaf), and burns the stake.
+    test family_confusion_rejected {
+        outcome = resolve_full(0, 1, FMT_GFT, FMT_GF_BINARY, 0xBEEF01, 0xBEEF01, 0x0050, 0x0028);
+        assert(family_matches(FMT_GFT, FMT_GF_BINARY) == false, "families differ");
+        assert(outcome == RESOLVE_FAMILY_MISMATCH, "cross-family -> family mismatch");
+        assert(executor_bond_after(1000, outcome) == 1000, "executor bond safe under confusion");
+        assert(challenger_stake_after_bound(50, outcome) == 0, "family-confusion griefer stake burned");
     }
 }
