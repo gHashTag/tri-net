@@ -76,6 +76,19 @@ module TriComputeGfValid {
         return offset < gft_pow3(exp_trits);
     }
 
+    // A GF-T value is PAYABLE iff it is BOTH in range (a valid encoding) AND finite
+    // (not the reserved special row). One gate so a caller never checks range and
+    // finiteness separately and forgets one -- an out-of-range offset (finite by
+    // is_finite_gft_n) or the special row (in range, not finite) both fail. The
+    // range test is inlined so the finiteness comparison stays a variable form.
+    fn is_valid_gft(offset: u32, exp_trits: u32) -> bool {
+        if (offset < gft_pow3(exp_trits)) {
+            return offset != gft_offset_max(exp_trits);
+        } else {
+            return offset != offset;
+        }
+    }
+
     // GF-T16 validity: the Et=4 special case (offset_max 80 = 3^4 - 1). Kept as a
     // thin alias for existing callers; delegates to the generalized rule.
     const GFT16_OFFSET_MAX: u32 = 80;
@@ -185,5 +198,17 @@ module TriComputeGfValid {
         // is_finite_gft_n but caught by the range gate.
         assert(is_finite_gft_n(81, 4) == true, "is_finite alone WRONGLY calls out-of-range 81 finite");
         assert(gft_offset_in_range(81, 4) == false, "...but the range gate rejects it");
+    }
+
+    // The single payable-GF-T gate: in-range AND finite in one call. Only offsets
+    // strictly below the reserved special row are payable.
+    test valid_gft_is_range_and_finite {
+        assert(is_valid_gft(0, 4) == true, "GF-T16 offset 0 is payable");
+        assert(is_valid_gft(79, 4) == true, "GF-T16 offset 79 (just below special) is payable");
+        assert(is_valid_gft(80, 4) == false, "GF-T16 special row 80 -> not payable (in range, not finite)");
+        assert(is_valid_gft(81, 4) == false, "GF-T16 offset 81 -> not payable (out of range)");
+        assert(is_valid_gft(7, 2) == true, "GF-T4 offset 7 payable");
+        assert(is_valid_gft(8, 2) == false, "GF-T4 special row 8 -> not payable");
+        assert(is_valid_gft(9, 2) == false, "GF-T4 offset 9 -> out of range, not payable");
     }
 }
