@@ -208,6 +208,40 @@ module TriComputeChallenge {
         }
     }
 
+    // ---- Verifier accountability: dissent from the quorum has a cost ----
+    //
+    // resolve_quorum3 uses the majority but lets a MINORITY verifier off free: it
+    // reported a recomputation different from the quorum, and since GF is
+    // deterministic the quorum value IS the golden result, so that verifier is
+    // provably wrong. With no cost, lazy or malicious verifiers spam wrong
+    // recomputations. A verifier stakes to vote; dissenting from a FORMED quorum
+    // burns that stake (as UMA slashes voters against the resolved outcome, and
+    // Chainlink OCR penalizes deviation from consensus). No quorum -> nothing is
+    // proven -> no penalty.
+
+    // 1 iff this verifier's vote dissented from a formed quorum (proven wrong).
+    fn verifier_dissented(vote: u32, quorum_value: u32, has_quorum: u32) -> u32 {
+        if (has_quorum == 1) {
+            if (vote == quorum_value) {
+                return 0;
+            } else {
+                return 1;
+            }
+        } else {
+            return 0;
+        }
+    }
+
+    // A dissenting verifier's stake is burned; an agreeing one (or any verifier
+    // when no quorum formed) keeps it.
+    fn verifier_stake_after(stake: u32, dissented: u32) -> u32 {
+        if (dissented == 1) {
+            return 0;
+        } else {
+            return stake;
+        }
+    }
+
     // ---- Tests / invariants ----
 
     // Honest executor: committed result matches the golden recomputation
@@ -327,5 +361,22 @@ module TriComputeChallenge {
         assert(outcome == RESOLVE_INDETERMINATE, "split verifiers -> indeterminate");
         assert(executor_bond_after(1000, outcome) == 1000, "no slash on an unresolved recomputation");
         assert(challenger_reward(1000, outcome) == 0, "no reward on an unresolved recomputation");
+    }
+
+    // Verifier accountability: with a formed quorum (value 0x4100), the two
+    // agreeing verifiers keep their stake and the lone dissenter (0x9999) is
+    // proven wrong and burned.
+    test dissenting_verifier_is_slashed {
+        assert(verifier_dissented(0x4100, 0x4100, 1) == 0, "agreeing verifier did not dissent");
+        assert(verifier_dissented(0x9999, 0x4100, 1) == 1, "the odd-one-out dissented from the quorum");
+        assert(verifier_stake_after(50, verifier_dissented(0x4100, 0x4100, 1)) == 50, "agreeing verifier keeps its stake");
+        assert(verifier_stake_after(50, verifier_dissented(0x9999, 0x4100, 1)) == 0, "dissenting verifier's stake is burned");
+    }
+
+    // No quorum proves nothing: a verifier is NOT penalized when the set is split,
+    // even though its vote differs from the others (has_quorum == 0).
+    test no_quorum_no_verifier_penalty {
+        assert(verifier_dissented(0x1111, 0x1111, 0) == 0, "no quorum -> no dissent recorded");
+        assert(verifier_stake_after(50, verifier_dissented(0x1111, 0x2222, 0)) == 50, "split set does not burn any verifier stake");
     }
 }
