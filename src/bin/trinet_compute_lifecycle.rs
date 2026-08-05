@@ -121,6 +121,24 @@ fn main() {
     assert_eq!(honest_net, 75, "honest verifier net = kept 50 + reward 25 = 75 > 50 staked");
     assert!(honest_count * each <= burned, "no over-issuance: 2*25 <= 50");
 
+    // ---- The quorum runs over a REAL recompute, not literals ----
+    // Each verifier independently recomputes the dispute leaf via a deterministic
+    // on-branch function (receipt_leaf_gf_fmt) from the committed operands: two
+    // honest ones get the same leaf, a tampering one (wrong committed result) gets
+    // a different leaf, and the quorum confirms the honest majority + flags the
+    // tamperer. (The gf-VALUE recompute -- gf_op(a,b) itself -- is the parallel
+    // #110 GF-T arithmetic, wired in at merge per docs/RECONCILIATION_ring_hardening;
+    // NOT duplicated here.)
+    let leaf_v0 = receipt::receipt_leaf_gf_fmt(receipt::FMT_GF_BINARY, width, op, a, b, r_bad, dev, exe, epoch);
+    let leaf_v1 = receipt::receipt_leaf_gf_fmt(receipt::FMT_GF_BINARY, width, op, a, b, r_bad, dev, exe, epoch);
+    let leaf_v2 = receipt::receipt_leaf_gf_fmt(receipt::FMT_GF_BINARY, width, op, a, b, 0xDEAD, dev, exe, epoch);
+    let hq_leaf = challenge::verifier_quorum3(leaf_v0, leaf_v1, leaf_v2);
+    let qv_leaf = challenge::quorum_result3(leaf_v0, leaf_v1, leaf_v2);
+    assert_eq!(hq_leaf, 1, "two honest leaf-recomputes form a quorum");
+    assert_eq!(qv_leaf, leaf_v0, "the honest recomputed leaf is the quorum value");
+    assert_eq!(challenge::verifier_dissented(leaf_v2, qv_leaf, hq_leaf), 1, "the tampering verifier dissents from the recomputed leaf");
+    assert_ne!(leaf_v0, leaf_v2, "the deterministic recompute actually differs on a tampered operand");
+
     // ---- THE ECONOMIC-SECURITY INVARIANT ----
     assert_eq!(honest_total - fraud_total, reward + bond, "cheating costs exactly reward + bond");
 
@@ -140,6 +158,7 @@ fn main() {
     println!("  invariant: cheating costs reward+bond = {} (honest {} - fraud {})", reward + bond, honest_total, fraud_total);
     println!("  quorum: 3 verifiers (1 colluding) -> majority slashes; executor rep 1000->{}", exe_rep_after);
     println!("  verifiers: colluder stake burned + rep->500; honest keep stake + rep->120 + share {} = net {}", each, honest_net);
+    println!("  real recompute: 3 verifiers recompute the leaf; honest quorum 0x{:X}, tamperer flagged", qv_leaf);
     println!("  guards: replay -> STALE, cross-family -> FAMILY_MISMATCH, premature finalize -> no-op");
     println!("OK: the compute-receipt / escrow / challenge / quorum / reputation specs compose end-to-end on real Rust");
 }
