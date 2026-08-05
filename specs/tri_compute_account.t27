@@ -43,9 +43,22 @@ module TriComputeAccount {
         return balance;
     }
 
+    // Saturating balance add (matches tri_compute_settle.balance_add): a mint into
+    // spendable balance must never wrap DOWN at the u32 ceiling -- a bare balance +
+    // reward would wrap a near-max balance to a small number, silently destroying
+    // value. Every balance-mint below (settle / finalize) routes through this.
+    fn bal_add_sat(balance: u32, amount: u32) -> u32 {
+        let sum: u32 = balance + amount;
+        if (sum < balance) {
+            return 0xFFFFFFFF;
+        } else {
+            return sum;
+        }
+    }
+
     // settle: mint `reward` (from the pool) into the spendable balance.
     fn bal_after_settle(balance: u32, reward: u32) -> u32 {
-        return balance + reward;
+        return bal_add_sat(balance, reward);
     }
 
     // ---- Settlement finality: escrow the reward until the challenge window ----
@@ -88,7 +101,7 @@ module TriComputeAccount {
     // whole pending reward becomes spendable (pending -> balance; pending then 0,
     // as bal_after_release empties `locked`). total3 is conserved.
     fn bal_after_finalize(balance: u32, pending: u32) -> u32 {
-        return balance + pending;
+        return bal_add_sat(balance, pending);
     }
 
     // clawback: a fraud proven inside the window reverts the pending reward to
@@ -167,7 +180,7 @@ module TriComputeAccount {
     fn bal_after_finalize_gated(balance: u32, pending: u32, settle_epoch: u32, now_epoch: u32, window: u32) -> u32 {
         if (now_epoch >= settle_epoch) {
             if ((now_epoch - settle_epoch) >= window) {
-                return balance + pending;
+                return bal_add_sat(balance, pending);
             } else {
                 return balance;
             }
@@ -205,6 +218,20 @@ module TriComputeAccount {
     test settle_mints_exactly_the_reward {
         ba = bal_after_settle(1000, 16);
         assert(total(ba, 0) == total(1000, 0) + 16, "settle mints exactly the reward");
+    }
+
+    // The balance-mint path saturates: settle / finalize into a near-max balance
+    // cap at u32 max instead of wrapping down and destroying value. Normal values
+    // are exact (regression).
+    test balance_mint_saturates {
+        assert(bal_add_sat(1000, 500) == 1500, "normal add exact");
+        assert(bal_add_sat(0xFFFFFFF0, 32) == 0xFFFFFFFF, "overflowing add saturates, no wrap");
+        assert(bal_after_settle(0xFFFFFFF0, 32) == 0xFFFFFFFF, "settle into near-max balance saturates");
+        assert(bal_after_finalize(0xFFFFFFF0, 32) == 0xFFFFFFFF, "finalize into near-max balance saturates");
+        assert(bal_after_finalize_gated(0xFFFFFFF0, 32, 1, 100, 10) == 0xFFFFFFFF, "gated finalize saturates too");
+        // regression: the small-value conservation path is unchanged.
+        assert(bal_after_finalize(800, 16) == 816, "finalize small values exact");
+        assert(bal_after_settle(1000, 16) == 1016, "settle small values exact");
     }
 
     // Round-trip: lock then release leaves the account exactly as it began.
