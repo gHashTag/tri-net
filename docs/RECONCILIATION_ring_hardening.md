@@ -5,7 +5,7 @@ compute-market economic-security ring on a base (`1d425ab`) that predates the
 parallel PR-train `#102-#110` now on `main`. The two evolved the same area
 independently. Below: every increment, its reconciliation class, and the recipe.
 
-**Status (2026-08-06):** 65 hardening increments on the branch; `feat/ring-hardening`
+**Status (2026-08-06):** 67 hardening increments on the branch; `feat/ring-hardening`
 cannot fast-forward `main` (`origin/main` last observed at `#95-#110`).
 The branch is verified in isolation and **the full ring is regression-free**: latest
 verify-gate = all `tri_compute_*` + `tri_a2a` typecheck clean (0 errors), gen-rust
@@ -80,6 +80,7 @@ All verified; none of these functions exist on `main`.
 | `cdd60c6` `80c9aa5` | account saturation: pending_after_settle (was wrapping while outstanding saturated -- broke the pending==outstanding invariant), and bal_add_sat for the settle/finalize mint path | account |
 | `01d692e` | bitnet_leaf bound executor and epoch distinctly: the old `executor + epoch` summed the two identity fields, so (exec 5,epoch 3) and (exec 3,epoch 5) hashed to one leaf -- a cross-executor commitment collision, now split into two mix rounds | bitnet |
 | `e2e117f` `ba72d2d` `df634c4` | **BitNet commitment lifted 32 -> 256 bit** (parity with the receipt digest): bitnet_digest_pre (SHA-256 preimage), resolve_bitnet_d256 (dispute anchors the 256-bit digest), and the lifecycle proof runs real tri_sha256 -- closes the ~2^16 birthday collision on BitNet attestations | bitnet, challenge, src/bin |
+| `cd4f20c` `73dfd4c` | **GF dispute anchored on the 256-bit receipt digest** too (symmetry with BitNet): resolve_bound_d256 / resolve_full_d256, proven end-to-end in the lifecycle with real tri_sha256 -- both dispute paths now use a ~2^128 anchor instead of the 32-bit leaf | challenge, src/bin |
 
 Audited but **not** an issue: `tri_compute_receipt` binds executor and epoch as
 separate SHA-256 message words (idx 3 and 7) and separate mix rounds in its 32-bit
