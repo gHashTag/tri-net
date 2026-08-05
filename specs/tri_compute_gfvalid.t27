@@ -1,0 +1,70 @@
+// TRI-NET GoldenFloat validity, generalised across the GF family. The settle
+// gate's is_finite_gf16 was hardcoded to GF16 (exp field == 0x3F): it silently
+// passes inf/nan from GF4/GF8/GF14/GF20+ results, so garbage compute in any
+// non-GF16 format could be paid. A GF value is special (inf/nan) exactly when its
+// exponent field is all-ones; the field's width/position is per-format:
+//   GF4  E1 M2 | GF8 E3 M4 | GF12 E4 M7 | GF14 E5 M8 | GF16 E6 M9 | GF20 E7 M12
+// (from the phi-rule split e = round((N-1)/phi^2), m = N-1-e).
+
+module TriComputeGfValid {
+    use base::types;
+
+    // A GF result is FINITE iff its exponent field (exp_bits wide, sitting just
+    // above the mant_bits mantissa) is not all-ones.
+    fn is_finite_gf(result: u32, exp_bits: u32, mant_bits: u32) -> bool {
+        let exp_mask: u32 = (1 << exp_bits) - 1;
+        let exp: u32 = (result >> mant_bits) & exp_mask;
+        return exp != exp_mask;
+    }
+
+    // Format families the validity gate serves. Binary-exponent GF uses the
+    // all-ones-exponent rule above; GF-T16 (ternary-native) uses a balanced-
+    // ternary exponent whose reserved special row is a different value entirely,
+    // so it needs its own check -- a GF-T16 inf/nan would slip past is_finite_gf.
+    const FMT_GF_BINARY: u32 = 0;    // GF4..GF1024
+    const FMT_GFT16: u32 = 1;        // GF-T16, balanced-ternary exponent
+
+    // GF-T16 validity: the exponent offset OFFSET_MAX (80 = 3^4 - 1) is the
+    // reserved special row (see t27 specs/numeric/gft16.t27). Finite iff below it.
+    const GFT16_OFFSET_MAX: u32 = 80;
+    fn is_finite_gft16(offset: u32) -> bool {
+        return offset != GFT16_OFFSET_MAX;
+    }
+
+    // ---- Tests / invariants ----
+
+    // GF16 (E6 M9): matches the old is_finite_gf16 exactly.
+    test gf16_specials {
+        assert(is_finite_gf(0x4200, 6, 9) == true, "GF16 4.0 finite");
+        assert(is_finite_gf(0x7E00, 6, 9) == false, "GF16 +inf (exp all-ones)");
+        assert(is_finite_gf(0x7E01, 6, 9) == false, "GF16 NaN");
+        assert(is_finite_gf(0xFE00, 6, 9) == false, "GF16 -inf");
+    }
+
+    // GF8 (E3 M4): inf/nan have the 3-bit exp == 7 (0x70 = 7<<4).
+    test gf8_specials {
+        assert(is_finite_gf(0x20, 3, 4) == true, "GF8 finite (exp=2)");
+        assert(is_finite_gf(0x70, 3, 4) == false, "GF8 +inf (exp=7, mant=0)");
+        assert(is_finite_gf(0x71, 3, 4) == false, "GF8 NaN (exp=7, mant!=0)");
+    }
+
+    // GF4 (E1 M2): the 1-bit exp == 1 is the special row (0x4 = 1<<2).
+    test gf4_specials {
+        assert(is_finite_gf(0x1, 1, 2) == true, "GF4 finite (exp=0)");
+        assert(is_finite_gf(0x4, 1, 2) == false, "GF4 special (exp=1)");
+    }
+
+    // GF14 (E5 M8): 5-bit exp == 31 is special (0x1F00 = 31<<8).
+    test gf14_specials {
+        assert(is_finite_gf(0x0100, 5, 8) == true, "GF14 finite (exp=1)");
+        assert(is_finite_gf(0x1F00, 5, 8) == false, "GF14 +inf (exp=31)");
+    }
+
+    // GF-T16 (ternary-native): the reserved offset 80 is special; a GF-T16 inf
+    // must NOT be classed finite by the binary rule (different family).
+    test gft16_specials {
+        assert(is_finite_gft16(40) == true, "GF-T16 unity exponent finite");
+        assert(is_finite_gft16(79) == true, "GF-T16 near-top finite");
+        assert(is_finite_gft16(80) == false, "GF-T16 offset 80 is special");
+    }
+}

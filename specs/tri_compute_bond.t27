@@ -1,0 +1,89 @@
+// TRI-NET compute bond escrow: the shared collateral that settle + challenge act
+// on. tri_compute_settle credits rewards and tri_compute_challenge slashes wrong
+// results, but each moved a bare balance. This spec gives one bonded lifecycle:
+// FREE -> post (lock collateral out of balance) -> LOCKED -> resolve ->
+// RELEASED (honest, bond returns) or SLASHED (wrong, bond forfeited). Locking is
+// guarded against underflow (you cannot post more than you hold).
+//
+// Wiring (generated Rust / src): `outcome` comes from
+// tri_compute_challenge.resolve (0 = HONEST, 1 = SLASH).
+
+module TriComputeBond {
+    use base::types;
+
+    const ST_FREE: u32 = 0;
+    const ST_LOCKED: u32 = 1;
+    const ST_RELEASED: u32 = 2;
+    const ST_SLASHED: u32 = 3;
+
+    // You can only lock collateral you actually hold.
+    fn can_post(balance: u32, amount: u32) -> bool {
+        return amount <= balance;
+    }
+
+    // Balance after locking a bond -- guarded: an over-post is a no-op (holds
+    // the balance) rather than underflowing.
+    fn balance_after_post(balance: u32, amount: u32) -> u32 {
+        if (amount <= balance) {
+            return balance - amount;
+        } else {
+            return balance;
+        }
+    }
+
+    // The locked bond amount actually taken (0 if the post was invalid).
+    fn locked_amount(balance: u32, amount: u32) -> u32 {
+        if (amount <= balance) {
+            return amount;
+        } else {
+            return 0;
+        }
+    }
+
+    // Bond state after a dispute resolution (outcome: 0 = honest, else slash).
+    fn bond_state_after(outcome: u32) -> u32 {
+        if (outcome == 0) {
+            return ST_RELEASED;
+        } else {
+            return ST_SLASHED;
+        }
+    }
+
+    // Balance after resolution: an honest executor gets the bond back; a slashed
+    // one does not (the bond goes to the challenger, see tri_compute_challenge).
+    fn balance_after_resolve(balance: u32, bond: u32, outcome: u32) -> u32 {
+        if (outcome == 0) {
+            return balance + bond;
+        } else {
+            return balance;
+        }
+    }
+
+    // ---- Tests / invariants ----
+
+    // You cannot post more collateral than you hold; a valid post reduces balance.
+    test post_is_guarded {
+        assert(can_post(1000, 200) == true, "can lock within balance");
+        assert(can_post(1000, 2000) == false, "cannot over-post");
+        assert(balance_after_post(1000, 200) == 800, "valid post reduces balance");
+        assert(balance_after_post(1000, 2000) == 1000, "over-post is a no-op (no underflow)");
+        assert(locked_amount(1000, 200) == 200, "locks the requested amount");
+        assert(locked_amount(1000, 2000) == 0, "invalid post locks nothing");
+    }
+
+    // Honest resolution releases the bond back into the balance (round-trip whole).
+    test honest_round_trips_the_bond {
+        after_post = balance_after_post(1000, 200);
+        bond = locked_amount(1000, 200);
+        assert(bond_state_after(0) == ST_RELEASED, "honest -> released");
+        assert(balance_after_resolve(after_post, bond, 0) == 1000, "bond returns; balance whole");
+    }
+
+    // A slash keeps the bond out of the executor's balance and marks it SLASHED.
+    test slash_forfeits_the_bond {
+        after_post = balance_after_post(1000, 200);
+        bond = locked_amount(1000, 200);
+        assert(bond_state_after(1) == ST_SLASHED, "slash -> slashed");
+        assert(balance_after_resolve(after_post, bond, 1) == 800, "bond forfeited; balance stays reduced");
+    }
+}

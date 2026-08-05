@@ -1,0 +1,61 @@
+// TRI-NET executor reputation: weight the pool split (tri_compute_pool) by a
+// node's track record, so a repeatedly-honest node earns a larger share for the
+// same raw work and a slashed node earns less. Reputation rises on honest
+// settlement (capped) and is halved on every slash -- a strong, memory-bearing
+// penalty that a single fresh receipt cannot immediately undo.
+
+module TriComputeReputation {
+    use base::types;
+
+    const REP_INIT: u32 = 100;    // a new node starts here
+    const REP_MAX: u32 = 1000;    // cap, so reputation cannot run away
+
+    // Reputation after an honest settlement: +gain, capped at REP_MAX.
+    fn rep_after_honest(rep: u32, gain: u32) -> u32 {
+        let r: u32 = rep + gain;
+        if (r > REP_MAX) {
+            return REP_MAX;
+        } else {
+            return r;
+        }
+    }
+
+    // Reputation after a proven wrong result: halved (strong penalty with memory).
+    fn rep_after_slash(rep: u32) -> u32 {
+        return rep >> 1;
+    }
+
+    // Effective work for the pool split = raw work scaled by reputation. Feeds
+    // tri_compute_pool.pool_share as (my_weighted, sum_weighted).
+    fn weighted_work(raw_work: u32, rep: u32) -> u32 {
+        return raw_work * rep;
+    }
+
+    // ---- Tests / invariants ----
+
+    // Honest settlement raises reputation; it never exceeds the cap.
+    test honest_raises_capped {
+        assert(rep_after_honest(100, 20) == 120, "honest work gains reputation");
+        assert(rep_after_honest(990, 50) == REP_MAX, "reputation is capped at REP_MAX");
+    }
+
+    // A slash halves reputation -- one honest job cannot fully repair it.
+    test slash_halves {
+        assert(rep_after_slash(1000) == 500, "a slash halves reputation");
+        r = rep_after_slash(1000);
+        assert(rep_after_honest(r, 20) == 520, "one honest job only partly repairs a slash");
+    }
+
+    // For equal raw work, a higher-reputation node carries more weight in the pool.
+    test reputation_weights_the_split {
+        honest = weighted_work(16, 1000);
+        slashed = weighted_work(16, 500);
+        assert(honest > slashed, "same work, higher reputation => bigger pool weight");
+        assert(honest == 16000, "weight = raw_work * reputation");
+    }
+
+    // A node with zero reputation earns zero weight regardless of raw work.
+    test zero_reputation_zero_weight {
+        assert(weighted_work(48, 0) == 0, "no reputation => no share");
+    }
+}

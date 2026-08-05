@@ -1,0 +1,89 @@
+// TRI-NET compute account: the conserved ledger the value layer was missing.
+// tri_compute_settle mints rewards, tri_compute_bond locks collateral, and
+// tri_compute_challenge slashes -- but nothing proved these move value without
+// creating or destroying it. This spec models one node's account as
+// (balance, locked) and pins the CONSERVATION invariants every operation must
+// obey: lock/release keep total unchanged (value only moves between the two
+// buckets), slash removes EXACTLY the bond (to the challenger, nothing else),
+// and settle mints EXACTLY the reward (from the pool). These are the guards
+// against double-credit and bond leakage.
+
+module TriComputeAccount {
+    use base::types;
+
+    // A node's total holdings = spendable balance + locked collateral.
+    fn total(balance: u32, locked: u32) -> u32 {
+        return balance + locked;
+    }
+
+    // lock: move `amt` from balance into locked (guarded, no underflow).
+    fn bal_after_lock(balance: u32, amt: u32) -> u32 {
+        if (amt <= balance) {
+            return balance - amt;
+        } else {
+            return balance;
+        }
+    }
+    fn locked_after_lock(balance: u32, locked: u32, amt: u32) -> u32 {
+        if (amt <= balance) {
+            return locked + amt;
+        } else {
+            return locked;
+        }
+    }
+
+    // release: honest resolution returns the whole locked bond to balance.
+    fn bal_after_release(balance: u32, locked: u32) -> u32 {
+        return balance + locked;
+    }
+
+    // slash: the locked bond leaves the account (goes to the challenger); the
+    // spendable balance is untouched.
+    fn bal_after_slash(balance: u32) -> u32 {
+        return balance;
+    }
+
+    // settle: mint `reward` (from the pool) into the spendable balance.
+    fn bal_after_settle(balance: u32, reward: u32) -> u32 {
+        return balance + reward;
+    }
+
+    // ---- Tests / invariants ----
+
+    // Locking collateral conserves total holdings (value only shifts buckets).
+    test lock_conserves_total {
+        ba = bal_after_lock(1000, 200);
+        la = locked_after_lock(1000, 0, 200);
+        assert(total(ba, la) == total(1000, 0), "lock conserves total");
+        assert(ba == 800, "balance reduced by the bond");
+        assert(la == 200, "bond now locked");
+    }
+
+    // Releasing an honest bond conserves total (locked -> balance, whole).
+    test release_conserves_total {
+        ba = bal_after_release(800, 200);
+        assert(total(ba, 0) == total(800, 200), "release conserves total");
+        assert(ba == 1000, "the whole bond returns");
+    }
+
+    // A slash removes EXACTLY the bond from the account -- no more, no less.
+    test slash_removes_exactly_the_bond {
+        ba = bal_after_slash(800);
+        assert(total(ba, 0) == total(800, 200) - 200, "slash removes exactly the bond");
+        assert(ba == 800, "spendable balance is untouched by a slash");
+    }
+
+    // A settle mints EXACTLY the reward -- no double-credit.
+    test settle_mints_exactly_the_reward {
+        ba = bal_after_settle(1000, 16);
+        assert(total(ba, 0) == total(1000, 0) + 16, "settle mints exactly the reward");
+    }
+
+    // Round-trip: lock then release leaves the account exactly as it began.
+    test lock_release_round_trips {
+        ba = bal_after_lock(1000, 200);
+        la = locked_after_lock(1000, 0, 200);
+        back = bal_after_release(ba, la);
+        assert(back == 1000, "lock+release is a no-op on total and on balance");
+    }
+}

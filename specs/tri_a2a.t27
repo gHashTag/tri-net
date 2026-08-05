@@ -1,0 +1,166 @@
+// TRI-NET A2A-over-mesh: carry Agent-to-Agent messages as SEALED mesh datagrams,
+// reusing the existing stack -- MeshWire (wire.t27, 11-byte header), RouterTtl
+// (router_ttl.t27, multi-hop + split-horizon), CryptoFrame (crypto_frame.t27,
+// AEAD + ratchet + replay). This spec adds ONLY the A2A message-class layer; it
+// creates no new transport.
+//
+// The hosted skill is a GoldenFloat op (the workload GF was built for): an agent
+// advertises GF16 (GF4..GF1024 family), a taskAssign carries GF operands, the
+// executor runs the proven GF unit, and the taskResult carries a
+// tri_compute_receipt binding {GF format+op, operands, GF result, device, chain}.
+//
+// Demux is by PORT, never by a magic byte: the payload is ciphertext, so its
+// first byte is uniform (tri-net CLAUDE.md, mesh-bridge rule).
+
+module TriA2A {
+    use base::types;
+
+    // A2A rides KIND_DATA (== 1 in wire.t27) on a dedicated port.
+    const KIND_DATA : u32 = 1;
+    const A2A_PORT  : u32 = 0xA2A;
+
+    // A2A task lifecycle message classes.
+    const MSG_TASK_ASSIGN : u32 = 1;
+    const MSG_TASK_RESULT : u32 = 2;
+    const MSG_HEARTBEAT   : u32 = 3;
+
+    // Hosted compute skill = GoldenFloat (must match tri_compute_receipt GF ids).
+    const SKILL_GF16_MUL : u32 = 0x1611;   // GF16 (16) . GF_MUL (0x11)
+    const SKILL_GF16_ADD : u32 = 0x1610;   // GF16 (16) . GF_ADD (0x10)
+
+    // GF-T (ternary-native) hosted skills -- a node advertises which FAMILY it
+    // hosts, so a requester does not send a GF-T16 task to a GF16-only node.
+    const SKILL_GFT16_MUL : u32 = 0xA611;  // GF-T16 . mul
+    const SKILL_GFT16_ADD : u32 = 0xA610;  // GF-T16 . add
+    const SKILL_GFT8_MUL  : u32 = 0xA811;  // GF-T8 . mul
+    const SKILL_GFT8_ADD  : u32 = 0xA810;  // GF-T8 . add
+
+    // Demux an incoming datagram to the A2A stack by (kind, port) -- NOT by
+    // inspecting the encrypted payload bytes.
+    fn is_a2a(kind: u32, port: u32) -> bool {
+        if (kind == KIND_DATA) { return port == A2A_PORT; } else { return port != port; }
+    }
+
+    // Only a taskResult carries a compute-receipt in its body.
+    fn carries_receipt(msg_class: u32) -> bool {
+        return msg_class == MSG_TASK_RESULT;
+    }
+
+    // A skill id is a hosted GoldenFloat op iff it decodes to a known GF skill.
+    fn is_gf_skill(skill: u32) -> bool {
+        if (skill == SKILL_GF16_MUL) { return skill == skill; }
+        else { return skill == SKILL_GF16_ADD; }
+    }
+
+    // A skill is a GF-T (ternary-native) hosted op iff it decodes to a known GF-T
+    // skill. Distinct family from is_gf_skill (binary GF).
+    fn is_gft_skill(skill: u32) -> bool {
+        if (skill == SKILL_GFT16_MUL) { return skill == skill; }
+        else { if (skill == SKILL_GFT16_ADD) { return skill == skill; }
+        else { if (skill == SKILL_GFT8_MUL)  { return skill == skill; }
+        else { return skill == SKILL_GFT8_ADD; } } }
+    }
+
+    // Format families (match tri_compute_receipt / tri_compute_gfvalid).
+    const FMT_GF_BINARY : u32 = 0;
+    const FMT_GFT : u32 = 1;
+
+    // The format family a hosted skill implies. (Inlined rather than calling
+    // is_gft_skill in the condition: t27c mis-lowers `bool_fn() == true` to a
+    // u32-vs-bool comparison. FMT_GFT==1, FMT_GF_BINARY==0, so the flag sum IS
+    // the family.)
+    fn skill_family(skill: u32) -> u32 {
+        if (skill == SKILL_GFT16_MUL) { return FMT_GFT; }
+        else { if (skill == SKILL_GFT16_ADD) { return FMT_GFT; }
+        else { if (skill == SKILL_GFT8_MUL)  { return FMT_GFT; }
+        else { if (skill == SKILL_GFT8_ADD)  { return FMT_GFT; }
+        else { return FMT_GF_BINARY; } } } }
+    }
+
+    // A taskResult is only valid if its receipt's format family matches the family
+    // the assigned skill advertised -- rejects a GF16 result for a GF-T16 request
+    // (same nominal width 16, different format) and vice versa.
+    fn family_matches(assigned_skill: u32, receipt_family: u32) -> bool {
+        return skill_family(assigned_skill) == receipt_family;
+    }
+
+    // The OP a skill implies = its low byte, which equals tri_compute_receipt's
+    // GF_MUL (0x11) / GF_ADD (0x10) by construction. Exposing it lets a caller
+    // check the A2A skill and the receipt's bound gf_op AGREE (an assigned mul
+    // must not settle an add receipt), across both format families.
+    fn skill_op(skill: u32) -> u32 {
+        return skill & 0xFF;
+    }
+
+    // A taskResult is valid for a taskAssign iff it echoes the same task_id AND
+    // its receipt commits that same task. Blocks splicing a valid result+receipt
+    // from one task onto another (the receipt's `task` field is bound, see
+    // tri_compute_receipt.receipt_leaf).
+    fn result_matches_assign(assign_task_id: u32, result_task_id: u32, receipt_task: u32) -> bool {
+        if (assign_task_id == result_task_id) { return result_task_id == receipt_task; }
+        else { return result_task_id != result_task_id; }
+    }
+
+    // Freshness: accept a result only if its task_id strictly exceeds the highest
+    // already settled -- a monotonic nonce that rejects replays of old results.
+    fn is_fresh(task_id: u32, last_settled: u32) -> bool {
+        return task_id > last_settled;
+    }
+
+    // High-water mark after settling: advance on a fresh id, hold on a stale one.
+    fn next_watermark(task_id: u32, last_settled: u32) -> u32 {
+        if (task_id > last_settled) {
+            return task_id;
+        } else {
+            return last_settled;
+        }
+    }
+
+    // ---- Tests / invariants ----
+
+    // A2A is demultiplexed by PORT on KIND_DATA -- not by the (ciphertext) payload.
+    test demux_by_port_not_payload {
+        assert(is_a2a(KIND_DATA, A2A_PORT) == true, "DATA on the A2A port is A2A");
+        assert(is_a2a(0, A2A_PORT) == false, "HELLO is not A2A even on the port");
+        assert(is_a2a(KIND_DATA, 0x1234) == false, "DATA on another port is not A2A");
+    }
+
+    // Receipt travels only with a result, never with an assignment or heartbeat.
+    test only_result_carries_receipt {
+        assert(carries_receipt(MSG_TASK_RESULT) == true, "taskResult carries a receipt");
+        assert(carries_receipt(MSG_TASK_ASSIGN) == false, "taskAssign carries no receipt");
+        assert(carries_receipt(MSG_HEARTBEAT) == false, "heartbeat carries no receipt");
+    }
+
+    // The advertised/executed skill is a GoldenFloat op (the workload GF exists for).
+    test skill_is_goldenfloat {
+        assert(is_gf_skill(SKILL_GF16_MUL) == true, "GF16 mul is a hosted skill");
+        assert(is_gf_skill(SKILL_GF16_ADD) == true, "GF16 add is a hosted skill");
+        assert(is_gft_skill(SKILL_GFT16_MUL) == true, "GF-T16 mul is a hosted skill");
+        assert(is_gft_skill(SKILL_GFT8_ADD) == true, "GF-T8 add is a hosted skill");
+        assert(is_gft_skill(SKILL_GF16_MUL) == false, "binary GF16 is NOT a GF-T skill (family distinct)");
+        assert(is_gf_skill(SKILL_GFT16_MUL) == false, "GF-T16 is NOT a binary GF skill");
+        // skill op suffix agrees with receipt GF_MUL(0x11)/GF_ADD(0x10), both families
+        assert(skill_op(SKILL_GF16_MUL) == 0x11, "GF16 mul skill -> receipt op 0x11");
+        assert(skill_op(SKILL_GF16_ADD) == 0x10, "GF16 add skill -> receipt op 0x10");
+        assert(skill_op(SKILL_GFT16_MUL) == 0x11, "GF-T16 mul skill -> same op 0x11");
+        assert(skill_op(SKILL_GFT8_ADD) == 0x10, "GF-T8 add skill -> op 0x10");
+        assert(is_gf_skill(0xDEAD) == false, "a non-GF skill is rejected");
+    }
+
+    // A result is bound to its assignment by task_id AND by the receipt's task.
+    test result_binds_to_assign {
+        assert(result_matches_assign(0x777, 0x777, 0x777) == true, "matching id + receipt binds");
+        assert(result_matches_assign(0x777, 0x888, 0x777) == false, "wrong result task_id rejected");
+        assert(result_matches_assign(0x777, 0x777, 0x999) == false, "receipt for another task rejected");
+    }
+
+    // Monotonic freshness rejects replayed / stale results.
+    test freshness_blocks_replay {
+        assert(is_fresh(0x10, 0x0F) == true, "newer task_id is fresh");
+        assert(is_fresh(0x0F, 0x0F) == false, "replayed task_id rejected");
+        assert(is_fresh(0x0E, 0x0F) == false, "older task_id rejected");
+        assert(next_watermark(0x10, 0x0F) == 0x10, "watermark advances on fresh");
+        assert(next_watermark(0x0E, 0x0F) == 0x0F, "watermark holds on stale");
+    }
+}

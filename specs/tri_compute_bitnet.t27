@@ -1,0 +1,79 @@
+// TRI-NET BitNet-style mixed layer attestation: ternary weights {-1,0,+1} times
+// GF16 activations. This is the target workload the whole GF-vs-ternary analysis
+// points at -- weights are the 0-DSP part (sign-select / popcount, as in
+// trinet_mac32), the GF16 activation and accumulated result are the value part
+// (magnitude, DSP or -nodsp soft-logic). One receipt binds BOTH: the packed
+// ternary weight code, the GF16 activation hash, and the GF16 result. It also
+// exposes the sparsity the ternary part exploits (zero weights are skipped).
+//
+// Weight trit encoding matches trinet_mac32: 2 bits, 01 = +1, 10 = -1, else 0.
+
+module TriComputeBitnet {
+    use base::types;
+
+    const OP_BITNET: u32 = 0x20;
+    const B_C: u32 = 0x85EBCA77;
+
+    fn rotl(x: u32, k: u32) -> u32 {
+        return ((x << k) | (x >> (32 - k)));
+    }
+
+    fn mix32(x: u32) -> u32 {
+        let a: u32 = x ^ (x >> 16);
+        let b: u32 = a + (a << 3);
+        let c: u32 = b ^ (b >> 11);
+        let d: u32 = c + (c << 15);
+        return d ^ (d >> 16);
+    }
+
+    // Count active (nonzero) ternary weights in a packed 4-trit word (2 bits each).
+    // This is the sparsity the 0-DSP path exploits: zero weights contribute
+    // nothing and cost nothing.
+    // A single 2-bit trit is active iff it is nonzero (zeros are the 0-DSP skip).
+    fn is_active(trit: u32) -> u32 {
+        if (trit != 0) { return 1; } else { return 0; }
+    }
+
+    fn active_weights4(packed: u32) -> u32 {
+        return is_active(packed & 3) + is_active((packed >> 2) & 3)
+             + is_active((packed >> 4) & 3) + is_active((packed >> 6) & 3);
+    }
+
+    // Bind a BitNet layer op into a receipt leaf: ternary weight code (0-DSP part)
+    // + GF16 activation hash + GF16 result (value part) + executor identity.
+    // Changing EITHER the ternary weights OR the GF16 activation/result changes
+    // the leaf.
+    fn bitnet_leaf(weight_code: u32, act_hash: u32, gf_result: u32, device: u32, executor: u32, epoch: u32) -> u32 {
+        let w: u32 = mix32(weight_code ^ rotl(OP_BITNET, 5));
+        let a: u32 = mix32(w ^ rotl(act_hash, 11));
+        let r: u32 = mix32(a ^ rotl(gf_result, 17));
+        let d: u32 = mix32(r ^ rotl(device, 23));
+        return mix32(d ^ rotl(executor + epoch, 29));
+    }
+
+    // ---- Tests / invariants ----
+
+    // Sparsity: nonzero trits are counted, zeros are skipped.
+    test sparsity_count {
+        // packed 0x61 = trits [t0=+1, t1=0, t2=-1, t3=+1] -> 3 active
+        assert(active_weights4(0x61) == 3, "three nonzero weights");
+        assert(active_weights4(0x00) == 0, "all-zero weights -> nothing active");
+        assert(active_weights4(0x55) == 4, "0x55 = four +1 trits -> 4 active");
+    }
+
+    // The receipt binds the TERNARY WEIGHTS: flipping a weight changes the leaf.
+    test weights_are_bound {
+        base = bitnet_leaf(0x61, 0xABCD, 0x4100, 0xC0FFEE01, 0xE0E0, 1);
+        flip = bitnet_leaf(0x62, 0xABCD, 0x4100, 0xC0FFEE01, 0xE0E0, 1);
+        assert(base != flip, "changing a ternary weight changes the receipt");
+    }
+
+    // The receipt binds the GF16 VALUE side: activation and result both matter.
+    test gf16_side_is_bound {
+        base = bitnet_leaf(0x61, 0xABCD, 0x4100, 0xC0FFEE01, 0xE0E0, 1);
+        act = bitnet_leaf(0x61, 0x9999, 0x4100, 0xC0FFEE01, 0xE0E0, 1);
+        res = bitnet_leaf(0x61, 0xABCD, 0x4200, 0xC0FFEE01, 0xE0E0, 1);
+        assert(base != act, "changing the GF16 activation changes the receipt");
+        assert(base != res, "changing the GF16 result changes the receipt");
+    }
+}
