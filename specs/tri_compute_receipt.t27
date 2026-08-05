@@ -17,6 +17,17 @@ module TriComputeReceipt {
     const R_C: u32 = 0x9E3779B9;             // golden-ratio mixing constant
     const R_C2: u32 = 0x85EBCA77;            // second-lane seed (decorrelates the hi word)
 
+    // --- SHA-256 canonical preimage (opt 2, the STRONG binding). sign_digest is a
+    // fast 32-bit lo commitment; a value that GATES PAYMENT needs collision
+    // resistance a 32-bit mixer cannot give (~2^16 birthday -> a forger finds two
+    // (task,out) pairs with the same digest, and a signature over 32 bits validates
+    // for the forgery). digest_pre lays out the canonical single-block SHA-256
+    // preimage; the real 256-bit digest is tri_sha256.sha256_word over these 16
+    // words (composed in the binary wrapper -- t27 has no cross-module calls).
+    const TAG_RECEIPT: u32 = 0x54524350;     // "TRCP" -- receipt-preimage domain tag
+    const SHA_PAD: u32 = 0x80000000;         // SHA-256 padding: the 0x80 byte after the message
+    const DIGEST_MSG_BITS: u32 = 288;        // 9 message words * 32 bits = 36 bytes = 288 bits
+
     // The GoldenFloat workload this receipt exists to attest. The actual GF
     // arithmetic is the proven GF line (t27 specs/numeric/gf*.t27 -> gen-verilog
     // -> gf16_mul_ax7203, GF16 @ ~322 MHz) -- NOT re-implemented here; the receipt
@@ -116,6 +127,27 @@ module TriComputeReceipt {
     fn sign_digest_req(request_id: u32, device_id: u32, executor: u32, task: u32, in_hash: u32, out: u32, epoch: u32, prev_head: u32) -> u32 {
         let base: u32 = sign_digest(device_id, executor, task, in_hash, out, epoch, prev_head);
         return mix32(base ^ mix32(request_id ^ rotl(executor, 11)));
+    }
+
+    // Canonical SHA-256 preimage of a receipt: word `idx` (0..15) of the single
+    // 512-bit block the 256-bit signable digest is computed over. Words 0..8 are the
+    // domain tag + the 8 request-bound fields (the exact set sign_digest_req binds);
+    // words 9..15 are the fixed SHA-256 padding for a 36-byte message. The 256-bit
+    // digest = tri_sha256.sha256_word(digest_pre(0..15), which) for which in 0..8;
+    // that composition lives in the binary wrapper (no cross-module calls in t27).
+    fn digest_pre(idx: u32, request_id: u32, device_id: u32, executor: u32, task: u32, in_hash: u32, out: u32, epoch: u32, prev_head: u32) -> u32 {
+        if (idx == 0) { return TAG_RECEIPT; }
+        if (idx == 1) { return request_id; }
+        if (idx == 2) { return device_id; }
+        if (idx == 3) { return executor; }
+        if (idx == 4) { return task; }
+        if (idx == 5) { return in_hash; }
+        if (idx == 6) { return out; }
+        if (idx == 7) { return epoch; }
+        if (idx == 8) { return prev_head; }
+        if (idx == 9) { return SHA_PAD; }
+        if (idx == 15) { return DIGEST_MSG_BITS; }
+        return 0;
     }
 
     // --- GoldenFloat attestation: bind a GF-line operation into the receipt.
@@ -294,5 +326,26 @@ module TriComputeReceipt {
         binary = receipt_leaf_gf_fmt(FMT_GF_BINARY, GF16, GF_MUL, 0x3C00, 0x4000, 0x4100, 0xC0FFEE01, 0xE0E0, 1);
         ternary = receipt_leaf_gf_fmt(FMT_GFT, GF16, GF_MUL, 0x3C00, 0x4000, 0x4100, 0xC0FFEE01, 0xE0E0, 1);
         assert(binary != ternary, "GF16 (binary) and GF-T16 (ternary) attest to different receipts");
+    }
+
+    // The canonical SHA-256 preimage places each field in a fixed word and pins the
+    // SHA-256 padding, so the 256-bit digest computed over it is well-defined and
+    // reproducible. Bit-exactness vs an independent SHA-256 (Python hashlib KAT) is
+    // proven by the trinet_receipt_digest binary; here we pin the word layout.
+    test sha256_preimage_layout {
+        assert(digest_pre(0, 0x2001, 0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 0x4100, 1, RECEIPT_GENESIS) == TAG_RECEIPT, "word 0 is the domain tag");
+        assert(digest_pre(3, 0x2001, 0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 0x4100, 1, RECEIPT_GENESIS) == 0xE0E0, "executor lands in word 3");
+        assert(digest_pre(8, 0x2001, 0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 0x4100, 1, RECEIPT_GENESIS) == RECEIPT_GENESIS, "prev_head lands in word 8");
+        assert(digest_pre(9, 0, 0, 0, 0, 0, 0, 0, 0) == SHA_PAD, "word 9 starts the SHA-256 padding");
+        assert(digest_pre(15, 0, 0, 0, 0, 0, 0, 0, 0) == DIGEST_MSG_BITS, "word 15 is the 288-bit message length");
+        assert(digest_pre(12, 0x2001, 0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 0x4100, 1, RECEIPT_GENESIS) == 0, "words 10..14 are zero pad");
+    }
+
+    // Domain separation: word 0 is a fixed non-zero tag no attacker controls, so a
+    // receipt preimage can never collide with a differently-tagged structure fed to
+    // the same SHA-256 primitive.
+    test sha256_preimage_domain_sep {
+        assert(digest_pre(0, 0, 0, 0, 0, 0, 0, 0, 0) == TAG_RECEIPT, "tag fixed even for all-zero fields");
+        assert(TAG_RECEIPT != 0, "domain tag is non-zero");
     }
 }
