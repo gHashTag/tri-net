@@ -52,6 +52,31 @@ module TriComputeBitnet {
              + is_active((packed >> 4) & 3) + is_active((packed >> 6) & 3);
     }
 
+    // Canonical packing: since 00 AND 11 both decode to 0, the SAME logical weight
+    // vector has multiple packed encodings (e.g. [0,0,0,0] is 0x00 or 0xFF or any
+    // mix), each hashing to a DIFFERENT bitnet_leaf -- weight malleability: one
+    // logical matrix, many valid receipts. Fix a canonical form: a trit is
+    // canonical iff it is NOT 0b11 (zero is always 00). A packing is canonical iff
+    // all four trits are, so each logical weight vector has exactly ONE leaf. An
+    // attestation must reject a non-canonical weight_code (Bitcoin low-S / DER
+    // canonicalization discipline).
+    fn trit_canonical(trit: u32) -> u32 {
+        if (trit == 3) {
+            return 0;
+        } else {
+            return 1;
+        }
+    }
+
+    fn weights_canonical4(packed: u32) -> u32 {
+        return trit_canonical(packed & 3) + trit_canonical((packed >> 2) & 3)
+             + trit_canonical((packed >> 4) & 3) + trit_canonical((packed >> 6) & 3);
+    }
+
+    fn packing_is_canonical(packed: u32) -> bool {
+        return weights_canonical4(packed) == 4;
+    }
+
     // Bind a BitNet layer op into a receipt leaf: ternary weight code (0-DSP part)
     // + GF16 activation hash + GF16 result (value part) + executor identity.
     // Changing EITHER the ternary weights OR the GF16 activation/result changes
@@ -87,6 +112,28 @@ module TriComputeBitnet {
         assert(active_weights4(0x1B) == 2, "mixed word counts only the two canonical nonzero trits");
         // an 11 code cannot inflate the count past the real active weights.
         assert(active_weights4(0xF5) == 2, "0xF5 = {01,01,11,11} -> 2 active (the two 11s do not count)");
+    }
+
+    // Canonical packing: a weight_code with any 0b11 trit is non-canonical and must
+    // be rejected, so each logical weight vector maps to exactly one leaf.
+    test canonical_packing_gate {
+        assert(packing_is_canonical(0x00) == true, "all-00 zeros are canonical");
+        assert(packing_is_canonical(0x55) == true, "all-+1 is canonical");
+        assert(packing_is_canonical(0x61) == true, "a mixed canonical word");
+        assert(packing_is_canonical(0xFF) == false, "all-11 is a non-canonical zero packing");
+        assert(packing_is_canonical(0x1B) == false, "a single 0b11 trit makes the word non-canonical");
+        assert(weights_canonical4(0xF5) == 2, "0xF5 has two 11-codes -> only 2 canonical trits");
+    }
+
+    // Weight malleability closed: the two encodings of the all-zero vector hash to
+    // DIFFERENT leaves, but only the canonical one (0x00) is accepted -- so a
+    // logical weight vector has exactly ONE valid receipt.
+    test canonical_form_is_unique {
+        zeros_ok = bitnet_leaf(0x00, 0xABCD, 0x4100, 0xC0FFEE01, 0xE0E0, 1);
+        zeros_bad = bitnet_leaf(0xFF, 0xABCD, 0x4100, 0xC0FFEE01, 0xE0E0, 1);
+        assert(zeros_ok != zeros_bad, "the two zero-packings hash differently (the malleability)");
+        assert(packing_is_canonical(0x00) == true, "only the 0x00 packing is canonical...");
+        assert(packing_is_canonical(0xFF) == false, "...so the 0xFF alias is rejected -> one valid leaf");
     }
 
     // The receipt binds the TERNARY WEIGHTS: flipping a weight changes the leaf.
