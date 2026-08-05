@@ -304,6 +304,66 @@ module TriComputeChallenge {
         }
     }
 
+    // ---- Five-node quorum: the k-of-n counting done on a real 5-vote set ----
+    //
+    // resolve_quorum3 only handles n=3. Generalize the AGREEMENT COUNT to five
+    // votes by counting, for each vote, how many of the five equal it, and taking
+    // the max (max_agree5). The majority value is the one whose count clears the
+    // threshold (unique for k > n/2). resolve_quorum5 then mirrors resolve_quorum3
+    // with quorum_threshold(5) = 3, so a 3-of-5 honest majority outvotes 2 liars.
+
+    fn eq1(a: u32, b: u32) -> u32 {
+        if (a == b) {
+            return 1;
+        } else {
+            return 0;
+        }
+    }
+
+    fn max2(a: u32, b: u32) -> u32 {
+        if (a >= b) {
+            return a;
+        } else {
+            return b;
+        }
+    }
+
+    // How many of the five votes equal x.
+    fn count5(x: u32, v0: u32, v1: u32, v2: u32, v3: u32, v4: u32) -> u32 {
+        return eq1(x, v0) + eq1(x, v1) + eq1(x, v2) + eq1(x, v3) + eq1(x, v4);
+    }
+
+    // Size of the largest agreeing group among five votes (1..5).
+    fn max_agree5(v0: u32, v1: u32, v2: u32, v3: u32, v4: u32) -> u32 {
+        let c0: u32 = count5(v0, v0, v1, v2, v3, v4);
+        let c1: u32 = count5(v1, v0, v1, v2, v3, v4);
+        let c2: u32 = count5(v2, v0, v1, v2, v3, v4);
+        let c3: u32 = count5(v3, v0, v1, v2, v3, v4);
+        let c4: u32 = count5(v4, v0, v1, v2, v3, v4);
+        return max2(max2(max2(c0, c1), max2(c2, c3)), c4);
+    }
+
+    // The value that reaches the threshold k (unique for k > n/2); v0 fallback is
+    // never used because the caller gates on has_quorum_k(max_agree5, k) first.
+    fn quorum_value5(v0: u32, v1: u32, v2: u32, v3: u32, v4: u32, k: u32) -> u32 {
+        if (count5(v0, v0, v1, v2, v3, v4) >= k) { return v0; }
+        if (count5(v1, v0, v1, v2, v3, v4) >= k) { return v1; }
+        if (count5(v2, v0, v1, v2, v3, v4) >= k) { return v2; }
+        if (count5(v3, v0, v1, v2, v3, v4) >= k) { return v3; }
+        if (count5(v4, v0, v1, v2, v3, v4) >= k) { return v4; }
+        return v0;
+    }
+
+    // Quorum-gated resolution over five verifiers: resolve on the majority
+    // recomputation if >= quorum_threshold(5) agree, else RESOLVE_INDETERMINATE.
+    fn resolve_quorum5(last_epoch: u32, dispute_epoch: u32, settled_family: u32, dispute_family: u32, settled_leaf: u32, dispute_leaf: u32, claimed_result: u32, v0: u32, v1: u32, v2: u32, v3: u32, v4: u32) -> u32 {
+        if (has_quorum_k(max_agree5(v0, v1, v2, v3, v4), quorum_threshold(5)) == 1) {
+            return resolve_full(last_epoch, dispute_epoch, settled_family, dispute_family, settled_leaf, dispute_leaf, claimed_result, quorum_value5(v0, v1, v2, v3, v4, quorum_threshold(5)));
+        } else {
+            return RESOLVE_INDETERMINATE;
+        }
+    }
+
     // ---- Tests / invariants ----
 
     // Honest executor: committed result matches the golden recomputation
@@ -486,5 +546,31 @@ module TriComputeChallenge {
     test honest_verification_is_profitable {
         assert(verifier_stake_after(50, 0) + verifier_reward(50, 2) == 75, "honest net = kept 50 + reward 25 = 75 > staked 50");
         assert(verifier_stake_after(50, 1) == 0, "the colluder loses its whole 50 stake");
+    }
+
+    // Five-node agreement counting: unanimous 5, a 3-of-5 majority, a 2-2-1 split.
+    test max_agree5_counts {
+        assert(count5(0x41, 0x41, 0x41, 0x41, 0x41, 0x41) == 5, "unanimous -> 5 agree");
+        assert(max_agree5(0x41, 0x41, 0x41, 0x99, 0xBE) == 3, "3 of 5 agree on 0x41");
+        assert(max_agree5(0x41, 0x41, 0x99, 0x99, 0xBE) == 2, "2-2-1 -> largest group is 2");
+        assert(max_agree5(0x1, 0x2, 0x3, 0x4, 0x5) == 1, "all distinct -> 1");
+        assert(quorum_value5(0x99, 0x41, 0x41, 0x41, 0xBE, 3) == 0x41, "the value with >= 3 wins");
+    }
+
+    // 3-of-5 quorum resolves on the majority: two colluding verifiers (return the
+    // wrong r_bad) cannot flip a dispute when three honest ones recompute r_ok.
+    test quorum5_outvotes_two_liars {
+        outcome = resolve_quorum5(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 0x9999, 0x9999);
+        assert(outcome == RESOLVE_HONEST, "3 honest of 5 outvote 2 liars -> honest executor safe");
+        // executor fraud is still caught: 3 honest recompute r_ok, executor claimed r_bad
+        outcome = resolve_quorum5(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 0xAB, 0xAB, 0x9999, 0x4100, 0x4100, 0x4100, 0x9999, 0x9999);
+        assert(outcome == RESOLVE_SLASH, "the 3-of-5 majority still slashes real fraud");
+    }
+
+    // No 3-of-5 quorum (e.g. 2-2-1) proves nothing -> indeterminate, no bond moves.
+    test quorum5_no_majority_indeterminate {
+        outcome = resolve_quorum5(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x9999, 0x9999, 0xBEEF);
+        assert(outcome == RESOLVE_INDETERMINATE, "2-2-1 split has no 3-of-5 majority -> indeterminate");
+        assert(executor_bond_after(1000, outcome) == 1000, "no slash without a quorum");
     }
 }
