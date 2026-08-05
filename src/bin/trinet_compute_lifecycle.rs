@@ -41,9 +41,19 @@ fn main() {
     // ---- HONEST PATH ----
     // Executor commits the correct result; the leaf binds (op,a,b,r_ok,...).
     let leaf_ok = receipt::receipt_leaf_gf_fmt(receipt::FMT_GF_BINARY, width, op, a, b, r_ok, dev, exe, epoch);
-    // Settle mints the reward into ESCROW (pending), not spendable balance.
-    let pending = account::pending_after_settle(0, reward); // 16
+    // Settle mints the reward into ESCROW through the GATED path: settle_canonical
+    // fed an empty pending bucket applies sig -> no-double-pay -> freshness ->
+    // payability, so only a valid, fresh, finite, once-only receipt escrows value.
+    // (An earlier version escrowed compute_reward(width, 1) directly, bypassing
+    // every gate but freshness -- a non-finite or unsigned result would still have
+    // escrowed the full reward. The gated path closes that hole.)
+    let pending = settle::settle_canonical(0, width, 1, 1, 0, settle::FMT_GF_BINARY, r_ok, 6, 9, 1, 0); // 16
+    assert_eq!(pending, reward, "a valid finite receipt escrows exactly the width reward");
     assert_eq!(account::bal_after_clawback(bal), bal, "settled reward is not spendable yet");
+    // The gate now bites in escrow: a non-finite result or an unsigned receipt
+    // escrows ZERO (the bypass the old compute_reward path allowed).
+    assert_eq!(settle::settle_canonical(0, width, 1, 1, 0, settle::FMT_GF_BINARY, 0x7E00, 6, 9, 1, 0), 0, "inf result escrows nothing");
+    assert_eq!(settle::settle_canonical(0, width, 0, 1, 0, settle::FMT_GF_BINARY, r_ok, 6, 9, 1, 0), 0, "unsigned receipt escrows nothing");
     // Challenger recomputes the leaf from the committed operands + golden result;
     // it reproduces the settled leaf, so the dispute is anchored.
     let dispute_leaf = receipt::receipt_leaf_gf_fmt(receipt::FMT_GF_BINARY, width, op, a, b, r_ok, dev, exe, epoch);
@@ -62,7 +72,7 @@ fn main() {
     // ---- FRAUD PATH ----
     // Executor commits a WRONG result; the leaf binds (op,a,b,r_bad,...).
     let leaf_bad = receipt::receipt_leaf_gf_fmt(receipt::FMT_GF_BINARY, width, op, a, b, r_bad, dev, exe, epoch);
-    let pending_f = account::pending_after_settle(0, reward); // 16 escrowed
+    let pending_f = settle::settle_canonical(0, width, 1, 1, 0, settle::FMT_GF_BINARY, r_bad, 6, 9, 1, 0); // 16 escrowed (r_bad is finite; the fraud is caught by challenge, not payability)
     // Challenger recomputes the leaf from the SAME committed operands (r_bad), so it
     // reproduces the settled leaf, then supplies the golden r_ok as the recompute.
     let dispute_leaf_bad = receipt::receipt_leaf_gf_fmt(receipt::FMT_GF_BINARY, width, op, a, b, r_bad, dev, exe, epoch);
