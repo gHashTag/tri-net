@@ -59,6 +59,55 @@ module TriComputeChallenge {
         }
     }
 
+    // ---- Binding the fraud proof to the SETTLED receipt leaf ----
+    //
+    // resolve() above decides honesty from two bare results, trusting the caller
+    // to have recomputed on the operands the executor actually committed. That
+    // trust IS the hole: a lying challenger can recompute gf_op on operands the
+    // executor never signed and false-slash it, and a lying executor can answer a
+    // dispute with operands it never committed. The anchor is the receipt leaf
+    // settlement PAID: it binds (fmt,width,op,a,b,result,executor,epoch) -- see
+    // tri_compute_receipt::receipt_leaf_gf_fmt. The challenger recomputes that
+    // leaf from the disputed operands; it must reproduce the settled leaf, or the
+    // dispute is malformed and neither bond moves. (Gensyn/Truebit get this
+    // binding from bisection, ZK from the SNARK, TEE from attestation; a bit-exact
+    // GF op needs no bisection, only this anchor.)
+    const RESOLVE_MALFORMED: u32 = 2;
+
+    // The dispute is anchored iff the leaf recomputed from the disputed operands
+    // equals the leaf settlement paid on.
+    fn challenge_binds(settled_leaf: u32, dispute_leaf: u32) -> bool {
+        return settled_leaf == dispute_leaf;
+    }
+
+    // Bound resolution: reject (MALFORMED) unless the disputed operands reproduce
+    // the settled leaf; only then decide honesty by bit-exact recomputation.
+    fn resolve_bound(settled_leaf: u32, dispute_leaf: u32, claimed_result: u32, recomputed_result: u32) -> u32 {
+        if (settled_leaf != dispute_leaf) {
+            return RESOLVE_MALFORMED;
+        } else {
+            if (claimed_result == recomputed_result) {
+                return RESOLVE_HONEST;
+            } else {
+                return RESOLVE_SLASH;
+            }
+        }
+    }
+
+    // A malformed challenge (fabricated operands) is challenger-fault: burn its
+    // stake exactly like a frivolous (HONEST-outcome) challenge, so griefing an
+    // honest executor with off-leaf operands costs the same as spamming it. The
+    // stake is retained ONLY on a correct slash. (executor_bond_after already
+    // keeps the bond on anything but RESOLVE_SLASH, so an honest executor is safe
+    // under MALFORMED with no change to it.)
+    fn challenger_stake_after_bound(stake: u32, outcome: u32) -> u32 {
+        if (outcome == RESOLVE_SLASH) {
+            return stake;
+        } else {
+            return 0;
+        }
+    }
+
     // ---- Tests / invariants ----
 
     // Honest executor: committed result matches the golden recomputation
@@ -82,5 +131,30 @@ module TriComputeChallenge {
         assert(executor_bond_after(1000, outcome) == 0, "bond forfeited");
         assert(challenger_reward(1000, outcome) == 1000, "challenger wins the bond");
         assert(challenger_stake_after(50, outcome) == 50, "correct challenge keeps stake");
+    }
+
+    // Bound dispute on the committed operands: the disputed leaf reproduces the
+    // settled leaf (same op/a/b/result the executor signed), so a wrong result is
+    // slashed exactly as the unbound path -- but now provably on committed data.
+    test bound_dispute_on_committed_operands {
+        outcome = resolve_bound(0x1234ABCD, 0x1234ABCD, 0x9999, 0x4100);
+        assert(challenge_binds(0x1234ABCD, 0x1234ABCD) == true, "same leaf binds");
+        assert(outcome == RESOLVE_SLASH, "wrong result on committed operands -> slash");
+        assert(executor_bond_after(1000, outcome) == 0, "bond forfeited");
+        assert(challenger_reward(1000, outcome) == 1000, "challenger wins the bond");
+        assert(challenger_stake_after_bound(50, outcome) == 50, "correct challenge keeps stake");
+    }
+
+    // Fabricated operands: the challenger recomputes on operands the executor
+    // never committed, so the disputed leaf does NOT reproduce the settled leaf.
+    // The dispute is rejected as malformed -- the honest executor's bond is safe
+    // and the griefer's stake burns.
+    test fabricated_operands_rejected {
+        outcome = resolve_bound(0x1234ABCD, 0x1234ABCE, 0x9999, 0x4100);
+        assert(challenge_binds(0x1234ABCD, 0x1234ABCE) == false, "off-leaf operands do not bind");
+        assert(outcome == RESOLVE_MALFORMED, "unbound dispute -> malformed");
+        assert(executor_bond_after(1000, outcome) == 1000, "honest executor bond safe");
+        assert(challenger_reward(1000, outcome) == 0, "griefer earns nothing");
+        assert(challenger_stake_after_bound(50, outcome) == 0, "griefer stake burned");
     }
 }
