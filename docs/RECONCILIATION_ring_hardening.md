@@ -5,11 +5,11 @@ compute-market economic-security ring on a base (`1d425ab`) that predates the
 parallel PR-train `#102-#110` now on `main`. The two evolved the same area
 independently. Below: every increment, its reconciliation class, and the recipe.
 
-**Status (2026-08-06):** 29 hardening increments on the branch; `feat/ring-hardening`
-cannot fast-forward `main` (`origin/main` last observed at `#95-#110`, sha `3f2bc4c`).
+**Status (2026-08-06):** 37 hardening increments on the branch; `feat/ring-hardening`
+cannot fast-forward `main` (`origin/main` last observed at `#95-#110`).
 The branch is verified in isolation and **the full ring is regression-free**: latest
-verify-gate = 14/14 `tri_compute_*` + `tri_a2a*` typecheck clean (0 errors),
-gen-rust clean for all, 4 compute bins build, both lifecycle smokes pass. This is a
+verify-gate = all `tri_compute_*` + `tri_a2a` typecheck clean (0 errors), gen-rust
+clean for all, 4 compute bins build, both lifecycle smokes pass. This is a
 **merge-strategy decision**, not a mechanical conflict.
 
 ## The one true collision (needs an owner pick)
@@ -62,6 +62,12 @@ All verified; none of these functions exist on `main`.
 | `d800701` `pool_after_deposit` / `payout_capped` / `pool_after_payout` | prepaid funding: payouts never exceed deposits | pool |
 | `c4f06de` `balance_after_pool_settle` | reward MOVES from the funded pool, not minted (conserved) | pool |
 | `314a1f0` `354e364` `3e3fabd` `d6f2f1c` | lifecycle smoke: two-sided penalties, verifier reward, real recompute, ingress-gated settle | src/bin |
+| `d800701` `c4f06de` | prepaid pool funding + pool-funded settle (reward moves, not minted; payouts <= deposits) | pool |
+| `4657432` | payout overflow-scale regression (both mulDiv paths covered) | payout |
+| `eb30bbc` `440d8ab` | bond collateralization + collateralized ingress (bond must scale with value at risk) | bond, a2a |
+| `85ffeb8` `f8df5f0` | outstanding-escrow counter + `outstanding == pending` invariant (no fourth bucket) | account |
+| `ff80921` `652c29b` | 5-node quorum `resolve_quorum5` + verifier economics on 5 nodes | challenge |
+| `2fa8f0a` | signature guard added to the safety mint choke point (close forgery-pay) | safety |
 
 ## Recommended recipe
 
