@@ -108,6 +108,19 @@ module TriGftArith {
         }
     }
 
+    // Encode a GF-T16 result (exponent offset + 9-bit mantissa) as one 16-bit value:
+    // offset in the high bits, mantissa in the low 9 -- a single comparable result
+    // for a receipt / a challenge (challenger recomputes and compares this value).
+    fn gft_result_encode(offset: u32, mant: u32) -> u32 {
+        return (offset << 9) | (mant & 0x1FF);
+    }
+
+    // The full recomputed GF-T multiply result, encoded: what a challenger computes
+    // from the operands and compares against the executor's claimed result.
+    fn gft_mul_result(offset_a: u32, ma: u32, offset_b: u32, mb: u32, bias: u32, offset_max: u32) -> u32 {
+        return gft_result_encode(gft_mul_offset_full(offset_a, ma, offset_b, mb, bias, offset_max), gft_mul_mant(ma, mb));
+    }
+
     // ---- Tests / invariants ----
 
     // phi^0 * phi^0 = phi^0 (unity), phi^1 * phi^1 = phi^2, etc., in GF-T16 offsets.
@@ -165,5 +178,15 @@ module TriGftArith {
         assert(verify_gft_mul_full(40, 0, 40, 256, 40, 255, GFT16_BIAS, GFT16_OFFSET_MAX) == false, "wrong result mantissa rejected");
         assert(verify_gft_mul_full(41, 256, 41, 256, 43, 64, GFT16_BIAS, GFT16_OFFSET_MAX) == true, "1.5*1.5 -> exp 43, mant 64 accepted");
         assert(verify_gft_mul_full(41, 256, 41, 256, 42, 64, GFT16_BIAS, GFT16_OFFSET_MAX) == false, "ignoring the carry (exp 42) rejected");
+    }
+
+    // The encoded recomputed result is what a challenge compares: a challenger that
+    // recomputes gets the SAME value as an honest executor, and a different one from
+    // a fraudulent claim.
+    test result_encode {
+        assert(gft_result_encode(42, 0) == (42 << 9), "encode offset 42, mant 0");
+        assert(gft_mul_result(41, 0, 41, 0, GFT16_BIAS, GFT16_OFFSET_MAX) == gft_result_encode(42, 0), "phi^1*phi^1 recomputes to encoded (42,0)");
+        assert(gft_mul_result(41, 256, 41, 256, GFT16_BIAS, GFT16_OFFSET_MAX) == gft_result_encode(43, 64), "1.5*1.5 recomputes to encoded (43,64)");
+        assert(gft_mul_result(41, 0, 41, 0, GFT16_BIAS, GFT16_OFFSET_MAX) != gft_result_encode(43, 0), "a wrong claimed result differs");
     }
 }
