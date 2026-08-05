@@ -1,0 +1,54 @@
+// TRI-NET multi-executor pool split: share one reward pool across several GF
+// executors in proportion to their VERIFIED work, so a mesh of nodes -- not one
+// -- earns from a round. Mirrors tri_settle's discipline: floor division, so the
+// sum of shares never EXCEEDS the pool (no over-issuance; the floor remainder is
+// simply not minted). A node with zero verified work earns zero. "Work" is the
+// summed GoldenFloat width of a node's verified receipts (wider GF op = more work).
+
+module TriComputePool {
+    use base::types;
+
+    // Total verified work across three executors (extend as needed).
+    fn total_work3(w0: u32, w1: u32, w2: u32) -> u32 {
+        return w0 + w1 + w2;
+    }
+
+    // One executor's proportional floor-div share of the pool. Guarded against a
+    // zero total (an empty round pays nobody).
+    fn pool_share(total_pool: u32, my_work: u32, total: u32) -> u32 {
+        if (total == 0) {
+            return 0;
+        } else {
+            return (total_pool * my_work) / total;
+        }
+    }
+
+    // ---- Tests / invariants ----
+
+    // Proportional split with floor division; a zero-work node earns nothing.
+    test proportional_and_zero_work {
+        assert(pool_share(1000, 16, 96) == 166, "16/96 of 1000 (floor)");
+        assert(pool_share(1000, 32, 96) == 333, "32/96 of 1000 (floor)");
+        assert(pool_share(1000, 48, 96) == 500, "48/96 of 1000 (floor)");
+        assert(pool_share(1000, 0, 96) == 0, "a node with no work earns nothing");
+    }
+
+    // No over-issuance: the shares SUM to at most the pool (floor loses the dust).
+    test no_over_issuance {
+        s0 = pool_share(1000, 16, 96);
+        s1 = pool_share(1000, 32, 96);
+        s2 = pool_share(1000, 48, 96);
+        assert((s0 + s1 + s2) == 999, "sum <= pool; floor under-issues by the remainder");
+    }
+
+    // An empty round (no verified work anywhere) pays zero, no divide-by-zero.
+    test empty_round_pays_zero {
+        assert(pool_share(1000, 0, 0) == 0, "empty round is safe and pays nothing");
+        assert(total_work3(0, 0, 0) == 0, "no work summed");
+    }
+
+    // More verified work strictly earns more (monotonic in work).
+    test more_work_earns_more {
+        assert(pool_share(1000, 48, 96) > pool_share(1000, 16, 96), "more work, bigger share");
+    }
+}

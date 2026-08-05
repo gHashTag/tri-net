@@ -1,0 +1,76 @@
+// TRI-NET A2A message wire layout inside the SEALED mesh payload. tri_a2a defines
+// the message classes and port demux; this fixes the BYTE layout an endpoint
+// parses after decrypting (a relay never parses it -- the payload is ciphertext,
+// demuxed by port, per tri_a2a). Fixed-length header (no variable-length parsing,
+// so no length-confusion / injection surface, unlike JSON-RPC A2A):
+//
+//   [ class(1) | task_id(4, big-endian) | skill(2, big-endian) | body... ]
+//
+// taskAssign body = GF operands; taskResult body = the compute receipt.
+
+module TriA2AWire {
+    use base::types;
+
+    const OFF_CLASS: u32 = 0;
+    const OFF_TASK:  u32 = 1;
+    const OFF_SKILL: u32 = 5;
+    const OFF_BODY:  u32 = 7;
+    const HDR_LEN:   u32 = 7;
+
+    // Message classes (match tri_a2a).
+    const MSG_TASK_ASSIGN: u32 = 1;
+    const MSG_TASK_RESULT: u32 = 2;
+    const MSG_HEARTBEAT:   u32 = 3;
+
+    // Reassemble the 32-bit task id from its 4 big-endian header bytes.
+    fn task_id(b1: u32, b2: u32, b3: u32, b4: u32) -> u32 {
+        return (b1 << 24) | (b2 << 16) | (b3 << 8) | b4;
+    }
+
+    // Reassemble the 16-bit skill id from its 2 big-endian header bytes.
+    fn skill_id(b5: u32, b6: u32) -> u32 {
+        return (b5 << 8) | b6;
+    }
+
+    // Where the body starts (fixed header, so constant).
+    fn body_offset() -> u32 {
+        return OFF_BODY;
+    }
+
+    // A message is well-formed iff its class is one of the known classes.
+    fn class_valid(class: u32) -> bool {
+        if (class == MSG_TASK_ASSIGN) { return class == class; }
+        else { if (class == MSG_TASK_RESULT) { return class == class; }
+        else { return class == MSG_HEARTBEAT; } }
+    }
+
+    // Only a taskResult carries a receipt in its body (matches tri_a2a.carries_receipt).
+    fn body_has_receipt(class: u32) -> bool {
+        return class == MSG_TASK_RESULT;
+    }
+
+    // ---- Tests / invariants ----
+
+    // Big-endian task id / skill reassembly is exact.
+    test be_reassembly {
+        assert(task_id(0x12, 0x34, 0x56, 0x78) == 0x12345678, "task id from 4 BE bytes");
+        assert(skill_id(0xA6, 0x11) == 0xA611, "skill id from 2 BE bytes (GF-T16 mul)");
+    }
+
+    // The header is fixed-length; the body starts right after it.
+    test header_layout {
+        assert(HDR_LEN == 7, "class(1)+task(4)+skill(2)");
+        assert(body_offset() == OFF_BODY, "body after the fixed header");
+        assert(OFF_SKILL == 5, "skill at byte 5");
+    }
+
+    // Class validity + receipt-presence rules.
+    test class_rules {
+        assert(class_valid(MSG_TASK_ASSIGN) == true, "assign is valid");
+        assert(class_valid(MSG_TASK_RESULT) == true, "result is valid");
+        assert(class_valid(0) == false, "class 0 is malformed");
+        assert(class_valid(99) == false, "unknown class is malformed");
+        assert(body_has_receipt(MSG_TASK_RESULT) == true, "result carries a receipt");
+        assert(body_has_receipt(MSG_TASK_ASSIGN) == false, "assign carries no receipt");
+    }
+}

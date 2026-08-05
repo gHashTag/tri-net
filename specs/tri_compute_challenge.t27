@@ -1,0 +1,86 @@
+// TRI-NET compute dispute + slash: economic security around the GF compute core.
+// Settlement (tri_compute_settle) pays a fresh, self-consistent receipt -- but
+// self-consistent does NOT mean CORRECT. A dishonest executor can sign a fresh
+// receipt for a WRONG GoldenFloat result and get paid. This spec adds the fraud
+// proof: because GF ops are deterministic and bit-exact (conformance vectors),
+// any challenger can recompute gf_op(a,b) with the golden GF unit and settle the
+// dispute by equality -- no bisection needed for a single op (unlike Gensyn Verde
+// bisection or ZK/TEE). Executor posts a bond; a correct challenge slashes it.
+
+module TriComputeChallenge {
+    use base::types;
+
+    // Resolution outcomes.
+    const RESOLVE_HONEST: u32 = 0;   // executor correct -> challenger loses stake
+    const RESOLVE_SLASH:  u32 = 1;   // executor wrong   -> executor bond slashed
+
+    // The dispute is decided by bit-exact recomputation: the executor is honest
+    // iff its committed result equals what the golden GF unit produces for the
+    // same operands. (recomputed comes from gf16_mul / the GF SSOT.)
+    fn is_honest(claimed_result: u32, recomputed_result: u32) -> bool {
+        return claimed_result == recomputed_result;
+    }
+
+    fn resolve(claimed_result: u32, recomputed_result: u32) -> u32 {
+        if (claimed_result == recomputed_result) {
+            return RESOLVE_HONEST;
+        } else {
+            return RESOLVE_SLASH;
+        }
+    }
+
+    // Executor's bond after resolution: forfeited on a proven wrong result, kept
+    // when honest.
+    fn executor_bond_after(prev_bond: u32, outcome: u32) -> u32 {
+        if (outcome == RESOLVE_SLASH) {
+            return 0;
+        } else {
+            return prev_bond;
+        }
+    }
+
+    // Challenger's payout: wins the slashed bond on a correct challenge, nothing
+    // on a frivolous one.
+    fn challenger_reward(bond: u32, outcome: u32) -> u32 {
+        if (outcome == RESOLVE_SLASH) {
+            return bond;
+        } else {
+            return 0;
+        }
+    }
+
+    // Challenger's stake after resolution: burned on a frivolous challenge
+    // (deters spam), retained on a correct one.
+    fn challenger_stake_after(stake: u32, outcome: u32) -> u32 {
+        if (outcome == RESOLVE_HONEST) {
+            return 0;
+        } else {
+            return stake;
+        }
+    }
+
+    // ---- Tests / invariants ----
+
+    // Honest executor: committed result matches the golden recomputation
+    // (real GF16: gf16_mul(1.5, 2.0) = 0x4100 = 3.0), so no slash and a frivolous
+    // challenge burns the challenger's stake.
+    test honest_executor_survives {
+        outcome = resolve(0x4100, 0x4100);
+        assert(is_honest(0x4100, 0x4100) == true, "matching result is honest");
+        assert(outcome == RESOLVE_HONEST, "honest -> no slash");
+        assert(executor_bond_after(1000, outcome) == 1000, "bond retained");
+        assert(challenger_reward(1000, outcome) == 0, "frivolous challenge earns nothing");
+        assert(challenger_stake_after(50, outcome) == 0, "frivolous challenge burns stake");
+    }
+
+    // Fraud: executor claimed a wrong GF16 result; recomputation slashes the bond
+    // to the challenger, whose stake is safe.
+    test fraud_is_slashed {
+        outcome = resolve(0x9999, 0x4100);
+        assert(is_honest(0x9999, 0x4100) == false, "wrong result is dishonest");
+        assert(outcome == RESOLVE_SLASH, "wrong result -> slash");
+        assert(executor_bond_after(1000, outcome) == 0, "bond forfeited");
+        assert(challenger_reward(1000, outcome) == 1000, "challenger wins the bond");
+        assert(challenger_stake_after(50, outcome) == 50, "correct challenge keeps stake");
+    }
+}

@@ -1,0 +1,215 @@
+// TRI-NET compute settlement: turn a VERIFIED compute-receipt into $TRI reward.
+// tri_compute_receipt attests the work (device + GoldenFloat op + result, chained);
+// tri_a2a gates freshness (anti-replay). This spec closes the loop to value: a
+// fresh, verified receipt credits the executor's balance (saturating, like
+// tri_ledger.balance_add) and folds the receipt's sign digest into an auditable
+// settlement state root. A replayed or stale receipt pays ZERO.
+//
+// Composition (wired in generated Rust / src): reward is gated on
+// tri_a2a.is_fresh and on a verified tri_compute_receipt.verify_chain3_full.
+
+module TriComputeSettle {
+    use base::types;
+
+    const SETTLE_GENESIS: u32 = 0x54524353;   // "TRCS" -- empty settlement root
+    const S_C: u32 = 0x9E3779B9;              // golden-ratio mixing constant
+    const REWARD_PER_GF_OP: u32 = 1;          // $TRI per verified GoldenFloat op
+
+    fn rotl(x: u32, k: u32) -> u32 {
+        return ((x << k) | (x >> (32 - k)));
+    }
+
+    fn mix32(x: u32) -> u32 {
+        let a: u32 = x ^ (x >> 16);
+        let b: u32 = a + (a << 3);
+        let c: u32 = b ^ (b >> 11);
+        let d: u32 = c + (c << 15);
+        return d ^ (d >> 16);
+    }
+
+    // Saturating balance add (mirrors tri_ledger.balance_add): the tally never
+    // wraps down at the u32 ceiling.
+    fn balance_add(bal: u32, reward: u32) -> u32 {
+        let sum: u32 = bal + reward;
+        if (sum < bal) {
+            return 0xFFFFFFFF;
+        } else {
+            return sum;
+        }
+    }
+
+    // Reward for a verified compute: proportional to GoldenFloat width (a wider
+    // GF op is more work). A non-fresh (replayed/stale) receipt earns nothing.
+    fn compute_reward(gf_width: u32, fresh: u32) -> u32 {
+        if (fresh == 1) {
+            return gf_width * REWARD_PER_GF_OP;
+        } else {
+            return 0;
+        }
+    }
+
+    // Settle one verified receipt into a balance (only fresh receipts pay).
+    fn settle_balance(prev_balance: u32, gf_width: u32, fresh: u32) -> u32 {
+        return balance_add(prev_balance, compute_reward(gf_width, fresh));
+    }
+
+    // Fold the receipt's sign digest into the settlement state root: order-
+    // sensitive and tamper-evident, auditable from one 32-bit value.
+    fn settle_head(prev_head: u32, digest: u32) -> u32 {
+        return mix32(prev_head ^ mix32(digest ^ S_C));
+    }
+
+    // A GF16 result is payable only if FINITE. inf/nan carry an all-ones exponent
+    // field (bits 14:9 == 0x3F) and represent no useful compute. Verified on real
+    // silicon: gf16_mul(inf,0)=0x7E01 (NaN), gf16_mul(inf,2)=0x7E00 (inf) -> both
+    // exp==0x3F; gf16_mul(2,2)=0x4200 is finite.
+    fn is_finite_gf16(gf_result: u32) -> bool {
+        let exp: u32 = (gf_result >> 9) & 0x3F;
+        return exp != 0x3F;
+    }
+
+    // Reward gated on freshness AND a FINITE GF16 result: a node that returns
+    // inf/nan (garbage compute) earns nothing, even if fresh.
+    fn settle_checked(prev_balance: u32, gf_width: u32, fresh: u32, gf_result: u32) -> u32 {
+        let exp: u32 = (gf_result >> 9) & 0x3F;
+        if (fresh == 1) {
+            if (exp == 0x3F) {
+                return balance_add(prev_balance, compute_reward(gf_width, 0));
+            } else {
+                return balance_add(prev_balance, compute_reward(gf_width, 1));
+            }
+        } else {
+            return balance_add(prev_balance, compute_reward(gf_width, 0));
+        }
+    }
+
+    // Format-parameterized settlement: settle_checked above hardcodes GF16's
+    // 6-bit exponent (0x3F), so it misclassifies inf/nan of GF8/GF14/etc and could
+    // pay garbage in a non-GF16 format. This takes the format's own exponent width
+    // (GF8=3/4, GF14=5/8, GF16=6/9) and gates on the all-ones-exponent rule for
+    // that format. Pays only a fresh AND finite result.
+    fn settle_checked_gf(prev_balance: u32, gf_width: u32, fresh: u32, gf_result: u32, exp_bits: u32, mant_bits: u32) -> u32 {
+        let exp_mask: u32 = (1 << exp_bits) - 1;
+        let exp: u32 = (gf_result >> mant_bits) & exp_mask;
+        if (fresh == 1) {
+            if (exp == exp_mask) {
+                return balance_add(prev_balance, compute_reward(gf_width, 0));
+            } else {
+                return balance_add(prev_balance, compute_reward(gf_width, 1));
+            }
+        } else {
+            return balance_add(prev_balance, compute_reward(gf_width, 0));
+        }
+    }
+
+    // GF-T (ternary-native) settlement: a GF-T result is special not by an
+    // all-ones binary exponent but by its exponent OFFSET hitting the reserved
+    // row (offset == offset_max = 3^Et - 1; e.g. GF-T16 -> 80). Pays fresh+finite.
+    fn settle_checked_gft(prev_balance: u32, gf_width: u32, fresh: u32, offset: u32, offset_max: u32) -> u32 {
+        if (fresh == 1) {
+            if (offset == offset_max) {
+                return balance_add(prev_balance, compute_reward(gf_width, 0));
+            } else {
+                return balance_add(prev_balance, compute_reward(gf_width, 1));
+            }
+        } else {
+            return balance_add(prev_balance, compute_reward(gf_width, 0));
+        }
+    }
+
+    // Unified format-aware settlement path: pay iff NOT already settled AND fresh
+    // AND finite (per the format's own exponent). Composes the settle finite-gate
+    // with the safety no-double-pay guard in one call -- the single choke point.
+    fn settle_full(prev_balance: u32, gf_width: u32, fresh: u32, gf_result: u32, exp_bits: u32, mant_bits: u32, already_settled: u32) -> u32 {
+        let exp_mask: u32 = (1 << exp_bits) - 1;
+        let exp: u32 = (gf_result >> mant_bits) & exp_mask;
+        if (already_settled == 1) {
+            return balance_add(prev_balance, compute_reward(gf_width, 0));
+        } else {
+            if (fresh == 1) {
+                if (exp == exp_mask) {
+                    return balance_add(prev_balance, compute_reward(gf_width, 0));
+                } else {
+                    return balance_add(prev_balance, compute_reward(gf_width, 1));
+                }
+            } else {
+                return balance_add(prev_balance, compute_reward(gf_width, 0));
+            }
+        }
+    }
+
+    // ---- Tests / invariants ----
+
+    // A fresh GF16 receipt pays its width; a replayed one pays zero.
+    test fresh_pays_stale_free {
+        assert(compute_reward(16, 1) == 16, "fresh GF16 op pays 16 $TRI");
+        assert(compute_reward(16, 0) == 0, "replayed/stale receipt pays 0");
+        assert(compute_reward(32, 1) == 32, "wider GF pays more");
+    }
+
+    // Only fresh receipts move the balance; replays cannot inflate it.
+    test balance_only_grows_on_fresh {
+        b0 = settle_balance(100, 16, 1);
+        b1 = settle_balance(b0, 16, 0);
+        assert(b0 == 116, "fresh settle credits the executor");
+        assert(b1 == 116, "a replayed receipt adds nothing");
+    }
+
+    // Balance is saturating: never wraps down at the ceiling.
+    test balance_saturates {
+        assert(settle_balance(0xFFFFFFF0, 32, 1) == 0xFFFFFFFF, "saturates, no wrap");
+    }
+
+    // Settlement root is deterministic, order-sensitive, and tamper-evident.
+    test settle_root_tamper_evident {
+        h0 = settle_head(SETTLE_GENESIS, 0x1111);
+        honest = settle_head(h0, 0x2222);
+        t0 = settle_head(SETTLE_GENESIS, 0x9999);
+        tampered = settle_head(t0, 0x2222);
+        assert(honest != tampered, "tampering a settled digest changes the root");
+        r0 = settle_head(SETTLE_GENESIS, 0x2222);
+        swapped = settle_head(r0, 0x1111);
+        assert(honest != swapped, "reordering settlements changes the root");
+    }
+
+    // The finite gate classifies real silicon GF16 outputs correctly.
+    test finite_gate {
+        assert(is_finite_gf16(0x4200) == true, "4.0 is finite");
+        assert(is_finite_gf16(0x7E01) == false, "NaN (0x7E01) is not finite");
+        assert(is_finite_gf16(0x7E00) == false, "+inf (0x7E00) is not finite");
+        assert(is_finite_gf16(0xFE00) == false, "-inf (0xFE00) is not finite");
+    }
+
+    // Settlement pays only for a fresh, FINITE result; inf/nan/stale earn zero.
+    test settle_rejects_garbage {
+        assert(settle_checked(100, 16, 1, 0x4200) == 116, "fresh finite GF16 pays 16");
+        assert(settle_checked(100, 16, 1, 0x7E01) == 100, "fresh NaN pays nothing");
+        assert(settle_checked(100, 16, 1, 0x7E00) == 100, "fresh inf pays nothing");
+        assert(settle_checked(100, 16, 0, 0x4200) == 100, "stale pays nothing even if finite");
+    }
+
+    // The format-parameterized gate validates each format by its own exponent:
+    // GF16 (6/9) and GF8 (3/4) inf/nan are both correctly rejected.
+    test settle_checked_gf_per_format {
+        assert(settle_checked_gf(100, 16, 1, 0x4200, 6, 9) == 116, "GF16 fresh finite pays");
+        assert(settle_checked_gf(100, 16, 1, 0x7E00, 6, 9) == 100, "GF16 inf pays nothing");
+        assert(settle_checked_gf(100, 8, 1, 0x20, 3, 4) == 108, "GF8 fresh finite pays width 8");
+        assert(settle_checked_gf(100, 8, 1, 0x70, 3, 4) == 100, "GF8 inf (exp=7) pays nothing");
+        assert(settle_checked_gf(100, 8, 0, 0x20, 3, 4) == 100, "stale GF8 pays nothing");
+    }
+
+    // GF-T settlement gates on the offset reserved row (GF-T16 offset_max=80).
+    test settle_gft_offset {
+        assert(settle_checked_gft(100, 16, 1, 40, 80) == 116, "GF-T16 finite (offset 40) pays");
+        assert(settle_checked_gft(100, 16, 1, 80, 80) == 100, "GF-T16 special (offset 80) pays nothing");
+        assert(settle_checked_gft(100, 16, 0, 40, 80) == 100, "stale GF-T16 pays nothing");
+    }
+
+    // The unified path: only fresh + finite + not-already-settled pays.
+    test settle_full_gate {
+        assert(settle_full(100, 16, 1, 0x4200, 6, 9, 0) == 116, "fresh finite new -> pays");
+        assert(settle_full(100, 16, 1, 0x4200, 6, 9, 1) == 100, "already settled -> no double pay");
+        assert(settle_full(100, 16, 1, 0x7E00, 6, 9, 0) == 100, "inf -> pays nothing");
+        assert(settle_full(100, 16, 0, 0x4200, 6, 9, 0) == 100, "stale -> pays nothing");
+    }
+}
