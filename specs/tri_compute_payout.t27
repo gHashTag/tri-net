@@ -10,12 +10,30 @@ module TriComputePayout {
     use base::types;
 
     // Effective weight = raw work scaled by reputation (tri_compute_reputation).
+    // Effective weight = raw work scaled by reputation. SATURATING: raw_work * rep
+    // overflows u32 for a busy node (raw_work = summed GF widths across many
+    // receipts, an untrusted input; rep up to 1000), wrapping the weight to garbage
+    // and corrupting the proportional split before payout's u64 mulDiv ever sees
+    // it. Widen to u64 and cap at u32 max (the balance_add discipline): a weight
+    // that large already dominates the split, so saturation bounds it without wrap.
     fn weighted(raw_work: u32, rep: u32) -> u32 {
-        return raw_work * rep;
+        let prod: u64 = (raw_work as u64) * (rep as u64);
+        if (prod > 4294967295) {
+            return 4294967295;
+        } else {
+            return prod as u32;
+        }
     }
 
+    // Sum of three weights, saturating: three near-max weights overflow a u32 sum
+    // and would wrap total_weighted below a single share, breaking the split.
     fn total_weighted3(w0: u32, w1: u32, w2: u32) -> u32 {
-        return w0 + w1 + w2;
+        let sum: u64 = (w0 as u64) + (w1 as u64) + (w2 as u64);
+        if (sum > 4294967295) {
+            return 4294967295;
+        } else {
+            return sum as u32;
+        }
     }
 
     // Floor-div payout share of the pool by weight (tri_compute_pool discipline).
@@ -79,5 +97,23 @@ module TriComputePayout {
         s0 = payout(1000000, 16000, 24000);
         s1 = payout(1000000, 8000, 24000);
         assert((s0 + s1) == 999999, "sum 999999 <= pool 1e6 at scale; no over-issuance under weighting");
+    }
+
+    // weighted() is saturating: raw_work * rep past u32 caps at max instead of
+    // wrapping. Regression: normal weights are exact.
+    test weighted_saturates {
+        assert(weighted(16, 1000) == 16000, "normal weight is exact");
+        assert(weighted(100000, 1000) == 100000000, "1e5 * 1e3 = 1e8 fits, exact");
+        // 5_000_000 * 1000 = 5e9 > 2^32: saturates to u32 max, NOT the wrapped 705032704.
+        assert(weighted(5000000, 1000) == 4294967295, "overflowing weight saturates to u32 max, no wrap");
+        assert(weighted(4294967, 1000) == 4294967000, "just under the ceiling is still exact");
+    }
+
+    // total_weighted3() is saturating: three near-max weights cap instead of
+    // wrapping below a single share.
+    test total_weighted3_saturates {
+        assert(total_weighted3(16000, 8000, 4000) == 28000, "normal sum is exact");
+        assert(total_weighted3(4294967295, 4294967295, 4294967295) == 4294967295, "three max weights saturate, no wrap");
+        assert(total_weighted3(4000000000, 400000000, 0) == 4294967295, "sum 4.4e9 > 2^32 saturates");
     }
 }
