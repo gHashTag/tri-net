@@ -143,6 +143,26 @@ module TriA2A {
         }
     }
 
+    // The watermark must advance ONLY on a SETTLED result -- a committed state
+    // transition -- not on freshness alone. next_watermark above trusts the caller
+    // to invoke it after settling; a caller that advances on a fresh-but-REJECTED
+    // result (wrong op/family/reputation, or ingress-rejected) would let a griefer
+    // submit a high task_id that fails admission yet JUMPS the watermark, stale-
+    // blocking every legitimate lower-id result -- the task-level analogue of the
+    // dispute-watermark DoS (tri_compute_challenge.resolver_epoch_after). Gate the
+    // advance on the settled flag: an unsettled result never moves the mark.
+    fn next_watermark_settled(task_id: u32, last_settled: u32, settled: u32) -> u32 {
+        if (settled == 1) {
+            if (task_id > last_settled) {
+                return task_id;
+            } else {
+                return last_settled;
+            }
+        } else {
+            return last_settled;
+        }
+    }
+
     // The OP the assigned skill implies must equal the op the receipt actually
     // committed. skill_op was EXPOSED for exactly this ("an assigned mul must not
     // settle an add receipt") but nothing enforced it: an executor assigned
@@ -342,5 +362,20 @@ module TriA2A {
         // End-to-end at ingress: admit_result rejects the unhosted skill.
         assert(admit_result(0x777, 0x777, 0x777, 0xA412, FMT_GF_BINARY, 0x12, 0x100, 100, 50) == false, "admit_result rejects an unhosted skill");
         assert(admit_result(0x777, 0x777, 0x777, SKILL_GF16_MUL, FMT_GF_BINARY, 0x11, 0x100, 100, 50) == true, "admit_result still admits a hosted skill");
+    }
+
+    // The settled-gated watermark advances only on a committed settlement, so a
+    // fresh-but-rejected result cannot jump the mark (the task-level DoS guard).
+    test watermark_advances_only_when_settled {
+        assert(next_watermark_settled(0x20, 0x10, 1) == 0x20, "settled + fresh -> advance");
+        assert(next_watermark_settled(0x0E, 0x10, 1) == 0x10, "settled + stale -> hold");
+        // Unsettled (rejected) result does NOT advance, even a huge task_id.
+        assert(next_watermark_settled(0xFFFFFFFF, 0x10, 0) == 0x10, "unsettled high id does NOT jump the watermark");
+        // Griefing property: after a griefer's unsettled huge id, a legitimate low
+        // id is still fresh (watermark stayed at 0x10).
+        w = next_watermark_settled(0xFFFFFFFF, 0x10, 0);
+        assert(is_fresh(0x11, w) == true, "epoch 0x11 stays fresh -- the griefer could not block it");
+        // Regression: the settled path matches the bare next_watermark.
+        assert(next_watermark_settled(0x20, 0x10, 1) == next_watermark(0x20, 0x10), "settled advance == bare watermark");
     }
 }
