@@ -87,6 +87,27 @@ module TriA2AWire {
         return (hi << 8) | lo;
     }
 
+    // The receipt's `in_hash` must COMMIT the assigned operands, so the signature
+    // (which covers in_hash via the digest) binds the compute to the exact inputs
+    // the requester sent -- not an arbitrary value. operand_pre is the canonical
+    // single-block SHA-256 preimage of the 5 operand fields (op + the two GF-T
+    // operands); in_hash = SHA-256(operand_pre)[0], composed via tri_sha256 in the
+    // wrapper. A verifier recomputes it from the taskAssign and checks it equals the
+    // receipt's in_hash before trusting the recompute.
+    const SHA_PAD_W:     u32 = 0x80000000;   // SHA-256 pad marker after the message
+    const OPERAND_BITS:  u32 = 160;          // 5 message words * 32 bits = 20 bytes
+
+    fn operand_pre(idx: u32, op: u32, a_off: u32, a_mant: u32, b_off: u32, b_mant: u32) -> u32 {
+        if (idx == 0) { return op; }
+        if (idx == 1) { return a_off; }
+        if (idx == 2) { return a_mant; }
+        if (idx == 3) { return b_off; }
+        if (idx == 4) { return b_mant; }
+        if (idx == 5) { return SHA_PAD_W; }
+        if (idx == 15) { return OPERAND_BITS; }
+        return 0;
+    }
+
     // ---- Tests / invariants ----
 
     // Big-endian task id / skill reassembly is exact.
@@ -129,5 +150,17 @@ module TriA2AWire {
         assert(OFF_ASSIGN_B_OFF == 4, "b operand after a");
         assert(assign_mant(0x01, 0x00) == 256, "mantissa 256 from bytes 0x01 0x00");
         assert(assign_mant(0x01, 0xFF) == 511, "mantissa 511 (max 9-bit) from 0x01 0xFF");
+    }
+
+    // The operand preimage places the 5 operand fields in block 1, then the SHA
+    // padding for a 20-byte message. (Bit-exactness vs hashlib is proven by the
+    // node binary; here we pin the layout.)
+    test operand_preimage_layout {
+        assert(operand_pre(0, 0x11, 41, 0, 41, 0) == 0x11, "op at word 0");
+        assert(operand_pre(1, 0x11, 41, 0, 41, 0) == 41, "a_offset at word 1");
+        assert(operand_pre(4, 0x11, 41, 0, 41, 7) == 7, "b_mantissa at word 4");
+        assert(operand_pre(5, 0, 0, 0, 0, 0) == SHA_PAD_W, "pad marker at word 5");
+        assert(operand_pre(15, 0, 0, 0, 0, 0) == OPERAND_BITS, "160-bit length at word 15");
+        assert(operand_pre(9, 0x11, 41, 0, 41, 0) == 0, "interior pad word is zero");
     }
 }

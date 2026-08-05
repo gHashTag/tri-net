@@ -49,6 +49,14 @@ fn compute_ok(gf_op: u32, sign_a: u32, sign_b: u32, oa: u32, ma: u32, ob: u32, m
     rv::compute_ok_for_op(gf_op, mul, add)
 }
 
+/// in_hash commits the assigned operands: SHA-256(op, a, b)[0] (tri_a2a_wire.operand_pre
+/// + tri_sha256). Using this as the receipt's in_hash makes the signature bind the
+/// EXACT inputs, so a verifier can trust the recompute is over the requested operands.
+fn operand_inhash(op: u32, a_off: u32, a_mant: u32, b_off: u32, b_mant: u32) -> u32 {
+    let w = |i: u32| wire::operand_pre(i, op, a_off, a_mant, b_off, b_mant);
+    sha::sha256_word(w(0), w(1), w(2), w(3), w(4), w(5), w(6), w(7), w(8), w(9), w(10), w(11), w(12), w(13), w(14), w(15), 0)
+}
+
 fn digest256(req: u32, dev: u32, exe: u32, task: u32, inh: u32, out: u32, epoch: u32, prev: u32) -> [u32; 8] {
     let w = |i: u32| receipt::digest_pre(i, req, dev, exe, task, inh, out, epoch, prev);
     let mut d = [0u32; 8];
@@ -121,7 +129,12 @@ fn main() {
     assert_eq!(a2a::skill_family(skill), a2a::FMT_GFT);
     assert_eq!(a2a::skill_op(skill), 0x11); // op agrees with receipt GF_MUL
 
-    let (dev, exe, gfop, inh, out, epoch) = (0xC0FFEE01u32, 0xE0E0u32, 0x11u32, 0xABCDu32, 0x4100u32, 1u32);
+    // GF-T16 mul phi^1 * phi^1 = phi^2: operands (41,0) & (41,0), result (42,0). The
+    // in_hash COMMITS these operands (SHA-256 over the assigned operands), so the
+    // signed digest binds the exact inputs -- not an arbitrary value.
+    let (dev, exe, gfop, out, epoch) = (0xC0FFEE01u32, 0xE0E0u32, 0x11u32, 0x4100u32, 1u32);
+    let (a_off, a_mant, b_off, b_mant) = (41u32, 0u32, 41u32, 0u32);
+    let inh = operand_inhash(gfop, a_off, a_mant, b_off, b_mant);
     let d = digest256(task, dev, exe, gfop, inh, out, epoch, receipt::RECEIPT_GENESIS);
 
     // The executor signs the digest; the endpoint verifies before settling.
@@ -131,11 +144,17 @@ fn main() {
     let ok = sig_ok(&vk, &digest_bytes(&d), &sig);
     assert_eq!(ok, 1, "honest result verifies");
 
-    // The endpoint RECOMPUTES the compute from the assigned GF-T operands (parsed
-    // from the taskAssign body, tri_a2a_wire) and only settles if the claimed result
-    // recomputes -- a valid signature over a WRONG result is not enough. Here the
-    // task is GF-T16 mul phi^1 * phi^1 = phi^2: operands (41,0) & (41,0), result (42,0).
-    let (a_off, a_mant, b_off, b_mant) = (41u32, 0u32, 41u32, 0u32);
+    // INPUT BINDING: recompute in_hash from the assigned operands; the signature only
+    // matches if the receipt committed THESE inputs. A different assigned operand set
+    // yields a different in_hash -> different digest -> the signature no longer verifies.
+    let inh_wrong = operand_inhash(gfop, 40, 0, 41, 0); // requester assigned a=(40,0), not (41,0)
+    let d_wrong_inputs = digest256(task, dev, exe, gfop, inh_wrong, out, epoch, receipt::RECEIPT_GENESIS);
+    let input_ok = sig_ok(&vk, &digest_bytes(&d_wrong_inputs), &sig);
+    assert_eq!(input_ok, 0, "a receipt signed for other operands fails input binding");
+
+    // The endpoint RECOMPUTES the compute from the assigned GF-T operands and only
+    // settles if the claimed result recomputes -- a valid signature over a WRONG
+    // result is not enough.
     let (claimed_off, claimed_mant) = (42u32, 0u32);
     let cok = compute_ok(gfop, 0, 0, a_off, a_mant, b_off, b_mant, claimed_off, claimed_mant);
     assert_eq!(cok, 1, "the claimed GF-T product recomputes");
