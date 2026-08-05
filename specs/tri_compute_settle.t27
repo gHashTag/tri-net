@@ -14,6 +14,7 @@ module TriComputeSettle {
     const SETTLE_GENESIS: u32 = 0x54524353;   // "TRCS" -- empty settlement root
     const S_C: u32 = 0x9E3779B9;              // golden-ratio mixing constant
     const REWARD_PER_GF_OP: u32 = 1;          // $TRI per verified GoldenFloat op
+    const WORK_BPS_UNIT: u32 = 10000;         // 1.0x work weight, in basis points
 
     fn rotl(x: u32, k: u32) -> u32 {
         return ((x << k) | (x >> (32 - k)));
@@ -43,6 +44,25 @@ module TriComputeSettle {
     fn compute_reward(gf_width: u32, fresh: u32) -> u32 {
         if (fresh == 1) {
             return gf_width * REWARD_PER_GF_OP;
+        } else {
+            return 0;
+        }
+    }
+
+    // Format-aware reward: the width-proportional base scaled by a per-format work
+    // weight (basis points; WORK_BPS_UNIT = 1.0x). compute_reward is flat -- it
+    // prices a GF-T op (ternary, measured 0 DSP and ~24 exponent decades at width
+    // 16) exactly like a binary GF op (DSP-backed, ~18 decades), so the market
+    // cannot value the formats by their real silicon cost or delivered range. This
+    // supplies the MECHANISM: work_bps is calibrated off-chain from measured LUT/
+    // DSP and range (e.g. the GF-T LUT ladder GF-T4=122..GF-T32=1618, 0 DSP); the
+    // spec only pins that work_bps == WORK_BPS_UNIT reproduces compute_reward
+    // exactly, so the flat schedule is the identity case (nothing changes until a
+    // factor is set). u64-widened so gf_width * work_bps cannot overflow u32.
+    fn compute_reward_fmt(gf_width: u32, fresh: u32, work_bps: u32) -> u32 {
+        if (fresh == 1) {
+            let scaled: u64 = (gf_width as u64) * (work_bps as u64);
+            return (scaled / (WORK_BPS_UNIT as u64)) as u32;
         } else {
             return 0;
         }
@@ -266,6 +286,17 @@ module TriComputeSettle {
         assert(settle_signed(1000, 16, 1, 0x4100, 6, 9, 0, 0) == 1000, "no valid sig -> no payout even if fresh+finite");
         assert(settle_signed(1000, 16, 0, 0x4100, 6, 9, 0, 1) == 1000, "valid sig does not bypass freshness");
         assert(settle_signed(1000, 16, 1, 0x7E00, 6, 9, 0, 1) == 1000, "valid sig does not bypass the finiteness gate");
+    }
+
+    // Format-aware reward: flat is the identity, a calibrated factor scales it,
+    // and no factor lets a stale receipt pay. u64 widening holds at max width.
+    test format_aware_reward {
+        assert(compute_reward_fmt(16, 1, WORK_BPS_UNIT) == 16, "unit factor == flat compute_reward");
+        assert(compute_reward_fmt(16, 1, WORK_BPS_UNIT) == compute_reward(16, 1), "identity to the flat schedule");
+        assert(compute_reward_fmt(16, 1, 12500) == 20, "1.25x factor earns more (16*1.25)");
+        assert(compute_reward_fmt(16, 1, 8000) == 12, "0.8x factor earns less (16*0.8=12.8 floor 12)");
+        assert(compute_reward_fmt(16, 0, 12500) == 0, "a stale receipt pays 0 at any factor");
+        assert(compute_reward_fmt(1080, 1, 20000) == 2160, "max width * 2x: no u32 overflow (u64 widened)");
     }
 
     // payable_flag is the single finiteness truth for both ladders.
