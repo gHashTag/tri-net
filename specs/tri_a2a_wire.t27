@@ -49,6 +49,28 @@ module TriA2AWire {
         return class == MSG_TASK_RESULT;
     }
 
+    // A signed taskResult body is the receipt fields followed by the executor's
+    // Ed25519 signature over the 256-bit receipt digest. Fixing SIG_LEN and its
+    // position keeps parsing unambiguous (fixed-length, no length-prefix confusion,
+    // same rule as the header): the endpoint verifies the signature before settling.
+    const SIG_LEN: u32 = 64;   // Ed25519 signature = 64 bytes
+
+    // Only a taskResult carries a signature (a taskAssign has no result to sign).
+    fn body_has_signature(class: u32) -> bool {
+        return class == MSG_TASK_RESULT;
+    }
+
+    // Byte offset of the signature inside the datagram, after a receipt body of the
+    // given length.
+    fn sig_offset(receipt_body_len: u32) -> u32 {
+        return OFF_BODY + receipt_body_len;
+    }
+
+    // Total datagram length of a signed taskResult: header + receipt body + signature.
+    fn signed_result_len(receipt_body_len: u32) -> u32 {
+        return OFF_BODY + receipt_body_len + SIG_LEN;
+    }
+
     // ---- Tests / invariants ----
 
     // Big-endian task id / skill reassembly is exact.
@@ -72,5 +94,15 @@ module TriA2AWire {
         assert(class_valid(99) == false, "unknown class is malformed");
         assert(body_has_receipt(MSG_TASK_RESULT) == true, "result carries a receipt");
         assert(body_has_receipt(MSG_TASK_ASSIGN) == false, "assign carries no receipt");
+    }
+
+    // A signed taskResult places a fixed 64-byte signature right after the receipt
+    // body, so an endpoint knows exactly where to read it and what to verify.
+    test signed_result_layout {
+        assert(SIG_LEN == 64, "Ed25519 signature is 64 bytes");
+        assert(body_has_signature(MSG_TASK_RESULT) == true, "a result carries a signature");
+        assert(body_has_signature(MSG_TASK_ASSIGN) == false, "an assign carries no signature");
+        assert(sig_offset(36) == OFF_BODY + 36, "signature after a 36-byte receipt body");
+        assert(signed_result_len(36) == OFF_BODY + 36 + SIG_LEN, "total = header + body + 64B signature");
     }
 }
