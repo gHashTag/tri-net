@@ -145,6 +145,24 @@ fn main() {
     assert_eq!(honest_net, 75, "honest verifier net = kept 50 + reward 25 = 75 > 50 staked");
     assert!(honest_count * each <= burned, "no over-issuance: 2*25 <= 50");
 
+    // ---- Same dispute under a 5-node quorum (3 honest, 2 colluding) ----
+    // The 3-of-5 majority recomputes the golden r_ok and still slashes the executor
+    // despite TWO liars; the two colluders' stake (100) splits among the 3 honest
+    // (33 each, net 83), and no over-issuance -- the 5-node economics on real Rust.
+    let (w0, w1, w2, w3, w4) = (r_ok, r_ok, r_ok, r_bad, r_bad); // 3 honest, 2 colluding
+    let out_f5 = challenge::resolve_quorum5(0, 5, challenge::FMT_GF_BINARY, challenge::FMT_GF_BINARY, leaf_bad, dispute_leaf_bad, r_bad, w0, w1, w2, w3, w4);
+    assert_eq!(out_f5, challenge::RESOLVE_SLASH, "3-of-5 majority slashes the fraud despite two colluders");
+    let honest5 = challenge::max_agree5(w0, w1, w2, w3, w4);
+    let dissenters5 = challenge::dissenter_count5(w0, w1, w2, w3, w4);
+    assert_eq!(honest5, 3, "3 honest form the quorum");
+    assert_eq!(dissenters5, 2, "2 colluders dissent");
+    let burned5 = challenge::burned_total5(w0, w1, w2, w3, w4, 50);
+    let share5 = challenge::honest_share5(w0, w1, w2, w3, w4, 50);
+    assert_eq!(burned5, 100, "two 50-stakes burned");
+    assert_eq!(share5, 33, "100 split among 3 honest -> 33 each");
+    assert_eq!(challenge::verifier_stake_after(50, 0) + share5, 83, "5-node honest net = 50 + 33 = 83");
+    assert!(honest5 * share5 <= burned5, "no over-issuance on the 5-node split");
+
     // ---- The quorum runs over a REAL recompute, not literals ----
     // Each verifier independently recomputes the dispute leaf via a deterministic
     // on-branch function (receipt_leaf_gf_fmt) from the committed operands: two
@@ -183,6 +201,7 @@ fn main() {
     println!("  invariant: cheating costs reward+bond = {} (honest {} - fraud {})", reward + bond, honest_total, fraud_total);
     println!("  quorum: 3 verifiers (1 colluding) -> majority slashes; executor rep 1000->{}", exe_rep_after);
     println!("  verifiers: colluder stake burned + rep->500; honest keep stake + rep->120 + share {} = net {}", each, honest_net);
+    println!("  5-node quorum: 3 honest / 2 colluders -> slash; 2 burned stakes -> honest share {} net 83", share5);
     println!("  real recompute: 3 verifiers recompute the leaf; honest quorum 0x{:X}, tamperer flagged", qv_leaf);
     println!("  guards: replay -> STALE, cross-family -> FAMILY_MISMATCH, premature finalize -> no-op");
     println!("OK: the compute-receipt / escrow / challenge / quorum / reputation specs compose end-to-end on real Rust");
