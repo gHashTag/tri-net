@@ -169,6 +169,45 @@ module TriComputeChallenge {
         }
     }
 
+    // ---- Quorum of verifiers: don't trust a single recomputation ----
+    //
+    // resolve_full takes ONE recomputed_result, as trustworthy as the single node
+    // that produced it -- a dishonest challenger can hand in a wrong value and
+    // false-slash an honest executor. GF ops are deterministic and bit-exact, so
+    // independent HONEST verifiers agree to the bit; require a quorum and a
+    // dishonest MINORITY is outvoted. 2-of-3 majority here (generalizes to k-of-n).
+    // A split set (all three distinct) proves nothing -> RESOLVE_INDETERMINATE, no
+    // slash: the system refuses to move a bond on an unresolved recomputation.
+    const RESOLVE_INDETERMINATE: u32 = 5;
+
+    // 1 iff at least two of three verifier recomputations agree.
+    fn verifier_quorum3(v0: u32, v1: u32, v2: u32) -> u32 {
+        if (v0 == v1) { return 1; }
+        if (v0 == v2) { return 1; }
+        if (v1 == v2) { return 1; }
+        return 0;
+    }
+
+    // The majority-agreed recomputation (valid when verifier_quorum3 == 1). At
+    // least one equal pair defines it; all-distinct falls through to v0, which the
+    // caller never uses because it gates on the quorum first.
+    fn quorum_result3(v0: u32, v1: u32, v2: u32) -> u32 {
+        if (v0 == v1) { return v0; }
+        if (v0 == v2) { return v0; }
+        if (v1 == v2) { return v1; }
+        return v0;
+    }
+
+    // Quorum-gated resolution: resolve on the MAJORITY recomputation, or refuse
+    // (INDETERMINATE, no bond moves) when the verifiers do not reach quorum.
+    fn resolve_quorum3(last_epoch: u32, dispute_epoch: u32, settled_family: u32, dispute_family: u32, settled_leaf: u32, dispute_leaf: u32, claimed_result: u32, v0: u32, v1: u32, v2: u32) -> u32 {
+        if (verifier_quorum3(v0, v1, v2) == 1) {
+            return resolve_full(last_epoch, dispute_epoch, settled_family, dispute_family, settled_leaf, dispute_leaf, claimed_result, quorum_result3(v0, v1, v2));
+        } else {
+            return RESOLVE_INDETERMINATE;
+        }
+    }
+
     // ---- Tests / invariants ----
 
     // Honest executor: committed result matches the golden recomputation
@@ -253,5 +292,40 @@ module TriComputeChallenge {
         assert(outcome == RESOLVE_FAMILY_MISMATCH, "cross-family -> family mismatch");
         assert(executor_bond_after(1000, outcome) == 1000, "executor bond safe under confusion");
         assert(challenger_stake_after_bound(50, outcome) == 0, "family-confusion griefer stake burned");
+    }
+
+    // Quorum primitives: a majority defines the agreed value; all-distinct fails.
+    test verifier_quorum_basics {
+        assert(verifier_quorum3(0x4100, 0x4100, 0x4100) == 1, "unanimous -> quorum");
+        assert(verifier_quorum3(0x4100, 0x4100, 0x9999) == 1, "2-of-3 -> quorum");
+        assert(verifier_quorum3(0x4100, 0x9999, 0x4100) == 1, "2-of-3 (split positions) -> quorum");
+        assert(verifier_quorum3(0x4100, 0x9999, 0xBEEF) == 0, "all distinct -> no quorum");
+        assert(quorum_result3(0x9999, 0x4100, 0x4100) == 0x4100, "majority value wins over the odd one");
+    }
+
+    // A dishonest MINORITY verifier cannot force a wrong verdict: two honest
+    // verifiers recompute the golden 0x4100, one dishonest says 0x9999 -> the
+    // majority 0x4100 is used, so an honest executor that committed 0x4100 is NOT
+    // slashed (would have been if the single dishonest recomputation were trusted).
+    test dishonest_minority_outvoted {
+        outcome = resolve_quorum3(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x9999);
+        assert(outcome == RESOLVE_HONEST, "honest executor survives a lying minority verifier");
+        assert(executor_bond_after(1000, outcome) == 1000, "bond retained");
+    }
+
+    // With a quorum, real fraud is still slashed: executor committed 0x9999, the
+    // majority recomputes the golden 0x4100 -> mismatch -> slash.
+    test quorum_still_slashes_fraud {
+        outcome = resolve_quorum3(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 0xAB, 0xAB, 0x9999, 0x4100, 0x9999, 0x4100);
+        assert(outcome == RESOLVE_SLASH, "majority recomputation catches the wrong result");
+        assert(executor_bond_after(1000, outcome) == 0, "bond slashed");
+    }
+
+    // No quorum (all three verifiers disagree) refuses to move any bond.
+    test no_quorum_is_indeterminate {
+        outcome = resolve_quorum3(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 0xAB, 0xAB, 0x4100, 0x1111, 0x2222, 0x3333);
+        assert(outcome == RESOLVE_INDETERMINATE, "split verifiers -> indeterminate");
+        assert(executor_bond_after(1000, outcome) == 1000, "no slash on an unresolved recomputation");
+        assert(challenger_reward(1000, outcome) == 0, "no reward on an unresolved recomputation");
     }
 }
