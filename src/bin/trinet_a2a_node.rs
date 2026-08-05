@@ -49,12 +49,27 @@ fn compute_ok(gf_op: u32, sign_a: u32, sign_b: u32, oa: u32, ma: u32, ob: u32, m
     rv::compute_ok_for_op(gf_op, mul, add)
 }
 
-/// in_hash commits the assigned operands: SHA-256(op, a, b)[0] (tri_a2a_wire.operand_pre
-/// + tri_sha256). Using this as the receipt's in_hash makes the signature bind the
-/// EXACT inputs, so a verifier can trust the recompute is over the requested operands.
-fn operand_inhash(op: u32, a_off: u32, a_mant: u32, b_off: u32, b_mant: u32) -> u32 {
+/// The FULL 256-bit operand hash (all 8 words), used for the input-bound digest so
+/// the signature binds the operands at ~2^128 (not the 32-bit operand_inhash slice).
+fn operand_hash256(op: u32, a_off: u32, a_mant: u32, b_off: u32, b_mant: u32) -> [u32; 8] {
     let w = |i: u32| wire::operand_pre(i, op, a_off, a_mant, b_off, b_mant);
-    sha::sha256_word(w(0), w(1), w(2), w(3), w(4), w(5), w(6), w(7), w(8), w(9), w(10), w(11), w(12), w(13), w(14), w(15), 0)
+    let mut h = [0u32; 8];
+    let mut k = 0u32;
+    while k < 8 { h[k as usize] = sha::sha256_word(w(0), w(1), w(2), w(3), w(4), w(5), w(6), w(7), w(8), w(9), w(10), w(11), w(12), w(13), w(14), w(15), k); k += 1; }
+    h
+}
+
+/// The 256-bit INPUT-BOUND receipt digest (two-block SHA-256 over input_digest_pre,
+/// which commits the full operand hash instead of a 32-bit in_hash).
+fn input_digest(req: u32, dev: u32, exe: u32, task: u32, oh: &[u32; 8], out: u32, epoch: u32, prev: u32) -> [u32; 8] {
+    let w = |i: u32| receipt::input_digest_pre(i, req, dev, exe, task, oh[0], oh[1], oh[2], oh[3], oh[4], oh[5], oh[6], oh[7], out, epoch, prev);
+    let mut s1 = [0u32; 8];
+    let mut k = 0u32;
+    while k < 8 { s1[k as usize] = sha::sha256_word(w(0), w(1), w(2), w(3), w(4), w(5), w(6), w(7), w(8), w(9), w(10), w(11), w(12), w(13), w(14), w(15), k); k += 1; }
+    let mut d = [0u32; 8];
+    let mut j = 0u32;
+    while j < 8 { d[j as usize] = sha::sha256_compress(s1[0], s1[1], s1[2], s1[3], s1[4], s1[5], s1[6], s1[7], w(16), w(17), w(18), w(19), w(20), w(21), w(22), w(23), w(24), w(25), w(26), w(27), w(28), w(29), w(30), w(31), j); j += 1; }
+    d
 }
 
 fn digest256(req: u32, dev: u32, exe: u32, task: u32, inh: u32, out: u32, epoch: u32, prev: u32) -> [u32; 8] {
@@ -130,12 +145,13 @@ fn main() {
     assert_eq!(a2a::skill_op(skill), 0x11); // op agrees with receipt GF_MUL
 
     // GF-T16 mul phi^1 * phi^1 = phi^2: operands (41,0) & (41,0), result (42,0). The
-    // in_hash COMMITS these operands (SHA-256 over the assigned operands), so the
-    // signed digest binds the exact inputs -- not an arbitrary value.
+    // digest is the 256-bit INPUT-BOUND digest: it commits the FULL operand hash
+    // (input_digest_pre over SHA-256(op,a,b)), so the signature binds the exact inputs
+    // at ~2^128 -- not the 32-bit in_hash slice.
     let (dev, exe, gfop, out, epoch) = (0xC0FFEE01u32, 0xE0E0u32, 0x11u32, 0x4100u32, 1u32);
     let (a_off, a_mant, b_off, b_mant) = (41u32, 0u32, 41u32, 0u32);
-    let inh = operand_inhash(gfop, a_off, a_mant, b_off, b_mant);
-    let d = digest256(task, dev, exe, gfop, inh, out, epoch, receipt::RECEIPT_GENESIS);
+    let oh = operand_hash256(gfop, a_off, a_mant, b_off, b_mant);
+    let d = input_digest(task, dev, exe, gfop, &oh, out, epoch, receipt::RECEIPT_GENESIS);
 
     // The executor signs the digest; the endpoint verifies before settling.
     let sk = SigningKey::from_bytes(&[7u8; 32]);
@@ -144,11 +160,12 @@ fn main() {
     let ok = sig_ok(&vk, &digest_bytes(&d), &sig);
     assert_eq!(ok, 1, "honest result verifies");
 
-    // INPUT BINDING: recompute in_hash from the assigned operands; the signature only
-    // matches if the receipt committed THESE inputs. A different assigned operand set
-    // yields a different in_hash -> different digest -> the signature no longer verifies.
-    let inh_wrong = operand_inhash(gfop, 40, 0, 41, 0); // requester assigned a=(40,0), not (41,0)
-    let d_wrong_inputs = digest256(task, dev, exe, gfop, inh_wrong, out, epoch, receipt::RECEIPT_GENESIS);
+    // INPUT BINDING (256-bit): recompute the operand hash from the assigned operands;
+    // the signature only matches if the receipt committed THESE inputs. A different
+    // assigned operand set yields a different 256-bit operand hash -> different digest
+    // -> the signature no longer verifies.
+    let oh_wrong = operand_hash256(gfop, 40, 0, 41, 0); // requester assigned a=(40,0), not (41,0)
+    let d_wrong_inputs = input_digest(task, dev, exe, gfop, &oh_wrong, out, epoch, receipt::RECEIPT_GENESIS);
     let input_ok = sig_ok(&vk, &digest_bytes(&d_wrong_inputs), &sig);
     assert_eq!(input_ok, 0, "a receipt signed for other operands fails input binding");
 
@@ -166,7 +183,7 @@ fn main() {
 
     // A forged result (tampered output, executor's old signature) is rejected here,
     // at the endpoint, before any payout -- the composed node enforces authenticity.
-    let d_forge = digest256(task, dev, exe, gfop, inh, 0x9999, epoch, receipt::RECEIPT_GENESIS);
+    let d_forge = input_digest(task, dev, exe, gfop, &oh, 0x9999, epoch, receipt::RECEIPT_GENESIS);
     let ok_forge = sig_ok(&vk, &digest_bytes(&d_forge), &sig);
     let bal_forge = settle::settle_signed(1000, 16, 1, 0x9999, 6, 9, 0, ok_forge);
     assert_eq!(bal_forge, 1000, "a forged result earns nothing at the endpoint");
