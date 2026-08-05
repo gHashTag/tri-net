@@ -209,6 +209,29 @@ module TriComputeChallenge {
         }
     }
 
+    // resolve_bitnet anchors on a 32-bit bitnet_leaf (~2^16 birthday collision -- a
+    // griefer could find a colliding dispute leaf). This variant anchors on the
+    // 256-bit BitNet digest instead (tri_compute_bitnet.bitnet_digest_pre +
+    // tri_sha256): the caller precomputes leaf_match = 1 iff all eight digest words
+    // of the dispute equal the settled digest -- the same cross-module-flag pattern
+    // as ternary_ok, giving a ~2^128 anchor. leaf_match == 0 is a fabricated/
+    // colliding dispute -> MALFORMED (no slash); otherwise proceed as resolve_bitnet.
+    fn resolve_bitnet_d256(leaf_match: u32, claimed_result: u32, recomputed_result: u32, ternary_ok: u32) -> u32 {
+        if (leaf_match == 1) {
+            if (ternary_ok == 1) {
+                if (claimed_result == recomputed_result) {
+                    return RESOLVE_HONEST;
+                } else {
+                    return RESOLVE_SLASH;
+                }
+            } else {
+                return RESOLVE_SLASH;
+            }
+        } else {
+            return RESOLVE_MALFORMED;
+        }
+    }
+
     // Majority of three 0/1 flags: with an odd count a tie is impossible, so the
     // majority always exists -- 1 iff at least two flags are set.
     fn majority_flag3(a: u32, b: u32, c: u32) -> u32 {
@@ -747,6 +770,23 @@ module TriComputeChallenge {
         // a fabricated dispute (leaf mismatch) is malformed, never slashes, even with bad ternary.
         assert(resolve_bitnet(0xAB, 0xAC, 0x4100, 0x4100, 0) == RESOLVE_MALFORMED, "unbound dispute -> malformed, no slash");
         assert(executor_bond_after(1000, resolve_bitnet(0xAB, 0xAC, 0x4100, 0x4100, 0)) == 1000, "malformed keeps the bond");
+    }
+
+    // The 256-bit-anchored variant: leaf_match is the caller's 8-word digest
+    // equality; the resolution logic matches resolve_bitnet but on a ~2^128 anchor.
+    test bitnet_dispute_d256_anchor {
+        // digests match (leaf_match=1), ternary ok, GF value correct -> honest.
+        assert(resolve_bitnet_d256(1, 0x4100, 0x4100, 1) == RESOLVE_HONEST, "matched digest + valid ternary + correct GF -> honest");
+        // digests match, ternary ok, GF wrong -> slash.
+        assert(resolve_bitnet_d256(1, 0x9999, 0x4100, 1) == RESOLVE_SLASH, "matched digest, wrong GF -> slash");
+        // digests match, ternary bad -> slash regardless of GF.
+        assert(resolve_bitnet_d256(1, 0x4100, 0x4100, 0) == RESOLVE_SLASH, "matched digest, bad ternary -> slash");
+        // digests DON'T match (a colliding/fabricated dispute the 32-bit leaf could
+        // not distinguish) -> malformed, never slashes.
+        assert(resolve_bitnet_d256(0, 0x4100, 0x4100, 0) == RESOLVE_MALFORMED, "digest mismatch -> malformed");
+        assert(executor_bond_after(1000, resolve_bitnet_d256(0, 0x4100, 0x4100, 0)) == 1000, "malformed keeps the bond");
+        // parity with resolve_bitnet when the 32-bit leaves happen to match.
+        assert(resolve_bitnet_d256(1, 0x4100, 0x4100, 1) == resolve_bitnet(0xAB, 0xAB, 0x4100, 0x4100, 1), "d256 matches resolve_bitnet on the honest path");
     }
 
     // Binary-flag majority: 1 iff at least two of three flags are set.
