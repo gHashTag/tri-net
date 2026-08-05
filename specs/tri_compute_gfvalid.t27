@@ -66,6 +66,16 @@ module TriComputeGfValid {
         return offset != gft_offset_max(exp_trits);
     }
 
+    // Is the offset even a VALID encoding for this rung? A GF-T offset lives in
+    // 0 .. 3^Et - 1; anything at or above 3^Et is out of range. is_finite_gft_n
+    // uses `offset != offset_max`, so an OUT-OF-RANGE offset (> offset_max) would
+    // be classed FINITE -- a validity gate must reject it first. Byte-identical to
+    // tri_gft_ladder.gft_offset_in_range (canon), so the two never diverge; a
+    // caller checks range AND finiteness (both must hold for a payable GF-T value).
+    fn gft_offset_in_range(offset: u32, exp_trits: u32) -> bool {
+        return offset < gft_pow3(exp_trits);
+    }
+
     // GF-T16 validity: the Et=4 special case (offset_max 80 = 3^4 - 1). Kept as a
     // thin alias for existing callers; delegates to the generalized rule.
     const GFT16_OFFSET_MAX: u32 = 80;
@@ -161,5 +171,19 @@ module TriComputeGfValid {
         // GF-T4 (Et=2): special row 8.
         assert(is_finite_dispatch(FMT_GFT16, 8, 0, 0, 0, 2) == false, "GF-T4 special row 8 via dispatch");
         assert(is_finite_dispatch(FMT_GFT16, 7, 0, 0, 0, 2) == true, "GF-T4 offset 7 finite via dispatch");
+    }
+
+    // Range validity is distinct from finiteness: valid offsets are 0..3^Et-1
+    // (offset_max included, the special row); anything >= 3^Et is out of range.
+    test gft_offset_range {
+        assert(gft_offset_in_range(0, 4) == true, "GF-T16 offset 0 in range");
+        assert(gft_offset_in_range(80, 4) == true, "GF-T16 offset_max 80 is a valid (special) encoding");
+        assert(gft_offset_in_range(81, 4) == false, "GF-T16 offset 81 (== 3^4) is out of range");
+        assert(gft_offset_in_range(8, 2) == true, "GF-T4 offset_max 8 in range");
+        assert(gft_offset_in_range(9, 2) == false, "GF-T4 offset 9 (== 3^2) out of range");
+        // The gap this closes: an out-of-range offset is classed FINITE by
+        // is_finite_gft_n but caught by the range gate.
+        assert(is_finite_gft_n(81, 4) == true, "is_finite alone WRONGLY calls out-of-range 81 finite");
+        assert(gft_offset_in_range(81, 4) == false, "...but the range gate rejects it");
     }
 }
