@@ -112,6 +112,8 @@ Two verification modes:
 | `trinet_ledger_over_mesh` | auditable settled-balance history: R rounds chained into a 256-bit ledger head; the verifier recomputes the chain from the received rounds; rewriting any past round diverges the head |
 | `trinet_challenge_over_mesh` | optimistic fraud-proof over the wire: a challenger opens a sealed bonded claim, INDEPENDENTLY recomputes, and slashes+reverses fraud (bond→0, credit clawed back) while an honest claim is kept |
 | `trinet_ratchet_over_mesh` | multi-hop blind relay + forward secrecy: 2 blind hops, then an HKDF-SHA256 key ratchet (should_ratchet@2^20, must_reject@2^24) where each epoch key opens ONLY its epoch |
+| `trinet_discovery_over_mesh` | discovery/matchmaking: a host advertises a signed capability card, the requester routes a task ONLY if can_serve_skill_op holds; unadvertised family/width/op and a forged card are all rejected |
+| `trinet_lifecycle_over_mesh` | the layers COMPOSE: one sealed flow chains discovery -> compute -> batch -> ledger, each stage's output feeding the next (balance 1000 -> 1032) |
 
 ## 4. Boundaries (what is proven, and where)
 
@@ -138,8 +140,11 @@ Two verification modes:
   The over-wire suite grows core->outward on the same sealed transport: `_batch_` (one
   signature over a Merkle root settles N receipts by inclusion), `_ledger_` (rounds
   chained into a tamper-evident audited head), `_challenge_` (an optimistic fraud-proof
-  where the challenger recomputes and slashes), and `_ratchet_` (multi-hop blind relay +
-  a real HKDF-SHA256 forward-secret key ratchet, exercising `should_ratchet`/`must_reject`).
+  where the challenger recomputes and slashes), `_ratchet_` (multi-hop blind relay +
+  a real HKDF-SHA256 forward-secret key ratchet, exercising `should_ratchet`/`must_reject`),
+  and `_discovery_` (a requester routes a task only to a host whose signed capability card
+  advertises the skill). `trinet_lifecycle_over_mesh` then proves the layers COMPOSE:
+  discovery -> compute -> batch -> ledger in one sealed flow, each stage feeding the next.
 - **Silicon**: **none**. No GF-T recompute has run on an FPGA. The GF-T arithmetic
   here is the reference a verifier runs; the on-silicon GF unit (t27 `specs/numeric`,
   gf16 @ ~322 MHz on AX7203) is a separate, not-yet-connected artifact.
@@ -163,6 +168,8 @@ cargo run --release --bin trinet_batch_over_mesh   # one signature settles N rec
 cargo run --release --bin trinet_ledger_over_mesh  # auditable settled-balance head across rounds
 cargo run --release --bin trinet_challenge_over_mesh # optimistic fraud-proof: recompute and slash
 cargo run --release --bin trinet_ratchet_over_mesh # multi-hop blind relay + forward-secret ratchet
+cargo run --release --bin trinet_discovery_over_mesh # capability-advertised routing (signed cards)
+cargo run --release --bin trinet_lifecycle_over_mesh # discovery -> compute -> batch -> ledger, composed
 ```
 
 (Run in `--release`: the generated hash uses wrapping arithmetic; a debug build panics
