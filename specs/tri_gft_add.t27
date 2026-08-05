@@ -19,26 +19,27 @@
 module TriGftAdd {
     use base::types;
 
-    const MANT_ONE: u32 = 512;           // 2^9 significand scale (implicit 1)
-    const SIG_BITS: u32 = 10;            // significand 512..1023 is 10 bits wide
-    const CARRY_AT: u32 = 1024;          // 2 * 512: significand sum needs renorm
+    const MANT_ONE: u32 = 512;           // 2^9 GF-T16 significand scale (implicit 1)
+    const SIG_BITS: u32 = 10;            // GF-T16 significand 512..1023 is 10 bits wide
 
-    // The smaller operand's significand aligned to the larger exponent: (512 + mb)
-    // >> d, or 0 once d shifts every bit out (avoids a >=width shift).
-    fn gft_add_sb(mb: u32, d: u32) -> u32 {
-        if (d >= SIG_BITS) {
+    // --- Per-rung parametric same-sign add. `mant_one` = 2^MANT and `sig_bits` =
+    // MANT + 1 for the rung (GF-T4 -> 2/2, GF-T8 -> 16/5, GF-T16 -> 512/10; see
+    // tri_gft_ladder.gft_mant_one). u32-safe for these rungs; GF-T32 (25-bit mantissa)
+    // needs u64 and is blocked by the t27c u64-compare codegen defect.
+
+    // The smaller operand's significand aligned to the larger exponent, 0 once shifted out.
+    fn gft_add_sb_p(mb: u32, d: u32, mant_one: u32, sig_bits: u32) -> u32 {
+        if (d >= sig_bits) {
             return 0;
         } else {
-            return (MANT_ONE + mb) >> d;
+            return (mant_one + mb) >> d;
         }
     }
 
-    // Result exponent offset of a same-sign add with offset_a >= offset_b: the larger
-    // exponent, plus one on a significand carry, saturating to the special row.
-    fn gft_add_offset(offset_a: u32, offset_b: u32, ma: u32, mb: u32, offset_max: u32) -> u32 {
+    fn gft_add_offset_p(offset_a: u32, offset_b: u32, ma: u32, mb: u32, offset_max: u32, mant_one: u32, sig_bits: u32) -> u32 {
         let d: u32 = offset_a - offset_b;
-        let sum: u32 = (MANT_ONE + ma) + gft_add_sb(mb, d);
-        if (sum >= CARRY_AT) {
+        let sum: u32 = (mant_one + ma) + gft_add_sb_p(mb, d, mant_one, sig_bits);
+        if (sum >= (2 * mant_one)) {
             let e: u32 = offset_a + 1;
             if (e >= offset_max) {
                 return offset_max;
@@ -50,16 +51,25 @@ module TriGftAdd {
         }
     }
 
-    // Result 9-bit mantissa of a same-sign add with offset_a >= offset_b (round toward
-    // zero): halve the significand on a carry, then drop the implicit 1.
-    fn gft_add_mant(offset_a: u32, offset_b: u32, ma: u32, mb: u32) -> u32 {
+    fn gft_add_mant_p(offset_a: u32, offset_b: u32, ma: u32, mb: u32, mant_one: u32, sig_bits: u32) -> u32 {
         let d: u32 = offset_a - offset_b;
-        let sum: u32 = (MANT_ONE + ma) + gft_add_sb(mb, d);
-        if (sum >= CARRY_AT) {
-            return (sum >> 1) - MANT_ONE;
+        let sum: u32 = (mant_one + ma) + gft_add_sb_p(mb, d, mant_one, sig_bits);
+        if (sum >= (2 * mant_one)) {
+            return (sum >> 1) - mant_one;
         } else {
-            return sum - MANT_ONE;
+            return sum - mant_one;
         }
+    }
+
+    // GF-T16 entry points: thin views of the parametric form (behavior unchanged).
+    fn gft_add_sb(mb: u32, d: u32) -> u32 {
+        return gft_add_sb_p(mb, d, MANT_ONE, SIG_BITS);
+    }
+    fn gft_add_offset(offset_a: u32, offset_b: u32, ma: u32, mb: u32, offset_max: u32) -> u32 {
+        return gft_add_offset_p(offset_a, offset_b, ma, mb, offset_max, MANT_ONE, SIG_BITS);
+    }
+    fn gft_add_mant(offset_a: u32, offset_b: u32, ma: u32, mb: u32) -> u32 {
+        return gft_add_mant_p(offset_a, offset_b, ma, mb, MANT_ONE, SIG_BITS);
     }
 
     // Order-independent entries: the caller need not pre-sort the operands.
@@ -83,6 +93,29 @@ module TriGftAdd {
     fn verify_gft_add(oa: u32, ob: u32, ma: u32, mb: u32, claimed_offset: u32, claimed_mant: u32, offset_max: u32) -> bool {
         if (gft_add_offset_c(oa, ob, ma, mb, offset_max) == claimed_offset) {
             return gft_add_mant_c(oa, ob, ma, mb) == claimed_mant;
+        } else {
+            return oa != oa;
+        }
+    }
+
+    // Per-rung order-independent entries + verify (thread mant_one / sig_bits).
+    fn gft_add_offset_c_p(oa: u32, ob: u32, ma: u32, mb: u32, offset_max: u32, mant_one: u32, sig_bits: u32) -> u32 {
+        if (oa >= ob) {
+            return gft_add_offset_p(oa, ob, ma, mb, offset_max, mant_one, sig_bits);
+        } else {
+            return gft_add_offset_p(ob, oa, mb, ma, offset_max, mant_one, sig_bits);
+        }
+    }
+    fn gft_add_mant_c_p(oa: u32, ob: u32, ma: u32, mb: u32, mant_one: u32, sig_bits: u32) -> u32 {
+        if (oa >= ob) {
+            return gft_add_mant_p(oa, ob, ma, mb, mant_one, sig_bits);
+        } else {
+            return gft_add_mant_p(ob, oa, mb, ma, mant_one, sig_bits);
+        }
+    }
+    fn verify_gft_add_p(oa: u32, ob: u32, ma: u32, mb: u32, claimed_offset: u32, claimed_mant: u32, offset_max: u32, mant_one: u32, sig_bits: u32) -> bool {
+        if (gft_add_offset_c_p(oa, ob, ma, mb, offset_max, mant_one, sig_bits) == claimed_offset) {
+            return gft_add_mant_c_p(oa, ob, ma, mb, mant_one, sig_bits) == claimed_mant;
         } else {
             return oa != oa;
         }
@@ -118,5 +151,20 @@ module TriGftAdd {
         assert(verify_gft_add(40, 40, 0, 0, 41, 0, 80) == true, "honest 1.0+1.0=2.0 accepted");
         assert(verify_gft_add(40, 40, 0, 0, 40, 0, 80) == false, "wrong exponent (missed carry) rejected");
         assert(verify_gft_add(40, 39, 0, 0, 40, 255, 80) == false, "wrong mantissa rejected");
+    }
+
+    // Per-rung same-sign add (mant_one/sig_bits from tri_gft_ladder): GF-T16 (512/10)
+    // unchanged; GF-T8 (16/5) and GF-T4 (2/2) now verify. GF-T8 bias 13 / offset_max 26;
+    // GF-T4 bias 4 / offset_max 8.
+    test per_rung_add {
+        // GF-T16 view equals the original entry point.
+        assert(gft_add_offset_p(40, 40, 0, 0, 80, 512, 10) == 41, "GF-T16 1.0+1.0=2.0 -> offset 41");
+        assert(gft_add_mant_p(40, 40, 0, 0, 512, 10) == 0, "GF-T16 2.0 mantissa 0");
+        // GF-T8: 1.0 + 1.0 = 2.0 (offset 13,13 -> 14, mant 0); 1.0 + 0.5 = 1.5 (M 8).
+        assert(verify_gft_add_p(13, 13, 0, 0, 14, 0, 26, 16, 5) == true, "GF-T8 1.0+1.0 = exp 14, mant 0");
+        assert(verify_gft_add_p(13, 12, 0, 0, 13, 8, 26, 16, 5) == true, "GF-T8 1.0+0.5 = 1.5 (M 8), exp 13");
+        assert(verify_gft_add_p(13, 13, 0, 0, 13, 0, 26, 16, 5) == false, "GF-T8 missed carry rejected");
+        // GF-T4: 1.0 + 1.0 = 2.0 (offset 4,4 -> 5, mant 0).
+        assert(verify_gft_add_p(4, 4, 0, 0, 5, 0, 8, 2, 2) == true, "GF-T4 1.0+1.0 = exp 5, mant 0");
     }
 }
