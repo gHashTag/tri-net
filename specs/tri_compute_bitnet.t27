@@ -117,6 +117,22 @@ module TriComputeBitnet {
         return (pos_weights4(packed) + 4) - neg_weights4(packed);
     }
 
+    // Verifiable ternary part: the analogue of a GF-value recompute in a dispute.
+    // Given the committed weight_code and a CLAIMED sign balance, a challenger
+    // recomputes the balance from the weights and confirms it -- but only if the
+    // packing is CANONICAL (a non-canonical 0b11 code is rejected outright, closing
+    // the malleability). A fraudulent executor that claims a wrong ternary MAC
+    // balance, or packs non-canonical weights, fails this check. (The canonical
+    // test is inlined as weights_canonical4 == 4 -- a bool fn compared to true does
+    // not survive gen-rust.)
+    fn bitnet_balance_matches(weight_code: u32, claimed_balance_biased: u32) -> bool {
+        if (weights_canonical4(weight_code) == 4) {
+            return sign_balance_biased(weight_code) == claimed_balance_biased;
+        } else {
+            return weight_code != weight_code;
+        }
+    }
+
     // Bind a BitNet layer op into a receipt leaf: ternary weight code (0-DSP part)
     // + GF16 activation hash + GF16 result (value part) + executor identity.
     // Changing EITHER the ternary weights OR the GF16 activation/result changes
@@ -199,6 +215,21 @@ module TriComputeBitnet {
         assert(pos_weights4(0x61) + neg_weights4(0x61) == active_weights4(0x61), "pos+neg == active (mixed)");
         assert(pos_weights4(0x55) + neg_weights4(0x55) == active_weights4(0x55), "pos+neg == active (all +1)");
         assert(pos_weights4(0xFF) + neg_weights4(0xFF) == active_weights4(0xFF), "pos+neg == active (all 11 zeros)");
+    }
+
+    // Verifiable ternary recompute: a challenger confirms the claimed sign balance
+    // against the committed canonical weights, and rejects a wrong balance or a
+    // non-canonical packing.
+    test bitnet_balance_recompute {
+        // 0x61 balances to biased 5 (pos 2, neg 1 -> +1 +4).
+        assert(bitnet_balance_matches(0x61, 5) == true, "canonical weights + correct balance -> verified");
+        assert(bitnet_balance_matches(0x61, 8) == false, "canonical weights + WRONG claimed balance -> rejected (fraud)");
+        assert(bitnet_balance_matches(0x55, 8) == true, "all +1 -> biased 8 verified");
+        assert(bitnet_balance_matches(0xAA, 0) == true, "all -1 -> biased 0 verified");
+        // non-canonical packing is rejected even if the claimed balance equals what
+        // the (mis)packing would sum to: 0xFF sums to biased 4, but it has 0b11 codes.
+        assert(bitnet_balance_matches(0xFF, 4) == false, "non-canonical 0b11 packing rejected regardless of balance");
+        assert(bitnet_balance_matches(0x1B, sign_balance_biased(0x1B)) == false, "a single 0b11 trit fails the check even at its own balance");
     }
 
     // The receipt binds the TERNARY WEIGHTS: flipping a weight changes the leaf.
