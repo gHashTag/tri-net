@@ -5,10 +5,12 @@ compute-market economic-security ring on a base (`1d425ab`) that predates the
 parallel PR-train `#102-#110` now on `main`. The two evolved the same area
 independently. Below: every increment, its reconciliation class, and the recipe.
 
-**Status:** `feat/ring-hardening` cannot fast-forward `main` (`origin/main` at the
-time of writing carried `#95-#110`). The branch is verified in isolation (every
-increment: `t27c parse/typecheck/gen-rust` clean + a generated-Rust harness). This
-is a **merge-strategy decision**, not a mechanical conflict.
+**Status (2026-08-06):** 29 hardening increments on the branch; `feat/ring-hardening`
+cannot fast-forward `main` (`origin/main` last observed at `#95-#110`, sha `3f2bc4c`).
+The branch is verified in isolation and **the full ring is regression-free**: latest
+verify-gate = 14/14 `tri_compute_*` + `tri_a2a*` typecheck clean (0 errors),
+gen-rust clean for all, 4 compute bins build, both lifecycle smokes pass. This is a
+**merge-strategy decision**, not a mechanical conflict.
 
 ## The one true collision (needs an owner pick)
 
@@ -51,7 +53,15 @@ All verified; none of these functions exist on `main`.
 | `df27a55` `compute_reward_fmt` + `99e4bc2` `settle_canonical_fmt` | format-aware reward, flat = identity | settle |
 | `a6c346f` `rep_after_resolution` | drive reputation from the challenge outcome | reputation |
 | `3051a4a` `can_admit` | min-rep admission gate (lock out repeat fraud) | reputation |
-| `f47ce3a` `14f2b4d` `trinet_compute_lifecycle` | end-to-end smoke, gated escrow | src/bin |
+| `4e720be` `verifier_dissented` / `verifier_stake_after` | dissent from the quorum burns the verifier's stake | challenge |
+| `6b99ee3` `quorum_threshold` / `has_quorum_k` / `max_agree3` | generalize the quorum to k-of-n | challenge |
+| `3e1349d` `rep_after_verifier` | drive verifier reputation from dissent (symmetric to executor) | reputation |
+| `13b42e2` `verifier_reward` | reward honest verifiers from the burned stake (verifier's dilemma) | challenge |
+| `97fd9cf` `op_matches` / `result_binds_assign` | a mul assignment must not settle an add receipt | a2a |
+| `61bdeaa` `admit_result` | one ingress gate: binding AND freshness AND reputation | a2a |
+| `d800701` `pool_after_deposit` / `payout_capped` / `pool_after_payout` | prepaid funding: payouts never exceed deposits | pool |
+| `c4f06de` `balance_after_pool_settle` | reward MOVES from the funded pool, not minted (conserved) | pool |
+| `314a1f0` `354e364` `3e3fabd` `d6f2f1c` | lifecycle smoke: two-sided penalties, verifier reward, real recompute, ingress-gated settle | src/bin |
 
 ## Recommended recipe
 
@@ -59,7 +69,10 @@ All verified; none of these functions exist on `main`.
 2. Rebase `feat/ring-hardening` onto `origin/main`; resolve the digest commit per (1);
    `51adf59` collapses against `#109`; the additive commits apply cleanly (new fns).
 3. Wire challenge -> `#110 verify_gft_mul_full` for the recompute (drop the oracle input).
-4. Re-run `t27c typecheck` on all `tri_compute_*` + `cargo build` of the compute bins.
+   The quorum layer (`resolve_quorum3`, `verifier_*`) already consumes a recomputed
+   value as input, so #110's arithmetic slots in without touching the economics.
+4. Re-run the verify-gate: `t27c typecheck` all `tri_compute_*` + `tri_a2a*`, gen-rust
+   all, `cargo build` the compute bins, run the lifecycle smokes.
 
 Contact: this branch's session. Do not autonomous-merge -- see memory
 `trinet-ring-hardening-divergence`.
