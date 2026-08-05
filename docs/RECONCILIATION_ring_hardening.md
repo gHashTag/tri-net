@@ -5,7 +5,7 @@ compute-market economic-security ring on a base (`1d425ab`) that predates the
 parallel PR-train `#102-#110` now on `main`. The two evolved the same area
 independently. Below: every increment, its reconciliation class, and the recipe.
 
-**Status (2026-08-06):** 37 hardening increments on the branch; `feat/ring-hardening`
+**Status (2026-08-06):** 44 hardening increments on the branch; `feat/ring-hardening`
 cannot fast-forward `main` (`origin/main` last observed at `#95-#110`).
 The branch is verified in isolation and **the full ring is regression-free**: latest
 verify-gate = all `tri_compute_*` + `tri_a2a` typecheck clean (0 errors), gen-rust
@@ -68,6 +68,17 @@ All verified; none of these functions exist on `main`.
 | `85ffeb8` `f8df5f0` | outstanding-escrow counter + `outstanding == pending` invariant (no fourth bucket) | account |
 | `ff80921` `652c29b` | 5-node quorum `resolve_quorum5` + verifier economics on 5 nodes | challenge |
 | `2fa8f0a` | signature guard added to the safety mint choke point (close forgery-pay) | safety |
+| `5264242` `9c28f3a` `4a1bb42` `25b729a` | bitnet ternary hardening: 0b11-decodes-zero, canonical packing (no weight malleability), signed decode + popcount-MAC balance, verifiable ternary recompute | bitnet |
+| `60c8874` `10c8a15` | resolve_bitnet + resolve_bitnet_quorum: a BitNet dispute verifies BOTH the ternary part and the GF value, under a verifier quorum | challenge |
+| `f73b994` | lifecycle smoke proves the 5-node quorum economics end-to-end | src/bin |
+
+### Note on the bitnet increments
+
+The bitnet ternary layer is **independent of the parallel #109/#110 GF-T work** (that
+is GF-T *arithmetic*; bitnet is ternary *weight* attestation for BitNet-1.58 layers).
+`resolve_bitnet*` consumes a `ternary_ok` flag the caller precomputes from
+`bitnet_balance_matches` -- the same cross-module-flag pattern the quorum uses for the
+GF recompute, so #110's arithmetic and this ternary check compose without conflict.
 
 ## Recommended recipe
 
