@@ -70,6 +70,18 @@ module TriComputePool {
         }
     }
 
+    // Pool-funded settlement: move an already-gated reward FROM the pool TO the
+    // executor -- settle_canonical decides the magnitude, this MOVES it, it does
+    // not mint. The executor's balance rises by exactly payout_capped(pool, reward)
+    // and the pool falls by exactly the same (pool_after_payout uses the identical
+    // cap), so total(balance, pool) is invariant across the settle: value is
+    // conserved, never created (Akash/Golem: the provider is paid out of the
+    // requester's escrow, atomically). An underfunded pool caps the credit to what
+    // was funded and drains the pool to zero.
+    fn balance_after_pool_settle(prev_balance: u32, pool: u32, reward: u32) -> u32 {
+        return prev_balance + payout_capped(pool, reward);
+    }
+
     // ---- Tests / invariants ----
 
     // Proportional split with floor division; a zero-work node earns nothing.
@@ -141,5 +153,23 @@ module TriComputePool {
         assert(p2 == 501, "after 333 -> 501 remains");
         assert(p3 == 1, "after 500 -> 1 remains (the floor dust stays funded)");
         assert(p3 == 1000 - (166 + 333 + 500), "pool end == deposit minus total payouts, exactly conserved");
+    }
+
+    // Pool-funded settle MOVES value, never mints: the executor gains exactly what
+    // the pool loses, so balance + pool is invariant across the settle.
+    test pool_settle_conserves_total {
+        // reward 300 <= pool 1000: balance 500 -> 800, pool 1000 -> 700, total 1500 both sides.
+        assert(balance_after_pool_settle(500, 1000, 300) == 800, "executor credited the reward");
+        assert(pool_after_payout(1000, 300) == 700, "pool drawn down by the same reward");
+        assert(balance_after_pool_settle(500, 1000, 300) + pool_after_payout(1000, 300) == 500 + 1000, "balance + pool conserved across settle");
+    }
+
+    // An underfunded pool caps the credit to what was funded and drains to zero --
+    // still conserved, the executor simply cannot be paid more than the pool holds.
+    test pool_settle_caps_underfunded {
+        // reward 300 > pool 100: executor gains only 100, pool -> 0, total conserved.
+        assert(balance_after_pool_settle(500, 100, 300) == 600, "credit capped at the funded 100");
+        assert(pool_after_payout(100, 300) == 0, "underfunded pool drains to zero, not negative");
+        assert(balance_after_pool_settle(500, 100, 300) + pool_after_payout(100, 300) == 500 + 100, "capped settle still conserves balance + pool");
     }
 }
