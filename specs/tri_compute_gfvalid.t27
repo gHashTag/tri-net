@@ -73,6 +73,20 @@ module TriComputeGfValid {
         return is_finite_gft_n(offset, 4);
     }
 
+    // Unified finiteness gate: route by the format FAMILY so a caller never has to
+    // pick between the binary (is_finite_gf_h) and GF-T (is_finite_gft_n) checks and
+    // risk choosing the wrong one -- a mis-picked gate would classify a GF-T offset
+    // by the binary all-ones rule (or vice versa) and pay garbage or reject a valid
+    // result. `value` is the binary bit-pattern for FMT_GF_BINARY, or the exponent
+    // offset for FMT_GFT16; the unused params are ignored on each branch.
+    fn is_finite_dispatch(fmt_family: u32, value: u32, exp_bits: u32, mant_bits: u32, has_inf: u32, exp_trits: u32) -> bool {
+        if (fmt_family == FMT_GFT16) {
+            return is_finite_gft_n(value, exp_trits);
+        } else {
+            return is_finite_gf_h(value, exp_bits, mant_bits, has_inf);
+        }
+    }
+
     // ---- Tests / invariants ----
 
     // GF16 (E6 M9): matches the old is_finite_gf16 exactly.
@@ -131,5 +145,21 @@ module TriComputeGfValid {
         assert(is_finite_gf_h(0x4200, 6, 9, 1) == true, "GF16 finite accepted");
         assert(is_finite_gf_h(0x70, 3, 4, 0) == true, "GF8 max-exp is normal (no inf/nan)");
         assert(is_finite_gf_h(0x70, 3, 4, 1) == false, "with has_inf it would (wrongly) reject");
+    }
+
+    // The unified dispatcher routes by family and agrees exactly with the
+    // underlying checks -- one gate, no wrong-check risk.
+    test dispatch_routes_by_family {
+        // Binary GF16 (has_inf): finite 0x4200, inf 0x7E00.
+        assert(is_finite_dispatch(FMT_GF_BINARY, 0x4200, 6, 9, 1, 0) == is_finite_gf_h(0x4200, 6, 9, 1), "GF16 finite via dispatch");
+        assert(is_finite_dispatch(FMT_GF_BINARY, 0x7E00, 6, 9, 1, 0) == false, "GF16 inf via dispatch -> not finite");
+        // Binary GF8 (no inf): max-exp is a normal value.
+        assert(is_finite_dispatch(FMT_GF_BINARY, 0x70, 3, 4, 0, 0) == true, "GF8 max-exp normal via dispatch");
+        // GF-T16 (Et=4): finite offset 40, special offset 80.
+        assert(is_finite_dispatch(FMT_GFT16, 40, 0, 0, 0, 4) == is_finite_gft_n(40, 4), "GF-T16 finite via dispatch");
+        assert(is_finite_dispatch(FMT_GFT16, 80, 0, 0, 0, 4) == false, "GF-T16 reserved offset via dispatch -> not finite");
+        // GF-T4 (Et=2): special row 8.
+        assert(is_finite_dispatch(FMT_GFT16, 8, 0, 0, 0, 2) == false, "GF-T4 special row 8 via dispatch");
+        assert(is_finite_dispatch(FMT_GFT16, 7, 0, 0, 0, 2) == true, "GF-T4 offset 7 finite via dispatch");
     }
 }
