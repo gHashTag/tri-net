@@ -133,13 +133,22 @@ module TriComputeChallenge {
         return dispute_epoch > last_epoch;
     }
 
-    // The watermark advances only when the dispute was actually processed; a
-    // stale replay leaves it untouched (idempotent).
+    // The watermark advances only when the dispute is actually RESOLVED -- a
+    // terminal HONEST or SLASH. A non-terminal outcome (MALFORMED, STALE,
+    // FAMILY_MISMATCH, INDETERMINATE) resolved nothing, so it must NOT advance the
+    // watermark: otherwise a griefer submits a MALFORMED dispute at a high epoch,
+    // jumps the watermark, and every legitimate lower-epoch dispute is then
+    // rejected as stale -- a replay-nonce DoS. Only a committed resolution moves
+    // the high-water mark.
     fn resolver_epoch_after(last_epoch: u32, dispute_epoch: u32, outcome: u32) -> u32 {
-        if (outcome == RESOLVE_STALE) {
-            return last_epoch;
-        } else {
+        if (outcome == RESOLVE_HONEST) {
             return dispute_epoch;
+        } else {
+            if (outcome == RESOLVE_SLASH) {
+                return dispute_epoch;
+            } else {
+                return last_epoch;
+            }
         }
     }
 
@@ -526,6 +535,24 @@ module TriComputeChallenge {
         assert(challenger_reward(1000, replay) == 0, "replay pays nothing");
         assert(challenger_stake_after_bound(50, replay) == 50, "replay does not burn stake");
         assert(resolver_epoch_after(6, 6, replay) == 6, "stale leaves watermark put");
+    }
+
+    // The watermark advances ONLY on a resolved (terminal) dispute. A non-terminal
+    // outcome must not move it, or a griefer's high-epoch MALFORMED dispute would
+    // jump the watermark and stale-block every legitimate lower-epoch dispute.
+    test watermark_advances_only_on_resolution {
+        // Terminal outcomes advance to the dispute epoch.
+        assert(resolver_epoch_after(5, 9, RESOLVE_HONEST) == 9, "HONEST advances the watermark");
+        assert(resolver_epoch_after(5, 9, RESOLVE_SLASH) == 9, "SLASH advances the watermark");
+        // Non-terminal outcomes leave the watermark PUT (the griefing guard).
+        assert(resolver_epoch_after(5, 9999, RESOLVE_MALFORMED) == 5, "a high-epoch MALFORMED does NOT jump the watermark");
+        assert(resolver_epoch_after(5, 9999, RESOLVE_FAMILY_MISMATCH) == 5, "FAMILY_MISMATCH does not advance");
+        assert(resolver_epoch_after(5, 9999, RESOLVE_INDETERMINATE) == 5, "INDETERMINATE does not advance");
+        assert(resolver_epoch_after(5, 9999, RESOLVE_STALE) == 5, "STALE does not advance");
+        // So a legitimate dispute at epoch 6 is still fresh after a griefer's
+        // MALFORMED at epoch 9999 (watermark stayed at 5).
+        w = resolver_epoch_after(5, 9999, RESOLVE_MALFORMED);
+        assert(dispute_is_fresh(w, 6) == true, "epoch 6 stays fresh -- the griefer could not block it");
     }
 
     // GF-T ladder: a well-formed GF-T dispute (both sides FMT_GFT, matching leaf)
