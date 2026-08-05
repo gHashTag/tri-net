@@ -192,6 +192,30 @@ module TriComputeChallenge {
         }
     }
 
+    // Majority of three 0/1 flags: with an odd count a tie is impossible, so the
+    // majority always exists -- 1 iff at least two flags are set.
+    fn majority_flag3(a: u32, b: u32, c: u32) -> u32 {
+        if (a + b + c >= 2) {
+            return 1;
+        } else {
+            return 0;
+        }
+    }
+
+    // BitNet dispute under a 3-verifier quorum: resolve_bitnet trusts ONE
+    // recompute + ONE ternary flag, so a single lying verifier could flip it. Take
+    // the MAJORITY of each field independently -- the recomputed GF value via the
+    // value quorum (quorum_value3), the ternary_ok via majority_flag3 -- so a lone
+    // liar on either field is outvoted. No value quorum (all three differ) proves
+    // nothing -> RESOLVE_INDETERMINATE, no bond moves.
+    fn resolve_bitnet_quorum(settled_leaf: u32, dispute_leaf: u32, claimed_result: u32, v0: u32, v1: u32, v2: u32, t0: u32, t1: u32, t2: u32) -> u32 {
+        if (verifier_quorum3(v0, v1, v2) == 1) {
+            return resolve_bitnet(settled_leaf, dispute_leaf, claimed_result, quorum_result3(v0, v1, v2), majority_flag3(t0, t1, t2));
+        } else {
+            return RESOLVE_INDETERMINATE;
+        }
+    }
+
     // ---- Quorum of verifiers: don't trust a single recomputation ----
     //
     // resolve_full takes ONE recomputed_result, as trustworthy as the single node
@@ -651,5 +675,31 @@ module TriComputeChallenge {
         // a fabricated dispute (leaf mismatch) is malformed, never slashes, even with bad ternary.
         assert(resolve_bitnet(0xAB, 0xAC, 0x4100, 0x4100, 0) == RESOLVE_MALFORMED, "unbound dispute -> malformed, no slash");
         assert(executor_bond_after(1000, resolve_bitnet(0xAB, 0xAC, 0x4100, 0x4100, 0)) == 1000, "malformed keeps the bond");
+    }
+
+    // Binary-flag majority: 1 iff at least two of three flags are set.
+    test majority_flag_basics {
+        assert(majority_flag3(1, 1, 1) == 1, "unanimous yes");
+        assert(majority_flag3(1, 1, 0) == 1, "2-of-3 yes");
+        assert(majority_flag3(1, 0, 0) == 0, "only one yes -> no");
+        assert(majority_flag3(0, 0, 0) == 0, "unanimous no");
+    }
+
+    // A BitNet dispute under a quorum: a lone liar on EITHER the recomputed value
+    // OR the ternary flag is outvoted. Same leaf 0xAB both sides.
+    test bitnet_quorum_outvotes_a_liar {
+        // 2 honest recompute r_ok(0x4100), 1 liar r_bad; ternary flags all say OK.
+        // Honest executor claimed r_ok -> the value majority is r_ok -> HONEST.
+        assert(resolve_bitnet_quorum(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x9999, 1, 1, 1) == RESOLVE_HONEST, "value liar outvoted -> honest executor safe");
+        // 1 verifier lies that the ternary is BAD (flag 0); the 2-of-3 majority says
+        // OK, so a false ternary accusation cannot force a slash on an honest layer.
+        assert(resolve_bitnet_quorum(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 0, 1, 1) == RESOLVE_HONEST, "lone false ternary accusation is outvoted");
+        // Real ternary fraud: 2-of-3 verifiers agree the ternary is BAD -> slash.
+        assert(resolve_bitnet_quorum(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 0, 0, 1) == RESOLVE_SLASH, "ternary-bad majority slashes");
+        // Real GF fraud: executor claimed r_bad, value majority recomputes r_ok -> slash.
+        assert(resolve_bitnet_quorum(0xAB, 0xAB, 0x9999, 0x4100, 0x4100, 0x9999, 1, 1, 1) == RESOLVE_SLASH, "GF fraud caught by the value majority");
+        // No value quorum (all three differ) -> indeterminate, no bond moves.
+        assert(resolve_bitnet_quorum(0xAB, 0xAB, 0x4100, 0x1111, 0x2222, 0x3333, 1, 1, 1) == RESOLVE_INDETERMINATE, "split value set -> indeterminate");
+        assert(executor_bond_after(1000, resolve_bitnet_quorum(0xAB, 0xAB, 0x4100, 0x1111, 0x2222, 0x3333, 1, 1, 1)) == 1000, "indeterminate keeps the bond");
     }
 }
