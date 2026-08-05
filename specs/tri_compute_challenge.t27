@@ -242,6 +242,23 @@ module TriComputeChallenge {
         }
     }
 
+    // Burning a dissenter's stake makes honest verification break-even at best, so
+    // a rational verifier skips the recompute when the result looks fine -- the
+    // "verifier's dilemma" (Truebit) that leaves the fraud proof unmanned. Pay the
+    // agreeing verifiers OUT OF the burned stake (as UMA pays correct voters from
+    // the slashed): each honest verifier's floor-div share of the burned total, so
+    // verification is net-positive and self-funding (no protocol inflation). Floor
+    // division never over-issues (the dust simply stays unminted); guarded against
+    // an empty honest set. u64-widened so burned_total stays exact.
+    fn verifier_reward(burned_total: u32, honest_count: u32) -> u32 {
+        if (honest_count == 0) {
+            return 0;
+        } else {
+            let share: u64 = (burned_total as u64) / (honest_count as u64);
+            return share as u32;
+        }
+    }
+
     // ---- k-of-n quorum: let the network size the verifier pool ----
     //
     // verifier_quorum3 hardcodes a 3-node, 2-of-majority set. Generalize: the
@@ -445,5 +462,29 @@ module TriComputeChallenge {
         assert(max_agree3(0x41, 0x99, 0xBE) == 1, "all distinct -> 1 agree");
         assert(has_quorum_k(max_agree3(0x41, 0x41, 0x99), quorum_threshold(3)) == verifier_quorum3(0x41, 0x41, 0x99), "general == specific on 2-of-3");
         assert(has_quorum_k(max_agree3(0x41, 0x99, 0xBE), quorum_threshold(3)) == verifier_quorum3(0x41, 0x99, 0xBE), "general == specific on split");
+    }
+
+    // The burned dissenter stake is split floor-div among the honest verifiers, so
+    // verification pays. One dissenter (50 burned), two honest -> 25 each.
+    test verifier_reward_splits_the_burn {
+        assert(verifier_reward(50, 2) == 25, "one 50-burn split between two honest -> 25 each");
+        assert(verifier_reward(100, 2) == 50, "two dissenters (100 burned), two honest -> 50 each");
+        assert(verifier_reward(50, 3) == 16, "50 over 3 honest -> 16 floor (2 dust unminted)");
+        assert(verifier_reward(50, 0) == 0, "no honest verifier -> nothing to pay, no divide-by-zero");
+    }
+
+    // No over-issuance: honest_count * per-share never exceeds the burned total.
+    test verifier_reward_no_over_issuance {
+        assert(2 * verifier_reward(50, 2) == 50, "2 * 25 == 50, exact");
+        assert(3 * verifier_reward(50, 3) == 48, "3 * 16 == 48 <= 50 (floor keeps the dust)");
+    }
+
+    // The verifier's dilemma is solved: an honest verifier is now NET-POSITIVE --
+    // it keeps its own stake AND earns a share of the burned dissenter stake, so
+    // recomputing is strictly better than skipping. Honest verifier staked 50,
+    // one colluder's 50 burned and split among 2 honest -> 25 each: net 75 > 50.
+    test honest_verification_is_profitable {
+        assert(verifier_stake_after(50, 0) + verifier_reward(50, 2) == 75, "honest net = kept 50 + reward 25 = 75 > staked 50");
+        assert(verifier_stake_after(50, 1) == 0, "the colluder loses its whole 50 stake");
     }
 }
