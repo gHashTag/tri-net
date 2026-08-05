@@ -242,6 +242,51 @@ module TriComputeChallenge {
         }
     }
 
+    // ---- k-of-n quorum: let the network size the verifier pool ----
+    //
+    // verifier_quorum3 hardcodes a 3-node, 2-of-majority set. Generalize: the
+    // network runs n verifiers and requires a threshold k. quorum_threshold gives
+    // the majority k for a pool of n; has_quorum_k tests an agreement count against
+    // any k; max_agree3 is the concrete 3-node agreement count, and the identity
+    // test below shows verifier_quorum3 is exactly the n=3 majority instance.
+
+    // Majority threshold for a pool of n verifiers: floor(n/2) + 1.
+    fn quorum_threshold(n: u32) -> u32 {
+        return (n >> 1) + 1;
+    }
+
+    // 1 iff at least k verifiers agreed (agree_count is the size of the largest
+    // agreeing group, computed by the caller for arbitrary n).
+    fn has_quorum_k(agree_count: u32, k: u32) -> u32 {
+        if (agree_count >= k) {
+            return 1;
+        } else {
+            return 0;
+        }
+    }
+
+    // Size of the largest agreeing group among three votes (1, 2, or 3) -- the
+    // n=3 agreement count that feeds has_quorum_k.
+    fn max_agree3(v0: u32, v1: u32, v2: u32) -> u32 {
+        if (v0 == v1) {
+            if (v1 == v2) {
+                return 3;
+            } else {
+                return 2;
+            }
+        } else {
+            if (v0 == v2) {
+                return 2;
+            } else {
+                if (v1 == v2) {
+                    return 2;
+                } else {
+                    return 1;
+                }
+            }
+        }
+    }
+
     // ---- Tests / invariants ----
 
     // Honest executor: committed result matches the golden recomputation
@@ -378,5 +423,27 @@ module TriComputeChallenge {
     test no_quorum_no_verifier_penalty {
         assert(verifier_dissented(0x1111, 0x1111, 0) == 0, "no quorum -> no dissent recorded");
         assert(verifier_stake_after(50, verifier_dissented(0x1111, 0x2222, 0)) == 50, "split set does not burn any verifier stake");
+    }
+
+    // k-of-n: the majority threshold scales with pool size, and has_quorum_k gates
+    // an agreement count against it.
+    test quorum_k_of_n {
+        assert(quorum_threshold(3) == 2, "3 nodes -> majority 2");
+        assert(quorum_threshold(5) == 3, "5 nodes -> majority 3");
+        assert(quorum_threshold(7) == 4, "7 nodes -> majority 4");
+        assert(quorum_threshold(1) == 1, "single node -> 1");
+        assert(has_quorum_k(3, 3) == 1, "3-of-5 clears a 3 threshold");
+        assert(has_quorum_k(2, 3) == 0, "2 agreements miss a 3 threshold");
+        assert(has_quorum_k(4, 3) == 1, "4 clears 3");
+    }
+
+    // The 3-node primitive is exactly the n=3 majority instance: verifier_quorum3
+    // agrees with has_quorum_k(max_agree3(...), quorum_threshold(3)) on every case.
+    test quorum3_is_the_n3_instance {
+        assert(max_agree3(0x41, 0x41, 0x41) == 3, "unanimous -> 3 agree");
+        assert(max_agree3(0x41, 0x41, 0x99) == 2, "2-of-3 -> 2 agree");
+        assert(max_agree3(0x41, 0x99, 0xBE) == 1, "all distinct -> 1 agree");
+        assert(has_quorum_k(max_agree3(0x41, 0x41, 0x99), quorum_threshold(3)) == verifier_quorum3(0x41, 0x41, 0x99), "general == specific on 2-of-3");
+        assert(has_quorum_k(max_agree3(0x41, 0x99, 0xBE), quorum_threshold(3)) == verifier_quorum3(0x41, 0x99, 0xBE), "general == specific on split");
     }
 }
