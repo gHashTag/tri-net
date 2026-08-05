@@ -33,18 +33,28 @@ mod gmul;
 mod gadd;
 #[path = "../../gen/rust/tri_gft_sub.rs"]
 mod gsub;
+#[path = "../../gen/rust/tri_gft_ladder.rs"]
+mod lad;
 #[path = "../../gen/rust/tri_receipt_verify.rs"]
 mod rv;
 
 /// Recompute the claimed GF-T result from the assigned operands and the op: the
 /// endpoint checks the compute itself, not just the signature. Returns 1 if the
 /// claimed (offset, mant) recomputes for the op, else 0.
-fn compute_ok(gf_op: u32, sign_a: u32, sign_b: u32, oa: u32, ma: u32, ob: u32, mb: u32, claimed_off: u32, claimed_mant: u32) -> u32 {
-    let mul = if gmul::verify_gft_mul_full(oa, ma, ob, mb, claimed_off, claimed_mant, gmul::GFT16_BIAS, gmul::GFT16_OFFSET_MAX) { 1u32 } else { 0 };
+fn compute_ok(gf_op: u32, width: u32, sign_a: u32, sign_b: u32, oa: u32, ma: u32, ob: u32, mb: u32, claimed_off: u32, claimed_mant: u32) -> u32 {
+    // Rung-aware: pick the GF-T geometry for the receipt's width (tri_gft_ladder), so
+    // GF-T4/8/16 results verify each with their own bias / offset_max / mantissa scale.
+    let et = lad::width_to_et(width);
+    let bias = lad::gft_bias(et);
+    let omax = lad::gft_offset_max(et);
+    let mant_one = lad::gft_mant_one(et);
+    let mant_bits = lad::gft_mant_bits(et);
+    let sig_bits = mant_bits + 1;
+    let mul = if gmul::verify_gft_mul_full_p(oa, ma, ob, mb, claimed_off, claimed_mant, bias, omax, mant_one) { 1u32 } else { 0 };
     let add = if sign_a == sign_b {
-        if gadd::verify_gft_add(oa, ob, ma, mb, claimed_off, claimed_mant, gmul::GFT16_OFFSET_MAX) { 1u32 } else { 0 }
+        if gadd::verify_gft_add_p(oa, ob, ma, mb, claimed_off, claimed_mant, omax, mant_one, sig_bits) { 1u32 } else { 0 }
     } else {
-        if gsub::verify_gft_sub(oa, ob, ma, mb, claimed_off, claimed_mant) { 1u32 } else { 0 }
+        if gsub::verify_gft_sub_p(oa, ob, ma, mb, claimed_off, claimed_mant, mant_one, mant_bits) { 1u32 } else { 0 }
     };
     rv::compute_ok_for_op(gf_op, mul, add)
 }
@@ -173,8 +183,17 @@ fn main() {
     // settles if the claimed result recomputes -- a valid signature over a WRONG
     // result is not enough.
     let (claimed_off, claimed_mant) = (42u32, 0u32);
-    let cok = compute_ok(gfop, 0, 0, a_off, a_mant, b_off, b_mant, claimed_off, claimed_mant);
+    let width = 16u32; // GF-T16 (skill 0xA6xx); the verify picks this rung's geometry
+    let cok = compute_ok(gfop, width, 0, 0, a_off, a_mant, b_off, b_mant, claimed_off, claimed_mant);
     assert_eq!(cok, 1, "the claimed GF-T product recomputes");
+
+    // Rung-aware: the SAME endpoint verifies a GF-T8 result with GF-T8 geometry.
+    // GF-T8 mul 1.5*1.5 (offsets 13, mantissas 8) -> exp 14, mant 2.
+    let cok_gft8 = compute_ok(gfop, 8, 0, 0, 13, 8, 13, 8, 14, 2);
+    assert_eq!(cok_gft8, 1, "a GF-T8 result verifies under GF-T8 geometry at the node");
+    // And a GF-T8 result mis-checked as GF-T16 (wrong width) would NOT recompute:
+    let cok_wrongwidth = compute_ok(gfop, 16, 0, 0, 13, 8, 13, 8, 14, 2);
+    assert_eq!(cok_wrongwidth, 0, "GF-T8 result under GF-T16 geometry is rejected (wrong rung)");
 
     // FRESHNESS (anti-replay): the node keeps a high-water mark of the last settled
     // task_id; a taskResult settles only if its id is strictly newer (tri_a2a.is_fresh).
@@ -204,7 +223,7 @@ fn main() {
     // A WRONG-COMPUTE result that is correctly signed: the operands are honest and
     // the signature verifies, but the claimed product exponent is wrong (43 not 42).
     // The recompute catches it -- signature is not correctness.
-    let cok_bad = compute_ok(gfop, 0, 0, a_off, a_mant, b_off, b_mant, 43, 0);
+    let cok_bad = compute_ok(gfop, width, 0, 0, a_off, a_mant, b_off, b_mant, 43, 0);
     let bal_badcompute = settle::settle_signed(1000, 16, 1, out, 6, 9, 0, ok & cok_bad);
     assert_eq!((cok_bad, bal_badcompute), (0, 1000), "a signed but miscomputed result earns nothing");
 
