@@ -84,6 +84,33 @@ module TriA2A {
         return skill_family(assigned_skill) == receipt_family;
     }
 
+    // A skill is HOSTED iff it is one of the six known GF/GF-T skills. skill_family
+    // defaults ANY unknown skill to FMT_GF_BINARY, so an unenumerated GF-T rung (a
+    // wider ladder skill like GF-T4/GF-T32, id 0xA4../0xA5..) or a crafted id would
+    // be classed BINARY and family_matches would then accept a binary receipt for
+    // it -- undermining the family binding. Return 1/0 (no bool-in-condition later).
+    fn is_hosted_skill(skill: u32) -> u32 {
+        if (skill == SKILL_GF16_MUL) { return 1; }
+        if (skill == SKILL_GF16_ADD) { return 1; }
+        if (skill == SKILL_GFT16_MUL) { return 1; }
+        if (skill == SKILL_GFT16_ADD) { return 1; }
+        if (skill == SKILL_GFT8_MUL) { return 1; }
+        if (skill == SKILL_GFT8_ADD) { return 1; }
+        return 0;
+    }
+
+    // Family match that first requires the skill to be HOSTED: an unhosted skill
+    // matches NO family, so skill_family's binary default can never slip a
+    // wrong-family receipt through. Callers should use this instead of the bare
+    // family_matches when the skill is attacker-influenced.
+    fn family_matches_strict(assigned_skill: u32, receipt_family: u32) -> bool {
+        if (is_hosted_skill(assigned_skill) == 1) {
+            return skill_family(assigned_skill) == receipt_family;
+        } else {
+            return assigned_skill != assigned_skill;
+        }
+    }
+
     // The OP a skill implies = its low byte, which equals tri_compute_receipt's
     // GF_MUL (0x11) / GF_ADD (0x10) by construction. Exposing it lets a caller
     // check the A2A skill and the receipt's bound gf_op AGREE (an assigned mul
@@ -274,5 +301,28 @@ module TriA2A {
         assert(is_fresh(0x0E, 0x0F) == false, "older task_id rejected");
         assert(next_watermark(0x10, 0x0F) == 0x10, "watermark advances on fresh");
         assert(next_watermark(0x0E, 0x0F) == 0x0F, "watermark holds on stale");
+    }
+
+    // is_hosted_skill recognizes exactly the six known skills; everything else,
+    // including a GF-T-looking unenumerated id, is NOT hosted.
+    test hosted_skill_set {
+        assert(is_hosted_skill(SKILL_GF16_MUL) == 1, "GF16 mul is hosted");
+        assert(is_hosted_skill(SKILL_GFT8_ADD) == 1, "GF-T8 add is hosted");
+        assert(is_hosted_skill(0xA412) == 0, "a GF-T4-looking id (0xA412) is NOT hosted");
+        assert(is_hosted_skill(0xA511) == 0, "a GF-T32-looking id is NOT hosted");
+        assert(is_hosted_skill(0xDEAD) == 0, "garbage skill is NOT hosted");
+    }
+
+    // The misclassification the strict gate closes: skill_family DEFAULTS an
+    // unenumerated GF-T skill to binary, but family_matches_strict rejects it
+    // because it is not hosted -- so it can never accept a binary receipt.
+    test strict_family_rejects_unhosted {
+        assert(skill_family(0xA412) == FMT_GF_BINARY, "skill_family WRONGLY defaults the GF-T4-looking id to binary");
+        assert(family_matches(0xA412, FMT_GF_BINARY) == true, "the bare gate would accept a binary receipt for it (the bug)");
+        assert(family_matches_strict(0xA412, FMT_GF_BINARY) == false, "strict rejects the unhosted skill -> no wrong-family receipt");
+        // hosted skills behave exactly like the bare gate.
+        assert(family_matches_strict(SKILL_GFT16_MUL, FMT_GFT) == true, "hosted GF-T skill + GF-T receipt matches");
+        assert(family_matches_strict(SKILL_GF16_MUL, FMT_GF_BINARY) == true, "hosted binary skill + binary receipt matches");
+        assert(family_matches_strict(SKILL_GFT16_MUL, FMT_GF_BINARY) == false, "hosted GF-T skill + binary receipt rejected");
     }
 }
