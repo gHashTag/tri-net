@@ -28,6 +28,18 @@ module TriComputeReceipt {
     const SHA_PAD: u32 = 0x80000000;         // SHA-256 padding: the 0x80 byte after the message
     const DIGEST_MSG_BITS: u32 = 288;        // 9 message words * 32 bits = 36 bytes = 288 bits
 
+    // --- Settled-ledger head (opt 3). The head a peer audits should commit not just
+    // the receipt but the RESULTING BALANCE: then verifying the head verifies the
+    // whole settled state, not only that compute happened. ledger_entry_pre lays out
+    // the canonical TWO-message-block SHA-256 preimage of one ledger entry
+    //   prev_head(256) || receipt_digest(256) || balance_after || epoch || TAG_LEDGER
+    // (block 1 = the two 256-bit values; block 2 = balance/epoch/tag + padding). The
+    // head = SHA-256 over it (two-block, via tri_sha256.sha256_compress) in the
+    // binary wrapper. Replaces the 32-bit chain_step_full for the audited head.
+    const TAG_LEDGER: u32 = 0x54524C47;      // "TRLG" -- ledger-entry domain tag
+    const LEDGER_GENESIS: u32 = 0x54524C30;  // "TRL0" -- genesis head seed (word 0; rest 0)
+    const LEDGER_MSG_BITS: u32 = 608;        // 19 message words * 32 bits = 76 bytes = 608 bits
+
     // The GoldenFloat workload this receipt exists to attest. The actual GF
     // arithmetic is the proven GF line (t27 specs/numeric/gf*.t27 -> gen-verilog
     // -> gf16_mul_ax7203, GF16 @ ~322 MHz) -- NOT re-implemented here; the receipt
@@ -180,6 +192,36 @@ module TriComputeReceipt {
     // hi lane now changes the head.
     fn chain_step_full(prev_head: u32, digest: u32) -> u32 {
         return mix32(prev_head ^ mix32(digest ^ R_C2));
+    }
+
+    // Canonical two-block SHA-256 preimage of a settled-ledger entry: word `idx`
+    // (0..31) over two 512-bit blocks. Block 1 (0..15) is prev_head(8) || digest(8);
+    // block 2 (16..31) is balance_after, epoch, TAG_LEDGER, then the SHA-256 padding
+    // for a 76-byte message. The 256-bit head = sha256_compress(IV, block1) then
+    // sha256_compress(that, block2), composed in the binary wrapper.
+    fn ledger_entry_pre(idx: u32, ph0: u32, ph1: u32, ph2: u32, ph3: u32, ph4: u32, ph5: u32, ph6: u32, ph7: u32, d0: u32, d1: u32, d2: u32, d3: u32, d4: u32, d5: u32, d6: u32, d7: u32, balance: u32, epoch: u32) -> u32 {
+        if (idx == 0) { return ph0; }
+        if (idx == 1) { return ph1; }
+        if (idx == 2) { return ph2; }
+        if (idx == 3) { return ph3; }
+        if (idx == 4) { return ph4; }
+        if (idx == 5) { return ph5; }
+        if (idx == 6) { return ph6; }
+        if (idx == 7) { return ph7; }
+        if (idx == 8) { return d0; }
+        if (idx == 9) { return d1; }
+        if (idx == 10) { return d2; }
+        if (idx == 11) { return d3; }
+        if (idx == 12) { return d4; }
+        if (idx == 13) { return d5; }
+        if (idx == 14) { return d6; }
+        if (idx == 15) { return d7; }
+        if (idx == 16) { return balance; }
+        if (idx == 17) { return epoch; }
+        if (idx == 18) { return TAG_LEDGER; }
+        if (idx == 19) { return SHA_PAD; }
+        if (idx == 31) { return LEDGER_MSG_BITS; }
+        return 0;
     }
 
     fn verify_chain3_full(d0: u32, d1: u32, d2: u32, claimed: u32) -> bool {
@@ -347,5 +389,20 @@ module TriComputeReceipt {
     test sha256_preimage_domain_sep {
         assert(digest_pre(0, 0, 0, 0, 0, 0, 0, 0, 0) == TAG_RECEIPT, "tag fixed even for all-zero fields");
         assert(TAG_RECEIPT != 0, "domain tag is non-zero");
+    }
+
+    // The settled-ledger entry preimage places prev_head in block 1 words 0..7, the
+    // receipt digest in words 8..15, then balance/epoch/tag and the SHA padding in
+    // block 2 -- so the two-block head commits the balance, not just the receipt.
+    // (Full two-block bit-exactness vs hashlib is proven by trinet_ledger_chain.)
+    test ledger_entry_layout {
+        assert(ledger_entry_pre(0, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) == 0xAA, "prev_head word 0 at idx 0");
+        assert(ledger_entry_pre(8, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) == 0xD0, "digest word 0 at idx 8");
+        assert(ledger_entry_pre(16, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) == 1000, "balance_after at idx 16");
+        assert(ledger_entry_pre(17, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) == 9, "epoch at idx 17");
+        assert(ledger_entry_pre(18, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) == TAG_LEDGER, "ledger tag at idx 18");
+        assert(ledger_entry_pre(19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == SHA_PAD, "SHA pad marker at idx 19");
+        assert(ledger_entry_pre(31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == LEDGER_MSG_BITS, "608-bit length at idx 31");
+        assert(ledger_entry_pre(24, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) == 0, "interior padding word is zero");
     }
 }
