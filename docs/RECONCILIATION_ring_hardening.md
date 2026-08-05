@@ -154,5 +154,19 @@ GF recompute, so #110's arithmetic and this ternary check compose without confli
 4. Re-run the verify-gate: `t27c typecheck` all `tri_compute_*` + `tri_a2a*`, gen-rust
    all, `cargo build` the compute bins, run the lifecycle smokes.
 
+### Test-merge confirmation (throwaway, verified against origin/main ded12d0..15ec65f)
+
+A `git merge --no-commit feat/ring-hardening` into a throwaway copy of `origin/main`
+produced **14 conflicted files, EVERY ONE an `add/add` textual conflict** -- both
+sides appended to the same regions. There is **not one semantic/design conflict**.
+Each resolves by taking my branch's version, which is either a pure addition (a2a
+`is_hosted_skill`/`next_watermark_settled`, the collateralization block, etc.) or a
+strict improvement of a function main left unchanged (e.g. `bond_state_after`: main
+still has `else -> ST_SLASHED`; my branch has the non-terminal-outcome fix). Conflicted
+files: a2a, a2a_wire, account, bitnet, bond, challenge, gfvalid, payout, pool, receipt,
+reputation, safety, settle, trinet_a2a_node.rs. So the merge is a mechanical
+"accept-branch / keep-both" resolution across ~14 files, then the verify-gate -- no
+design decision anywhere.
+
 Contact: this branch's session. Do not autonomous-merge -- see memory
 `trinet-ring-hardening-divergence`.
