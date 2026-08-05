@@ -50,11 +50,24 @@ fn compute_ok(gf_op: u32, width: u32, sign_a: u32, sign_b: u32, oa: u32, ma: u32
     let mant_one = lad::gft_mant_one(et);
     let mant_bits = lad::gft_mant_bits(et);
     let sig_bits = mant_bits + 1;
-    let mul = if gmul::verify_gft_mul_full_p(oa, ma, ob, mb, claimed_off, claimed_mant, bias, omax, mant_one) { 1u32 } else { 0 };
-    let add = if sign_a == sign_b {
-        if gadd::verify_gft_add_p(oa, ob, ma, mb, claimed_off, claimed_mant, omax, mant_one, sig_bits) { 1u32 } else { 0 }
+    // GF-T4/8/16 are u32-safe; GF-T32's 25-bit mantissa overflows u32 in multiply and
+    // subtract, so it uses the u64 verifies (ADD stays u32-safe). ALIGN_CAP_U64 = 38.
+    let (mul, add) = if width == 32 {
+        let m = gmul::verify_gft_mul_full_u64(oa, ma as u64, ob, mb as u64, claimed_off, claimed_mant, bias, omax, mant_one as u64);
+        let a = if sign_a == sign_b {
+            gadd::verify_gft_add_p(oa, ob, ma, mb, claimed_off, claimed_mant, omax, mant_one, sig_bits)
+        } else {
+            gsub::verify_gft_sub_u64(oa, ob, ma as u64, mb as u64, claimed_off, claimed_mant, mant_one as u64, mant_bits, 38)
+        };
+        (if m { 1u32 } else { 0 }, if a { 1u32 } else { 0 })
     } else {
-        if gsub::verify_gft_sub_p(oa, ob, ma, mb, claimed_off, claimed_mant, mant_one, mant_bits) { 1u32 } else { 0 }
+        let m = if gmul::verify_gft_mul_full_p(oa, ma, ob, mb, claimed_off, claimed_mant, bias, omax, mant_one) { 1u32 } else { 0 };
+        let a = if sign_a == sign_b {
+            if gadd::verify_gft_add_p(oa, ob, ma, mb, claimed_off, claimed_mant, omax, mant_one, sig_bits) { 1u32 } else { 0 }
+        } else {
+            if gsub::verify_gft_sub_p(oa, ob, ma, mb, claimed_off, claimed_mant, mant_one, mant_bits) { 1u32 } else { 0 }
+        };
+        (m, a)
     };
     rv::compute_ok_for_op(gf_op, mul, add)
 }
@@ -194,6 +207,12 @@ fn main() {
     // And a GF-T8 result mis-checked as GF-T16 (wrong width) would NOT recompute:
     let cok_wrongwidth = compute_ok(gfop, 16, 0, 0, 13, 8, 13, 8, 14, 2);
     assert_eq!(cok_wrongwidth, 0, "GF-T8 result under GF-T16 geometry is rejected (wrong rung)");
+
+    // GF-T32 too (the u64 path): mul 1.5*1.5 -> exp 365, mant 2^22 (offsets 364, M 2^24).
+    let cok_gft32 = compute_ok(gfop, 32, 0, 0, 364, 16777216, 364, 16777216, 365, 4194304);
+    assert_eq!(cok_gft32, 1, "a GF-T32 result verifies under GF-T32 (u64) geometry at the node");
+    let cok_gft32_bad = compute_ok(gfop, 32, 0, 0, 364, 16777216, 364, 16777216, 364, 4194304);
+    assert_eq!(cok_gft32_bad, 0, "a GF-T32 result with the wrong exponent is rejected");
 
     // FRESHNESS (anti-replay): the node keeps a high-water mark of the last settled
     // task_id; a taskResult settles only if its id is strictly newer (tri_a2a.is_fresh).
