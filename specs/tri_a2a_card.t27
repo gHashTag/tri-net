@@ -1,0 +1,133 @@
+// TRI-NET A2A agent card: what a node ADVERTISES it can compute, so a requester
+// routes a task only to a host that hosts its (format-family, width). Without this,
+// tri_a2a knows a skill's family (skill_family) but nothing checks a HOST actually
+// serves it -- a GF-T16 task could be sent to a GF16-only node and silently fail.
+//
+// The card packs two masks into one u32 (no allocation, fits a heartbeat body):
+//   card = (family_mask << 16) | width_mask
+// family_mask: bit f set means format family f is hosted (bit 0 = GF binary,
+//   bit 1 = GF-T ternary; matches tri_compute_receipt FMT_GF_BINARY / FMT_GFT).
+// width_mask: GF widths are powers of two (4,8,16,..,1024), so each width IS its
+//   own bit -- the mask is just the OR of hosted widths, and "hosts width w" is a
+//   single AND. This is the outward ring layer above tri_a2a's family demux.
+
+module TriA2ACard {
+    use base::types;
+
+    // Format families (MUST match tri_compute_receipt / tri_compute_gfvalid).
+    const FMT_GF_BINARY: u32 = 0;   // GF4..GF1024, binary exponent
+    const FMT_GFT: u32 = 1;         // GF-T ladder, balanced-ternary exponent
+
+    // Skill-id high bytes (from tri_a2a): high byte = family+width label.
+    const HI_GF16: u32 = 0x16;      // GF16 binary, width 16
+    const HI_GFT16: u32 = 0xA6;     // GF-T16, width 16
+    const HI_GFT8: u32 = 0xA8;      // GF-T8, width 8
+
+    // The bit a format family occupies in the family mask (1 << family).
+    fn family_bit(family: u32) -> u32 {
+        return 1 << family;
+    }
+
+    // Build a card from a family mask and a width mask.
+    fn make_card(family_mask: u32, width_mask: u32) -> u32 {
+        return (family_mask << 16) | (width_mask & 0xFFFF);
+    }
+
+    // Extract the two masks.
+    fn card_families(card: u32) -> u32 {
+        return card >> 16;
+    }
+    fn card_widths(card: u32) -> u32 {
+        return card & 0xFFFF;
+    }
+
+    // Does the card advertise this format family?
+    fn hosts_family(card: u32, family: u32) -> bool {
+        return (card_families(card) & family_bit(family)) != 0;
+    }
+
+    // Does the card advertise this GF width? (widths are powers of two = single bits)
+    fn hosts_width(card: u32, width: u32) -> bool {
+        return (card_widths(card) & width) != 0;
+    }
+
+    // The routing decision: a host can serve a task requiring (family, width) iff it
+    // advertises BOTH. This is what a requester checks before sending a taskAssign.
+    fn can_serve(card: u32, family: u32, width: u32) -> bool {
+        if (hosts_family(card, family)) {
+            return hosts_width(card, width);
+        } else {
+            return card != card;
+        }
+    }
+
+    // --- Bind to real skill ids: derive (family, width) from a skill's high byte,
+    // so a node can check a concrete advertised/assigned skill against a card.
+
+    fn skill_hi(skill: u32) -> u32 {
+        return (skill >> 8) & 0xFF;
+    }
+
+    // Format family a skill implies (GF-T high bytes are 0xA6 / 0xA8; else binary).
+    fn skill_card_family(skill: u32) -> u32 {
+        if (skill_hi(skill) == HI_GFT16) {
+            return FMT_GFT;
+        } else {
+            if (skill_hi(skill) == HI_GFT8) {
+                return FMT_GFT;
+            } else {
+                return FMT_GF_BINARY;
+            }
+        }
+    }
+
+    // GF width a skill implies (only GF-T8 is width 8; the others here are width 16).
+    fn skill_card_width(skill: u32) -> u32 {
+        if (skill_hi(skill) == HI_GFT8) {
+            return 8;
+        } else {
+            return 16;
+        }
+    }
+
+    // Can this host serve this concrete skill id?
+    fn can_serve_skill(card: u32, skill: u32) -> bool {
+        return can_serve(card, skill_card_family(skill), skill_card_width(skill));
+    }
+
+    // ---- Tests / invariants ----
+
+    // A GF-T16-only host (family GF-T, width 16) serves GF-T16 but NOT GF16 or GF-T8.
+    test gft16_host_routing {
+        c = make_card(family_bit(FMT_GFT), 16);
+        assert(can_serve(c, FMT_GFT, 16) == true, "GF-T16 host serves a GF-T16 task");
+        assert(can_serve(c, FMT_GF_BINARY, 16) == false, "GF-T16 host rejects a binary GF16 task (family)");
+        assert(can_serve(c, FMT_GFT, 8) == false, "GF-T16 host rejects a GF-T8 task (width)");
+    }
+
+    // A multi-width binary host (GF16 + GF32) serves both binary widths, no GF-T.
+    test binary_multiwidth_host {
+        c = make_card(family_bit(FMT_GF_BINARY), 16 | 32);
+        assert(can_serve(c, FMT_GF_BINARY, 16) == true, "serves GF16");
+        assert(can_serve(c, FMT_GF_BINARY, 32) == true, "serves GF32");
+        assert(can_serve(c, FMT_GF_BINARY, 8) == false, "does not serve GF8 (not advertised)");
+        assert(can_serve(c, FMT_GFT, 16) == false, "does not serve any GF-T");
+    }
+
+    // A dual-family host (advertises both families, widths 8 and 16) serves all four.
+    test dual_family_host {
+        c = make_card(family_bit(FMT_GF_BINARY) | family_bit(FMT_GFT), 8 | 16);
+        assert(can_serve(c, FMT_GF_BINARY, 16) == true, "GF16 ok");
+        assert(can_serve(c, FMT_GFT, 16) == true, "GF-T16 ok");
+        assert(can_serve(c, FMT_GFT, 8) == true, "GF-T8 ok");
+        assert(can_serve(c, FMT_GF_BINARY, 32) == false, "GF32 not advertised");
+    }
+
+    // Routing by concrete skill id matches the family/width derivation.
+    test route_by_skill_id {
+        gft = make_card(family_bit(FMT_GFT), 8 | 16);
+        assert(can_serve_skill(gft, 0xA611) == true, "GF-T16 mul routes to a GF-T host");
+        assert(can_serve_skill(gft, 0xA811) == true, "GF-T8 mul routes to a GF-T host");
+        assert(can_serve_skill(gft, 0x1611) == false, "binary GF16 mul does NOT route to a GF-T-only host");
+    }
+}

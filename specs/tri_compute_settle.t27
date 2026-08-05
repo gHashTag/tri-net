@@ -138,6 +138,21 @@ module TriComputeSettle {
         }
     }
 
+    // Authenticity gate: settle ONLY a receipt whose 256-bit digest
+    // (tri_compute_receipt.digest_pre + tri_sha256) carries a VALID executor
+    // Ed25519 signature. sig_ok is set by the Rust crate primitive that verifies
+    // the signature (ed25519-dalek, as tri_depin's epoch_seal); this spec fixes the
+    // POLICY -- no valid signature, no payout, even for a fresh finite receipt. It
+    // closes the forgery gap: settle_full trusts the message envelope, sig_ok binds
+    // the payout to the executor's key.
+    fn settle_signed(prev_balance: u32, gf_width: u32, fresh: u32, gf_result: u32, exp_bits: u32, mant_bits: u32, already_settled: u32, sig_ok: u32) -> u32 {
+        if (sig_ok == 1) {
+            return settle_full(prev_balance, gf_width, fresh, gf_result, exp_bits, mant_bits, already_settled);
+        } else {
+            return balance_add(prev_balance, compute_reward(gf_width, 0));
+        }
+    }
+
     // ---- Tests / invariants ----
 
     // A fresh GF16 receipt pays its width; a replayed one pays zero.
@@ -211,5 +226,15 @@ module TriComputeSettle {
         assert(settle_full(100, 16, 1, 0x4200, 6, 9, 1) == 100, "already settled -> no double pay");
         assert(settle_full(100, 16, 1, 0x7E00, 6, 9, 0) == 100, "inf -> pays nothing");
         assert(settle_full(100, 16, 0, 0x4200, 6, 9, 0) == 100, "stale -> pays nothing");
+    }
+
+    // Signature gate: a valid executor signature is REQUIRED to settle. Freshness
+    // and finiteness still apply on top; a valid signature never bypasses them.
+    // (The signature itself is verified in Rust; here sig_ok drives the policy.)
+    test signed_gate {
+        assert(settle_signed(1000, 16, 1, 0x4100, 6, 9, 0, 1) == 1016, "valid sig + fresh + finite settles the reward");
+        assert(settle_signed(1000, 16, 1, 0x4100, 6, 9, 0, 0) == 1000, "no valid sig -> no payout even if fresh+finite");
+        assert(settle_signed(1000, 16, 0, 0x4100, 6, 9, 0, 1) == 1000, "valid sig does not bypass freshness");
+        assert(settle_signed(1000, 16, 1, 0x7E00, 6, 9, 0, 1) == 1000, "valid sig does not bypass the finiteness gate");
     }
 }
