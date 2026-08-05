@@ -56,34 +56,37 @@ module TriGftArith {
     // and needs a RENORMALIZATION CARRY: the exponent gains +1 and the significand
     // is halved. gft_mul_offset above omitted this carry -- so it was correct only
     // when the mantissa product did not overflow. These close that gap.
-    const MANT_ONE: u32 = 512;               // 2^9: the implicit-1 significand scale
-    const MANT_PROD_CARRY: u32 = 524288;     // 2 * 512^2: significand product >= 2
+    const MANT_ONE: u32 = 512;               // 2^9: the GF-T16 implicit-1 significand scale
+
+    // --- Per-rung parametric multiply. `mant_one` = 2^MANT for the rung (GF-T4 -> 2,
+    // GF-T8 -> 16, GF-T16 -> 512; see tri_gft_ladder.gft_mant_one). u32-safe for these
+    // rungs. GF-T32 (25-bit mantissa) needs u64 and is blocked by a t27c u64-compare
+    // codegen defect, so it is NOT covered here.
 
     // 1 if the mantissa product renormalizes (exponent +1), else 0.
-    fn gft_mul_mant_carry(ma: u32, mb: u32) -> u32 {
-        let prod: u32 = (MANT_ONE + ma) * (MANT_ONE + mb);
-        if (prod >= MANT_PROD_CARRY) {
+    fn gft_mul_mant_carry_p(ma: u32, mb: u32, mant_one: u32) -> u32 {
+        let prod: u32 = (mant_one + ma) * (mant_one + mb);
+        if (prod >= (2 * mant_one) * mant_one) {
             return 1;
         } else {
             return 0;
         }
     }
 
-    // The 9-bit result mantissa (round-toward-zero): with a carry the significand is
-    // halved (divide by 1024), else by 512; then drop the implicit 1 (subtract 512).
-    fn gft_mul_mant(ma: u32, mb: u32) -> u32 {
-        let prod: u32 = (MANT_ONE + ma) * (MANT_ONE + mb);
-        if (prod >= MANT_PROD_CARRY) {
-            return (prod / (2 * MANT_ONE)) - MANT_ONE;
+    // The result mantissa (round-toward-zero): halve the significand on a carry, then
+    // drop the implicit 1.
+    fn gft_mul_mant_p(ma: u32, mb: u32, mant_one: u32) -> u32 {
+        let prod: u32 = (mant_one + ma) * (mant_one + mb);
+        if (prod >= (2 * mant_one) * mant_one) {
+            return (prod / (2 * mant_one)) - mant_one;
         } else {
-            return (prod / MANT_ONE) - MANT_ONE;
+            return (prod / mant_one) - mant_one;
         }
     }
 
-    // The FULL result exponent offset INCLUDING the mantissa renormalization carry
-    // (the piece gft_mul_offset omitted). Saturating like gft_mul_offset.
-    fn gft_mul_offset_full(offset_a: u32, ma: u32, offset_b: u32, mb: u32, bias: u32, offset_max: u32) -> u32 {
-        let carry: u32 = gft_mul_mant_carry(ma, mb);
+    // The FULL result exponent offset including the mantissa renormalization carry.
+    fn gft_mul_offset_full_p(offset_a: u32, ma: u32, offset_b: u32, mb: u32, bias: u32, offset_max: u32, mant_one: u32) -> u32 {
+        let carry: u32 = gft_mul_mant_carry_p(ma, mb, mant_one);
         let sum: u32 = offset_a + offset_b + carry;
         if (sum < bias) {
             return 0;
@@ -95,6 +98,28 @@ module TriGftArith {
                 return result;
             }
         }
+    }
+
+    // Verify a per-rung claimed multiply result (exponent + mantissa) against the
+    // rung's bias / offset_max / mantissa scale.
+    fn verify_gft_mul_full_p(offset_a: u32, ma: u32, offset_b: u32, mb: u32, claimed_offset: u32, claimed_mant: u32, bias: u32, offset_max: u32, mant_one: u32) -> bool {
+        if (gft_mul_offset_full_p(offset_a, ma, offset_b, mb, bias, offset_max, mant_one) == claimed_offset) {
+            return gft_mul_mant_p(ma, mb, mant_one) == claimed_mant;
+        } else {
+            return offset_a != offset_a;
+        }
+    }
+
+    // GF-T16 (mant_one = 512): the original entry points, now thin views of the
+    // parametric form (unchanged behavior; existing callers/tests unaffected).
+    fn gft_mul_mant_carry(ma: u32, mb: u32) -> u32 {
+        return gft_mul_mant_carry_p(ma, mb, MANT_ONE);
+    }
+    fn gft_mul_mant(ma: u32, mb: u32) -> u32 {
+        return gft_mul_mant_p(ma, mb, MANT_ONE);
+    }
+    fn gft_mul_offset_full(offset_a: u32, ma: u32, offset_b: u32, mb: u32, bias: u32, offset_max: u32) -> u32 {
+        return gft_mul_offset_full_p(offset_a, ma, offset_b, mb, bias, offset_max, MANT_ONE);
     }
 
     // Verify a FULL claimed GF-T multiply result -- both the exponent offset (with
@@ -188,5 +213,23 @@ module TriGftArith {
         assert(gft_mul_result(41, 0, 41, 0, GFT16_BIAS, GFT16_OFFSET_MAX) == gft_result_encode(42, 0), "phi^1*phi^1 recomputes to encoded (42,0)");
         assert(gft_mul_result(41, 256, 41, 256, GFT16_BIAS, GFT16_OFFSET_MAX) == gft_result_encode(43, 64), "1.5*1.5 recomputes to encoded (43,64)");
         assert(gft_mul_result(41, 0, 41, 0, GFT16_BIAS, GFT16_OFFSET_MAX) != gft_result_encode(43, 0), "a wrong claimed result differs");
+    }
+
+    // Per-rung multiply recompute (mant_one from tri_gft_ladder.gft_mant_one):
+    // GF-T16 (512) unchanged; GF-T8 (16) and GF-T4 (2) now verify too. (GF-T16 bias 40,
+    // offset_max 80; GF-T8 bias 13, offset_max 26; GF-T4 bias 4, offset_max 8.)
+    test per_rung_multiply {
+        // GF-T16 view equals the original: unity*unity and 1.5*1.5 with carry.
+        assert(gft_mul_offset_full_p(40, 0, 40, 0, 40, 80, 512) == 40, "GF-T16 unity*unity offset 40");
+        assert(gft_mul_offset_full_p(41, 256, 41, 256, 40, 80, 512) == 43, "GF-T16 1.5*1.5 carry -> 43");
+        assert(gft_mul_mant_p(256, 256, 512) == 64, "GF-T16 1.5*1.5 mantissa 64");
+        // GF-T8: mant_one 16, M=8 is 1.5. 1.5*1.5=2.25 carries -> mantissa 2, exponent +1.
+        assert(gft_mul_mant_carry_p(8, 8, 16) == 1, "GF-T8 1.5*1.5 carries");
+        assert(gft_mul_mant_p(8, 8, 16) == 2, "GF-T8 1.5*1.5 -> mantissa 2");
+        assert(verify_gft_mul_full_p(13, 8, 13, 8, 14, 2, 13, 26, 16) == true, "GF-T8 1.5*1.5 = exp 14, mant 2");
+        assert(verify_gft_mul_full_p(13, 0, 13, 0, 13, 0, 13, 26, 16) == true, "GF-T8 unity*unity = exp 13, mant 0");
+        // GF-T4: mant_one 2, M=1 is 1.5. 1.5*1.5=2.25 carries -> mantissa 0, exponent +1.
+        assert(verify_gft_mul_full_p(4, 1, 4, 1, 5, 0, 4, 8, 2) == true, "GF-T4 1.5*1.5 = exp 5, mant 0");
+        assert(verify_gft_mul_full_p(4, 1, 4, 1, 4, 0, 4, 8, 2) == false, "GF-T4 wrong exponent rejected");
     }
 }
