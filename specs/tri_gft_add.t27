@@ -1,0 +1,122 @@
+// TRI-NET verifiable GF-T16 ADDITION (same-sign). tri_gft_arith recomputes a GF-T
+// multiply so a verifier can catch a wrong product; ADD is the other hosted skill
+// (SKILL_GFT16_ADD) and was NOT verifiable. This adds the same-sign add recompute:
+// align the smaller operand to the larger exponent, add the significands, and
+// renormalize a single carry -- so a receipt claiming a GF-T add result can be
+// checked, not just trusted.
+//
+// GF-T16 value = (1 + M/512) * 2^e (see t27 specs/numeric/gft16.t27,
+// [sign | 4 exp trits | 9 mant bits]); offsets are the biased exponents. For two
+// SAME-SIGN operands the magnitudes add: put the larger exponent's significand as
+// (512 + Ma), shift the smaller's (512 + Mb) right by the exponent difference d,
+// add. The 10-bit significand sum is in [512, 2046); if it reaches 1024 the result
+// gains one exponent step and the significand halves. Rounding is toward zero (must
+// match the executor's convention). DIFFERENT-sign (subtractive) add -- which needs
+// variable-width cancellation normalization -- is deferred; use gft_add only when
+// the operand signs are equal (gft_mul_sign == 0 for the pair is NOT the test; the
+// caller supplies same-sign magnitudes).
+
+module TriGftAdd {
+    use base::types;
+
+    const MANT_ONE: u32 = 512;           // 2^9 significand scale (implicit 1)
+    const SIG_BITS: u32 = 10;            // significand 512..1023 is 10 bits wide
+    const CARRY_AT: u32 = 1024;          // 2 * 512: significand sum needs renorm
+
+    // The smaller operand's significand aligned to the larger exponent: (512 + mb)
+    // >> d, or 0 once d shifts every bit out (avoids a >=width shift).
+    fn gft_add_sb(mb: u32, d: u32) -> u32 {
+        if (d >= SIG_BITS) {
+            return 0;
+        } else {
+            return (MANT_ONE + mb) >> d;
+        }
+    }
+
+    // Result exponent offset of a same-sign add with offset_a >= offset_b: the larger
+    // exponent, plus one on a significand carry, saturating to the special row.
+    fn gft_add_offset(offset_a: u32, offset_b: u32, ma: u32, mb: u32, offset_max: u32) -> u32 {
+        let d: u32 = offset_a - offset_b;
+        let sum: u32 = (MANT_ONE + ma) + gft_add_sb(mb, d);
+        if (sum >= CARRY_AT) {
+            let e: u32 = offset_a + 1;
+            if (e >= offset_max) {
+                return offset_max;
+            } else {
+                return e;
+            }
+        } else {
+            return offset_a;
+        }
+    }
+
+    // Result 9-bit mantissa of a same-sign add with offset_a >= offset_b (round toward
+    // zero): halve the significand on a carry, then drop the implicit 1.
+    fn gft_add_mant(offset_a: u32, offset_b: u32, ma: u32, mb: u32) -> u32 {
+        let d: u32 = offset_a - offset_b;
+        let sum: u32 = (MANT_ONE + ma) + gft_add_sb(mb, d);
+        if (sum >= CARRY_AT) {
+            return (sum >> 1) - MANT_ONE;
+        } else {
+            return sum - MANT_ONE;
+        }
+    }
+
+    // Order-independent entries: the caller need not pre-sort the operands.
+    fn gft_add_offset_c(oa: u32, ob: u32, ma: u32, mb: u32, offset_max: u32) -> u32 {
+        if (oa >= ob) {
+            return gft_add_offset(oa, ob, ma, mb, offset_max);
+        } else {
+            return gft_add_offset(ob, oa, mb, ma, offset_max);
+        }
+    }
+    fn gft_add_mant_c(oa: u32, ob: u32, ma: u32, mb: u32) -> u32 {
+        if (oa >= ob) {
+            return gft_add_mant(oa, ob, ma, mb);
+        } else {
+            return gft_add_mant(ob, oa, mb, ma);
+        }
+    }
+
+    // A verifier accepts a claimed same-sign GF-T add result iff BOTH its exponent
+    // offset and its mantissa recompute.
+    fn verify_gft_add(oa: u32, ob: u32, ma: u32, mb: u32, claimed_offset: u32, claimed_mant: u32, offset_max: u32) -> bool {
+        if (gft_add_offset_c(oa, ob, ma, mb, offset_max) == claimed_offset) {
+            return gft_add_mant_c(oa, ob, ma, mb) == claimed_mant;
+        } else {
+            return oa != oa;
+        }
+    }
+
+    // ---- Tests / invariants ---- (GF-T16 offset 40 = 2^0; M=0 -> 1.0, M=256 -> 1.5)
+
+    // Equal operands double: 1.0 + 1.0 = 2.0 (exponent +1, mantissa 0).
+    test add_doubles {
+        assert(gft_add_offset_c(40, 40, 0, 0, 80) == 41, "1.0 + 1.0 = 2.0 -> exponent 41");
+        assert(gft_add_mant_c(40, 40, 0, 0) == 0, "2.0 mantissa 0");
+        assert(gft_add_offset_c(40, 40, 256, 256, 80) == 41, "1.5 + 1.5 = 3.0 -> exponent 41");
+        assert(gft_add_mant_c(40, 40, 256, 256) == 256, "3.0 = 1.5 * 2^1 -> mantissa 256");
+    }
+
+    // Unequal exponents align: 1.0 (2^0) + 1.0 (2^-1 = 0.5) = 1.5, no carry.
+    test add_aligns {
+        assert(gft_add_offset_c(40, 39, 0, 0, 80) == 40, "1.0 + 0.5 = 1.5 -> exponent 40");
+        assert(gft_add_mant_c(40, 39, 0, 0) == 256, "1.5 -> mantissa 256");
+        // order independence
+        assert(gft_add_offset_c(39, 40, 0, 0, 80) == 40, "0.5 + 1.0 == 1.0 + 0.5 (offset)");
+        assert(gft_add_mant_c(39, 40, 0, 0) == 256, "0.5 + 1.0 == 1.0 + 0.5 (mant)");
+    }
+
+    // A far-smaller operand is absorbed: 2^20 + 2^0 ~= 2^20 (b negligible).
+    test add_absorbs_small {
+        assert(gft_add_offset_c(60, 40, 100, 200, 80) == 60, "big + tiny keeps big's exponent");
+        assert(gft_add_mant_c(60, 40, 100, 200) == 100, "big + tiny keeps big's mantissa");
+    }
+
+    // The verifier accepts an honest add and rejects a wrong claimed result.
+    test verify_catches_add_fraud {
+        assert(verify_gft_add(40, 40, 0, 0, 41, 0, 80) == true, "honest 1.0+1.0=2.0 accepted");
+        assert(verify_gft_add(40, 40, 0, 0, 40, 0, 80) == false, "wrong exponent (missed carry) rejected");
+        assert(verify_gft_add(40, 39, 0, 0, 40, 255, 80) == false, "wrong mantissa rejected");
+    }
+}
