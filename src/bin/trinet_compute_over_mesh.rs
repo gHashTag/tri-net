@@ -5,16 +5,18 @@
 //!   1. the requester seals a TASK_ASSIGN (op + the two GF-T operands, mantissa packed
 //!      via tri_a2a_wire.assign_mant) and a BLIND relay forwards it (no key -> ciphertext);
 //!   2. the executor OPENS it, computes on the operands it actually received, signs the
-//!      256-bit input-bound receipt, and seals a TASK_RESULT back;
-//!   3. the requester opens the result and settles with the same gate (signature +
-//!      GF-T recompute + freshness) -- crucially recomputing the operand commitment from
-//!      the operands IT SENT, so the input binding is proven end-to-end over the wire,
-//!      not via shared local state.
+//!      256-bit input-bound receipt, presents its Ed25519 public key + claimed executor
+//!      id, and seals a TASK_RESULT back;
+//!   3. the requester opens the result and settles with the full gate: WHO (the signer's
+//!      key commits to the claimed executor: executor_id = SHA-256(pubkey)[0..4]) + input
+//!      binding (operand commitment recomputed from the operands IT SENT) + GF-T recompute
+//!      + freshness. So identity and inputs are both bound end-to-end, over the wire.
 //! Sealing is real ChaCha20-Poly1305 under a crypto_frame nonce (nonce_byte) with the
-//! 12-byte epoch||counter header as AEAD associated data. Negatives: a tampered assign
-//! or result fails to open; a replayed counter is rejected by the crypto_frame window.
-//! Crypto primitives are Rust crates (not spec logic); frame/nonce/replay/wire LAYOUT is
-//! generated from crypto_frame.t27 / tri_a2a_wire.t27 / tri_a2a.t27.
+//! 12-byte epoch||counter header as AEAD associated data. Negatives: a tampered assign or
+//! result fails to open; a replayed counter is rejected; an operand-swapped receipt fails
+//! the input binding; a receipt claiming an executor it does not hold the key for fails WHO.
+//! Crypto primitives are Rust crates (not spec logic); frame/nonce/replay/wire/identity
+//! LAYOUT is generated from crypto_frame.t27 / tri_a2a_wire.t27 / tri_a2a.t27 / tri_node_identity.t27.
 #![allow(dead_code, unused)]
 
 use chacha20poly1305::aead::{Aead, KeyInit, Payload};
@@ -25,6 +27,7 @@ use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 #[path = "../../gen/rust/tri_a2a.rs"] mod a2a;
 #[path = "../../gen/rust/tri_a2a_wire.rs"] mod wire;
 #[path = "../../gen/rust/tri_sha256.rs"] mod sha;
+#[path = "../../gen/rust/tri_node_identity.rs"] mod ident;
 #[path = "../../gen/rust/tri_compute_receipt.rs"] mod receipt;
 #[path = "../../gen/rust/tri_compute_settle.rs"] mod settle;
 #[path = "../../gen/rust/tri_gft_arith.rs"] mod gmul;
@@ -76,6 +79,26 @@ fn read_word(b: &[u8], word_idx: usize) -> u32 {
     u32::from_be_bytes([b[o], b[o + 1], b[o + 2], b[o + 3]])
 }
 
+/// A TASK_RESULT plaintext: [class,task,skill,out] words, claimed_executor word, 32-byte
+/// pubkey, 64-byte signature. Byte layout: out@12, exec@16, pubkey@20..52, sig@52..116.
+fn build_result(task: u32, skill: u32, out: u32, claimed_exec: u32, pubkey: &[u8; 32], sig: &[u8; 64]) -> Vec<u8> {
+    let mut v: Vec<u8> = Vec::new();
+    for hw in [wire::MSG_TASK_RESULT, task, skill, out] { push_word(&mut v, hw); }
+    push_word(&mut v, claimed_exec);
+    v.extend_from_slice(pubkey);
+    v.extend_from_slice(sig);
+    v
+}
+
+/// executor_id = low 32 bits of SHA-256(pubkey), via the generated identity spec.
+fn executor_id(pubkey: &[u8; 32]) -> u32 {
+    let mut k = [0u32; 8];
+    let mut i = 0usize;
+    while i < 8 { k[i] = u32::from_be_bytes([pubkey[i * 4], pubkey[i * 4 + 1], pubkey[i * 4 + 2], pubkey[i * 4 + 3]]); i += 1; }
+    let w = |j: u32| ident::pubkey_pre(j, k[0], k[1], k[2], k[3], k[4], k[5], k[6], k[7]);
+    sha::sha256_word(w(0), w(1), w(2), w(3), w(4), w(5), w(6), w(7), w(8), w(9), w(10), w(11), w(12), w(13), w(14), w(15), 0)
+}
+
 fn operand_hash256(op: u32, a_off: u32, a_mant: u32, b_off: u32, b_mant: u32) -> [u32; 8] {
     let w = |i: u32| wire::operand_pre(i, op, a_off, a_mant, b_off, b_mant);
     let mut h = [0u32; 8];
@@ -101,6 +124,10 @@ fn digest_bytes(d: &[u32; 8]) -> [u8; 32] {
     while i < 8 { b[i * 4..i * 4 + 4].copy_from_slice(&d[i].to_be_bytes()); i += 1; }
     b
 }
+
+// Result byte offsets (see build_result).
+const R_PUBKEY: usize = 20;
+const R_SIG: usize = 52;
 
 fn main() {
     // Two channels of one AKE session (real keys = mesh handshake, W3b/B'; fixed for a KAT).
@@ -144,37 +171,42 @@ fn main() {
     let d = input_digest(task, dev, exe, gfop, &oh_exec, out, ep, receipt::RECEIPT_GENESIS);
     let sk = SigningKey::from_bytes(&[7u8; 32]);
     let vk = sk.verifying_key();
+    let pubkey = vk.to_bytes();
     let sig = sk.sign(&digest_bytes(&d));
-
-    // Executor seals a TASK_RESULT: [class, task, skill, out] words + 64-byte signature.
-    let mut result_pt: Vec<u8> = Vec::new();
-    for hw in [wire::MSG_TASK_RESULT, task, skill, out] { push_word(&mut result_pt, hw); }
-    result_pt.extend_from_slice(&sig.to_bytes());
+    // The executor presents its key and its honest identity id = SHA-256(pubkey)[0..4].
+    let my_exec_id = executor_id(&pubkey);
+    let result_pt = build_result(task, skill, out, my_exec_id, &pubkey, &sig.to_bytes());
     let result_ctr = 0x2002u64;
     let result_frame = seal(&cipher, dir_result, epoch, result_ctr, &result_pt);
     assert!(cf::frame_len_ok(result_frame.len()), "result frame within bounds");
 
-    // ===== LEG 3: requester opens the result and settles. It recomputes the operand
-    // commitment from the operands IT SENT -- so the signature only verifies if the
-    // executor committed the SAME operands (end-to-end input binding, over the wire). =====
+    // ===== LEG 3: requester opens the result and settles under the full WHO + input gate. =====
     let res = open(&cipher, dir_result, &result_frame).expect("requester opens the result");
     assert_eq!(res, result_pt, "signed receipt survives mesh transit byte-exact");
     let r_class = read_word(&res, 0);
     let r_out = read_word(&res, 3);
+    let claimed_exec = read_word(&res, 4);
     assert!(wire::class_valid(r_class) && r_class == wire::MSG_TASK_RESULT, "a valid taskResult");
+    let mut pk = [0u8; 32];
+    pk.copy_from_slice(&res[R_PUBKEY..R_PUBKEY + 32]);
     let mut sigb = [0u8; 64];
-    sigb.copy_from_slice(&res[16..80]);
+    sigb.copy_from_slice(&res[R_SIG..R_SIG + 64]);
     let r_sig = Signature::from_bytes(&sigb);
 
+    // WHO: recompute the executor id from the presented key; the signature must verify
+    // AND the claimed executor must equal that key's commitment (who_ok).
+    let vk_rx = VerifyingKey::from_bytes(&pk).expect("valid key encoding");
+    let id_rx = executor_id(&pk);
     let oh_req = operand_hash256(gfop, a_off, a_mant, b_off, b_mant); // requester's OWN operands
     let d_req = input_digest(task, dev, exe, gfop, &oh_req, r_out, ep, receipt::RECEIPT_GENESIS);
-    let sig_ok = vk.verify(&digest_bytes(&d_req), &r_sig).is_ok();
+    let sig_ok = vk_rx.verify(&digest_bytes(&d_req), &r_sig).is_ok();
+    let who = ident::who_ok(sig_ok as u32, claimed_exec, id_rx);
     let cok = gmul::verify_gft_mul_full_p(a_off, a_mant, b_off, b_mant, 43, 64, lad::gft_bias(e16), lad::gft_offset_max(e16), lad::gft_mant_one(e16));
     let fresh = cf::replay_accept(false, 0, 0, 0, result_ctr);
-    let gate = (sig_ok as u32) & (cok as u32) & (fresh as u32);
+    let gate = (who as u32) & (cok as u32) & (fresh as u32);
     let bal = settle::settle_signed(1000, 16, 1, r_out, 6, 9, 0, gate);
-    assert_eq!((sig_ok, cok, fresh), (true, true, true), "opened receipt verifies end-to-end");
-    assert_eq!(bal, 1016, "signed + correct + fresh receipt settles after a full mesh round-trip");
+    assert_eq!((who, cok, fresh), (true, true, true), "opened receipt verifies end-to-end (WHO + input + recompute + fresh)");
+    assert_eq!(bal, 1016, "authentic bound receipt settles after a full mesh round-trip");
 
     // NEGATIVE 1: a tampered assign does not open (operands cannot be silently altered).
     let mut bad_asg = assign_frame.clone();
@@ -191,33 +223,42 @@ fn main() {
     assert!(!cf::replay_accept(true, top, blo, bhi, result_ctr), "replayed result counter rejected -> no double settle");
 
     // NEGATIVE 4 (operand swap): a cheating executor received (41,256) but signs a receipt
-    // that commits DIFFERENT operands (41,0) -- a genuinely valid signature over its own
-    // digest. It seals and delivers that result. The requester recomputes the operand
-    // commitment from the operands IT ASSIGNED (41,256), so the signature does NOT verify
-    // -> gate is 0 -> nothing settles. This is the input binding as an adversarial claim.
-    let oh_cheat = operand_hash256(gfop, 41, 0, 41, 0); // operands the executor did NOT get
+    // that commits DIFFERENT operands (41,0) -- a valid signature over its own digest. The
+    // requester recomputes the commitment from the ASSIGNED operands, so the signature does
+    // not verify -> WHO fails (sig_ok=0) -> nothing settles.
+    let oh_cheat = operand_hash256(gfop, 41, 0, 41, 0);
     let d_cheat = input_digest(task, dev, exe, gfop, &oh_cheat, out, ep, receipt::RECEIPT_GENESIS);
-    let sig_cheat = sk.sign(&digest_bytes(&d_cheat)); // VALID signature, wrong operands
-    let mut cheat_pt: Vec<u8> = Vec::new();
-    for hw in [wire::MSG_TASK_RESULT, task, skill, out] { push_word(&mut cheat_pt, hw); }
-    cheat_pt.extend_from_slice(&sig_cheat.to_bytes());
-    let cheat_frame = seal(&cipher, dir_result, epoch, 0x2003u64, &cheat_pt);
-    let cheat_res = open(&cipher, dir_result, &cheat_frame).expect("cheat result opens (it is well-sealed)");
+    let sig_cheat = sk.sign(&digest_bytes(&d_cheat));
+    let cheat_pt = build_result(task, skill, out, my_exec_id, &pubkey, &sig_cheat.to_bytes());
+    let cheat_res = open(&cipher, dir_result, &seal(&cipher, dir_result, epoch, 0x2003u64, &cheat_pt)).expect("cheat result opens (well-sealed)");
     let mut csb = [0u8; 64];
-    csb.copy_from_slice(&cheat_res[16..80]);
-    let cheat_sig = Signature::from_bytes(&csb);
-    // Requester verifies against the digest over the ASSIGNED operands (41,256).
-    let cheat_sig_ok = vk.verify(&digest_bytes(&d_req), &cheat_sig).is_ok();
-    let cheat_gate = (cheat_sig_ok as u32) & (cok as u32) & 1u32;
-    let cheat_bal = settle::settle_signed(1000, 16, 1, out, 6, 9, 0, cheat_gate);
+    csb.copy_from_slice(&cheat_res[R_SIG..R_SIG + 64]);
+    let cheat_sig_ok = vk_rx.verify(&digest_bytes(&d_req), &Signature::from_bytes(&csb)).is_ok();
+    let cheat_bal = settle::settle_signed(1000, 16, 1, out, 6, 9, 0, (ident::who_ok(cheat_sig_ok as u32, my_exec_id, id_rx) as u32) & (cok as u32) & 1);
     assert!(!cheat_sig_ok, "a receipt committing operands other than those assigned fails the binding");
     assert_eq!(cheat_bal, 1000, "an operand-swapped receipt settles nothing");
 
+    // NEGATIVE 5 (identity swap): the node signs with ITS key (a valid signature over the
+    // honest digest) but claims a DIFFERENT executor id (0xE0E0). The requester recomputes
+    // the id from the presented key; the claim does not match -> who_ok=false -> no settle.
+    // A node cannot spend under an executor id it does not hold the key for.
+    let forged_exec = 0x0000E0E0u32;
+    let idswap_pt = build_result(task, skill, out, forged_exec, &pubkey, &sig.to_bytes());
+    let idswap_res = open(&cipher, dir_result, &seal(&cipher, dir_result, epoch, 0x2004u64, &idswap_pt)).expect("idswap result opens (well-sealed)");
+    let claimed_forged = read_word(&idswap_res, 4);
+    let mut isb = [0u8; 64];
+    isb.copy_from_slice(&idswap_res[R_SIG..R_SIG + 64]);
+    let idswap_sig_ok = vk_rx.verify(&digest_bytes(&d_req), &Signature::from_bytes(&isb)).is_ok();
+    let idswap_who = ident::who_ok(idswap_sig_ok as u32, claimed_forged, id_rx);
+    let idswap_bal = settle::settle_signed(1000, 16, 1, out, 6, 9, 0, (idswap_who as u32) & (cok as u32) & 1);
+    assert!(idswap_sig_ok && !idswap_who, "valid signature but a mismatched claimed executor -> WHO fails");
+    assert_eq!(idswap_bal, 1000, "a receipt claiming an unheld executor id settles nothing");
+
     println!("full A2A compute exchange over the sealed mesh (real ChaCha20-Poly1305):");
     println!("  LEG1 assign  ctr {:#x}: operands (41,256)*(41,256) sealed, len {} (blind relay)", assign_ctr, assign_frame.len());
-    println!("  LEG2 executor opened byte-exact -> recompute (43,64)={} -> signed receipt", exec_ok);
-    println!("  LEG3 result  ctr {:#x}: opened -> sig_ok={} recompute={} fresh={} -> settle 1000 -> {}", result_ctr, sig_ok, cok, fresh, bal);
+    println!("  LEG2 executor opened byte-exact -> recompute (43,64)={} -> signed, id={:08x}", exec_ok, my_exec_id);
+    println!("  LEG3 result  ctr {:#x}: opened -> who={} recompute={} fresh={} -> settle 1000 -> {}", result_ctr, who, cok, fresh, bal);
     println!("  tampered assign & result -> open FAILS; replayed counter -> rejected");
-    println!("  operand-swap: a valid signature over UNASSIGNED operands -> binding fails -> settle {}", cheat_bal);
-    println!("OK: operands and receipt both cross real sealed datagrams; input binding holds end-to-end over the wire");
+    println!("  operand-swap -> binding fails -> settle {}; identity-swap (valid sig, wrong id) -> WHO fails -> settle {}", cheat_bal, idswap_bal);
+    println!("OK: operands, receipt AND identity are bound end-to-end over real sealed datagrams");
 }
