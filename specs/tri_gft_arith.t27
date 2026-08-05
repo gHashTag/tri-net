@@ -49,6 +49,65 @@ module TriGftArith {
         return sign_a ^ sign_b;
     }
 
+    // --- Mantissa (GF-T16 layout [sign | 4 exp trits | 9 mantissa bits]). The 9-bit
+    // mantissa M is the significand 1 + M/512. A multiply's significands multiply:
+    // (1 + Ma/512)(1 + Mb/512) lands in [1, 4). Scaled by 512^2 that is the integer
+    // (512 + Ma)(512 + Mb). If it reaches 2*512^2 the product's significand is >= 2
+    // and needs a RENORMALIZATION CARRY: the exponent gains +1 and the significand
+    // is halved. gft_mul_offset above omitted this carry -- so it was correct only
+    // when the mantissa product did not overflow. These close that gap.
+    const MANT_ONE: u32 = 512;               // 2^9: the implicit-1 significand scale
+    const MANT_PROD_CARRY: u32 = 524288;     // 2 * 512^2: significand product >= 2
+
+    // 1 if the mantissa product renormalizes (exponent +1), else 0.
+    fn gft_mul_mant_carry(ma: u32, mb: u32) -> u32 {
+        let prod: u32 = (MANT_ONE + ma) * (MANT_ONE + mb);
+        if (prod >= MANT_PROD_CARRY) {
+            return 1;
+        } else {
+            return 0;
+        }
+    }
+
+    // The 9-bit result mantissa (round-toward-zero): with a carry the significand is
+    // halved (divide by 1024), else by 512; then drop the implicit 1 (subtract 512).
+    fn gft_mul_mant(ma: u32, mb: u32) -> u32 {
+        let prod: u32 = (MANT_ONE + ma) * (MANT_ONE + mb);
+        if (prod >= MANT_PROD_CARRY) {
+            return (prod / (2 * MANT_ONE)) - MANT_ONE;
+        } else {
+            return (prod / MANT_ONE) - MANT_ONE;
+        }
+    }
+
+    // The FULL result exponent offset INCLUDING the mantissa renormalization carry
+    // (the piece gft_mul_offset omitted). Saturating like gft_mul_offset.
+    fn gft_mul_offset_full(offset_a: u32, ma: u32, offset_b: u32, mb: u32, bias: u32, offset_max: u32) -> u32 {
+        let carry: u32 = gft_mul_mant_carry(ma, mb);
+        let sum: u32 = offset_a + offset_b + carry;
+        if (sum < bias) {
+            return 0;
+        } else {
+            let result: u32 = sum - bias;
+            if (result >= offset_max) {
+                return offset_max;
+            } else {
+                return result;
+            }
+        }
+    }
+
+    // Verify a FULL claimed GF-T multiply result -- both the exponent offset (with
+    // carry) AND the mantissa -- recompute. Catches a wrong product mantissa, not
+    // just a wrong exponent.
+    fn verify_gft_mul_full(offset_a: u32, ma: u32, offset_b: u32, mb: u32, claimed_offset: u32, claimed_mant: u32, bias: u32, offset_max: u32) -> bool {
+        if (gft_mul_offset_full(offset_a, ma, offset_b, mb, bias, offset_max) == claimed_offset) {
+            return gft_mul_mant(ma, mb) == claimed_mant;
+        } else {
+            return offset_a != offset_a;
+        }
+    }
+
     // ---- Tests / invariants ----
 
     // phi^0 * phi^0 = phi^0 (unity), phi^1 * phi^1 = phi^2, etc., in GF-T16 offsets.
@@ -79,5 +138,32 @@ module TriGftArith {
         assert(gft_mul_sign(0, 0) == 0, "(+)(+) = +");
         assert(gft_mul_sign(1, 1) == 0, "(-)(-) = +");
         assert(gft_mul_sign(0, 1) == 1, "(+)(-) = -");
+    }
+
+    // Mantissa multiply + renormalization carry. Significands: M=0 -> 1.0, M=256 ->
+    // 1.5, M=511 -> ~2.0. 1.5*1.5 = 2.25 -> carries (exponent +1); 1.0*1.5 = 1.5 -> no.
+    test mantissa_product {
+        assert(gft_mul_mant_carry(0, 0) == 0, "1.0 * 1.0 = 1.0, no carry");
+        assert(gft_mul_mant(0, 0) == 0, "1.0 * 1.0 mantissa 0");
+        assert(gft_mul_mant_carry(0, 256) == 0, "1.0 * 1.5 = 1.5, no carry");
+        assert(gft_mul_mant(0, 256) == 256, "1.0 * 1.5 mantissa = 256 (1.5)");
+        assert(gft_mul_mant_carry(256, 256) == 1, "1.5 * 1.5 = 2.25 carries");
+        assert(gft_mul_mant(256, 256) == 64, "1.5 * 1.5 -> 1.125 after renorm, mantissa 64");
+    }
+
+    // The FULL exponent uses the carry: gft_mul_offset omitted it, so it was wrong
+    // exactly when the mantissa product renormalized. phi-offsets 41*41 with a
+    // carrying mantissa (1.5*1.5) is 42 + 1 = 43, not 42.
+    test full_exponent_uses_carry {
+        assert(gft_mul_offset_full(41, 0, 41, 0, GFT16_BIAS, GFT16_OFFSET_MAX) == 42, "no mantissa carry -> exponent 42");
+        assert(gft_mul_offset_full(41, 256, 41, 256, GFT16_BIAS, GFT16_OFFSET_MAX) == 43, "1.5*1.5 carry -> exponent 43");
+    }
+
+    // Full verify catches a wrong mantissa even when the exponent claim is right.
+    test full_verify_catches_mantissa {
+        assert(verify_gft_mul_full(40, 0, 40, 256, 40, 256, GFT16_BIAS, GFT16_OFFSET_MAX) == true, "unity * 1.5 = 1.5 accepted");
+        assert(verify_gft_mul_full(40, 0, 40, 256, 40, 255, GFT16_BIAS, GFT16_OFFSET_MAX) == false, "wrong result mantissa rejected");
+        assert(verify_gft_mul_full(41, 256, 41, 256, 43, 64, GFT16_BIAS, GFT16_OFFSET_MAX) == true, "1.5*1.5 -> exp 43, mant 64 accepted");
+        assert(verify_gft_mul_full(41, 256, 41, 256, 42, 64, GFT16_BIAS, GFT16_OFFSET_MAX) == false, "ignoring the carry (exp 42) rejected");
     }
 }
