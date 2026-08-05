@@ -107,6 +107,7 @@ Two verification modes:
 | `trinet_node_identity` / `trinet_requester_verify` | identity binding; requester round-trip verify |
 | `trinet_a2a_node` | the composed endpoint: freshness + WHO + input(256) + correctness + membership |
 | `trinet_challenge` / `trinet_optimistic_settle` | challenge/slash; optimistic finalize/reverse lifecycle |
+| `trinet_compute_over_mesh` | the receipt actually crosses the wire: both legs (assign + result) sealed with real ChaCha20-Poly1305, blind relay, WHO+input+recompute+freshness gate, 5 adversarial negatives |
 
 ## 4. Boundaries (what is proven, and where)
 
@@ -122,6 +123,14 @@ Two verification modes:
   unresolvable-from-inside contradiction (also why `spec-drift-guard` is chronically
   red on `main`). Behavioral reproduction therefore requires a local checkout with the
   sibling `t27` repo (see section 5).
+- **Transport**: exercised, not just framed. `trinet_compute_over_mesh` seals both legs
+  of the A2A exchange with a real `chacha20poly1305` AEAD under a `crypto_frame` nonce
+  (the 12-byte `epoch||counter` header as associated data); a blind relay forwards
+  ciphertext only; the far end opens byte-exact and settles under the same
+  WHO+input+recompute+freshness gate. Five adversarial negatives reject a tampered
+  assign, a tampered result, a replayed counter, an operand-swapped receipt, and an
+  identity-swapped receipt (valid signature, unheld executor id). Keys are fixed KATs
+  here; the authenticated key agreement is the mesh handshake (trios-mesh), out of scope.
 - **Silicon**: **none**. No GF-T recompute has run on an FPGA. The GF-T arithmetic
   here is the reference a verifier runs; the on-silicon GF unit (t27 `specs/numeric`,
   gf16 @ ~322 MHz on AX7203) is a separate, not-yet-connected artifact.
@@ -140,6 +149,7 @@ Requires the sibling `t27` repo (`../t27`) built (`t27c`). From the tri-net chec
 cargo run --release --bin trinet_receipt_digest   # 256-bit receipt digest vs hashlib
 cargo run --release --bin trinet_a2a_node         # the composed hardened endpoint
 cargo run --release --bin trinet_optimistic_settle # optimistic finalize/reverse lifecycle
+cargo run --release --bin trinet_compute_over_mesh # receipt across a real sealed A2A datagram
 ```
 
 (Run in `--release`: the generated hash uses wrapping arithmetic; a debug build panics
