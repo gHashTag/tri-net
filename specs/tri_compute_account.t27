@@ -48,6 +48,45 @@ module TriComputeAccount {
         return balance + reward;
     }
 
+    // ---- Settlement finality: escrow the reward until the challenge window ----
+    //
+    // bal_after_settle mints straight into SPENDABLE balance -- but fraud is
+    // proven LATER (tri_compute_challenge). An executor paid instantly can
+    // withdraw before the dispute, and a later slash only takes the bond, so a
+    // bond < reward lets fraud pay. Optimistic settlement fixes this exactly as
+    // Arbitrum/Optimism (non-final withdrawals for a challenge window) and
+    // Gensyn/Truebit (escrowed payout): settle mints into a PENDING bucket, not
+    // spendable balance; only a window that elapses with no proven fraud
+    // finalizes it into balance; a fraud proven in-window claws the whole pending
+    // reward back to the pool AND the bond is slashed. settle_canonical still
+    // decides IF/HOW MUCH to pay; this layer decides WHEN it becomes spendable.
+
+    // Total now spans three buckets: spendable + locked collateral + escrowed
+    // (settled-but-not-yet-final) reward.
+    fn total3(balance: u32, locked: u32, pending: u32) -> u32 {
+        return balance + locked + pending;
+    }
+
+    // settle (optimistic): mint the reward into PENDING, never straight to
+    // spendable balance. Nothing is withdrawable until the window closes.
+    fn pending_after_settle(pending: u32, reward: u32) -> u32 {
+        return pending + reward;
+    }
+
+    // finalize: the challenge window elapsed with no successful challenge, so the
+    // whole pending reward becomes spendable (pending -> balance; pending then 0,
+    // as bal_after_release empties `locked`). total3 is conserved.
+    fn bal_after_finalize(balance: u32, pending: u32) -> u32 {
+        return balance + pending;
+    }
+
+    // clawback: a fraud proven inside the window reverts the pending reward to
+    // the pool -- it never reaches balance (pending then 0). Spendable balance is
+    // untouched; total3 drops by EXACTLY the reward that leaves to the pool.
+    fn bal_after_clawback(balance: u32) -> u32 {
+        return balance;
+    }
+
     // ---- Tests / invariants ----
 
     // Locking collateral conserves total holdings (value only shifts buckets).
@@ -85,5 +124,43 @@ module TriComputeAccount {
         la = locked_after_lock(1000, 0, 200);
         back = bal_after_release(ba, la);
         assert(back == 1000, "lock+release is a no-op on total and on balance");
+    }
+
+    // Optimistic settle escrows the reward: it lands in pending, NOT spendable
+    // balance, so it cannot be withdrawn before the challenge window closes.
+    test settle_escrows_not_spendable {
+        pend = pending_after_settle(0, 16);
+        assert(pend == 16, "reward escrowed in pending");
+        assert(total3(800, 200, pend) == total3(800, 200, 0) + 16, "settle mints exactly the reward into escrow");
+        assert(bal_after_clawback(800) == 800, "the reward is not in spendable balance yet");
+    }
+
+    // finalize (window elapsed, no fraud): the whole pending reward becomes
+    // spendable and total3 is conserved (escrow -> balance, nothing minted/burned).
+    test finalize_conserves_total {
+        b = bal_after_finalize(800, 16);
+        assert(b == 816, "pending reward becomes spendable");
+        assert(total3(b, 200, 0) == total3(800, 200, 16), "finalize conserves total3");
+    }
+
+    // clawback (fraud in window): the pending reward reverts to the pool; balance
+    // untouched; total3 drops by EXACTLY the reward (it left the node to the pool).
+    test clawback_reverts_reward_to_pool {
+        b = bal_after_clawback(800);
+        assert(b == 800, "spendable balance untouched by clawback");
+        assert(total3(b, 200, 0) == total3(800, 200, 16) - 16, "clawback removes exactly the escrowed reward");
+    }
+
+    // THE economic-security invariant: cheating is strictly worse than honesty.
+    // Both paths start post-bond at (balance=800, locked=200) with reward=16
+    // escrowed. Honest = finalize (+16 spendable) then release (+200 bond back).
+    // Fraud = clawback (reward gone, never spent) then slash (bond gone). The
+    // executor's holdings differ by EXACTLY reward + bond -- fraud forfeits both.
+    test fraud_nets_reward_plus_bond_worse {
+        honest = total3(bal_after_finalize(bal_after_release(800, 200), 16), 0, 0);
+        fraud = total3(bal_after_clawback(800), 0, 0);
+        assert(honest == 1016, "honest keeps balance + reward + returned bond");
+        assert(fraud == 800, "fraud loses the escrowed reward and the slashed bond");
+        assert(honest - fraud == 16 + 200, "cheating costs exactly reward + bond vs honesty");
     }
 }
