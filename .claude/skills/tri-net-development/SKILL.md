@@ -21,6 +21,25 @@ specs/*.t27 -> t27c parse -> t27c gen-rust -> gen/rust/*.rs -> src/lib.rs
 - **ALWAYS write .t27 specs FIRST**, then generate
 - src/bin/ and tools/ are ALLOWED to have logic
 
+### PoCs & prototypes obey the SAME policy (added 2026-08-05)
+
+A demo/PoC is not an exemption. Article SSOT-MATH forbids **new Python (or
+shell) on the critical path** of compute/verification/verdict; targets
+(Rust/Verilog/C/Zig) are compiler OUTPUT, not hand-written app languages. So when
+prototyping agent/mesh/receipt features, home each piece in its language of record:
+
+| Piece | Where it MUST live | Not |
+|-------|--------------------|-----|
+| Compute-receipt / ledger / settlement / hash logic | `.t27` spec → `t27c gen-rust` (see `tri_compute_receipt.t27`, `tri_depin/tri_ledger/tri_merkle/tri_sha256`) | hand-written `.rs`/`.py` |
+| A2A protocol, transport, wire framing, mesh routing | Rust (`trios-a2a`, `trios-mesh`, `tri-net/src` from specs) | Python |
+| Signatures / AEAD | Rust crate primitive (Ed25519 as in `tri_depin` epoch_seal; ChaCha20-Poly1305 in `src/crypto.rs`) | rolled-by-hand |
+| Golden ORACLE / conformance reference ONLY | Python is allowed **off the critical path** (e.g. `gfternary_ref.py`, `gf_ref.py`) | as the deliverable |
+
+Rule of thumb: if the code decides a value the product trusts, it is a `.t27`
+spec or generated Rust. If it only *checks* a spec's answer from the outside, a
+Python oracle is fine. Validate every new spec: `../t27/target/release/t27c parse
+<f>` (0=ok) then `gen-rust`; add `test`/`invariant` blocks (L4).
+
 ### Repository Structure
 - **tri-net** (github.com/gHashTag/tri-net): THE repo. Specs, generated code, docs, tools.
 - **trios-mesh** (github.com/gHashTag/trios-mesh): Runtime implementation crate (historical, pre-pipeline)
@@ -3149,3 +3168,23 @@ B. REAL NAT SEMANTICS (and an honest correction).
   (this wave) + the fd hand-off keeping that mapping. Symmetric-on-BOTH-sides still cannot punch
   (neither side's first packet is admitted) and needs a relay (TURN-style) -- that gap is real and
   remains open. Do not claim symmetric-NAT traversal from a one-sided test.
+
+## COMPUTE-RECEIPT spec + PoC language correction — 2026-08-05
+
+- Context: an "A2A over mesh + compute receipt" PoC was first prototyped in Python
+  (`/Desktop/PROJECTS/CLAUDE/trinet-a2a-poc/`). That put receipt/crypto/mesh
+  BUSINESS LOGIC in Python — a Golden-Pipeline / Article SSOT-MATH violation. The
+  Python is kept only as an OFF-PATH illustration/oracle, clearly marked
+  PROTOTYPE; it is not the deliverable.
+- Correction landed: `specs/tri_compute_receipt.t27` — the compute-attesting
+  receipt as a `.t27` spec (family of `tri_depin`/`tri_ledger`/`tri_merkle`).
+  `receipt_leaf` binds {executor, task, input-hash, output, epoch}; `receipt_step`
+  chains prev->next; 6 `test` blocks cover leaf-verify, output-tamper-evidence,
+  executor-binding, chain determinism, order-sensitivity, wrong-head rejection.
+  Validated: `t27c parse` = 0, `gen-rust` = 0 (41 lines clean Rust); all 6 tests
+  pass under an off-path oracle.
+- Still spec-first TODO (do NOT do in Python): the Ed25519 signature is a Rust
+  crate primitive (as `tri_depin` epoch_seal); the A2A message/agent-card + the
+  A2A-over-mesh transport belong in Rust (`trios-a2a` schemas sealed into
+  `trios-mesh` frames). The novelty vs `tri_depin` is that receipts attest
+  COMPUTE (task result), not just relayed bytes — keep that distinction.
