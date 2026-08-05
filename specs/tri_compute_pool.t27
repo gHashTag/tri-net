@@ -31,6 +31,45 @@ module TriComputePool {
         }
     }
 
+    // ---- Funding-side conservation: the pool is prepaid, not minted ----
+    //
+    // pool_share splits a pool, but nothing said where the pool comes from: settle
+    // credited rewards with no funding source, so the token supply inflated (reward
+    // minted from nothing). Model the pool as a FUNDED balance a requester deposits
+    // into and payouts draw down, and pin the invariant the split assumed: total
+    // payouts NEVER exceed total deposits (Akash/Golem/Gensyn prepaid escrow --
+    // the protocol pays only what was funded). An over-draw is capped at the pool
+    // balance, never going negative.
+
+    // A requester funds the pool (saturating, like a ledger balance).
+    fn pool_after_deposit(pool: u32, amount: u32) -> u32 {
+        let sum: u32 = pool + amount;
+        if (sum < pool) {
+            return 0xFFFFFFFF;
+        } else {
+            return sum;
+        }
+    }
+
+    // The actual payable amount: the request, capped at what the pool holds -- a
+    // payout can never exceed the funded balance.
+    fn payout_capped(pool: u32, requested: u32) -> u32 {
+        if (requested <= pool) {
+            return requested;
+        } else {
+            return pool;
+        }
+    }
+
+    // The pool after a payout: drawn down by the capped amount, never negative.
+    fn pool_after_payout(pool: u32, requested: u32) -> u32 {
+        if (requested <= pool) {
+            return pool - requested;
+        } else {
+            return 0;
+        }
+    }
+
     // ---- Tests / invariants ----
 
     // Proportional split with floor division; a zero-work node earns nothing.
@@ -71,5 +110,36 @@ module TriComputePool {
         s0 = pool_share(1000000, 16000, 24000);
         s1 = pool_share(1000000, 8000, 24000);
         assert((s0 + s1) == 999999, "sum 999999 <= pool 1e6 at scale; floor loses one dust unit");
+    }
+
+    // A requester funds the pool; deposits accumulate (saturating at the ceiling).
+    test deposit_funds_the_pool {
+        assert(pool_after_deposit(0, 1000) == 1000, "first deposit funds an empty pool");
+        assert(pool_after_deposit(1000, 500) == 1500, "deposits accumulate");
+        assert(pool_after_deposit(0xFFFFFFF0, 32) == 0xFFFFFFFF, "deposit saturates, no wrap");
+    }
+
+    // A payout draws the pool down and can never exceed the funded balance; an
+    // over-draw is capped and drains to zero, never negative.
+    test payout_never_exceeds_the_pool {
+        assert(payout_capped(1000, 300) == 300, "a payout within the pool is paid in full");
+        assert(pool_after_payout(1000, 300) == 700, "the pool is drawn down by the payout");
+        assert(payout_capped(100, 300) == 100, "an over-draw is capped at the pool balance");
+        assert(pool_after_payout(100, 300) == 0, "an over-draw drains the pool to zero, never negative");
+    }
+
+    // THE funding invariant: total payouts never exceed total deposits. Fund 1000,
+    // pay the three proportional shares (166+333+500 = 999) via pool_after_payout;
+    // the pool ends at 1 (the floor dust), so paid 999 <= deposited 1000 -- no
+    // reward is minted beyond what the requester funded.
+    test payouts_never_exceed_deposits {
+        p0 = pool_after_deposit(0, 1000);
+        p1 = pool_after_payout(p0, pool_share(1000, 16, 96));
+        p2 = pool_after_payout(p1, pool_share(1000, 32, 96));
+        p3 = pool_after_payout(p2, pool_share(1000, 48, 96));
+        assert(p1 == 834, "after 166 -> 834 remains");
+        assert(p2 == 501, "after 333 -> 501 remains");
+        assert(p3 == 1, "after 500 -> 1 remains (the floor dust stays funded)");
+        assert(p3 == 1000 - (166 + 333 + 500), "pool end == deposit minus total payouts, exactly conserved");
     }
 }
