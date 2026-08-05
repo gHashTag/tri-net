@@ -178,9 +178,23 @@ fn main() {
     assert_eq!(state_h, opt::PENDING, "an honest claim survives the challenge window");
     assert_eq!((bal_h, bond_h, reward_h), (1016, bond_amt, 0), "credit kept, bond intact, no challenger reward");
 
+    // Case FINALIZE: the common path -- that same honest sealed claim goes UNCHALLENGED
+    // until the window CLOSES. With the window shut and no slash, the state is FINALIZED:
+    // the provisional credit is now permanently CONFIRMED (can_finalize) and the bond is
+    // released. This is the normal successful optimistic settlement, over the wire.
+    let now_closed = 15u32; // past the window [3, 13)
+    let w_open_closed = if opt::window_open(now_closed, settled_at, window) { 1u32 } else { 0 };
+    let state_fin = opt::settle_state(w_open_closed, 0);
+    let bal_fin = opt::balance_after_settle(bal_prov, reward, state_fin);
+    let bond_released = ch::executor_bond_after(bond_amt, ch::RESOLVE_HONEST); // no slash -> bond returns
+    assert_eq!(state_fin, opt::FINALIZED, "window closed, unchallenged -> FINALIZED");
+    assert!(opt::can_finalize(state_fin), "a finalized credit is permanently confirmed");
+    assert_eq!((bal_fin, bond_released), (1016, bond_amt), "credit confirmed and bond released");
+
     println!("optimistic fraud-proof across the sealed mesh (challenger recomputes, does not trust):");
     println!("  provisional credit 1000 + {} = {} (bond {} posted)", reward, bal_prov, bond_amt);
     println!("  sealed FRAUD claim  encode(43,0) -> recompute encode(42,0) -> SLASH -> REVERSED bal {} (bond {}->{}, challenger +{})", bal_f, bond_amt, bond_f, reward_f);
     println!("  sealed HONEST claim encode(42,0) -> recompute matches -> challenge fails -> PENDING bal {} (bond kept {})", bal_h, bond_h);
-    println!("OK: the fraud proof is recomputation over a real sealed datagram -- a lying bonded executor is slashed, an honest one survives");
+    println!("  unchallenged, window closed -> FINALIZED bal {} (credit confirmed, bond released {})", bal_fin, bond_released);
+    println!("OK: the fraud proof is recomputation over a real sealed datagram -- a lying bonded executor is slashed, an honest one survives, and an unchallenged one finalizes");
 }
