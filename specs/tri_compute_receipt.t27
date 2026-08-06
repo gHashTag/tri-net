@@ -182,9 +182,28 @@ module TriComputeReceipt {
     const FMT_GF_BINARY: u32 = 0;   // GF4..GF1024, binary exponent
     const FMT_GFT: u32 = 1;         // GF-T ladder, balanced-ternary exponent
 
+    // Ratified ladder Et per GF-T rung (from tri_gft_ladder width_to_et; Et = fib+1).
+    // The receipt-rung binder folds these so an attestation names the exact geometry.
+    const GFT16_RUNG_ET: u32 = 4;
+    const GFT32_RUNG_ET: u32 = 6;
+    const GFT64_RUNG_ET: u32 = 9;
+    const GFT128_RUNG_ET: u32 = 14;
+
     fn receipt_leaf_gf_fmt(fmt_family: u32, gf_width: u32, gf_op: u32, a: u32, b: u32, gf_result: u32, device_id: u32, executor: u32, epoch: u32) -> u32 {
         let base: u32 = receipt_leaf_gf(gf_width, gf_op, a, b, gf_result, device_id, executor, epoch);
         return mix32(base ^ mix32(fmt_family ^ rotl(gf_width, 9)));
+    }
+
+    // Bind the exact ladder RUNG, not just the nominal width. The ratified golden rule
+    // (specs/tri_gft_ladder.t27) fixes each GF-T width's exponent-trit count Et = fib+1
+    // -- and bias / offset_max derive from Et, so Et IS the geometry key. Folding gf_et
+    // commits the attestation to the precise rung: a GF-T64 compute cannot be replayed
+    // as a cheaper GF-T16 one, and a recompute at the wrong geometry (right width, wrong
+    // Et) yields a different leaf. gf_et is the caller's width_to_et(width) from the
+    // ladder SSOT -- passed in, not duplicated here.
+    fn receipt_leaf_gf_rung(fmt_family: u32, gf_width: u32, gf_et: u32, gf_op: u32, a: u32, b: u32, gf_result: u32, device_id: u32, executor: u32, epoch: u32) -> u32 {
+        let base: u32 = receipt_leaf_gf_fmt(fmt_family, gf_width, gf_op, a, b, gf_result, device_id, executor, epoch);
+        return mix32(base ^ mix32(gf_et ^ rotl(fmt_family, 13)));
     }
 
     // --- Full-commitment ledger: fold the per-receipt SIGN DIGEST (which already
@@ -428,6 +447,32 @@ module TriComputeReceipt {
         binary = receipt_leaf_gf_fmt(FMT_GF_BINARY, GF16, GF_MUL, 0x3C00, 0x4000, 0x4100, 0xC0FFEE01, 0xE0E0, 1);
         ternary = receipt_leaf_gf_fmt(FMT_GFT, GF16, GF_MUL, 0x3C00, 0x4000, 0x4100, 0xC0FFEE01, 0xE0E0, 1);
         assert(binary != ternary, "GF16 (binary) and GF-T16 (ternary) attest to different receipts");
+    }
+
+    // A receipt names the EXACT ladder rung: GF-T16/32/64/128 attestations of the same
+    // op/operands are pairwise distinct, so a GF-T64 compute cannot be replayed as a
+    // (cheaper) GF-T16 one.
+    test rung_attestations_are_distinct {
+        r16  = receipt_leaf_gf_rung(FMT_GFT, 16,  GFT16_RUNG_ET,  GF_MUL, 0x11, 0x22, 0x33, 0xC0FFEE01, 0xE0E0, 1);
+        r32  = receipt_leaf_gf_rung(FMT_GFT, 32,  GFT32_RUNG_ET,  GF_MUL, 0x11, 0x22, 0x33, 0xC0FFEE01, 0xE0E0, 1);
+        r64  = receipt_leaf_gf_rung(FMT_GFT, 64,  GFT64_RUNG_ET,  GF_MUL, 0x11, 0x22, 0x33, 0xC0FFEE01, 0xE0E0, 1);
+        r128 = receipt_leaf_gf_rung(FMT_GFT, 128, GFT128_RUNG_ET, GF_MUL, 0x11, 0x22, 0x33, 0xC0FFEE01, 0xE0E0, 1);
+        assert(r16 != r32,  "GF-T16 != GF-T32 attestation");
+        assert(r16 != r64,  "GF-T16 != GF-T64 attestation");
+        assert(r32 != r64,  "GF-T32 != GF-T64 attestation");
+        assert(r64 != r128, "GF-T64 != GF-T128 attestation");
+        assert(r16 != r128, "GF-T16 != GF-T128 attestation");
+    }
+
+    // Recomputing at the WRONG rung geometry (right width, wrong Et) yields a different
+    // leaf -- so a verifier using width_to_et(width) from the ladder detects a geometry
+    // mismatch; the rung is BOUND, not merely labelled. Same rung + inputs is deterministic.
+    test wrong_rung_geometry_is_caught {
+        good  = receipt_leaf_gf_rung(FMT_GFT, 64, GFT64_RUNG_ET, GF_MUL, 0x11, 0x22, 0x33, 0xC0FFEE01, 0xE0E0, 1);
+        bad   = receipt_leaf_gf_rung(FMT_GFT, 64, GFT16_RUNG_ET, GF_MUL, 0x11, 0x22, 0x33, 0xC0FFEE01, 0xE0E0, 1);
+        again = receipt_leaf_gf_rung(FMT_GFT, 64, GFT64_RUNG_ET, GF_MUL, 0x11, 0x22, 0x33, 0xC0FFEE01, 0xE0E0, 1);
+        assert(good != bad,   "width 64 with GF-T16's Et attests differently -- geometry bound");
+        assert(good == again, "same rung + inputs -> same attestation (deterministic)");
     }
 
     // The canonical SHA-256 preimage places each field in a fixed word and pins the
