@@ -1,0 +1,9 @@
+# Reproducible open-source synthesis of the GF-T64 multiplier (yosys, NO Vivado).
+#   yosys fpga/gft/synth_gft_mul64.ys
+# Targets the Xilinx 7-series primitives of the AX7203 openXC7 flow
+# (yosys synth_xilinx -> nextpnr-xilinx). Emits a utilization stat report so the
+# 256-bit significand datapath can be sized against the XC7A200T fabric.
+read_verilog fpga/gft/gft_mul64.v
+hierarchy -top gft_mul64
+synth_xilinx -flatten
+stat
