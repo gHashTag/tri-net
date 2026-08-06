@@ -336,6 +336,21 @@ module TriA2A {
         }
     }
 
+    // The COMPLETE ingress gate: admit_result_signed AND the receipt's committed width
+    // equals the assigned skill's. admit_result_signed binds task/family/op/freshness/
+    // reputation/collateral/executor-authenticity, but its inner result_binds_assign is
+    // width-blind, so a GFT8 receipt still clears the full gate for a GFT16 assignment
+    // (the precision downgrade result_binds_assign_sized closes at the binding layer).
+    // Wrap the width check on top so the node's single entry point rejects it too. This
+    // is the gate the ring should call; receipt_width is tri_compute_receipt gf_width.
+    fn admit_result_signed_sized(assign_task_id: u32, result_task_id: u32, receipt_task: u32, assigned_skill: u32, receipt_family: u32, receipt_op: u32, last_settled: u32, exec_rep: u32, min_rep: u32, bond: u32, outstanding: u32, min_bps: u32, assigned_executor: u32, receipt_executor: u32, sig_ok: u32, hashed_pubkey_lo: u32, receipt_width: u32) -> bool {
+        if (skill_width(assigned_skill) == receipt_width) {
+            return admit_result_signed(assign_task_id, result_task_id, receipt_task, assigned_skill, receipt_family, receipt_op, last_settled, exec_rep, min_rep, bond, outstanding, min_bps, assigned_executor, receipt_executor, sig_ok, hashed_pubkey_lo);
+        } else {
+            return receipt_width != receipt_width;
+        }
+    }
+
     // ---- Tests / invariants ----
 
     // A2A is demultiplexed by PORT on KIND_DATA -- not by the (ciphertext) payload.
@@ -534,5 +549,18 @@ module TriA2A {
         assert(admit_result_signed(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 2000, 10000, 2000, 0xE1, 0xE1, 1, 0xBB) == false, "signed by a key that is not the committed executor -> reject");
         // Additive: authentic but stale still rejects (never rescues prior gates).
         assert(admit_result_signed(0x777, 0x100, 0x100, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 2000, 10000, 2000, 0xE1, 0xE1, 1, 0xE1) == false, "authentic but stale -> still reject");
+    }
+
+    // The COMPLETE ingress gate rejects the precision downgrade too: a fully authentic
+    // GFT16 result (bound, fresh, reputable, bonded, signed) with a GFT8-width receipt
+    // clears the width-blind admit_result_signed but is rejected by the sized gate.
+    test full_ingress_rejects_precision_downgrade {
+        assert(admit_result_signed_sized(0x777, 0x777, 0x777, SKILL_GFT16_MUL, FMT_GFT, 0x11, 0x100, 100, 50, 2000, 10000, 2000, 0xE1, 0xE1, 1, 0xE1, 16) == true, "authentic GFT16 result at width 16 -> admitted");
+        // The hole: the width-blind gate admits regardless of the receipt's width.
+        assert(admit_result_signed(0x777, 0x777, 0x777, SKILL_GFT16_MUL, FMT_GFT, 0x11, 0x100, 100, 50, 2000, 10000, 2000, 0xE1, 0xE1, 1, 0xE1) == true, "admit_result_signed admits the GFT16 assignment, width unchecked");
+        // The sized gate rejects a GFT8 (width 8) downgrade at the full ingress.
+        assert(admit_result_signed_sized(0x777, 0x777, 0x777, SKILL_GFT16_MUL, FMT_GFT, 0x11, 0x100, 100, 50, 2000, 10000, 2000, 0xE1, 0xE1, 1, 0xE1, 8) == false, "GFT8-width receipt for a GFT16 assignment -> rejected at ingress (downgrade closed)");
+        // Never rescues a prior-gate failure: right width but stale still rejects.
+        assert(admit_result_signed_sized(0x777, 0x100, 0x100, SKILL_GFT16_MUL, FMT_GFT, 0x11, 0x100, 100, 50, 2000, 10000, 2000, 0xE1, 0xE1, 1, 0xE1, 16) == false, "right width but stale -> still reject");
     }
 }
