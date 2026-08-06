@@ -42,13 +42,31 @@ upstream in the `t27` repo. `gft_mul.v` keeps the emitter's exact arithmetic wit
 legal declaration ordering, gated by the KAT sweep above so fidelity is
 machine-checked.
 
-## Next step toward silicon
+## On silicon (DONE — bit-exact on the AX7203)
 
-Drive `gft_mul` from the AX7203 openXC7 flow used for the ternary blocks
-(`fpga/ternary/ps7/build/run_openxc7.sh`, `ps7_tern.xdc`; yosys + nextpnr, the
-same flow that produced the proven blinky bitstream) to get the **first GF-T
-recompute on real silicon** — the one boundary section 4 of
-`docs/VERIFIABLE_COMPUTE.md` still marks "none".
+GF-T now runs on real silicon across the whole ladder. Each engine wraps a compute core
+in the silicon-proven UART skeleton (`gft_mul_ax7203`'s RX/TX, reused verbatim); the host
+sends operands and reads the result over UART @160000. Flashed via openXC7
+(`nextpnr-xilinx`) + passwordless `openocd` (AL321 JTAG, SRAM `pld load`). See
+`docs/VERIFIABLE_COMPUTE.md` for the measured vectors.
+
+| engine | core | rung / op | UART frame | verified |
+|--------|------|-----------|------------|----------|
+| `gft_mul_ax7203`   | `gft_mul_seq`   | GF-T16 multiply        | `AA 55 [a][b][cmd] → A5 [lo hi] 00` | 5/5 |
+| `gft_dot2_ax7203`  | `gft_dot2_seq`  | GF-T16 2-term dot      | 4 operands → `A5 [lo hi] 00`        | 3/3 |
+| `gft_macc_ax7203`  | `gft_macc_stream` | GF-T16 streaming row (any length) | per-term `[a][b][ctrl]`, emit on last | 4/4 |
+| `gft_dot4_ax7203`  | `gft_dot4_stream` (`gft_dot4_tile`) | GF-T16 4-lane parallel | 8 operands → `A5 [lo hi] 00` | top-sim ✓ |
+| `gft_mul32_ax7203` | `gft_mul32_stream` | **GF-T32** top rung (range ~2^728) | 35-bit operands, 8-byte reply | 4/4 |
+
+Operands/results are packed GF-T magnitudes; GF-T16 = `(offset<<9)|mant`, GF-T32 carries the
+25-bit mantissa in 4 bytes. `gft_mul32.v` uses a 64-bit datapath (the 32-bit `gft_mul.v` silently
+overflows at the top rung — see `tests/gft32_challenge.rs`). The prior "none" in
+`docs/VERIFIABLE_COMPUTE.md` §4 is CLOSED.
+
+**Flash-ops notes:** always background `openocd` (a 100 kHz SRAM load is ~778 s); route with a
+wide seed sweep (the bigger tops hit the intermittent nextpnr `A5FF` placer bug on many seeds —
+`gft_mul32` needed seed 14) and beware a `--timing-allow-fail` route that is functionally dead on
+silicon (validate the top with `gft_dot4_ax7203_tb.v`-style full-UART sim before trusting a seed).
 
 ## Board integration (ALINX AX7203 = XC7A200T-FBG484-2)
 
