@@ -84,3 +84,22 @@ With `gft_mul` + `gft_add` + `gft_sub`, the **full GF-T ALU (mul/add/sub) exists
 as synthesizable, KAT-verified RTL** — the same three ops the over-wire ring
 proves, now on silicon. Remaining: a narrowed ALU wrapper (area) and
 `nextpnr-xilinx` place-and-route + timing on the real xc7a200t (AX7203).
+
+## GF-T ALU top + on-chip self-check (`gft_alu`, `gft_alu_selfcheck`)
+
+`gft_alu.v` muxes `gft_mul` / `gft_add` / `gft_sub` by `op` (0=add, 1=mul, 2=sub).
+`gft_alu_selfcheck.v` is the **flashable proof**: a clocked FSM walks a ROM of the
+over-wire known-answer vectors through the ALU and drives `pass`/`fail` (LEDs) —
+`pass` asserts iff every GF-T16 mul/add/sub vector matched on-chip.
+
+- iverilog sim: `SELFCHECK PASS: gft_alu mul/add/sub all vectors matched on-chip`.
+- `yosys synth_xilinx` (synth_gft_alu.ys, top = self-check): ~634 LUT + 114 CARRY4
+  + 3 DSP48E1 + 6 FF, clean synth — a self-contained design ready for
+  `nextpnr-xilinx` + AX7203 flash.
+
+```bash
+yosys fpga/gft/synth_gft_alu.ys
+```
+
+Flash this to the AX7203 (openXC7 place-and-route) and the `pass` LED is the first
+GF-T recompute confirmed on real silicon.
