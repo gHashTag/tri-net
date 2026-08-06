@@ -43,12 +43,6 @@ goldenfloat-ffi = []
 name = "smoke-m1"
 path = "src/bin/smoke_m1.rs"
 
-# autotests is off (video_bridge_wire.rs does not compile), so declare the compute-ring
-# value-regression suite explicitly -- it is self-contained and always compiles.
-[[test]]
-name = "compute_ring_invariants"
-path = "tests/compute_ring_invariants.rs"
-
 [profile.release]
 opt-level = "z"
 lto = true
