@@ -1,0 +1,5 @@
+# Synthesis of the narrowed 4-lane GF-T MAC tile (yosys).  yosys fpga/gft/synth_gft_dot4_tile.ys
+read_verilog fpga/gft/gft_mul.v fpga/gft/gft16_mul.v fpga/gft/gft_add.v fpga/gft/gft_dot4_tile.v
+hierarchy -top gft_dot4_tile
+synth_xilinx -flatten
+stat
