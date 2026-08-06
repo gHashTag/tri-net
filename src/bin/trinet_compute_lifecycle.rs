@@ -276,13 +276,18 @@ fn main() {
     assert_eq!(tern_ok, 1, "canonical weights + correct balance -> ternary verified");
     // Honest BitNet layer: leaf bound, value majority r_ok, ternary majority OK -> honest.
     let bn_leaf = receipt::receipt_leaf_gf_fmt(receipt::FMT_GF_BINARY, width, op, a, b, r_ok, dev, exe, epoch);
-    let bn_honest = challenge::resolve_bitnet_quorum(bn_leaf, bn_leaf, r_ok, r_ok, r_ok, r_bad, tern_ok, tern_ok, 0);
+    let bn_honest = challenge::resolve_bitnet_quorum_full(0, 3, challenge::FMT_GF_BINARY, challenge::FMT_GF_BINARY, bn_leaf, bn_leaf, r_ok, r_ok, r_ok, r_bad, tern_ok, tern_ok, 0);
     assert_eq!(bn_honest, challenge::RESOLVE_HONEST, "honest BitNet layer survives a value liar + a ternary liar");
     // Ternary fraud: executor claims a WRONG sign balance -> ternary_ok=0 majority -> slash.
     let tern_bad = if bitnet::bitnet_balance_matches(weight_code, 8) { 1u32 } else { 0u32 };
     assert_eq!(tern_bad, 0, "a wrong claimed balance fails the ternary recompute");
-    let bn_fraud = challenge::resolve_bitnet_quorum(bn_leaf, bn_leaf, r_ok, r_ok, r_ok, r_ok, tern_bad, tern_bad, 1);
+    let bn_fraud = challenge::resolve_bitnet_quorum_full(0, 3, challenge::FMT_GF_BINARY, challenge::FMT_GF_BINARY, bn_leaf, bn_leaf, r_ok, r_ok, r_ok, r_ok, tern_bad, tern_bad, 1);
     assert_eq!(bn_fraud, challenge::RESOLVE_SLASH, "a 2-of-3 ternary-bad majority slashes the BitNet layer");
+    // Anti-replay now guards the BitNet quorum too (as it does the GF path): replaying
+    // the resolved dispute at the same watermark is a STALE no-op, not a second slash.
+    assert_eq!(challenge::resolve_bitnet_quorum_full(3, 3, challenge::FMT_GF_BINARY, challenge::FMT_GF_BINARY, bn_leaf, bn_leaf, r_ok, r_ok, r_ok, r_ok, tern_bad, tern_bad, 1), challenge::RESOLVE_STALE, "replayed BitNet quorum dispute -> stale no-op");
+    // A cross-family BitNet dispute is a FAMILY_MISMATCH, distinct from a bad leaf.
+    assert_eq!(challenge::resolve_bitnet_quorum_full(0, 3, challenge::FMT_GF_BINARY, challenge::FMT_GFT, bn_leaf, bn_leaf, r_ok, r_ok, r_ok, r_ok, tern_bad, tern_bad, 1), challenge::RESOLVE_FAMILY_MISMATCH, "cross-family BitNet quorum dispute -> family mismatch");
 
     // ---- The BitNet attestation on the 256-bit digest (not the 32-bit leaf) ----
     // Run the REAL SHA-256 over the BitNet preimage (bitnet_digest_pre) for a
@@ -304,11 +309,14 @@ fn main() {
     // Honest dispute: same committed weights -> digests match -> resolve on the strong anchor.
     let leaf_match = if bn_digest(weight_code) == settled_d { 1u32 } else { 0u32 };
     assert_eq!(leaf_match, 1, "the honest dispute reproduces the 256-bit digest");
-    assert_eq!(challenge::resolve_bitnet_d256(leaf_match, r_ok, r_ok, tern_ok), challenge::RESOLVE_HONEST, "256-bit-anchored honest layer");
+    assert_eq!(challenge::resolve_bitnet_d256_full(0, 3, challenge::FMT_GF_BINARY, challenge::FMT_GF_BINARY, leaf_match, r_ok, r_ok, tern_ok), challenge::RESOLVE_HONEST, "256-bit-anchored honest layer");
     // A fabricated dispute (different weight_code) -> different digest -> no match -> malformed.
     let fabricated_match = if bn_digest(0x62) == settled_d { 1u32 } else { 0u32 };
     assert_eq!(fabricated_match, 0, "a different weight_code yields a different 256-bit digest (no collision)");
-    assert_eq!(challenge::resolve_bitnet_d256(fabricated_match, r_ok, r_ok, tern_ok), challenge::RESOLVE_MALFORMED, "fabricated dispute -> malformed on the 256-bit anchor");
+    assert_eq!(challenge::resolve_bitnet_d256_full(0, 3, challenge::FMT_GF_BINARY, challenge::FMT_GF_BINARY, fabricated_match, r_ok, r_ok, tern_ok), challenge::RESOLVE_MALFORMED, "fabricated dispute -> malformed on the 256-bit anchor");
+    // The 256-bit BitNet anchor is replay-guarded as well: a replayed digest-anchored
+    // dispute at the same watermark is STALE, closing the family's last bare resolver.
+    assert_eq!(challenge::resolve_bitnet_d256_full(3, 3, challenge::FMT_GF_BINARY, challenge::FMT_GF_BINARY, leaf_match, r_bad, r_ok, tern_ok), challenge::RESOLVE_STALE, "replayed 256-bit BitNet dispute -> stale no-op");
 
     println!("  collateral: bond 100 carries task A(60); task B(->120) rejected; after A finalizes, B admitted");
     println!("  bitnet: canonical weights balance {} verified; ternary majority slashes a wrong-balance claim", claimed_balance);
