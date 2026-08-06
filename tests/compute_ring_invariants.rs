@@ -29,6 +29,15 @@ mod bond;
 #[allow(dead_code, unused_parens)]
 #[path = "../gen/rust/tri_a2a.rs"]
 mod a2a;
+#[allow(dead_code, unused_parens)]
+#[path = "../gen/rust/tri_compute_gfvalid.rs"]
+mod gfvalid;
+#[allow(dead_code, unused_parens)]
+#[path = "../gen/rust/tri_compute_safety.rs"]
+mod safety;
+#[allow(dead_code, unused_parens)]
+#[path = "../gen/rust/tri_compute_bitnet.rs"]
+mod bitnet;
 
 // ---- overflow class: saturation, not wrap ----
 
@@ -124,4 +133,72 @@ fn admit_result_signed_rejects_forge_and_frontrun() {
     assert!(!admit_result_signed(task, task, task, SKILL_GF16_MUL, 0, 0x11, wm, 100, 50, 2000, 10000, 2000, exe, exe, 0, exe), "forge (unsigned) rejected");
     assert!(!admit_result_signed(task, task, task, SKILL_GF16_MUL, 0, 0x11, wm, 100, 50, 2000, 10000, 2000, exe, exe, 1, 0xBEEF), "identity mismatch rejected");
     assert!(!admit_result_signed(task, task, task, SKILL_GF16_MUL, 0, 0x11, wm, 100, 50, 1999, 10000, 2000, exe, exe, 1, exe), "under-collateralized rejected");
+}
+
+// ---- non-terminal outcomes: challenger accountability ----
+
+#[test]
+fn challenger_stake_griefing_vs_nonfault() {
+    use challenge::*;
+    // A proven fraud (SLASH), a replay (STALE), and an unprovable split (INDETERMINATE)
+    // all KEEP the challenger's stake -- the dispute was not the challenger's fault.
+    assert_eq!(challenger_stake_after_bound(50, RESOLVE_SLASH), 50, "correct challenge keeps stake");
+    assert_eq!(challenger_stake_after_bound(50, RESOLVE_STALE), 50, "replay is not griefing -> keep");
+    assert_eq!(challenger_stake_after_bound(50, RESOLVE_INDETERMINATE), 50, "split proves nothing -> keep");
+    // A frivolous (HONEST) or griefing (MALFORMED / FAMILY_MISMATCH) dispute BURNS it.
+    assert_eq!(challenger_stake_after_bound(50, RESOLVE_HONEST), 0, "frivolous challenge burns stake");
+    assert_eq!(challenger_stake_after_bound(50, RESOLVE_MALFORMED), 0, "malformed griefing burns stake");
+    assert_eq!(challenger_stake_after_bound(50, RESOLVE_FAMILY_MISMATCH), 0, "family-confusion griefing burns stake");
+}
+
+#[test]
+fn verifier_accountability() {
+    use challenge::*;
+    // A dissenter from a formed quorum is provably wrong -> stake burned; an agreeing
+    // verifier keeps it. Honest verifiers split the burned dissenter stake.
+    assert_eq!(verifier_stake_after(50, 1), 0, "dissenter burned");
+    assert_eq!(verifier_stake_after(50, 0), 50, "agreeing verifier keeps stake");
+    // 3 honest, 2 dissenters at 50 each -> 100 burned, split among 3 -> 33.
+    assert_eq!(burned_total5(0x41, 0x41, 0x41, 0x99, 0xBE, 50), 100);
+    assert_eq!(honest_share5(0x41, 0x41, 0x41, 0x99, 0xBE, 50), 33);
+}
+
+// ---- ternary validity + finiteness ----
+
+#[test]
+fn gft_validity_and_finiteness() {
+    use gfvalid::*;
+    // GF-T Et=4: 3^4 = 81 codes; offset_max = 80 is the reserved special row.
+    assert!(is_valid_gft(0, 4), "offset 0 valid");
+    assert!(is_valid_gft(79, 4), "offset just below the special row valid");
+    assert!(!is_valid_gft(80, 4), "the special row (offset_max) is not a valid value");
+    assert!(!is_valid_gft(81, 4), "out-of-range offset invalid");
+    // is_finite_gft16 is the Et=4 alias.
+    assert!(is_finite_gft16(79), "below special row -> finite");
+    assert!(!is_finite_gft16(80), "special row -> not finite");
+}
+
+// ---- safety mint gate: all four guards ----
+
+#[test]
+fn payable_needs_all_four_guards() {
+    use safety::*;
+    // sig + fresh + finite + not-settled -> pays.
+    assert_eq!(payable_authentic(1, 1, 1, 0), 1, "all four -> open");
+    // dropping ANY single guard closes it.
+    assert_eq!(payable_authentic(0, 1, 1, 0), 0, "no signature -> closed (forgery)");
+    assert_eq!(payable_authentic(1, 0, 1, 0), 0, "stale -> closed (replay)");
+    assert_eq!(payable_authentic(1, 1, 0, 0), 0, "inf/nan -> closed (garbage)");
+    assert_eq!(payable_authentic(1, 1, 1, 1), 0, "already settled -> closed (double-pay)");
+}
+
+// ---- bitnet: 0b11 decodes to INACTIVE (the packing-malleability fix) ----
+
+#[test]
+fn bitnet_is_active_treats_0b11_as_inactive() {
+    use bitnet::*;
+    assert_eq!(is_active(1), 1, "0b01 -> active (+1)");
+    assert_eq!(is_active(2), 1, "0b10 -> active (-1)");
+    assert_eq!(is_active(0), 0, "0b00 -> inactive (skip)");
+    assert_eq!(is_active(3), 0, "0b11 -> inactive, not a spurious active weight");
 }
