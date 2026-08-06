@@ -18,12 +18,20 @@ module TriComputeReputation {
     //  neither fraud nor honesty -> reputation must not move.)
 
     // Reputation after an honest settlement: +gain, capped at REP_MAX.
+    // SATURATE BEFORE COMPARE: gain is a caller-supplied u32 (threaded from
+    // rep_after_resolution / rep_after_verifier, not a bounded constant, and plausibly
+    // scaled to work magnitude). A u32 `rep + gain` OVERFLOWS for a large gain and the
+    // wrapped sum can land BELOW REP_MAX -- e.g. rep=1000, gain=0xFFFFFC18 wraps to 0,
+    // so the `> REP_MAX` guard passes and honest work ZEROES reputation instead of
+    // capping it (the cap is defeated by the very overflow it must survive). Widen the
+    // sum to u64 (two u32s never overflow u64) so the comparison sees the true value
+    // and the cap holds for every gain.
     fn rep_after_honest(rep: u32, gain: u32) -> u32 {
-        let r: u32 = rep + gain;
-        if (r > REP_MAX) {
+        let r: u64 = (rep as u64) + (gain as u64);
+        if (r > REP_MAX as u64) {
             return REP_MAX;
         } else {
-            return r;
+            return r as u32;
         }
     }
 
@@ -104,6 +112,17 @@ module TriComputeReputation {
     test honest_raises_capped {
         assert(rep_after_honest(100, 20) == 120, "honest work gains reputation");
         assert(rep_after_honest(990, 50) == REP_MAX, "reputation is capped at REP_MAX");
+    }
+
+    // The cap survives an overflowing gain: a u32 rep + gain would wrap and slip past
+    // the REP_MAX guard (gain 0xFFFFFC18 makes rep=1000 wrap to exactly 0), zeroing an
+    // honest node's reputation. The u64-widened sum caps correctly instead.
+    test gain_overflow_cannot_defeat_the_cap {
+        assert(rep_after_honest(1000, 4294966296) == REP_MAX, "gain wrapping rep+gain to 0 still caps at REP_MAX, not 0");
+        assert(rep_after_honest(0, 4294967295) == REP_MAX, "a u32-max gain caps at REP_MAX, no wrap");
+        // Composes through the outcome driver: an honest resolution with a huge gain
+        // caps, never zeroes.
+        assert(rep_after_resolution(1000, RESOLVE_HONEST, 4294966296) == REP_MAX, "driver: overflowing honest gain caps at REP_MAX");
     }
 
     // The challenge outcome now DRIVES reputation: a proven slash halves it, a
