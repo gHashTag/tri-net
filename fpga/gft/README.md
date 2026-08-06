@@ -55,7 +55,7 @@ sends operands and reads the result over UART @160000. Flashed via openXC7
 | `gft_mul_ax7203`   | `gft_mul_seq`   | GF-T16 multiply        | `AA 55 [a][b][cmd] → A5 [lo hi] 00` | 5/5 |
 | `gft_dot2_ax7203`  | `gft_dot2_seq`  | GF-T16 2-term dot      | 4 operands → `A5 [lo hi] 00`        | 3/3 |
 | `gft_macc_ax7203`  | `gft_macc_stream` | GF-T16 streaming row (any length) | per-term `[a][b][ctrl]`, emit on last | 4/4 |
-| `gft_dot4_ax7203`  | `gft_dot4_stream` (`gft_dot4_tile`) | GF-T16 4-lane parallel | 8 operands → `A5 [lo hi] 00` | top-sim ✓ |
+| `gft_dot4_ax7203`  | `gft_dot4_stream` (`gft_dot4_tile`) | GF-T16 4-lane parallel | 8 operands → `A5 [lo hi] 00` | 3/3 |
 | `gft_mul32_ax7203` | `gft_mul32_stream` | **GF-T32** top rung (range ~2^728) | 35-bit operands, 8-byte reply | 4/4 |
 
 Operands/results are packed GF-T magnitudes; GF-T16 = `(offset<<9)|mant`, GF-T32 carries the

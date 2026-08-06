@@ -178,7 +178,14 @@ Two verification modes:
   (off=364,mant=0), 1.5^2=2.25 (off=365,mant=4194304), 1*2=2 (off=365,mant=0), (1.25*2^36)^2
   (off=436,mant=18874368). So GF-T on silicon now spans the FULL ladder bottom to top: GF-T16
   multiply + MAC + streaming row, and the GF-T32 top rung (range ~2^728, 25-bit mantissa). One
-  `.t27` -> Rust verifier -> Verilog -> live FPGA, across every rung. The `t27c gen-verilog` interleaved-reg defect is now FIXED upstream:
+  `.t27` -> Rust verifier -> Verilog -> live FPGA, across every rung. **And the parallel tile:**
+  `gft_dot4_ax7203` (`gft_dot4_tile` = 4x `gft16_mul` + a `gft_add` reduction tree) verified **3/3
+  bit-exact** on the AX7203 -- 4x(41,0)^2 = 16 (0x5800), 9+4+8+4 = 25 (0x5920), 4x(41,256)^2 = 36
+  (0x5A40) -- the parallel (one-shot) counterpart to the streaming `gft_macc` row, same golden
+  results. (Debug note: its first bitstream was silent on silicon; a full-UART top sim
+  (`gft_dot4_ax7203_tb.v`) proved the RTL correct, isolating the fault to a functionally-dead
+  nextpnr `--timing-allow-fail` route -- a re-PnR on another seed fixed it. Validate a top in
+  full-UART sim before trusting a timing-failed route.) The `t27c gen-verilog` interleaved-reg defect is now FIXED upstream:
   `gft_arith_gen_kat_tb.v` shows the GENERATED GF-T Verilog matches the over-wire
   verifier's exact values, so one `.t27` provably drives both the Rust A2A verifier and
   synthesizable Verilog. `fpga/gft/*.v` remain hand-shaped I/O datapaths (the generated
