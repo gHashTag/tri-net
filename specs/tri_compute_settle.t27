@@ -198,14 +198,18 @@ module TriComputeSettle {
     }
 
     // The GF-T special-row offset_max for a rung WIDTH (canonical, mirrors
-    // tri_compute_gfvalid.gft_offset_max_for_width: GF-T4/8/16/32 -> 8/26/80/242).
+    // tri_compute_gfvalid.gft_offset_max_for_width per the ratified golden rule:
+    // GF-T4/8/16/32/64/128 -> 8/26/80/728/19682/4782968; GF-T32 is Et6 (3^6-1=728),
+    // NOT the old log2-rule 242).
     // Inlined here rather than cross-called (this codebase keeps modules self-
     // contained). FAIL-CLOSED: an unknown width returns 0 so nothing settles.
     fn gft_offset_max_w(gf_width: u32) -> u32 {
         if (gf_width == 4) { return 8; }
         if (gf_width == 8) { return 26; }
         if (gf_width == 16) { return 80; }
-        if (gf_width == 32) { return 242; }
+        if (gf_width == 32) { return 728; }        // Et6 (golden rule), not log2-rule 242
+        if (gf_width == 64) { return 19682; }      // GF-T64  (3^9-1)
+        if (gf_width == 128) { return 4782968; }   // GF-T128 (3^14-1)
         return 0;
     }
 
@@ -329,6 +333,13 @@ module TriComputeSettle {
         assert(settle_checked_gft_w(100, 8, 1, 25) == 108, "GF-T8 finite (offset 25) pays");
         assert(settle_checked_gft_w(100, 8, 1, 26) == 100, "GF-T8 special row (26) withholds");
         assert(settle_checked_gft_w(100, 8, 1, 40) == 100, "an offset valid for GF-T16 is out of range for GF-T8 -> withholds");
+        // GF-T32: Et6, special row 728 (the fix). An offset in (242, 728] -- which the real
+        // gft_mul32 silicon produces -- is a NORMAL GF-T32 value and must PAY. The old Et5
+        // rule (offset_max 242) fail-closed it, refusing to pay ~2/3 of the exponent range.
+        assert(gft_offset_max_w(32) == 728, "width 32 -> GF-T32 special row 728 (Et6, not 242)");
+        assert(settle_checked_gft_w(100, 32, 1, 500) == 132, "GF-T32 offset 500 (in (242,728]) is finite and PAYS -- the fix");
+        assert(settle_checked_gft_w(100, 32, 1, 727) == 132, "GF-T32 offset 727 finite pays");
+        assert(settle_checked_gft_w(100, 32, 1, 728) == 100, "GF-T32 special row 728 withholds");
         // Unknown width fails closed: nothing settles regardless of offset.
         assert(settle_checked_gft_w(100, 7, 1, 5) == 100, "off-ladder width -> fail-closed, nothing settles");
     }
