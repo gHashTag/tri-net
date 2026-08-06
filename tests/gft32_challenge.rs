@@ -43,7 +43,7 @@ fn mul32(oa: u64, ma: u64, ob: u64, mb: u64) -> (u64, u64) {
 /// exactly the silent bug in the GF-T16-width gft_mul.v when fed GF-T32 operands.
 fn mul32_truncated_bug(oa: u64, ma: u64, ob: u64, mb: u64) -> (u64, u64) {
     let full: u64 = (MANT_ONE + ma) * (MANT_ONE + mb);
-    let prod = (full & 0xFFFF_FFFF) as u64; // 32-bit wrap, like a [31:0] wire
+    let prod = full & 0xFFFF_FFFF; // 32-bit wrap, like a [31:0] wire
     let carry = if prod >= (2 * MANT_ONE) * MANT_ONE {
         1
     } else {
