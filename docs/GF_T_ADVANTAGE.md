@@ -28,6 +28,23 @@ vs binary16 in the narrow band where binary16 works.
 rustc -O --edition 2021 src/bin/gft16_vs_binary16.rs -o /tmp/gftbench && /tmp/gftbench
 ```
 
+## 1b. The top rung: GF-T32 vs fp32 / tf32 (measured)
+
+The ladder's widest rung, GF-T32, stores a 10-bit exponent offset (729 codes) + 25-bit
+mantissa + sign = **36 bits** — honestly WIDER than fp32's 32. Over a 2^-360..2^360 sweep
+(`gft16_vs_binary16.rs`, fp32 = native Rust f32, tf32 = 8 exp / 10 mant):
+
+| format | stored width | worst rel. error | covers sweep | dynamic range |
+|---|---|---|---|---|
+| **GF-T32** | 36b (6 trits + 25 mant) | **0.000001% uniform** | **100%** | ~2^728 |
+| fp32 | 32b (8 exp + 23 mant) | 0.000004% normals | 39% | ~2^277 |
+| tf32 | 19b (8 exp + 10 mant) | 0.024% | 35% | ~2^277 |
+
+For its ~4 extra bits over fp32, GF-T32 buys ~2.6x the exponent range (2^728 vs 2^277),
+2 more mantissa bits (25 vs 23), and uniform precision (fp32 collapses in subnormals).
+fp32 overflows past ~3.4e38 / underflows ~1e-45 where GF-T32 stays finite; tf32 has fp32's
+range but ~500x coarser mantissa. Same harness, same honesty — the numbers are its output.
+
 ## 2. No regime/tapered decode -> cheap silicon
 
 Unlike posit/tapered formats (variable-length regime bits, costly decode), GF-T has
