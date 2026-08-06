@@ -60,6 +60,10 @@ path = "tests/gft_rmsnorm_accuracy.rs"
 name = "gft_receipt_binding"
 path = "tests/gft_receipt_binding.rs"
 
+[[test]]
+name = "gft_compute_challenge"
+path = "tests/gft_compute_challenge.rs"
+
 [profile.release]
 opt-level = "z"
 lto = true
