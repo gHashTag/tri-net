@@ -175,6 +175,37 @@ fn challenger_stake_griefing_vs_nonfault() {
     assert_eq!(challenger_stake_after_bound(50, RESOLVE_FAMILY_MISMATCH), 0, "family-confusion griefing burns stake");
 }
 
+// Whole-dispute value conservation. Across a resolution the total held by the executor
+// (its bond) and the challenger (kept stake + any won bond) is either CONSERVED or
+// reduced by EXACTLY the challenger's burned stake -- never inflated. This is the core
+// no-over-issuance / correct-transfer economic safety, in one property.
+#[test]
+fn dispute_conserves_value_or_burns_exactly_the_stake() {
+    use challenge::*;
+    let (b, s) = (1000u32, 50u32);
+    let ledger = |o: u32| -> u32 { executor_bond_after(b, o) + challenger_stake_after_bound(s, o) + challenger_reward(b, o) };
+    // SLASH: the bond transfers to the challenger; total conserved, nothing minted.
+    assert_eq!(executor_bond_after(b, RESOLVE_SLASH), 0, "slashed executor loses the whole bond");
+    assert_eq!(challenger_stake_after_bound(s, RESOLVE_SLASH) + challenger_reward(b, RESOLVE_SLASH), b + s, "challenger keeps stake + wins the bond");
+    assert_eq!(ledger(RESOLVE_SLASH), b + s, "SLASH conserves value");
+    // A frivolous (HONEST) or griefing (MALFORMED / FAMILY_MISMATCH) challenge burns
+    // exactly the challenger's stake; the executor keeps its bond.
+    for o in [RESOLVE_HONEST, RESOLVE_MALFORMED, RESOLVE_FAMILY_MISMATCH] {
+        assert_eq!(executor_bond_after(b, o), b, "executor keeps its bond on a non-slash outcome");
+        assert_eq!(ledger(o), b, "frivolous/griefing outcome burns exactly the challenger stake");
+    }
+    // STALE / INDETERMINATE prove no fault: the stake is kept, value conserved.
+    for o in [RESOLVE_STALE, RESOLVE_INDETERMINATE] {
+        assert_eq!(ledger(o), b + s, "no-fault outcome conserves value (stake kept)");
+    }
+    // SAFETY: no outcome ever inflates the total -- the challenger can never receive
+    // more than the bond it disputes, so the ring never mints from a resolution.
+    for o in [RESOLVE_HONEST, RESOLVE_SLASH, RESOLVE_MALFORMED, RESOLVE_STALE, RESOLVE_FAMILY_MISMATCH, RESOLVE_INDETERMINATE] {
+        assert!(ledger(o) <= b + s, "no resolution outcome inflates the total (no over-issuance)");
+        assert!(challenger_reward(b, o) <= b, "challenger reward never exceeds the disputed bond");
+    }
+}
+
 #[test]
 fn verifier_accountability() {
     use challenge::*;
