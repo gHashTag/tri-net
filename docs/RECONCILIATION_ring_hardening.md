@@ -240,5 +240,58 @@ this branch's hardened compute specs), and **101/101 generated unit tests pass**
 all 15 compute+a2a specs parsing and typechecking clean. The merge carries no design
 decision and no fiddly editing -- it is the six take-mine lines above plus a union merge.
 
+## Hardening increments since this package was last verified (registry, current)
+
+The verified recipe above was measured at `d33069a`; the branch has since grown ~20
+further additive increments. They do not change the merge shape -- every one is either a
+new function in a spec the recipe already takes whole, a new test file, or an update to
+the (mine-only) composition proof -- so the recipe stays "union merge + six take-mine
+lines". This registry is the current scope for the owner's decision.
+
+**A2A ingress authentication (`specs/tri_a2a.t27`, take-mine superset):**
+- `c368be7` bind result admission to the ASSIGNED executor (close assignment front-run)
+- `2bf103b` require signature authenticity at ingress (close the forgeable front-run)
+- `738db17` bind the ladder WIDTH -- close the GFT16<-GFT8 precision downgrade
+- `00d4841` width-check the full ingress gate (`admit_result_signed_sized`)
+  New functions: `executor_binds_assign`, `admit_result_authentic`, `executor_authentic`,
+  `admit_result_signed`, `skill_width`, `result_binds_assign_sized`,
+  `admit_result_signed_sized`. All additive; main added no a2a function this branch lacks.
+
+**u32 arithmetic-safety class fully closed (one spec each, take-mine superset):**
+- `2711df7` `burned_total5` saturating (verifier-stake burn overflow) -- challenge
+- `c9f2694` pool-settle credit saturating -- pool
+- `d482012` honest bond release saturating -- bond
+- `c5614bc` `rep_after_honest` saturate-before-cap (overflow defeated REP_MAX) -- reputation
+  (multiply half of the class was already closed; these close the credit-add + cap half.)
+
+**Escrow / finality (`specs/tri_compute_account.t27`, take-mine superset):**
+- `10827d4` `pending_after_release` -- clawback actually empties pending (was never reduced)
+- `2a06160` `bal_after_finalize_checked` -- a slashed reward never finalizes, clock aside
+
+**BitNet dispute anti-replay, now symmetric with GF (`specs/tri_compute_challenge.t27`):**
+- `9177bf2` `resolve_bitnet_full` (freshness + family for the single-verifier BitNet path)
+- `9417163` `resolve_bitnet_quorum_full` / `_quorum5_full`
+- `228cbfc` `resolve_bitnet_d256_full` -- the whole BitNet family is now replay-safe
+
+**New / updated files beyond the six specs (additive, no main equivalent):**
+- `tests/compute_ring_invariants.rs` (NEW, `226f09c`/`a9f532d`/`e0b329f`) -- 15 cargo-test
+  value-regressions for the whole ring (t27c never executes spec test-blocks; this is the
+  only committed value-execution). Its own test binary, independent of the RTI tests
+  currently broken by foreign drift.
+- `src/bin/trinet_compute_lifecycle.rs` (updated, `63b3816`/`3b743f9`/`71755a0`/`847ffa8`)
+  -- the end-to-end proof now exercises the hardened gates (authenticated + width-exact
+  ingress, `_full` resolvers, outcome-aware finalize). Compiles standalone via rustc.
+
+Net: the merge recipe is unchanged. Every increment above is purely ADDITIVE within its
+spec (new functions + their test blocks), so it does not alter each file's original
+classification from the set-diff: the six both-modified specs
+(`account`/`bitnet`/`gfvalid`/`payout`/`reputation`/`settle`) stay take-mine-superset,
+and the specs with no main-side edit (`challenge`, `pool`, `bond`, `safety`, `tri_a2a`)
+stay pure-additive -- both resolve to "keep this branch's version". The only NEW paths
+are the two additive files above (`tests/compute_ring_invariants.rs`,
+`src/bin/trinet_compute_lifecycle.rs`), neither of which exists on main. Re-running the
+verified recipe still yields a compiling, test-passing merge; if in doubt, re-run the
+one-line set-diff per file before relying on the classification.
+
 Contact: this branch's session. Do not autonomous-merge -- see memory
 `trinet-ring-hardening-divergence`.
