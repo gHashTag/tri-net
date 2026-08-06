@@ -102,16 +102,22 @@ module TriComputeSettle {
     // Is a result payable (finite/useful)? Binary GF: special iff the exponent
     // field is all-ones AND the format actually has Inf/NaN (only GF16 does) --
     // otherwise every exponent is a normal value. GF-T: gf_result carries the
-    // exponent offset; special iff it hits the reserved row offset_max. Returns
+    // exponent offset, valid over 0..offset_max where offset_max (= 3^Et - 1) is the
+    // reserved special/Inf row. Payable iff the offset is STRICTLY BELOW that row --
+    // which rejects BOTH the special row (== offset_max) AND any out-of-range garbage
+    // (> offset_max). The old `== offset_max` test only caught the special row, so an
+    // out-of-range offset (a crafted gf_result past the ladder) was classed payable
+    // and PAID -- a garbage-pay hole the binary side's all-ones check does not have.
+    // `gf_result < offset_max` is exactly tri_compute_gfvalid.is_valid_gft. Returns
     // 1 = pay, 0 = withhold, so it feeds compute_reward's fresh slot directly.
     fn payable_flag(fmt_family: u32, gf_result: u32, exp_bits: u32, mant_bits: u32, has_inf: u32, offset_max: u32) -> u32 {
         let exp_mask: u32 = (1 << exp_bits) - 1;
         let exp: u32 = (gf_result >> mant_bits) & exp_mask;
         if (fmt_family == FMT_GFT) {
-            if (gf_result == offset_max) {
-                return 0;
-            } else {
+            if (gf_result < offset_max) {
                 return 1;
+            } else {
+                return 0;
             }
         } else {
             if (has_inf == 1) {
@@ -282,6 +288,8 @@ module TriComputeSettle {
         assert(settle_checked_gft(100, 16, 1, 40, 80) == 116, "GF-T16 finite (offset 40) pays");
         assert(settle_checked_gft(100, 16, 1, 80, 80) == 100, "GF-T16 special (offset 80) pays nothing");
         assert(settle_checked_gft(100, 16, 0, 40, 80) == 100, "stale GF-T16 pays nothing");
+        assert(settle_checked_gft(100, 16, 1, 79, 80) == 116, "GF-T16 boundary (offset 79, just below the special row) pays");
+        assert(settle_checked_gft(100, 16, 1, 100, 80) == 100, "GF-T16 OUT-OF-RANGE offset (100 > 80) pays nothing -- garbage-pay hole closed");
     }
 
     // The unified path: only fresh + finite + not-already-settled pays.
@@ -330,6 +338,9 @@ module TriComputeSettle {
         assert(payable_flag(FMT_GF_BINARY, 0x70, 3, 4, 1, 0) == 0, "GF8 max-exp with has_inf not payable");
         assert(payable_flag(FMT_GFT, 40, 0, 0, 0, 80) == 1, "GF-T16 offset 40 payable");
         assert(payable_flag(FMT_GFT, 80, 0, 0, 0, 80) == 0, "GF-T16 reserved offset 80 not payable");
+        assert(payable_flag(FMT_GFT, 79, 0, 0, 0, 80) == 1, "GF-T16 offset 79 (boundary) payable");
+        assert(payable_flag(FMT_GFT, 100, 0, 0, 0, 80) == 0, "GF-T16 out-of-range offset 100 NOT payable (was a garbage-pay hole)");
+        assert(payable_flag(FMT_GFT, 4294967295, 0, 0, 0, 80) == 0, "GF-T16 max-u32 garbage offset not payable");
     }
 
     // settle_canonical is the one gated path: every gate (sig, double-pay,
