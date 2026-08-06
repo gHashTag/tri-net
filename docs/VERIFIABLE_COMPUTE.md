@@ -145,9 +145,18 @@ Two verification modes:
   and `_discovery_` (a requester routes a task only to a host whose signed capability card
   advertises the skill). `trinet_lifecycle_over_mesh` then proves the layers COMPOSE:
   discovery -> compute -> batch -> ledger in one sealed flow, each stage feeding the next.
-- **Silicon**: **none**. No GF-T recompute has run on an FPGA. The GF-T arithmetic
-  here is the reference a verifier runs; the on-silicon GF unit (t27 `specs/numeric`,
-  gf16 @ ~322 MHz on AX7203) is a separate, not-yet-connected artifact.
+- **Silicon**: **RTL built and synthesized; not yet run on a board.** `fpga/gft/`
+  now realizes the GF-T ALU -- `gft_mul` / `gft_add` / `gft_sub` (mul/add/sub) plus a
+  4-lane MAC (`gft_dot4`, narrowed to `gft_dot4_tile` = 4 DSP48E1) -- as synthesizable
+  Verilog from the SAME `tri_gft_arith`/`tri_gft_add`/`tri_gft_sub` specs the over-wire
+  verifier runs. Every module passes an `iverilog` KAT against the exact values the
+  verifier accepts, and `yosys synth_xilinx` cleanly (`gft_alu_ax7203` is the AX7203
+  board top with an on-chip self-check whose fail path is proven). What has NOT happened:
+  no bitstream has been placed-and-routed or flashed, so **no GF-T recompute has run on
+  real silicon yet**. That is the one remaining step -- `nextpnr-xilinx` P&R + AL321 flash
+  on the AX7203 (`docs/../fpga/gft/RUN_ON_SILICON.md`), which needs the board/openXC7
+  container. The `t27c gen-verilog` emitter is meanwhile blocked by an interleaved-reg
+  defect (tracked upstream), so `fpga/gft/*.v` are hand-transcriptions, KAT-gated.
 - **Coverage**: GF-T arithmetic recompute now spans **all four rungs** -- GF-T4/8/16
   (u32) and GF-T32 (u64) -- for multiply, add, and subtract, each validated against its
   exact integer oracle and wired into `trinet_a2a_node.compute_ok` (rung selected by
