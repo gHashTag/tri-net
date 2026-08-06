@@ -56,3 +56,6 @@ Append new gotchas / measured numbers / part data / flash results here every tim
 
 ## LED polarity: AX7203 user LEDs (B13/C13/D14/D15) are ACTIVE-LOW
 Confirmed on hardware 2026-08-07: `ax7203_gft_compute.bit` drove led=1011 (led[0]=1=correct); observed OFF/OFF/ON/OFF — the EXACT active-low display of 1011. So drive a pin LOW to light a LED. For an intuitive "all LEDs on = pass" indicator: `assign led = correct ? 4'b0000 : 4'b1111;`.
+
+## LOG — 2026-08-07: GF-T VISUALLY VERIFIED ON SILICON
+`ax7203_gft_pass.bit` (all 4 LEDs ON iff correct, active-low) → AX7203: user confirmed ALL 4 LEDs lit = GF-T dot product correct on real hardware. Full spec→openXC7→bit→flash→silicon chain proven. This is the working end-state; return here as the reference "known-good on hardware".
