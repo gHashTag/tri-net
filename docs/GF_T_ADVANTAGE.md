@@ -72,3 +72,18 @@ substrate, where the exponent trits are the native unit.
 **Precision.** binary16 is more precise **within its narrow range** (2x finer normals);
 GF-T trades that for range + uniformity + cheap decode. All numbers above are the measured
 output of the harness, not claims.
+
+**Task-level: GF-T16 wins range-bound accumulation, loses mass-concentrated softmax.**
+Per-number error (above) is not the whole story — what matters is the *answer*. Two measured
+task tests draw the boundary:
+- `tests/gft_task_accuracy.rs` — a 4096-term dot product (the matmul atom). On a wide
+  2^±20 operand band GF-T16 stays at 0.00067% while **binary16 overflows entirely**; on a
+  narrow 2^±6 band the two are task-level peers (~0.0017%). GF-T16 beats bf16 in both. **Win
+  where dynamic range matters.**
+- `tests/gft_softmax_accuracy.rs` — softmax over 256 logits (the attention atom). **binary16
+  wins** total-variation in both bands (its 10th mantissa bit pays off at the peak). In the
+  wide band binary16 flushes 100/256 tail keys to zero and *still* wins — softmax normalizes
+  mass toward the peak, so the range GF-T16 spends bits on is worthless here. GF-T16 stays
+  ~3-4x ahead of bf16. **Loss where the task concentrates mass and rewards mantissa bits.**
+
+Net: GF-T16 is the format for wide-dynamic-range linear algebra, not a universal winner.

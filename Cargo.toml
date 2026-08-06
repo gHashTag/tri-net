@@ -48,6 +48,10 @@ path = "src/bin/smoke_m1.rs"
 name = "gft_task_accuracy"
 path = "tests/gft_task_accuracy.rs"
 
+[[test]]
+name = "gft_softmax_accuracy"
+path = "tests/gft_softmax_accuracy.rs"
+
 [profile.release]
 opt-level = "z"
 lto = true
