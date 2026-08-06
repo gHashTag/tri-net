@@ -84,5 +84,9 @@ iverilog -g2012 -o /tmp/k.vvp /tmp/gftgen.v fpga/gft/gft_arith_gen_kat_tb.v && v
 ```
 
 So one `.t27` generates BOTH the Rust A2A verifier and synthesizable Verilog, and
-they provably agree -- the spec-first thesis, end to end. (`gft_mul.v` remains the
+they provably agree -- the spec-first thesis, end to end. Add and subtract too -- `gft_add_gen_kat_tb.v`
+(`t27c gen-verilog specs/tri_gft_add.t27`) and `gft_sub_gen_kat_tb.v`
+(`specs/tri_gft_sub.t27`) KAT the generated TriGftAdd/TriGftSub against the same
+over-wire values, so the whole GF-T ALU (mul/add/sub) is auto-proven from spec.
+(`gft_mul.v` remains the
 hand-shaped I/O datapath; the generated module is a function library, KAT-gated here.)
