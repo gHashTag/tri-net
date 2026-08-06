@@ -116,7 +116,11 @@ fn main() {
     // release the bond.
     let settle_epoch = 1u32;
     let now = settle_epoch + window; // 11
-    let bal_final = account::bal_after_finalize_gated(bal, pending, settle_epoch, now, window); // 816
+    // Finalize through the OUTCOME-AWARE gate: an honest result is not slashed, so the
+    // time gate applies and the reward finalizes. slashed is the (outcome == SLASH)
+    // verdict -- here 0, from the honest resolve_full above.
+    let honest_slashed = (out_h == challenge::RESOLVE_SLASH) as u32;
+    let bal_final = account::bal_after_finalize_checked(bal, pending, settle_epoch, now, window, honest_slashed); // 816
     let bal_released = account::bal_after_release(bal_final, locked); // 1016
     let honest_total = account::total3(bal_released, 0, 0);
     assert_eq!(honest_total, 1016, "honest: balance + reward + returned bond");
@@ -140,6 +144,11 @@ fn main() {
     let bond_after = challenge::executor_bond_after(bond, out_f); // 0 (slashed)
     let fraud_total = account::total3(bal_claw, bond_after, 0);
     assert_eq!(fraud_total, 800, "fraud: escrowed reward clawed + bond slashed");
+    // Defense-in-depth: clawback (above) is the primary revert, but even if it were
+    // MISSED and the window later fully elapsed, the outcome-aware finalize refuses a
+    // SLASHED reward -- the fraud can never reach spendable balance, clock aside.
+    let fraud_slashed = (out_f == challenge::RESOLVE_SLASH) as u32;
+    assert_eq!(account::bal_after_finalize_checked(bal, pending_f, settle_epoch, settle_epoch + window, window, fraud_slashed), bal, "slashed reward never finalizes even past the window (clawback-independent)");
     let cwin = challenge::challenger_reward(bond, out_f);
     assert_eq!(cwin, bond, "challenger wins the slashed bond");
 
@@ -217,8 +226,10 @@ fn main() {
     // Family confusion: dispute a binary-committed result as GF-T -> FAMILY_MISMATCH.
     let out_fam = challenge::resolve_full(0, 6, challenge::FMT_GF_BINARY, challenge::FMT_GFT, leaf_bad, dispute_leaf_bad, r_bad, r_ok);
     assert_eq!(out_fam, challenge::RESOLVE_FAMILY_MISMATCH, "cross-family -> mismatch");
-    // Premature finalize (inside the window) is a no-op: reward stays escrowed.
-    assert_eq!(account::bal_after_finalize_gated(bal, pending_f, settle_epoch, settle_epoch + 3, window), bal, "premature finalize keeps reward escrowed");
+    // Premature finalize (inside the window) is a no-op: reward stays escrowed. Through
+    // the outcome-aware gate with slashed = 0, the time gate still holds it inside the
+    // window (the checked gate never weakens the time condition).
+    assert_eq!(account::bal_after_finalize_checked(bal, pending_f, settle_epoch, settle_epoch + 3, window, 0), bal, "premature finalize keeps reward escrowed");
 
     println!("compute lifecycle end-to-end (receipt -> settle/escrow -> challenge window):");
     println!("  ingress: result admitted (bound+fresh+reputable); wrong-op/stale/low-rep rejected before settle");
