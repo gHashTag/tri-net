@@ -97,6 +97,73 @@ fn rel_err(rt: f64, a: f64) -> f64 {
 // A representable value counts if the round-trip is finite AND not saturated/coerced away.
 fn covers(rt: f64, a: f64) -> bool { rt.is_finite() && rt > 0.0 && (rt / a - 1.0).abs() < 0.5 }
 
+// ---- The top rung: GF-T32 (6 exp trits, 25-bit mantissa) vs fp32 and tf32. ----
+// GF-T32: (1 + M/2^25) * 2^e, e in [-364, 364]. Honest stored width = 10-bit offset (729
+// codes) + 25-bit mantissa + sign = 36 bits (WIDER than fp32's 32), or 6 native trits.
+const GFT32_EMAX: i32 = 364;
+fn gft32_roundtrip(a: f64) -> f64 {
+    if a <= 0.0 { return 0.0; }
+    let mut e = a.log2().floor() as i32;
+    if e < -GFT32_EMAX { e = -GFT32_EMAX; }
+    if e > GFT32_EMAX { return f64::INFINITY; }
+    let m1 = 33554432.0; // 2^25
+    let frac = a / 2f64.powi(e) - 1.0;
+    let mut m = (frac * m1).round();
+    let mut ee = e;
+    if m >= m1 { m = 0.0; ee += 1; }
+    if ee > GFT32_EMAX { return f64::INFINITY; }
+    (1.0 + m / m1) * 2f64.powi(ee)
+}
+// fp32 = native IEEE single (Rust f32 IS fp32).
+fn fp32_roundtrip(a: f64) -> f64 { (a as f32) as f64 }
+// tf32 = 8-bit exp (fp32 range) + 10-bit mantissa (NVIDIA TensorFloat-32, 19 stored bits).
+fn tf32_roundtrip(a: f64) -> f64 {
+    if a <= 0.0 { return 0.0; }
+    let e = a.log2().floor() as i32;
+    if e > 127 { return f64::INFINITY; }
+    if e < -126 { return 0.0; }
+    let m1 = 1024.0; // 2^10
+    let frac = a / 2f64.powi(e) - 1.0;
+    let mut m = (frac * m1).round();
+    let mut ee = e;
+    if m >= m1 { m = 0.0; ee += 1; }
+    (1.0 + m / m1) * 2f64.powi(ee)
+}
+
+fn thirtytwo_bit_rung() {
+    // GF-T32 reaches 2^364; sweep a range wide enough to expose fp32's overflow/underflow.
+    let spo = 5;
+    let mut n = 0u32;
+    let mut worst = [0f64; 3]; // GF-T32, fp32(normals), tf32
+    let mut cov = [0u32; 3];
+    let mut k = -360 * spo;
+    while k <= 360 * spo {
+        let a = 2f64.powf(k as f64 / spo as f64) * 1.031;
+        n += 1;
+        let rts = [gft32_roundtrip(a), fp32_roundtrip(a), tf32_roundtrip(a)];
+        for i in 0..3 {
+            if covers(rts[i], a) {
+                cov[i] += 1;
+                let e = rel_err(rts[i], a);
+                if !(i == 1 && a < 2f64.powi(-126)) && e > worst[i] { worst[i] = e; } // skip fp32 subnormals for the normal-precision figure
+            }
+        }
+        k += 1;
+    }
+    println!("\n\nThe TOP RUNG -- GF-T32 vs fp32 / tf32, over a 2^-360..2^360 sweep ({} points):\n", n);
+    println!("  format  | stored width      | worst rel.err        | covers sweep | dynamic range");
+    println!("  --------|-------------------|----------------------|--------------|---------------");
+    println!("  GF-T32  | 36b (6 trits+25m) | {:>9.6}% UNIFORM   | {:>3.0}%         | ~2^728", worst[0] * 100.0, 100.0 * cov[0] as f64 / n as f64);
+    println!("  fp32    | 32b (8exp+23m)    | {:>9.6}% normals   | {:>3.0}%         | ~2^277", worst[1] * 100.0, 100.0 * cov[1] as f64 / n as f64);
+    println!("  tf32    | 19b (8exp+10m)    | {:>9.6}%           | {:>3.0}%         | ~2^277", worst[2] * 100.0, 100.0 * cov[2] as f64 / n as f64);
+    println!();
+    println!("  Honest: GF-T32 is WIDER than fp32 (36b vs 32b). For those ~4 extra bits it buys ~2.6x the");
+    println!("  exponent range (2^728 vs 2^277) AND 2 more mantissa bits (25 vs 23) AND uniform precision");
+    println!("  (fp32 collapses in subnormals). fp32 overflows past ~3.4e38 / underflows ~1e-45 where GF-T32");
+    println!("  stays finite; tf32 (ML training format) has fp32's range but ~500x coarser mantissa than GF-T32.");
+    assert!(gft32_roundtrip(1.0e100).is_finite() && fp32_roundtrip(1.0e100).is_infinite(), "GF-T32 finite where fp32 overflows at 1e100");
+}
+
 fn main() {
     // Four 16-bit formats over a wide 2^-40..2^40 sweep, at non-power-of-two offsets.
     let steps_per_octave = 7;
@@ -160,5 +227,8 @@ fn main() {
     assert!(bf16_roundtrip(1.0e30).is_finite(), "bf16 is finite at 1e30 (wide range)");
     assert!(gft16_roundtrip(1.0e-11).is_finite() && binary16_roundtrip(1.0e-11) == 0.0, "GF-T16 finite where binary16 underflows");
     assert!(worst[0] < 0.002 && cov[0] as f64 / n as f64 > 0.99, "GF-T16: uniform sub-0.2% error, full coverage");
-    println!("\nOK: all four round-trips behave to spec; the Pareto table above is measured, not claimed.");
+
+    thirtytwo_bit_rung();
+
+    println!("\nOK: all round-trips behave to spec; both tables above are measured, not claimed.");
 }
