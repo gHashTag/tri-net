@@ -88,6 +88,10 @@ path = "tests/gft_receipt_batch.rs"
 name = "gft_ledger_settlement"
 path = "tests/gft_ledger_settlement.rs"
 
+[[test]]
+name = "gft_mlp_accuracy"
+path = "tests/gft_mlp_accuracy.rs"
+
 [profile.release]
 opt-level = "z"
 lto = true
