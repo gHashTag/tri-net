@@ -59,3 +59,6 @@ Confirmed on hardware 2026-08-07: `ax7203_gft_compute.bit` drove led=1011 (led[0
 
 ## LOG — 2026-08-07: GF-T VISUALLY VERIFIED ON SILICON
 `ax7203_gft_pass.bit` (all 4 LEDs ON iff correct, active-low) → AX7203: user confirmed ALL 4 LEDs lit = GF-T dot product correct on real hardware. Full spec→openXC7→bit→flash→silicon chain proven. This is the working end-state; return here as the reference "known-good on hardware".
+
+## LOG — 2026-08-07: full BitNet×GF-T CLASSIFIER on silicon
+`ax7203_gft_cls.bit` (GftClassifier4 with a committed test vector hardwired → expected class 0; all-4-LEDs-on iff correct, active-low) → AX7203, DONE=1. Combinational classifier (hidden MLP → 4 logit-neurons → argmax) places clean via openXC7. Note: detect/flash with 6 boards on the bus is slower — use `alarm 50+` (not 18) or commands get killed before output. gft_classifier4.v gen from integration/gft-full-stack branch.
