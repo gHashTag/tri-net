@@ -241,6 +241,29 @@ module TriComputeChallenge {
         }
     }
 
+    // The single correct BitNet resolution path -- the analogue of resolve_full for
+    // the ternary ladder. resolve_bitnet (and _d256/_quorum) are BARE inner resolvers:
+    // they take no epoch, so a BitNet fraud proof already resolved at dispute_epoch E
+    // can be REPLAYED and re-slash the executor every time -- the exact anti-replay
+    // hole resolve_full closes for GF disputes, left open on the ternary side. They
+    // also skip the family check, so a cross-family dispute is not distinguished. Wrap
+    // resolve_bitnet in the same freshness -> family -> resolve order: a stale replay
+    // short-circuits to RESOLVE_STALE before any slash logic, a cross-family dispute is
+    // RESOLVE_FAMILY_MISMATCH, and only a fresh, same-family dispute reaches the leaf +
+    // ternary + GF honesty check. Callers on the BitNet path should use THIS, exactly
+    // as GF callers use resolve_full instead of bare resolve_bound.
+    fn resolve_bitnet_full(last_epoch: u32, dispute_epoch: u32, settled_family: u32, dispute_family: u32, settled_leaf: u32, dispute_leaf: u32, claimed_result: u32, recomputed_result: u32, ternary_ok: u32) -> u32 {
+        if (dispute_epoch > last_epoch) {
+            if (settled_family == dispute_family) {
+                return resolve_bitnet(settled_leaf, dispute_leaf, claimed_result, recomputed_result, ternary_ok);
+            } else {
+                return RESOLVE_FAMILY_MISMATCH;
+            }
+        } else {
+            return RESOLVE_STALE;
+        }
+    }
+
     // resolve_bitnet anchors on a 32-bit bitnet_leaf (~2^16 birthday collision -- a
     // griefer could find a colliding dispute leaf). This variant anchors on the
     // 256-bit BitNet digest instead (tri_compute_bitnet.bitnet_digest_pre +
@@ -846,6 +869,28 @@ module TriComputeChallenge {
         // a fabricated dispute (leaf mismatch) is malformed, never slashes, even with bad ternary.
         assert(resolve_bitnet(0xAB, 0xAC, 0x4100, 0x4100, 0) == RESOLVE_MALFORMED, "unbound dispute -> malformed, no slash");
         assert(executor_bond_after(1000, resolve_bitnet(0xAB, 0xAC, 0x4100, 0x4100, 0)) == 1000, "malformed keeps the bond");
+    }
+
+    // resolve_bitnet_full gives the BitNet path the anti-replay + family guards the GF
+    // path (resolve_full) already has. Bare resolve_bitnet re-slashes a replay because
+    // it has no epoch; the full wrapper rejects it as STALE.
+    test bitnet_full_closes_replay_and_family {
+        // fresh (dispute_epoch 6 > last 5), same family, valid ternary + correct GF -> honest.
+        assert(resolve_bitnet_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x4100, 0x4100, 1) == RESOLVE_HONEST, "fresh + same family + valid -> honest");
+        // fresh valid fraud (wrong GF) -> slash.
+        assert(resolve_bitnet_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x9999, 0x4100, 1) == RESOLVE_SLASH, "fresh GF fraud -> slash");
+        // fresh bad-ternary -> slash.
+        assert(resolve_bitnet_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x4100, 0x4100, 0) == RESOLVE_SLASH, "fresh bad ternary -> slash");
+        // THE replay hole: dispute_epoch 6 == last 6 (already resolved) -> STALE, not a
+        // second slash. Bare resolve_bitnet would slash the same fraud again.
+        assert(resolve_bitnet_full(6, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x9999, 0x4100, 1) == RESOLVE_STALE, "replayed BitNet fraud -> stale, no re-slash");
+        assert(resolve_bitnet(0xAB, 0xAB, 0x9999, 0x4100, 1) == RESOLVE_SLASH, "contrast: bare resolve_bitnet re-slashes the replay (no epoch)");
+        // cross-family dispute -> family mismatch, distinct from a bad leaf.
+        assert(resolve_bitnet_full(5, 6, FMT_GFT, FMT_GF_BINARY, 0xAB, 0xAB, 0x4100, 0x4100, 1) == RESOLVE_FAMILY_MISMATCH, "cross-family BitNet dispute -> family mismatch");
+        // fresh but fabricated leaf -> malformed (reaches the inner resolver).
+        assert(resolve_bitnet_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAC, 0x4100, 0x4100, 1) == RESOLVE_MALFORMED, "fresh same-family but unbound leaf -> malformed");
+        // A stale replay never advances the watermark or slashes (composes with resolver_epoch_after).
+        assert(executor_bond_after(1000, resolve_bitnet_full(6, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x9999, 0x4100, 1)) == 1000, "replayed BitNet dispute keeps the bond");
     }
 
     // The 256-bit-anchored variant: leaf_match is the caller's 8-word digest
