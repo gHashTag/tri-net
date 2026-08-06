@@ -103,3 +103,24 @@ yosys fpga/gft/synth_gft_alu.ys
 
 Flash this to the AX7203 (openXC7 place-and-route) and the `pass` LED is the first
 GF-T recompute confirmed on real silicon.
+
+## Self-check discrimination (the fail path works)
+
+A checker that can only ever assert `pass` is worthless. `gft_alu_selfcheck.v`
+carries a **guarded** fault hook (`\`ifdef GFT_SELFCHECK_FAULT`) that corrupts one
+expected value for verification only -- the shipped bitstream (no define) keeps the
+golden vectors. `gft_alu_selfcheck_disc_tb.v` proves both directions:
+
+```bash
+# golden: uncorrupted -> pass
+iverilog -g2012 -o /tmp/g.vvp fpga/gft/gft_mul.v fpga/gft/gft_add.v fpga/gft/gft_sub.v \
+  fpga/gft/gft_alu.v fpga/gft/gft_alu_selfcheck.v fpga/gft/gft_alu_selfcheck_disc_tb.v && vvp /tmp/g.vvp
+# -> GOLDEN PASS: uncorrupted vectors -> pass
+
+# fault-injected: a wrong answer MUST raise fail
+iverilog -g2012 -DGFT_SELFCHECK_FAULT -o /tmp/f.vvp <same sources> && vvp /tmp/f.vvp
+# -> DISCRIMINATION PASS: a corrupted vector raised fail (checker catches wrong answers)
+```
+
+So the on-silicon `pass` LED is meaningful: the checker provably distinguishes a
+correct GF-T ALU from a broken one.
