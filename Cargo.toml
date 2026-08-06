@@ -72,6 +72,10 @@ path = "tests/gft_dot_oracle.rs"
 name = "gft32_challenge"
 path = "tests/gft32_challenge.rs"
 
+[[test]]
+name = "gft_verifiable_compute"
+path = "tests/gft_verifiable_compute.rs"
+
 [profile.release]
 opt-level = "z"
 lto = true
