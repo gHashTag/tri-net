@@ -80,6 +80,10 @@ path = "tests/gft_verifiable_compute.rs"
 name = "gft_dot_verifiable"
 path = "tests/gft_dot_verifiable.rs"
 
+[[test]]
+name = "gft_receipt_batch"
+path = "tests/gft_receipt_batch.rs"
+
 [profile.release]
 opt-level = "z"
 lto = true
