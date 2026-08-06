@@ -70,3 +70,19 @@ first GF-T recompute confirmed on real silicon.
 ## Run it on silicon
 
 See [RUN_ON_SILICON.md](RUN_ON_SILICON.md) for the end-to-end recipe: local verify (all KATs + synth) -> fill board pins -> openXC7 place-and-route -> AL321 flash.
+
+## Auto path: `t27c gen-verilog` matches the over-wire verifier
+
+Since the `t27c gen-verilog` interleaved-reg defect was fixed, the GF-T arithmetic
+compiles straight from the spec, and its functions match the over-wire verifier's
+exact values (`gft_arith_gen_kat_tb.v`):
+
+```bash
+t27c gen-verilog specs/tri_gft_arith.t27 > /tmp/gftgen.v
+iverilog -g2012 -o /tmp/k.vvp /tmp/gftgen.v fpga/gft/gft_arith_gen_kat_tb.v && vvp /tmp/k.vvp
+# -> GEN-VERILOG KAT PASS: generated GF-T Verilog matches the over-wire verifier
+```
+
+So one `.t27` generates BOTH the Rust A2A verifier and synthesizable Verilog, and
+they provably agree -- the spec-first thesis, end to end. (`gft_mul.v` remains the
+hand-shaped I/O datapath; the generated module is a function library, KAT-gated here.)
