@@ -344,6 +344,25 @@ module TriComputeSettle {
         assert(settle_checked_gft_w(100, 7, 1, 5) == 100, "off-ladder width -> fail-closed, nothing settles");
     }
 
+    // The wider silicon rungs (GF-T64/128, added to the money layer alongside the GF-T32
+    // Et6 fix) settle through the same width-derived path. Reward is width-proportional
+    // (compute_reward = gf_width): a GF-T64 op is worth 64, a GF-T128 op 128 -- the
+    // economics now reflect the higher-precision rungs the silicon actually runs.
+    test settle_gft64_gft128_new_rungs {
+        assert(gft_offset_max_w(64) == 19682, "width 64 -> GF-T64 special row 19682");
+        assert(gft_offset_max_w(128) == 4782968, "width 128 -> GF-T128 special row 4782968");
+        // GF-T64: finite offset pays the width reward (64); special row / out-of-range withhold.
+        assert(settle_checked_gft_w(100, 64, 1, 9841) == 164, "GF-T64 unity offset 9841 finite -> pays 64");
+        assert(settle_checked_gft_w(100, 64, 1, 19681) == 164, "GF-T64 offset just below the row pays");
+        assert(settle_checked_gft_w(100, 64, 1, 19682) == 100, "GF-T64 special row 19682 withholds");
+        assert(settle_checked_gft_w(100, 64, 1, 19683) == 100, "GF-T64 out-of-range withholds");
+        // GF-T128 settles too, at the wider width reward (128).
+        assert(settle_checked_gft_w(100, 128, 1, 100) == 228, "GF-T128 finite -> pays 128");
+        assert(settle_checked_gft_w(100, 128, 1, 4782968) == 100, "GF-T128 special row withholds");
+        // No cross-rung leak: a GF-T64-range offset is out of range for GF-T32 (row 728).
+        assert(settle_checked_gft_w(100, 32, 1, 15000) == 100, "a GF-T64-range offset is out of range for GF-T32");
+    }
+
     // The unified path: only fresh + finite + not-already-settled pays.
     test settle_full_gate {
         assert(settle_full(100, 16, 1, 0x4200, 6, 9, 0) == 116, "fresh finite new -> pays");
