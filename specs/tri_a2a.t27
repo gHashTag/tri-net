@@ -264,6 +264,53 @@ module TriA2A {
         }
     }
 
+    // executor_binds_assign / admit_result_authentic stop HONEST misrouting, but by
+    // themselves they are FORGEABLE: the assignee id is PUBLIC (it rides in the
+    // MSG_TASK_ASSIGN), so an attacker just sets receipt_executor = assigned_executor
+    // and forges the rest -- the committed executor is self-reported. The binding only
+    // bites once that executor is AUTHENTIC: a valid signature AND the committed
+    // executor equals the commitment to the SIGNING pubkey (tri_node_identity:
+    // executor_id = low32(SHA-256(pubkey)), recomputed by the verifier from the key).
+    // A forger can NAME the assignee but cannot also produce a signature whose key
+    // hashes to it. This mirrors tri_node_identity.who_ok, inlined to keep the module
+    // self-contained exactly as can_admit's rep-floor is inlined above.
+    fn executor_authentic(assigned_executor: u32, receipt_executor: u32, sig_ok: u32, hashed_pubkey_lo: u32) -> bool {
+        if (assigned_executor == receipt_executor) {
+            if (sig_ok == 1) {
+                return receipt_executor == hashed_pubkey_lo;
+            } else {
+                return sig_ok != sig_ok;
+            }
+        } else {
+            return assigned_executor != assigned_executor;
+        }
+    }
+
+    // Signature-authenticated ingress: admit_result_bonded (task/family/op, freshness,
+    // reputation, collateral) AND executor_authentic (assigned == committed == signer's
+    // key commitment, with a valid signature). THIS is the strongest entry gate -- it
+    // closes both the honest wrong-executor splice AND the forged-executor front-run
+    // that admit_result_authentic still let through. A result with no valid signature,
+    // or whose signer key does not hash to the committed executor, is rejected even
+    // when task/family/op/freshness/reputation/bond all pass. The executor_authentic
+    // logic is inlined here (nested comparisons) rather than branched-on as a bool
+    // call, keeping the generated Rust a plain comparison chain.
+    fn admit_result_signed(assign_task_id: u32, result_task_id: u32, receipt_task: u32, assigned_skill: u32, receipt_family: u32, receipt_op: u32, last_settled: u32, exec_rep: u32, min_rep: u32, bond: u32, outstanding: u32, min_bps: u32, assigned_executor: u32, receipt_executor: u32, sig_ok: u32, hashed_pubkey_lo: u32) -> bool {
+        if (assigned_executor == receipt_executor) {
+            if (sig_ok == 1) {
+                if (receipt_executor == hashed_pubkey_lo) {
+                    return admit_result_bonded(assign_task_id, result_task_id, receipt_task, assigned_skill, receipt_family, receipt_op, last_settled, exec_rep, min_rep, bond, outstanding, min_bps);
+                } else {
+                    return receipt_executor != receipt_executor;
+                }
+            } else {
+                return sig_ok != sig_ok;
+            }
+        } else {
+            return assigned_executor != assigned_executor;
+        }
+    }
+
     // ---- Tests / invariants ----
 
     // A2A is demultiplexed by PORT on KIND_DATA -- not by the (ciphertext) payload.
@@ -423,5 +470,26 @@ module TriA2A {
         assert(admit_result_authentic(0x777, 0x100, 0x100, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 2000, 10000, 2000, 0xE1, 0xE1) == false, "correct executor but stale -> still reject");
         // ...and under-bonded still rejects even for the right executor.
         assert(admit_result_authentic(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 1999, 10000, 2000, 0xE1, 0xE1) == false, "correct executor but under-collateralized -> still reject");
+    }
+
+    // Signature authenticity closes the FORGEABLE front-run. The assignee id 0xE1 is
+    // public, so admit_result_authentic accepts any receipt that merely names it.
+    // executor_authentic additionally requires a valid signature whose key hashes to
+    // the committed executor (hashed_pubkey_lo). Base valid result as above; the honest
+    // assignee 0xE1 signs with a key that hashes to 0xE1.
+    test signature_authenticates_the_executor {
+        assert(executor_authentic(0xE1, 0xE1, 1, 0xE1) == true, "assigned + signed + key hashes to executor -> authentic");
+        assert(executor_authentic(0xE1, 0xE1, 0, 0xE1) == false, "no valid signature (forger without the key) -> not authentic");
+        assert(executor_authentic(0xE1, 0xE1, 1, 0xBB) == false, "valid sig but signer key hashes to 0xBB != committed 0xE1 -> not authentic");
+        assert(executor_authentic(0xE1, 0xE2, 1, 0xE2) == false, "a different (even authentic) executor is not the assignee");
+        // Full gate: honest assignee accepted.
+        assert(admit_result_signed(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 2000, 10000, 2000, 0xE1, 0xE1, 1, 0xE1) == true, "authentic assignee result -> accept");
+        // The forge admit_result_authentic missed: a receipt NAMING the assignee but
+        // with no valid signature is admitted by the authentic gate, rejected here.
+        assert(admit_result_signed(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 2000, 10000, 2000, 0xE1, 0xE1, 0, 0xE1) == false, "unsigned forge naming the assignee -> reject (the hole closed)");
+        // Valid signature but from the WRONG key (identity mismatch) -> reject.
+        assert(admit_result_signed(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 2000, 10000, 2000, 0xE1, 0xE1, 1, 0xBB) == false, "signed by a key that is not the committed executor -> reject");
+        // Additive: authentic but stale still rejects (never rescues prior gates).
+        assert(admit_result_signed(0x777, 0x100, 0x100, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 2000, 10000, 2000, 0xE1, 0xE1, 1, 0xE1) == false, "authentic but stale -> still reject");
     }
 }
