@@ -166,7 +166,12 @@ Two verification modes:
   (41,256)^2+(41,0)^2 = 13 (0x5740), (41,0)^2+(42,0)*(41,0) = 12 (0x5700),
   (44,0)*(45,0)+(50,0)^2 = 2^20+512 with the small term underflowing (0x7800). So the multiply
   AND the multiply-accumulate (the matmul/attention atom) both run in GF-T16 silicon, bit-exact to
-  the spec the over-wire verifier uses -- the hardware twin of `tests/gft_task_accuracy.rs`. The `t27c gen-verilog` interleaved-reg defect is now FIXED upstream:
+  the spec the over-wire verifier uses -- the hardware twin of `tests/gft_task_accuracy.rs`. **And
+  the full matmul ROW:** `gft_macc_ax7203` (`gft_macc_stream` folding a stream of terms into
+  `gft_macc`) place-and-routed (seed 3) and flashed to the same AX7203; a VARIABLE-LENGTH streaming
+  dot product verified **4/4 bit-exact** over UART -- length 1/2/3/4 (e.g. 9+4+8 = 21 -> 0x58A0,
+  4x(41,0)^2 = 16 -> 0x5800). `tests/gft_dot_oracle.rs` reproduces every one of those packed results
+  from the integer spec arithmetic (cargo test), closing spec -> silicon -> oracle. The `t27c gen-verilog` interleaved-reg defect is now FIXED upstream:
   `gft_arith_gen_kat_tb.v` shows the GENERATED GF-T Verilog matches the over-wire
   verifier's exact values, so one `.t27` provably drives both the Rust A2A verifier and
   synthesizable Verilog. `fpga/gft/*.v` remain hand-shaped I/O datapaths (the generated

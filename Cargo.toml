@@ -64,6 +64,10 @@ path = "tests/gft_receipt_binding.rs"
 name = "gft_compute_challenge"
 path = "tests/gft_compute_challenge.rs"
 
+[[test]]
+name = "gft_dot_oracle"
+path = "tests/gft_dot_oracle.rs"
+
 [profile.release]
 opt-level = "z"
 lto = true
