@@ -256,3 +256,23 @@ fn gft_payability_matches_validity() {
         assert_eq!(payable, valid, "payable_flag must equal is_valid_gft for offset {off}");
     }
 }
+
+// The primary (binary GF) payability path: exp is mask-bounded, so the only special
+// values are the all-ones exponent AND only when the format actually carries Inf/NaN.
+#[test]
+fn binary_payability_withholds_only_inf_nan() {
+    use settle::*;
+    // GF16 (exp_bits 6, mant_bits 9, has_inf 1): all-ones exponent (0x3F) is Inf/NaN.
+    assert_eq!(payable_flag(FMT_GF_BINARY, 0x4200, 6, 9, 1, 0), 1, "GF16 finite value payable");
+    assert_eq!(payable_flag(FMT_GF_BINARY, 0x0000, 6, 9, 1, 0), 1, "GF16 zero (exp 0) is finite -> payable");
+    assert_eq!(payable_flag(FMT_GF_BINARY, 0x0001, 6, 9, 1, 0), 1, "GF16 subnormal (exp 0, mant!=0) payable");
+    assert_eq!(payable_flag(FMT_GF_BINARY, 0x7E00, 6, 9, 1, 0), 0, "GF16 +Inf (exp all-ones, mant 0) withheld");
+    assert_eq!(payable_flag(FMT_GF_BINARY, 0x7E01, 6, 9, 1, 0), 0, "GF16 NaN (exp all-ones, mant!=0) withheld");
+    // A format WITHOUT Inf/NaN (has_inf 0, e.g. GF8): every exponent is a normal value.
+    assert_eq!(payable_flag(FMT_GF_BINARY, 0x70, 3, 4, 0, 0), 1, "GF8 max-exp with no Inf format -> normal, payable");
+    assert_eq!(payable_flag(FMT_GF_BINARY, 0x70, 3, 4, 1, 0), 0, "same pattern WITH has_inf -> withheld");
+    // High garbage bits above the 15-bit GF16 field do not change the exp-field
+    // verdict (the mask bounds exp to bits 9..14; the dispute layer catches a wrong
+    // full value). Bit 20 set must not flip the finiteness classification.
+    assert_eq!(payable_flag(FMT_GF_BINARY, 0x4200, 6, 9, 1, 0), payable_flag(FMT_GF_BINARY, 0x4200 | (1 << 20), 6, 9, 1, 0), "a high garbage bit does not change the exp-field verdict");
+}
