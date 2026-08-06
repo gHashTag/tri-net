@@ -114,6 +114,7 @@ Two verification modes:
 | `trinet_ratchet_over_mesh` | multi-hop blind relay + forward secrecy: 2 blind hops, then an HKDF-SHA256 key ratchet (should_ratchet@2^20, must_reject@2^24) where each epoch key opens ONLY its epoch |
 | `trinet_discovery_over_mesh` | discovery/matchmaking: a host advertises a signed capability card, the requester routes a task ONLY if can_serve_skill_op holds; unadvertised family/width/op and a forged card are all rejected |
 | `trinet_lifecycle_over_mesh` | the layers COMPOSE: one sealed flow chains discovery -> compute -> batch -> ledger, each stage's output feeding the next (balance 1000 -> 1032) |
+| `trinet_gft32_over_mesh` | the LARGEST rung crosses the wire: a GF-T32 (25-bit mantissa, u64) task is sealed with full-u32 operand words (assign_mant's 16-bit packing cannot), recomputed via the u64 path, WHO+input-bound -- so all four rungs verify end-to-end over the mesh, not just in-process |
 
 ## 4. Boundaries (what is proven, and where)
 
@@ -155,14 +156,19 @@ Two verification modes:
   no bitstream has been placed-and-routed or flashed, so **no GF-T recompute has run on
   real silicon yet**. That is the one remaining step -- `nextpnr-xilinx` P&R + AL321 flash
   on the AX7203 (`docs/../fpga/gft/RUN_ON_SILICON.md`), which needs the board/openXC7
-  container. The `t27c gen-verilog` emitter is meanwhile blocked by an interleaved-reg
-  defect (tracked upstream), so `fpga/gft/*.v` are hand-transcriptions, KAT-gated.
+  container. The `t27c gen-verilog` interleaved-reg defect is now FIXED upstream:
+  `gft_arith_gen_kat_tb.v` shows the GENERATED GF-T Verilog matches the over-wire
+  verifier's exact values, so one `.t27` provably drives both the Rust A2A verifier and
+  synthesizable Verilog. `fpga/gft/*.v` remain hand-shaped I/O datapaths (the generated
+  module is a function library); both are KAT-gated against the same over-wire values.
 - **Coverage**: GF-T arithmetic recompute now spans **all four rungs** -- GF-T4/8/16
   (u32) and GF-T32 (u64) -- for multiply, add, and subtract, each validated against its
   exact integer oracle and wired into `trinet_a2a_node.compute_ok` (rung selected by
   `width_to_et`). The exhaustive case counts quoted in section 2.2 are the GF-T16
   sweeps; the other rungs are validated over representative-plus-boundary oracles, not
-  the full GF-T16-scale exhaustion.
+  the full GF-T16-scale exhaustion. All four rungs also verify **over the sealed wire**:
+  GF-T16 via the u32 exchange and GF-T32 via `trinet_gft32_over_mesh` (full-u32 operand
+  words + the u64 recompute), so rung coverage is end-to-end, not only in-process.
 
 ## 5. Reproduce a proof locally
 
