@@ -516,8 +516,21 @@ module TriComputeChallenge {
     }
 
     // Total stake burned from the dissenters at a per-verifier stake.
+    // SATURATING: dissenter_count5 is 0..5 but `stake` is a full u32 collateral (the
+    // same value space as balances, which cap at 0xFFFFFFFF), so count*stake overflows
+    // u32 for a large stake and WRAPS -- turning a big burn into a tiny number, which
+    // then underpays the honest verifiers (verifier_reward splits the wrapped total)
+    // and breaks the burn == reward-pool conservation. Widen to u64 and cap at u32 max,
+    // the same discipline as tri_compute_payout.weighted / total_weighted3: floor-div
+    // downstream never over-issues, so a capped total under-distributes dust at worst,
+    // never wraps to a value below a single honest share.
     fn burned_total5(v0: u32, v1: u32, v2: u32, v3: u32, v4: u32, stake: u32) -> u32 {
-        return dissenter_count5(v0, v1, v2, v3, v4) * stake;
+        let prod: u64 = (dissenter_count5(v0, v1, v2, v3, v4) as u64) * (stake as u64);
+        if (prod > 4294967295) {
+            return 4294967295;
+        } else {
+            return prod as u32;
+        }
     }
 
     // Each honest verifier's share of the burned dissenter stake on a 5-node quorum.
@@ -808,6 +821,17 @@ module TriComputeChallenge {
         assert(burned_total5(0x41, 0x41, 0x41, 0x41, 0x99, 50) == 50, "one 50-stake burned");
         assert(honest_share5(0x41, 0x41, 0x41, 0x41, 0x99, 50) == 12, "50 split among 4 -> 12 each (floor)");
         assert(verifier_stake_after(50, 0) + honest_share5(0x41, 0x41, 0x41, 0x41, 0x99, 50) == 62, "honest net 62 > 50");
+    }
+
+    // burned_total5 SATURATES instead of wrapping. dissenter_count is at most 4 (5
+    // distinct votes -> lone majority), but a per-verifier stake is a full u32, so
+    // count*stake can exceed u32. Wrapping would turn a ~4.4e9 burn into ~1.05e8 and
+    // underpay the honest set; the saturating widen caps it at u32 max instead.
+    test burned_total5_saturates {
+        assert(dissenter_count5(0x41, 0x42, 0x43, 0x44, 0x45) == 4, "5 distinct votes -> 4 dissent from a lone majority");
+        assert(burned_total5(0x41, 0x42, 0x43, 0x44, 0x45, 100) == 400, "small stake exact: 4 * 100 = 400");
+        assert(burned_total5(0x41, 0x42, 0x43, 0x44, 0x45, 1100000000) == 4294967295, "4 * 1.1e9 = 4.4e9 saturates to u32 max, not a wrap to ~1.05e8");
+        assert(honest_share5(0x41, 0x42, 0x43, 0x44, 0x45, 1100000000) == 4294967295, "lone honest verifier gets the whole capped pool, never a wrapped dust value");
     }
 
     // BitNet dispute resolves on BOTH the ternary recompute and the GF value. Same
