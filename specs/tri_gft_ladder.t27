@@ -205,7 +205,7 @@ module TriGftLadder {
     }
 
     // The SAME numeric offset is classified differently per rung: 80 is special for
-    // GF-T16 but a perfectly finite offset for GF-T32 (its row is 242). Using the
+    // GF-T16 but a perfectly finite offset for GF-T32 (its row is 728, Et6). Using the
     // wrong rung's rule would misjudge validity -- why the rung (Et) must be bound.
     test rung_dependent_classification {
         assert(is_finite_gft_n(80, GFT16_ET) == false, "80 is special at GF-T16");
