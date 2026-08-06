@@ -43,6 +43,11 @@ goldenfloat-ffi = []
 name = "smoke-m1"
 path = "src/bin/smoke_m1.rs"
 
+# autotests = false above, so integration tests are opt-in per target.
+[[test]]
+name = "gft_task_accuracy"
+path = "tests/gft_task_accuracy.rs"
+
 [profile.release]
 opt-level = "z"
 lto = true
