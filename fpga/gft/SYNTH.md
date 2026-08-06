@@ -69,3 +69,18 @@ yosys fpga/gft/synth_gft_add.ys
 
 Subtract (`gft_sub`, variable leading-zero renorm) is the remaining ALU op, then
 a narrowed GF-T16 ALU wrapper mirrors the `gft16_mul` DSP win.
+
+## GF-T ALU: subtract (`gft_sub`) -- ALU complete
+
+`gft_sub.v` realizes `specs/tri_gft_sub.t27` (different-sign = magnitude
+difference: order by magnitude, form the full-precision aligned difference,
+renormalize by the leading set bit `hi_bit`). `yosys synth_xilinx` (GF-T16, u32):
+~946 LUT + 79 CARRY4, **0 DSP48E1** (leading-zero encoder + barrel shifters),
+clean synth. KAT (`gft_sub_kat_tb.v`, iverilog) matches the over-wire verifier:
+`(41,0)-(40,0)→(40,0)`, `(41,256)-(40,0)→(41,0)`, GF-T8 `(13,8)-(12,0)→(13,0)`,
+GF-T4 `(5,0)-(4,0)→(4,0)`.
+
+With `gft_mul` + `gft_add` + `gft_sub`, the **full GF-T ALU (mul/add/sub) exists
+as synthesizable, KAT-verified RTL** — the same three ops the over-wire ring
+proves, now on silicon. Remaining: a narrowed ALU wrapper (area) and
+`nextpnr-xilinx` place-and-route + timing on the real xc7a200t (AX7203).
