@@ -44,6 +44,14 @@ sealed mesh (`trinet_gft32_over_mesh` closes the u64 rung), each against an exac
 
 ## Honest boundaries
 
-binary16 is more precise **within its narrow range** (2x finer normals); GF-T trades
-that for range + uniformity + cheap decode. The numbers above are the measured output of
-the harness, not claims.
+**Bit budget.** GF-T16 stores `offset<<9 | mant`: a 7-bit exponent offset (covering the
+81 codes `0..80`) + a 9-bit mantissa = a **16-bit magnitude**; the sign is a separate bit,
+so signed GF-T16 is **17 bits** vs binary16's 16 bits signed. GF-T16 therefore spends
+~1 extra bit on the exponent (or, on ternary hardware, **4 native trits** = exactly 81
+codes, no waste). The range + uniform-precision win costs ~1 bit, not zero — the "same
+16 bits" framing holds for the *magnitude* field only. GF-T is designed for a ternary
+substrate, where the exponent trits are the native unit.
+
+**Precision.** binary16 is more precise **within its narrow range** (2x finer normals);
+GF-T trades that for range + uniformity + cheap decode. All numbers above are the measured
+output of the harness, not claims.

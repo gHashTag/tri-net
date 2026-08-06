@@ -145,6 +145,11 @@ fn main() {
     println!("    bfloat16 : {:.3}% -- widest range, but ~{:.0}x coarser than GF-T16 (7-bit mantissa)", worst[2] * 100.0, worst[2] / worst[0]);
     println!("    posit16  : {:.3}% near 1 (tapered best) but {:.2}% at the extremes -- variable-length regime decode", p_near1 * 100.0, worst[3] * 100.0);
     println!();
+    println!("  bit budget (honest): GF-T16 stores offset<<9 | mant = 7-bit offset (81 exponent codes) + 9-bit");
+    println!("     mantissa = 16-bit MAGNITUDE; the sign is a separate bit, so signed GF-T16 = 17 bits vs binary16's");
+    println!("     16 bits signed. GF-T16 spends ~1 extra bit on the exponent (or, on ternary hardware, 4 native");
+    println!("     trits = the exact 81 codes with no waste). So the range/uniformity win costs ~1 bit, not zero.");
+    println!();
     println!("  => Pareto: binary16 = precise/narrow; bfloat16 = wide/coarse; posit16 = great-near-1/tapered+costly-decode;");
     println!("     GF-T16 = wide range + UNIFORM precision + fixed-field decode (1 DSP48E1/mul). It owns the");
     println!("     'wide AND uniformly-precise AND cheap-in-silicon' corner that DSP and ternary/BitNet compute need.");
