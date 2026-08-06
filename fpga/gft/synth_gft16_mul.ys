@@ -1,0 +1,6 @@
+# Synthesis of the field-width-narrowed GF-T16 multiplier (yosys, NO Vivado).
+#   yosys fpga/gft/synth_gft16_mul.ys
+read_verilog fpga/gft/gft_mul.v fpga/gft/gft16_mul.v
+hierarchy -top gft16_mul
+synth_xilinx -flatten
+stat
