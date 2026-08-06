@@ -68,6 +68,10 @@ path = "tests/gft_compute_challenge.rs"
 name = "gft_dot_oracle"
 path = "tests/gft_dot_oracle.rs"
 
+[[test]]
+name = "gft32_challenge"
+path = "tests/gft32_challenge.rs"
+
 [profile.release]
 opt-level = "z"
 lto = true
