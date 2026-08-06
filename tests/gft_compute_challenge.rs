@@ -62,6 +62,9 @@ fn mul_offset(
 }
 
 /// verify_gft_mul_full_p: does a claimed (offset, mant) match the honest recompute?
+// Mirrors the spec fn's signature verbatim (operands + claim + rung params); the arg count is
+// the spec's, not an abstraction to refactor away.
+#[allow(clippy::too_many_arguments)]
 fn verify_full(
     oa: u64,
     ma: u64,
