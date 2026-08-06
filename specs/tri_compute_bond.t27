@@ -64,9 +64,20 @@ module TriComputeBond {
 
     // Balance after resolution: an honest executor gets the bond back; a slashed
     // one does not (the bond goes to the challenger, see tri_compute_challenge).
+    // SATURATING release: balance and bond are both full u32 collateral, so a bare
+    // balance + bond WRAPS a near-max balance to near-zero -- and this is the HONEST
+    // path, so a correct executor would silently LOSE funds exactly when it should be
+    // made whole (worse than any error path). Cap at u32 max, the same crediting
+    // discipline as tri_compute_pool.balance_after_pool_settle / settle.balance_add.
+    // Non-terminal / slash outcomes never add, so they cannot overflow.
     fn balance_after_resolve(balance: u32, bond: u32, outcome: u32) -> u32 {
         if (outcome == 0) {
-            return balance + bond;
+            let sum: u32 = balance + bond;
+            if (sum < balance) {
+                return 0xFFFFFFFF;
+            } else {
+                return sum;
+            }
         } else {
             return balance;
         }
@@ -114,6 +125,15 @@ module TriComputeBond {
         bond = locked_amount(1000, 200);
         assert(bond_state_after(0) == ST_RELEASED, "honest -> released");
         assert(balance_after_resolve(after_post, bond, 0) == 1000, "bond returns; balance whole");
+    }
+
+    // The honest release saturates instead of wrapping at the u32 ceiling: a near-max
+    // balance getting its bond back caps at u32 max rather than wrapping to a tiny
+    // value (which would rob a CORRECT executor). Slash/non-terminal never add.
+    test honest_release_saturates {
+        assert(balance_after_resolve(500, 200, 0) == 700, "normal release exact (regression)");
+        assert(balance_after_resolve(0xFFFFFFF0, 200, 0) == 0xFFFFFFFF, "release that would overflow saturates to u32 max, not wrap to ~184");
+        assert(balance_after_resolve(0xFFFFFFF0, 200, 1) == 0xFFFFFFF0, "slash never adds -> no overflow, balance unchanged");
     }
 
     // A slash keeps the bond out of the executor's balance and marks it SLASHED.
