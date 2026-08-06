@@ -30,6 +30,7 @@ serde_json = "1"
 [dev-dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+num-bigint = "0.4"
 
 [features]
 # Off-by-default: swap the pure-Rust GF16 scalar backend for the goldenfloat-sys
@@ -91,6 +92,10 @@ path = "tests/gft_ledger_settlement.rs"
 [[test]]
 name = "gft_mlp_accuracy"
 path = "tests/gft_mlp_accuracy.rs"
+
+[[test]]
+name = "goldenfloat_family_ladder"
+path = "tests/goldenfloat_family_ladder.rs"
 
 [profile.release]
 opt-level = "z"
