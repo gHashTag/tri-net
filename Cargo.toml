@@ -97,6 +97,10 @@ path = "tests/gft_mlp_accuracy.rs"
 name = "goldenfloat_family_ladder"
 path = "tests/goldenfloat_family_ladder.rs"
 
+[[test]]
+name = "goldenfloat_conformance"
+path = "tests/goldenfloat_conformance.rs"
+
 [profile.release]
 opt-level = "z"
 lto = true
