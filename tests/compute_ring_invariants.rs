@@ -38,6 +38,9 @@ mod safety;
 #[allow(dead_code, unused_parens)]
 #[path = "../gen/rust/tri_compute_bitnet.rs"]
 mod bitnet;
+#[allow(dead_code, unused_parens)]
+#[path = "../gen/rust/tri_compute_settle.rs"]
+mod settle;
 
 // ---- overflow class: saturation, not wrap ----
 
@@ -222,4 +225,34 @@ fn bitnet_is_active_treats_0b11_as_inactive() {
     assert_eq!(is_active(2), 1, "0b10 -> active (-1)");
     assert_eq!(is_active(0), 0, "0b00 -> inactive (skip)");
     assert_eq!(is_active(3), 0, "0b11 -> inactive, not a spurious active weight");
+}
+
+// ---- GF-T payability is RANGE-checked (out-of-range offset was garbage-paid) ----
+
+#[test]
+fn gft_payability_rejects_out_of_range() {
+    use settle::*;
+    // in-range finite offsets pay; the special row and anything past it withhold.
+    assert_eq!(payable_flag(FMT_GFT, 0, 0, 0, 0, 80), 1, "offset 0 payable");
+    assert_eq!(payable_flag(FMT_GFT, 79, 0, 0, 0, 80), 1, "boundary 79 payable");
+    assert_eq!(payable_flag(FMT_GFT, 80, 0, 0, 0, 80), 0, "special row withheld");
+    assert_eq!(payable_flag(FMT_GFT, 81, 0, 0, 0, 80), 0, "just past the ladder withheld");
+    assert_eq!(payable_flag(FMT_GFT, 100, 0, 0, 0, 80), 0, "out-of-range withheld (was the garbage-pay hole)");
+    assert_eq!(payable_flag(FMT_GFT, u32::MAX, 0, 0, 0, 80), 0, "max-u32 garbage withheld");
+    // and settle actually withholds the reward for the garbage offset.
+    assert_eq!(settle_checked_gft(100, 16, 1, 100, 80), 100, "out-of-range GF-T settles nothing");
+    assert_eq!(settle_checked_gft(100, 16, 1, 40, 80), 116, "in-range GF-T still pays");
+}
+
+// GF-T payability must AGREE with gfvalid validity: pay iff the offset is a valid
+// (in-range, non-special) GF-T code. This ties the settle gate to is_valid_gft so the
+// two cannot drift (the range-blind is_finite_gft_n must never become the pay gate).
+#[test]
+fn gft_payability_matches_validity() {
+    // Et=4 -> offset_max = 80.
+    for off in [0u32, 1, 40, 79, 80, 81, 100, 1000, u32::MAX] {
+        let payable = settle::payable_flag(settle::FMT_GFT, off, 0, 0, 0, 80) == 1;
+        let valid = gfvalid::is_valid_gft(off, 4);
+        assert_eq!(payable, valid, "payable_flag must equal is_valid_gft for offset {off}");
+    }
 }
