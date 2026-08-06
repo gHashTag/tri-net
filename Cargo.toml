@@ -52,6 +52,14 @@ path = "tests/gft_task_accuracy.rs"
 name = "gft_softmax_accuracy"
 path = "tests/gft_softmax_accuracy.rs"
 
+[[test]]
+name = "gft_rmsnorm_accuracy"
+path = "tests/gft_rmsnorm_accuracy.rs"
+
+[[test]]
+name = "gft_receipt_binding"
+path = "tests/gft_receipt_binding.rs"
+
 [profile.release]
 opt-level = "z"
 lto = true
