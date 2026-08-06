@@ -130,3 +130,69 @@ fn low_rungs_match_the_known_silicon_kats() {
         (1, one() << 629u32)
     );
 }
+
+/// Regression guard for the GF-T ladder's TERNARY exponent geometry -- the table the
+/// money layer (tri_compute_gfvalid / _settle) must match. Et per rung is the ratified
+/// golden rule Et = fib(k+1)+1 (rung k: GF-T4=1 .. GF-T128=6), NOT Et = log2(width).
+/// The two agree through GF-T16 and DIVERGE at GF-T32 (fib -> 6, log2 -> 5). A spec that
+/// re-derives Et by log2 -- exactly the bug fixed in gfvalid/settle, where GF-T32 got
+/// offset_max 242 instead of 728 -- is caught by diffing against this pinned table.
+fn tfib(n: u32) -> u32 {
+    let (mut a, mut b) = (0u32, 1u32);
+    let mut i = 0;
+    while i < n {
+        let t = a + b;
+        a = b;
+        b = t;
+        i += 1;
+    }
+    a
+}
+
+fn pow3_u64(e: u32) -> u64 {
+    let mut p = 1u64;
+    let mut i = 0;
+    while i < e {
+        p *= 3;
+        i += 1;
+    }
+    p
+}
+
+fn log2_width(width: u32) -> u32 {
+    let mut w = width;
+    let mut k = 0;
+    while w > 1 {
+        w >>= 1;
+        k += 1;
+    }
+    k
+}
+
+#[test]
+fn ternary_rung_geometry_table_is_pinned() {
+    // (width, rung k, Et, offset_max = 3^Et - 1, bias = (3^Et - 1)/2)
+    let table = [
+        (4u32, 1u32, 2u32, 8u64, 4u64),
+        (8, 2, 3, 26, 13),
+        (16, 3, 4, 80, 40),
+        (32, 4, 6, 728, 364), // Et6 (golden rule), NOT log2's Et5/242
+        (64, 5, 9, 19682, 9841),
+        (128, 6, 14, 4782968, 2391484),
+    ];
+    for (w, k, et, omax, bias) in table {
+        assert_eq!(log2_width(w), k + 1, "GF-T{w}: rung index k = log2(width) - 1");
+        assert_eq!(tfib(k + 1) + 1, et, "GF-T{w}: Et = fib(k+1) + 1 (golden rule)");
+        let p = pow3_u64(et);
+        assert_eq!(p - 1, omax, "GF-T{w}: offset_max = 3^Et - 1");
+        assert_eq!((p - 1) / 2, bias, "GF-T{w}: bias = (3^Et - 1)/2");
+    }
+    // Pin the exact divergence the money-layer bug rode: through GF-T16 log2 == fib rule,
+    // but at GF-T32 they split -- log2 gives the wrong Et 5, the golden rule gives 6.
+    for &(w, et) in &[(4u32, 2u32), (8, 3), (16, 4)] {
+        assert_eq!(log2_width(w), et, "GF-T{w}: log2 coincides with Et here");
+    }
+    assert_eq!(log2_width(32), 5, "log2(32) = 5 -- the WRONG GF-T32 Et");
+    assert_eq!(tfib(5) + 1, 6, "the correct GF-T32 Et is 6, not 5");
+    assert_ne!(log2_width(32), tfib(5) + 1, "GF-T32 is exactly where log2 != the golden rule");
+}
