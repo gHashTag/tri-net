@@ -89,8 +89,21 @@ module TriComputePool {
     // conserved, never created (Akash/Golem: the provider is paid out of the
     // requester's escrow, atomically). An underfunded pool caps the credit to what
     // was funded and drains the pool to zero.
+    // SATURATING credit: prev_balance is a full u32 (balances cap at 0xFFFFFFFF), so a
+    // bare prev_balance + credit WRAPS a large balance to near-zero on payout -- the
+    // executor would LOSE its holdings while the pool still drained, destroying value
+    // instead of conserving it (the very invariant this function's doc claims). Cap at
+    // u32 max, exactly as tri_compute_settle.balance_add / account.bal_add_sat do for
+    // the minting path. Conservation holds for every value whose total fits u32; only
+    // at the representable ceiling does it degrade gracefully (cap) rather than wrap.
     fn balance_after_pool_settle(prev_balance: u32, pool: u32, reward: u32) -> u32 {
-        return prev_balance + payout_capped(pool, reward);
+        let credit: u32 = payout_capped(pool, reward);
+        let sum: u32 = prev_balance + credit;
+        if (sum < prev_balance) {
+            return 0xFFFFFFFF;
+        } else {
+            return sum;
+        }
     }
 
     // ---- Tests / invariants ----
@@ -193,5 +206,14 @@ module TriComputePool {
         assert(balance_after_pool_settle(500, 100, 300) == 600, "credit capped at the funded 100");
         assert(pool_after_payout(100, 300) == 0, "underfunded pool drains to zero, not negative");
         assert(balance_after_pool_settle(500, 100, 300) + pool_after_payout(100, 300) == 500 + 100, "capped settle still conserves balance + pool");
+    }
+
+    // The credit saturates instead of wrapping at the u32 ceiling. A near-max balance
+    // receiving a payout would overflow: bare `+` wraps to a tiny value (funds lost);
+    // saturation caps at u32 max. Regression: the normal path stays exact.
+    test pool_settle_credit_saturates {
+        assert(balance_after_pool_settle(500, 1000, 300) == 800, "normal credit exact (regression)");
+        assert(balance_after_pool_settle(0xFFFFFFF0, 1000, 300) == 0xFFFFFFFF, "credit that would overflow saturates to u32 max, not a wrap to 284");
+        assert(balance_after_pool_settle(0xFFFFFFFF, 1000, 300) == 0xFFFFFFFF, "already-max balance stays at max, never wraps to a small value");
     }
 }
