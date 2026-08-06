@@ -1,0 +1,5 @@
+# Synthesis of the GF-T subtracter (yosys, NO Vivado).  yosys fpga/gft/synth_gft_sub.ys
+read_verilog fpga/gft/gft_sub.v
+hierarchy -top gft_sub
+synth_xilinx -flatten
+stat
