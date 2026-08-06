@@ -34,6 +34,29 @@ module TriComputeSafety {
         }
     }
 
+    // The stack grew a FOURTH mint-time guard since this gate was written: a receipt
+    // must carry a VALID executor signature (tri_compute_settle.settle_signed sets
+    // sig_ok via ed25519-dalek). Without it, a FORGED receipt that happens to be
+    // fresh + finite + new would mint -- the forgery vector this choke point claimed
+    // to close but did not. payable_authentic is the complete gate: authentic AND
+    // the original three. A valid signature never bypasses freshness/finiteness/
+    // settled-once; a missing one closes the gate regardless of them.
+    fn payable_authentic(sig_ok: u32, fresh: u32, finite: u32, already_settled: u32) -> u32 {
+        if (sig_ok == 1) {
+            return payable(fresh, finite, already_settled);
+        } else {
+            return 0;
+        }
+    }
+
+    fn reward_gate_authentic(base_reward: u32, sig_ok: u32, fresh: u32, finite: u32, already_settled: u32) -> u32 {
+        if (payable_authentic(sig_ok, fresh, finite, already_settled) == 1) {
+            return base_reward;
+        } else {
+            return 0;
+        }
+    }
+
     // ---- Tests / invariants ----
 
     // No double pay: a receipt already settled pays nothing, even if fresh+finite.
@@ -63,5 +86,29 @@ module TriComputeSafety {
         assert(payable(1, 0, 0) == 0, "not finite -> closed");
         assert(payable(1, 1, 1) == 0, "already settled -> closed");
         assert(payable(1, 1, 0) == 1, "all three -> open");
+    }
+
+    // No forgery pay: a FORGED receipt (no valid signature) mints nothing even when
+    // it is fresh + finite + not-yet-settled -- the hole the 3-guard gate left open.
+    test forgery_pays_nothing {
+        assert(reward_gate_authentic(16, 0, 1, 1, 0) == 0, "unsigned/forged receipt pays nothing despite fresh+finite+new");
+        assert(payable_authentic(0, 1, 1, 0) == 0, "no valid signature -> gate closed");
+    }
+
+    // The authentic gate is the AND of ALL FOUR guards: signature, freshness,
+    // finiteness, settled-once. A valid signature never bypasses the other three.
+    test authentic_gate_needs_all_four {
+        assert(reward_gate_authentic(16, 1, 1, 1, 0) == 16, "sig + fresh + finite + new -> pays");
+        assert(payable_authentic(1, 0, 1, 0) == 0, "valid sig but stale -> closed");
+        assert(payable_authentic(1, 1, 0, 0) == 0, "valid sig but inf/nan -> closed");
+        assert(payable_authentic(1, 1, 1, 1) == 0, "valid sig but already settled -> closed");
+        assert(payable_authentic(1, 1, 1, 0) == 1, "all four -> open");
+    }
+
+    // payable_authentic is a strict subset of payable: it never opens where payable
+    // is closed, and additionally requires the signature.
+    test authentic_is_stricter {
+        assert(payable_authentic(1, 1, 1, 0) == payable(1, 1, 0), "with a valid sig it matches payable exactly");
+        assert(payable_authentic(0, 1, 1, 0) == 0, "without the sig it is strictly stricter");
     }
 }
