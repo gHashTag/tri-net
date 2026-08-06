@@ -1,8 +1,16 @@
-//! goldenfloat_family_ladder -- IS THE WHOLE LINE REAL? Yes. This builds the GoldenFloat catalog
-//! GF4 .. GF1024 (as in t27 specs/numeric/goldenfloat_family.t27, the same catalog as the arXiv
-//! GF4-1024) and proves the golden-float significand arithmetic -- the heart of every rung --
-//! computes correctly at EVERY width, from a 1-bit mantissa up to a 632-bit mantissa, using exact
-//! BigUint (so no f64 precision ceiling limits the check).
+//! goldenfloat_family_ladder -- IS THE WHOLE LINE REAL? The ARITHMETIC is, at any width. This
+//! applies the GoldenFloat phi split (exp = round((bits-1)/phi^2)) to widths GF4 .. GF1024 and
+//! proves the golden-float significand multiply/renormalize -- the heart of every rung -- computes
+//! correctly at EVERY width, from a 1-bit mantissa up to a 632-bit mantissa, using exact BigUint
+//! (so no f64 precision ceiling limits the check).
+//!
+//! Scope, corrected (see goldenfloat_conformance.rs): the CANONICAL t27 GoldenFloat family is
+//! exactly 7 formats, GF4..GF32 (family_size == 7) -- NOT GF4-1024. GF64..GF1024 here are the
+//! width-agnostic *arithmetic* extension of the same recurrence (real math, proven exact), not
+//! members of the sealed 7-format family; a larger enumeration lives in the separate arXiv
+//! 83-format catalog. And the binary GF32 mantissa is 19 while the ternary GF-T32 rung uses 25 --
+//! same phi family, different (binary vs ternary) variant. So: the recurrence is real all the way
+//! up; the *named canonical family* stops at GF32; and GF-T on silicon runs rungs 4-32.
 //!
 //! Per the SSOT formula: exp_bits = round((bits-1)/phi^2), mant_bits = bits-1-exp_bits. GF-T (the
 //! ternary variant this repo runs on silicon for GF-T4/8/16/32) replaces the 2^exp exponent with
