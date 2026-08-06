@@ -208,6 +208,25 @@ module TriComputeAccount {
         }
     }
 
+    // Defense-in-depth over the time gate: a reward proven FRAUDULENT (slashed) must
+    // NEVER finalize, independent of the clock. pending_after_release is the primary
+    // path -- a fraud proof inside the window claws the reward out of pending so a
+    // later finalize mints nothing. But that assumes the clawback actually executed;
+    // if the slash is proven yet the clawback is missed (a dropped message, a crashed
+    // node) and finalize then runs after the window, the time-only gate would still
+    // mint the fraud. Bind the slash verdict at the finalize site too: slashed == 1
+    // blocks finalize forever, regardless of window; otherwise defer to the time gate.
+    // `slashed` is the caller's outcome == RESOLVE_SLASH verdict, kept a flag so the
+    // outcome vocabulary stays in tri_compute_challenge -- the same way this module
+    // takes sig_ok / fresh as flags rather than importing their producers.
+    fn bal_after_finalize_checked(balance: u32, pending: u32, settle_epoch: u32, now_epoch: u32, window: u32, slashed: u32) -> u32 {
+        if (slashed == 1) {
+            return balance;
+        } else {
+            return bal_after_finalize_gated(balance, pending, settle_epoch, now_epoch, window);
+        }
+    }
+
     // ---- Tests / invariants ----
 
     // Locking collateral conserves total holdings (value only shifts buckets).
@@ -387,6 +406,17 @@ module TriComputeAccount {
         assert(pend1 == 0, "clawback empties pending (the 'pending then 0' contract, now real)");
         assert(bal_after_finalize_gated(500, pend1, 0, 100, 10) == 500, "window elapsed but clawed-back reward cannot finalize -> balance unchanged");
         assert(bal_after_finalize_gated(500, pend0, 0, 100, 10) == 516, "an honest un-clawed reward still finalizes to balance after the window");
+    }
+
+    // Defense-in-depth: even if the clawback was never executed (missed message,
+    // crashed node), a SLASHED reward can never finalize -- the slash verdict blocks
+    // the mint regardless of the elapsed window. A clean reward still respects the
+    // time gate exactly as before.
+    test slashed_reward_never_finalizes {
+        assert(bal_after_finalize_checked(500, 16, 0, 100, 10, 0) == 516, "not slashed + window elapsed -> finalizes");
+        assert(bal_after_finalize_checked(500, 16, 0, 100, 10, 1) == 500, "slashed -> never finalizes, even past the window (clawback bypassed)");
+        assert(bal_after_finalize_checked(500, 16, 0, 5, 10, 0) == 500, "not slashed but inside the window -> still no finalize (time gate intact)");
+        assert(bal_after_finalize_checked(500, 16, 0, 5, 10, 1) == 500, "slashed inside the window -> no finalize");
     }
 
     // At the u32 ceiling the two MUST still agree: pending_after_settle saturates
