@@ -4,25 +4,25 @@ GF-T (GoldenFloat-ternary) is the numeric format of the TRI-NET compute ring:
 `[sign | balanced-ternary exponent trits | mantissa]`, value `(1 + M/2^mant) * 2^e`,
 with the exponent in **balanced-ternary trits** (the golden identity `φ² + φ⁻² = 3`).
 
-## 1. Ternary exponent -> far more dynamic range per bit
+## 1. The 16-bit float shoot-out (measured)
 
-`src/bin/gft16_vs_binary16.rs` round-trips real values through GF-T16 and IEEE
-binary16 (both 16-bit) and **measures** the gap over a 2^-40..2^40 sweep:
+`src/bin/gft16_vs_binary16.rs` round-trips real values through **four** 16-bit floats
+over a 2^-40..2^40 sweep and prints these numbers (no claims):
 
-| | GF-T16 | IEEE binary16 |
-|---|---|---|
-| layout | `s \| 4 exp trits \| 9 mant` | `s \| 5 exp bits \| 10 mant` |
-| exponent codes | **81** (e in -40..40) | 32 (e in -14..15) |
-| dynamic range | **9.1e-13 .. 2.2e12** (~2^81) | 6.0e-8 .. 6.6e4 (~2^40) |
-| worst rel. error | **0.075% uniform** (no subnormals) | 0.031% normals / **94% subnormals** |
-| covers the 2^-40..2^40 sweep | **100%** | 51% (rest over/underflows) |
+| format | worst rel. error (whole range) | covers the sweep | dynamic range | character |
+|---|---|---|---|---|
+| **GF-T16** | **0.075% UNIFORM** | **100%** | ~2^81 (9e-13..2.2e12) | ternary exp, no subnormals/taper |
+| binary16 | 0.031% normals / **94%** subnormals | 51% | ~2^40 (6e-8..6.6e4) | precise but narrow |
+| bfloat16 | 0.224% (~3x coarser) | 100% | ~2^253 (widest) | wide but coarse (7-bit mant) |
+| posit16 | 0.023% near 1 / **9.8%** at extremes | 100% | ~2^112 | great-near-1 but tapered + costly decode |
 
-So at the **same 16 bits**, GF-T16 has **~2^41x more dynamic range** than binary16,
-and its relative precision is **uniform** across the whole range -- binary16's
-collapses near the 2^-24 underflow floor (subnormals). The price is one mantissa bit
-(~2x coarser normal-range precision). For radio DSP and ternary/BitNet-class neural
-compute -- both dynamic-range-limited -- that trade wins: GF-T16 does not overflow at
-6.6e4 or underflow at 6e-8, where binary16 fails on ~half a wide sweep.
+**GF-T16 owns the Pareto corner none of the others do: wide range AND uniform relative
+precision AND cheap fixed-field decode.** binary16 is precise but narrow (fails on ~half
+the sweep, subnormal collapse); bfloat16 is wide but ~3x coarser; posit16 is superb near 1
+but tapers to ~9.8% at the extremes and needs a variable-length regime decode. GF-T16
+holds ~0.075% *everywhere* across 2^81 of range -- the profile radio DSP and ternary/
+BitNet-class compute (both dynamic-range-limited) actually need. Price: one mantissa bit
+vs binary16 in the narrow band where binary16 works.
 
 ```bash
 rustc -O --edition 2021 src/bin/gft16_vs_binary16.rs -o /tmp/gftbench && /tmp/gftbench
