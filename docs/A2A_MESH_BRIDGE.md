@@ -49,6 +49,15 @@ it implements):
 
 - **Proven in tri-net** (this repo): every mesh-side piece the mapping leans on — sealing, identity
   binding, discovery routing, receipt binding, recompute-and-slash. See `docs/GF_T_PROVEN.md` #6/#7.
-- **Pending**: the adapter crate itself, which must be built and tested in the `trios` workspace
-  (cross-repo; the trios repo clones blobless+sparse but is not built here). This doc is the
-  contract it implements so the seam is unambiguous when that work starts.
+- **Buildable now (2026-08-06 update)**: `trios-a2a` **compiles standalone**. The full `trios`
+  workspace fails to load (members like `contrib/anti-ban` are absent from a sparse clone), but the
+  `crates/trios-a2a` sub-tree (facade + rings SR-00..04 + BR-OUTPUT) builds in isolation with only a
+  local workspace root — `cargo build` finished clean (SR-04 pulls sqlx/sea-orm). So the A2A message
+  types (`A2AMessage`, `Task`, `AgentCard`) are usable without the broken workspace, and `trios-mesh`
+  (local) already builds. Both endpoints of the bridge are therefore compilable — the blocker is no
+  longer "can the types build" but only the adapter crate that wires them.
+- **Pending**: the adapter crate (`trios-a2a-mesh`) itself — encode/decode `A2AMessage` ↔ sealed
+  `crypto_frame`, plus the receipt + challenge hooks on `TaskResult`, per steps 1-4 above. It belongs
+  in the `trios` workspace (or a small standalone crate depending on the extracted `trios-a2a` +
+  `trios-mesh`). This doc is the contract; the mesh-side guarantees are already proven in tri-net
+  (`gft_verifiable_compute`, `gft_dot_verifiable`, `gft_receipt_batch`).
