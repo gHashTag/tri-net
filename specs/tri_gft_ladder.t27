@@ -16,9 +16,11 @@
 // This is exactly the phi structure GF-T is named for (Fibonacci -> phi; phi^2 + phi^-2 = 3,
 // the ternary anchor), and it reproduces the exact confirmed offset_max/bias (GF-T16 -> 80/40,
 // GF-T32 -> 728/364). It extends the line canonically: GF-T64 (Et9,M64), GF-T128 (Et14,M169),
-// GF-T256 (Et22,M441), GF-T512 (Et35,M1156), GF-T1024 (Et56,M3025). NB the u32 offset_max
-// (3^Et) is exact only through GF-T128 (3^14); GF-T256+ need wider (u64/bignum) exponent
-// arithmetic, so their offset_max is not computed here -- their Et/mant are stated per the rule.
+// GF-T256 (Et22,M441), GF-T512 (Et35,M1156), GF-T1024 (Et56,M3025). The narrow u32
+// offset_max (3^Et) is exact only through GF-T128 (3^14); the wide gft_pow3_u64 path below
+// extends exact offset_max/bias to GF-T256 (3^22) and GF-T512 (3^35, the largest 3^Et in
+// u64). GF-T1024 (3^56 ~ 5.2e26) exceeds u64 and needs bignum -- deliberately absent
+// (returns 0), never silently wrong; its Et/mant are still stated per the rule.
 
 module TriGftLadder {
     use base::types;
@@ -112,6 +114,33 @@ module TriGftLadder {
     // GF-T4 -> 4, GF-T8 -> 13, GF-T16 -> 40, GF-T32 -> 121.
     fn gft_bias(exp_trits: u32) -> u32 {
         return (gft_pow3(exp_trits) - 1) / 2;
+    }
+
+    // ---- Wide (u64) geometry for the high rungs ----
+    // The narrow gft_pow3 above overflows u32 past GF-T128 (3^14). This wide path
+    // realizes 3^Et for GF-T256 (Et 22) and GF-T512 (Et 35, the largest 3^Et that
+    // fits u64). GF-T1024 (Et 56, 3^56 ~ 5.2e26) exceeds u64 and needs bignum, so it
+    // is deliberately absent (returns 0) rather than silently truncated.
+    fn gft_pow3_u64(exp_trits: u32) -> u64 {
+        if (exp_trits == 2) { return 9; }
+        if (exp_trits == 3) { return 27; }
+        if (exp_trits == 4) { return 81; }
+        if (exp_trits == 6) { return 729; }
+        if (exp_trits == 9) { return 19683; }               // GF-T64
+        if (exp_trits == 14) { return 4782969; }            // GF-T128
+        if (exp_trits == 22) { return 31381059609; }        // GF-T256 (3^22)
+        if (exp_trits == 35) { return 50031545098999707; }  // GF-T512 (3^35, largest 3^Et in u64)
+        return 0;
+    }
+
+    // Reserved special-row offset (3^Et - 1) at the wide rungs.
+    fn gft_offset_max_u64(exp_trits: u32) -> u64 {
+        return gft_pow3_u64(exp_trits) - 1;
+    }
+
+    // Unity-exponent bias (3^Et - 1)/2 at the wide rungs.
+    fn gft_bias_u64(exp_trits: u32) -> u64 {
+        return (gft_pow3_u64(exp_trits) - 1) / 2;
     }
 
     // The mantissa bit-width for a rung, keyed by its exponent-trit count (SSOT).
@@ -243,5 +272,17 @@ module TriGftLadder {
         assert(is_finite_gft_n(19682, GFT64_ET) == false, "GF-T64 offset 19682 is the special row");
         // NB: gft_mant_one(GFT64_ET) = 2^64 overflows u32; GF-T64+ recompute uses a wide
         // (u64/bignum) significand scale, so we do not call gft_mant_one at those rungs here.
+    }
+
+    // The wide u64 path extends EXACT offset_max/bias past u32's GF-T128 ceiling to
+    // GF-T256 and GF-T512, and agrees with the narrow path where they overlap. GF-T1024
+    // exceeds u64 and is deliberately absent (returns 0), never silently truncated.
+    test wide_rung_geometry {
+        assert(gft_pow3_u64(GFT128_ET) == 4782969, "wide path agrees with u32 at GF-T128");
+        assert(gft_offset_max_u64(GFT256_ET) == 31381059608, "GF-T256: 3^22 - 1");
+        assert(gft_bias_u64(GFT256_ET) == 15690529804, "GF-T256 bias (3^22-1)/2");
+        assert(gft_offset_max_u64(GFT512_ET) == 50031545098999706, "GF-T512: 3^35 - 1 (largest in u64)");
+        assert(gft_bias_u64(GFT512_ET) == 25015772549499853, "GF-T512 bias (3^35-1)/2");
+        assert(gft_pow3_u64(GFT1024_ET) == 0, "GF-T1024 (Et56) exceeds u64 -- bignum, absent not wrong");
     }
 }
