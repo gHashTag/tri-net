@@ -142,3 +142,19 @@ the xc7a200t for a ternary dot-product engine.
 iverilog -g2012 -o /tmp/d.vvp fpga/gft/gft_mul.v fpga/gft/gft_add.v fpga/gft/gft_dot4.v fpga/gft/gft_dot4_kat_tb.v && vvp /tmp/d.vvp
 yosys fpga/gft/synth_gft_dot4.ys
 ```
+
+## Narrowed GF-T MAC tile (`gft_dot4_tile`) -- ~4 DSP
+
+`gft_dot4_tile.v` is the area-narrowed 4-lane MAC: four proven single-DSP
+`gft16_mul` multipliers (7b offset, 9b mantissa) reduced by a 3-adder `gft_add`
+tree. `yosys synth_xilinx`: **4 DSP48E1** + 124 CARRY4 + ~705 LUT, down from the
+u32 `gft_dot4` (12 DSP). Same golden results (KAT `gft_dot4_tile_kat_tb.v`:
+four `(41,256)²` → `(45,64)`; mixed → `(44,320)`).
+
+So one 4-lane GF-T MAC = **4 DSP48E1 + ~705 LUT**. An xc7a200t has 740 DSP48E1s →
+~180 such tiles (720-lane ternary dot-product engine) fit on one AX7203.
+
+```bash
+iverilog -g2012 -o /tmp/t.vvp fpga/gft/gft_mul.v fpga/gft/gft16_mul.v fpga/gft/gft_add.v fpga/gft/gft_dot4_tile.v fpga/gft/gft_dot4_tile_kat_tb.v && vvp /tmp/t.vvp
+yosys fpga/gft/synth_gft_dot4_tile.ys
+```
