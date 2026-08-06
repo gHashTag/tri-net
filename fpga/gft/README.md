@@ -52,6 +52,7 @@ sends operands and reads the result over UART @160000. Flashed via openXC7
 
 | engine | core | rung / op | UART frame | verified |
 |--------|------|-----------|------------|----------|
+| `gft_mul8_ax7203`  | `gft_mul8_seq`  | GF-T8 (compact rung)   | `AA 55 [a][b][cmd] → A5 [lo hi] 00` | 3/3 |
 | `gft_mul_ax7203`   | `gft_mul_seq`   | GF-T16 multiply        | `AA 55 [a][b][cmd] → A5 [lo hi] 00` | 5/5 |
 | `gft_dot2_ax7203`  | `gft_dot2_seq`  | GF-T16 2-term dot      | 4 operands → `A5 [lo hi] 00`        | 3/3 |
 | `gft_macc_ax7203`  | `gft_macc_stream` | GF-T16 streaming row (any length) | per-term `[a][b][ctrl]`, emit on last | 4/4 |
