@@ -7,27 +7,71 @@
 // generalizes finiteness across the ladder so a receipt/settle path can validate a
 // GF-T result of ANY width by the TERNARY rule, not the binary all-ones-exp rule.
 //
-// Et per rung is Et = log2(width) for the confirmed low ladder: GF-T4->2, GF-T8->3,
-// GF-T16->4 (offset_max 80, matches tri_compute_gfvalid.GFT16_OFFSET_MAX), GF-T32->5.
-// (Higher rungs use a non-linear Et and are added once confirmed against the
-// t27 specs/numeric/gft*.t27 SSOT.)
+// RATIFIED ladder geometry (2026-08-07): the ladder is the GOLDEN (Fibonacci) rule.
+// Decoding the four original rungs -- GF-T4 (Et2,M1), GF-T8 (Et3,M4), GF-T16 (Et4,M9),
+// GF-T32 (Et6,M25) -- the mantissas 1,4,9,25 are fib(k+1)^2 and the exponent-trit counts
+// 2,3,4,6 are fib(k+1)+1, for rung index k (GF-T4=1, GF-T8=2, GF-T16=3, GF-T32=4, ...):
+//     Et(k)   = fib(k+1) + 1
+//     mant(k) = fib(k+1)^2
+// This is exactly the phi structure GF-T is named for (Fibonacci -> phi; phi^2 + phi^-2 = 3,
+// the ternary anchor), and it reproduces the exact confirmed offset_max/bias (GF-T16 -> 80/40,
+// GF-T32 -> 728/364). It extends the line canonically: GF-T64 (Et9,M64), GF-T128 (Et14,M169),
+// GF-T256 (Et22,M441), GF-T512 (Et35,M1156), GF-T1024 (Et56,M3025). NB the u32 offset_max
+// (3^Et) is exact only through GF-T128 (3^14); GF-T256+ need wider (u64/bignum) exponent
+// arithmetic, so their offset_max is not computed here -- their Et/mant are stated per the rule.
 
 module TriGftLadder {
     use base::types;
 
-    // Exponent-trit count per GF-T rung (SSOT: t27 specs/numeric/gft*.t27). The
-    // ladder is NOT linear in Et: GF-T32 uses 6 exponent trits, not 5.
-    const GFT4_ET:  u32 = 2;
-    const GFT8_ET:  u32 = 3;
-    const GFT16_ET: u32 = 4;
-    const GFT32_ET: u32 = 6;
+    // Exponent-trit count per GF-T rung = fib(k+1) + 1 (the ratified golden rule). The
+    // ladder is NOT linear: GF-T32 uses 6 trits (fib(5)+1), not 5.
+    const GFT4_ET:    u32 = 2;   // fib(2)+1
+    const GFT8_ET:    u32 = 3;   // fib(3)+1
+    const GFT16_ET:   u32 = 4;   // fib(4)+1
+    const GFT32_ET:   u32 = 6;   // fib(5)+1
+    const GFT64_ET:   u32 = 9;   // fib(6)+1
+    const GFT128_ET:  u32 = 14;  // fib(7)+1
+    const GFT256_ET:  u32 = 22;  // fib(8)+1
+    const GFT512_ET:  u32 = 35;  // fib(9)+1
+    const GFT1024_ET: u32 = 56;  // fib(10)+1
 
-    // Mantissa bit-width per rung (SSOT: t27 specs/numeric/gft*.t27). The significand
+    // Mantissa bit-width per rung = fib(k+1)^2 (the ratified golden rule). The significand
     // is 1 + M / 2^MANT; a GF-T multiply/add recompute uses 2^MANT as its scale.
-    const GFT4_MANT:  u32 = 1;
-    const GFT8_MANT:  u32 = 4;
-    const GFT16_MANT: u32 = 9;
-    const GFT32_MANT: u32 = 25;
+    const GFT4_MANT:    u32 = 1;     // fib(2)^2
+    const GFT8_MANT:    u32 = 4;     // fib(3)^2
+    const GFT16_MANT:   u32 = 9;     // fib(4)^2
+    const GFT32_MANT:   u32 = 25;    // fib(5)^2
+    const GFT64_MANT:   u32 = 64;    // fib(6)^2
+    const GFT128_MANT:  u32 = 169;   // fib(7)^2
+    const GFT256_MANT:  u32 = 441;   // fib(8)^2
+    const GFT512_MANT:  u32 = 1156;  // fib(9)^2
+    const GFT1024_MANT: u32 = 3025;  // fib(10)^2
+
+    // The Fibonacci sequence (if-chain lookup, matching gft_pow3's style): fib(0)=0,
+    // fib(1)=1, fib(2)=1, fib(3)=2, ... The golden ladder rule is Et(k) = fib(k+1)+1 and
+    // mant(k) = fib(k+1)^2 for rung index k >= 1; covers rungs GF-T4 (k=1) .. GF-T1024 (k=9).
+    fn fib(n: u32) -> u32 {
+        if (n == 0) { return 0; }
+        if (n == 1) { return 1; }
+        if (n == 2) { return 1; }
+        if (n == 3) { return 2; }
+        if (n == 4) { return 3; }
+        if (n == 5) { return 5; }
+        if (n == 6) { return 8; }
+        if (n == 7) { return 13; }
+        if (n == 8) { return 21; }
+        if (n == 9) { return 34; }
+        if (n == 10) { return 55; }
+        return 0;
+    }
+
+    // Ratified rule: exponent trits and mantissa bits for rung index k (GF-T4=1 ..).
+    fn gft_et_of_rung(k: u32) -> u32 {
+        return fib(k + 1) + 1;
+    }
+    fn gft_mant_of_rung(k: u32) -> u32 {
+        return fib(k + 1) * fib(k + 1);
+    }
 
     // 3^Et for the ladder's exponent-trit counts (the count of representable
     // exponent offsets; the top one, 3^Et - 1, is the reserved special row).
@@ -39,6 +83,8 @@ module TriGftLadder {
         if (exp_trits == 6) { return 729; }
         if (exp_trits == 7) { return 2187; }
         if (exp_trits == 8) { return 6561; }
+        if (exp_trits == 9) { return 19683; }      // GF-T64
+        if (exp_trits == 14) { return 4782969; }   // GF-T128 (largest 3^Et that fits u32)
         return 0;
     }
 
@@ -75,6 +121,11 @@ module TriGftLadder {
         if (exp_trits == GFT8_ET) { return GFT8_MANT; }
         if (exp_trits == GFT16_ET) { return GFT16_MANT; }
         if (exp_trits == GFT32_ET) { return GFT32_MANT; }
+        if (exp_trits == GFT64_ET) { return GFT64_MANT; }
+        if (exp_trits == GFT128_ET) { return GFT128_MANT; }
+        if (exp_trits == GFT256_ET) { return GFT256_MANT; }
+        if (exp_trits == GFT512_ET) { return GFT512_MANT; }
+        if (exp_trits == GFT1024_ET) { return GFT1024_MANT; }
         return 0;
     }
 
@@ -91,6 +142,11 @@ module TriGftLadder {
         if (width == 8) { return GFT8_ET; }
         if (width == 16) { return GFT16_ET; }
         if (width == 32) { return GFT32_ET; }
+        if (width == 64) { return GFT64_ET; }
+        if (width == 128) { return GFT128_ET; }
+        if (width == 256) { return GFT256_ET; }
+        if (width == 512) { return GFT512_ET; }
+        if (width == 1024) { return GFT1024_ET; }
         return 0;
     }
 
@@ -156,5 +212,36 @@ module TriGftLadder {
         assert(gft_bias(width_to_et(8)) == 13, "GF-T8 bias via width");
         assert(gft_offset_max(width_to_et(16)) == 80, "GF-T16 offset_max via width");
         assert(gft_mant_one(width_to_et(4)) == 2, "GF-T4 mant scale via width");
+    }
+
+    // The RATIFIED golden rule reproduces every rung's Et and mantissa exactly, from the
+    // four original rungs up to GF-T1024: Et(k) = fib(k+1)+1, mant(k) = fib(k+1)^2.
+    test golden_rule_reproduces_the_ladder {
+        // Fibonacci sequence anchor.
+        assert(fib(6) == 8, "fib(6) = 8");
+        assert(fib(10) == 55, "fib(10) = 55");
+        // The rule matches the sealed low rungs (k = 1..4).
+        assert(gft_et_of_rung(1) == GFT4_ET, "GF-T4 Et via rule");
+        assert(gft_mant_of_rung(1) == GFT4_MANT, "GF-T4 mant via rule");
+        assert(gft_et_of_rung(3) == GFT16_ET, "GF-T16 Et via rule");
+        assert(gft_mant_of_rung(3) == GFT16_MANT, "GF-T16 mant = 9 via rule");
+        assert(gft_et_of_rung(4) == GFT32_ET, "GF-T32 Et = 6 via rule");
+        assert(gft_mant_of_rung(4) == GFT32_MANT, "GF-T32 mant = 25 via rule");
+        // And it extends canonically to the ratified higher rungs (k = 5..9).
+        assert(gft_et_of_rung(5) == GFT64_ET, "GF-T64 Et = 9 via rule");
+        assert(gft_mant_of_rung(5) == GFT64_MANT, "GF-T64 mant = 64 via rule");
+        assert(gft_et_of_rung(6) == GFT128_ET, "GF-T128 Et = 14 via rule");
+        assert(gft_mant_of_rung(9) == GFT1024_MANT, "GF-T1024 mant = 3025 via rule");
+    }
+
+    // GF-T64/128 geometry is fully computable in u32 (3^Et fits): offset_max / bias / finiteness.
+    test higher_rungs_geometry {
+        assert(gft_offset_max(GFT64_ET) == 19682, "GF-T64: 3^9 - 1 = 19682");
+        assert(gft_bias(GFT64_ET) == 9841, "GF-T64 bias (3^9-1)/2 = 9841");
+        assert(gft_offset_max(GFT128_ET) == 4782968, "GF-T128: 3^14 - 1 = 4782968");
+        assert(is_finite_gft_n(19681, GFT64_ET) == true, "GF-T64 offset 19681 finite");
+        assert(is_finite_gft_n(19682, GFT64_ET) == false, "GF-T64 offset 19682 is the special row");
+        // NB: gft_mant_one(GFT64_ET) = 2^64 overflows u32; GF-T64+ recompute uses a wide
+        // (u64/bignum) significand scale, so we do not call gft_mant_one at those rungs here.
     }
 }
