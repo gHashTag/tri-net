@@ -53,3 +53,19 @@ a single DSP48E1 + ~47 LUTs: hundreds fit on an xc7a200t (AX7203).
 `regymm/openxc7` container or hardware), then flash the AX7203 for the first
 on-silicon GF-T recompute — the one boundary `docs/VERIFIABLE_COMPUTE.md` §4
 still marks "none".
+
+## GF-T ALU: add (`gft_add`)
+
+`gft_add.v` realizes `specs/tri_gft_add.t27` (same-sign add: align by the offset
+difference, add significands, one-carry renorm). `yosys synth_xilinx` (GF-T16,
+u32 ports): ~483 LUT + 45 CARRY4, **0 DSP48E1** (shifts + adders only), clean
+synth. KAT (`gft_add_kat_tb.v`, iverilog) matches the over-wire verifier:
+`(40,0)+(40,0)→(41,0)`, `(40,0)+(39,0)→(40,256)`, GF-T8 `(13,0)+(12,0)→(13,8)`.
+
+```bash
+iverilog -g2012 -o /tmp/k.vvp fpga/gft/gft_add.v fpga/gft/gft_add_kat_tb.v && vvp /tmp/k.vvp
+yosys fpga/gft/synth_gft_add.ys
+```
+
+Subtract (`gft_sub`, variable leading-zero renorm) is the remaining ALU op, then
+a narrowed GF-T16 ALU wrapper mirrors the `gft16_mul` DSP win.
