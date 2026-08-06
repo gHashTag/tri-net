@@ -132,3 +132,43 @@ fn the_significand_multiply_computes_at_the_proposed_gf_t64_and_up() {
         );
     }
 }
+
+/// GF-T1024 is the one ladder rung whose exponent geometry a u64 CANNOT hold, so its
+/// exact values must come from bignum -- this pins them, and pins exactly where u64 fails.
+/// This is the oracle twin of the spec's honest `gft_pow3_u64` zero-guard for GF-T1024
+/// (specs/tri_gft_ladder.t27): the spec returns 0 there because a u64 cannot; here is the
+/// value it stands for.
+#[test]
+fn the_gf_t1024_geometry_is_exact_beyond_u64() {
+    // GF-T1024: rung k = 9, Et = 56. 3^56, offset_max = 3^56-1, bias = (3^56-1)/2.
+    assert_eq!(et(9), 56, "GF-T1024 Et = 56");
+    let p56 = pow3(56);
+    assert_eq!(
+        p56.to_string(),
+        "523347633027360537213511521",
+        "3^56 exact"
+    );
+    let omax = offset_max(9); // 3^56 - 1
+    assert_eq!(
+        omax.to_string(),
+        "523347633027360537213511520",
+        "GF-T1024 offset_max = 3^56 - 1"
+    );
+    let bias = &omax / 2u32;
+    assert_eq!(
+        bias.to_string(),
+        "261673816513680268606755760",
+        "GF-T1024 bias = (3^56-1)/2"
+    );
+    assert_eq!(&bias * 2u32 + one(), p56, "bias*2 + 1 = 3^56 (unity is the balanced-ternary center)");
+
+    // Where u64 gives out: 3^40 is the largest power of three inside u64; 3^41 overflows.
+    let u64_max = BigUint::from(u64::MAX); // 18446744073709551615
+    assert!(pow3(40) <= u64_max, "3^40 fits u64");
+    assert!(pow3(41) > u64_max, "3^41 overflows u64");
+    // GF-T512 (Et35) is the largest RUNG in u64; the next rung, GF-T1024 (Et56), is far past
+    // the 3^40 ceiling -- so no u64 path reaches it and bignum is mandatory, not optional.
+    assert_eq!(et(8), 35, "GF-T512 Et = 35 (largest rung in u64)");
+    assert!(pow3(et(8)) <= u64_max, "GF-T512 3^35 fits u64");
+    assert!(pow3(et(9)) > u64_max, "GF-T1024 3^56 exceeds u64 -- bignum required");
+}
