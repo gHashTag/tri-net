@@ -159,7 +159,14 @@ Two verification modes:
   vectors -- (41,0)^2->(42,0), (41,256)^2->(43,64), (44,0)*(45,0)->(49,0),
   (41,0)*(41,256)->(42,256), (50,0)^2->(60,0). One `.t27` provably drives the Rust A2A verifier,
   synthesizable Verilog, AND a running FPGA. The prior single "none" (no GF-T recompute on real
-  silicon) is now CLOSED. The `t27c gen-verilog` interleaved-reg defect is now FIXED upstream:
+  silicon) is now CLOSED. **The MAC kernel followed:** `gft_dot2_ax7203` (`gft_dot2_seq` wrapping
+  `gft_dot2` = 2x `gft_mul` + `gft_add`) place-and-routed on the same flow (seed 5 -- seeds 1-4 hit
+  an intermittent nextpnr `A5FF` placer bug, which is exactly why the recipe seed-searches) and
+  flashed to the same AX7203. Verified over UART @160000: **3/3 GF-T16 dot products bit-exact** --
+  (41,256)^2+(41,0)^2 = 13 (0x5740), (41,0)^2+(42,0)*(41,0) = 12 (0x5700),
+  (44,0)*(45,0)+(50,0)^2 = 2^20+512 with the small term underflowing (0x7800). So the multiply
+  AND the multiply-accumulate (the matmul/attention atom) both run in GF-T16 silicon, bit-exact to
+  the spec the over-wire verifier uses -- the hardware twin of `tests/gft_task_accuracy.rs`. The `t27c gen-verilog` interleaved-reg defect is now FIXED upstream:
   `gft_arith_gen_kat_tb.v` shows the GENERATED GF-T Verilog matches the over-wire
   verifier's exact values, so one `.t27` provably drives both the Rust A2A verifier and
   synthesizable Verilog. `fpga/gft/*.v` remain hand-shaped I/O datapaths (the generated
