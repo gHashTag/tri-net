@@ -1,0 +1,10 @@
+# Synthesis of the GF-T64 UART engine top (yosys, NO Vivado).
+#   yosys fpga/gft/synth_gft_mul64_ax7203.ys
+# STARTUPE2 (CFGMCLK) + UART RX/TX + gft_mul64_stream + gft_mul64 (256-bit datapath).
+# Confirms the whole engine maps to AX7203 primitives; emits a stat report. P&R to a
+# bitstream additionally needs the board's verified LED/KEY/UART PACKAGE_PINs (see
+# RUN_ON_SILICON.md) -- deliberately not invented here.
+read_verilog fpga/gft/gft_mul64_ax7203.v fpga/gft/gft_mul64_stream.v fpga/gft/gft_mul64.v
+hierarchy -top gft_mul64_ax7203
+synth_xilinx -flatten
+stat
