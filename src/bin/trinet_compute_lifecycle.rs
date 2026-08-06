@@ -58,8 +58,14 @@ fn main() {
     let task_id = 0x777u32;
     let watermark = 0x100u32;
     let (exec_rep, min_rep) = (100u32, 50u32);
-    let admitted = a2a::admit_result(task_id, task_id, task_id, a2a::SKILL_GF16_MUL, receipt::FMT_GF_BINARY, op, watermark, exec_rep, min_rep);
-    assert!(admitted, "a bound, fresh, reputable result is admitted at ingress");
+    // Full ingress: the assignment names executor `exe`, the receipt commits the same
+    // executor, that executor's key hashes to `exe` (identity), and the receipt is
+    // signed; outstanding is 0 (no prior escrow) so the 20% collateral floor on the
+    // 200 bond is trivially met. admit_result_signed is the complete gate --
+    // binding + freshness + reputation + collateral + executor-authenticity.
+    let (out0, min_bps) = (0u32, 2000u32);
+    let admitted = a2a::admit_result_signed(task_id, task_id, task_id, a2a::SKILL_GF16_MUL, receipt::FMT_GF_BINARY, op, watermark, exec_rep, min_rep, bond, out0, min_bps, exe, exe, 1, exe);
+    assert!(admitted, "a bound, fresh, reputable, bonded, authentic result is admitted at ingress");
     // Settle mints the reward into ESCROW through the GATED path (only if admitted):
     // settle_canonical applies sig -> no-double-pay -> freshness -> payability, so
     // only a valid, fresh, finite, once-only receipt escrows value.
@@ -76,7 +82,7 @@ fn main() {
     assert_eq!(settle::settle_canonical(0, width, 0, 1, 0, settle::FMT_GF_BINARY, r_ok, 6, 9, 1, 0), 0, "unsigned receipt escrows nothing");
     // A result rejected AT INGRESS never reaches settlement at all. Each failure
     // mode is independently disqualifying, and a rejected result escrows nothing.
-    let bad_op = a2a::admit_result(task_id, task_id, task_id, a2a::SKILL_GF16_MUL, receipt::FMT_GF_BINARY, 0x10, watermark, exec_rep, min_rep);
+    let bad_op = a2a::admit_result_signed(task_id, task_id, task_id, a2a::SKILL_GF16_MUL, receipt::FMT_GF_BINARY, 0x10, watermark, exec_rep, min_rep, bond, out0, min_bps, exe, exe, 1, exe);
     assert!(!bad_op, "an add receipt for a mul assignment is rejected at ingress");
     let bad_pending = if bad_op {
         settle::settle_canonical(0, width, 1, 1, 0, settle::FMT_GF_BINARY, r_ok, 6, 9, 1, 0)
@@ -84,8 +90,14 @@ fn main() {
         0
     };
     assert_eq!(bad_pending, 0, "an ingress-rejected result is never settled");
-    assert!(!a2a::admit_result(task_id, watermark, watermark, a2a::SKILL_GF16_MUL, receipt::FMT_GF_BINARY, op, watermark, exec_rep, min_rep), "a stale (id == watermark) result is rejected at ingress");
-    assert!(!a2a::admit_result(task_id, task_id, task_id, a2a::SKILL_GF16_MUL, receipt::FMT_GF_BINARY, op, watermark, 40, min_rep), "a sub-floor-reputation executor is rejected at ingress");
+    assert!(!a2a::admit_result_signed(task_id, watermark, watermark, a2a::SKILL_GF16_MUL, receipt::FMT_GF_BINARY, op, watermark, exec_rep, min_rep, bond, out0, min_bps, exe, exe, 1, exe), "a stale (id == watermark) result is rejected at ingress");
+    assert!(!a2a::admit_result_signed(task_id, task_id, task_id, a2a::SKILL_GF16_MUL, receipt::FMT_GF_BINARY, op, watermark, 40, min_rep, bond, out0, min_bps, exe, exe, 1, exe), "a sub-floor-reputation executor is rejected at ingress");
+    // The signed gate adds executor-identity + signature + collateral on top. Each is
+    // independently disqualifying even when everything else is valid:
+    assert!(!a2a::admit_result_signed(task_id, task_id, task_id, a2a::SKILL_GF16_MUL, receipt::FMT_GF_BINARY, op, watermark, exec_rep, min_rep, bond, out0, min_bps, exe, 0xBEEF, 1, 0xBEEF), "a result from a different executor is rejected (assignment front-run)");
+    assert!(!a2a::admit_result_signed(task_id, task_id, task_id, a2a::SKILL_GF16_MUL, receipt::FMT_GF_BINARY, op, watermark, exec_rep, min_rep, bond, out0, min_bps, exe, exe, 0, exe), "an unsigned result naming the assignee is rejected (forge)");
+    assert!(!a2a::admit_result_signed(task_id, task_id, task_id, a2a::SKILL_GF16_MUL, receipt::FMT_GF_BINARY, op, watermark, exec_rep, min_rep, bond, out0, min_bps, exe, exe, 1, 0xBEEF), "a signature from a key that is not the committed executor is rejected (identity mismatch)");
+    assert!(!a2a::admit_result_signed(task_id, task_id, task_id, a2a::SKILL_GF16_MUL, receipt::FMT_GF_BINARY, op, watermark, exec_rep, min_rep, 100, 10000, min_bps, exe, exe, 1, exe), "an under-collateralized node (bond 100 < 2000bps of 10000 outstanding) is rejected at ingress");
     // Challenger recomputes the leaf from the committed operands + golden result;
     // it reproduces the settled leaf, so the dispute is anchored.
     let dispute_leaf = receipt::receipt_leaf_gf_fmt(receipt::FMT_GF_BINARY, width, op, a, b, r_ok, dev, exe, epoch);
@@ -232,7 +244,7 @@ fn main() {
     assert_eq!(account::bal_after_finalize_checked(bal, pending_f, settle_epoch, settle_epoch + 3, window, 0), bal, "premature finalize keeps reward escrowed");
 
     println!("compute lifecycle end-to-end (receipt -> settle/escrow -> challenge window):");
-    println!("  ingress: result admitted (bound+fresh+reputable); wrong-op/stale/low-rep rejected before settle");
+    println!("  ingress: result admitted (bound+fresh+reputable+bonded+authentic); wrong-op/stale/low-rep/front-run/forge/under-bond rejected before settle");
     println!("  honest: settle {} into escrow, window elapses, finalize + release -> total {}", reward, honest_total);
     println!("  fraud:  settle {} into escrow, in-window SLASH -> clawback + bond slash -> total {}", reward, fraud_total);
     println!("  invariant: cheating costs reward+bond = {} (honest {} - fraud {})", reward + bond, honest_total, fraud_total);
