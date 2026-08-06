@@ -18,8 +18,9 @@
 // GF-T32 -> 728/364). It extends the line canonically: GF-T64 (Et9,M64), GF-T128 (Et14,M169),
 // GF-T256 (Et22,M441), GF-T512 (Et35,M1156), GF-T1024 (Et56,M3025). The narrow u32
 // offset_max (3^Et) is exact only through GF-T128 (3^14); the wide gft_pow3_u64 path below
-// extends exact offset_max/bias to GF-T256 (3^22) and GF-T512 (3^35, the largest 3^Et in
-// u64). GF-T1024 (3^56 ~ 5.2e26) exceeds u64 and needs bignum -- deliberately absent
+// extends exact offset_max/bias to GF-T256 (3^22) and GF-T512 (3^35) -- the largest ladder
+// RUNG whose 3^Et fits u64 (the next rung, GF-T1024 at Et 56, overflows; no rung sits
+// between Et 35 and 56). GF-T1024 (3^56 ~ 5.2e26) exceeds u64 and needs bignum -- deliberately absent
 // (returns 0), never silently wrong; its Et/mant are still stated per the rule.
 
 module TriGftLadder {
@@ -118,9 +119,10 @@ module TriGftLadder {
 
     // ---- Wide (u64) geometry for the high rungs ----
     // The narrow gft_pow3 above overflows u32 past GF-T128 (3^14). This wide path
-    // realizes 3^Et for GF-T256 (Et 22) and GF-T512 (Et 35, the largest 3^Et that
-    // fits u64). GF-T1024 (Et 56, 3^56 ~ 5.2e26) exceeds u64 and needs bignum, so it
-    // is deliberately absent (returns 0) rather than silently truncated.
+    // realizes 3^Et for GF-T256 (Et 22) and GF-T512 (Et 35) -- the largest ladder rung
+    // whose 3^Et fits u64. GF-T1024 (Et 56, 3^56 ~ 5.2e26) is the next rung and exceeds
+    // u64, so it is deliberately absent (returns 0) rather than silently truncated.
+    // (3^40 is the largest power of three in u64, but no rung sits between Et 35 and 56.)
     fn gft_pow3_u64(exp_trits: u32) -> u64 {
         if (exp_trits == 2) { return 9; }
         if (exp_trits == 3) { return 27; }
@@ -129,7 +131,7 @@ module TriGftLadder {
         if (exp_trits == 9) { return 19683; }               // GF-T64
         if (exp_trits == 14) { return 4782969; }            // GF-T128
         if (exp_trits == 22) { return 31381059609; }        // GF-T256 (3^22)
-        if (exp_trits == 35) { return 50031545098999707; }  // GF-T512 (3^35, largest 3^Et in u64)
+        if (exp_trits == 35) { return 50031545098999707; }  // GF-T512 (3^35); next rung GF-T1024 (Et56) overflows u64
         return 0;
     }
 
@@ -281,7 +283,7 @@ module TriGftLadder {
         assert(gft_pow3_u64(GFT128_ET) == 4782969, "wide path agrees with u32 at GF-T128");
         assert(gft_offset_max_u64(GFT256_ET) == 31381059608, "GF-T256: 3^22 - 1");
         assert(gft_bias_u64(GFT256_ET) == 15690529804, "GF-T256 bias (3^22-1)/2");
-        assert(gft_offset_max_u64(GFT512_ET) == 50031545098999706, "GF-T512: 3^35 - 1 (largest in u64)");
+        assert(gft_offset_max_u64(GFT512_ET) == 50031545098999706, "GF-T512: 3^35 - 1 (largest rung in u64)");
         assert(gft_bias_u64(GFT512_ET) == 25015772549499853, "GF-T512 bias (3^35-1)/2");
         assert(gft_pow3_u64(GFT1024_ET) == 0, "GF-T1024 (Et56) exceeds u64 -- bignum, absent not wrong");
     }
