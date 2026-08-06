@@ -50,3 +50,6 @@ GF-T = ternary-native GoldenFloat (GF-T16 = `[sign:offset(7):mant(9)]`, value `(
 
 ## Keep this skill updated (user standing request 2026-08-07)
 Append new gotchas / measured numbers / part data / flash results here every time something is learned on hardware. This file is the living hardware-bring-up runbook.
+
+## LOG — 2026-08-07: first successful flash
+`ax7203_gft_compute.bit` → AX7203 SRAM via `openFPGALoader -c digilent_hs2 --ftdi-serial 210512180081`: **DONE=1, configured & running**. First GF-T compute on silicon. Warning "Unknown key Generator" is harmless. Confirms the whole flow works on real hardware.
