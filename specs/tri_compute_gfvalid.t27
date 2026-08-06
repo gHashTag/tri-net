@@ -61,6 +61,34 @@ module TriComputeGfValid {
         return gft_pow3(exp_trits) - 1;
     }
 
+    // The GF-T ladder's exponent-trit count for a nominal rung WIDTH (canonical, per
+    // ../t27/specs/numeric/gft{4,8,16,32}.t27): GF-T4 -> 2, GF-T8 -> 3, GF-T16 -> 4,
+    // GF-T32 -> 5 (Et = log2(width)). Unknown width -> 0 (no valid exponent).
+    fn gft_exp_trits_for_width(width: u32) -> u32 {
+        if (width == 4) { return 2; }
+        if (width == 8) { return 3; }
+        if (width == 16) { return 4; }
+        if (width == 32) { return 5; }
+        return 0;
+    }
+
+    // The special-row offset_max DERIVED from the rung width, so a settlement can pin
+    // it to the ASSIGNMENT-bound width (tri_a2a.skill_width) instead of trusting a
+    // caller-supplied offset_max. If the runtime passed an executor-claimed offset_max
+    // into payable_flag, a claim of a huge ceiling would make the special/Inf row (and
+    // out-of-range garbage) test as payable; deriving it from the bound width closes
+    // that. FAIL-CLOSED: an unknown width yields offset_max 0 (nothing is < 0, so
+    // nothing is payable) -- never the gft_offset_max(0) = gft_pow3(0) - 1 = u32
+    // underflow to 0xFFFFFFFF, which would be fail-OPEN.
+    fn gft_offset_max_for_width(width: u32) -> u32 {
+        let et: u32 = gft_exp_trits_for_width(width);
+        if (et == 0) {
+            return 0;
+        } else {
+            return gft_offset_max(et);
+        }
+    }
+
     // Finite iff the offset is below the reserved special row for its rung.
     fn is_finite_gft_n(offset: u32, exp_trits: u32) -> bool {
         return offset != gft_offset_max(exp_trits);
@@ -159,6 +187,25 @@ module TriComputeGfValid {
         assert(is_finite_gft_n(242, 5) == false, "GF-T32 offset 242 is special");
         assert(is_finite_gft_n(80, 4) == is_finite_gft16(80), "the alias is the Et=4 case");
         assert(is_finite_gft_n(40, 4) == is_finite_gft16(40), "alias agrees on finite too");
+    }
+
+    // The width-derived offset_max lets a settlement pin the special row to the
+    // ASSIGNMENT-bound width instead of trusting a caller-supplied ceiling. Each rung
+    // maps to its canonical offset_max, and an unknown width is FAIL-CLOSED at 0
+    // (never the gft_offset_max(0) u32 underflow).
+    test offset_max_from_width_is_bound_and_fail_closed {
+        assert(gft_exp_trits_for_width(8) == 3, "GF-T8 uses 3 exponent trits");
+        assert(gft_exp_trits_for_width(16) == 4, "GF-T16 uses 4 exponent trits");
+        assert(gft_offset_max_for_width(4) == 8, "GF-T4 special row via width");
+        assert(gft_offset_max_for_width(8) == 26, "GF-T8 special row via width");
+        assert(gft_offset_max_for_width(16) == 80, "GF-T16 special row via width");
+        assert(gft_offset_max_for_width(32) == 242, "GF-T32 special row via width");
+        // width-derived offset_max agrees with the canonical rung constant.
+        assert(gft_offset_max_for_width(16) == gft_offset_max(4), "width 16 -> Et 4 -> 80");
+        // Unknown / crafted widths fail closed at 0, not the underflowed 0xFFFFFFFF.
+        assert(gft_offset_max_for_width(0) == 0, "width 0 -> fail-closed offset_max 0");
+        assert(gft_offset_max_for_width(7) == 0, "an off-ladder width -> fail-closed 0");
+        assert(gft_offset_max_for_width(4294967295) == 0, "a garbage width -> fail-closed 0, no underflow");
     }
 
     // has_inf gate: GF16 rejects all-ones exp (inf/nan); GF8 (no special row)
