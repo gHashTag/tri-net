@@ -276,3 +276,26 @@ fn binary_payability_withholds_only_inf_nan() {
     // full value). Bit 20 set must not flip the finiteness classification.
     assert_eq!(payable_flag(FMT_GF_BINARY, 0x4200, 6, 9, 1, 0), payable_flag(FMT_GF_BINARY, 0x4200 | (1 << 20), 6, 9, 1, 0), "a high garbage bit does not change the exp-field verdict");
 }
+
+// settle_checked_gft_w derives offset_max from the ASSIGNMENT-bound width, so an
+// executor cannot supply the special-row ceiling. Also cross-checks the two inlined
+// width->offset_max copies (settle vs gfvalid) so they cannot drift.
+#[test]
+fn gft_width_derived_offset_max_is_provenance_safe() {
+    use settle::*;
+    assert_eq!(gft_offset_max_w(8), 26, "width 8 -> GF-T8 special row");
+    assert_eq!(gft_offset_max_w(16), 80, "width 16 -> GF-T16 special row");
+    assert_eq!(gft_offset_max_w(7), 0, "off-ladder width -> fail-closed 0");
+    // GF-T16: finite pays, special row + out-of-range withhold -- ceiling from the width.
+    assert_eq!(settle_checked_gft_w(100, 16, 1, 40), 116, "GFT16 finite (offset 40) pays");
+    assert_eq!(settle_checked_gft_w(100, 16, 1, 80), 100, "GFT16 special row withheld");
+    assert_eq!(settle_checked_gft_w(100, 16, 1, 100), 100, "GFT16 out-of-range withheld");
+    // GF-T8's own ceiling (26): a GFT16-sized offset (40) is out of range for GFT8.
+    assert_eq!(settle_checked_gft_w(100, 8, 1, 25), 108, "GFT8 finite (offset 25) pays");
+    assert_eq!(settle_checked_gft_w(100, 8, 1, 40), 100, "an offset valid for GFT16 is out of range for GFT8 -> withheld (no cross-rung leak)");
+    assert_eq!(settle_checked_gft_w(100, 7, 1, 5), 100, "unknown width -> fail-closed, nothing settles");
+    // The two inlined mappings (self-contained modules) must agree.
+    assert_eq!(gft_offset_max_w(8), gfvalid::gft_offset_max_for_width(8), "settle and gfvalid width->offset_max agree (8)");
+    assert_eq!(gft_offset_max_w(16), gfvalid::gft_offset_max_for_width(16), "settle and gfvalid width->offset_max agree (16)");
+    assert_eq!(gft_offset_max_w(99), gfvalid::gft_offset_max_for_width(99), "and agree on fail-closed for an unknown width");
+}
