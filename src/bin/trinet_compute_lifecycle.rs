@@ -98,6 +98,13 @@ fn main() {
     assert!(!a2a::admit_result_signed(task_id, task_id, task_id, a2a::SKILL_GF16_MUL, receipt::FMT_GF_BINARY, op, watermark, exec_rep, min_rep, bond, out0, min_bps, exe, exe, 0, exe), "an unsigned result naming the assignee is rejected (forge)");
     assert!(!a2a::admit_result_signed(task_id, task_id, task_id, a2a::SKILL_GF16_MUL, receipt::FMT_GF_BINARY, op, watermark, exec_rep, min_rep, bond, out0, min_bps, exe, exe, 1, 0xBEEF), "a signature from a key that is not the committed executor is rejected (identity mismatch)");
     assert!(!a2a::admit_result_signed(task_id, task_id, task_id, a2a::SKILL_GF16_MUL, receipt::FMT_GF_BINARY, op, watermark, exec_rep, min_rep, 100, 10000, min_bps, exe, exe, 1, exe), "an under-collateralized node (bond 100 < 2000bps of 10000 outstanding) is rejected at ingress");
+    // Precision binding: a GFT16 assignment must not silently accept a narrower GFT8
+    // receipt. family (FMT_GFT) and op (0x11) collide across the ladder widths, so the
+    // width-blind gate admits the downgrade; admit_result_signed_sized binds the
+    // committed gf_width too (16 for GFT16, 8 for GFT8).
+    assert!(a2a::admit_result_signed_sized(task_id, task_id, task_id, a2a::SKILL_GFT16_MUL, a2a::FMT_GFT, op, watermark, exec_rep, min_rep, bond, out0, min_bps, exe, exe, 1, exe, 16), "an authentic GFT16 result at the assigned width 16 is admitted");
+    assert!(a2a::admit_result_signed(task_id, task_id, task_id, a2a::SKILL_GFT16_MUL, a2a::FMT_GFT, op, watermark, exec_rep, min_rep, bond, out0, min_bps, exe, exe, 1, exe), "the width-blind gate admits the GFT16 assignment regardless of the receipt width (the residual hole)");
+    assert!(!a2a::admit_result_signed_sized(task_id, task_id, task_id, a2a::SKILL_GFT16_MUL, a2a::FMT_GFT, op, watermark, exec_rep, min_rep, bond, out0, min_bps, exe, exe, 1, exe, 8), "a GFT8 (width 8) receipt for a GFT16 assignment is rejected -- no silent precision downgrade");
     // Challenger recomputes the leaf from the committed operands + golden result;
     // it reproduces the settled leaf, so the dispute is anchored.
     let dispute_leaf = receipt::receipt_leaf_gf_fmt(receipt::FMT_GF_BINARY, width, op, a, b, r_ok, dev, exe, epoch);
@@ -244,7 +251,7 @@ fn main() {
     assert_eq!(account::bal_after_finalize_checked(bal, pending_f, settle_epoch, settle_epoch + 3, window, 0), bal, "premature finalize keeps reward escrowed");
 
     println!("compute lifecycle end-to-end (receipt -> settle/escrow -> challenge window):");
-    println!("  ingress: result admitted (bound+fresh+reputable+bonded+authentic); wrong-op/stale/low-rep/front-run/forge/under-bond rejected before settle");
+    println!("  ingress: result admitted (bound+fresh+reputable+bonded+authentic+width-exact); wrong-op/stale/low-rep/front-run/forge/under-bond/precision-downgrade rejected before settle");
     println!("  honest: settle {} into escrow, window elapses, finalize + release -> total {}", reward, honest_total);
     println!("  fraud:  settle {} into escrow, in-window SLASH -> clawback + bond slash -> total {}", reward, fraud_total);
     println!("  invariant: cheating costs reward+bond = {} (honest {} - fraud {})", reward + bond, honest_total, fraud_total);
