@@ -66,3 +66,7 @@ package pins are left as commented placeholders — fill them from the board's p
 XDC / ALINX schematic rather than guessing. Then `nextpnr-xilinx` (openXC7) →
 bitstream → flash over AL321/OpenOCD (IDCODE `0x13636093`): `led[0]` lit is the
 first GF-T recompute confirmed on real silicon.
+
+## Run it on silicon
+
+See [RUN_ON_SILICON.md](RUN_ON_SILICON.md) for the end-to-end recipe: local verify (all KATs + synth) -> fill board pins -> openXC7 place-and-route -> AL321 flash.
