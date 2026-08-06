@@ -135,6 +135,27 @@ fn admit_result_signed_rejects_forge_and_frontrun() {
     assert!(!admit_result_signed(task, task, task, SKILL_GF16_MUL, 0, 0x11, wm, 100, 50, 1999, 10000, 2000, exe, exe, 1, exe), "under-collateralized rejected");
 }
 
+#[test]
+fn width_binding_closes_precision_downgrade() {
+    use a2a::*;
+    // family + op are a lossy proxy: GFT16 and GFT8 share both.
+    assert_eq!(skill_width(SKILL_GFT16_MUL), 16);
+    assert_eq!(skill_width(SKILL_GFT8_MUL), 8);
+    assert_eq!(skill_op(SKILL_GFT16_MUL), skill_op(SKILL_GFT8_MUL), "GFT16 and GFT8 share op");
+    assert_eq!(skill_family(SKILL_GFT16_MUL), skill_family(SKILL_GFT8_MUL), "GFT16 and GFT8 share family");
+    // Binding layer: the bare gate binds a GFT8 receipt to a GFT16 assignment; sized rejects.
+    assert!(result_binds_assign(0x777, 0x777, 0x777, SKILL_GFT16_MUL, FMT_GFT, 0x11), "bare gate binds on family+op");
+    assert!(!result_binds_assign_sized(0x777, 0x777, 0x777, SKILL_GFT16_MUL, FMT_GFT, 0x11, 8), "sized rejects a GFT8-width receipt for a GFT16 assignment");
+    assert!(result_binds_assign_sized(0x777, 0x777, 0x777, SKILL_GFT16_MUL, FMT_GFT, 0x11, 16), "matching width binds");
+    // Full ingress: admit_result_signed is width-blind; admit_result_signed_sized rejects the downgrade.
+    let e = 0xE1u32;
+    assert!(admit_result_signed(0x777, 0x777, 0x777, SKILL_GFT16_MUL, FMT_GFT, 0x11, 0x100, 100, 50, 2000, 10000, 2000, e, e, 1, e), "width-blind full gate admits the downgrade");
+    assert!(!admit_result_signed_sized(0x777, 0x777, 0x777, SKILL_GFT16_MUL, FMT_GFT, 0x11, 0x100, 100, 50, 2000, 10000, 2000, e, e, 1, e, 8), "sized full gate rejects the GFT8 downgrade");
+    assert!(admit_result_signed_sized(0x777, 0x777, 0x777, SKILL_GFT16_MUL, FMT_GFT, 0x11, 0x100, 100, 50, 2000, 10000, 2000, e, e, 1, e, 16), "sized full gate admits the matching width");
+    // Never rescues a prior-gate failure even at the right width.
+    assert!(!admit_result_signed_sized(0x777, 0x100, 0x100, SKILL_GFT16_MUL, FMT_GFT, 0x11, 0x100, 100, 50, 2000, 10000, 2000, e, e, 1, e, 16), "right width but stale still rejects");
+}
+
 // ---- non-terminal outcomes: challenger accountability ----
 
 #[test]
