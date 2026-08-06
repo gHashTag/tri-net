@@ -199,6 +199,31 @@ module TriA2A {
         }
     }
 
+    // The ladder WIDTH a hosted skill advertises. family + op are a LOSSY proxy for
+    // the assigned skill: GFT16_* (0xA6..) and GFT8_* (0xA8..) share family (FMT_GFT)
+    // AND op (0x11/0x10), differing only in width. So result_binds_assign accepts a
+    // GFT8 receipt for a GFT16 assignment -- a silent precision DOWNGRADE: the executor
+    // does cheaper 8-trit work and the requester gets 8-trit precision for a 16-trit
+    // task it never agreed to. Only GFT8_* are width 8; GF16/GFT16 are width 16.
+    fn skill_width(skill: u32) -> u32 {
+        if (skill == SKILL_GFT8_MUL) { return 8; }
+        if (skill == SKILL_GFT8_ADD) { return 8; }
+        return 16;
+    }
+
+    // Width-exact binding: result_binds_assign PLUS the receipt's committed width
+    // (tri_compute_receipt gf_width) equals the assigned skill's width. Together with
+    // family + op this uniquely identifies each of the six hosted skills, closing the
+    // GFT16/GFT8 collision. Callers binding an attacker-influenced skill should use
+    // THIS instead of the bare family+op result_binds_assign.
+    fn result_binds_assign_sized(assign_task_id: u32, result_task_id: u32, receipt_task: u32, assigned_skill: u32, receipt_family: u32, receipt_op: u32, receipt_width: u32) -> bool {
+        if (skill_width(assigned_skill) == receipt_width) {
+            return result_binds_assign(assign_task_id, result_task_id, receipt_task, assigned_skill, receipt_family, receipt_op);
+        } else {
+            return receipt_width != receipt_width;
+        }
+    }
+
     // The single result-admission gate at ingress: accept a taskResult iff it
     // binds to its assignment (task + family + op via result_binds_assign), is
     // FRESH (result_task_id beyond the settled watermark, no replay), AND the
@@ -366,6 +391,24 @@ module TriA2A {
         assert(result_binds_assign(0x777, 0x777, 0x999, SKILL_GF16_MUL, 0, 0x11) == false, "receipt for another task -> reject");
         assert(result_binds_assign(0x777, 0x777, 0x777, SKILL_GF16_MUL, 1, 0x11) == false, "GF-T receipt for a binary skill -> reject");
         assert(result_binds_assign(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x10) == false, "add receipt for a mul assignment -> reject");
+    }
+
+    // The family+op proxy collides GFT16 and GFT8 (same family FMT_GFT, same op 0x11).
+    // result_binds_assign accepts a GFT8 receipt for a GFT16 assignment -- the silent
+    // precision downgrade -- while result_binds_assign_sized rejects it on width.
+    test width_binds_the_exact_skill {
+        assert(skill_width(SKILL_GFT16_MUL) == 16, "GFT16 is width 16");
+        assert(skill_width(SKILL_GFT8_MUL) == 8, "GFT8 is width 8");
+        assert(skill_width(SKILL_GF16_MUL) == 16, "GF16 is width 16");
+        // THE hole: family (1=FMT_GFT) and op (0x11) match, so the bare gate binds.
+        assert(result_binds_assign(0x777, 0x777, 0x777, SKILL_GFT16_MUL, 1, 0x11) == true, "GFT16 assignment + GFT-family mul receipt binds on family+op");
+        // The sized gate rejects a width-8 (GFT8) receipt for a GFT16 assignment.
+        assert(result_binds_assign_sized(0x777, 0x777, 0x777, SKILL_GFT16_MUL, 1, 0x11, 8) == false, "GFT8 (width 8) receipt for a GFT16 assignment -> reject (precision downgrade closed)");
+        // A width-16 receipt for the GFT16 assignment binds.
+        assert(result_binds_assign_sized(0x777, 0x777, 0x777, SKILL_GFT16_MUL, 1, 0x11, 16) == true, "matching width 16 -> binds");
+        // And a GFT8 assignment correctly takes a width-8 receipt.
+        assert(result_binds_assign_sized(0x777, 0x777, 0x777, SKILL_GFT8_MUL, 1, 0x11, 8) == true, "GFT8 assignment + width-8 receipt -> binds");
+        assert(result_binds_assign_sized(0x777, 0x777, 0x777, SKILL_GFT8_MUL, 1, 0x11, 16) == false, "a width-16 receipt for a GFT8 assignment -> reject");
     }
 
     // The unified ingress gate: a fully-bound, fresh result from an admissible
