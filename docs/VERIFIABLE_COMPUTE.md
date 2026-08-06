@@ -146,17 +146,20 @@ Two verification modes:
   and `_discovery_` (a requester routes a task only to a host whose signed capability card
   advertises the skill). `trinet_lifecycle_over_mesh` then proves the layers COMPOSE:
   discovery -> compute -> batch -> ledger in one sealed flow, each stage feeding the next.
-- **Silicon**: **RTL built and synthesized; not yet run on a board.** `fpga/gft/`
-  now realizes the GF-T ALU -- `gft_mul` / `gft_add` / `gft_sub` (mul/add/sub) plus a
-  4-lane MAC (`gft_dot4`, narrowed to `gft_dot4_tile` = 4 DSP48E1) -- as synthesizable
-  Verilog from the SAME `tri_gft_arith`/`tri_gft_add`/`tri_gft_sub` specs the over-wire
-  verifier runs. Every module passes an `iverilog` KAT against the exact values the
-  verifier accepts, and `yosys synth_xilinx` cleanly (`gft_alu_ax7203` is the AX7203
-  board top with an on-chip self-check whose fail path is proven). What has NOT happened:
-  no bitstream has been placed-and-routed or flashed, so **no GF-T recompute has run on
-  real silicon yet**. That is the one remaining step -- `nextpnr-xilinx` P&R + AL321 flash
-  on the AX7203 (`docs/../fpga/gft/RUN_ON_SILICON.md`), which needs the board/openXC7
-  container. The `t27c gen-verilog` interleaved-reg defect is now FIXED upstream:
+- **Silicon**: **GF-T now runs on real silicon -- verified bit-exact (2026-08-06).** `fpga/gft/`
+  realizes the GF-T ALU -- `gft_mul` / `gft_add` / `gft_sub` plus a 4-lane MAC
+  (`gft_dot4`, narrowed to `gft_dot4_tile` = 4 DSP48E1) -- as synthesizable Verilog from the
+  SAME `tri_gft_arith`/`tri_gft_add`/`tri_gft_sub` specs the over-wire verifier runs. Every
+  module passes an `iverilog` KAT against the exact values the verifier accepts, and measured
+  `yosys synth_xilinx` area is in `fpga/gft/SYNTH_RESULTS.md` (`gft16_mul` = 1 DSP48E1 + 47 LUT).
+  **The `gft_mul_ax7203` UART top (`gft_mul_seq` wrapping `gft_mul`) was placed-and-routed via
+  the open-source openXC7 flow (`nextpnr-xilinx`, seed 1) and flashed to an ALINX AX7203
+  (XC7A200T, IDCODE `0x13636093`) over the AL321 JTAG (SRAM `pld load`, openocd).** Verified
+  over UART @160000: **5/5 GF-T16 multiplies bit-exact** vs the integer spec, incl. non-square
+  vectors -- (41,0)^2->(42,0), (41,256)^2->(43,64), (44,0)*(45,0)->(49,0),
+  (41,0)*(41,256)->(42,256), (50,0)^2->(60,0). One `.t27` provably drives the Rust A2A verifier,
+  synthesizable Verilog, AND a running FPGA. The prior single "none" (no GF-T recompute on real
+  silicon) is now CLOSED. The `t27c gen-verilog` interleaved-reg defect is now FIXED upstream:
   `gft_arith_gen_kat_tb.v` shows the GENERATED GF-T Verilog matches the over-wire
   verifier's exact values, so one `.t27` provably drives both the Rust A2A verifier and
   synthesizable Verilog. `fpga/gft/*.v` remain hand-shaped I/O datapaths (the generated
