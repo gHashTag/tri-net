@@ -146,15 +146,6 @@ module TriComputeSettle {
                 }
             } else {
                 return balance_add(prev_balance, compute_reward(gf_width, 0));
-    // Reward gated on freshness AND a FINITE GF16 result: a node that returns
-    // inf/nan (garbage compute) earns nothing, even if fresh.
-    fn settle_checked(prev_balance: u32, gf_width: u32, fresh: u32, gf_result: u32) -> u32 {
-        let exp: u32 = (gf_result >> 9) & 0x3F;
-        if (fresh == 1) {
-            if (exp == 0x3F) {
-                return balance_add(prev_balance, compute_reward(gf_width, 0));
-            } else {
-                return balance_add(prev_balance, compute_reward(gf_width, 1));
             }
         } else {
             return balance_add(prev_balance, compute_reward(gf_width, 0));
@@ -197,17 +188,6 @@ module TriComputeSettle {
     // that format. Pays only a fresh AND finite result.
     fn settle_checked_gf(prev_balance: u32, gf_width: u32, fresh: u32, gf_result: u32, exp_bits: u32, mant_bits: u32) -> u32 {
         return settle_canonical(prev_balance, gf_width, 1, fresh, 0, FMT_GF_BINARY, gf_result, exp_bits, mant_bits, 1, 0);
-        let exp_mask: u32 = (1 << exp_bits) - 1;
-        let exp: u32 = (gf_result >> mant_bits) & exp_mask;
-        if (fresh == 1) {
-            if (exp == exp_mask) {
-                return balance_add(prev_balance, compute_reward(gf_width, 0));
-            } else {
-                return balance_add(prev_balance, compute_reward(gf_width, 1));
-            }
-        } else {
-            return balance_add(prev_balance, compute_reward(gf_width, 0));
-        }
     }
 
     // GF-T (ternary-native) settlement: a GF-T result is special not by an
@@ -238,15 +218,6 @@ module TriComputeSettle {
     // (offset_max 0 -> nothing payable). Callers holding the bound width use THIS.
     fn settle_checked_gft_w(prev_balance: u32, gf_width: u32, fresh: u32, offset: u32) -> u32 {
         return settle_checked_gft(prev_balance, gf_width, fresh, offset, gft_offset_max_w(gf_width));
-        if (fresh == 1) {
-            if (offset == offset_max) {
-                return balance_add(prev_balance, compute_reward(gf_width, 0));
-            } else {
-                return balance_add(prev_balance, compute_reward(gf_width, 1));
-            }
-        } else {
-            return balance_add(prev_balance, compute_reward(gf_width, 0));
-        }
     }
 
     // Unified format-aware settlement path: pay iff NOT already settled AND fresh
@@ -262,21 +233,6 @@ module TriComputeSettle {
     // valid max-exponent GF8 result would be misclassified as garbage and pay 0.
     fn settle_full_h(prev_balance: u32, gf_width: u32, fresh: u32, gf_result: u32, exp_bits: u32, mant_bits: u32, has_inf: u32, already_settled: u32) -> u32 {
         return settle_canonical(prev_balance, gf_width, 1, fresh, already_settled, FMT_GF_BINARY, gf_result, exp_bits, mant_bits, has_inf, 0);
-        let exp_mask: u32 = (1 << exp_bits) - 1;
-        let exp: u32 = (gf_result >> mant_bits) & exp_mask;
-        if (already_settled == 1) {
-            return balance_add(prev_balance, compute_reward(gf_width, 0));
-        } else {
-            if (fresh == 1) {
-                if (exp == exp_mask) {
-                    return balance_add(prev_balance, compute_reward(gf_width, 0));
-                } else {
-                    return balance_add(prev_balance, compute_reward(gf_width, 1));
-                }
-            } else {
-                return balance_add(prev_balance, compute_reward(gf_width, 0));
-            }
-        }
     }
 
     // Authenticity gate: settle ONLY a receipt whose 256-bit digest
@@ -288,11 +244,6 @@ module TriComputeSettle {
     // the payout to the executor's key.
     fn settle_signed(prev_balance: u32, gf_width: u32, fresh: u32, gf_result: u32, exp_bits: u32, mant_bits: u32, already_settled: u32, sig_ok: u32) -> u32 {
         return settle_canonical(prev_balance, gf_width, sig_ok, fresh, already_settled, FMT_GF_BINARY, gf_result, exp_bits, mant_bits, 1, 0);
-        if (sig_ok == 1) {
-            return settle_full(prev_balance, gf_width, fresh, gf_result, exp_bits, mant_bits, already_settled);
-        } else {
-            return balance_add(prev_balance, compute_reward(gf_width, 0));
-        }
     }
 
     // ---- Tests / invariants ----

@@ -22,8 +22,6 @@ module TriComputePool {
         } else {
             return sum as u32;
         }
-    fn total_work3(w0: u32, w1: u32, w2: u32) -> u32 {
-        return w0 + w1 + w2;
     }
 
     // One executor's proportional floor-div share of the pool. Guarded against a
@@ -105,7 +103,6 @@ module TriComputePool {
             return 0xFFFFFFFF;
         } else {
             return sum;
-            return (total_pool * my_work) / total;
         }
     }
 
