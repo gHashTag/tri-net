@@ -84,6 +84,10 @@ path = "tests/gft_dot_verifiable.rs"
 name = "gft_receipt_batch"
 path = "tests/gft_receipt_batch.rs"
 
+[[test]]
+name = "gft_ledger_settlement"
+path = "tests/gft_ledger_settlement.rs"
+
 [profile.release]
 opt-level = "z"
 lto = true
