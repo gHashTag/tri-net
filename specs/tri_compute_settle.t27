@@ -197,6 +197,29 @@ module TriComputeSettle {
         return settle_canonical(prev_balance, gf_width, 1, fresh, 0, FMT_GFT, offset, 0, 0, 0, offset_max);
     }
 
+    // The GF-T special-row offset_max for a rung WIDTH (canonical, mirrors
+    // tri_compute_gfvalid.gft_offset_max_for_width: GF-T4/8/16/32 -> 8/26/80/242).
+    // Inlined here rather than cross-called (this codebase keeps modules self-
+    // contained). FAIL-CLOSED: an unknown width returns 0 so nothing settles.
+    fn gft_offset_max_w(gf_width: u32) -> u32 {
+        if (gf_width == 4) { return 8; }
+        if (gf_width == 8) { return 26; }
+        if (gf_width == 16) { return 80; }
+        if (gf_width == 32) { return 242; }
+        return 0;
+    }
+
+    // Provenance-safe GF-T settlement: DERIVE offset_max from the assignment-bound
+    // width instead of taking a caller-supplied ceiling. settle_checked_gft trusts its
+    // offset_max argument -- if the runtime fed it an executor-claimed value, a huge
+    // ceiling would make the special/Inf row (and out-of-range garbage) payable via
+    // payable_flag's `offset < offset_max`. Pinning offset_max to the width the ingress
+    // already bound (tri_a2a.skill_width) closes that; an unknown width fails closed
+    // (offset_max 0 -> nothing payable). Callers holding the bound width use THIS.
+    fn settle_checked_gft_w(prev_balance: u32, gf_width: u32, fresh: u32, offset: u32) -> u32 {
+        return settle_checked_gft(prev_balance, gf_width, fresh, offset, gft_offset_max_w(gf_width));
+    }
+
     // Unified format-aware settlement path: pay iff NOT already settled AND fresh
     // AND finite (per the format's own exponent). Composes the settle finite-gate
     // with the safety no-double-pay guard in one call -- the single choke point.
@@ -290,6 +313,24 @@ module TriComputeSettle {
         assert(settle_checked_gft(100, 16, 0, 40, 80) == 100, "stale GF-T16 pays nothing");
         assert(settle_checked_gft(100, 16, 1, 79, 80) == 116, "GF-T16 boundary (offset 79, just below the special row) pays");
         assert(settle_checked_gft(100, 16, 1, 100, 80) == 100, "GF-T16 OUT-OF-RANGE offset (100 > 80) pays nothing -- garbage-pay hole closed");
+    }
+
+    // settle_checked_gft_w derives offset_max from the bound width, so the executor
+    // cannot supply the ceiling. GF-T16 (width 16 -> 80) and GF-T8 (width 8 -> 26).
+    test settle_gft_width_derived_offset_max {
+        assert(gft_offset_max_w(8) == 26, "width 8 -> GF-T8 special row 26");
+        assert(gft_offset_max_w(16) == 80, "width 16 -> GF-T16 special row 80");
+        // GF-T16: offset 40 finite pays, 80 special withholds, 100 out-of-range withholds.
+        assert(settle_checked_gft_w(100, 16, 1, 40) == 116, "GF-T16 finite pays, width-derived ceiling");
+        assert(settle_checked_gft_w(100, 16, 1, 80) == 100, "GF-T16 special row withholds");
+        assert(settle_checked_gft_w(100, 16, 1, 100) == 100, "GF-T16 out-of-range withholds");
+        // GF-T8: its OWN special row is 26 -- offset 26 withholds, 25 pays; a GFT16-sized
+        // offset (40) is out of range for width 8 and withholds (no cross-rung leak).
+        assert(settle_checked_gft_w(100, 8, 1, 25) == 108, "GF-T8 finite (offset 25) pays");
+        assert(settle_checked_gft_w(100, 8, 1, 26) == 100, "GF-T8 special row (26) withholds");
+        assert(settle_checked_gft_w(100, 8, 1, 40) == 100, "an offset valid for GF-T16 is out of range for GF-T8 -> withholds");
+        // Unknown width fails closed: nothing settles regardless of offset.
+        assert(settle_checked_gft_w(100, 7, 1, 5) == 100, "off-ladder width -> fail-closed, nothing settles");
     }
 
     // The unified path: only fresh + finite + not-already-settled pays.
