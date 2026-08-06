@@ -26,6 +26,11 @@ module gft_alu_selfcheck (
         op[3]=0; aoff[3]=40; amant[3]=0;   boff[3]=39; bmant[3]=0;   eoff[3]=40; emant[3]=256;  // ADD 1+0.5
         op[4]=2; aoff[4]=41; amant[4]=0;   boff[4]=40; bmant[4]=0;   eoff[4]=40; emant[4]=0;    // SUB 2-1
         op[5]=2; aoff[5]=41; amant[5]=256; boff[5]=40; bmant[5]=0;   eoff[5]=41; emant[5]=0;    // SUB 3-1
+`ifdef GFT_SELFCHECK_FAULT
+        // Verification-only: corrupt one expected value so the fail path MUST trigger.
+        // Guarded -- the shipped bitstream (no define) keeps the golden vectors.
+        emant[5] = 32'd999;
+`endif
     end
 
     reg [3:0] idx;
