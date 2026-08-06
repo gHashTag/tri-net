@@ -1,0 +1,5 @@
+# Board synthesis of the AX7203 GF-T ALU self-check top (yosys, real IBUFDS).
+#   yosys fpga/gft/synth_gft_alu_ax7203.ys
+read_verilog fpga/gft/gft_mul.v fpga/gft/gft_add.v fpga/gft/gft_sub.v fpga/gft/gft_alu.v fpga/gft/gft_alu_selfcheck.v fpga/gft/gft_alu_ax7203.v
+synth_xilinx -flatten -top gft_alu_ax7203
+stat

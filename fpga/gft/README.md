@@ -49,3 +49,20 @@ Drive `gft_mul` from the AX7203 openXC7 flow used for the ternary blocks
 same flow that produced the proven blinky bitstream) to get the **first GF-T
 recompute on real silicon** — the one boundary section 4 of
 `docs/VERIFIABLE_COMPUTE.md` still marks "none".
+
+## Board integration (ALINX AX7203 = XC7A200T-FBG484-2)
+
+`gft_alu_ax7203.v` is the board top: it buffers the 200 MHz differential board
+clock (DIFF_SSTL15, `clk_p` on R4) through an `IBUFDS` and drives `led[0]=pass`,
+`led[1]=fail` from `gft_alu_selfcheck`.
+
+- iverilog (`-DSIM`, behavioral clock buffer): `AX7203 SELFCHECK PASS: led[0]=pass lit`.
+- `yosys fpga/gft/synth_gft_alu_ax7203.ys` (real IBUFDS): clean synth — 1 IBUFDS +
+  4 OBUF + 3 DSP48E1 + 114 CARRY4 + ~584 LUT + 6 FF, a board-ready netlist.
+
+`gft_alu_ax7203.xdc` asserts the **authoritative** clock pin (R4, DIFF_SSTL15,
+200 MHz) documented in `docs/issues-archive/.../p0-ax7203-flash.md`. The LED / reset
+package pins are left as commented placeholders — fill them from the board's proven
+XDC / ALINX schematic rather than guessing. Then `nextpnr-xilinx` (openXC7) →
+bitstream → flash over AL321/OpenOCD (IDCODE `0x13636093`): `led[0]` lit is the
+first GF-T recompute confirmed on real silicon.
