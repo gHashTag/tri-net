@@ -124,3 +124,21 @@ iverilog -g2012 -DGFT_SELFCHECK_FAULT -o /tmp/f.vvp <same sources> && vvp /tmp/f
 
 So the on-silicon `pass` LED is meaningful: the checker provably distinguishes a
 correct GF-T ALU from a broken one.
+
+## GF-T MAC / dot product (`gft_dot4`) -- ternary-compute scaling
+
+`gft_dot4.v` is a 4-lane GF-T multiply-accumulate: four `gft_mul` products reduced
+by a 3-adder tree of `gft_add` (cf. `fpga/gf16/gf16_dot4.v` for the GF16 line). The
+KAT expected values are the **composition** of the individually over-wire-verified
+mul + add stages, so the KAT verifies the dot wiring: four `(41,256)²` products sum
+to `(45,64)`; the mixed `{1.5², φ², 1.5², φ²}` lanes to `(44,320)`.
+
+`yosys synth_xilinx` (GF-T16, u32 lanes): 12 DSP48E1 (4 lanes x 3 at u32 width) +
+303 CARRY4 + ~1673 LUT, clean synth. Narrowing the lane operands (as `gft16_mul`
+does, 3->1 DSP) would bring this to ~4 DSP -- a 4-MAC GF-T tile, many of which tile
+the xc7a200t for a ternary dot-product engine.
+
+```bash
+iverilog -g2012 -o /tmp/d.vvp fpga/gft/gft_mul.v fpga/gft/gft_add.v fpga/gft/gft_dot4.v fpga/gft/gft_dot4_kat_tb.v && vvp /tmp/d.vvp
+yosys fpga/gft/synth_gft_dot4.ys
+```

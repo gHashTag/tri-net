@@ -1,0 +1,6 @@
+# Synthesis of the 4-lane GF-T MAC / dot product (yosys, NO Vivado).
+#   yosys fpga/gft/synth_gft_dot4.ys
+read_verilog fpga/gft/gft_mul.v fpga/gft/gft_add.v fpga/gft/gft_dot4.v
+hierarchy -top gft_dot4
+synth_xilinx -flatten
+stat
