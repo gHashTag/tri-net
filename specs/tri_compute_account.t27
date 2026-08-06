@@ -225,6 +225,9 @@ module TriComputeAccount {
         } else {
             return bal_after_finalize_gated(balance, pending, settle_epoch, now_epoch, window);
         }
+    // settle: mint `reward` (from the pool) into the spendable balance.
+    fn bal_after_settle(balance: u32, reward: u32) -> u32 {
+        return balance + reward;
     }
 
     // ---- Tests / invariants ----

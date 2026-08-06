@@ -48,6 +48,9 @@ module TriComputeBitnet {
                 return 0;
             }
         }
+    // A single 2-bit trit is active iff it is nonzero (zeros are the 0-DSP skip).
+    fn is_active(trit: u32) -> u32 {
+        if (trit != 0) { return 1; } else { return 0; }
     }
 
     fn active_weights4(packed: u32) -> u32 {
@@ -173,6 +176,7 @@ module TriComputeBitnet {
         if (idx == 7) { return SHA_PAD; }
         if (idx == 15) { return BITNET_MSG_BITS; }
         return 0;
+        return mix32(d ^ rotl(executor + epoch, 29));
     }
 
     // ---- Tests / invariants ----

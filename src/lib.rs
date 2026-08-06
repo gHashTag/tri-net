@@ -18,32 +18,48 @@ pub mod routing;
 pub mod wire;
 
 // Re-export generated mesh components
+// Generated code is linted at its source (the .t27 spec), not here: t27c emits
+// explicit returns, parenthesised expressions and unread initialisers by design,
+// and rewriting them in gen/rust/ would break the spec-first invariant.
+#[allow(clippy::all, unused)]
 #[path = "../gen/rust/mesh_routing.rs"]
 pub mod mesh_routing;
 
+#[allow(clippy::all, unused)]
 #[path = "../gen/rust/etx.rs"]
 pub mod etx;
 
+#[allow(clippy::all, unused)]
 #[path = "../gen/rust/adaptive_routing.rs"]
 pub mod adaptive_routing;
 
+#[allow(clippy::all, unused)]
 #[path = "../gen/rust/multipath_routing.rs"]
 pub mod multipath_routing;
 
+#[allow(clippy::all, unused)]
 #[path = "../gen/rust/frame_buffer.rs"]
 pub mod frame_buffer;
 
+#[allow(clippy::all, unused)]
 #[path = "../gen/rust/flow_control.rs"]
 pub mod flow_control;
 
+#[allow(clippy::all, unused)]
 #[path = "../gen/rust/health_dashboard.rs"]
 pub mod health_dashboard;
 
+#[allow(clippy::all, unused)]
 #[path = "../gen/rust/anomaly_detector.rs"]
 pub mod anomaly_detector;
 
+#[allow(clippy::all, unused)]
 #[path = "../gen/rust/quarantine_manager.rs"]
 pub mod quarantine_manager;
+
+// Crate-root re-exports used by the binaries.
+pub use crypto::{Handshake, MeshError};
+pub use daemon::Node;
 
 // Types used across the crate
 pub type NodeId = u32;

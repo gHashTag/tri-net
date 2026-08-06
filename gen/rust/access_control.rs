@@ -65,7 +65,7 @@ pub fn role_meets_minimum(role: u32, min_role: u32) -> bool {
 
 pub fn check_access(policy: u32, role: u32) -> u32 {
     let min_role = get_min_role(policy);
-    if !(role_meets_minimum(role, min_role)) {
+    if ((role_meets_minimum(role, min_role)) == 0) {
         return DENY;
     }
     if (role == ROLE_GUEST) {
@@ -111,7 +111,7 @@ pub fn change_role(creds: u32, new_role: u32) -> u32 {
 }
 
 pub fn check_resource_access(creds: u32, policy: u32, provided_token: u32) -> u32 {
-    if !(verify_creds(creds, provided_token)) {
+    if ((verify_creds(creds, provided_token)) == 0) {
         return DENY;
     }
     let role = get_role(creds);

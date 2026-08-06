@@ -133,6 +133,7 @@ pub fn calculate_consensus_value(vote_array: u64, proposal_id: u32) -> u32 {
 }
 
 pub fn cooperative_decision(neighbor_values: u32, my_value: u32, weight_neighbors: u32) -> u32 {
+    let neighbor_avg = neighbor_values;
     let weighted_neighbors = ((neighbor_values * weight_neighbors) / 100);
     let weighted_self = ((my_value * (100 - weight_neighbors)) / 100);
     return (weighted_neighbors + weighted_self);

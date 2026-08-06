@@ -1,0 +1,160 @@
+// TRI-NET GF-T (ternary-native GoldenFloat) ladder geometry + validity.
+//
+// tri_compute_gfvalid.is_finite_gft16 hardcodes ONE rung (GF-T16, reserved offset
+// 80). But GF-T is a LADDER -- GF-T4/8/16/32/... -- each with its own reserved
+// special row at offset_max = 3^Et - 1, where Et is the number of balanced-ternary
+// exponent trits (the ternary analogue of the all-ones binary exponent). This spec
+// generalizes finiteness across the ladder so a receipt/settle path can validate a
+// GF-T result of ANY width by the TERNARY rule, not the binary all-ones-exp rule.
+//
+// Et per rung is Et = log2(width) for the confirmed low ladder: GF-T4->2, GF-T8->3,
+// GF-T16->4 (offset_max 80, matches tri_compute_gfvalid.GFT16_OFFSET_MAX), GF-T32->5.
+// (Higher rungs use a non-linear Et and are added once confirmed against the
+// t27 specs/numeric/gft*.t27 SSOT.)
+
+module TriGftLadder {
+    use base::types;
+
+    // Exponent-trit count per GF-T rung (SSOT: t27 specs/numeric/gft*.t27). The
+    // ladder is NOT linear in Et: GF-T32 uses 6 exponent trits, not 5.
+    const GFT4_ET:  u32 = 2;
+    const GFT8_ET:  u32 = 3;
+    const GFT16_ET: u32 = 4;
+    const GFT32_ET: u32 = 6;
+
+    // Mantissa bit-width per rung (SSOT: t27 specs/numeric/gft*.t27). The significand
+    // is 1 + M / 2^MANT; a GF-T multiply/add recompute uses 2^MANT as its scale.
+    const GFT4_MANT:  u32 = 1;
+    const GFT8_MANT:  u32 = 4;
+    const GFT16_MANT: u32 = 9;
+    const GFT32_MANT: u32 = 25;
+
+    // 3^Et for the ladder's exponent-trit counts (the count of representable
+    // exponent offsets; the top one, 3^Et - 1, is the reserved special row).
+    fn gft_pow3(exp_trits: u32) -> u32 {
+        if (exp_trits == 2) { return 9; }
+        if (exp_trits == 3) { return 27; }
+        if (exp_trits == 4) { return 81; }
+        if (exp_trits == 5) { return 243; }
+        if (exp_trits == 6) { return 729; }
+        if (exp_trits == 7) { return 2187; }
+        if (exp_trits == 8) { return 6561; }
+        return 0;
+    }
+
+    // The reserved special-row offset for a GF-T format with `exp_trits` exponent
+    // trits: the largest representable offset, 3^Et - 1 (GF-T16 -> 80).
+    fn gft_offset_max(exp_trits: u32) -> u32 {
+        return gft_pow3(exp_trits) - 1;
+    }
+
+    // A GF-T result (carried as its exponent offset) is finite/useful iff its offset
+    // is below the reserved special row for its rung. Works for ANY GF-T width.
+    fn is_finite_gft_n(offset: u32, exp_trits: u32) -> bool {
+        return offset != gft_offset_max(exp_trits);
+    }
+
+    // Is a value a valid exponent offset for this rung at all (0 .. 3^Et - 1)?
+    fn gft_offset_in_range(offset: u32, exp_trits: u32) -> bool {
+        return offset < gft_pow3(exp_trits);
+    }
+
+    // The unity-exponent offset (phi^0 / 2^0) for a rung: the balanced-ternary zero
+    // point, (3^Et - 1) / 2 = offset_max / 2. This is the `bias` that the multiply /
+    // add recompute (tri_gft_arith / tri_gft_add) take as a parameter, so a receipt
+    // of ANY GF-T width can be verified with its rung's geometry (not GF-T16's).
+    // GF-T4 -> 4, GF-T8 -> 13, GF-T16 -> 40, GF-T32 -> 121.
+    fn gft_bias(exp_trits: u32) -> u32 {
+        return (gft_pow3(exp_trits) - 1) / 2;
+    }
+
+    // The mantissa bit-width for a rung, keyed by its exponent-trit count (SSOT).
+    // A per-rung multiply/add recompute uses 2^MANT as its significand scale.
+    fn gft_mant_bits(exp_trits: u32) -> u32 {
+        if (exp_trits == GFT4_ET) { return GFT4_MANT; }
+        if (exp_trits == GFT8_ET) { return GFT8_MANT; }
+        if (exp_trits == GFT16_ET) { return GFT16_MANT; }
+        if (exp_trits == GFT32_ET) { return GFT32_MANT; }
+        return 0;
+    }
+
+    // The significand scale 2^MANT for a rung (GF-T16 -> 512).
+    fn gft_mant_one(exp_trits: u32) -> u32 {
+        return 1 << gft_mant_bits(exp_trits);
+    }
+
+    // Nominal GF-T width (bits) -> its exponent-trit count. This is the routing key: a
+    // verifier reads a receipt's GF width and looks up the rung's geometry (bias,
+    // offset_max, mant_one) to recompute with the RIGHT parameters, not GF-T16's.
+    fn width_to_et(width: u32) -> u32 {
+        if (width == 4) { return GFT4_ET; }
+        if (width == 8) { return GFT8_ET; }
+        if (width == 16) { return GFT16_ET; }
+        if (width == 32) { return GFT32_ET; }
+        return 0;
+    }
+
+    // ---- Tests / invariants ----
+
+    // The reserved special row is 3^Et - 1 at each confirmed rung; GF-T16 == 80
+    // agrees with tri_compute_gfvalid.GFT16_OFFSET_MAX.
+    test offset_max_per_rung {
+        assert(gft_offset_max(GFT4_ET) == 8, "GF-T4: 3^2 - 1 = 8");
+        assert(gft_offset_max(GFT8_ET) == 26, "GF-T8: 3^3 - 1 = 26");
+        assert(gft_offset_max(GFT16_ET) == 80, "GF-T16: 3^4 - 1 = 80 (matches gfvalid)");
+        assert(gft_offset_max(GFT32_ET) == 728, "GF-T32: 3^6 - 1 = 728");
+    }
+
+    // Finiteness by the TERNARY rule across the ladder: just below the row is finite,
+    // the row itself is special (inf/nan analogue).
+    test ladder_finiteness {
+        assert(is_finite_gft_n(79, GFT16_ET) == true, "GF-T16 offset 79 is finite");
+        assert(is_finite_gft_n(80, GFT16_ET) == false, "GF-T16 offset 80 is the special row");
+        assert(is_finite_gft_n(40, GFT16_ET) == true, "GF-T16 unity exponent finite");
+        assert(is_finite_gft_n(727, GFT32_ET) == true, "GF-T32 offset 727 is finite");
+        assert(is_finite_gft_n(728, GFT32_ET) == false, "GF-T32 offset 728 is the special row");
+        assert(is_finite_gft_n(7, GFT4_ET) == true, "GF-T4 offset 7 is finite");
+        assert(is_finite_gft_n(8, GFT4_ET) == false, "GF-T4 offset 8 is special");
+    }
+
+    // The SAME numeric offset is classified differently per rung: 80 is special for
+    // GF-T16 but a perfectly finite offset for GF-T32 (its row is 242). Using the
+    // wrong rung's rule would misjudge validity -- why the rung (Et) must be bound.
+    test rung_dependent_classification {
+        assert(is_finite_gft_n(80, GFT16_ET) == false, "80 is special at GF-T16");
+        assert(is_finite_gft_n(80, GFT32_ET) == true, "80 is finite at GF-T32");
+        assert(gft_offset_in_range(80, GFT16_ET) == true, "80 is in range for GF-T16");
+        assert(gft_offset_in_range(81, GFT16_ET) == false, "81 exceeds GF-T16's 3^4 offsets");
+    }
+
+    // The unity-exponent bias is offset_max/2 at each rung; GF-T16 == 40 matches
+    // tri_gft_arith.GFT16_BIAS, so per-rung verification uses the right geometry.
+    test bias_per_rung {
+        assert(gft_bias(GFT4_ET) == 4, "GF-T4 bias (3^2-1)/2 = 4");
+        assert(gft_bias(GFT8_ET) == 13, "GF-T8 bias (3^3-1)/2 = 13");
+        assert(gft_bias(GFT16_ET) == 40, "GF-T16 bias = 40 (matches tri_gft_arith)");
+        assert(gft_bias(GFT32_ET) == 364, "GF-T32 bias (3^6-1)/2 = 364");
+        assert(gft_bias(GFT16_ET) * 2 == gft_offset_max(GFT16_ET), "bias*2 = offset_max");
+    }
+
+    // Per-rung mantissa geometry (SSOT: t27 specs/numeric/gft*.t27), so a recompute
+    // can scale by 2^MANT for ANY rung, not just GF-T16's 512.
+    test mantissa_per_rung {
+        assert(gft_mant_bits(GFT4_ET) == 1, "GF-T4 mantissa 1 bit");
+        assert(gft_mant_bits(GFT8_ET) == 4, "GF-T8 mantissa 4 bits");
+        assert(gft_mant_bits(GFT16_ET) == 9, "GF-T16 mantissa 9 bits");
+        assert(gft_mant_bits(GFT32_ET) == 25, "GF-T32 mantissa 25 bits");
+        assert(gft_mant_one(GFT16_ET) == 512, "GF-T16 significand scale 2^9 = 512");
+        assert(gft_mant_one(GFT8_ET) == 16, "GF-T8 scale 2^4 = 16");
+    }
+
+    // Width -> rung geometry: a verifier routes a GF-T{4,8,16,32} receipt to the
+    // correct (bias, offset_max, mant_one) by its width.
+    test width_routing {
+        assert(width_to_et(8) == GFT8_ET, "width 8 -> Et 3");
+        assert(width_to_et(16) == GFT16_ET, "width 16 -> Et 4");
+        assert(gft_bias(width_to_et(8)) == 13, "GF-T8 bias via width");
+        assert(gft_offset_max(width_to_et(16)) == 80, "GF-T16 offset_max via width");
+        assert(gft_mant_one(width_to_et(4)) == 2, "GF-T4 mant scale via width");
+    }
+}

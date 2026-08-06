@@ -28,6 +28,20 @@ module TriComputeReceipt {
     const SHA_PAD: u32 = 0x80000000;         // SHA-256 padding: the 0x80 byte after the message
     const DIGEST_MSG_BITS: u32 = 288;        // 9 message words * 32 bits = 36 bytes = 288 bits
 
+    // --- Settled-ledger head (opt 3). The head a peer audits should commit not just
+    // the receipt but the RESULTING BALANCE: then verifying the head verifies the
+    // whole settled state, not only that compute happened. ledger_entry_pre lays out
+    // the canonical TWO-message-block SHA-256 preimage of one ledger entry
+    //   prev_head(256) || receipt_digest(256) || balance_after || epoch || TAG_LEDGER
+    // (block 1 = the two 256-bit values; block 2 = balance/epoch/tag + padding). The
+    // head = SHA-256 over it (two-block, via tri_sha256.sha256_compress) in the
+    // binary wrapper. Replaces the 32-bit chain_step_full for the audited head.
+    const TAG_LEDGER: u32 = 0x54524C47;      // "TRLG" -- ledger-entry domain tag
+    const LEDGER_GENESIS: u32 = 0x54524C30;  // "TRL0" -- genesis head seed (word 0; rest 0)
+    const LEDGER_MSG_BITS: u32 = 608;        // 19 message words * 32 bits = 76 bytes = 608 bits
+    const MERKLE_MSG_BITS: u32 = 512;        // 16 message words * 32 bits = 64 bytes = 512 bits
+    const TAG_INPUT: u32 = 0x54524942;       // "TRIB" -- input-bound digest domain tag
+
     // The GoldenFloat workload this receipt exists to attest. The actual GF
     // arithmetic is the proven GF line (t27 specs/numeric/gf*.t27 -> gen-verilog
     // -> gf16_mul_ax7203, GF16 @ ~322 MHz) -- NOT re-implemented here; the receipt
@@ -180,6 +194,94 @@ module TriComputeReceipt {
     // hi lane now changes the head.
     fn chain_step_full(prev_head: u32, digest: u32) -> u32 {
         return mix32(prev_head ^ mix32(digest ^ R_C2));
+    }
+
+    // Canonical two-block SHA-256 preimage of a settled-ledger entry: word `idx`
+    // (0..31) over two 512-bit blocks. Block 1 (0..15) is prev_head(8) || digest(8);
+    // block 2 (16..31) is balance_after, epoch, TAG_LEDGER, then the SHA-256 padding
+    // for a 76-byte message. The 256-bit head = sha256_compress(IV, block1) then
+    // sha256_compress(that, block2), composed in the binary wrapper.
+    fn ledger_entry_pre(idx: u32, ph0: u32, ph1: u32, ph2: u32, ph3: u32, ph4: u32, ph5: u32, ph6: u32, ph7: u32, d0: u32, d1: u32, d2: u32, d3: u32, d4: u32, d5: u32, d6: u32, d7: u32, balance: u32, epoch: u32) -> u32 {
+        if (idx == 0) { return ph0; }
+        if (idx == 1) { return ph1; }
+        if (idx == 2) { return ph2; }
+        if (idx == 3) { return ph3; }
+        if (idx == 4) { return ph4; }
+        if (idx == 5) { return ph5; }
+        if (idx == 6) { return ph6; }
+        if (idx == 7) { return ph7; }
+        if (idx == 8) { return d0; }
+        if (idx == 9) { return d1; }
+        if (idx == 10) { return d2; }
+        if (idx == 11) { return d3; }
+        if (idx == 12) { return d4; }
+        if (idx == 13) { return d5; }
+        if (idx == 14) { return d6; }
+        if (idx == 15) { return d7; }
+        if (idx == 16) { return balance; }
+        if (idx == 17) { return epoch; }
+        if (idx == 18) { return TAG_LEDGER; }
+        if (idx == 19) { return SHA_PAD; }
+        if (idx == 31) { return LEDGER_MSG_BITS; }
+        return 0;
+    }
+
+    // Canonical two-block SHA-256 preimage of a Merkle inner node = H(left || right),
+    // where left and right are 256-bit child hashes (receipt digests at the leaves,
+    // node hashes above). Word `idx` (0..31): block 1 (0..15) = left(8) || right(8)
+    // (a full 512-bit block); block 2 (16..31) = the SHA-256 padding for a 64-byte
+    // message. Lets a node commit N receipts under ONE 256-bit root (batch settle
+    // with one signature + O(log N) inclusion proofs), composed via sha256_compress.
+    fn merkle_pair_pre(idx: u32, l0: u32, l1: u32, l2: u32, l3: u32, l4: u32, l5: u32, l6: u32, l7: u32, r0: u32, r1: u32, r2: u32, r3: u32, r4: u32, r5: u32, r6: u32, r7: u32) -> u32 {
+        if (idx == 0) { return l0; }
+        if (idx == 1) { return l1; }
+        if (idx == 2) { return l2; }
+        if (idx == 3) { return l3; }
+        if (idx == 4) { return l4; }
+        if (idx == 5) { return l5; }
+        if (idx == 6) { return l6; }
+        if (idx == 7) { return l7; }
+        if (idx == 8) { return r0; }
+        if (idx == 9) { return r1; }
+        if (idx == 10) { return r2; }
+        if (idx == 11) { return r3; }
+        if (idx == 12) { return r4; }
+        if (idx == 13) { return r5; }
+        if (idx == 14) { return r6; }
+        if (idx == 15) { return r7; }
+        if (idx == 16) { return SHA_PAD; }
+        if (idx == 31) { return MERKLE_MSG_BITS; }
+        return 0;
+    }
+
+    // Input-bound digest (opt 4): digest_pre commits a 32-bit `in_hash` of the
+    // operands (~2^16 collision resistance -- a forger could find two operand sets
+    // with the same 32-bit in_hash). This commits the FULL 256-bit operand hash
+    // (oh0..oh7) instead, so a receipt binds its inputs at ~2^128. Canonical
+    // two-message-block SHA-256 preimage, word `idx` (0..31): block 1 is
+    //   TAG_INPUT | request_id | device | executor | task | operand_hash(8) | out |
+    //   epoch | prev_head  (16 words); block 2 is the SHA padding for the 64-byte
+    // message. The digest = SHA-256 over it (two-block, tri_sha256.sha256_compress).
+    fn input_digest_pre(idx: u32, request_id: u32, device: u32, executor: u32, task: u32, oh0: u32, oh1: u32, oh2: u32, oh3: u32, oh4: u32, oh5: u32, oh6: u32, oh7: u32, out: u32, epoch: u32, prev_head: u32) -> u32 {
+        if (idx == 0) { return TAG_INPUT; }
+        if (idx == 1) { return request_id; }
+        if (idx == 2) { return device; }
+        if (idx == 3) { return executor; }
+        if (idx == 4) { return task; }
+        if (idx == 5) { return oh0; }
+        if (idx == 6) { return oh1; }
+        if (idx == 7) { return oh2; }
+        if (idx == 8) { return oh3; }
+        if (idx == 9) { return oh4; }
+        if (idx == 10) { return oh5; }
+        if (idx == 11) { return oh6; }
+        if (idx == 12) { return oh7; }
+        if (idx == 13) { return out; }
+        if (idx == 14) { return epoch; }
+        if (idx == 15) { return prev_head; }
+        if (idx == 16) { return SHA_PAD; }
+        if (idx == 31) { return MERKLE_MSG_BITS; }
+        return 0;
     }
 
     fn verify_chain3_full(d0: u32, d1: u32, d2: u32, claimed: u32) -> bool {
@@ -347,5 +449,44 @@ module TriComputeReceipt {
     test sha256_preimage_domain_sep {
         assert(digest_pre(0, 0, 0, 0, 0, 0, 0, 0, 0) == TAG_RECEIPT, "tag fixed even for all-zero fields");
         assert(TAG_RECEIPT != 0, "domain tag is non-zero");
+    }
+
+    // The settled-ledger entry preimage places prev_head in block 1 words 0..7, the
+    // receipt digest in words 8..15, then balance/epoch/tag and the SHA padding in
+    // block 2 -- so the two-block head commits the balance, not just the receipt.
+    // (Full two-block bit-exactness vs hashlib is proven by trinet_ledger_chain.)
+    test ledger_entry_layout {
+        assert(ledger_entry_pre(0, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) == 0xAA, "prev_head word 0 at idx 0");
+        assert(ledger_entry_pre(8, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) == 0xD0, "digest word 0 at idx 8");
+        assert(ledger_entry_pre(16, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) == 1000, "balance_after at idx 16");
+        assert(ledger_entry_pre(17, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) == 9, "epoch at idx 17");
+        assert(ledger_entry_pre(18, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) == TAG_LEDGER, "ledger tag at idx 18");
+        assert(ledger_entry_pre(19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == SHA_PAD, "SHA pad marker at idx 19");
+        assert(ledger_entry_pre(31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == LEDGER_MSG_BITS, "608-bit length at idx 31");
+        assert(ledger_entry_pre(24, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) == 0, "interior padding word is zero");
+    }
+
+    // A Merkle inner node hashes left(256) || right(256): block 1 is the two child
+    // hashes, block 2 the SHA padding for the 64-byte message. (Full two-block
+    // bit-exactness vs hashlib is proven by trinet_merkle_batch.)
+    test merkle_pair_layout {
+        assert(merkle_pair_pre(0, 0xA0, 1, 2, 3, 4, 5, 6, 7, 0xB0, 1, 2, 3, 4, 5, 6, 7) == 0xA0, "left child word 0 at idx 0");
+        assert(merkle_pair_pre(8, 0xA0, 1, 2, 3, 4, 5, 6, 7, 0xB0, 1, 2, 3, 4, 5, 6, 7) == 0xB0, "right child word 0 at idx 8");
+        assert(merkle_pair_pre(15, 0xA0, 1, 2, 3, 4, 5, 6, 7, 0xB0, 1, 2, 3, 4, 5, 6, 7) == 7, "right child word 7 at idx 15");
+        assert(merkle_pair_pre(16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == SHA_PAD, "SHA pad marker at idx 16");
+        assert(merkle_pair_pre(31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == MERKLE_MSG_BITS, "512-bit length at idx 31");
+        assert(merkle_pair_pre(20, 0xA0, 1, 2, 3, 4, 5, 6, 7, 0xB0, 1, 2, 3, 4, 5, 6, 7) == 0, "interior padding word is zero");
+    }
+
+    // The input-bound preimage places the FULL 8-word operand hash in block 1 words
+    // 5..12 (vs digest_pre's single 32-bit in_hash), so the digest binds the inputs
+    // at ~2^128. (Two-block bit-exactness vs hashlib is proven by trinet_input_digest.)
+    test input_digest_layout {
+        assert(input_digest_pre(0, 9, 9, 9, 9, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 9, 9, 9) == TAG_INPUT, "tag at word 0");
+        assert(input_digest_pre(5, 9, 9, 9, 9, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 9, 9, 9) == 0xA0, "operand hash word 0 at idx 5");
+        assert(input_digest_pre(12, 9, 9, 9, 9, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 9, 9, 9) == 0xA7, "operand hash word 7 at idx 12");
+        assert(input_digest_pre(13, 9, 9, 9, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0x4100, 1, 0x54524352) == 0x4100, "out at idx 13");
+        assert(input_digest_pre(16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == SHA_PAD, "pad at idx 16");
+        assert(input_digest_pre(31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == MERKLE_MSG_BITS, "512-bit length at idx 31");
     }
 }

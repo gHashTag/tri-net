@@ -1,0 +1,101 @@
+// TRI-NET optimistic settlement lifecycle. The node's settle path is PESSIMISTIC:
+// it recomputes every receipt before paying. That is safe but does not scale -- an
+// optimistic path credits the reward PROVISIONALLY (with the executor's bond locked),
+// opens a challenge window, and only a successful challenge (tri_compute_challenge)
+// REVERSES the credit and slashes the bond; unchallenged receipts FINALIZE when the
+// window closes. This is the compute analogue of an optimistic rollup (Keryx OPoI /
+// Truebit): honest work is cheap (no per-receipt recompute), fraud is punished.
+//
+// Composes with tri_compute_bond (post/lock/slash) and tri_compute_challenge
+// (resolve -> RESOLVE_SLASH). This spec owns only the LIFECYCLE state machine; the
+// recompute, bond math and challenge outcome live in their own specs.
+
+module TriComputeOptimistic {
+    use base::types;
+
+    const PENDING: u32 = 0;    // credited, challenge window still open
+    const FINALIZED: u32 = 1;  // window closed, no successful challenge -> confirmed
+    const REVERSED: u32 = 2;   // a challenge slashed it -> credit clawed back
+
+    // Provisional credit on an optimistic settle -- only if the executor's bond is
+    // posted (an unbonded result is not credited: nothing to slash).
+    fn provisional_balance(prev_balance: u32, reward: u32, bond_ok: u32) -> u32 {
+        if (bond_ok == 1) {
+            return prev_balance + reward;
+        } else {
+            return prev_balance;
+        }
+    }
+
+    // Is the challenge window still open? now within [settled_at, settled_at + window).
+    fn window_open(now_epoch: u32, settled_at: u32, window: u32) -> bool {
+        return now_epoch < (settled_at + window);
+    }
+
+    // The settlement state: a successful challenge (slashed) REVERSES regardless of
+    // the window; otherwise PENDING while the window is open, FINALIZED once it closes.
+    fn settle_state(window_is_open: u32, slashed: u32) -> u32 {
+        if (slashed == 1) {
+            return REVERSED;
+        } else {
+            if (window_is_open == 1) {
+                return PENDING;
+            } else {
+                return FINALIZED;
+            }
+        }
+    }
+
+    // Balance after resolution: a REVERSED settle claws back the provisional reward;
+    // PENDING and FINALIZED keep it (saturating at 0 on the clawback).
+    fn balance_after_settle(provisional_bal: u32, reward: u32, state: u32) -> u32 {
+        if (state == REVERSED) {
+            if (provisional_bal < reward) {
+                return 0;
+            } else {
+                return provisional_bal - reward;
+            }
+        } else {
+            return provisional_bal;
+        }
+    }
+
+    // A settle is safe to FINALIZE (release the executor's bond, confirm the credit)
+    // iff the window has closed and it was not reversed.
+    fn can_finalize(state: u32) -> bool {
+        return state == FINALIZED;
+    }
+
+    // ---- Tests / invariants ----
+
+    // Provisional credit needs a posted bond; the reward is credited up front.
+    test provisional_credit {
+        assert(provisional_balance(1000, 16, 1) == 1016, "bonded result credits the reward provisionally");
+        assert(provisional_balance(1000, 16, 0) == 1000, "unbonded result is not credited");
+    }
+
+    // The window gates PENDING vs FINALIZED.
+    test window_gating {
+        assert(window_open(5, 3, 10) == true, "epoch 5 within [3, 13) -> open");
+        assert(window_open(13, 3, 10) == false, "epoch 13 == settled_at+window -> closed");
+        assert(window_open(20, 3, 10) == false, "well past the window -> closed");
+    }
+
+    // Lifecycle: unchallenged in-window -> PENDING; unchallenged out-of-window ->
+    // FINALIZED; challenged (slashed) -> REVERSED regardless of the window.
+    test lifecycle_states {
+        assert(settle_state(1, 0) == PENDING, "in window, no challenge -> pending");
+        assert(settle_state(0, 0) == FINALIZED, "window closed, no challenge -> finalized");
+        assert(settle_state(1, 1) == REVERSED, "slashed in window -> reversed");
+        assert(settle_state(0, 1) == REVERSED, "slashed after window -> still reversed");
+    }
+
+    // A reversal claws back exactly the provisional reward; finalize keeps it.
+    test balance_resolution {
+        assert(balance_after_settle(1016, 16, REVERSED) == 1000, "reversal claws back the reward");
+        assert(balance_after_settle(1016, 16, FINALIZED) == 1016, "finalize keeps the reward");
+        assert(balance_after_settle(1016, 16, PENDING) == 1016, "pending keeps the reward (not yet final)");
+        assert(can_finalize(FINALIZED) == true, "finalized can release the bond");
+        assert(can_finalize(PENDING) == false, "pending cannot finalize yet");
+    }
+}

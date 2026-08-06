@@ -224,14 +224,14 @@ pub const VALIDATION_FAIL: u32 = 1;
 
 pub const VALIDATION_WARNING: u32 = 2;
 
-pub fn run_validation(errors: Vec<>, error_count: u32, warnings: Vec<>, warning_count: u32) -> u32 {
+pub fn run_validation(errors: [u32; MAX_ERRORS as usize], error_count: u32, warnings: [u32; MAX_WARNINGS as usize], warning_count: u32) -> u32 {
     let mut total_errors: u32 = 0;
     let mut total_warnings: u32 = 0;
     let mut total_info: u32 = 0;
     let mut status: u32 = VALIDATION_PASS;
     let mut i: u32 = 0;
     while (i < error_count) {
-        let severity: u32 = get_error_severity(errors[i]);
+        let severity: u32 = get_error_severity(errors[(i) as usize]);
         if (severity == SEVERITY_ERROR) {
             total_errors = (total_errors + 1);
         } else {

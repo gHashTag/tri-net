@@ -104,7 +104,9 @@ fn repair_groups(state: &mut ReassemblyState) -> u32 {
 
     let stride = video_bridge::fec_stride(count) as usize;
     for group in 0..video_bridge::fec_group_count(count) {
-        let Some(par) = state.parity.get(&group) else { continue };
+        let Some(par) = state.parity.get(&group) else {
+            continue;
+        };
         let first = video_bridge::fec_group_first(group) as usize;
 
         // Interleaved: the group is fragments first, first+stride, first+2*stride...
@@ -168,16 +170,17 @@ fn main() {
     // RELAY mode: this node has no device; every mesh fragment it receives is
     // forwarded as-is (cut-through, no reassembly) to the next hop, and its
     // upstream rx-report carries the CHAIN MINIMUM -- see fb_chain_report.
-    let next_hop: Option<std::net::IpAddr> =
-        env::var("NEXT_HOP").ok().and_then(|s| s.parse().ok());
+    let next_hop: Option<std::net::IpAddr> = env::var("NEXT_HOP").ok().and_then(|s| s.parse().ok());
     // The hysteresis band. Overridable ONLY so it can be swept on hardware and
     // become a measured number instead of the guess it started as; the decision
     // itself stays in the spec.
     let climb_below: u8 = env::var("CLIMB_BELOW")
-        .ok().and_then(|s| s.parse().ok())
+        .ok()
+        .and_then(|s| s.parse().ok())
         .unwrap_or(video_bridge::CLIMB_BELOW_PCT);
     let back_off_at: u8 = env::var("BACK_OFF_AT")
-        .ok().and_then(|s| s.parse().ok())
+        .ok()
+        .and_then(|s| s.parse().ok())
         .unwrap_or(video_bridge::BACK_OFF_AT_PCT);
 
     // PORTS. The device's payload and the peer's fragments MUST arrive on
@@ -247,14 +250,35 @@ fn main() {
         s.spawn(|| {
             // Video pays for the reservation: the two budgets sum to frag_rate.
             let video_rate = frag_rate.saturating_sub(AUDIO_RATE_PER_SEC).max(1);
-            uplink(&app_sock, peer_mesh, &device, out_port, video_rate, fec_enabled, &load, started)
+            uplink(
+                &app_sock,
+                peer_mesh,
+                &device,
+                out_port,
+                video_rate,
+                fec_enabled,
+                &load,
+                started,
+            )
         });
         s.spawn(|| {
             let video_rate = frag_rate.saturating_sub(AUDIO_RATE_PER_SEC).max(1);
-            report_link(&device, video_rate, &load, &peer_rx, climb_below, back_off_at, started)
+            report_link(
+                &device,
+                video_rate,
+                &load,
+                &peer_rx,
+                climb_below,
+                back_off_at,
+                started,
+            )
         });
         s.spawn(|| express(&audio_sock, peer_mesh, started));
-        s.spawn(|| downlink(&mesh_sock, &app_sock, &device, peer_mesh, next_hop, &peer_rx, started));
+        s.spawn(|| {
+            downlink(
+                &mesh_sock, &app_sock, &device, peer_mesh, next_hop, &peer_rx, started,
+            )
+        });
     });
 }
 
@@ -314,7 +338,10 @@ fn uplink(
             let mut d = device.lock().unwrap();
             if d.is_none() {
                 let addr = SocketAddr::new(from.ip(), out_port);
-                println!("[video] device attached: {} -> delivering inbound to {addr}", from.ip());
+                println!(
+                    "[video] device attached: {} -> delivering inbound to {addr}",
+                    from.ip()
+                );
                 *d = Some(addr);
             }
         }
@@ -374,7 +401,11 @@ fn uplink(
         // the NAL. The parity is over cells padded to max_data — the same
         // padding a receiver's zero-initialised buffer reproduces.
         let last_len = size - (nfrags as usize - 1) * max_data;
-        let ngroups = if fec_enabled { video_bridge::fec_group_count(nfrags) } else { 0 };
+        let ngroups = if fec_enabled {
+            video_bridge::fec_group_count(nfrags)
+        } else {
+            0
+        };
         let stride = video_bridge::fec_stride(nfrags) as usize;
         for group in 0..ngroups {
             let first = video_bridge::fec_group_first(group) as usize;
@@ -483,12 +514,18 @@ fn report_link(
         } else {
             lossy_streak = 0;
         }
-        let effective = if lossy_streak >= 2 { candidate } else { configured };
+        let effective = if lossy_streak >= 2 {
+            candidate
+        } else {
+            configured
+        };
         prev_sent = d_frags;
         let util = video_bridge::fb_util_pct(d_frags, effective);
         let drop = video_bridge::fb_drop_pct(d_dropped, d_offered);
 
-        let Some(dev) = *device.lock().unwrap() else { continue };
+        let Some(dev) = *device.lock().unwrap() else {
+            continue;
+        };
         let to = SocketAddr::new(dev.ip(), video_bridge::FEEDBACK_PORT);
         let rate16 = effective;
         // The node decides; the app obeys. The numbers ride along only so the
@@ -507,7 +544,8 @@ fn report_link(
         if advice == video_bridge::ADVICE_BACK_OFF {
             println!(
                 "[link] BACK OFF: util={util}% drops={drop}% rate={rate16}/s -> {} t={:.1}s",
-                dev.ip(), started.elapsed().as_secs_f32()
+                dev.ip(),
+                started.elapsed().as_secs_f32()
             );
         }
     }
@@ -528,11 +566,15 @@ fn express(audio_sock: &UdpSocket, peer_mesh: SocketAddr, started: Instant) {
     loop {
         let now = Instant::now();
         if now.duration_since(window_start) >= Duration::from_secs(1) {
-            spent = spent.saturating_sub(AUDIO_RATE_PER_SEC).min(AUDIO_RATE_PER_SEC);
+            spent = spent
+                .saturating_sub(AUDIO_RATE_PER_SEC)
+                .min(AUDIO_RATE_PER_SEC);
             window_start = now;
         }
 
-        audio_sock.set_read_timeout(Some(Duration::from_secs(5))).ok();
+        audio_sock
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .ok();
         let (n, _) = match audio_sock.recv_from(&mut rx_buf) {
             Ok(v) => v,
             Err(_) => continue,
@@ -634,15 +676,15 @@ fn downlink(
             last_report = now;
         }
 
-        mesh_sock.set_read_timeout(Some(Duration::from_secs(1))).ok();
+        mesh_sock
+            .set_read_timeout(Some(Duration::from_secs(1)))
+            .ok();
         let n = match mesh_sock.recv_from(&mut rx_buf) {
             Ok((n, _)) => n,
             Err(_) => continue,
         };
         // The peer's own rx-report: how much of OUR egress survived the link.
-        if n >= video_bridge::RX_REPORT_LEN as usize
-            && rx_buf[0] == video_bridge::RX_REPORT_TYPE
-        {
+        if n >= video_bridge::RX_REPORT_LEN as usize && rx_buf[0] == video_bridge::RX_REPORT_TYPE {
             let cnt = video_bridge::frag_seq(rx_buf[1], rx_buf[2]) as u32;
             peer_rx.0.store(cnt, Ordering::Relaxed);
             peer_rx.1.fetch_add(1, Ordering::Relaxed);
@@ -681,16 +723,18 @@ fn downlink(
         let data_len = n - header;
         let payload = &rx_buf[header..n];
 
-        let state = reassembly.entry(frag_seq).or_insert_with(|| ReassemblyState {
-            expected_frags: frag_count,
-            received: vec![false; frag_count as usize],
-            data: vec![0u8; (frag_count as usize) * (video_bridge::MAX_FRAG_DATA as usize)],
-            last_len: None,
-            parity: HashMap::new(),
-            repaired: 0,
-            done: false,
-            last_update: Instant::now(),
-        });
+        let state = reassembly
+            .entry(frag_seq)
+            .or_insert_with(|| ReassemblyState {
+                expected_frags: frag_count,
+                received: vec![false; frag_count as usize],
+                data: vec![0u8; (frag_count as usize) * (video_bridge::MAX_FRAG_DATA as usize)],
+                last_len: None,
+                parity: HashMap::new(),
+                repaired: 0,
+                done: false,
+                last_update: Instant::now(),
+            });
         state.last_update = Instant::now();
         if state.done {
             continue; // already delivered; this is a trailing parity

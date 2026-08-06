@@ -59,6 +59,7 @@ module TriComputeBond {
             } else {
                 return ST_LOCKED;
             }
+            return ST_SLASHED;
         }
     }
 
@@ -78,6 +79,9 @@ module TriComputeBond {
             } else {
                 return sum;
             }
+    fn balance_after_resolve(balance: u32, bond: u32, outcome: u32) -> u32 {
+        if (outcome == 0) {
+            return balance + bond;
         } else {
             return balance;
         }

@@ -136,6 +136,11 @@ module TriComputeGfValid {
         } else {
             return is_finite_gf_h(value, exp_bits, mant_bits, has_inf);
         }
+    // GF-T16 validity: the exponent offset OFFSET_MAX (80 = 3^4 - 1) is the
+    // reserved special row (see t27 specs/numeric/gft16.t27). Finite iff below it.
+    const GFT16_OFFSET_MAX: u32 = 80;
+    fn is_finite_gft16(offset: u32) -> bool {
+        return offset != GFT16_OFFSET_MAX;
     }
 
     // ---- Tests / invariants ----

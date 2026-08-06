@@ -32,6 +32,13 @@ module TriComputeReputation {
             return REP_MAX;
         } else {
             return r as u32;
+    // Reputation after an honest settlement: +gain, capped at REP_MAX.
+    fn rep_after_honest(rep: u32, gain: u32) -> u32 {
+        let r: u32 = rep + gain;
+        if (r > REP_MAX) {
+            return REP_MAX;
+        } else {
+            return r;
         }
     }
 
@@ -104,6 +111,10 @@ module TriComputeReputation {
     // admissible. This is the entry-side counterpart to the pool-side weighting.
     fn can_admit(rep: u32, min_rep: u32) -> bool {
         return rep >= min_rep;
+    // Effective work for the pool split = raw work scaled by reputation. Feeds
+    // tri_compute_pool.pool_share as (my_weighted, sum_weighted).
+    fn weighted_work(raw_work: u32, rep: u32) -> u32 {
+        return raw_work * rep;
     }
 
     // ---- Tests / invariants ----

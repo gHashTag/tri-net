@@ -153,10 +153,10 @@ pub fn send_ack(flow: u32, flow_id: u32, seq: u32) -> u32 {
     return msg;
 }
 
-pub fn find_flow_by_sender(flows: Vec, sender: u32) -> u32 {
+pub fn find_flow_by_sender(flows: [u32; MAX_FLOWS as usize], sender: u32) -> u32 {
     let mut i: u32 = 0;
     while (i < MAX_FLOWS) {
-        let flow_sender: u32 = get_sender_id(flows[i]);
+        let flow_sender: u32 = get_sender_id(flows[(i) as usize]);
         if (flow_sender == sender) {
             return i;
         }
@@ -165,10 +165,10 @@ pub fn find_flow_by_sender(flows: Vec, sender: u32) -> u32 {
     return MAX_FLOWS;
 }
 
-pub fn find_flow_by_receiver(flows: Vec, receiver: u32) -> u32 {
+pub fn find_flow_by_receiver(flows: [u32; MAX_FLOWS as usize], receiver: u32) -> u32 {
     let mut i: u32 = 0;
     while (i < MAX_FLOWS) {
-        let flow_receiver: u32 = get_receiver_id(flows[i]);
+        let flow_receiver: u32 = get_receiver_id(flows[(i) as usize]);
         if (flow_receiver == receiver) {
             return i;
         }
@@ -177,10 +177,10 @@ pub fn find_flow_by_receiver(flows: Vec, receiver: u32) -> u32 {
     return MAX_FLOWS;
 }
 
-pub fn is_any_flow_blocked(flows: Vec) -> u32 {
+pub fn is_any_flow_blocked(flows: [u32; MAX_FLOWS as usize]) -> u32 {
     let mut i: u32 = 0;
     while (i < MAX_FLOWS) {
-        if (has_credits(flows[i]) == 0) {
+        if (has_credits(flows[(i) as usize]) == 0) {
             return 1;
         }
         i = (i + 1);
@@ -188,11 +188,11 @@ pub fn is_any_flow_blocked(flows: Vec) -> u32 {
     return 0;
 }
 
-pub fn count_active_flows(flows: Vec) -> u32 {
+pub fn count_active_flows(flows: [u32; MAX_FLOWS as usize]) -> u32 {
     let mut count: u32 = 0;
     let mut i: u32 = 0;
     while (i < MAX_FLOWS) {
-        let sender: u32 = get_sender_id(flows[i]);
+        let sender: u32 = get_sender_id(flows[(i) as usize]);
         if (sender != 0) {
             count = (count + 1);
         }
@@ -201,26 +201,27 @@ pub fn count_active_flows(flows: Vec) -> u32 {
     return count;
 }
 
-pub fn calculate_total_credits(flows: Vec) -> u32 {
+pub fn calculate_total_credits(flows: [u32; MAX_FLOWS as usize]) -> u32 {
     let mut total: u32 = 0;
     let mut i: u32 = 0;
     while (i < MAX_FLOWS) {
-        total = (total + get_credits(flows[i]));
+        total = (total + get_credits(flows[(i) as usize]));
         i = (i + 1);
     }
     return total;
 }
 
-pub fn apply_backpressure(flows: Vec, flow_index: u32) -> u32 {
-    let flow: u32 = flows[flow_index];
+pub fn apply_backpressure(flows: [u32; MAX_FLOWS as usize], flow_index: u32) -> u32 {
+    let flow: u32 = flows[(flow_index) as usize];
+    let window: u32 = get_window_size(flow);
     let credits: u32 = get_credits(flow);
     let reduction: u32 = (credits / 2);
     let new_credits: u32 = (credits - reduction);
     return update_credits(flow, new_credits);
 }
 
-pub fn release_backpressure(flows: Vec, flow_index: u32) -> u32 {
-    let flow: u32 = flows[flow_index];
+pub fn release_backpressure(flows: [u32; MAX_FLOWS as usize], flow_index: u32) -> u32 {
+    let flow: u32 = flows[(flow_index) as usize];
     let window: u32 = get_window_size(flow);
     return update_credits(flow, window);
 }

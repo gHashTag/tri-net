@@ -21,7 +21,11 @@ fn seq_packs_and_unpacks_over_the_whole_u16_range() {
     for seq in 0u16..=u16::MAX {
         let lo = vb::seq_lo(seq);
         let hi = vb::seq_hi(seq);
-        assert_eq!(vb::frag_seq(lo, hi), seq, "seq {seq} did not survive lo/hi split");
+        assert_eq!(
+            vb::frag_seq(lo, hi),
+            seq,
+            "seq {seq} did not survive lo/hi split"
+        );
     }
 }
 
@@ -37,17 +41,29 @@ fn seq_edges_match_the_spec() {
 
 #[test]
 fn fragment_count_covers_every_nal_the_mesh_accepts() {
-    assert_eq!(vb::fragment_count(0), 1, "an empty NAL must still be one packet");
+    assert_eq!(
+        vb::fragment_count(0),
+        1,
+        "an empty NAL must still be one packet"
+    );
     assert_eq!(vb::fragment_count(1), 1);
     assert_eq!(vb::fragment_count(70), 1, "exactly one full fragment");
-    assert_eq!(vb::fragment_count(71), 2, "one byte over must spill into a second");
+    assert_eq!(
+        vb::fragment_count(71),
+        2,
+        "one byte over must spill into a second"
+    );
     assert_eq!(vb::fragment_count(140), 2);
     assert_eq!(vb::fragment_count(17850), 255, "255 x 70 is the ceiling");
 
     // The count must never disagree with a straight ceiling division, and must
     // never exceed the u8 frag_count field the wire header carries.
     for size in (0u16..=17850).step_by(7) {
-        let expect = if size == 0 { 1 } else { (size as u32).div_ceil(70) as u8 };
+        let expect = if size == 0 {
+            1
+        } else {
+            (size as u32).div_ceil(70) as u8
+        };
         assert_eq!(vb::fragment_count(size), expect, "nal_size {size}");
     }
 }
@@ -59,7 +75,10 @@ fn nal_ceiling_is_exactly_what_the_header_can_address() {
     // undeliverable over the mesh — this is the number the encoder must respect.
     assert_eq!(vb::max_nal_size(), 255 * 70);
     assert!(vb::nal_fits(17850));
-    assert!(!vb::nal_fits(17851), "one byte over the ceiling must be rejected");
+    assert!(
+        !vb::nal_fits(17851),
+        "one byte over the ceiling must be rejected"
+    );
 }
 
 // ---- packet geometry (spec: packet_size_basic/_empty, data_offset) ----
@@ -78,13 +97,21 @@ fn packet_geometry_holds() {
 fn first_and_last_fragment_predicates_agree_with_the_count() {
     assert!(vb::is_first_fragment(0));
     assert!(!vb::is_first_fragment(1));
-    assert!(vb::is_last_fragment(0, 1), "a single-fragment NAL is immediately last");
+    assert!(
+        vb::is_last_fragment(0, 1),
+        "a single-fragment NAL is immediately last"
+    );
     assert!(!vb::is_last_fragment(0, 2));
     assert!(vb::is_last_fragment(1, 2));
     // Exactly one index may be last, for every count the header can express.
     for count in 1u8..=255 {
-        let lasts = (0..count).filter(|&i| vb::is_last_fragment(i, count)).count();
-        assert_eq!(lasts, 1, "frag_count {count} must have exactly one last fragment");
+        let lasts = (0..count)
+            .filter(|&i| vb::is_last_fragment(i, count))
+            .count();
+        assert_eq!(
+            lasts, 1,
+            "frag_count {count} must have exactly one last fragment"
+        );
     }
 }
 
@@ -179,7 +206,12 @@ fn the_three_ports_are_distinct() {
     // port. If two collide, the class is ambiguous and audio silently inherits
     // the video pacer's head-of-line delay -- measured at p50 182ms behind a
     // keyframe, against 3ms on its own port.
-    let ports = [vb::VIDEO_IN_PORT, vb::VIDEO_OUT_PORT, vb::MESH_PORT, vb::AUDIO_IN_PORT];
+    let ports = [
+        vb::VIDEO_IN_PORT,
+        vb::VIDEO_OUT_PORT,
+        vb::MESH_PORT,
+        vb::AUDIO_IN_PORT,
+    ];
     for (i, a) in ports.iter().enumerate() {
         for b in &ports[i + 1..] {
             assert_ne!(a, b, "ports must be distinct to demux by port");
@@ -192,11 +224,23 @@ fn the_three_ports_are_distinct() {
 #[test]
 fn fec_group_math_matches_the_spec() {
     assert_eq!(vb::fec_group_of(0, 129), 0);
-    assert_eq!(vb::fec_group_of(1, 129), 1, "interleaved: the next fragment is the next group");
-    assert_eq!(vb::fec_group_of(9, 129), 0, "129 frags = 9 groups, so 9 rejoins group 0");
+    assert_eq!(
+        vb::fec_group_of(1, 129),
+        1,
+        "interleaved: the next fragment is the next group"
+    );
+    assert_eq!(
+        vb::fec_group_of(9, 129),
+        0,
+        "129 frags = 9 groups, so 9 rejoins group 0"
+    );
     assert_eq!(vb::fec_group_count(0), 0, "no fragments, no parity");
     assert_eq!(vb::fec_group_count(32), 2, "exactly two full groups");
-    assert_eq!(vb::fec_group_count(33), 3, "the leftover needs its own parity");
+    assert_eq!(
+        vb::fec_group_count(33),
+        3,
+        "the leftover needs its own parity"
+    );
     assert_eq!(vb::fec_group_count(129), 9, "a 9000B I-frame");
     assert_eq!(vb::fec_packet_size(), 76, "6 header + 70 data");
 }
@@ -216,13 +260,23 @@ fn fec_groups_tile_every_nal_exactly_once() {
             assert!(len > 0, "group {g} of {count} covers nothing");
             let mut seen = 0;
             for i in (first..count as usize).step_by(stride) {
-                assert_eq!(vb::fec_group_of(i as u8, count), g, "fragment {i} claims another group");
+                assert_eq!(
+                    vb::fec_group_of(i as u8, count),
+                    g,
+                    "fragment {i} claims another group"
+                );
                 seen += 1;
             }
-            assert_eq!(seen, len, "group {g} of {count}: fec_group_len disagrees with the stride walk");
+            assert_eq!(
+                seen, len,
+                "group {g} of {count}: fec_group_len disagrees with the stride walk"
+            );
             covered += len;
         }
-        assert_eq!(covered, count as usize, "groups must cover all {count} fragments");
+        assert_eq!(
+            covered, count as usize,
+            "groups must cover all {count} fragments"
+        );
     }
 }
 
@@ -247,7 +301,8 @@ fn fec_absorbs_a_burst_as_long_as_the_stride() {
             let distinct = groups.len();
             groups.dedup();
             assert_eq!(
-                groups.len(), distinct,
+                groups.len(),
+                distinct,
                 "count={count}: a {burst}-fragment burst at {start} put two losses in one group"
             );
         }
@@ -260,7 +315,9 @@ fn fec_recovers_any_single_lost_fragment() {
     // so one lost 70-byte packet used to destroy a whole NAL. Rebuild each
     // fragment in turn from its group's parity, exactly as the daemon does.
     let max_data = vb::MAX_FRAG_DATA as usize;
-    let nal: Vec<u8> = (0..9000u32).map(|i| (i.wrapping_mul(31) & 0xFF) as u8).collect();
+    let nal: Vec<u8> = (0..9000u32)
+        .map(|i| (i.wrapping_mul(31) & 0xFF) as u8)
+        .collect();
     let count = vb::fragment_count(nal.len() as u16);
     assert_eq!(count, 129, "9000B is the I-frame case");
 
@@ -298,7 +355,11 @@ fn fec_recovers_any_single_lost_fragment() {
                 rebuilt[b] ^= byte;
             }
         }
-        assert_eq!(rebuilt, cell(lost), "fragment {lost} was not recovered from group {g}");
+        assert_eq!(
+            rebuilt,
+            cell(lost),
+            "fragment {lost} was not recovered from group {g}"
+        );
     }
 }
 
@@ -306,7 +367,10 @@ fn fec_recovers_any_single_lost_fragment() {
 fn fec_cannot_recover_two_losses_and_says_so() {
     assert!(vb::fec_can_recover(1));
     assert!(!vb::fec_can_recover(0), "nothing missing is not a repair");
-    assert!(!vb::fec_can_recover(2), "one XOR cannot separate two unknowns");
+    assert!(
+        !vb::fec_can_recover(2),
+        "one XOR cannot separate two unknowns"
+    );
     assert!(!vb::fec_can_recover(16));
 }
 
@@ -331,8 +395,24 @@ fn seq_halves_are_disjoint_for_every_counter() {
 #[test]
 fn effective_rate_only_trusts_a_saturated_link() {
     assert_eq!(vb::fb_effective_rate(0, 0, 700), 700, "idle says nothing");
-    assert_eq!(vb::fb_effective_rate(500, 495, 700), 700, "keeping up: no signal");
-    assert_eq!(vb::fb_effective_rate(700, 300, 700), 300, "lossy: capacity is what arrived");
-    assert_eq!(vb::fb_effective_rate(700, 630, 700), 700, "exactly 90% still keeps up");
-    assert_eq!(vb::fb_effective_rate(700, 629, 700), 629, "below 90% is loss");
+    assert_eq!(
+        vb::fb_effective_rate(500, 495, 700),
+        700,
+        "keeping up: no signal"
+    );
+    assert_eq!(
+        vb::fb_effective_rate(700, 300, 700),
+        300,
+        "lossy: capacity is what arrived"
+    );
+    assert_eq!(
+        vb::fb_effective_rate(700, 630, 700),
+        700,
+        "exactly 90% still keeps up"
+    );
+    assert_eq!(
+        vb::fb_effective_rate(700, 629, 700),
+        629,
+        "below 90% is loss"
+    );
 }
