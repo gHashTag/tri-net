@@ -1,0 +1,6 @@
+# Synthesis of the GF-T ALU self-check top (yosys, NO Vivado).
+#   yosys fpga/gft/synth_gft_alu.ys
+read_verilog fpga/gft/gft_mul.v fpga/gft/gft_add.v fpga/gft/gft_sub.v fpga/gft/gft_alu.v fpga/gft/gft_alu_selfcheck.v
+hierarchy -top gft_alu_selfcheck
+synth_xilinx -flatten
+stat
