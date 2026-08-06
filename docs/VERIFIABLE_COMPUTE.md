@@ -171,7 +171,14 @@ Two verification modes:
   `gft_macc`) place-and-routed (seed 3) and flashed to the same AX7203; a VARIABLE-LENGTH streaming
   dot product verified **4/4 bit-exact** over UART -- length 1/2/3/4 (e.g. 9+4+8 = 21 -> 0x58A0,
   4x(41,0)^2 = 16 -> 0x5800). `tests/gft_dot_oracle.rs` reproduces every one of those packed results
-  from the integer spec arithmetic (cargo test), closing spec -> silicon -> oracle. The `t27c gen-verilog` interleaved-reg defect is now FIXED upstream:
+  from the integer spec arithmetic (cargo test), closing spec -> silicon -> oracle. **And the TOP
+  RUNG on silicon:** `gft_mul32_ax7203` (the wide 64-bit `gft_mul32`, 35-bit operands over UART)
+  place-and-routed (seed 14 -- the bigger design exhausted seeds 1-12 of the intermittent nextpnr
+  `A5FF` placer bug) and flashed to the AX7203; **GF-T32 verified 4/4 bit-exact** -- 1*1=1
+  (off=364,mant=0), 1.5^2=2.25 (off=365,mant=4194304), 1*2=2 (off=365,mant=0), (1.25*2^36)^2
+  (off=436,mant=18874368). So GF-T on silicon now spans the FULL ladder bottom to top: GF-T16
+  multiply + MAC + streaming row, and the GF-T32 top rung (range ~2^728, 25-bit mantissa). One
+  `.t27` -> Rust verifier -> Verilog -> live FPGA, across every rung. The `t27c gen-verilog` interleaved-reg defect is now FIXED upstream:
   `gft_arith_gen_kat_tb.v` shows the GENERATED GF-T Verilog matches the over-wire
   verifier's exact values, so one `.t27` provably drives both the Rust A2A verifier and
   synthesizable Verilog. `fpga/gft/*.v` remain hand-shaped I/O datapaths (the generated
