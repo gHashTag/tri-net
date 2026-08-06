@@ -136,3 +136,33 @@ fn the_naive_32bit_multiplier_is_slashed() {
         "a naive 32-bit multiplier's result must be slashed"
     );
 }
+
+/// The GF-T32 exponent band (242, 728] that the money layer once WRONGLY rejected.
+/// gfvalid/settle classified GF-T32 with Et = log2(32) = 5 (offset_max 242), but the
+/// silicon gft_mul32 uses Et 6 (offset_max 728) and routinely produces offsets in this
+/// band. This proves those offsets are REAL, honest GF-T32 outputs -- so the old
+/// fail-closed behaviour dropped ~2/3 of the exponent range. Fixed in spec(gfvalid,
+/// settle): GF-T32 Et 5 -> 6.
+const OLD_BUGGY_OFFSET_MAX: u64 = 242; // Et5 = log2(32) -- WRONG, kept only to show the bug
+
+#[test]
+fn restored_offset_band_is_real_gf_t32_output() {
+    // Multiplies of 1.0*2^k by itself, landing squarely inside (242, 728].
+    let cases = [(400u64, 436u64), (450, 536), (500, 636), (525, 686), (540, 716)];
+    for (o, expect_off) in cases {
+        let (off, mant) = mul32(o, 0, o, 0);
+        assert_eq!((off, mant), (expect_off, 0), "({o},0)^2 offset");
+        // A REAL, honest GF-T32 output (the recompute accepts it)...
+        assert!(!slashes(o, 0, o, 0, (off, mant)), "honest, must not slash");
+        // ...above the old (buggy) 242 ceiling...
+        assert!(off > OLD_BUGGY_OFFSET_MAX, "offset {off} sits above the old 242 ceiling");
+        // ...yet finite under the correct Et6 rule (special row 728).
+        assert!(off < OFFSET_MAX, "offset {off} is below the true special row 728 -> finite");
+    }
+    // The bug made explicit: offset 636 is a finite GF-T32 value under Et6, but the old
+    // Et5/242 rule fail-closed it -> the executor was denied payment for honest work.
+    let (off, _) = mul32(500, 0, 500, 0);
+    assert_eq!(off, 636);
+    assert!(off > OLD_BUGGY_OFFSET_MAX && off < OFFSET_MAX,
+        "GF-T32 offset 636 finite under Et6 but out-of-range under Et5 -- the money-layer bug");
+}
