@@ -287,6 +287,24 @@ module TriComputeChallenge {
         }
     }
 
+    // Fresh, family-checked 256-bit BitNet dispute -- the last bare BitNet resolver
+    // wrapped, the ternary analogue of resolve_full_d256. resolve_bitnet_d256 carries
+    // the strongest anchor (~2^128 digest) but no epoch, so even a digest-anchored
+    // BitNet fraud proof could be replayed to re-slash. Wrap it in the same freshness
+    // -> family order as resolve_full_d256, so the whole BitNet dispute family (leaf,
+    // 256-bit, quorum) now has the anti-replay the GF family always had.
+    fn resolve_bitnet_d256_full(last_epoch: u32, dispute_epoch: u32, settled_family: u32, dispute_family: u32, leaf_match: u32, claimed_result: u32, recomputed_result: u32, ternary_ok: u32) -> u32 {
+        if (dispute_epoch > last_epoch) {
+            if (settled_family == dispute_family) {
+                return resolve_bitnet_d256(leaf_match, claimed_result, recomputed_result, ternary_ok);
+            } else {
+                return RESOLVE_FAMILY_MISMATCH;
+            }
+        } else {
+            return RESOLVE_STALE;
+        }
+    }
+
     // Majority of three 0/1 flags: with an odd count a tie is impossible, so the
     // majority always exists -- 1 iff at least two flags are set.
     fn majority_flag3(a: u32, b: u32, c: u32) -> u32 {
@@ -933,6 +951,23 @@ module TriComputeChallenge {
         assert(executor_bond_after(1000, resolve_bitnet_d256(0, 0x4100, 0x4100, 0)) == 1000, "malformed keeps the bond");
         // parity with resolve_bitnet when the 32-bit leaves happen to match.
         assert(resolve_bitnet_d256(1, 0x4100, 0x4100, 1) == resolve_bitnet(0xAB, 0xAB, 0x4100, 0x4100, 1), "d256 matches resolve_bitnet on the honest path");
+    }
+
+    // The 256-bit BitNet resolver gets anti-replay + family too, so the entire BitNet
+    // dispute family (leaf / 256-bit / quorum) is now replay-safe like the GF family.
+    test bitnet_d256_full_closes_replay {
+        // fresh, same family, matched digest, valid ternary + correct GF -> honest.
+        assert(resolve_bitnet_d256_full(5, 6, FMT_GFT, FMT_GFT, 1, 0x4100, 0x4100, 1) == RESOLVE_HONEST, "fresh matched-digest honest -> honest");
+        // fresh matched-digest GF fraud -> slash.
+        assert(resolve_bitnet_d256_full(5, 6, FMT_GFT, FMT_GFT, 1, 0x9999, 0x4100, 1) == RESOLVE_SLASH, "fresh matched-digest GF fraud -> slash");
+        // THE replay: dispute_epoch == last -> STALE, not a re-slash; bare re-slashes.
+        assert(resolve_bitnet_d256_full(6, 6, FMT_GFT, FMT_GFT, 1, 0x9999, 0x4100, 1) == RESOLVE_STALE, "replayed 256-bit fraud -> stale");
+        assert(resolve_bitnet_d256(1, 0x9999, 0x4100, 1) == RESOLVE_SLASH, "contrast: bare resolve_bitnet_d256 re-slashes the replay");
+        // cross-family and digest-mismatch stay distinct.
+        assert(resolve_bitnet_d256_full(5, 6, FMT_GFT, FMT_GF_BINARY, 1, 0x4100, 0x4100, 1) == RESOLVE_FAMILY_MISMATCH, "cross-family -> family mismatch");
+        assert(resolve_bitnet_d256_full(5, 6, FMT_GFT, FMT_GFT, 0, 0x4100, 0x4100, 1) == RESOLVE_MALFORMED, "fresh same-family but digest mismatch -> malformed");
+        // honest-path parity with the GF 256-bit wrapper.
+        assert(resolve_bitnet_d256_full(5, 6, FMT_GFT, FMT_GFT, 1, 0x4100, 0x4100, 1) == resolve_full_d256(5, 6, FMT_GFT, FMT_GFT, 1, 0x4100, 0x4100), "honest-path parity with resolve_full_d256");
     }
 
     // Binary-flag majority: 1 iff at least two of three flags are set.
