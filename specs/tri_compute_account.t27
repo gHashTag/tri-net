@@ -142,6 +142,25 @@ module TriComputeAccount {
         }
     }
 
+    // The RELEASE-side counterpart to pending_after_settle, byte-identical to
+    // outstanding_after_release so escrow_consistent (pending == outstanding) survives
+    // a RELEASE, not just an escrow. pending had an add (pending_after_settle) but no
+    // matching subtract, so two things broke: (a) after any finalize/clawback,
+    // outstanding dropped while pending did not, silently violating pending ==
+    // outstanding; and (b) a fraud proven INSIDE the window slashed the bond but left
+    // the reward sitting in pending -- bal_after_finalize_gated gates on TIME ONLY, so
+    // once the window elapsed it minted that fraudulent reward into spendable balance.
+    // This implements the "pending then 0" transition bal_after_clawback's contract
+    // promised but no function performed: a clawed-back reward leaves pending and can
+    // never finalize. Guarded so it never underflows below zero.
+    fn pending_after_release(pending: u32, reward: u32) -> u32 {
+        if (reward <= pending) {
+            return pending - reward;
+        } else {
+            return 0;
+        }
+    }
+
     // outstanding is the multi-task GENERALIZATION of the single `pending` scalar:
     // both track the same at-risk escrow, so the collateralization gate (which
     // reads outstanding) and the conservation model (which tracks pending inside
@@ -347,6 +366,27 @@ module TriComputeAccount {
         // The invariant detects a drift (defensive: they must be kept equal).
         assert(escrow_consistent(48, 48) == true, "equal -> consistent");
         assert(escrow_consistent(48, 32) == false, "a drift is flagged, never silently gated on");
+    }
+
+    // The RELEASE side is now symmetric: pending_after_release mirrors
+    // outstanding_after_release, so escrow_consistent survives a release too, and a
+    // release can never underflow pending.
+    test pending_release_mirrors_outstanding {
+        assert(pending_after_release(48, 16) == 32, "pending drops by exactly the released reward");
+        assert(pending_after_release(48, 16) == outstanding_after_release(48, 16), "pending and outstanding release identically");
+        assert(escrow_consistent(pending_after_release(48, 16), outstanding_after_release(48, 16)) == true, "consistent after a release, not only an escrow");
+        assert(pending_after_release(10, 20) == 0, "an over-release floors at 0, never underflows to ~4e9");
+    }
+
+    // The fraud-finalize path is closed. A reward clawed back inside the window is
+    // removed from pending, so once the window elapses finalize mints 0 -- not the
+    // fraudulent reward. Contrast: an honest, un-clawed reward finalizes normally.
+    test clawback_removes_reward_before_finalize {
+        pend0 = pending_after_settle(0, 16);
+        pend1 = pending_after_release(pend0, 16);
+        assert(pend1 == 0, "clawback empties pending (the 'pending then 0' contract, now real)");
+        assert(bal_after_finalize_gated(500, pend1, 0, 100, 10) == 500, "window elapsed but clawed-back reward cannot finalize -> balance unchanged");
+        assert(bal_after_finalize_gated(500, pend0, 0, 100, 10) == 516, "an honest un-clawed reward still finalizes to balance after the window");
     }
 
     // At the u32 ceiling the two MUST still agree: pending_after_settle saturates
