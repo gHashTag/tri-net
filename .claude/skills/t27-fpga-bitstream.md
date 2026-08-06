@@ -53,3 +53,6 @@ Append new gotchas / measured numbers / part data / flash results here every tim
 
 ## LOG — 2026-08-07: first successful flash
 `ax7203_gft_compute.bit` → AX7203 SRAM via `openFPGALoader -c digilent_hs2 --ftdi-serial 210512180081`: **DONE=1, configured & running**. First GF-T compute on silicon. Warning "Unknown key Generator" is harmless. Confirms the whole flow works on real hardware.
+
+## LED polarity: AX7203 user LEDs (B13/C13/D14/D15) are ACTIVE-LOW
+Confirmed on hardware 2026-08-07: `ax7203_gft_compute.bit` drove led=1011 (led[0]=1=correct); observed OFF/OFF/ON/OFF — the EXACT active-low display of 1011. So drive a pin LOW to light a LED. For an intuitive "all LEDs on = pass" indicator: `assign led = correct ? 4'b0000 : 4'b1111;`.
