@@ -110,5 +110,9 @@ opt-level = "z"
 lto = true
 
 [[test]]
+name = "gft_rung_premium_consistency"
+path = "tests/gft_rung_premium_consistency.rs"
+
+[[test]]
 name = "gft_rung_end_to_end"
 path = "tests/gft_rung_end_to_end.rs"
