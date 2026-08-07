@@ -240,3 +240,7 @@ path = "tests/reputation_dynamics.rs"
 [[test]]
 name = "money_lifecycle_e2e"
 path = "tests/money_lifecycle_e2e.rs"
+
+[[test]]
+name = "a2a_wire_decode"
+path = "tests/a2a_wire_decode.rs"
