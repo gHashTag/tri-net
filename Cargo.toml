@@ -212,3 +212,7 @@ path = "tests/gft64_dot8_tree_order.rs"
 [[test]]
 name = "payout_no_over_issuance"
 path = "tests/payout_no_over_issuance.rs"
+
+[[test]]
+name = "receipt_accept_policy"
+path = "tests/receipt_accept_policy.rs"
