@@ -216,3 +216,7 @@ path = "tests/payout_no_over_issuance.rs"
 [[test]]
 name = "receipt_accept_policy"
 path = "tests/receipt_accept_policy.rs"
+
+[[test]]
+name = "account_value_conservation"
+path = "tests/account_value_conservation.rs"
