@@ -220,3 +220,7 @@ path = "tests/receipt_accept_policy.rs"
 [[test]]
 name = "account_value_conservation"
 path = "tests/account_value_conservation.rs"
+
+[[test]]
+name = "bond_collateralization_gate"
+path = "tests/bond_collateralization_gate.rs"
