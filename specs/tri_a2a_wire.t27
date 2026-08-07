@@ -163,4 +163,21 @@ module TriA2AWire {
         assert(operand_pre(15, 0, 0, 0, 0, 0) == OPERAND_BITS, "160-bit length at word 15");
         assert(operand_pre(9, 0x11, 41, 0, 41, 0) == 0, "interior pad word is zero");
     }
+
+    // Each operand field is committed at its OWN preimage word, so tampering ANY of them changes
+    // the preimage -> the SHA-256 in_hash -> the signature: a node cannot swap operands under a
+    // signed receipt. The layout test positioned the fields; this proves the binding is SENSITIVE
+    // (a change moves its word) and NON-ALIASING (a change touches only its own word).
+    test operand_tamper_changes_the_preimage {
+        // Sensitivity: changing any one operand changes exactly its word.
+        assert(operand_pre(0, 0x10, 41, 0, 41, 0) != operand_pre(0, 0x11, 41, 0, 41, 0), "op tamper moves word 0");
+        assert(operand_pre(1, 0x11, 42, 0, 41, 0) != operand_pre(1, 0x11, 41, 0, 41, 0), "a_off tamper moves word 1");
+        assert(operand_pre(2, 0x11, 41, 5, 41, 0) != operand_pre(2, 0x11, 41, 0, 41, 0), "a_mant tamper moves word 2");
+        assert(operand_pre(3, 0x11, 41, 0, 42, 0) != operand_pre(3, 0x11, 41, 0, 41, 0), "b_off tamper moves word 3");
+        assert(operand_pre(4, 0x11, 41, 0, 41, 9) != operand_pre(4, 0x11, 41, 0, 41, 0), "b_mant tamper moves word 4");
+        // Non-aliasing: a word depends ONLY on its own operand, so changing other operands leaves it put.
+        assert(operand_pre(0, 0x11, 99, 99, 99, 99) == operand_pre(0, 0x11, 41, 0, 41, 0), "word 0 depends only on op");
+        assert(operand_pre(1, 0x10, 41, 5, 42, 9) == operand_pre(1, 0x11, 41, 0, 41, 0), "word 1 depends only on a_off");
+        assert(operand_pre(4, 0x10, 99, 99, 99, 7) == operand_pre(4, 0x11, 41, 0, 41, 7), "word 4 depends only on b_mant");
+    }
 }
