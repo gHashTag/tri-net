@@ -232,3 +232,7 @@ path = "tests/optimistic_finality_lifecycle.rs"
 [[test]]
 name = "a2a_card_routing"
 path = "tests/a2a_card_routing.rs"
+
+[[test]]
+name = "reputation_dynamics"
+path = "tests/reputation_dynamics.rs"
