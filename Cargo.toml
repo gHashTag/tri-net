@@ -284,3 +284,7 @@ path = "tests/gfvalid_finiteness.rs"
 [[test]]
 name = "sha256_kat_anchor"
 path = "tests/sha256_kat_anchor.rs"
+
+[[test]]
+name = "ladder_canon_ssot"
+path = "tests/ladder_canon_ssot.rs"
