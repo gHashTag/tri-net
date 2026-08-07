@@ -264,3 +264,7 @@ path = "tests/crypto_frame_replay.rs"
 [[test]]
 name = "crypto_frame_nonce"
 path = "tests/crypto_frame_nonce.rs"
+
+[[test]]
+name = "ilv_interleaver"
+path = "tests/ilv_interleaver.rs"
