@@ -107,11 +107,14 @@ the GF-T ladder's precision/range promises and honest head-to-head vs BitNet-1.5
 ---
 
 ## Known NOT-CI-guarded (honest gaps)
-- **`tri_sha256` (the hand-written spec SHA-256)** is used by production digest bins
-  (`trinet_receipt_digest` / `_input_digest` / `_settle_signed`) but those bins are not
-  cargo targets, and its `gen/rust` is not CI-buildable (no `t27c` in the `build + test`
-  job). Its `abc` KAT is asserted only in un-executed spec blocks. The batch merkle in
-  `gft_receipt_batch` uses the trusted `sha2` crate, not `tri_sha256`.
+- **`tri_sha256` (the hand-written spec SHA-256)'s exact generated code** is not CI-run:
+  it is used by production digest bins (`trinet_receipt_digest` / `_input_digest` /
+  `_settle_signed`), but those bins are not cargo targets and its `gen/rust` is not
+  CI-buildable (no `t27c` in the `build + test` job). Its `abc` KAT lives only in
+  un-executed spec blocks. **Partially anchored** by `sha256_kat_anchor`: an independent
+  NIST FIPS 180-4 SHA-256 pins the canonical KAT vectors, agrees with the `sha2` crate
+  across block boundaries, and confirms the spec's `abc` h0..h7 are real SHA-256 -- so
+  the ALGORITHM and expected values are CI-anchored even though the hand gen is not run.
 - **`tri_merkle` / `tri_ledger`** use the non-cryptographic `mix32` (structural demos);
   the tamper-evident-commitment *concept* is CI-guarded with the real `sha2` hash in
   `gft_receipt_batch` / `gft_ledger_settlement`, not their exact `mix32` functions.

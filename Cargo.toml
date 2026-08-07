@@ -280,3 +280,7 @@ path = "tests/settle_mint_gate.rs"
 [[test]]
 name = "gfvalid_finiteness"
 path = "tests/gfvalid_finiteness.rs"
+
+[[test]]
+name = "sha256_kat_anchor"
+path = "tests/sha256_kat_anchor.rs"
