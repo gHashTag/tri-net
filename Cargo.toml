@@ -244,3 +244,7 @@ path = "tests/money_lifecycle_e2e.rs"
 [[test]]
 name = "a2a_wire_decode"
 path = "tests/a2a_wire_decode.rs"
+
+[[test]]
+name = "pool_split_funding"
+path = "tests/pool_split_funding.rs"
