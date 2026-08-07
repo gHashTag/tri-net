@@ -296,3 +296,7 @@ path = "tests/gfvalid_settle_integration.rs"
 [[test]]
 name = "ladder_bias_vs_silicon"
 path = "tests/ladder_bias_vs_silicon.rs"
+
+[[test]]
+name = "merkle_mix32_structure"
+path = "tests/merkle_mix32_structure.rs"
