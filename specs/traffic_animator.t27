@@ -127,8 +127,8 @@ module traffic_animator {
     }
 
     // Packet color [type][priority][size][color_code]
-    fn create_packet_color(type: u32, priority: u32, size: u32, color: u32) -> u32 {
-        return (((type & 0xF) << 28) |
+    fn create_packet_color(ptype: u32, priority: u32, size: u32, color: u32) -> u32 {
+        return (((ptype & 0xF) << 28) |
                 ((priority & 0xF) << 24) |
                 ((size & 0xFF) << 16) |
                 (color & 0xFFFF));

@@ -14,9 +14,7 @@ on:
 # output disagrees with the freshly generated output, the job fails with a
 # diff so drift between the SSOT and generated code cannot land silently.
 #
-# Covered specs: 68 x Zig/C backends; 65 x Rust (mesh_routing, multipath_router and
-# traffic_animator excluded pending upstream t27c gen-rust fixes -- see the Rust step
-# comment). Rust diffs are rustfmt-normalized on both sides.
+# Covered specs: 68 x Rust (diffs rustfmt-normalized on both sides).
 #   wire.t27  → gen/{rust,wire.rs}  gen/{zig,wire.zig}  gen/{c,wire.c}
 #   hello.t27 → gen/{rust,hello.rs} gen/{zig,hello.zig} gen/{c,hello.c}
 #   etx.t27   → gen/{rust,etx.rs}   gen/{zig,etx.zig}   gen/{c,etx.c}
@@ -57,16 +55,14 @@ jobs:
           # `cargo fmt --all --check` REQUIRES them rustfmt-formatted, while raw t27c output
           # is not. A byte-exact diff against raw t27c output made the two gates mutually
           # contradictory for those files (the historic permanent red of this leg).
-          # Excluded pending upstream t27c gen-rust fixes (rustfmt on both sides fails
-          # loudly, so an unparseable gen can no longer false-pass):
-          #   mesh_routing     -- master emits `if (bool_var) != 0` for a bool local
-          #   multipath_router -- master emits `let mut;` (dead-code elision drops the name);
-          #                       the committed gen is the same invalid Rust (never compiled)
-          #   traffic_animator -- `type` used as a parameter name, not escaped to r#type;
-          #                       the committed gen is the same invalid Rust (never compiled)
+          # (2026-08-07) mesh_routing / multipath_router / traffic_animator were briefly
+          # excluded here; their SPECS used illegal t27 (untyped bool locals, `let mut` +
+          # tail expressions the parser silently dropped, a `type` parameter name). The
+          # specs are fixed and all 68 are checked again. rustfmt failing loudly on either
+          # side means an unparseable gen can never false-pass.
           T27C=../t27/target/release/t27c
           STATUS=0
-          for spec in wire hello etx crc16 byte_utils key_management frame_buffer packet_queue congestion_control flow_control self_healing trust_manager timer transport_tx_fsm redundancy_management fault_detection lite_crypto network_metrics m3_multihop link_statistics access_control bandwidth_allocator cache_management compression_engine cross_layer_optimizer energy_aware_routing adaptive_retry link_quality_monitor auto_config adaptive_routing anomaly_detector api_documenter area_optimization docs_generator fpga_synthesis_report health_dashboard health_monitoring integration_tests load_predictor local_processing mesh_node_sim mesh_protocol_stack multipath_routing network_coding network_orchestrator network_simulator olsr_routing pattern_predictor performance_benchmarks performance_profiler power_monitoring production_deployment production_scenarios quarantine_manager resource_scheduler swarm_coordinator test_framework timing_closure topology_visualizer failure_predictor hardware_validation integration_framework network_analytics packet_loss_injection test_validator; do
+          for spec in wire hello etx crc16 byte_utils mesh_routing key_management frame_buffer packet_queue congestion_control flow_control self_healing trust_manager timer transport_tx_fsm redundancy_management fault_detection lite_crypto network_metrics m3_multihop link_statistics access_control bandwidth_allocator cache_management compression_engine cross_layer_optimizer energy_aware_routing adaptive_retry link_quality_monitor multipath_router auto_config adaptive_routing anomaly_detector api_documenter area_optimization docs_generator fpga_synthesis_report health_dashboard health_monitoring integration_tests load_predictor local_processing mesh_node_sim mesh_protocol_stack multipath_routing network_coding network_orchestrator network_simulator olsr_routing pattern_predictor performance_benchmarks performance_profiler power_monitoring production_deployment production_scenarios quarantine_manager resource_scheduler swarm_coordinator test_framework timing_closure topology_visualizer traffic_animator failure_predictor hardware_validation integration_framework network_analytics packet_loss_injection test_validator; do
             $T27C gen-rust specs/${spec}.t27 | rustfmt --edition 2021 > /tmp/${spec}_regen.rs
             rustfmt --edition 2021 < gen/rust/${spec}.rs > /tmp/${spec}_committed.rs
             if ! diff -u /tmp/${spec}_committed.rs /tmp/${spec}_regen.rs; then
