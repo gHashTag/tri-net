@@ -1,9 +1,9 @@
 # tri-net — Roadmap
 
-**TRI-NET drone-mesh + DePIN node** — "Starlink без спутников" плюс Helium-style
+**TRI-NET mesh + DePIN node** — "Starlink без спутников" плюс Helium-style
 DePIN на одной P203 Mini. Часть Trinity Project. Anchor: **φ² + φ⁻² = 3**.
 
-> Naming: drone-mesh internet-delivery + DePIN экономический слой поверх.
+> Naming: mesh internet-delivery + DePIN экономический слой поверх.
 > Отличать от ternary-computing "TRI-NET" silicon-node трека.
 
 ## Honest status (2026-07-04, report v3.0)
@@ -44,9 +44,9 @@ DePIN на одной P203 Mini. Часть Trinity Project. Anchor: **φ² + φ
   + metrics + Apache-2.0 + Zenodo DOI.
 - **P2.5 — Hub71+ AI Cohort 20** deadline 2026-08-02 — подача через
   `gHashTag/golden-chain-international` (UAE ADGM/DIFC).
-- **P3 — video-radio + drone C2 (MAVLink)** — один радиоканал несёт mesh +
+- **P3 — video-radio + node control (telemetry)** — один радиоканал несёт mesh +
   телеметрию + видео.
-- **P4 — tethered drone (Flying-COW analog)** — постоянно висящий узел.
+- **P4 — tethered aerial node (elevated relay)** — постоянно висящий узел.
 - **P5 — free swarm** — self-organizing swarm, каждый узел = DePIN operator.
 - **P6 — Trinity silicon (BLOCKED, маршрута нет)** — кристалла нет, изготовление не запланировано →
   BitNet-ternary benchmark on die → закрытие `[Open conjecture]` compute-anchor'а.
@@ -63,4 +63,4 @@ DePIN на одной P203 Mini. Часть Trinity Project. Anchor: **φ² + φ
 - [`gHashTag/golden-chain-international`](https://github.com/gHashTag/golden-chain-international) — UAE international edition.
 - [`gHashTag/t27`](https://github.com/gHashTag/t27), `gHashTag/tt-trinity-{phi,euler,gamma}`, `gHashTag/paper3-methodology`.
 
-See [`drone-mesh`](https://github.com/gHashTag/tri-net/issues?q=is%3Aissue+label%3Adrone-mesh) issues (EPIC + children).
+See [`mesh`](https://github.com/gHashTag/tri-net/issues?q=is%3Aissue+label%3Amesh) issues (EPIC + children).
