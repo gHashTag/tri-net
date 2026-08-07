@@ -168,3 +168,7 @@ path = "tests/gft_sparsity_no_zero.rs"
 [[test]]
 name = "gft_silicon_kat_cross"
 path = "tests/gft_silicon_kat_cross.rs"
+
+[[test]]
+name = "gft64_add_dot_kat_cross"
+path = "tests/gft64_add_dot_kat_cross.rs"
