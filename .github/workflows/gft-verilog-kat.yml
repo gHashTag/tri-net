@@ -7,6 +7,11 @@ on:
       - "specs/tri_gft_add.t27"
       - "specs/tri_gft_sub.t27"
       - "specs/tri_gft_ladder.t27"
+      - "specs/tri_compute_gfvalid.t27"
+      - "specs/tri_compute_optimistic.t27"
+      - "specs/tri_compute_safety.t27"
+      - "specs/tri_node_identity.t27"
+      - "specs/tri_receipt_verify.t27"
       - ".github/workflows/gft-verilog-kat.yml"
 
 # Execute the GF-T specs' own test blocks IN SIMULATED HARDWARE: t27c
@@ -17,9 +22,17 @@ on:
 # too, so a codegen or spec regression on the hardware side cannot land
 # silently. Requires t27c >= gHashTag/t27#1885 (assert lowering).
 #
-# tri_gft_arith is EXCLUDED: its GF-T32 u64-helper tests fail in simulation
-# due to a pre-existing u64 width-truncation bug in gen-verilog
-# (gHashTag/t27#1886); add it back when that is fixed upstream.
+# Sweep result (2026-08-08, t27c @ 8f4319364): 26 of 28 ring specs are
+# icarus-lowerable (crypto_frame and discovery are not). Excluded from the run:
+#   tri_gft_arith -- GF-T32 u64-helper tests fail on the gen-verilog u64
+#     width-truncation bug (gHashTag/t27#1886)
+#   tri_a2a, tri_a2a_card, tri_a2a_wire, tri_challenge, tri_compute_account,
+#   tri_compute_bitnet, tri_compute_bond, tri_compute_challenge,
+#   tri_compute_payout, tri_compute_pool, tri_compute_receipt,
+#   tri_compute_reputation, tri_compute_settle, tri_depin, tri_fec, tri_ilv,
+#   tri_ledger, tri_merkle, tri_settle, tri_sha256, tri_slash -- testbench
+#     emits named test-block locals without reg declarations
+#     (gHashTag/t27#1894); add them back as upstream fixes land.
 
 jobs:
   icarus-kat:
@@ -53,7 +66,7 @@ jobs:
         run: |
           T27C=../t27/target/release/t27c
           STATUS=0
-          for spec in tri_gft_add tri_gft_sub tri_gft_ladder; do
+          for spec in tri_gft_add tri_gft_sub tri_gft_ladder tri_compute_gfvalid tri_compute_optimistic tri_compute_safety tri_node_identity tri_receipt_verify; do
             echo "== ${spec}"
             if ! $T27C icarus-simulate specs/${spec}.t27; then
               echo "::error file=specs/${spec}.t27::icarus-simulate failed for specs/${spec}.t27"
