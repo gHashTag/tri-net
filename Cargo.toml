@@ -292,3 +292,7 @@ path = "tests/ladder_canon_ssot.rs"
 [[test]]
 name = "gfvalid_settle_integration"
 path = "tests/gfvalid_settle_integration.rs"
+
+[[test]]
+name = "ladder_bias_vs_silicon"
+path = "tests/ladder_bias_vs_silicon.rs"
