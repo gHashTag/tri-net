@@ -15,7 +15,7 @@ fn challenge_admissible(now_epoch: u32, receipt_epoch: u32, window: u32) -> bool
     if now_epoch < receipt_epoch {
         return false; // fail closed on a non-monotone clock
     }
-    (now_epoch - receipt_epoch) <= window
+    (now_epoch - receipt_epoch) < window
 }
 fn dispute_expired(opened_epoch: u32, now_epoch: u32) -> bool {
     if now_epoch < opened_epoch {
@@ -48,20 +48,20 @@ fn the_window_gate_is_exact_at_both_edges() {
         "fresh receipt is challengeable"
     );
     assert!(
-        challenge_admissible(108, 100, 8),
-        "last in-window epoch is challengeable"
+        challenge_admissible(107, 100, 8),
+        "last in-window epoch (window - 1) is challengeable"
     );
     assert!(
-        !challenge_admissible(109, 100, 8),
-        "one epoch past the window is final"
+        !challenge_admissible(108, 100, 8),
+        "the finalization epoch itself admits no challenge"
     );
     assert!(
         !challenge_admissible(99, 100, 8),
         "a backwards clock admits nothing"
     );
     assert!(
-        challenge_admissible(5, 5, 0),
-        "a zero window still admits the same epoch"
+        !challenge_admissible(5, 5, 0),
+        "a zero window admits nothing at all"
     );
     assert!(
         !challenge_admissible(6, 5, 0),
@@ -126,7 +126,7 @@ fn the_window_and_expiry_compose_into_a_bounded_dispute_lifetime() {
     // is fully settled by receipt_epoch + W + RESOLVE_TIMEOUT + 1 -- the dispute game
     // cannot hold a receipt hostage longer than that bound.
     let (receipt_epoch, window) = (1000u32, 8u32);
-    let opened = receipt_epoch + window; // last admissible epoch
+    let opened = receipt_epoch + window - 1; // last admissible epoch
     assert!(challenge_admissible(opened, receipt_epoch, window));
     let settled_by = opened + RESOLVE_TIMEOUT + 1;
     assert!(

@@ -326,3 +326,7 @@ path = "tests/dot_alu_geometry_vs_silicon.rs"
 [[test]]
 name = "challenge_window"
 path = "tests/challenge_window.rs"
+
+[[test]]
+name = "challenge_lifecycle_e2e"
+path = "tests/challenge_lifecycle_e2e.rs"
