@@ -236,4 +236,23 @@ module TriA2ACard {
         assert(can_serve_skill_op(mulonly, 0xA611) == true, "mul-only takes the mul skill");
         assert(can_serve_skill_op(mulonly, 0xA610) == false, "mul-only rejects the add skill");
     }
+
+    // Op-routing composes with the full-ladder family/width fix: skill_op_suffix reads the
+    // op from the skill's low byte (rung-independent), so a mul-only host on ANY rung takes
+    // that rung's mul and rejects its add, at GF-T4..128 -- previously exercised only at GF-T16.
+    test gft_ladder_op_routing {
+        // A GF-T64 mul-only host: takes GF-T64 mul (0xA311), rejects GF-T64 add (0xA310).
+        let m64: u32 = make_card_ops(family_bit(FMT_GFT), 64, op_bit(GF_OP_MUL));
+        assert(can_serve_skill_op(m64, 0xA311) == true, "GF-T64 mul-only takes GF-T64 mul");
+        assert(can_serve_skill_op(m64, 0xA310) == false, "GF-T64 mul-only rejects GF-T64 add");
+        // A full-ladder both-op host handles ops on every rung.
+        let full: u32 = make_card_ops(family_bit(FMT_GFT), 4 | 8 | 16 | 32 | 64 | 128, op_bit(GF_OP_MUL) | op_bit(GF_OP_ADD));
+        assert(can_serve_skill_op(full, 0xA411) == true, "GF-T4 mul");
+        assert(can_serve_skill_op(full, 0xA410) == true, "GF-T4 add");
+        assert(can_serve_skill_op(full, 0xA511) == true, "GF-T32 mul");
+        assert(can_serve_skill_op(full, 0xA211) == true, "GF-T128 mul");
+        // Right op but WRONG rung is still rejected: a GF-T4-only host declines a GF-T64 mul.
+        let m4: u32 = make_card_ops(family_bit(FMT_GFT), 4, op_bit(GF_OP_MUL) | op_bit(GF_OP_ADD));
+        assert(can_serve_skill_op(m4, 0xA311) == false, "GF-T4-only host rejects a GF-T64 mul (wrong rung)");
+    }
 }
