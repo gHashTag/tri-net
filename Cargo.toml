@@ -148,3 +148,7 @@ path = "tests/gft_upper_rung_precision.rs"
 [[test]]
 name = "gft_range_coverage"
 path = "tests/gft_range_coverage.rs"
+
+[[test]]
+name = "gft4_vs_bitnet"
+path = "tests/gft4_vs_bitnet.rs"
