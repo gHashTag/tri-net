@@ -65,18 +65,11 @@ fn outstanding_after_escrow(outstanding: u32, reward: u32) -> u32 {
     }
 }
 fn pending_after_release(pending: u32, reward: u32) -> u32 {
-    if reward <= pending {
-        pending - reward
-    } else {
-        0
-    }
+    // spec: reward <= pending ? pending - reward : 0 -- exactly saturating_sub.
+    pending.saturating_sub(reward)
 }
 fn outstanding_after_release(outstanding: u32, reward: u32) -> u32 {
-    if reward <= outstanding {
-        outstanding - reward
-    } else {
-        0
-    }
+    outstanding.saturating_sub(reward)
 }
 
 // Sub-ceiling sweep values (no saturation).
