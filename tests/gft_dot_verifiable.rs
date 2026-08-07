@@ -14,7 +14,10 @@
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use sha2::{Digest, Sha256};
 
-// ---- GF-T16 dot-product oracle (integer; matches the on-silicon gft_macc/gft_dot4). ----
+// ---- GF-T16 dot-product oracle (integer). NOTE: this folds lane products SEQUENTIALLY (left
+// fold). GF-T add is non-associative, so this matches the silicon gft_dot4 tree only for <=2 lanes
+// (a single add); at >=4 lanes the two orders diverge by up to 1 ULP -- see gft_dot_reduction_order.
+// The tests below use 2-lane dots, where the fold order is immaterial. ----
 const BIAS: u64 = 40;
 const OFFSET_MAX: u64 = 80;
 const MANT_ONE: u64 = 512;

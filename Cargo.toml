@@ -192,3 +192,7 @@ path = "tests/gft_sub_verifiable_e2e.rs"
 [[test]]
 name = "gft64_multihop_recompute_e2e"
 path = "tests/gft64_multihop_recompute_e2e.rs"
+
+[[test]]
+name = "gft_dot_reduction_order"
+path = "tests/gft_dot_reduction_order.rs"
