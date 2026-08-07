@@ -152,3 +152,7 @@ path = "tests/gft_range_coverage.rs"
 [[test]]
 name = "gft8_vs_fp8"
 path = "tests/gft8_vs_fp8.rs"
+
+[[test]]
+name = "gft_ladder_cures_tiny_weights"
+path = "tests/gft_ladder_cures_tiny_weights.rs"
