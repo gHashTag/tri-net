@@ -316,3 +316,6 @@ path = "tests/ledger_mix32_structure.rs"
 [[test]]
 name = "low_rung_geometry_vs_silicon"
 path = "tests/low_rung_geometry_vs_silicon.rs"
+[[test]]
+name = "sha256_gen_executed"
+path = "tests/sha256_gen_executed.rs"
