@@ -30,9 +30,17 @@ fn window_axis_matches_the_shape() {
     // tri_compute_optimistic: BASE_WINDOW 64, WINDOW_PER_TRIT 16.
     let published = [(4u32, 64u32), (6, 96), (9, 144), (14, 224)];
     for (et, w) in published {
-        assert_eq!(rung_premium(64, 16, et), w, "window at Et{et} must match the shape");
+        assert_eq!(
+            rung_premium(64, 16, et),
+            w,
+            "window at Et{et} must match the shape"
+        );
     }
-    assert_eq!(rung_premium(64, 16, 3), 64, "sub-flagship window stays at base");
+    assert_eq!(
+        rung_premium(64, 16, 3),
+        64,
+        "sub-flagship window stays at base"
+    );
 }
 
 #[test]
@@ -40,7 +48,11 @@ fn bond_axis_matches_the_shape() {
     // tri_compute_bond: base min_bps (here 2000), BOND_BPS_PER_TRIT 500.
     let published = [(4u32, 2000u32), (6, 3000), (9, 4500), (14, 7000)];
     for (et, bps) in published {
-        assert_eq!(rung_premium(2000, 500, et), bps, "bond bps at Et{et} must match the shape");
+        assert_eq!(
+            rung_premium(2000, 500, et),
+            bps,
+            "bond bps at Et{et} must match the shape"
+        );
     }
 }
 
@@ -49,7 +61,11 @@ fn reputation_axis_matches_the_shape() {
     // tri_compute_reputation: base gain (here 5), REP_GAIN_PER_TRIT 3.
     let published = [(4u32, 5u32), (6, 11), (9, 20), (14, 35)];
     for (et, g) in published {
-        assert_eq!(rung_premium(5, 3, et), g, "rep gain at Et{et} must match the shape");
+        assert_eq!(
+            rung_premium(5, 3, et),
+            g,
+            "rep gain at Et{et} must match the shape"
+        );
     }
 }
 
@@ -60,7 +76,10 @@ fn every_axis_is_monotone_non_decreasing_up_the_ladder() {
         let mut prev = 0u32;
         for &(_w, et) in RUNGS.iter() {
             let p = rung_premium(100, step, et);
-            assert!(p >= prev, "premium must be monotone in Et (step {step}): {p} < {prev}");
+            assert!(
+                p >= prev,
+                "premium must be monotone in Et (step {step}): {p} < {prev}"
+            );
             prev = p;
         }
     }
