@@ -93,4 +93,77 @@ module TriChallenge {
         ca = challenger_bond_after(v, 100, 100);
         assert(ca < 100, "frivolous challenger ends with less than it posted");
     }
+
+    // ---- Challenge window: the time dimension of the dispute game ----
+    // A dispute has to bind to the optimistic finality window (tri_compute_optimistic):
+    // a challenge may only OPEN while the receipt is still PENDING, and an OPEN
+    // dispute that nobody resolves within the resolution timeout EXPIRES with the
+    // challenge failing. Expiry must side with the DEFENDER: without a recomputed
+    // truth seal there is no proof, and a system that slashed on an unresolved
+    // dispute would let a challenger freeze-and-slash any node by simply never
+    // resolving -- the burden of driving resolution is on the party that opened it.
+
+    const RESOLVE_TIMEOUT: u32 = 27; // epochs an OPEN dispute may stay unresolved
+
+    // A challenge is admissible only while the receipt is inside its finality
+    // window: strictly before now - receipt_epoch exceeds the window. Epochs are
+    // monotone (now >= receipt_epoch); a stale clock (now < receipt_epoch) is
+    // inadmissible fail-closed.
+    fn challenge_admissible(now_epoch: u32, receipt_epoch: u32, window: u32) -> bool {
+        if (now_epoch < receipt_epoch) {
+            return now_epoch > now_epoch; // fail closed on a non-monotone clock
+        }
+        return (now_epoch - receipt_epoch) <= window;
+    }
+
+    // An OPEN dispute expires once the resolution timeout has fully elapsed.
+    fn dispute_expired(opened_epoch: u32, now_epoch: u32) -> bool {
+        if (now_epoch < opened_epoch) {
+            return opened_epoch < opened_epoch; // fail closed on a non-monotone clock
+        }
+        return (now_epoch - opened_epoch) > RESOLVE_TIMEOUT;
+    }
+
+    // The verdict for an expired (never-resolved) dispute: the challenge fails as
+    // if the defender were honest -- no proof, no slash, and the challenger's bond
+    // moves to the defender exactly like a lost challenge (griefing stays costly).
+    fn expired_verdict() -> u32 {
+        return DEFENDER_HONEST;
+    }
+
+    // The window gate is exact at both edges: admissible at the last in-window
+    // epoch, inadmissible one epoch later, and fail-closed on a clock that runs
+    // backwards.
+    test window_edges {
+        a0 = challenge_admissible(100, 100, 8);
+        a1 = challenge_admissible(108, 100, 8);
+        a2 = challenge_admissible(109, 100, 8);
+        a3 = challenge_admissible(99, 100, 8);
+        assert(a0 == true, "fresh receipt is challengeable");
+        assert(a1 == true, "last in-window epoch is challengeable");
+        assert(a2 == false, "one epoch past the window is final");
+        assert(a3 == false, "a backwards clock admits nothing");
+    }
+
+    // Expiry is exact at the timeout edge and fail-closed on a backwards clock.
+    test expiry_edges {
+        e0 = dispute_expired(50, 77);
+        e1 = dispute_expired(50, 78);
+        e2 = dispute_expired(50, 49);
+        assert(e0 == false, "at the timeout the dispute is still live");
+        assert(e1 == true, "one epoch past the timeout it expires");
+        assert(e2 == false, "a backwards clock never expires a dispute");
+    }
+
+    // An expired dispute settles exactly like a failed challenge: defender keeps
+    // its bond plus the challenger's, total conserved, griefing unprofitable.
+    test expired_dispute_settles_for_defender {
+        v = expired_verdict();
+        da = defender_bond_after(v, 150, 100);
+        ca = challenger_bond_after(v, 150, 100);
+        assert(v == DEFENDER_HONEST, "no proof -> no slash");
+        assert(da == 250, "defender keeps both bonds");
+        assert(ca == 0, "the non-resolving challenger forfeits");
+        assert(da + ca == 250, "total bond conserved on the expiry path");
+    }
 }

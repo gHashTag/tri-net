@@ -33,3 +33,23 @@ pub fn challenger_bond_after(verdict: u32, defender_bond: u32, challenger_bond: 
     }
 }
 
+pub const RESOLVE_TIMEOUT: u32 = 27;
+
+pub fn challenge_admissible(now_epoch: u32, receipt_epoch: u32, window: u32) -> bool {
+    if (now_epoch < receipt_epoch) {
+        return (now_epoch > now_epoch);
+    }
+    return ((now_epoch - receipt_epoch) <= window);
+}
+
+pub fn dispute_expired(opened_epoch: u32, now_epoch: u32) -> bool {
+    if (now_epoch < opened_epoch) {
+        return (opened_epoch < opened_epoch);
+    }
+    return ((now_epoch - opened_epoch) > RESOLVE_TIMEOUT);
+}
+
+pub fn expired_verdict() -> u32 {
+    return DEFENDER_HONEST;
+}
+

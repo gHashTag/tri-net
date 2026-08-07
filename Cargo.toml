@@ -323,3 +323,6 @@ path = "tests/sha256_gen_executed.rs"
 [[test]]
 name = "dot_alu_geometry_vs_silicon"
 path = "tests/dot_alu_geometry_vs_silicon.rs"
+[[test]]
+name = "challenge_window"
+path = "tests/challenge_window.rs"
