@@ -268,3 +268,7 @@ path = "tests/crypto_frame_nonce.rs"
 [[test]]
 name = "ilv_interleaver"
 path = "tests/ilv_interleaver.rs"
+
+[[test]]
+name = "fec_ilv_burst_recovery"
+path = "tests/fec_ilv_burst_recovery.rs"
