@@ -14,7 +14,7 @@ pub fn select_path_index(etx_values: [u8; 3]) -> u8 {
 
 pub fn path_quality_score(etx: u8, latency: u16, loss_p8: u8) -> u8 {
     let etx_component: u16 = ((etx as u16) * 7);
-    let latency_component: u16 = ((latency / 10) * 2);
+    let latency_component: u16 = ((latency / 10) << 1);
     let loss_component: u16 = ((loss_p8 as u16) * 1);
     let total: u16 = (((etx_component + latency_component) + loss_component) / 10);
 }
