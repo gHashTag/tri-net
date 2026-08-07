@@ -276,3 +276,7 @@ path = "tests/fec_ilv_burst_recovery.rs"
 [[test]]
 name = "settle_mint_gate"
 path = "tests/settle_mint_gate.rs"
+
+[[test]]
+name = "gfvalid_finiteness"
+path = "tests/gfvalid_finiteness.rs"

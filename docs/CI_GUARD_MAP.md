@@ -58,7 +58,7 @@ cargo test
 |-------|-----------------|
 | `gft_verifiable_compute`, `gft_compute_challenge` | a wrong GF-T result is caught by recompute |
 | `gft_receipt_binding`, `gft_receipt_batch` | a receipt is tamper-evident; a batch commits to one root, any member provable |
-| `gft_dot_verifiable`, `gft_dot_oracle` | workload-level dot recompute-and-slash (see note on fold order below) |
+| `gft_dot_verifiable`, `gft_dot_oracle` | workload-level dot recompute-and-slash; folds in the silicon balanced-tree order (fixed #285) so it does not falsely slash an honest executor at >=4 lanes |
 | `gft32_challenge`, `gft64_verifiable_compute_e2e`, `gft_sub_verifiable_e2e` | verifiable compute at GF-T32 / GF-T64 / subtract |
 | `gft_rung_end_to_end` | the rung travels intact across every ring layer |
 | `receipt_accept_policy` | the capstone accept policy: accepted iff signature AND membership AND correctness; reason names the first failing check |
@@ -91,6 +91,8 @@ per-rung); the reduction order is normative there, not only in silicon.
 | `bond_collateralization_gate` | bond must cover outstanding value-at-risk, rung-scaled and monotone; under-collateralized is rejected |
 | `optimistic_finality_lifecycle` | PENDING/FINALIZED/REVERSED; a SLASH reverses regardless of the window; only FINALIZED releases the bond |
 | `reputation_dynamics` | slash halves with memory; repeated fraud locks out; non-terminal outcomes are no-ops; an overflowing gain cannot zero an honest node |
+| `settle_mint_gate` | the reward computation / mint authorization: pays gf_width*REWARD iff signed AND fresh AND not-already-settled AND result finite; an inf/nan or out-of-range result mints nothing |
+| `gfvalid_finiteness` | the validity gate feeding the mint: multi-format inf/nan detection (has_inf flag), GF-T ladder range+finiteness, and a FAIL-CLOSED width-derived offset_max (a crafted width cannot open the gate via a u32 underflow) |
 | `gft_rung_premium_consistency` | the three rung-aware axes (window/bond/reputation) share one premium shape |
 | `gft_ledger_settlement` | honest batches finalize into a tamper-evident chained head; a wrong dot cannot finalize |
 | `money_lifecycle_e2e` | **composition**: one outcome drives every money layer to the SAME verdict; value conserved on both the honest and fraud paths |
@@ -110,10 +112,6 @@ the GF-T ladder's precision/range promises and honest head-to-head vs BitNet-1.5
   cargo targets, and its `gen/rust` is not CI-buildable (no `t27c` in the `build + test`
   job). Its `abc` KAT is asserted only in un-executed spec blocks. The batch merkle in
   `gft_receipt_batch` uses the trusted `sha2` crate, not `tri_sha256`.
-- **`gft_dot_verifiable`'s `dot()` folds sequentially**, so it matches the silicon
-  `gft_dot4` tree only for `<= 2` lanes; at `>= 4` lanes it would diverge (and falsely
-  slash an honest silicon executor). Latent (its tests use 2-lane dots); tracked as a
-  follow-up. See the reduction-order guards above for the canonical tree.
 - **`tri_merkle` / `tri_ledger`** use the non-cryptographic `mix32` (structural demos);
   the tamper-evident-commitment *concept* is CI-guarded with the real `sha2` hash in
   `gft_receipt_batch` / `gft_ledger_settlement`, not their exact `mix32` functions.
