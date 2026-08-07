@@ -34,6 +34,8 @@ module TriA2A {
     const SKILL_GFT16_ADD : u32 = 0xA610;  // GF-T16 . add
     const SKILL_GFT8_MUL  : u32 = 0xA811;  // GF-T8 . mul
     const SKILL_GFT8_ADD  : u32 = 0xA810;  // GF-T8 . add
+    const SKILL_GFT32_MUL : u32 = 0xA511;  // GF-T32 . mul (top silicon rung: mul/dot/tile)
+    const SKILL_GFT32_ADD : u32 = 0xA510;  // GF-T32 . add
 
     // Demux an incoming datagram to the A2A stack by (kind, port) -- NOT by
     // inspecting the encrypted payload bytes.
@@ -58,7 +60,9 @@ module TriA2A {
         if (skill == SKILL_GFT16_MUL) { return skill == skill; }
         else { if (skill == SKILL_GFT16_ADD) { return skill == skill; }
         else { if (skill == SKILL_GFT8_MUL)  { return skill == skill; }
-        else { return skill == SKILL_GFT8_ADD; } } }
+        else { if (skill == SKILL_GFT8_ADD)  { return skill == skill; }
+        else { if (skill == SKILL_GFT32_MUL) { return skill == skill; }
+        else { return skill == SKILL_GFT32_ADD; } } } } }
     }
 
     // Format families (match tri_compute_receipt / tri_compute_gfvalid).
@@ -74,7 +78,9 @@ module TriA2A {
         else { if (skill == SKILL_GFT16_ADD) { return FMT_GFT; }
         else { if (skill == SKILL_GFT8_MUL)  { return FMT_GFT; }
         else { if (skill == SKILL_GFT8_ADD)  { return FMT_GFT; }
-        else { return FMT_GF_BINARY; } } } }
+        else { if (skill == SKILL_GFT32_MUL) { return FMT_GFT; }
+        else { if (skill == SKILL_GFT32_ADD) { return FMT_GFT; }
+        else { return FMT_GF_BINARY; } } } } } }
     }
 
     // A taskResult is only valid if its receipt's format family matches the family
@@ -96,6 +102,8 @@ module TriA2A {
         if (skill == SKILL_GFT16_ADD) { return 1; }
         if (skill == SKILL_GFT8_MUL) { return 1; }
         if (skill == SKILL_GFT8_ADD) { return 1; }
+        if (skill == SKILL_GFT32_MUL) { return 1; }
+        if (skill == SKILL_GFT32_ADD) { return 1; }
         return 0;
     }
 
@@ -208,7 +216,26 @@ module TriA2A {
     fn skill_width(skill: u32) -> u32 {
         if (skill == SKILL_GFT8_MUL) { return 8; }
         if (skill == SKILL_GFT8_ADD) { return 8; }
+        if (skill == SKILL_GFT32_MUL) { return 32; }
+        if (skill == SKILL_GFT32_ADD) { return 32; }
         return 16;
+    }
+
+    // The ratified ladder Et for a hosted GF-T skill's rung (tri_gft_ladder width_to_et:
+    // GF-T8 -> 3, GF-T16 -> 4). This is the ASSIGNMENT-side SSOT of which rung was
+    // directed -- the dispute layer reads it as settled_et (tri_compute_challenge.
+    // resolve_full_rung) and the receipt commits it (tri_compute_receipt.receipt_leaf_gf_rung).
+    // Binary GF16 has no ternary exponent (-> 0); any unenumerated / crafted skill is
+    // FAIL-CLOSED at 0, so a rung-bound gate can never be satisfied by claiming Et 0
+    // (a real GF-T receipt commits Et >= 3).
+    fn skill_et(skill: u32) -> u32 {
+        if (skill == SKILL_GFT16_MUL) { return 4; }
+        if (skill == SKILL_GFT16_ADD) { return 4; }
+        if (skill == SKILL_GFT8_MUL)  { return 3; }
+        if (skill == SKILL_GFT8_ADD)  { return 3; }
+        if (skill == SKILL_GFT32_MUL) { return 6; }   // GF-T32 rung, ratified Et6
+        if (skill == SKILL_GFT32_ADD) { return 6; }
+        return 0;
     }
 
     // Width-exact binding: result_binds_assign PLUS the receipt's committed width
@@ -221,6 +248,21 @@ module TriA2A {
             return result_binds_assign(assign_task_id, result_task_id, receipt_task, assigned_skill, receipt_family, receipt_op);
         } else {
             return receipt_width != receipt_width;
+        }
+    }
+
+    // Rung-exact assignment binding: result_binds_assign_sized PLUS the receipt's
+    // committed rung Et equals the assigned skill's ratified Et. This is the ASSIGNMENT
+    // half of the end-to-end rung chain -- the receipt commits Et (tri_compute_receipt.
+    // receipt_leaf_gf_rung) and the dispute layer enforces it (tri_compute_challenge.
+    // resolve_full_rung); here the assignment commits which rung was directed, so a
+    // wrong-rung receipt fails to bind at ingress. skill_et 0 (binary / unknown skill)
+    // never equals a real GF-T receipt Et, so this is fail-closed on both sides.
+    fn result_binds_assign_rung(assign_task_id: u32, result_task_id: u32, receipt_task: u32, assigned_skill: u32, receipt_family: u32, receipt_op: u32, receipt_width: u32, receipt_et: u32) -> bool {
+        if (skill_et(assigned_skill) == receipt_et) {
+            return result_binds_assign_sized(assign_task_id, result_task_id, receipt_task, assigned_skill, receipt_family, receipt_op, receipt_width);
+        } else {
+            return receipt_et != receipt_et;
         }
     }
 
@@ -358,6 +400,50 @@ module TriA2A {
         assert(is_a2a(KIND_DATA, A2A_PORT) == true, "DATA on the A2A port is A2A");
         assert(is_a2a(0, A2A_PORT) == false, "HELLO is not A2A even on the port");
         assert(is_a2a(KIND_DATA, 0x1234) == false, "DATA on another port is not A2A");
+    }
+
+    // skill_et is the assignment-side rung SSOT: each hosted GF-T skill maps to its
+    // ratified ladder Et; binary and unknown skills fail closed at 0.
+    test skill_et_is_the_ratified_rung {
+        assert(skill_et(SKILL_GFT16_MUL) == 4, "GF-T16 skill -> Et 4");
+        assert(skill_et(SKILL_GFT16_ADD) == 4, "GF-T16 add skill -> Et 4");
+        assert(skill_et(SKILL_GFT8_MUL) == 3, "GF-T8 skill -> Et 3");
+        assert(skill_et(SKILL_GF16_MUL) == 0, "binary GF16 skill has no ternary Et");
+        assert(skill_et(0xDEADBEEF) == 0, "an unknown skill is fail-closed at Et 0");
+    }
+
+    // The assignment binds the exact RUNG: a GF-T16 assignment (Et4) accepts only a
+    // receipt committing Et4; a receipt committing a different rung's Et (e.g. GF-T32's
+    // 6 or a fail-closed 0) does not bind at ingress. Closes the rung chain on the
+    // assignment side, matching receipt_leaf_gf_rung (#216) and resolve_full_rung (#218).
+    test assignment_binds_the_exact_rung {
+        assert(result_binds_assign_rung(7, 7, 7, SKILL_GFT16_MUL, FMT_GFT, 0x11, 16, 4) == true,
+            "GF-T16 assignment + Et4/width16/GFT receipt binds");
+        assert(result_binds_assign_rung(7, 7, 7, SKILL_GFT16_MUL, FMT_GFT, 0x11, 16, 6) == false,
+            "a GF-T32-rung (Et6) receipt does NOT bind a GF-T16 assignment");
+        assert(result_binds_assign_rung(7, 7, 7, SKILL_GFT8_MUL, FMT_GFT, 0x11, 8, 3) == true,
+            "GF-T8 assignment + Et3/width8 receipt binds");
+        assert(result_binds_assign_rung(7, 7, 7, SKILL_GFT8_MUL, FMT_GFT, 0x11, 8, 4) == false,
+            "a GF-T16-rung (Et4) receipt does NOT bind a GF-T8 assignment (precision upgrade rejected)");
+    }
+
+    // GF-T32 is now a hosted rung: it has full silicon (gft_mul32/dot/tile) and ratified
+    // geometry, so the assignment layer can direct GF-T32 work with the correct
+    // width/family/op/Et and bind its receipt exactly.
+    test gft32_is_a_hosted_rung {
+        assert(is_hosted_skill(SKILL_GFT32_MUL) == 1, "GF-T32 mul is hosted");
+        assert(is_gft_skill(SKILL_GFT32_ADD) == true, "GF-T32 add is a GF-T (ternary) skill");
+        assert(is_gf_skill(SKILL_GFT32_MUL) == false, "GF-T32 is not a binary GF skill");
+        assert(skill_family(SKILL_GFT32_MUL) == FMT_GFT, "GF-T32 family is FMT_GFT");
+        assert(skill_width(SKILL_GFT32_MUL) == 32, "GF-T32 width 32");
+        assert(skill_op(SKILL_GFT32_MUL) == 0x11, "GF-T32 mul -> op 0x11");
+        assert(skill_op(SKILL_GFT32_ADD) == 0x10, "GF-T32 add -> op 0x10");
+        assert(skill_et(SKILL_GFT32_MUL) == 6, "GF-T32 rung Et 6 (ratified golden rule)");
+        // End-to-end assignment bind for a real GF-T32 task: width 32 + Et6 + GFT family + mul op.
+        assert(result_binds_assign_rung(9, 9, 9, SKILL_GFT32_MUL, FMT_GFT, 0x11, 32, 6) == true,
+            "GF-T32 assignment binds a GF-T32 receipt (width32, Et6)");
+        assert(result_binds_assign_rung(9, 9, 9, SKILL_GFT32_MUL, FMT_GFT, 0x11, 16, 4) == false,
+            "a GF-T16 receipt does NOT bind a GF-T32 assignment (precision downgrade rejected)");
     }
 
     // Receipt travels only with a result, never with an assignment or heartbeat.

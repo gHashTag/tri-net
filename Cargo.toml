@@ -97,6 +97,14 @@ path = "tests/gft_mlp_accuracy.rs"
 name = "goldenfloat_family_ladder"
 path = "tests/goldenfloat_family_ladder.rs"
 
+[[test]]
+name = "goldenfloat_ternary_ladder"
+path = "tests/goldenfloat_ternary_ladder.rs"
+
+[[test]]
+name = "goldenfloat_conformance"
+path = "tests/goldenfloat_conformance.rs"
+
 [profile.release]
 opt-level = "z"
 lto = true
@@ -104,3 +112,7 @@ lto = true
 [[test]]
 name = "gft_rung_premium_consistency"
 path = "tests/gft_rung_premium_consistency.rs"
+
+[[test]]
+name = "gft_rung_end_to_end"
+path = "tests/gft_rung_end_to_end.rs"

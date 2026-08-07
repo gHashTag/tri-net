@@ -32,6 +32,31 @@ module TriComputeOptimistic {
         return now_epoch < (settled_at + window);
     }
 
+    // Rung-aware challenge window. Higher ladder rungs are more expensive to RECOMPUTE
+    // (the datapath widens with the mantissa: GF-T16 mant 9, GF-T32 25, GF-T64 64), so a
+    // challenger needs more epochs to verify a wide-rung result before it finalizes -- and
+    // a higher-precision result is worth more, deserving longer scrutiny. The window grows
+    // with the rung's exponent-trit count Et (the geometry key, from tri_a2a.skill_et /
+    // the ladder width_to_et). Base window at/below the flagship GF-T16 (Et4); +WINDOW_PER_TRIT
+    // per exponent trit above it. Monotonic and never shrinks below the base.
+    const GFT16_ET: u32 = 4;           // flagship rung Et (ladder SSOT)
+    const BASE_WINDOW: u32 = 64;       // epochs, at/below GF-T16
+    const WINDOW_PER_TRIT: u32 = 16;   // extra epochs per exponent trit above the base
+
+    fn window_for_rung(gf_et: u32) -> u32 {
+        if (gf_et <= GFT16_ET) {
+            return BASE_WINDOW;
+        } else {
+            return BASE_WINDOW + (gf_et - GFT16_ET) * WINDOW_PER_TRIT;
+        }
+    }
+
+    // window_open with the rung-derived window: a wide-rung result stays challengeable
+    // at an epoch where a lower-rung one would already have finalized.
+    fn window_open_rung(now_epoch: u32, settled_at: u32, gf_et: u32) -> bool {
+        return window_open(now_epoch, settled_at, window_for_rung(gf_et));
+    }
+
     // The settlement state: a successful challenge (slashed) REVERSES regardless of
     // the window; otherwise PENDING while the window is open, FINALIZED once it closes.
     fn settle_state(window_is_open: u32, slashed: u32) -> u32 {
@@ -79,6 +104,22 @@ module TriComputeOptimistic {
         assert(window_open(5, 3, 10) == true, "epoch 5 within [3, 13) -> open");
         assert(window_open(13, 3, 10) == false, "epoch 13 == settled_at+window -> closed");
         assert(window_open(20, 3, 10) == false, "well past the window -> closed");
+    }
+
+    // The challenge window scales with the rung: higher Et -> longer window, so a wide,
+    // expensive-to-recompute result gets more scrutiny before finalizing.
+    test window_grows_with_the_rung {
+        assert(window_for_rung(4) == 64, "GF-T16 (Et4) base window 64");
+        assert(window_for_rung(6) == 96, "GF-T32 (Et6) window 96 -- longer than GF-T16");
+        assert(window_for_rung(9) == 144, "GF-T64 (Et9) window 144");
+        assert(window_for_rung(14) == 224, "GF-T128 (Et14) window 224 -- longest");
+        assert(window_for_rung(3) == 64, "sub-flagship GF-T8 (Et3) gets the base, never shrinks");
+        // Monotonic across the ladder.
+        assert(window_for_rung(6) > window_for_rung(4), "GF-T32 window > GF-T16");
+        assert(window_for_rung(9) > window_for_rung(6), "GF-T64 window > GF-T32");
+        // A GF-T64 result is still challengeable at an epoch where a GF-T16 one has finalized.
+        assert(window_open_rung(100, 0, 4) == false, "GF-T16 finalized by epoch 100 (window 64)");
+        assert(window_open_rung(100, 0, 9) == true, "GF-T64 still challengeable at epoch 100 (window 144)");
     }
 
     // Lifecycle: unchallenged in-window -> PENDING; unchallenged out-of-window ->
