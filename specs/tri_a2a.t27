@@ -36,6 +36,10 @@ module TriA2A {
     const SKILL_GFT8_ADD  : u32 = 0xA810;  // GF-T8 . add
     const SKILL_GFT32_MUL : u32 = 0xA511;  // GF-T32 . mul (top silicon rung: mul/dot/tile)
     const SKILL_GFT32_ADD : u32 = 0xA510;  // GF-T32 . add
+    const SKILL_GFT64_MUL : u32 = 0xA311;  // GF-T64 . mul (silicon: mul64/add64/dot2/dot4/tile)
+    const SKILL_GFT64_ADD : u32 = 0xA310;  // GF-T64 . add
+    const SKILL_GFT128_MUL : u32 = 0xA211; // GF-T128 . mul (spec rung, Et14)
+    const SKILL_GFT128_ADD : u32 = 0xA210; // GF-T128 . add
 
     // Demux an incoming datagram to the A2A stack by (kind, port) -- NOT by
     // inspecting the encrypted payload bytes.
@@ -58,11 +62,16 @@ module TriA2A {
     // skill. Distinct family from is_gf_skill (binary GF).
     fn is_gft_skill(skill: u32) -> bool {
         if (skill == SKILL_GFT16_MUL) { return skill == skill; }
-        else { if (skill == SKILL_GFT16_ADD) { return skill == skill; }
-        else { if (skill == SKILL_GFT8_MUL)  { return skill == skill; }
-        else { if (skill == SKILL_GFT8_ADD)  { return skill == skill; }
-        else { if (skill == SKILL_GFT32_MUL) { return skill == skill; }
-        else { return skill == SKILL_GFT32_ADD; } } } } }
+        if (skill == SKILL_GFT16_ADD) { return skill == skill; }
+        if (skill == SKILL_GFT8_MUL)  { return skill == skill; }
+        if (skill == SKILL_GFT8_ADD)  { return skill == skill; }
+        if (skill == SKILL_GFT32_MUL) { return skill == skill; }
+        if (skill == SKILL_GFT32_ADD) { return skill == skill; }
+        if (skill == SKILL_GFT64_MUL) { return skill == skill; }
+        if (skill == SKILL_GFT64_ADD) { return skill == skill; }
+        if (skill == SKILL_GFT128_MUL) { return skill == skill; }
+        if (skill == SKILL_GFT128_ADD) { return skill == skill; }
+        return skill != skill;
     }
 
     // Format families (match tri_compute_receipt / tri_compute_gfvalid).
@@ -75,12 +84,16 @@ module TriA2A {
     // the family.)
     fn skill_family(skill: u32) -> u32 {
         if (skill == SKILL_GFT16_MUL) { return FMT_GFT; }
-        else { if (skill == SKILL_GFT16_ADD) { return FMT_GFT; }
-        else { if (skill == SKILL_GFT8_MUL)  { return FMT_GFT; }
-        else { if (skill == SKILL_GFT8_ADD)  { return FMT_GFT; }
-        else { if (skill == SKILL_GFT32_MUL) { return FMT_GFT; }
-        else { if (skill == SKILL_GFT32_ADD) { return FMT_GFT; }
-        else { return FMT_GF_BINARY; } } } } } }
+        if (skill == SKILL_GFT16_ADD) { return FMT_GFT; }
+        if (skill == SKILL_GFT8_MUL)  { return FMT_GFT; }
+        if (skill == SKILL_GFT8_ADD)  { return FMT_GFT; }
+        if (skill == SKILL_GFT32_MUL) { return FMT_GFT; }
+        if (skill == SKILL_GFT32_ADD) { return FMT_GFT; }
+        if (skill == SKILL_GFT64_MUL) { return FMT_GFT; }
+        if (skill == SKILL_GFT64_ADD) { return FMT_GFT; }
+        if (skill == SKILL_GFT128_MUL) { return FMT_GFT; }
+        if (skill == SKILL_GFT128_ADD) { return FMT_GFT; }
+        return FMT_GF_BINARY;
     }
 
     // A taskResult is only valid if its receipt's format family matches the family
@@ -104,6 +117,10 @@ module TriA2A {
         if (skill == SKILL_GFT8_ADD) { return 1; }
         if (skill == SKILL_GFT32_MUL) { return 1; }
         if (skill == SKILL_GFT32_ADD) { return 1; }
+        if (skill == SKILL_GFT64_MUL) { return 1; }
+        if (skill == SKILL_GFT64_ADD) { return 1; }
+        if (skill == SKILL_GFT128_MUL) { return 1; }
+        if (skill == SKILL_GFT128_ADD) { return 1; }
         return 0;
     }
 
@@ -218,6 +235,10 @@ module TriA2A {
         if (skill == SKILL_GFT8_ADD) { return 8; }
         if (skill == SKILL_GFT32_MUL) { return 32; }
         if (skill == SKILL_GFT32_ADD) { return 32; }
+        if (skill == SKILL_GFT64_MUL) { return 64; }
+        if (skill == SKILL_GFT64_ADD) { return 64; }
+        if (skill == SKILL_GFT128_MUL) { return 128; }
+        if (skill == SKILL_GFT128_ADD) { return 128; }
         return 16;
     }
 
@@ -235,6 +256,10 @@ module TriA2A {
         if (skill == SKILL_GFT8_ADD)  { return 3; }
         if (skill == SKILL_GFT32_MUL) { return 6; }   // GF-T32 rung, ratified Et6
         if (skill == SKILL_GFT32_ADD) { return 6; }
+        if (skill == SKILL_GFT64_MUL) { return 9; }   // GF-T64  rung, Et9
+        if (skill == SKILL_GFT64_ADD) { return 9; }
+        if (skill == SKILL_GFT128_MUL) { return 14; } // GF-T128 rung, Et14
+        if (skill == SKILL_GFT128_ADD) { return 14; }
         return 0;
     }
 
@@ -444,6 +469,28 @@ module TriA2A {
             "GF-T32 assignment binds a GF-T32 receipt (width32, Et6)");
         assert(result_binds_assign_rung(9, 9, 9, SKILL_GFT32_MUL, FMT_GFT, 0x11, 16, 4) == false,
             "a GF-T16 receipt does NOT bind a GF-T32 assignment (precision downgrade rejected)");
+    }
+
+    // GF-T64 (full silicon: mul64/add64/dot2/dot4/tile) and GF-T128 (spec rung) are hosted
+    // too, so the whole ladder GF-T8..128 is directable end-to-end with correct geometry.
+    test gft64_gft128_are_hosted_rungs {
+        assert(is_hosted_skill(SKILL_GFT64_MUL) == 1, "GF-T64 mul is hosted");
+        assert(is_hosted_skill(SKILL_GFT128_ADD) == 1, "GF-T128 add is hosted");
+        assert(skill_family(SKILL_GFT64_MUL) == FMT_GFT, "GF-T64 family FMT_GFT");
+        assert(skill_family(SKILL_GFT128_MUL) == FMT_GFT, "GF-T128 family FMT_GFT");
+        assert(skill_width(SKILL_GFT64_MUL) == 64, "GF-T64 width 64");
+        assert(skill_width(SKILL_GFT128_MUL) == 128, "GF-T128 width 128");
+        assert(skill_et(SKILL_GFT64_MUL) == 9, "GF-T64 Et9");
+        assert(skill_et(SKILL_GFT128_MUL) == 14, "GF-T128 Et14");
+        assert(skill_op(SKILL_GFT64_ADD) == 0x10, "GF-T64 add -> op 0x10");
+        // End-to-end rung bind at the wide rungs.
+        assert(result_binds_assign_rung(11, 11, 11, SKILL_GFT64_MUL, FMT_GFT, 0x11, 64, 9) == true,
+            "GF-T64 assignment binds a GF-T64 receipt (width64, Et9)");
+        assert(result_binds_assign_rung(11, 11, 11, SKILL_GFT64_MUL, FMT_GFT, 0x11, 32, 6) == false,
+            "a GF-T32 receipt does NOT bind a GF-T64 assignment");
+        // The family/rung floor still holds: an unknown skill is not hosted and has Et 0.
+        assert(is_hosted_skill(0xBADC0DE) == 0, "unknown skill not hosted");
+        assert(skill_et(0xBADC0DE) == 0, "unknown skill fail-closed Et 0");
     }
 
     // Receipt travels only with a result, never with an assignment or heartbeat.
