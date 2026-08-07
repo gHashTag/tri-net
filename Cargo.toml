@@ -180,3 +180,7 @@ path = "tests/gft32_dot4_kat_cross.rs"
 [[test]]
 name = "gft64_verifiable_compute_e2e"
 path = "tests/gft64_verifiable_compute_e2e.rs"
+
+[[test]]
+name = "gft_sub_kat_cross"
+path = "tests/gft_sub_kat_cross.rs"
