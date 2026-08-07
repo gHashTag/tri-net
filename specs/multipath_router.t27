@@ -13,17 +13,17 @@ module MultiPathRouter {
     fn select_path_index(etx_values: [u8; 3]) -> u8 {
         // Compare ETX values to find minimum (best quality)
         let min_etx: u8 = etx_values[0];
-        let mut best_idx: u8 = 0;
-        
-        if etx_values[1] < min_etx {
+        let best_idx: u8 = 0;
+
+        if (etx_values[1] < min_etx) {
             best_idx = 1;
         }
-        
-        if etx_values[2] < etx_values[best_idx as usize] {
+
+        if (etx_values[2] < etx_values[best_idx as usize]) {
             best_idx = 2;
         }
-        
-        best_idx
+
+        return best_idx;
     }
     
     // Calculate path quality score (lower is better)
@@ -38,7 +38,11 @@ module MultiPathRouter {
         let total: u16 = (etx_component + latency_component + loss_component) / 10;
         
         // Cap at reasonable maximum
-        if total > 255 { 255 } else { total as u8 }
+        if (total > 255) {
+            return 255;
+        } else {
+            return (total as u8);
+        }
     }
     
     // Decide if failover is needed
@@ -47,16 +51,16 @@ module MultiPathRouter {
         let etx_degraded: bool = current_etx > ETX_THRESHOLD_POOR;
         let has_backup: bool = current_idx < max_paths;
         
-        etx_degraded && has_backup
+        return (etx_degraded && has_backup);
     }
     
     // Calculate next path index with wrap-around
     fn next_path_index(current_idx: u8, max_paths: u8) -> u8 {
         let next: u8 = current_idx + 1;
-        if next >= max_paths {
-            0  // Wrap back to primary
+        if (next >= max_paths) {
+            return 0;
         } else {
-            next
+            return next;
         }
     }
     
@@ -68,8 +72,8 @@ module MultiPathRouter {
         let product: u16 = (etx as u16) * (loss_rate as u16);
         let unreliability: u8 = (product / 256) as u8;
         
-        // Invert (255 - x) for reliability
-        255_u8.wrapping_sub(unreliability)
+        // Invert (255 - x) for reliability; unreliability <= 255 so this cannot underflow
+        return (255 - unreliability);
     }
 }
 

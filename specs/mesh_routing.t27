@@ -77,9 +77,9 @@ module MeshRouting {
         has_n1: bool, has_n2: bool, has_n3: bool
     ) -> (u8, bool) {
         // Check if any ETX is finite (not 0xFFFF)
-        let n1_finite = has_n1 && (etx_n1 != 0xFFFF);
-        let n2_finite = has_n2 && (etx_n2 != 0xFFFF);
-        let n3_finite = has_n3 && (etx_n3 != 0xFFFF);
+        let n1_finite: bool = has_n1 && (etx_n1 != 0xFFFF);
+        let n2_finite: bool = has_n2 && (etx_n2 != 0xFFFF);
+        let n3_finite: bool = has_n3 && (etx_n3 != 0xFFFF);
 
         // Choose lowest ETX
         if (n1_finite && n2_finite && n3_finite) {
