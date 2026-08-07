@@ -312,3 +312,7 @@ path = "tests/adder_geometry_vs_silicon.rs"
 [[test]]
 name = "ledger_mix32_structure"
 path = "tests/ledger_mix32_structure.rs"
+
+[[test]]
+name = "low_rung_geometry_vs_silicon"
+path = "tests/low_rung_geometry_vs_silicon.rs"
