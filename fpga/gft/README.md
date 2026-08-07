@@ -90,22 +90,26 @@ first GF-T recompute confirmed on real silicon.
 
 See [RUN_ON_SILICON.md](RUN_ON_SILICON.md) for the end-to-end recipe: local verify (all KATs + synth) -> fill board pins -> openXC7 place-and-route -> AL321 flash.
 
-## Auto path: `t27c gen-verilog` matches the over-wire verifier
+## Auto path: `t27c gen-verilog` matches the over-wire verifier (subtract, so far)
 
-Since the `t27c gen-verilog` interleaved-reg defect was fixed, the GF-T arithmetic
-compiles straight from the spec, and its functions match the over-wire verifier's
-exact values (`gft_arith_gen_kat_tb.v`):
+The `t27c gen-verilog` interleaved-reg defect (see "Why hand-transcribed" above) is
+**only partly resolved upstream**. As of the current `t27` build, exactly one rung
+generates legal, KAT-passing Verilog straight from its spec -- subtract:
 
 ```bash
-t27c gen-verilog specs/tri_gft_arith.t27 > /tmp/gftgen.v
-iverilog -g2012 -o /tmp/k.vvp /tmp/gftgen.v fpga/gft/gft_arith_gen_kat_tb.v && vvp /tmp/k.vvp
-# -> GEN-VERILOG KAT PASS: generated GF-T Verilog matches the over-wire verifier
+t27c gen-verilog specs/tri_gft_sub.t27 > /tmp/subgen.v
+iverilog -g2012 -o /tmp/k.vvp /tmp/subgen.v fpga/gft/gft_sub_gen_kat_tb.v && vvp /tmp/k.vvp
+# -> GEN-VERILOG SUB KAT PASS: generated GF-T sub matches the over-wire verifier
 ```
 
-So one `.t27` generates BOTH the Rust A2A verifier and synthesizable Verilog, and
-they provably agree -- the spec-first thesis, end to end. Add and subtract too -- `gft_add_gen_kat_tb.v`
-(`t27c gen-verilog specs/tri_gft_add.t27`) and `gft_sub_gen_kat_tb.v`
-(`specs/tri_gft_sub.t27`) KAT the generated TriGftAdd/TriGftSub against the same
-over-wire values, so the whole GF-T ALU (mul/add/sub) is auto-proven from spec.
-(`gft_mul.v` remains the
-hand-shaped I/O datapath; the generated module is a function library, KAT-gated here.)
+So `tri_gft_sub.t27` generates BOTH the Rust A2A verifier and synthesizable Verilog,
+and they provably agree -- the spec-first thesis, proven end to end for subtract.
+
+Multiply and add do NOT yet: `t27c gen-verilog specs/tri_gft_arith.t27` and
+`specs/tri_gft_add.t27` still emit the illegal interleaved-reg Verilog described
+above (`reg carry; carry=…; reg sum;` inside a `begin/end` block), so piping either
+into `iverilog` fails with a malformed-statement syntax error. Their gen-KAT
+benches (`gft_arith_gen_kat_tb.v`, `gft_add_gen_kat_tb.v`) therefore cannot run
+until the emitter fix lands for those specs too. Until then `gft_mul.v`/`gft_add.v`
+stay the hand-transcribed datapaths, KAT-gated for fidelity; only `gft_sub` is
+auto-proven from spec through the gen path.

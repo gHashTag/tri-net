@@ -17,6 +17,9 @@ iverilog -g2012 -o /tmp/mul.vvp   $G/gft_mul.v $G/gft_mul_kat_tb.v            &&
 iverilog -g2012 -o /tmp/mul16.vvp $G/gft_mul.v $G/gft16_mul.v $G/gft16_mul_kat_tb.v && vvp /tmp/mul16.vvp # KAT PASS
 iverilog -g2012 -o /tmp/add.vvp   $G/gft_add.v $G/gft_add_kat_tb.v            && vvp /tmp/add.vvp   # KAT PASS
 iverilog -g2012 -o /tmp/sub.vvp   $G/gft_sub.v $G/gft_sub_kat_tb.v            && vvp /tmp/sub.vvp   # KAT PASS
+# spec->silicon: the generated TriGftSub matches the over-wire verifier (needs t27c on PATH).
+# (mul/add gen-verilog still emit illegal interleaved-reg Verilog -- see fpga/gft/README.md.)
+t27c gen-verilog specs/tri_gft_sub.t27 > /tmp/subgen.v && iverilog -g2012 -o /tmp/subgen.vvp /tmp/subgen.v $G/gft_sub_gen_kat_tb.v && vvp /tmp/subgen.vvp # GEN-VERILOG SUB KAT PASS
 ALU="$G/gft_mul.v $G/gft_add.v $G/gft_sub.v $G/gft_alu.v $G/gft_alu_selfcheck.v $G/gft_alu_selfcheck_disc_tb.v"
 iverilog -g2012 -o /tmp/gold.vvp $ALU && vvp /tmp/gold.vvp                                 # GOLDEN PASS
 iverilog -g2012 -DGFT_SELFCHECK_FAULT -o /tmp/disc.vvp $ALU && vvp /tmp/disc.vvp           # DISCRIMINATION PASS
