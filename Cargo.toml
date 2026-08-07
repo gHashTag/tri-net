@@ -172,3 +172,7 @@ path = "tests/gft_silicon_kat_cross.rs"
 [[test]]
 name = "gft64_add_dot_kat_cross"
 path = "tests/gft64_add_dot_kat_cross.rs"
+
+[[test]]
+name = "gft32_dot4_kat_cross"
+path = "tests/gft32_dot4_kat_cross.rs"
