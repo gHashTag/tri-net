@@ -105,15 +105,18 @@ module TriChallenge {
 
     const RESOLVE_TIMEOUT: u32 = 27; // epochs an OPEN dispute may stay unresolved
 
-    // A challenge is admissible only while the receipt is inside its finality
-    // window: strictly before now - receipt_epoch exceeds the window. Epochs are
-    // monotone (now >= receipt_epoch); a stale clock (now < receipt_epoch) is
-    // inadmissible fail-closed.
+    // A challenge is admissible exactly while the receipt's optimistic window is
+    // open: (now - receipt_epoch) < window, the SAME edge as
+    // tri_compute_optimistic.window_open (now < settled_at + window). The first
+    // cut of this gate used <=, which admitted a challenge in the very epoch the
+    // receipt already finalizes -- a one-epoch seam between the two layers,
+    // caught when composing them. Epochs are monotone (now >= receipt_epoch); a
+    // stale clock (now < receipt_epoch) is inadmissible fail-closed.
     fn challenge_admissible(now_epoch: u32, receipt_epoch: u32, window: u32) -> bool {
         if (now_epoch < receipt_epoch) {
             return now_epoch > now_epoch; // fail closed on a non-monotone clock
         }
-        return (now_epoch - receipt_epoch) <= window;
+        return (now_epoch - receipt_epoch) < window;
     }
 
     // An OPEN dispute expires once the resolution timeout has fully elapsed.
@@ -136,12 +139,12 @@ module TriChallenge {
     // backwards.
     test window_edges {
         a0 = challenge_admissible(100, 100, 8);
-        a1 = challenge_admissible(108, 100, 8);
-        a2 = challenge_admissible(109, 100, 8);
+        a1 = challenge_admissible(107, 100, 8);
+        a2 = challenge_admissible(108, 100, 8);
         a3 = challenge_admissible(99, 100, 8);
         assert(a0 == true, "fresh receipt is challengeable");
-        assert(a1 == true, "last in-window epoch is challengeable");
-        assert(a2 == false, "one epoch past the window is final");
+        assert(a1 == true, "last in-window epoch (window - 1) is challengeable");
+        assert(a2 == false, "the finalization epoch itself admits no challenge");
         assert(a3 == false, "a backwards clock admits nothing");
     }
 

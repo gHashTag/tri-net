@@ -39,7 +39,7 @@ pub fn challenge_admissible(now_epoch: u32, receipt_epoch: u32, window: u32) -> 
     if (now_epoch < receipt_epoch) {
         return (now_epoch > now_epoch);
     }
-    return ((now_epoch - receipt_epoch) <= window);
+    return ((now_epoch - receipt_epoch) < window);
 }
 
 pub fn dispute_expired(opened_epoch: u32, now_epoch: u32) -> bool {
