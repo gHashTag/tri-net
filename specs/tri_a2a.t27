@@ -34,6 +34,8 @@ module TriA2A {
     const SKILL_GFT16_ADD : u32 = 0xA610;  // GF-T16 . add
     const SKILL_GFT8_MUL  : u32 = 0xA811;  // GF-T8 . mul
     const SKILL_GFT8_ADD  : u32 = 0xA810;  // GF-T8 . add
+    const SKILL_GFT32_MUL : u32 = 0xA511;  // GF-T32 . mul (top silicon rung: mul/dot/tile)
+    const SKILL_GFT32_ADD : u32 = 0xA510;  // GF-T32 . add
 
     // Demux an incoming datagram to the A2A stack by (kind, port) -- NOT by
     // inspecting the encrypted payload bytes.
@@ -58,7 +60,9 @@ module TriA2A {
         if (skill == SKILL_GFT16_MUL) { return skill == skill; }
         else { if (skill == SKILL_GFT16_ADD) { return skill == skill; }
         else { if (skill == SKILL_GFT8_MUL)  { return skill == skill; }
-        else { return skill == SKILL_GFT8_ADD; } } }
+        else { if (skill == SKILL_GFT8_ADD)  { return skill == skill; }
+        else { if (skill == SKILL_GFT32_MUL) { return skill == skill; }
+        else { return skill == SKILL_GFT32_ADD; } } } } }
     }
 
     // Format families (match tri_compute_receipt / tri_compute_gfvalid).
@@ -74,7 +78,9 @@ module TriA2A {
         else { if (skill == SKILL_GFT16_ADD) { return FMT_GFT; }
         else { if (skill == SKILL_GFT8_MUL)  { return FMT_GFT; }
         else { if (skill == SKILL_GFT8_ADD)  { return FMT_GFT; }
-        else { return FMT_GF_BINARY; } } } }
+        else { if (skill == SKILL_GFT32_MUL) { return FMT_GFT; }
+        else { if (skill == SKILL_GFT32_ADD) { return FMT_GFT; }
+        else { return FMT_GF_BINARY; } } } } } }
     }
 
     // A taskResult is only valid if its receipt's format family matches the family
@@ -96,6 +102,8 @@ module TriA2A {
         if (skill == SKILL_GFT16_ADD) { return 1; }
         if (skill == SKILL_GFT8_MUL) { return 1; }
         if (skill == SKILL_GFT8_ADD) { return 1; }
+        if (skill == SKILL_GFT32_MUL) { return 1; }
+        if (skill == SKILL_GFT32_ADD) { return 1; }
         return 0;
     }
 
@@ -208,6 +216,8 @@ module TriA2A {
     fn skill_width(skill: u32) -> u32 {
         if (skill == SKILL_GFT8_MUL) { return 8; }
         if (skill == SKILL_GFT8_ADD) { return 8; }
+        if (skill == SKILL_GFT32_MUL) { return 32; }
+        if (skill == SKILL_GFT32_ADD) { return 32; }
         return 16;
     }
 
@@ -223,6 +233,8 @@ module TriA2A {
         if (skill == SKILL_GFT16_ADD) { return 4; }
         if (skill == SKILL_GFT8_MUL)  { return 3; }
         if (skill == SKILL_GFT8_ADD)  { return 3; }
+        if (skill == SKILL_GFT32_MUL) { return 6; }   // GF-T32 rung, ratified Et6
+        if (skill == SKILL_GFT32_ADD) { return 6; }
         return 0;
     }
 
@@ -413,6 +425,25 @@ module TriA2A {
             "GF-T8 assignment + Et3/width8 receipt binds");
         assert(result_binds_assign_rung(7, 7, 7, SKILL_GFT8_MUL, FMT_GFT, 0x11, 8, 4) == false,
             "a GF-T16-rung (Et4) receipt does NOT bind a GF-T8 assignment (precision upgrade rejected)");
+    }
+
+    // GF-T32 is now a hosted rung: it has full silicon (gft_mul32/dot/tile) and ratified
+    // geometry, so the assignment layer can direct GF-T32 work with the correct
+    // width/family/op/Et and bind its receipt exactly.
+    test gft32_is_a_hosted_rung {
+        assert(is_hosted_skill(SKILL_GFT32_MUL) == 1, "GF-T32 mul is hosted");
+        assert(is_gft_skill(SKILL_GFT32_ADD) == true, "GF-T32 add is a GF-T (ternary) skill");
+        assert(is_gf_skill(SKILL_GFT32_MUL) == false, "GF-T32 is not a binary GF skill");
+        assert(skill_family(SKILL_GFT32_MUL) == FMT_GFT, "GF-T32 family is FMT_GFT");
+        assert(skill_width(SKILL_GFT32_MUL) == 32, "GF-T32 width 32");
+        assert(skill_op(SKILL_GFT32_MUL) == 0x11, "GF-T32 mul -> op 0x11");
+        assert(skill_op(SKILL_GFT32_ADD) == 0x10, "GF-T32 add -> op 0x10");
+        assert(skill_et(SKILL_GFT32_MUL) == 6, "GF-T32 rung Et 6 (ratified golden rule)");
+        // End-to-end assignment bind for a real GF-T32 task: width 32 + Et6 + GFT family + mul op.
+        assert(result_binds_assign_rung(9, 9, 9, SKILL_GFT32_MUL, FMT_GFT, 0x11, 32, 6) == true,
+            "GF-T32 assignment binds a GF-T32 receipt (width32, Et6)");
+        assert(result_binds_assign_rung(9, 9, 9, SKILL_GFT32_MUL, FMT_GFT, 0x11, 16, 4) == false,
+            "a GF-T16 receipt does NOT bind a GF-T32 assignment (precision downgrade rejected)");
     }
 
     // Receipt travels only with a result, never with an assignment or heartbeat.
