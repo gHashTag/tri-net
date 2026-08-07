@@ -96,7 +96,7 @@ pub fn generate_function_example(func_doc: u32) -> u32 {
     let example_input: u32 = (param_count * 10);
     let example_output: u32 = (example_input + 5);
     let explanation: u32 = 1;
-    return create_function_example(func_id, example_input, example_output, 1);
+    return create_function_example(func_id, example_input, example_output, explanation);
 }
 
 pub fn create_description_text(desc_id: u32, length: u32, importance: u32, category: u32) -> u32 {
@@ -129,7 +129,7 @@ pub fn generate_function_description(func_doc: u32, complexity: u32) -> u32 {
     }
     let importance: u32 = 1;
     let category: u32 = 0;
-    return create_description_text(func_id, desc_length, 1, 0);
+    return create_description_text(func_id, desc_length, importance, category);
 }
 
 pub fn create_cross_reference(source: u32, target: u32, ref_type: u32, strength: u32) -> u32 {
@@ -269,7 +269,7 @@ pub fn validate_documentation(func_docs: [u32; MAX_FUNCTIONS as usize], func_cou
     if (quality_score > 100) {
         quality_score = 100;
     }
-    return (((((missing_descriptions & 0xFF) << 24) | 0) | ((missing_params & 0xFF) << 8)) | (quality_score & 0xFF));
+    return (((((missing_descriptions & 0xFF) << 24) | ((missing_examples & 0xFF) << 16)) | ((missing_params & 0xFF) << 8)) | (quality_score & 0xFF));
 }
 
 pub fn generate_documentation_report(func_docs: [u32; MAX_FUNCTIONS as usize], func_count: u32, xrefs: [u32; MAX_FUNCTIONS as usize], xref_count: u32) -> u32 {

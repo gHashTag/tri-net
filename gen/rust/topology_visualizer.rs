@@ -195,10 +195,9 @@ pub fn calculate_force_layout(nodes: [u32; MAX_NODES as usize], edges: [u32; MAX
 
 pub fn calculate_circular_layout(nodes: [u32; MAX_NODES as usize], node_count: u32) -> u32 {
     let center_x: u32 = (CANVAS_SIZE / 2);
-    let center_y: u32 = _cse1;
+    let center_y: u32 = (CANVAS_SIZE / 2);
     let radius: u32 = (CANVAS_SIZE / 3);
     let mut i: u32 = 0;
-    let _cse1 = (CANVAS_SIZE / 2);
     while (i < node_count) {
         let angle: u32 = ((i * 360) / node_count);
         let x: u32 = (center_x + ((radius * angle) / 360));
@@ -213,12 +212,12 @@ pub fn calculate_circular_layout(nodes: [u32; MAX_NODES as usize], node_count: u
 
 pub fn calculate_hierarchical_layout(nodes: [u32; MAX_NODES as usize], edges: [u32; MAX_EDGES as usize], node_count: u32, edge_count: u32) -> u32 {
     let level_count: u32 = 4;
-    let nodes_per_level: u32 = (node_count / 4);
+    let nodes_per_level: u32 = (node_count / level_count);
     let mut i: u32 = 0;
     let mut current_level: u32 = 0;
     let mut nodes_in_level: u32 = 0;
     while (i < node_count) {
-        let y: u32 = ((current_level * CANVAS_SIZE) / 4);
+        let y: u32 = ((current_level * CANVAS_SIZE) / level_count);
         let x: u32 = ((nodes_in_level * CANVAS_SIZE) / nodes_per_level);
         let node_id: u32 = get_viz_node_id(nodes[(i) as usize]);
         let status: u32 = get_node_visual_status(nodes[(i) as usize]);
@@ -330,7 +329,7 @@ pub fn generate_topology_visualization(nodes: [u32; MAX_NODES as usize], edges: 
     let layout_result: u32 = apply_layout(nodes, edges, node_count, edge_count, layout_params);
     let frame: u32 = create_visualization_frame(nodes, edges, node_count, edge_count);
     let fps: u32 = 30;
-    let detail_level: u32 = optimize_rendering(node_count, edge_count, 30);
+    let detail_level: u32 = optimize_rendering(node_count, edge_count, fps);
     let complexity: u32 = calculate_viz_complexity(node_count, edge_count);
     return (((((layout_result & 0xFF) << 24) | ((frame & 0xFF) << 16)) | ((detail_level & 0xFF) << 8)) | (complexity & 0xFF));
 }

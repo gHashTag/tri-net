@@ -247,7 +247,7 @@ pub fn calculate_document_stats(sections: [u32; MAX_SECTIONS as usize], section_
         }
         i = (i + 1);
     }
-    return (((((total_pages & 0xFF) << 24) | ((total_words & 0xFF) << 16)) | ((total_tables & 0xFF) << 8)) | 0);
+    return (((((total_pages & 0xFF) << 24) | ((total_words & 0xFF) << 16)) | ((total_tables & 0xFF) << 8)) | (total_figures & 0xFF));
 }
 
 pub fn generate_document_metadata(title_id: u32, author_id: u32, date: u32, version: u32) -> u32 {

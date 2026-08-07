@@ -116,7 +116,7 @@ pub fn needs_attention(data: u64) -> bool {
     let pattern = get_analysis_pattern(data);
     let traffic = get_analysis_traffic(data);
     let stats = traffic;
-    return ((pattern != PATTERN_NORMAL) || is_high_error_rate(traffic));
+    return ((pattern != PATTERN_NORMAL) || is_high_error_rate(stats));
 }
 
 pub fn calculate_utilization(stats: u32, max_capacity: u32) -> u32 {

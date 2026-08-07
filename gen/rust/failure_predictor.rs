@@ -87,7 +87,7 @@ pub fn calculate_health_score(metrics: u32) -> u32 {
     let mem_score = (100 - memory);
     let error_score = (100 - errors);
     let temp_score = (100 - temp);
-    let total = (((((cpu_score << 2) + (mem_score * 3)) + (error_score << 1)) + temp_score) / 10);
+    let total = (((((cpu_score * 4) + (mem_score * 3)) + (error_score * 2)) + temp_score) / 10);
     return total;
 }
 

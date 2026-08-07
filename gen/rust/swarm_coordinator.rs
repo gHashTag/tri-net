@@ -82,6 +82,101 @@ pub fn get_vote(array: u64, index: u32) -> u32 {
     return ((array & 0xFFFFFFFF) as u32);
 }
 
+pub fn count_votes(vote_array: u64, proposal_id: u32) -> (u32, u32, u32) {
+    let mut yes_count = 0;
+    let mut no_count = 0;
+    let mut abstain_count = 0;
+    if (get_vote_proposal_id(get_vote(vote_array, 0)) == proposal_id) {
+        if (get_vote_value(get_vote(vote_array, 0)) == VOTE_YES) {
+            yes_count = (yes_count + 1);
+        } else {
+            if (get_vote_value(get_vote(vote_array, 0)) == VOTE_NO) {
+                no_count = (no_count + 1);
+            } else {
+                abstain_count = (abstain_count + 1);
+            }
+        }
+    }
+    if (get_vote_proposal_id(get_vote(vote_array, 1)) == proposal_id) {
+        if (get_vote_value(get_vote(vote_array, 1)) == VOTE_YES) {
+            yes_count = (yes_count + 1);
+        } else {
+            if (get_vote_value(get_vote(vote_array, 1)) == VOTE_NO) {
+                no_count = (no_count + 1);
+            } else {
+                abstain_count = (abstain_count + 1);
+            }
+        }
+    }
+    if (get_vote_proposal_id(get_vote(vote_array, 2)) == proposal_id) {
+        if (get_vote_value(get_vote(vote_array, 2)) == VOTE_YES) {
+            yes_count = (yes_count + 1);
+        } else {
+            if (get_vote_value(get_vote(vote_array, 2)) == VOTE_NO) {
+                no_count = (no_count + 1);
+            } else {
+                abstain_count = (abstain_count + 1);
+            }
+        }
+    }
+    if (get_vote_proposal_id(get_vote(vote_array, 3)) == proposal_id) {
+        if (get_vote_value(get_vote(vote_array, 3)) == VOTE_YES) {
+            yes_count = (yes_count + 1);
+        } else {
+            if (get_vote_value(get_vote(vote_array, 3)) == VOTE_NO) {
+                no_count = (no_count + 1);
+            } else {
+                abstain_count = (abstain_count + 1);
+            }
+        }
+    }
+    if (get_vote_proposal_id(get_vote(vote_array, 4)) == proposal_id) {
+        if (get_vote_value(get_vote(vote_array, 4)) == VOTE_YES) {
+            yes_count = (yes_count + 1);
+        } else {
+            if (get_vote_value(get_vote(vote_array, 4)) == VOTE_NO) {
+                no_count = (no_count + 1);
+            } else {
+                abstain_count = (abstain_count + 1);
+            }
+        }
+    }
+    if (get_vote_proposal_id(get_vote(vote_array, 5)) == proposal_id) {
+        if (get_vote_value(get_vote(vote_array, 5)) == VOTE_YES) {
+            yes_count = (yes_count + 1);
+        } else {
+            if (get_vote_value(get_vote(vote_array, 5)) == VOTE_NO) {
+                no_count = (no_count + 1);
+            } else {
+                abstain_count = (abstain_count + 1);
+            }
+        }
+    }
+    if (get_vote_proposal_id(get_vote(vote_array, 6)) == proposal_id) {
+        if (get_vote_value(get_vote(vote_array, 6)) == VOTE_YES) {
+            yes_count = (yes_count + 1);
+        } else {
+            if (get_vote_value(get_vote(vote_array, 6)) == VOTE_NO) {
+                no_count = (no_count + 1);
+            } else {
+                abstain_count = (abstain_count + 1);
+            }
+        }
+    }
+    if (get_vote_proposal_id(get_vote(vote_array, 7)) == proposal_id) {
+        if (get_vote_value(get_vote(vote_array, 7)) == VOTE_YES) {
+            yes_count = (yes_count + 1);
+        } else {
+            if (get_vote_value(get_vote(vote_array, 7)) == VOTE_NO) {
+                no_count = (no_count + 1);
+            } else {
+                abstain_count = (abstain_count + 1);
+            }
+        }
+    }
+    return (yes_count, no_count, abstain_count);
+}
+
 pub fn has_quorum(yes_count: u32, no_count: u32, abstain_count: u32) -> bool {
     let total_voting = ((yes_count + no_count) + abstain_count);
     return (total_voting >= QUORUM_THRESHOLD);
@@ -134,7 +229,7 @@ pub fn calculate_consensus_value(vote_array: u64, proposal_id: u32) -> u32 {
 
 pub fn cooperative_decision(neighbor_values: u32, my_value: u32, weight_neighbors: u32) -> u32 {
     let neighbor_avg = neighbor_values;
-    let weighted_neighbors = ((neighbor_values * weight_neighbors) / 100);
+    let weighted_neighbors = ((neighbor_avg * weight_neighbors) / 100);
     let weighted_self = ((my_value * (100 - weight_neighbors)) / 100);
     return (weighted_neighbors + weighted_self);
 }

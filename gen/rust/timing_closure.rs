@@ -66,7 +66,7 @@ pub fn retiming_needed(current_slack: u32, threshold: u32) -> bool {
 }
 
 pub fn balance_registers(stage_delay: u32, target_period: u32) -> bool {
-    return (stage_delay > (target_period << 1));
+    return (stage_delay > (target_period * 2));
 }
 
 pub fn compare_critical_paths(path1: u32, path2: u32) -> u32 {

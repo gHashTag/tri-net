@@ -27,7 +27,7 @@ pub fn expected_loss_rate_p10(attenuation_db: u8) -> u8 {
     let base_loss: u8 = 0x10;
     let att_factor: u8 = ((attenuation_db / 3) as u8);
     let add_loss: u8 = (att_factor * 0x10);
-    let total: u16 = ((0x10 as u16) + (add_loss as u16));
+    let total: u16 = ((base_loss as u16) + (add_loss as u16));
 }
 
 pub fn throughput_factor_p8(attenuation_db: u8) -> u8 {

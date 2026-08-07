@@ -29,6 +29,18 @@ pub fn is_link_good(link: u32, threshold: u8) -> bool {
     return (link_quality(link) >= threshold);
 }
 
+pub fn create_2node_mesh(quality: u8) -> (u32, u32) {
+    return (create_link_quality(NODE_1, NODE_2, quality), create_link_quality(NODE_2, NODE_1, quality));
+}
+
+pub fn create_3node_mesh(q12: u8, q23: u8, q31: u8) -> (u32, u32, u32) {
+    return (create_link_quality(NODE_1, NODE_2, q12), create_link_quality(NODE_2, NODE_3, q23), create_link_quality(NODE_3, NODE_1, q31));
+}
+
+pub fn create_4node_line(q12: u8, q23: u8, q34: u8) -> (u32, u32, u32) {
+    return (create_link_quality(NODE_1, NODE_2, q12), create_link_quality(NODE_2, NODE_3, q23), create_link_quality(NODE_3, NODE_4, q34));
+}
+
 pub fn calculate_hops(from: u32, to: u32, topology: u8) -> u8 {
     if (from == to) {
         return 0;

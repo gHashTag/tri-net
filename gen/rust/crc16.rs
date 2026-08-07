@@ -6,7 +6,7 @@ pub const CRC16_CCITT_POLY: u16 = 0x1021;
 pub const CRC16_INIT: u16 = 0xFFFF;
 
 pub fn crc_update_bit(crc: u16, bit: u8) -> u16 {
-    if (((crc >> 15) & 1) != (bit & 1)) {
+    if (((crc >> 15) & 1) != ((bit & 1) as u16)) {
         return ((crc << 1) ^ CRC16_CCITT_POLY);
     } else {
         return (crc << 1);

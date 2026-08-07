@@ -206,6 +206,6 @@ pub fn prioritize_bandwidth(flow_array: u64, available_bw: u32) -> u64 {
     let f5 = get_flow_req(flow_array, 5);
     let f6 = get_flow_req(flow_array, 6);
     let f7 = get_flow_req(flow_array, 7);
-    return create_flow_array(update_flow_bandwidth(f0, calculate_fair_share(available_bw, 8)), update_flow_bandwidth(f1, calculate_fair_share(available_bw, 8)), update_flow_bandwidth(f2, calculate_fair_share(available_bw, 8)), update_flow_bandwidth(f3, calculate_fair_share(available_bw, 8)), update_flow_bandwidth(f4, calculate_fair_share(available_bw, 8)), update_flow_bandwidth(f5, calculate_fair_share(available_bw, 8)), update_flow_bandwidth(f6, calculate_fair_share(available_bw, 8)), update_flow_bandwidth(f7, calculate_fair_share(available_bw, 8)));
+    return create_flow_array(update_flow_bandwidth(f0, calculate_fair_share(remaining_bw, 8)), update_flow_bandwidth(f1, calculate_fair_share(remaining_bw, 8)), update_flow_bandwidth(f2, calculate_fair_share(remaining_bw, 8)), update_flow_bandwidth(f3, calculate_fair_share(remaining_bw, 8)), update_flow_bandwidth(f4, calculate_fair_share(remaining_bw, 8)), update_flow_bandwidth(f5, calculate_fair_share(remaining_bw, 8)), update_flow_bandwidth(f6, calculate_fair_share(remaining_bw, 8)), update_flow_bandwidth(f7, calculate_fair_share(remaining_bw, 8)));
 }
 

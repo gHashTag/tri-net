@@ -270,7 +270,7 @@ pub fn generate_recommendations(report: u32, hotspot: u32) -> u32 {
     if (overhead > OVERHEAD_THRESHOLD) {
         rec_reduce_overhead = 1;
     }
-    return (((((rec_optimize_cpu & 0x1) << 3) | 0) | ((rec_reduce_overhead & 0x1) << 1)) | (rec_parallelize & 0x1));
+    return (((((rec_optimize_cpu & 0x1) << 3) | ((rec_optimize_memory & 0x1) << 2)) | ((rec_reduce_overhead & 0x1) << 1)) | (rec_parallelize & 0x1));
 }
 
 pub fn calculate_improvement_opportunity(current_performance: u32, target_performance: u32) -> u32 {

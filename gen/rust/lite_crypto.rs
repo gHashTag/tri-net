@@ -7,6 +7,11 @@ pub const MD5_BLOCK_SIZE: u32 = 64;
 
 pub const CHACHA20_STATE_SIZE: u32 = 16;
 
+pub fn md5_process_block(block: u32, state: u32) -> (u32, u32) {
+    let compressed = (block ^ state);
+    return (((compressed >> 32) & 0xFFFFFFFF), (compressed & 0xFFFFFFFF));
+}
+
 pub fn md5_digest(hash1: u32, hash2: u32) -> u64 {
     return (((hash1 as u64) << 32) | (hash2 as u64));
 }
@@ -21,9 +26,9 @@ pub fn quarter_round(state: u32, input: u32) -> u32 {
     let c2 = 0x79622D2E;
     let c3 = 0x6B206574;
     let new_s0 = ((s0 + input) & 0xFFFFFFFF);
-    let new_s1 = ((s1 + 0x61707865) & 0xFFFFFFFF);
-    let new_s2 = ((s2 + 0x3320646E) & 0xFFFFFFFF);
-    let new_s3 = ((s3 + 0x79622D2E) & 0xFFFFFFFF);
+    let new_s1 = ((s1 + c0) & 0xFFFFFFFF);
+    let new_s2 = ((s2 + c1) & 0xFFFFFFFF);
+    let new_s3 = ((s3 + c2) & 0xFFFFFFFF);
 }
 
 pub fn generate_psk(seed: u32) -> u32 {
