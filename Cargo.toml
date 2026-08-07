@@ -256,3 +256,7 @@ path = "tests/money_verdict_over_mesh.rs"
 [[test]]
 name = "discovery_beacon_gates"
 path = "tests/discovery_beacon_gates.rs"
+
+[[test]]
+name = "crypto_frame_replay"
+path = "tests/crypto_frame_replay.rs"
