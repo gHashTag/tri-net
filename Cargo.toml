@@ -200,3 +200,7 @@ path = "tests/gft_dot_reduction_order.rs"
 [[test]]
 name = "gft64_dot_reduction_order"
 path = "tests/gft64_dot_reduction_order.rs"
+
+[[test]]
+name = "gft_dot_reorder_slash"
+path = "tests/gft_dot_reorder_slash.rs"
