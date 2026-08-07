@@ -156,3 +156,7 @@ path = "tests/gft8_vs_fp8.rs"
 [[test]]
 name = "gft_ladder_cures_tiny_weights"
 path = "tests/gft_ladder_cures_tiny_weights.rs"
+
+[[test]]
+name = "gft_sparsity_no_zero"
+path = "tests/gft_sparsity_no_zero.rs"
