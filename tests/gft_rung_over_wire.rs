@@ -17,8 +17,9 @@ fn skill_id(b5: u32, b6: u32) -> u32 {
 }
 
 // ---- ratified skill -> rung Et (SSOT: tri_a2a.skill_et / tri_gft_ladder) ----
-// GF-T8->3, GF-T16->4, GF-T32->6, GF-T64->9, GF-T128->14. Op suffix (0x11 mul / 0x10 add)
-// is masked off; unknown / binary GF16 skills fail closed at Et 0.
+// GF-T4->2, GF-T8->3, GF-T16->4, GF-T32->6, GF-T64->9, GF-T128->14. Op suffix (0x11 mul /
+// 0x10 add) is masked off; unknown / binary GF16 skills fail closed at Et 0.
+const SKILL_GFT4: u32 = 0xA4;
 const SKILL_GFT8: u32 = 0xA8;
 const SKILL_GFT16: u32 = 0xA6;
 const SKILL_GFT32: u32 = 0xA5;
@@ -27,6 +28,7 @@ const SKILL_GFT128: u32 = 0xA2;
 fn skill_rung_et(skill: u32) -> u32 {
     match skill >> 8 {
         // top byte carries the rung family code
+        SKILL_GFT4 => 2,
         SKILL_GFT8 => 3,
         SKILL_GFT16 => 4,
         SKILL_GFT32 => 6,
@@ -78,6 +80,11 @@ fn header_decode_is_exact_and_carries_the_rung() {
         "GF-T64 mul skill from 2 BE bytes"
     );
     // the rung is recoverable from the header skill alone
+    assert_eq!(
+        skill_rung_et(skill_id(0xA4, 0x11)),
+        2,
+        "GF-T4 header -> Et2 (bottom rung)"
+    );
     assert_eq!(
         skill_rung_et(skill_id(0xA6, 0x11)),
         4,
@@ -135,5 +142,23 @@ fn an_unknown_skill_on_the_wire_is_rejected() {
     assert!(
         !wire_accepts(0x16, 0x11, 0x11, 0xAA, 0xBB, 0xCC, leaf),
         "a binary-GF header carries no ternary rung -> rejected (fail closed)"
+    );
+}
+
+#[test]
+fn gf_t4_bottom_rung_survives_the_wire() {
+    // GF-T4 is now a hosted, silicon-backed skill (0xA411); its results must cross the mesh.
+    // Honest GF-T4 (Et2) under a GF-T4 header is accepted.
+    let leaf4 = receipt_leaf(2, 0x11, 0xAA, 0xBB, 0xCC);
+    assert!(
+        wire_accepts(0xA4, 0x11, 0x11, 0xAA, 0xBB, 0xCC, leaf4),
+        "an honest GF-T4 result under a GF-T4 header survives the wire"
+    );
+    // A GF-T8 receipt (Et3) spliced under a GF-T4 header is rejected -- the wrong-rung
+    // guard holds at the bottom rung too.
+    let leaf8 = receipt_leaf(3, 0x11, 0xAA, 0xBB, 0xCC);
+    assert!(
+        !wire_accepts(0xA4, 0x11, 0x11, 0xAA, 0xBB, 0xCC, leaf8),
+        "a GF-T8 receipt under a GF-T4 header is rejected over the wire"
     );
 }
