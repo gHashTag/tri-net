@@ -161,6 +161,27 @@ module MeshProtocolStack {
         assert(next_hop == NODE_B, "next hop B");
     }
 
+    // Forwarding is PAYLOAD-TRANSPARENT: a hop changes ONLY the TTL nibble; src, dst and
+    // the payload arrive unchanged, so a carried A2A datagram's receipt survives every hop
+    // intact. This is the spec-level form of the a2a_over_mesh_integrity oracle's core
+    // transparency property (previously proven only in Rust). Transparency is per-hop, so
+    // it composes over N hops (each forward touches only the TTL).
+    test forward_packet_preserves_payload {
+        pkt = build_packet(NODE_A, NODE_B, 3, 5);
+        fwd = forward_packet(pkt, NODE_A).0;
+        assert(extract_ttl(fwd) == 2, "only the TTL changes (3 -> 2)");
+        assert(extract_src(fwd) == NODE_A, "src preserved across the hop");
+        assert(extract_dst(fwd) == NODE_B, "dst preserved across the hop");
+        assert(extract_payload(fwd) == 5, "payload preserved across the hop");
+        // A second hop still preserves the payload and only touches the TTL -> transparency
+        // holds for the whole path, not just one hop.
+        fwd2 = forward_packet(fwd, NODE_A).0;
+        assert(extract_payload(fwd2) == 5, "payload preserved after a second hop");
+        assert(extract_src(fwd2) == NODE_A, "src still preserved");
+        assert(extract_dst(fwd2) == NODE_B, "dst still preserved");
+        assert(extract_ttl(fwd2) == 1, "TTL 2 -> 1 on the second hop");
+    }
+
     test forward_packet_ttl_expired {
         pkt = build_packet(NODE_A, NODE_B, 1, 5);
         pkt1 = forward_packet(pkt, NODE_A).0;
