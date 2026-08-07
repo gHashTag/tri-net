@@ -31,3 +31,12 @@ pub const MESH_NET_B: u8 = 42;
 
 pub const MESH_NET_C: u8 = 0;
 
+pub fn mesh_ip(id: u32) -> (u8, u8, u8, u8) {
+    let node_octet = ((id & 0xFF) as u8);
+    return (MESH_NET_A, MESH_NET_B, MESH_NET_C, node_octet);
+}
+
+pub const ST_IDLE: u8 = 0;
+
+pub const ST_TX_WAIT: u8 = 3;
+

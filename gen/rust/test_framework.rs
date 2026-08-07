@@ -152,7 +152,7 @@ pub fn run_test_case(test_case: u32, function_ptr: u32) -> u32 {
     let input: u32 = get_test_input(test_case);
     let expected: u32 = get_expected_output(test_case);
     let actual: u32 = input;
-    let assertion: u32 = create_assertion(ASSERT_EQUAL, input, expected, 0);
+    let assertion: u32 = create_assertion(ASSERT_EQUAL, actual, expected, 0);
     let passed: u32 = check_assertion(assertion);
     if (passed == 1) {
         return create_test_result(test_id, STATUS_PASS, 1, 0);
@@ -296,7 +296,7 @@ pub fn run_property_test(prop_id: u32, generator_count: u32, test_count: u32) ->
         }
         i = (i + 1);
     }
-    return create_property_test(prop_id, generator_count, test_count, 0);
+    return create_property_test(prop_id, generator_count, test_count, failures);
 }
 
 pub fn create_test_summary(total: u32, passed: u32, failed: u32, skipped: u32) -> u32 {

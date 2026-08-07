@@ -247,8 +247,8 @@ pub fn is_communication_allowed(state: u32, trust_score: u32) -> u32 {
 pub fn calculate_health_impact(states: [u32; MAX_NODES as usize]) -> u32 {
     let quarantined_count: u32 = count_quarantined_nodes(states);
     let total_nodes: u32 = MAX_NODES;
-    if (MAX_NODES > 0) {
-        return ((quarantined_count * 100) / MAX_NODES);
+    if (total_nodes > 0) {
+        return ((quarantined_count * 100) / total_nodes);
     } else {
         return 0;
     }

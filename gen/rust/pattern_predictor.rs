@@ -50,7 +50,7 @@ pub fn create_sample_array(s0: u32, s1: u32, s2: u32, s3: u32, s4: u32, s5: u32,
 pub fn get_sample_array_upper(array: u64) -> u64 { unimplemented!() }
 
 pub fn get_sample_array_lower(array: u64) -> u32 {
-    return (array & 0xFFFFFFFF);
+    return ((array & 0xFFFFFFFF)) as u32;
 }
 
 pub fn get_sample_at(array: u64, index: u32) -> u32 {

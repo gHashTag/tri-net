@@ -158,7 +158,7 @@ pub fn create_load_prediction(history: [u32; HISTORY_SIZE as usize], count: u32)
     let confidence: u32 = calculate_confidence(history, count);
     let trend: u32 = detect_trend(history, count);
     let horizon: u32 = PREDICTION_WINDOW;
-    return create_prediction(predicted, confidence, trend, PREDICTION_WINDOW);
+    return create_prediction(predicted, confidence, trend, horizon);
 }
 
 pub fn is_congestion_predicted(prediction: u32) -> u32 {

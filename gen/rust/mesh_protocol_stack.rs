@@ -31,6 +31,14 @@ pub fn extract_payload(packet: u32) -> u8 {
     return ((packet & 0xF) as u8);
 }
 
+pub fn decrement_ttl(packet: u32) -> (u32, bool) {
+    if (extract_ttl(packet) > 0) {
+        return (((packet & 0xFFFF0FFF) | ((((extract_ttl(packet) - 1) as u32) & 0xF) << 12)), false);
+    } else {
+        return (packet, true);
+    }
+}
+
 pub fn route_packet(src: u32, dst: u32, next_hop: u32) -> u32 {
     if ((src == NODE_A) && (dst == NODE_B)) {
         return NODE_B;
@@ -66,4 +74,6 @@ pub fn tx_path(src: u32, dst: u32, payload: u8) -> u32 {
 pub fn rx_path(packet: u32) -> u8 {
     return extract_payload(packet);
 }
+
+pub fn forward_packet(packet: u32, current_node: u32) -> (u32, bool, u32) { unimplemented!() }
 

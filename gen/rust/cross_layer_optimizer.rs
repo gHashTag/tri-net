@@ -94,8 +94,73 @@ pub fn calculate_joint_metric(phy_params: u32, mac_params: u32, net_params: u32)
     let power_eff = (255 - get_power(phy_params));
     let rate = get_rate(mac_params);
     let reliability = get_retries(net_params);
-    let metric = ((((power_eff * 5) / 10) + ((rate * 3) / 10)) + ((reliability << 1) / 10));
+    let metric = ((((power_eff * 5) / 10) + ((rate * 3) / 10)) + ((reliability * 2) / 10));
     return metric;
+}
+
+pub fn coordinate_power(state: u32, phy_params: u32, mac_params: u32) -> (u32, u32) {
+    let mode = get_mode(state);
+    let current_phy_power = get_power(phy_params);
+    let current_mac_power = get_power(mac_params);
+    if (mode == MODE_CONSERVATIVE) {
+        let mut new_phy = (current_phy_power - 10);
+        let mut new_mac = (current_mac_power - 5);
+        if (new_phy < 10) {
+            new_phy = 10;
+        }
+        if (new_mac < 10) {
+            new_mac = 10;
+        }
+        return (new_phy, new_mac);
+    } else {
+        if (mode == MODE_AGGRESSIVE) {
+            let mut new_phy = (current_phy_power + 10);
+            let mut new_mac = (current_mac_power + 5);
+            if (new_phy > 255) {
+                new_phy = 255;
+            }
+            if (new_mac > 255) {
+                new_mac = 255;
+            }
+            return (new_phy, new_mac);
+        } else {
+            return (current_phy_power, current_mac_power);
+        }
+    }
+}
+
+pub fn optimize_for_target(state: u32, phy_params: u32, mac_params: u32) -> (u32, u32) {
+    let target = get_optimization_target(state);
+    if (target == 0) {
+        let mut new_rate = (get_rate(mac_params) + 20);
+        let mut new_retries = (get_retries(phy_params) - 1);
+        if (new_rate > 255) {
+            new_rate = 255;
+        }
+        if (new_retries < 1) {
+            new_retries = 1;
+        }
+        return (new_rate, new_retries);
+    } else {
+        if (target == 1) {
+            let mut new_rate = 255;
+            let mut new_window = (get_window(mac_params) + 10);
+            if (new_window > 255) {
+                new_window = 255;
+            }
+            return (new_rate, new_window);
+        } else {
+            let mut new_retries = (get_retries(phy_params) + 3);
+            let mut new_power = (get_power(phy_params) + 15);
+            if (new_retries > 255) {
+                new_retries = 255;
+            }
+            if (new_power > 255) {
+                new_power = 255;
+            }
+            return (new_retries, new_power);
+        }
+    }
 }
 
 pub fn needs_synchronization(state: u32, current_time: u32) -> bool {

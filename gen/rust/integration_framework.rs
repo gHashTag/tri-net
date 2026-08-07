@@ -422,7 +422,7 @@ pub fn generate_integration_stats(modules: [u32; MAX_MODULES as usize], module_c
         events_processed = (events_processed + 1);
         k = (k + 1);
     }
-    return create_integration_report(active_modules, active_messages, events_processed, 0);
+    return create_integration_report(active_modules, active_messages, events_processed, errors_handled);
 }
 
 pub fn validate_integration_health(modules: [u32; MAX_MODULES as usize], module_count: u32) -> u32 {

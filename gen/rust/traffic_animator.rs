@@ -266,7 +266,7 @@ pub fn calculate_animation_complexity(packet_count: u32, path_count: u32, node_c
 }
 
 pub fn optimize_animation_performance(packet_count: u32, target_fps: u32) -> u32 {
-    let max_packets: u32 = ((1000 / target_fps) << 1);
+    let max_packets: u32 = ((1000 / target_fps) * 2);
     if (packet_count > max_packets) {
         let reduction_needed: u32 = (packet_count - max_packets);
         return reduction_needed;
@@ -319,10 +319,10 @@ pub fn generate_traffic_animation(packets: [u32; MAX_PACKETS as usize], packet_c
     let complexity: u32 = calculate_animation_complexity(packet_count, path_count, node_count);
     let optimization: u32 = optimize_animation_performance(packet_count, ANIMATION_FPS);
     let actual_packet_count: u32 = (packet_count - optimization);
-    let timeline: u32 = create_animation_timeline(0, duration_frames, 0, 1);
+    let timeline: u32 = create_animation_timeline(0, total_frames, 0, 1);
     let heat_map: u32 = generate_traffic_heat_map(packets, actual_packet_count, node_count);
     let max_traffic: u32 = ((heat_map >> 24) & 0xFF);
-    return (((((duration_frames & 0xFF) << 24) | ((complexity & 0xFF) << 16)) | ((actual_packet_count & 0xFF) << 8)) | (max_traffic & 0xFF));
+    return (((((total_frames & 0xFF) << 24) | ((complexity & 0xFF) << 16)) | ((actual_packet_count & 0xFF) << 8)) | (max_traffic & 0xFF));
 }
 
 pub fn create_animation_controls(play_pause: u32, step_forward: u32, step_backward: u32, reset: u32) -> u32 {

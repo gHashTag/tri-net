@@ -33,8 +33,16 @@ pub fn inject_crc_error(packet: u32) -> u32 {
     return (packet + 1);
 }
 
+pub fn duplicate_packet(packet: u32) -> (u32, u32) {
+    return (packet, packet);
+}
+
 pub fn is_duplicate(pkt1: u32, pkt2: u32) -> bool {
     return (pkt1 == pkt2);
+}
+
+pub fn inject_out_of_order(pkt1: u32, pkt2: u32) -> (u32, u32) {
+    return (pkt2, pkt1);
 }
 
 pub fn check_replay(packet: u32, last_seq: u32) -> bool {

@@ -64,13 +64,13 @@ pub fn find_index(table: u32, target_id: u32) -> u32 {
 
 pub fn set_entry(table: u32, index: u32, new_entry: u32) -> u32 {
     if (index == 0) {
-        return ((table & 0xFFFFFFFFFFFFFFFF0000000000000000) | ((new_entry as u64) << 192));
+        return ((((table & 0xFFFFFFFFFFFFFFFF0000000000000000) as u64) | ((new_entry as u64) << 192))) as u32;
     } else {
         if (index == 1) {
-            return ((table & 0xFFFFFFFFFFFFFFFF0000000000000000) | ((new_entry as u64) << 128));
+            return ((((table & 0xFFFFFFFFFFFFFFFF0000000000000000) as u64) | ((new_entry as u64) << 128))) as u32;
         } else {
             if (index == 2) {
-                return ((table & 0xFFFFFFFFFFFFFFFF0000000000000000) | ((new_entry as u64) << 64));
+                return ((((table & 0xFFFFFFFFFFFFFFFF0000000000000000) as u64) | ((new_entry as u64) << 64))) as u32;
             } else {
                 return (table & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF);
             }

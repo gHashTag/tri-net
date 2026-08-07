@@ -164,8 +164,8 @@ pub fn decompress_delta(encoded: u32, previous: u32) -> u32 {
 
 pub fn choose_compression_method(data: u32, previous: u32, dictionary: [u32; DICTIONARY_SIZE as usize]) -> u32 {
     let data_nibbles: u32 = 8;
-    let rle_compressed: u32 = compress_rle(data, 8);
-    let rle_ratio: u32 = calculate_compression_ratio(8, rle_compressed);
+    let rle_compressed: u32 = compress_rle(data, data_nibbles);
+    let rle_ratio: u32 = calculate_compression_ratio(data_nibbles, rle_compressed);
     let delta_compressed: u32 = compress_delta(data, previous);
     let mut delta_size: u32 = 0;
     if (delta_compressed < 16) {
@@ -177,7 +177,7 @@ pub fn choose_compression_method(data: u32, previous: u32, dictionary: [u32; DIC
             delta_size = 3;
         }
     }
-    let delta_ratio: u32 = calculate_compression_ratio(8, delta_size);
+    let delta_ratio: u32 = calculate_compression_ratio(data_nibbles, delta_size);
     if ((rle_ratio > delta_ratio) && (rle_ratio > 120)) {
         return METHOD_RLE;
     } else {
@@ -261,7 +261,7 @@ pub fn find_pattern(data: u32, pattern: u32) -> u32 {
     let mask: u32 = 0xFFFFFFFF;
     let mut i: u32 = 0;
     while (i < 32) {
-        let shifted: u32 = ((data >> i) & 0xFFFFFFFF);
+        let shifted: u32 = ((data >> i) & mask);
         if (shifted == pattern) {
             return i;
         }

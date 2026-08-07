@@ -31,7 +31,7 @@ pub fn predict_next_etx(current: u8, trend: i8) -> u8 {
 }
 
 pub fn is_degrading(current_etx: u8, trend: i8) -> bool {
-    ((current_etx > QUALITY_POOR) && (trend > TREND_THRESHOLD));
+    ((current_etx > QUALITY_POOR) && (trend > (TREND_THRESHOLD as i8)));
 }
 
 pub fn quality_score(etx: u8, latency_ms: u16) -> u8 {
