@@ -144,3 +144,7 @@ path = "tests/gft_ladder_accuracy.rs"
 [[test]]
 name = "gft_range_coverage"
 path = "tests/gft_range_coverage.rs"
+
+[[test]]
+name = "gft8_vs_fp8"
+path = "tests/gft8_vs_fp8.rs"
