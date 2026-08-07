@@ -116,6 +116,23 @@ module TriComputePool {
         assert(pool_share(1000, 0, 96) == 0, "a node with no work earns nothing");
     }
 
+    // The pool split is ALREADY rung-proportional: `work` is the summed GF WIDTH of a
+    // node's receipts, and width encodes the rung (GF-T64 width 64 vs GF-T16 width 16).
+    // So for one op each, a GF-T64 node earns 4x a GF-T16 node's share -- exactly the
+    // width (rung) ratio -- with NO extra rung premium. A separate rung multiplier here
+    // (like the window/bond/reputation premiums) would DOUBLE-COUNT the width that already
+    // carries the rung; the rung must enter the pool exactly once, via width. This test
+    // pins that so no one later adds a redundant premium.
+    test pool_split_is_already_rung_proportional {
+        // one GF-T64 op (work 64) and one GF-T16 op (work 16); pool 1000, total 80
+        assert(pool_share(1000, 64, 80) == 800, "GF-T64 node earns 64/80 of the pool");
+        assert(pool_share(1000, 16, 80) == 200, "GF-T16 node earns 16/80");
+        assert(pool_share(1000, 64, 80) == 4 * pool_share(1000, 16, 80), "GF-T64 : GF-T16 = 4 : 1 = the width/rung ratio");
+        // GF-T8 (width 8) vs GF-T32 (width 32): 1 : 4, again the width ratio, no premium.
+        assert(pool_share(1000, 32, 40) == 800, "GF-T32 node earns 32/40");
+        assert(pool_share(1000, 8, 40) == 200, "GF-T8 node earns 8/40");
+    }
+
     // No over-issuance: the shares SUM to at most the pool (floor loses the dust).
     test no_over_issuance {
         s0 = pool_share(1000, 16, 96);

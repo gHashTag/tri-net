@@ -59,6 +59,32 @@ module TriComputeReputation {
         }
     }
 
+    // Honest-work trust accrual scaled by the RUNG. Correctly completing expensive,
+    // high-precision work is stronger evidence of capability than cheap low-precision
+    // work, so it should build reputation faster. base_gain applies at/below GF-T16
+    // (Et4); +REP_GAIN_PER_TRIT per exponent trit above it. This is a DIFFERENT axis
+    // from weighted_work: that scales a node's pool SHARE by width, this scales its
+    // TRUST SCORE by rung -- so a node proving itself on GF-T64 climbs to admissible
+    // reputation faster than one only ever doing GF-T8. gf_et is the ladder Et
+    // (tri_a2a.skill_et); mirrors the rung-aware window/bond premiums.
+    const GFT16_ET: u32 = 4;
+    const REP_GAIN_PER_TRIT: u32 = 3;  // extra honest-gain per exponent trit above GF-T16
+
+    fn rung_honest_gain(base_gain: u32, gf_et: u32) -> u32 {
+        if (gf_et <= GFT16_ET) {
+            return base_gain;
+        } else {
+            return base_gain + (gf_et - GFT16_ET) * REP_GAIN_PER_TRIT;
+        }
+    }
+
+    // rep_after_resolution with the rung-scaled honest gain. A proven SLASH still halves
+    // regardless of rung -- fraud is fraud -- and the u64 saturation in rep_after_honest
+    // still caps the result at REP_MAX for any gain.
+    fn rep_after_resolution_rung(rep: u32, outcome: u32, base_gain: u32, gf_et: u32) -> u32 {
+        return rep_after_resolution(rep, outcome, rung_honest_gain(base_gain, gf_et));
+    }
+
     // Symmetric driver for VERIFIERS (tri_compute_challenge.verifier_dissented):
     // the same fraud proof that judges the executor also judges the verifiers who
     // recomputed it. A verifier that dissented from a FORMED quorum is provably
@@ -112,6 +138,20 @@ module TriComputeReputation {
     test honest_raises_capped {
         assert(rep_after_honest(100, 20) == 120, "honest work gains reputation");
         assert(rep_after_honest(990, 50) == REP_MAX, "reputation is capped at REP_MAX");
+    }
+
+    // Honest work at a higher rung builds trust faster (rung-scaled gain), while a
+    // proven slash still halves regardless of rung and the REP_MAX cap still holds.
+    test rung_scales_honest_trust {
+        assert(rung_honest_gain(5, 4) == 5, "GF-T16 base gain");
+        assert(rung_honest_gain(5, 6) == 11, "GF-T32 gains more (+2 trits * 3)");
+        assert(rung_honest_gain(5, 9) == 20, "GF-T64 gains more still (+5 trits)");
+        assert(rung_honest_gain(5, 14) == 35, "GF-T128 gains most (+10 trits)");
+        assert(rung_honest_gain(5, 3) == 5, "sub-flagship uses the base (never shrinks)");
+        assert(rep_after_resolution_rung(100, RESOLVE_HONEST, 5, 9) == 120, "honest GF-T64: +20 trust");
+        assert(rep_after_resolution_rung(100, RESOLVE_HONEST, 5, 4) == 105, "honest GF-T16: +5 trust");
+        assert(rep_after_resolution_rung(100, RESOLVE_SLASH, 5, 9) == 50, "a GF-T64 slash still halves (fraud is fraud)");
+        assert(rep_after_resolution_rung(999, RESOLVE_HONEST, 100, 14) == REP_MAX, "cap holds even at a high rung + big gain");
     }
 
     // The cap survives an overflowing gain: a u32 rep + gain would wrap and slip past

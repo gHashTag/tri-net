@@ -54,6 +54,8 @@ module TriComputeGfValid {
         if (exp_trits == 6) { return 729; }
         if (exp_trits == 7) { return 2187; }
         if (exp_trits == 8) { return 6561; }
+        if (exp_trits == 9) { return 19683; }      // GF-T64
+        if (exp_trits == 14) { return 4782969; }   // GF-T128 (largest 3^Et that fits u32)
         return 0;
     }
 
@@ -61,14 +63,19 @@ module TriComputeGfValid {
         return gft_pow3(exp_trits) - 1;
     }
 
-    // The GF-T ladder's exponent-trit count for a nominal rung WIDTH (canonical, per
-    // ../t27/specs/numeric/gft{4,8,16,32}.t27): GF-T4 -> 2, GF-T8 -> 3, GF-T16 -> 4,
-    // GF-T32 -> 5 (Et = log2(width)). Unknown width -> 0 (no valid exponent).
+    // The GF-T ladder's exponent-trit count for a nominal rung WIDTH, per the RATIFIED
+    // golden (Fibonacci) rule Et = fib(k+1)+1 (tri_gft_ladder.width_to_et, the SSOT):
+    // GF-T4 -> 2, GF-T8 -> 3, GF-T16 -> 4, GF-T32 -> 6, GF-T64 -> 9, GF-T128 -> 14.
+    // (An earlier version used Et = log2(width); that coincides with fib+1 only through
+    // GF-T16 and wrongly gave GF-T32 -> 5. The silicon gft_mul32 uses bias 364 =
+    // (3^6-1)/2, i.e. Et 6 -- so log2 disagreed with the hardware.) Unknown width -> 0.
     fn gft_exp_trits_for_width(width: u32) -> u32 {
         if (width == 4) { return 2; }
         if (width == 8) { return 3; }
         if (width == 16) { return 4; }
-        if (width == 32) { return 5; }
+        if (width == 32) { return 6; }
+        if (width == 64) { return 9; }
+        if (width == 128) { return 14; }
         return 0;
     }
 
@@ -181,10 +188,12 @@ module TriComputeGfValid {
         assert(gft_offset_max(2) == 8, "GF-T4  special row = 3^2-1 = 8");
         assert(gft_offset_max(3) == 26, "GF-T8  special row = 3^3-1 = 26");
         assert(gft_offset_max(4) == 80, "GF-T16 special row = 3^4-1 = 80");
-        assert(gft_offset_max(5) == 242, "GF-T32 special row = 3^5-1 = 242");
+        assert(gft_offset_max(6) == 728, "GF-T32 special row = 3^6-1 = 728 (Et6, golden rule)");
+        assert(gft_offset_max(9) == 19682, "GF-T64 special row = 3^9-1 = 19682");
         assert(is_finite_gft_n(7, 2) == true, "GF-T4 offset 7 finite");
         assert(is_finite_gft_n(8, 2) == false, "GF-T4 offset 8 is special");
-        assert(is_finite_gft_n(242, 5) == false, "GF-T32 offset 242 is special");
+        assert(is_finite_gft_n(728, 6) == false, "GF-T32 offset 728 is special");
+        assert(is_finite_gft_n(242, 6) == true, "GF-T32 offset 242 is a NORMAL value (Et6), not special");
         assert(is_finite_gft_n(80, 4) == is_finite_gft16(80), "the alias is the Et=4 case");
         assert(is_finite_gft_n(40, 4) == is_finite_gft16(40), "alias agrees on finite too");
     }
@@ -199,9 +208,12 @@ module TriComputeGfValid {
         assert(gft_offset_max_for_width(4) == 8, "GF-T4 special row via width");
         assert(gft_offset_max_for_width(8) == 26, "GF-T8 special row via width");
         assert(gft_offset_max_for_width(16) == 80, "GF-T16 special row via width");
-        assert(gft_offset_max_for_width(32) == 242, "GF-T32 special row via width");
+        assert(gft_offset_max_for_width(32) == 728, "GF-T32 special row via width (Et6, golden rule)");
+        assert(gft_offset_max_for_width(64) == 19682, "GF-T64 special row via width");
+        assert(gft_offset_max_for_width(128) == 4782968, "GF-T128 special row via width");
         // width-derived offset_max agrees with the canonical rung constant.
         assert(gft_offset_max_for_width(16) == gft_offset_max(4), "width 16 -> Et 4 -> 80");
+        assert(gft_offset_max_for_width(32) == gft_offset_max(6), "width 32 -> Et 6 -> 728");
         // Unknown / crafted widths fail closed at 0, not the underflowed 0xFFFFFFFF.
         assert(gft_offset_max_for_width(0) == 0, "width 0 -> fail-closed offset_max 0");
         assert(gft_offset_max_for_width(7) == 0, "an off-ladder width -> fail-closed 0");
