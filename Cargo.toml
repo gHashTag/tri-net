@@ -126,5 +126,9 @@ name = "a2a_over_mesh_integrity"
 path = "tests/a2a_over_mesh_integrity.rs"
 
 [[test]]
+name = "a2a_mesh_drop_conservation"
+path = "tests/a2a_mesh_drop_conservation.rs"
+
+[[test]]
 name = "a2a_mesh_antireplay"
 path = "tests/a2a_mesh_antireplay.rs"
