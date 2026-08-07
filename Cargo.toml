@@ -228,3 +228,7 @@ path = "tests/bond_collateralization_gate.rs"
 [[test]]
 name = "optimistic_finality_lifecycle"
 path = "tests/optimistic_finality_lifecycle.rs"
+
+[[test]]
+name = "a2a_card_routing"
+path = "tests/a2a_card_routing.rs"
