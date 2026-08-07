@@ -124,3 +124,7 @@ path = "tests/gft_rung_over_wire.rs"
 [[test]]
 name = "a2a_over_mesh_integrity"
 path = "tests/a2a_over_mesh_integrity.rs"
+
+[[test]]
+name = "a2a_mesh_antireplay"
+path = "tests/a2a_mesh_antireplay.rs"
