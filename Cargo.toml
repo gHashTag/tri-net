@@ -272,3 +272,7 @@ path = "tests/ilv_interleaver.rs"
 [[test]]
 name = "fec_ilv_burst_recovery"
 path = "tests/fec_ilv_burst_recovery.rs"
+
+[[test]]
+name = "settle_mint_gate"
+path = "tests/settle_mint_gate.rs"
