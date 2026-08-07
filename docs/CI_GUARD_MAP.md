@@ -122,14 +122,17 @@ the GF-T ladder's precision/range promises and honest head-to-head vs BitNet-1.5
 ---
 
 ## Known NOT-CI-guarded (honest gaps)
-- **`tri_sha256` (the hand-written spec SHA-256)'s exact generated code** is not CI-run:
+- **`tri_sha256` (the hand-written spec SHA-256)'s generated code is not CI-EXECUTED**:
   it is used by production digest bins (`trinet_receipt_digest` / `_input_digest` /
-  `_settle_signed`), but those bins are not cargo targets and its `gen/rust` is not
-  CI-buildable (no `t27c` in the `build + test` job). Its `abc` KAT lives only in
-  un-executed spec blocks. **Partially anchored** by `sha256_kat_anchor`: an independent
-  NIST FIPS 180-4 SHA-256 pins the canonical KAT vectors, agrees with the `sha2` crate
-  across block boundaries, and confirms the spec's `abc` h0..h7 are real SHA-256 -- so
-  the ALGORITHM and expected values are CI-anchored even though the hand gen is not run.
+  `_settle_signed`), but those bins are not cargo targets, so `cargo test` never runs
+  the gen. **Anchored on two sides now**: `sha256_kat_anchor` pins the ALGORITHM and
+  expected values (independent NIST FIPS 180-4 == KAT vectors == `sha2` crate), and the
+  `sha256-gen-check` workflow pins spec<->gen SYNC (rebuilds t27c from upstream master
+  and diffs `gen/rust/tri_sha256.rs` against `t27c gen-rust specs/tri_sha256.t27`; the
+  broad `spec-drift-guard` does not cover tri_sha256 at all). The gen was refreshed
+  once under this guard: the committed file was missing `sha256_compress` /
+  `sha256_pad2_word` that production bins already call; the refreshed gen passes the
+  `abc` KAT. Still open: actually EXECUTING the gen under `cargo test`.
 - **`tri_ledger`** uses the non-cryptographic `mix32` (structural demo); the
   tamper-evident-commitment *concept* is CI-guarded with the real `sha2` hash in
   `gft_ledger_settlement`, and the sibling `tri_merkle` mix32 STRUCTURE is now pinned by
