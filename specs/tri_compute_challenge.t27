@@ -186,6 +186,41 @@ module TriComputeChallenge {
         }
     }
 
+    // ---- Ladder-rung guard ----
+    //
+    // The GF-T ladder now spans many rungs (GF-T16/32/64/...), each a DIFFERENT
+    // geometry (Et = fib+1; bias/offset_max derive from Et). tri_compute_receipt's
+    // receipt_leaf_gf_rung binds Et into the attestation, so a dispute must recompute
+    // gf_op at the SAME rung the executor committed. A challenger who recomputes at
+    // GF-T16 geometry against a GF-T64 receipt is comparing the wrong numbers and must
+    // NOT slash -- reject it explicitly (the ladder analogue of family_matches), so the
+    // reason is legible instead of hidden inside a leaf miscompare.
+    const RESOLVE_RUNG_MISMATCH: u32 = 6;   // INDETERMINATE took 5
+
+    fn rung_matches(settled_et: u32, dispute_et: u32) -> bool {
+        return settled_et == dispute_et;
+    }
+
+    // resolve_full + the rung guard, in the only safe order: freshness, then family
+    // (coarsest), then rung (which ladder step), then the leaf-anchored recompute.
+    // settled_et / dispute_et are width_to_et(width) from the ladder SSOT. A wrong-rung
+    // dispute is RESOLVE_RUNG_MISMATCH -- no bond moves.
+    fn resolve_full_rung(last_epoch: u32, dispute_epoch: u32, settled_family: u32, dispute_family: u32, settled_et: u32, dispute_et: u32, settled_leaf: u32, dispute_leaf: u32, claimed_result: u32, recomputed_result: u32) -> u32 {
+        if (dispute_epoch > last_epoch) {
+            if (settled_family == dispute_family) {
+                if (settled_et == dispute_et) {
+                    return resolve_bound(settled_leaf, dispute_leaf, claimed_result, recomputed_result);
+                } else {
+                    return RESOLVE_RUNG_MISMATCH;
+                }
+            } else {
+                return RESOLVE_FAMILY_MISMATCH;
+            }
+        } else {
+            return RESOLVE_STALE;
+        }
+    }
+
     // 256-bit-anchored GF dispute: resolve_bound anchors on the 32-bit receipt leaf
     // (~2^16 birthday collision), but the receipt carries a 256-bit SHA-256 digest
     // (tri_compute_receipt.sign_digest / digest_pre). Anchor on it instead -- the
@@ -706,6 +741,31 @@ module TriComputeChallenge {
         assert(outcome == RESOLVE_FAMILY_MISMATCH, "cross-family -> family mismatch");
         assert(executor_bond_after(1000, outcome) == 1000, "executor bond safe under confusion");
         assert(challenger_stake_after_bound(50, outcome) == 0, "family-confusion griefer stake burned");
+    }
+
+    // A same-family dispute that recomputes at the WRONG ladder rung does not slash: a
+    // GF-T64 receipt (Et 9) challenged by a GF-T16 recompute (Et 4) is the wrong numbers.
+    test rung_confusion_rejected {
+        // Fresh, same family (GF-T), leaves anchored, results differ -- but rungs differ.
+        wrong = resolve_full_rung(5, 6, FMT_GFT, FMT_GFT, 9, 4, 0xAAAA, 0xAAAA, 0x11, 0x22);
+        assert(rung_matches(9, 4) == false, "GF-T64 (Et9) != GF-T16 (Et4)");
+        assert(wrong == RESOLVE_RUNG_MISMATCH, "wrong-rung recompute -> rung mismatch, no slash");
+        assert(executor_bond_after(1000, wrong) == 1000, "executor bond safe under rung confusion");
+        assert(challenger_stake_after_bound(50, wrong) == 0, "rung-confusion griefer stake burned");
+        // Same rung, anchored, results differ -> a real slash still goes through.
+        slash = resolve_full_rung(5, 6, FMT_GFT, FMT_GFT, 9, 9, 0xAAAA, 0xAAAA, 0x11, 0x22);
+        assert(slash == RESOLVE_SLASH, "same rung + anchored + wrong result -> slash");
+        // Same rung, results match -> honest.
+        honest = resolve_full_rung(5, 6, FMT_GFT, FMT_GFT, 9, 9, 0xAAAA, 0xAAAA, 0x33, 0x33);
+        assert(honest == RESOLVE_HONEST, "same rung + matching result -> honest");
+    }
+
+    // Guard precedence: staleness dominates, then family, then rung -- coarsest first.
+    test rung_guard_precedence {
+        stale = resolve_full_rung(6, 6, FMT_GFT, FMT_GFT, 9, 4, 0xAAAA, 0xAAAA, 0x11, 0x22);
+        assert(stale == RESOLVE_STALE, "stale short-circuits before the rung check");
+        fam = resolve_full_rung(5, 6, FMT_GF_BINARY, FMT_GFT, 9, 4, 0xAAAA, 0xAAAA, 0x11, 0x22);
+        assert(fam == RESOLVE_FAMILY_MISMATCH, "family mismatch dominates a rung mismatch");
     }
 
     // The 256-bit-anchored GF dispute: leaf_match is the caller's 8-word digest
