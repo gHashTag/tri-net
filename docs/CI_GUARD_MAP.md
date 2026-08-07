@@ -96,6 +96,21 @@ per-rung); the reduction order is normative there, not only in silicon.
 | `gft_rung_premium_consistency` | the three rung-aware axes (window/bond/reputation) share one premium shape |
 | `gft_ledger_settlement` | honest batches finalize into a tamper-evident chained head; a wrong dot cannot finalize |
 | `money_lifecycle_e2e` | **composition**: one outcome drives every money layer to the SAME verdict; value conserved on both the honest and fraud paths |
+| `gfvalid_settle_integration` | **composition**: gfvalid feeds settle end to end -- a garbage (inf/nan/out-of-range) result mints NOTHING even when signed and fresh; the honest twin mints exactly once |
+
+## Crypto root and commitment structure
+| guard | property pinned |
+|-------|-----------------|
+| `sha256_kat_anchor` | an independent NIST FIPS 180-4 SHA-256 == the canonical KAT vectors == the `sha2` crate across block boundaries; the spec's `abc` h0..h7 are real SHA-256 |
+| `merkle_mix32_structure` | the tri_merkle mix32 commitment tree structure: leaf/node domain separation, order sensitivity, one-bit avalanche, odd-leaf duplication rule |
+
+## Ladder SSOT and silicon geometry
+| guard | property pinned |
+|-------|-----------------|
+| `ladder_canon_ssot` | the ratified ladder is self-consistent: golden Fibonacci rule Et = fib(k+1)+1, widths/mant_bits monotone, one canonical table |
+| `ladder_bias_vs_silicon` | SSOT bias == `parameter BIAS` in the actual synthesizable `.v` (GF-T32/64 multipliers) |
+| `ladder_geometry_vs_silicon` | SSOT offset_max (3^Et-1) and mant_one (2^mant_bits) == `parameter OFFSET_MAX`/`MANT_ONE` in `gft_mul32.v`/`gft_mul64.v` |
+| `adder_geometry_vs_silicon` | the ADDER shares the same rung geometry: `gft_add.v`/`gft_add64.v` OFFSET_MAX, MANT_ONE, and SIG_BITS (= mant_bits+1) == SSOT |
 
 ## Numeric ladder (accuracy vs competitors)
 `gft4_vs_bitnet`, `gft8_vs_fp8`, `gft_ladder_accuracy`, `gft_ladder_cures_tiny_weights`,
@@ -115,6 +130,8 @@ the GF-T ladder's precision/range promises and honest head-to-head vs BitNet-1.5
   NIST FIPS 180-4 SHA-256 pins the canonical KAT vectors, agrees with the `sha2` crate
   across block boundaries, and confirms the spec's `abc` h0..h7 are real SHA-256 -- so
   the ALGORITHM and expected values are CI-anchored even though the hand gen is not run.
-- **`tri_merkle` / `tri_ledger`** use the non-cryptographic `mix32` (structural demos);
-  the tamper-evident-commitment *concept* is CI-guarded with the real `sha2` hash in
-  `gft_receipt_batch` / `gft_ledger_settlement`, not their exact `mix32` functions.
+- **`tri_ledger`** uses the non-cryptographic `mix32` (structural demo); the
+  tamper-evident-commitment *concept* is CI-guarded with the real `sha2` hash in
+  `gft_ledger_settlement`, and the sibling `tri_merkle` mix32 STRUCTURE is now pinned by
+  `merkle_mix32_structure` -- the ledger's own mix32 chain structure is the one
+  remaining un-pinned demo (same pattern would close it).
