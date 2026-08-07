@@ -144,6 +144,24 @@ module TriGftAdd {
         return gft_add_mant_c(s01o, s23o, s01m, s23m);
     }
 
+    // Per-rung canonical dot4: the SAME balanced tree, threaded with mant_one / sig_bits so the
+    // order is normative up the ladder (GF-T8 16/5, GF-T16 512/10, GF-T32 2^25/26). GF-T64 uses a
+    // 2^64 significand that overflows u32, so it is guarded in Rust (tests/gft64_dot_reduction_order).
+    fn gft_dot4_offset_p(o0: u32, m0: u32, o1: u32, m1: u32, o2: u32, m2: u32, o3: u32, m3: u32, offset_max: u32, mant_one: u32, sig_bits: u32) -> u32 {
+        let s01o: u32 = gft_add_offset_c_p(o0, o1, m0, m1, offset_max, mant_one, sig_bits);
+        let s01m: u32 = gft_add_mant_c_p(o0, o1, m0, m1, mant_one, sig_bits);
+        let s23o: u32 = gft_add_offset_c_p(o2, o3, m2, m3, offset_max, mant_one, sig_bits);
+        let s23m: u32 = gft_add_mant_c_p(o2, o3, m2, m3, mant_one, sig_bits);
+        return gft_add_offset_c_p(s01o, s23o, s01m, s23m, offset_max, mant_one, sig_bits);
+    }
+    fn gft_dot4_mant_p(o0: u32, m0: u32, o1: u32, m1: u32, o2: u32, m2: u32, o3: u32, m3: u32, offset_max: u32, mant_one: u32, sig_bits: u32) -> u32 {
+        let s01o: u32 = gft_add_offset_c_p(o0, o1, m0, m1, offset_max, mant_one, sig_bits);
+        let s01m: u32 = gft_add_mant_c_p(o0, o1, m0, m1, mant_one, sig_bits);
+        let s23o: u32 = gft_add_offset_c_p(o2, o3, m2, m3, offset_max, mant_one, sig_bits);
+        let s23m: u32 = gft_add_mant_c_p(o2, o3, m2, m3, mant_one, sig_bits);
+        return gft_add_mant_c_p(s01o, s23o, s01m, s23m, mant_one, sig_bits);
+    }
+
     // ---- Tests / invariants ---- (GF-T16 offset 40 = 2^0; M=0 -> 1.0, M=256 -> 1.5)
 
     // Equal operands double: 1.0 + 1.0 = 2.0 (exponent +1, mantissa 0).
@@ -210,5 +228,19 @@ module TriGftAdd {
         // Plain sanity: four 1.0 lanes sum to 4.0 -> exponent 42, mantissa 0.
         assert(gft_dot4_offset(40, 0, 40, 0, 40, 0, 40, 0, 80) == 42, "4 x 1.0 = 4.0 -> offset 42");
         assert(gft_dot4_mant(40, 0, 40, 0, 40, 0, 40, 0, 80) == 0, "4.0 mantissa 0");
+    }
+
+    // The per-rung dot4 uses the SAME canonical tree threaded with mant_one / sig_bits, so the
+    // reduction order is normative across the ladder, not only GF-T16.
+    test dot4_p_canonical_tree_per_rung {
+        // GF-T16 (512/10, offset_max 80) reproduces the non-parametric divergent result (47,9).
+        assert(gft_dot4_offset_p(40, 64, 45, 0, 46, 256, 40, 64, 80, 512, 10) == 47, "GF-T16 _p tree offset 47");
+        assert(gft_dot4_mant_p(40, 64, 45, 0, 46, 256, 40, 64, 80, 512, 10) == 9, "GF-T16 _p tree mantissa 9");
+        // GF-T8 (16/5, offset_max 26): four 1.0 lanes = (13,0) sum to 4.0 -> exponent 15.
+        assert(gft_dot4_offset_p(13, 0, 13, 0, 13, 0, 13, 0, 26, 16, 5) == 15, "GF-T8 4 x 1.0 = 4.0 -> offset 15");
+        assert(gft_dot4_mant_p(13, 0, 13, 0, 13, 0, 13, 0, 26, 16, 5) == 0, "GF-T8 4.0 mantissa 0");
+        // GF-T32 (2^25/26, offset_max 728): four 1.0 lanes = (364,0) sum to 4.0 -> exponent 366.
+        assert(gft_dot4_offset_p(364, 0, 364, 0, 364, 0, 364, 0, 728, 33554432, 26) == 366, "GF-T32 4 x 1.0 = 4.0 -> offset 366");
+        assert(gft_dot4_mant_p(364, 0, 364, 0, 364, 0, 364, 0, 728, 33554432, 26) == 0, "GF-T32 4.0 mantissa 0");
     }
 }
