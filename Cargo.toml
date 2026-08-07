@@ -260,3 +260,7 @@ path = "tests/discovery_beacon_gates.rs"
 [[test]]
 name = "crypto_frame_replay"
 path = "tests/crypto_frame_replay.rs"
+
+[[test]]
+name = "crypto_frame_nonce"
+path = "tests/crypto_frame_nonce.rs"
