@@ -101,6 +101,10 @@ path = "tests/goldenfloat_family_ladder.rs"
 name = "goldenfloat_ternary_ladder"
 path = "tests/goldenfloat_ternary_ladder.rs"
 
+[[test]]
+name = "goldenfloat_conformance"
+path = "tests/goldenfloat_conformance.rs"
+
 [profile.release]
 opt-level = "z"
 lto = true
