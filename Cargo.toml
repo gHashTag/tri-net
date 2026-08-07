@@ -140,3 +140,7 @@ path = "tests/a2a_mesh_multipath.rs"
 [[test]]
 name = "gft_ladder_accuracy"
 path = "tests/gft_ladder_accuracy.rs"
+
+[[test]]
+name = "gft_upper_rung_precision"
+path = "tests/gft_upper_rung_precision.rs"
