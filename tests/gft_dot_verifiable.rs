@@ -14,10 +14,11 @@
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use sha2::{Digest, Sha256};
 
-// ---- GF-T16 dot-product oracle (integer). NOTE: this folds lane products SEQUENTIALLY (left
-// fold). GF-T add is non-associative, so this matches the silicon gft_dot4 tree only for <=2 lanes
-// (a single add); at >=4 lanes the two orders diverge by up to 1 ULP -- see gft_dot_reduction_order.
-// The tests below use 2-lane dots, where the fold order is immaterial. ----
+// ---- GF-T16 dot-product oracle (integer). It folds lane products in the SILICON BALANCED-TREE
+// order (gft_dot4.v: (p0+p1)+(p2+p3)), matching the on-silicon gft_macc / gft_dot4 at every lane
+// count. GF-T add is non-associative (RTZ renorm), so a naive left fold would diverge from the tree
+// at >=4 lanes and falsely slash an honest executor -- fixed here; see gft_dot_reduction_order for
+// the divergence and the_tree_order_dot_matches_silicon_and_beats_a_left_fold below for the guard. ----
 const BIAS: u64 = 40;
 const OFFSET_MAX: u64 = 80;
 const MANT_ONE: u64 = 512;
@@ -80,11 +81,27 @@ fn add(a: (u64, u64), b: (u64, u64)) -> (u64, u64) {
     (off, mant)
 }
 fn dot(operands: &[(u16, u16)]) -> u16 {
-    let mut acc = (0u64, 0u64);
-    for (i, &(a, b)) in operands.iter().enumerate() {
-        let p = mul(a, b);
-        acc = if i == 0 { p } else { add(acc, p) };
+    // Reduce the lane products in the SILICON BALANCED-TREE order (gft_dot4.v: (p0+p1)+(p2+p3)),
+    // NOT a left fold. GF-T add is non-associative (RTZ renorm), so a left fold diverges from the
+    // silicon tree at >=4 lanes and would falsely slash an honest executor (see tests/
+    // gft_dot_reduction_order). Pairwise tree reduction: a level halves the vector, adding neighbors
+    // and carrying an odd tail up. This is identical to the old left fold at 1..=3 lanes (one add,
+    // or ((p0+p1)+p2)) and equals the silicon 3-adder tree at 4 lanes.
+    let mut level: Vec<(u64, u64)> = operands.iter().map(|&(a, b)| mul(a, b)).collect();
+    while level.len() > 1 {
+        let mut next: Vec<(u64, u64)> = Vec::with_capacity(level.len().div_ceil(2));
+        let mut i = 0;
+        while i < level.len() {
+            if i + 1 < level.len() {
+                next.push(add(level[i], level[i + 1]));
+            } else {
+                next.push(level[i]); // odd tail carries up unchanged
+            }
+            i += 2;
+        }
+        level = next;
     }
+    let acc = level.first().copied().unwrap_or((0, 0));
     (((acc.0 & 0x7F) << 9) | (acc.1 & 0x1FF)) as u16
 }
 
@@ -198,4 +215,56 @@ fn oracle_agrees_with_silicon_vectors() {
         dot(&[(0x5300, 0x5300), (0x5200, 0x5200), (0x5400, 0x5200)]),
         0x58A0
     ); // 21
+}
+
+// Regression for the sequential-fold bug (task_fe1cfda7): at >=4 lanes the oracle must fold in the
+// silicon balanced-tree order, not a left fold. This searches GF16 operand quads for a case where a
+// left fold DIVERGES from the tree, then asserts dot() computes the tree value (so an honest silicon
+// executor is NOT falsely slashed) and NOT the left-fold value.
+#[test]
+fn the_tree_order_dot_matches_silicon_and_beats_a_left_fold() {
+    // A left-fold reference over the SAME mul/add, for the comparison only.
+    fn dot_leftfold(ops: &[(u16, u16)]) -> u16 {
+        let mut acc = (0u64, 0u64);
+        for (i, &(a, b)) in ops.iter().enumerate() {
+            let p = mul(a, b);
+            acc = if i == 0 { p } else { add(acc, p) };
+        }
+        (((acc.0 & 0x7F) << 9) | (acc.1 & 0x1FF)) as u16
+    }
+    // The silicon balanced tree for 4 lanes, computed directly.
+    fn tree4(ops: &[(u16, u16); 4]) -> u16 {
+        let p: Vec<(u64, u64)> = ops.iter().map(|&(a, b)| mul(a, b)).collect();
+        let s01 = add(p[0], p[1]);
+        let s23 = add(p[2], p[3]);
+        let t = add(s01, s23);
+        (((t.0 & 0x7F) << 9) | (t.1 & 0x1FF)) as u16
+    }
+    // Search operand quads (varying offset+mant) for a left-fold vs tree divergence.
+    let vals: [u16; 6] = [0x5000, 0x5240, 0x5680, 0x5A80, 0x4E20, 0x52C0];
+    let mut found = 0;
+    for &a in &vals {
+        for &b in &vals {
+            for &c in &vals {
+                for &d in &vals {
+                    let quad = [(a, a), (b, b), (c, c), (d, d)];
+                    let tree = tree4(&quad);
+                    let left = dot_leftfold(&quad);
+                    if tree != left {
+                        // dot() must match the silicon tree, never the left fold.
+                        assert_eq!(dot(&quad), tree, "dot must fold in the silicon tree order");
+                        assert_ne!(dot(&quad), left, "dot must NOT match a left fold (the bug)");
+                        found += 1;
+                    } else {
+                        // where they agree, dot() equals both (2/3-lane and non-divergent 4-lane).
+                        assert_eq!(dot(&quad), tree);
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        found > 0,
+        "the search must exhibit at least one left-fold vs tree divergence"
+    );
 }
