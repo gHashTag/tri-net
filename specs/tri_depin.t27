@@ -126,9 +126,9 @@ module TriDepin {
 
     // Size-binding at the accumulator: same digest, different byte count -> diff acc.
     test absorb_size_bound {
-        small = relay_absorb(TRI_GENESIS, 0xAAAA0001, 70);
+        small_acc = relay_absorb(TRI_GENESIS, 0xAAAA0001, 70);
         big   = relay_absorb(TRI_GENESIS, 0xAAAA0001, 1200);
-        assert(small != big, "bytes bound in acc");
+        assert(small_acc != big, "bytes bound in acc");
     }
 
     // Identity-binding: identical work, different node key -> different seal.
