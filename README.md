@@ -5,6 +5,9 @@ P201/P203 **Zynq-7020 Mini**, doubling as a Helium-style DePIN-node with four
 supply-side arms (transport / compute / coverage / sensor).
 Part of the Trinity Project. Anchor: **φ² + φ⁻² = 3**.
 
+> 🌍 **Civilian connectivity.** tri-net is built for peaceful, civilian use — rural & remote internet access, disaster-relief communications, and community-owned mesh networks. Open-source, encrypted, self-healing.
+
+
 > Naming: this is the **mesh internet-delivery** track plus the DePIN economic
 > layer on top. Distinct from the ternary-computing "TRI-NET" silicon-node work in
 > `gHashTag/trinity`, `gHashTag/tt-trinity-*`.
