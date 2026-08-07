@@ -1,13 +1,12 @@
 name: spec-drift-guard
+# No pull_request paths filter: this check is REQUIRED by the main-branch ruleset,
+# and a path-filtered required check never reports on PRs outside its paths --
+# GitHub then blocks the merge waiting for it forever. Running on every PR
+# (~4-5 min) is the price of requiring it.
 on:
   push:
     branches: [main]
   pull_request:
-    paths:
-      - "specs/**"
-      - "gen/**"
-      - "build.rs"
-      - ".github/workflows/spec-drift-guard.yml"
 
 # Rebuild t27c from upstream master and regenerate every committed backend
 # under gen/<target>/<spec>.<ext> from specs/<spec>.t27. If any committed
