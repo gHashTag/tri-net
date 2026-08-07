@@ -148,21 +148,35 @@ const OLD_BUGGY_OFFSET_MAX: u64 = 242; // Et5 = log2(32) -- WRONG, kept only to 
 #[test]
 fn restored_offset_band_is_real_gf_t32_output() {
     // Multiplies of 1.0*2^k by itself, landing squarely inside (242, 728].
-    let cases = [(400u64, 436u64), (450, 536), (500, 636), (525, 686), (540, 716)];
+    let cases = [
+        (400u64, 436u64),
+        (450, 536),
+        (500, 636),
+        (525, 686),
+        (540, 716),
+    ];
     for (o, expect_off) in cases {
         let (off, mant) = mul32(o, 0, o, 0);
         assert_eq!((off, mant), (expect_off, 0), "({o},0)^2 offset");
         // A REAL, honest GF-T32 output (the recompute accepts it)...
         assert!(!slashes(o, 0, o, 0, (off, mant)), "honest, must not slash");
         // ...above the old (buggy) 242 ceiling...
-        assert!(off > OLD_BUGGY_OFFSET_MAX, "offset {off} sits above the old 242 ceiling");
+        assert!(
+            off > OLD_BUGGY_OFFSET_MAX,
+            "offset {off} sits above the old 242 ceiling"
+        );
         // ...yet finite under the correct Et6 rule (special row 728).
-        assert!(off < OFFSET_MAX, "offset {off} is below the true special row 728 -> finite");
+        assert!(
+            off < OFFSET_MAX,
+            "offset {off} is below the true special row 728 -> finite"
+        );
     }
     // The bug made explicit: offset 636 is a finite GF-T32 value under Et6, but the old
     // Et5/242 rule fail-closed it -> the executor was denied payment for honest work.
     let (off, _) = mul32(500, 0, 500, 0);
     assert_eq!(off, 636);
-    assert!(off > OLD_BUGGY_OFFSET_MAX && off < OFFSET_MAX,
-        "GF-T32 offset 636 finite under Et6 but out-of-range under Et5 -- the money-layer bug");
+    assert!(
+        off > OLD_BUGGY_OFFSET_MAX && off < OFFSET_MAX,
+        "GF-T32 offset 636 finite under Et6 but out-of-range under Et5 -- the money-layer bug"
+    );
 }
