@@ -92,7 +92,10 @@ fn one_rung_flows_intact_through_every_layer() {
     // Layer 2: the receipt commits that rung.
     let leaf = receipt_leaf_rung(width, et, 0x11, 0xABCD);
     let leaf_wrong_rung = receipt_leaf_rung(width, 4, 0x11, 0xABCD); // Et4 = GF-T16
-    assert_ne!(leaf, leaf_wrong_rung, "a GF-T16-rung receipt differs from the GF-T32 one");
+    assert_ne!(
+        leaf, leaf_wrong_rung,
+        "a GF-T16-rung receipt differs from the GF-T32 one"
+    );
 
     // Layer 3: an honest same-rung dispute slashes a wrong result; a wrong-rung recompute does not.
     assert_eq!(
@@ -109,9 +112,19 @@ fn one_rung_flows_intact_through_every_layer() {
     // Layer 4: a finite GF-T32 offset settles; the same offset would be wrongly rejected
     // under GF-T16's geometry (offset_max 80) -- the layers must not mix rungs.
     let offset = 500u32; // finite for Et6 (< 728), out of range for Et4 (< 80)
-    assert_eq!(settle(32, offset), 32, "GF-T32 offset 500 finite -> pays width 32");
-    assert!(offset >= offset_max(4), "the same offset is out of range for a GF-T16 rung");
-    assert!(offset < offset_max(6), "but finite for the true GF-T32 rung");
+    assert_eq!(
+        settle(32, offset),
+        32,
+        "GF-T32 offset 500 finite -> pays width 32"
+    );
+    assert!(
+        offset >= offset_max(4),
+        "the same offset is out of range for a GF-T16 rung"
+    );
+    assert!(
+        offset < offset_max(6),
+        "but finite for the true GF-T32 rung"
+    );
 }
 
 #[test]
@@ -119,7 +132,10 @@ fn the_wrong_rung_splice_is_caught_at_the_boundary() {
     // Attacker: assigned a GF-T32 task (Et6) but answers with a GF-T16 (Et4) computation.
     let assigned_et = skill_et(32); // 6
     let attacker_receipt_et = skill_et(16); // 4
-    assert_ne!(assigned_et, attacker_receipt_et, "the attacker's rung differs from the assignment");
+    assert_ne!(
+        assigned_et, attacker_receipt_et,
+        "the attacker's rung differs from the assignment"
+    );
 
     // Assignment-side bind (result_binds_assign_rung): skill_et(assigned) must equal receipt Et.
     let binds = assigned_et == attacker_receipt_et;
@@ -128,11 +144,22 @@ fn the_wrong_rung_splice_is_caught_at_the_boundary() {
     // Dispute-side: even if it slipped past ingress, the challenge rejects the rung.
     let leaf32 = receipt_leaf_rung(32, assigned_et, 0x11, 0x1234);
     assert_eq!(
-        resolve_full_rung(assigned_et, attacker_receipt_et, leaf32, leaf32, 0x1234, 0x1234),
+        resolve_full_rung(
+            assigned_et,
+            attacker_receipt_et,
+            leaf32,
+            leaf32,
+            0x1234,
+            0x1234
+        ),
         RESOLVE_RUNG_MISMATCH,
         "the wrong-rung splice is rejected on dispute, not slashed and not paid"
     );
 
     // And the log2 bug that once split the layers: width_to_et(32) must be 6, never log2(32)=5.
-    assert_eq!(width_to_et(32), 6, "the whole chain reads Et6 for GF-T32 -- not the old log2 5");
+    assert_eq!(
+        width_to_et(32),
+        6,
+        "the whole chain reads Et6 for GF-T32 -- not the old log2 5"
+    );
 }
