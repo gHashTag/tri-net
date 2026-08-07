@@ -300,3 +300,7 @@ path = "tests/ladder_bias_vs_silicon.rs"
 [[test]]
 name = "merkle_mix32_structure"
 path = "tests/merkle_mix32_structure.rs"
+
+[[test]]
+name = "ladder_geometry_vs_silicon"
+path = "tests/ladder_geometry_vs_silicon.rs"
