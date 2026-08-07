@@ -181,8 +181,16 @@ fn ternary_rung_geometry_table_is_pinned() {
         (128, 6, 14, 4782968, 2391484),
     ];
     for (w, k, et, omax, bias) in table {
-        assert_eq!(log2_width(w), k + 1, "GF-T{w}: rung index k = log2(width) - 1");
-        assert_eq!(tfib(k + 1) + 1, et, "GF-T{w}: Et = fib(k+1) + 1 (golden rule)");
+        assert_eq!(
+            log2_width(w),
+            k + 1,
+            "GF-T{w}: rung index k = log2(width) - 1"
+        );
+        assert_eq!(
+            tfib(k + 1) + 1,
+            et,
+            "GF-T{w}: Et = fib(k+1) + 1 (golden rule)"
+        );
         let p = pow3_u64(et);
         assert_eq!(p - 1, omax, "GF-T{w}: offset_max = 3^Et - 1");
         assert_eq!((p - 1) / 2, bias, "GF-T{w}: bias = (3^Et - 1)/2");
@@ -194,5 +202,9 @@ fn ternary_rung_geometry_table_is_pinned() {
     }
     assert_eq!(log2_width(32), 5, "log2(32) = 5 -- the WRONG GF-T32 Et");
     assert_eq!(tfib(5) + 1, 6, "the correct GF-T32 Et is 6, not 5");
-    assert_ne!(log2_width(32), tfib(5) + 1, "GF-T32 is exactly where log2 != the golden rule");
+    assert_ne!(
+        log2_width(32),
+        tfib(5) + 1,
+        "GF-T32 is exactly where log2 != the golden rule"
+    );
 }
