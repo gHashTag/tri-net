@@ -188,3 +188,7 @@ path = "tests/gft_sub_kat_cross.rs"
 [[test]]
 name = "gft_sub_verifiable_e2e"
 path = "tests/gft_sub_verifiable_e2e.rs"
+
+[[test]]
+name = "gft64_multihop_recompute_e2e"
+path = "tests/gft64_multihop_recompute_e2e.rs"
