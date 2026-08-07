@@ -2,7 +2,7 @@
 // GF16 activations. This is the target workload the whole GF-vs-ternary analysis
 // points at -- weights are the 0-DSP part (sign-select / popcount, as in
 // trinet_mac32), the GF16 activation and accumulated result are the value part
-// (magnitude, DSP or -nodsp soft-logic). One receipt binds BOTH: the packed
+// (magnitude, DSP or -nodsp soft-logic). One receipt binds BOTH: the packed_w
 // ternary weight code, the GF16 activation hash, and the GF16 result. It also
 // exposes the sparsity the ternary part exploits (zero weights are skipped).
 //
@@ -29,7 +29,7 @@ module TriComputeBitnet {
         return d ^ (d >> 16);
     }
 
-    // Count active (nonzero) ternary weights in a packed 4-trit word (2 bits each).
+    // Count active (nonzero) ternary weights in a packed_w 4-trit word (2 bits each).
     // This is the sparsity the 0-DSP path exploits: zero weights contribute
     // nothing and cost nothing.
     // A single 2-bit trit is ACTIVE (a real +1 or -1 weight) iff it is exactly 01
@@ -50,13 +50,13 @@ module TriComputeBitnet {
         }
     }
 
-    fn active_weights4(packed: u32) -> u32 {
-        return is_active(packed & 3) + is_active((packed >> 2) & 3)
-             + is_active((packed >> 4) & 3) + is_active((packed >> 6) & 3);
+    fn active_weights4(packed_w: u32) -> u32 {
+        return is_active(packed_w & 3) + is_active((packed_w >> 2) & 3)
+             + is_active((packed_w >> 4) & 3) + is_active((packed_w >> 6) & 3);
     }
 
     // Canonical packing: since 00 AND 11 both decode to 0, the SAME logical weight
-    // vector has multiple packed encodings (e.g. [0,0,0,0] is 0x00 or 0xFF or any
+    // vector has multiple packed_w encodings (e.g. [0,0,0,0] is 0x00 or 0xFF or any
     // mix), each hashing to a DIFFERENT bitnet_leaf -- weight malleability: one
     // logical matrix, many valid receipts. Fix a canonical form: a trit is
     // canonical iff it is NOT 0b11 (zero is always 00). A packing is canonical iff
@@ -71,13 +71,13 @@ module TriComputeBitnet {
         }
     }
 
-    fn weights_canonical4(packed: u32) -> u32 {
-        return trit_canonical(packed & 3) + trit_canonical((packed >> 2) & 3)
-             + trit_canonical((packed >> 4) & 3) + trit_canonical((packed >> 6) & 3);
+    fn weights_canonical4(packed_w: u32) -> u32 {
+        return trit_canonical(packed_w & 3) + trit_canonical((packed_w >> 2) & 3)
+             + trit_canonical((packed_w >> 4) & 3) + trit_canonical((packed_w >> 6) & 3);
     }
 
-    fn packing_is_canonical(packed: u32) -> bool {
-        return weights_canonical4(packed) == 4;
+    fn packing_is_canonical(packed_w: u32) -> bool {
+        return weights_canonical4(packed_w) == 4;
     }
 
     // ---- Signed decode: what the 0-DSP popcount-MAC actually sums ----
@@ -104,20 +104,20 @@ module TriComputeBitnet {
         }
     }
 
-    fn pos_weights4(packed: u32) -> u32 {
-        return is_pos(packed & 3) + is_pos((packed >> 2) & 3)
-             + is_pos((packed >> 4) & 3) + is_pos((packed >> 6) & 3);
+    fn pos_weights4(packed_w: u32) -> u32 {
+        return is_pos(packed_w & 3) + is_pos((packed_w >> 2) & 3)
+             + is_pos((packed_w >> 4) & 3) + is_pos((packed_w >> 6) & 3);
     }
 
-    fn neg_weights4(packed: u32) -> u32 {
-        return is_neg(packed & 3) + is_neg((packed >> 2) & 3)
-             + is_neg((packed >> 4) & 3) + is_neg((packed >> 6) & 3);
+    fn neg_weights4(packed_w: u32) -> u32 {
+        return is_neg(packed_w & 3) + is_neg((packed_w >> 2) & 3)
+             + is_neg((packed_w >> 4) & 3) + is_neg((packed_w >> 6) & 3);
     }
 
     // The signed ternary sum for unit activations, biased by 4 to fit u32: value 4
     // is a net zero, 8 is all +1, 0 is all -1. This is the popcount-MAC's core.
-    fn sign_balance_biased(packed: u32) -> u32 {
-        return (pos_weights4(packed) + 4) - neg_weights4(packed);
+    fn sign_balance_biased(packed_w: u32) -> u32 {
+        return (pos_weights4(packed_w) + 4) - neg_weights4(packed_w);
     }
 
     // Verifiable ternary part: the analogue of a GF-value recompute in a dispute.
@@ -179,7 +179,7 @@ module TriComputeBitnet {
 
     // Sparsity: nonzero trits are counted, zeros are skipped.
     test sparsity_count {
-        // packed 0x61 = trits [t0=+1, t1=0, t2=-1, t3=+1] -> 3 active
+        // packed_w 0x61 = trits [t0=+1, t1=0, t2=-1, t3=+1] -> 3 active
         assert(active_weights4(0x61) == 3, "three nonzero weights");
         assert(active_weights4(0x00) == 0, "all-zero weights -> nothing active");
         assert(active_weights4(0x55) == 4, "0x55 = four +1 trits -> 4 active");

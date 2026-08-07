@@ -4,7 +4,7 @@
 // demuxed by port, per tri_a2a). Fixed-length header (no variable-length parsing,
 // so no length-confusion / injection surface, unlike JSON-RPC A2A):
 //
-//   [ class(1) | task_id(4, big-endian) | skill(2, big-endian) | body... ]
+//   [ msg_class(1) | task_id(4, big-endian) | skill(2, big-endian) | body... ]
 //
 // taskAssign body = GF operands; taskResult body = the compute receipt.
 
@@ -37,16 +37,16 @@ module TriA2AWire {
         return OFF_BODY;
     }
 
-    // A message is well-formed iff its class is one of the known classes.
-    fn class_valid(class: u32) -> bool {
-        if (class == MSG_TASK_ASSIGN) { return class == class; }
-        else { if (class == MSG_TASK_RESULT) { return class == class; }
-        else { return class == MSG_HEARTBEAT; } }
+    // A message is well-formed iff its msg_class is one of the known classes.
+    fn class_valid(msg_class: u32) -> bool {
+        if (msg_class == MSG_TASK_ASSIGN) { return msg_class == msg_class; }
+        else { if (msg_class == MSG_TASK_RESULT) { return msg_class == msg_class; }
+        else { return msg_class == MSG_HEARTBEAT; } }
     }
 
     // Only a taskResult carries a receipt in its body (matches tri_a2a.carries_receipt).
-    fn body_has_receipt(class: u32) -> bool {
-        return class == MSG_TASK_RESULT;
+    fn body_has_receipt(msg_class: u32) -> bool {
+        return msg_class == MSG_TASK_RESULT;
     }
 
     // A signed taskResult body is the receipt fields followed by the executor's
@@ -56,8 +56,8 @@ module TriA2AWire {
     const SIG_LEN: u32 = 64;   // Ed25519 signature = 64 bytes
 
     // Only a taskResult carries a signature (a taskAssign has no result to sign).
-    fn body_has_signature(class: u32) -> bool {
-        return class == MSG_TASK_RESULT;
+    fn body_has_signature(msg_class: u32) -> bool {
+        return msg_class == MSG_TASK_RESULT;
     }
 
     // Byte offset of the signature inside the datagram, after a receipt body of the
@@ -118,7 +118,7 @@ module TriA2AWire {
 
     // The header is fixed-length; the body starts right after it.
     test header_layout {
-        assert(HDR_LEN == 7, "class(1)+task(4)+skill(2)");
+        assert(HDR_LEN == 7, "msg_class(1)+task(4)+skill(2)");
         assert(body_offset() == OFF_BODY, "body after the fixed header");
         assert(OFF_SKILL == 5, "skill at byte 5");
     }
@@ -127,8 +127,8 @@ module TriA2AWire {
     test class_rules {
         assert(class_valid(MSG_TASK_ASSIGN) == true, "assign is valid");
         assert(class_valid(MSG_TASK_RESULT) == true, "result is valid");
-        assert(class_valid(0) == false, "class 0 is malformed");
-        assert(class_valid(99) == false, "unknown class is malformed");
+        assert(class_valid(0) == false, "msg_class 0 is malformed");
+        assert(class_valid(99) == false, "unknown msg_class is malformed");
         assert(body_has_receipt(MSG_TASK_RESULT) == true, "result carries a receipt");
         assert(body_has_receipt(MSG_TASK_ASSIGN) == false, "assign carries no receipt");
     }

@@ -628,7 +628,7 @@ module TriA2A {
         assert(is_hosted_skill(SKILL_GF16_MUL) == 1, "GF16 mul is hosted");
         assert(is_hosted_skill(SKILL_GFT8_ADD) == 1, "GF-T8 add is hosted");
         assert(is_hosted_skill(0xA412) == 0, "a GF-T4-looking id (0xA412) is NOT hosted");
-        assert(is_hosted_skill(0xA511) == 0, "a GF-T32-looking id is NOT hosted");
+        assert(is_hosted_skill(0xA512) == 0, "a GF-T32-looking id with an unknown op is NOT hosted");
         assert(is_hosted_skill(0xDEAD) == 0, "garbage skill is NOT hosted");
     }
 
