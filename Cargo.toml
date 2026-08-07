@@ -248,3 +248,7 @@ path = "tests/a2a_wire_decode.rs"
 [[test]]
 name = "pool_split_funding"
 path = "tests/pool_split_funding.rs"
+
+[[test]]
+name = "money_verdict_over_mesh"
+path = "tests/money_verdict_over_mesh.rs"
