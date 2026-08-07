@@ -143,11 +143,7 @@ fn the_gf_t1024_geometry_is_exact_beyond_u64() {
     // GF-T1024: rung k = 9, Et = 56. 3^56, offset_max = 3^56-1, bias = (3^56-1)/2.
     assert_eq!(et(9), 56, "GF-T1024 Et = 56");
     let p56 = pow3(56);
-    assert_eq!(
-        p56.to_string(),
-        "523347633027360537213511521",
-        "3^56 exact"
-    );
+    assert_eq!(p56.to_string(), "523347633027360537213511521", "3^56 exact");
     let omax = offset_max(9); // 3^56 - 1
     assert_eq!(
         omax.to_string(),
@@ -160,7 +156,11 @@ fn the_gf_t1024_geometry_is_exact_beyond_u64() {
         "261673816513680268606755760",
         "GF-T1024 bias = (3^56-1)/2"
     );
-    assert_eq!(&bias * 2u32 + one(), p56, "bias*2 + 1 = 3^56 (unity is the balanced-ternary center)");
+    assert_eq!(
+        &bias * 2u32 + one(),
+        p56,
+        "bias*2 + 1 = 3^56 (unity is the balanced-ternary center)"
+    );
 
     // Where u64 gives out: 3^40 is the largest power of three inside u64; 3^41 overflows.
     let u64_max = BigUint::from(u64::MAX); // 18446744073709551615
@@ -170,5 +170,8 @@ fn the_gf_t1024_geometry_is_exact_beyond_u64() {
     // the 3^40 ceiling -- so no u64 path reaches it and bignum is mandatory, not optional.
     assert_eq!(et(8), 35, "GF-T512 Et = 35 (largest rung in u64)");
     assert!(pow3(et(8)) <= u64_max, "GF-T512 3^35 fits u64");
-    assert!(pow3(et(9)) > u64_max, "GF-T1024 3^56 exceeds u64 -- bignum required");
+    assert!(
+        pow3(et(9)) > u64_max,
+        "GF-T1024 3^56 exceeds u64 -- bignum required"
+    );
 }
