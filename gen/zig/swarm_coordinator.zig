@@ -69,11 +69,11 @@ fn get_vote(array: u64, index: u32) u32 {
     return @as(u32, @intCast(array & 0xFFFFFFFF));
 }
 fn count_votes(vote_array: u64, proposal_id: u32) struct { u32, u32, u32 } {
-    var yes_count = 0;
+    var yes_count: u32 = 0;
     _ = &yes_count;
-    var no_count = 0;
+    var no_count: u32 = 0;
     _ = &no_count;
-    var abstain_count = 0;
+    var abstain_count: u32 = 0;
     _ = &abstain_count;
     if (get_vote_proposal_id(get_vote(vote_array, 0)) == proposal_id) {
         if (get_vote_value(get_vote(vote_array, 0)) == VOTE_YES) {
@@ -157,9 +157,9 @@ fn proposal_passes(yes_count: u32, no_count: u32) bool {
     return yes_count > no_count;
 }
 fn calculate_consensus_value(vote_array: u64, proposal_id: u32) u32 {
-    var sum = 0;
+    var sum: u32 = 0;
     _ = &sum;
-    var count = 0;
+    var count: u32 = 0;
     _ = &count;
     if (get_vote_proposal_id(get_vote(vote_array, 0)) == proposal_id) {
         sum = sum + get_proposal_value(get_vote(vote_array, 0));

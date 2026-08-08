@@ -74,9 +74,9 @@ fn calculate_score(metrics: u32, metric_type: u32) u32 {
     return 0;
 }
 fn find_best_path(metrics_array: u64, metric_type: u32) u32 {
-    var best_path = 0xFF;
+    var best_path: u32 = 0xFF;
     _ = &best_path;
-    var best_score = 0;
+    var best_score: u32 = 0;
     _ = &best_score;
     if (calculate_score(get_path_metrics(metrics_array, 0), metric_type) > best_score) {
         best_score = calculate_score(get_path_metrics(metrics_array, 0), metric_type);
@@ -115,7 +115,7 @@ fn is_path_congested(metrics: u32) bool {
     return get_load(metrics) > 80;
 }
 fn find_least_congested(metrics_array: u64) u32 {
-    var best_path = 0;
+    var best_path: u32 = 0;
     _ = &best_path;
     var best_load = get_load(get_path_metrics(metrics_array, 0));
     _ = &best_load;

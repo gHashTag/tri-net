@@ -80,9 +80,9 @@ fn is_path_viable(energy: u32) bool {
     return (valid == 1) and (battery > CRITICAL_BATTERY);
 }
 fn find_energy_optimal_path(energy_array: u64) u32 {
-    var best_path = 0xFF;
+    var best_path: u32 = 0xFF;
     _ = &best_path;
-    var best_score = 0;
+    var best_score: u32 = 0;
     _ = &best_score;
     if (is_path_viable(get_path_energy(energy_array, 0))) {
         const score = get_energy_score(get_path_energy(energy_array, 0));
@@ -115,9 +115,9 @@ fn find_energy_optimal_path(energy_array: u64) u32 {
     return best_path;
 }
 fn find_min_cost_path(energy_array: u64) u32 {
-    var best_path = 0xFF;
+    var best_path: u32 = 0xFF;
     _ = &best_path;
-    var best_cost = 0xFFFFFFFF;
+    var best_cost: u32 = 0xFFFFFFFF;
     _ = &best_cost;
     if (is_path_viable(get_path_energy(energy_array, 0))) {
         const cost = get_total_cost(get_path_energy(energy_array, 0));

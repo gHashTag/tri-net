@@ -105,9 +105,9 @@ fn rotate_key(store: u64, key_id: u32, new_value: u32, current_time: u32) u64 {
     return store;
 }
 fn get_active_key(store: u64) u32 {
-    var best_index = 0xFF;
+    var best_index: u32 = 0xFF;
     _ = &best_index;
-    var best_timestamp = 0;
+    var best_timestamp: u32 = 0;
     _ = &best_timestamp;
     if (get_key_valid(get_key_entry(store, 0)) == KEY_VALID) {
         const ts = get_key_timestamp(get_key_entry(store, 0));
@@ -143,7 +143,7 @@ fn get_active_key(store: u64) u32 {
     return 0;
 }
 fn count_valid_keys(store: u64) u32 {
-    var count = 0;
+    var count: u32 = 0;
     _ = &count;
     if (get_key_valid(get_key_entry(store, 0)) == KEY_VALID) {
         count = count + 1;

@@ -123,7 +123,7 @@ fn optimize_for_target(state: u32, phy_params: u32, mac_params: u32) struct { u3
         }
         return .{ new_rate, new_retries };
     } else if (target == 1) {
-        var new_rate = 255;
+        var new_rate: u32 = 255;
         _ = &new_rate;
         var new_window = get_window(mac_params) + 10;
         _ = &new_window;

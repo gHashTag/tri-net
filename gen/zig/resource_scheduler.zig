@@ -112,9 +112,9 @@ fn release_resources(state: u32, task: u32) u32 {
     return create_system_state(new_cpu, new_mem, new_tasks, tick);
 }
 fn find_admittable_task(state: u32, task_array: u64) u32 {
-    var best_task = 0xFF;
+    var best_task: u32 = 0xFF;
     _ = &best_task;
-    var best_priority = 0xFF;
+    var best_priority: u32 = 0xFF;
     _ = &best_priority;
     if (can_admit_task(state, get_task_resource(task_array, 0))) {
         const priority = get_priority(get_task_resource(task_array, 0));
@@ -198,7 +198,7 @@ fn increment_tick(state: u32) u32 {
     return create_system_state(used_cpu, used_mem, active_tasks, new_tick);
 }
 fn count_tasks_by_priority(task_array: u64, priority: u32) u32 {
-    var count = 0;
+    var count: u32 = 0;
     _ = &count;
     if (get_priority(get_task_resource(task_array, 0)) == priority) {
         count = count + 1;

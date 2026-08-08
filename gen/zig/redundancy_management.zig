@@ -90,7 +90,7 @@ fn validate_path(path_set: u64, path_index: u32) u64 {
     }
 }
 fn count_valid_paths(path_set: u64) u32 {
-    var count = 0;
+    var count: u32 = 0;
     _ = &count;
     if (get_path_valid(get_path(path_set, 0)) == PATH_VALID) {
         count = count + 1;
@@ -110,7 +110,7 @@ fn has_redundancy(path_set: u64) bool {
     return count_valid_paths(path_set) > 1;
 }
 fn get_hop_count(path: u32) u32 {
-    var count = 0;
+    var count: u32 = 0;
     _ = &count;
     if (get_hop1(path) != 0) {
         count = count + 1;
@@ -124,9 +124,9 @@ fn get_hop_count(path: u32) u32 {
     return count;
 }
 fn find_shortest_path(path_set: u64) u32 {
-    var best_path = 0xFF;
+    var best_path: u32 = 0xFF;
     _ = &best_path;
-    var best_hops = 255;
+    var best_hops: u32 = 255;
     _ = &best_hops;
     if (get_path_valid(get_path(path_set, 0)) == PATH_VALID) {
         const hops = get_hop_count(get_path(path_set, 0));

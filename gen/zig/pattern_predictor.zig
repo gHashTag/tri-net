@@ -63,7 +63,7 @@ fn get_sample_at(array: u64, index: u32) u32 {
     }
 }
 fn calculate_moving_average(array: u64, window: u32) u32 {
-    var sum = 0;
+    var sum: u32 = 0;
     _ = &sum;
     var count = window;
     _ = &count;
@@ -157,7 +157,7 @@ fn calculate_variance(array: u64, samples: u32) u32 {
         return 0;
     }
     const avg = calculate_moving_average(array, samples);
-    var sum_sq_diff = 0;
+    var sum_sq_diff: u32 = 0;
     _ = &sum_sq_diff;
     if (samples >= 1) {
         const diff = get_sample_value(get_sample_at(array, 0)) - avg;

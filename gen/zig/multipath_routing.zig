@@ -56,7 +56,7 @@ fn get_multipath(array: u64, index: u32) u32 {
     return @as(u32, @intCast(array & 0xFFFFFFFF));
 }
 fn count_valid_paths(path_array: u64) u32 {
-    var count = 0;
+    var count: u32 = 0;
     _ = &count;
     if (get_path_valid(get_multipath(path_array, 0)) == PATH_VALID) {
         count = count + 1;
@@ -93,7 +93,7 @@ fn select_primary_path(path_array: u64, quality_array: u64) u32 {
 fn calculate_path_diversity(path_array: u64) u32 {
     const diversity_score = 0;
     _ = diversity_score; // dead after const-inlining
-    var hop1_set = 0;
+    var hop1_set: u32 = 0;
     _ = &hop1_set;
     if (get_path_valid(get_multipath(path_array, 0)) == PATH_VALID) {
         hop1_set = hop1_set | (1 << get_multipath_hop1(get_multipath(path_array, 0)));
@@ -107,7 +107,7 @@ fn calculate_path_diversity(path_array: u64) u32 {
     if (get_path_valid(get_multipath(path_array, 3)) == PATH_VALID) {
         hop1_set = hop1_set | (1 << get_multipath_hop1(get_multipath(path_array, 3)));
     }
-    var count = 0;
+    var count: u32 = 0;
     _ = &count;
     if ((hop1_set & 0x01) == 0x01) {
         count = count + 1;
@@ -143,9 +143,9 @@ fn distribute_load(path_array: u64, current_path: u32, load_ratio: u32) u32 {
     }
     var next_path = (current_path + 1) % total_paths;
     _ = &next_path;
-    var found = 0;
+    var found: u32 = 0;
     _ = &found;
-    var attempts = 0;
+    var attempts: u32 = 0;
     _ = &attempts;
     while ((found == 0) and (attempts < 4)) {
         if (get_path_valid(get_multipath(path_array, next_path)) == PATH_VALID) {
