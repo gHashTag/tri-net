@@ -452,4 +452,40 @@ module TriGftSub {
         assert(gft_sub_mant_c_u64(364, 364, 100, 100, 33554432, 25, 38) == 0, "GF-T32 x - x = 0 mantissa");
         assert(gft_sub_offset_c_u64(364, 364, 100, 100, 33554432, 25, 38) == 0, "GF-T32 x - x = 0 offset (zero sentinel)");
     }
+
+    // Perf-profile bench (pairs with tri_gft_add's add_mantissa_sweep): a subtract
+    // sweep through the GF-T16 near path -- eight equal-exponent points walking the
+    // minuend mantissa plus two cross-exponent points -- with cycle count reported
+    // by the icarus flow. Expected values come from the verified Rust transcription
+    // (gft_sub_kat_cross oracle).
+    bench sub_mantissa_sweep {
+        o1 = gft_sub_offset(44, 44, 112, 64);
+        m1 = gft_sub_mant(44, 44, 112, 64);
+        o2 = gft_sub_offset(44, 44, 160, 64);
+        m2 = gft_sub_mant(44, 44, 160, 64);
+        m3 = gft_sub_mant(44, 44, 208, 64);
+        m4 = gft_sub_mant(44, 44, 256, 64);
+        m5 = gft_sub_mant(44, 44, 304, 64);
+        m6 = gft_sub_mant(44, 44, 352, 64);
+        m7 = gft_sub_mant(44, 44, 400, 64);
+        m8 = gft_sub_mant(44, 44, 448, 64);
+        oz = gft_sub_offset(45, 44, 0, 0);
+        mz = gft_sub_mant(45, 44, 0, 0);
+        ox = gft_sub_offset(50, 44, 256, 384);
+        mx = gft_sub_mant(50, 44, 256, 384);
+        assert(o1 == 40, "step 1 offset: deep cancellation drops 4 exponents");
+        assert(m1 == 256, "step 1 mantissa");
+        assert(o2 == 41, "step 2 offset");
+        assert(m2 == 256, "step 2 mantissa");
+        assert(m3 == 64, "step 3 mantissa");
+        assert(m4 == 256, "step 4 mantissa");
+        assert(m5 == 448, "step 5 mantissa");
+        assert(m6 == 64, "step 6 mantissa");
+        assert(m7 == 160, "step 7 mantissa");
+        assert(m8 == 256, "step 8 mantissa");
+        assert(oz == 44, "2.0 - 1.0 = 1.0: offset back to 44");
+        assert(mz == 0, "2.0 - 1.0 = 1.0: mantissa 0");
+        assert(ox == 50, "far-ish pair keeps the larger exponent");
+        assert(mx == 242, "cross-exponent mantissa from the oracle");
+    }
 }
