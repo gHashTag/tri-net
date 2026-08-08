@@ -38,7 +38,7 @@ pub fn max_retries_for_quality(quality_q8: u8) -> u8 {
 
 pub fn should_retry(current_attempt: u8, link_quality_q8: u8) -> bool {
     let max_retries: u8 = max_retries_for_quality(link_quality_q8);
-    (current_attempt < max_retries);
+    return (current_attempt < max_retries);
 }
 
 pub fn base_probability(quality_q8: u8) -> u8 {

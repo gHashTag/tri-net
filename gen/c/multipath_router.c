@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <assert.h>
+#define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
 
 #ifndef MULTIPATHROUTER_H
 #define MULTIPATHROUTER_H
@@ -77,5 +79,44 @@ uint8_t path_reliability(uint8_t etx, uint8_t loss_rate) {
     uint8_t unreliability = ((uint8_t)((product / 256)));
     return (255 - unreliability);
 }
+
+/* -------------------------------------------------------
+   Tests
+   ------------------------------------------------------- */
+
+void test_path_selection_logic(void) {
+    uint8_t etx_values[3] = { 0x25, 0x30, 0x20 };
+    uint8_t best_idx = select_path_index(etx_values);
+    t27_assert((best_idx == 2), "best_idx == 2");
+}
+
+void test_quality_score_calculation(void) {
+    uint8_t etx = 0x30;
+    uint16_t latency = 50;
+    uint8_t loss = 0x0A;
+    uint8_t score = path_quality_score(etx, latency, loss);
+    t27_assert((score > 0), "score > 0");
+    t27_assert((score < 200), "score < 200");
+}
+
+void test_failover_decision(void) {
+    t27_assert((needs_failover(0x25, 0, 3) == false), "needs_failover 0x25 0 3 == false");
+    t27_assert((needs_failover(0x70, 0, 3) == true), "needs_failover 0x70 0 3 == true");
+    t27_assert((needs_failover(0x70, 3, 3) == false), "needs_failover 0x70 3 3 == false");
+}
+
+void test_path_index_progression(void) {
+    t27_assert((next_path_index(0, 3) == 1), "next_path_index 0 3 == 1");
+    t27_assert((next_path_index(1, 3) == 2), "next_path_index 1 3 == 2");
+    t27_assert((next_path_index(2, 3) == 0), "next_path_index 2 3 == 0");
+}
+
+void test_reliability_estimation(void) {
+    uint8_t high_reliability = path_reliability(0x25, 0x05);
+    uint8_t low_reliability = path_reliability(0xF0, 0x80);
+    t27_assert((high_reliability > 200), "high_reliability > 200");
+    t27_assert((low_reliability < 150), "low_reliability < 150");
+}
+
 
 #endif /* MULTIPATHROUTER_H */

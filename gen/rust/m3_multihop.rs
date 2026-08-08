@@ -71,14 +71,14 @@ pub fn delivery_rate_p8(hop1_db: u8, hop2_db: u8) -> u8 {
     let factor1: u8 = throughput_factor_p8(hop1_db);
     let factor2: u8 = throughput_factor_p8(hop2_db);
     let product: u16 = ((factor1 as u16) * (factor2 as u16));
-    ((product >> 8) as u8);
+    return ((product >> 8) as u8);
 }
 
 pub fn simulate_hop(attenuation_db: u8, packet_seq: u8) -> bool {
     let success_p8: u8 = throughput_factor_p8(attenuation_db);
     let random_factor: u8 = (packet_seq % 100);
     let random_threshold: u8 = ((((random_factor as u16) * 256) / 100) as u8);
-    (random_threshold < success_p8);
+    return (random_threshold < success_p8);
 }
 
 pub fn forward_packet(hop1_db: u8, hop2_db: u8, packet_seq: u8) -> bool {

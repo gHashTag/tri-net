@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <assert.h>
+#define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
 
 #ifndef M3MULTIHOP_H
 #define M3MULTIHOP_H
@@ -96,14 +98,14 @@ uint8_t delivery_rate_p8(uint8_t hop1_db, uint8_t hop2_db) {
     uint8_t factor1 = throughput_factor_p8(hop1_db);
     uint8_t factor2 = throughput_factor_p8(hop2_db);
     uint16_t product = (((uint16_t)(factor1)) * ((uint16_t)(factor2)));
-    ((uint8_t)((product >> 8)));
+    return ((uint8_t)((product >> 8)));
 }
 
 bool simulate_hop(uint8_t attenuation_db, uint8_t packet_seq) {
     uint8_t success_p8 = throughput_factor_p8(attenuation_db);
     uint8_t random_factor = (packet_seq % 100);
     uint8_t random_threshold = ((uint8_t)(((((uint16_t)(random_factor)) * 256) / 100)));
-    (random_threshold < success_p8);
+    return (random_threshold < success_p8);
 }
 
 bool forward_packet(uint8_t hop1_db, uint8_t hop2_db, uint8_t packet_seq) {
@@ -144,5 +146,100 @@ uint8_t udp_packet_byte(uint16_t seq, uint8_t byte_index, uint8_t data_byte) {
     }
     return 0xBB;
 }
+
+/* -------------------------------------------------------
+   Tests
+   ------------------------------------------------------- */
+
+void test_expected_loss_rate_calculation(void) {
+    t27_assert((expected_loss_rate_p10(0) == 0x10), "expected_loss_rate_p10 0 == 0x10");
+    t27_assert((expected_loss_rate_p10(10) > 0x10), "expected_loss_rate_p10 10 > 0x10");
+    t27_assert((expected_loss_rate_p10(10) <= 0x40), "expected_loss_rate_p10 10 <= 0x40");
+    t27_assert((expected_loss_rate_p10(36) == 0xC0), "expected_loss_rate_p10 36 == 0xC0");
+}
+
+void test_signal_quality_classification(void) {
+    t27_assert((signal_quality(5) == 0), "signal_quality 5 == 0");
+    t27_assert((signal_quality(10) == 1), "signal_quality 10 == 1");
+    t27_assert((signal_quality(15) == 2), "signal_quality 15 == 2");
+    t27_assert((signal_quality(25) == 4), "signal_quality 25 == 4");
+    t27_assert((signal_quality(30) == 5), "signal_quality 30 == 5");
+}
+
+void test_throughput_factor_calculation(void) {
+    uint8_t factor0 = throughput_factor_p8(0);
+    t27_assert((factor0 > 0xF0), "factor0 > 0xF0");
+    uint8_t factor10 = throughput_factor_p8(10);
+    t27_assert((factor10 > 0xF0), "factor10 > 0xF0");
+    t27_assert((factor10 < 0x100), "factor10 < 0x100");
+    uint8_t factor30 = throughput_factor_p8(30);
+    t27_assert((factor30 > 0xD0), "factor30 > 0xD0");
+    t27_assert((factor30 < 0xF0), "factor30 < 0xF0");
+}
+
+void test_total_attenuation_calculation(void) {
+    t27_assert((total_attenuation(10, 10) == 20), "total_attenuation 10 10 == 20");
+    t27_assert((total_attenuation(15, 15) == 30), "total_attenuation 15 15 == 30");
+    t27_assert((total_attenuation(20, 20) == 30), "total_attenuation 20 20 == 30");
+}
+
+void test_delivery_rate_calculation(void) {
+    uint8_t rate0 = delivery_rate_p8(0, 0);
+    t27_assert((rate0 > 0xF0), "rate0 > 0xF0");
+    uint8_t rate10 = delivery_rate_p8(10, 10);
+    t27_assert((rate10 > 0xF0), "rate10 > 0xF0");
+    t27_assert((rate10 < 0x100), "rate10 < 0x100");
+}
+
+void test_tcp_packet_generation(void) {
+    uint32_t seq = 0x12345678;
+    t27_assert((tcp_packet_byte(seq, 0, 0) == 0x12), "tcp_packet_byte seq 0 0 == 0x12");
+    t27_assert((tcp_packet_byte(seq, 1, 0) == 0x34), "tcp_packet_byte seq 1 0 == 0x34");
+    t27_assert((tcp_packet_byte(seq, 2, 0) == 0x56), "tcp_packet_byte seq 2 0 == 0x56");
+    t27_assert((tcp_packet_byte(seq, 3, 0) == 0x78), "tcp_packet_byte seq 3 0 == 0x78");
+    t27_assert((tcp_packet_byte(seq, 10, 0) == 0xAA), "tcp_packet_byte seq 10 0 == 0xAA");
+}
+
+void test_udp_packet_generation(void) {
+    uint16_t seq = 0x1234;
+    t27_assert((udp_packet_byte(seq, 0, 0) == 0x12), "udp_packet_byte seq 0 0 == 0x12");
+    t27_assert((udp_packet_byte(seq, 1, 0) == 0x34), "udp_packet_byte seq 1 0 == 0x34");
+    t27_assert((udp_packet_byte(seq, 10, 0) == 0xBB), "udp_packet_byte seq 10 0 == 0xBB");
+}
+
+void test_hop_simulation(void) {
+    uint8_t success_count = 0;
+    for (int i = 0; i < 10; i++) {
+        if (simulate_hop(0, ((uint8_t)((i * 11))))) {
+            success_count = (success_count + 1);
+        }
+    }
+    t27_assert((success_count > 8), "success_count > 8");
+    uint8_t success_count_high = 0;
+    for (int i = 0; i < 10; i++) {
+        if (simulate_hop(20, ((uint8_t)((i * 11))))) {
+            success_count_high = (success_count_high + 1);
+        }
+    }
+    t27_assert((success_count_high < success_count), "attenuated link loses at least one packet");
+}
+
+void test_two_hop_forwarding(void) {
+    uint8_t success_count = 0;
+    for (int i = 0; i < 10; i++) {
+        if (forward_packet(0, 0, ((uint8_t)((i * 11))))) {
+            success_count = (success_count + 1);
+        }
+    }
+    t27_assert((success_count > 7), "success_count > 7");
+    uint8_t success_count_high = 0;
+    for (int i = 0; i < 10; i++) {
+        if (forward_packet(15, 15, ((uint8_t)((i * 11))))) {
+            success_count_high = (success_count_high + 1);
+        }
+    }
+    t27_assert((success_count_high <= success_count), "attenuated path does not beat the clean one");
+}
+
 
 #endif /* M3MULTIHOP_H */

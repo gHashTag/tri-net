@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <assert.h>
+#define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
 
 #ifndef LINKQUALITYMONITOR_H
 #define LINKQUALITYMONITOR_H
@@ -69,7 +71,7 @@ uint8_t predict_next_etx(uint8_t current, int8_t trend) {
 }
 
 bool is_degrading(uint8_t current_etx, int8_t trend) {
-    ((current_etx > QUALITY_POOR) && (trend > TREND_THRESHOLD));
+    return ((current_etx > QUALITY_POOR) && (trend > TREND_THRESHOLD));
 }
 
 uint8_t quality_score(uint8_t etx, uint16_t latency_ms) {
@@ -97,5 +99,57 @@ uint8_t classify_quality(uint8_t score) {
     }
     return 4;
 }
+
+/* -------------------------------------------------------
+   Tests
+   ------------------------------------------------------- */
+
+void test_ewma_calculation(void) {
+    uint8_t current = 0x40;
+    uint8_t sample = 0x60;
+    uint8_t new_etx = update_ewma(current, sample);
+    t27_assert((new_etx > current), "new_etx > current");
+    t27_assert((new_etx < sample), "new_etx < sample");
+}
+
+void test_trend_detection(void) {
+    uint8_t improving_history[8] = { 0x70, 0x68, 0x60, 0x58, 0x50, 0x48, 0x40, 0x38 };
+    int8_t trend = calculate_trend(improving_history);
+    t27_assert((trend < 0), "trend < 0");
+    uint8_t worsening_history[8] = { 0x40, 0x48, 0x50, 0x58, 0x60, 0x68, 0x70, 0x78 };
+    int8_t trend2 = calculate_trend(worsening_history);
+    t27_assert((trend2 > 0), "trend2 > 0");
+}
+
+void test_etx_prediction(void) {
+    uint8_t current = 0x60;
+    int8_t trend = 0x08;
+    uint8_t predicted = predict_next_etx(current, trend);
+    t27_assert((predicted > current), "predicted > current");
+    t27_assert((predicted < 0x70), "predicted < 0x70");
+}
+
+void test_degradation_detection(void) {
+    t27_assert((is_degrading(0x70, 0x10) == true), "is_degrading 0x70 0x10 == true");
+    t27_assert((is_degrading(0x70, -0x10) == false), "is_degrading 0x70 -0x10 == false");
+    t27_assert((is_degrading(0x30, 0x10) == false), "is_degrading 0x30 0x10 == false");
+}
+
+void test_quality_score_calculation(void) {
+    uint8_t etx = 0x50;
+    uint16_t latency = 100;
+    uint8_t score = quality_score(etx, latency);
+    t27_assert((score > 50), "score > 50");
+    t27_assert((score < 200), "score < 200");
+}
+
+void test_quality_classification(void) {
+    t27_assert((classify_quality(30) == 0), "classify_quality 30 == 0");
+    t27_assert((classify_quality(80) == 1), "classify_quality 80 == 1");
+    t27_assert((classify_quality(125) == 2), "classify_quality 125 == 2");
+    t27_assert((classify_quality(175) == 3), "classify_quality 175 == 3");
+    t27_assert((classify_quality(225) == 4), "classify_quality 225 == 4");
+}
+
 
 #endif /* LINKQUALITYMONITOR_H */
