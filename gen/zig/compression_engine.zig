@@ -43,7 +43,7 @@ fn compress_rle(data: u32, length: u32) u32 {
     var i: u32 = 0;
     _ = &i;
     while ((i < length) and (i < 8)) {
-        const value: u32 = (data >> (i * 4)) & 0xF;
+        const value: u32 = (data >> @intCast(i * 4)) & 0xF;
         if (value == current) {
             count = count + 1;
         } else {
@@ -64,8 +64,8 @@ fn decompress_rle(compressed: u32) u32 {
     var pos: u32 = 0;
     _ = &pos;
     while (pos < 32) {
-        const count: u32 = (compressed >> pos) & 0xF;
-        const value: u32 = (compressed >> (pos + 4)) & 0xF;
+        const count: u32 = (compressed >> @intCast(pos)) & 0xF;
+        const value: u32 = (compressed >> @intCast(pos + 4)) & 0xF;
         var i: u32 = 0;
         _ = &i;
         while ((i < count) and (i < 8)) {
@@ -90,8 +90,8 @@ fn compress_dictionary(data: u32, dictionary: [DICTIONARY_SIZE]u32) u32 {
         var j: u32 = 0;
         _ = &j;
         while (j < 8) {
-            const data_nibble: u32 = (data >> (j * 4)) & 0xF;
-            const dict_nibble: u32 = (dict_value >> (j * 4)) & 0xF;
+            const data_nibble: u32 = (data >> @intCast(j * 4)) & 0xF;
+            const dict_nibble: u32 = (dict_value >> @intCast(j * 4)) & 0xF;
             if (data_nibble == dict_nibble) {
                 score = score + 1;
             }
@@ -245,7 +245,7 @@ fn find_pattern(data: u32, pattern: u32) u32 {
     var i: u32 = 0;
     _ = &i;
     while (i < 32) {
-        const shifted: u32 = (data >> i) & 0xFFFFFFFF;
+        const shifted: u32 = (data >> @intCast(i)) & 0xFFFFFFFF;
         if (shifted == pattern) {
             return i;
         }

@@ -96,16 +96,16 @@ fn calculate_path_diversity(path_array: u64) u32 {
     var hop1_set: u32 = 0;
     _ = &hop1_set;
     if (get_path_valid(get_multipath(path_array, 0)) == PATH_VALID) {
-        hop1_set = hop1_set | (1 << get_multipath_hop1(get_multipath(path_array, 0)));
+        hop1_set = hop1_set | (@as(u32, 1) << @intCast(get_multipath_hop1(get_multipath(path_array, 0))));
     }
     if (get_path_valid(get_multipath(path_array, 1)) == PATH_VALID) {
-        hop1_set = hop1_set | (1 << get_multipath_hop1(get_multipath(path_array, 1)));
+        hop1_set = hop1_set | (@as(u32, 1) << @intCast(get_multipath_hop1(get_multipath(path_array, 1))));
     }
     if (get_path_valid(get_multipath(path_array, 2)) == PATH_VALID) {
-        hop1_set = hop1_set | (1 << get_multipath_hop1(get_multipath(path_array, 2)));
+        hop1_set = hop1_set | (@as(u32, 1) << @intCast(get_multipath_hop1(get_multipath(path_array, 2))));
     }
     if (get_path_valid(get_multipath(path_array, 3)) == PATH_VALID) {
-        hop1_set = hop1_set | (1 << get_multipath_hop1(get_multipath(path_array, 3)));
+        hop1_set = hop1_set | (@as(u32, 1) << @intCast(get_multipath_hop1(get_multipath(path_array, 3))));
     }
     var count: u32 = 0;
     _ = &count;
