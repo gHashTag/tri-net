@@ -126,8 +126,7 @@ fn calculate_transmission_time(packet: u32, link: u32) u32 {
     const transmission_time: u32 = latency + (size / 10);
     return transmission_time;
 }
-fn create_sim_state(current_time: u32, event_count: u32, node_count: u32, packet_count: u32) u32 {
-    _ = packet_count; // unused by the spec body
+fn create_sim_state(current_time: u32, event_count: u32, node_count: u32) u32 {
     return (((current_time & 0xFFFF) << 16) | ((event_count & 0xFF) << 8)) | (node_count & 0xFF);
 }
 fn get_sim_time(state: u32) u32 {
