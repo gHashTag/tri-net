@@ -157,6 +157,88 @@ module TriChallenge {
         return challenge_admissible(now_epoch, receipt_epoch, challenge_window_for_rung(gf_et));
     }
 
+    // ---- Concurrent disputes: one defender, many challengers ----
+    // Without a cap and a risk ledger, a challenger swarm could (a) pile
+    // unbounded simultaneous disputes on one defender (grief: every dispute
+    // escrows attention and delays finality) or (b) open disputes whose summed
+    // value-at-risk exceeds the defender's bond, so a multi-loss could not be
+    // paid in full. The scalar risk ledger mirrors tri_compute_bond's
+    // collateral discipline: required = outstanding * min_bps / 10000 with the
+    // same u64 mulDiv shape; the parity is pinned by the dispute_concurrency
+    // cargo guard.
+
+    const MAX_OPEN_DISPUTES: u32 = 3;
+    const CH_BPS_UNIT: u32 = 10000;
+
+    fn dispute_slots_ok(open_count: u32) -> bool {
+        return open_count < MAX_OPEN_DISPUTES;
+    }
+
+    // Saturating risk accumulator: the summed reward-at-risk of OPEN disputes.
+    fn risk_after_open(risk: u32, reward: u32) -> u32 {
+        let sum: u32 = risk + reward;
+        if (sum < risk) {
+            return 0xFFFFFFFF;
+        } else {
+            return sum;
+        }
+    }
+    fn risk_after_close(risk: u32, reward: u32) -> u32 {
+        if (reward >= risk) {
+            return 0;
+        } else {
+            return risk - reward;
+        }
+    }
+
+    // Same mulDiv shape as tri_compute_bond.required_bond.
+    fn dispute_required_bond(outstanding: u32, min_bps: u32) -> u32 {
+        let need: u64 = (outstanding as u64) * (min_bps as u64);
+        return (need / (CH_BPS_UNIT as u64)) as u32;
+    }
+
+    // Admission: a new dispute may open iff a slot is free AND the defender's
+    // bond still covers the risk ledger INCLUDING the new dispute's reward.
+    fn may_open_dispute(open_count: u32, risk: u32, reward: u32, bond: u32, min_bps: u32) -> bool {
+        if (dispute_slots_ok(open_count) == false) {
+            return false;
+        }
+        return bond >= dispute_required_bond(risk_after_open(risk, reward), min_bps);
+    }
+
+    // The slot cap is exact and the risk ledger conserves: open then close
+    // returns to the baseline, close never underflows.
+    test dispute_slots_and_risk_ledger {
+        s0 = dispute_slots_ok(0);
+        s2 = dispute_slots_ok(2);
+        s3 = dispute_slots_ok(3);
+        r1 = risk_after_open(100, 40);
+        r0 = risk_after_close(140, 40);
+        ru = risk_after_close(30, 40);
+        rs = risk_after_open(0xFFFFFFF0, 0x100);
+        assert(s0 == true, "empty ledger has slots");
+        assert(s2 == true, "slot 3 of 3 may open");
+        assert(s3 == false, "the cap is exact at MAX_OPEN_DISPUTES");
+        assert(r1 == 140, "open adds the reward at risk");
+        assert(r0 == 100, "close returns to the baseline");
+        assert(ru == 0, "close floors at zero, never wraps");
+        assert(rs == 0xFFFFFFFF, "an overflowing open saturates");
+    }
+
+    // Admission composes slots AND coverage; closing a dispute re-admits.
+    test dispute_admission_gate {
+        a0 = may_open_dispute(0, 0, 400, 100, 2000);
+        a1 = may_open_dispute(0, 0, 600, 100, 2000);
+        a2 = may_open_dispute(3, 0, 10, 1000000, 2000);
+        a3 = may_open_dispute(1, 400, 100, 100, 2000);
+        a4 = may_open_dispute(1, 450, 100, 100, 2000);
+        assert(a0 == true, "bond 100 covers 20% of 400");
+        assert(a1 == false, "bond 100 cannot cover 20% of 600");
+        assert(a2 == false, "no slot, no dispute, whatever the bond");
+        assert(a3 == true, "risk 400 + 100 = 500 requires exactly the full bond -- exact cover admits");
+        assert(a4 == false, "risk 450 + 100 = 550 requires 110 > bond 100 -- rejected");
+    }
+
     // A wide rung stays challengeable at an epoch where the flagship rung has
     // already finalized; both edges stay strict.
     test rung_window_edges {

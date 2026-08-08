@@ -71,3 +71,40 @@ pub fn challenge_admissible_rung(now_epoch: u32, receipt_epoch: u32, gf_et: u32)
     return challenge_admissible(now_epoch, receipt_epoch, challenge_window_for_rung(gf_et));
 }
 
+pub const MAX_OPEN_DISPUTES: u32 = 3;
+
+pub const CH_BPS_UNIT: u32 = 10000;
+
+pub fn dispute_slots_ok(open_count: u32) -> bool {
+    return (open_count < MAX_OPEN_DISPUTES);
+}
+
+pub fn risk_after_open(risk: u32, reward: u32) -> u32 {
+    let sum: u32 = (risk + reward);
+    if (sum < risk) {
+        return 0xFFFFFFFF;
+    } else {
+        return sum;
+    }
+}
+
+pub fn risk_after_close(risk: u32, reward: u32) -> u32 {
+    if (reward >= risk) {
+        return 0;
+    } else {
+        return (risk - reward);
+    }
+}
+
+pub fn dispute_required_bond(outstanding: u32, min_bps: u32) -> u32 {
+    let need: u64 = ((outstanding as u64) * (min_bps as u64));
+    return ((need / (CH_BPS_UNIT as u64)) as u32);
+}
+
+pub fn may_open_dispute(open_count: u32, risk: u32, reward: u32, bond: u32, min_bps: u32) -> bool {
+    if (dispute_slots_ok(open_count) == false) {
+        return false;
+    }
+    return (bond >= dispute_required_bond(risk_after_open(risk, reward), min_bps));
+}
+
