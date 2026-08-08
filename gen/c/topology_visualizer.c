@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <assert.h>
+#define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
 
 #ifndef TOPOLOGY_VISUALIZER_H
 #define TOPOLOGY_VISUALIZER_H
@@ -357,5 +359,27 @@ uint32_t generate_topology_visualization(uint32_t* nodes, uint32_t* edges, uint3
     uint32_t complexity = calculate_viz_complexity(node_count, edge_count);
     return (((((layout_result & 0xFF) << 24) | ((frame & 0xFF) << 16)) | ((detail_level & 0xFF) << 8)) | (complexity & 0xFF));
 }
+
+/* -------------------------------------------------------
+   Tests
+   ------------------------------------------------------- */
+
+void test_visual_node_roundtrip(void) {
+    uint64_t n = create_visual_node(6, 120, 200, 3);
+    (void)n;
+    t27_assert((get_viz_node_id(n) == 6), "node id");
+    t27_assert((get_node_x_position(n) == 120), "x");
+    t27_assert((get_node_y_position(n) == 200), "y");
+}
+
+void test_visual_edge_roundtrip(void) {
+    uint64_t e = create_visual_edge(2, 5, 80, 1);
+    (void)e;
+    t27_assert((get_viz_edge_source(e) == 2), "source");
+    t27_assert((get_viz_edge_dest(e) == 5), "dest");
+    t27_assert((get_viz_edge_quality(e) == 80), "quality");
+    t27_assert((get_viz_edge_type(e) == 1), "type");
+}
+
 
 #endif /* TOPOLOGY_VISUALIZER_H */

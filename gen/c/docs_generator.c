@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <assert.h>
+#define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
 
 #ifndef DOCS_GENERATOR_H
 #define DOCS_GENERATOR_H
@@ -369,5 +371,29 @@ uint32_t validate_documentation(uint32_t generated_doc, uint32_t expected_sectio
     uint32_t completeness = (((actual_sections * 10) / expected_sections) * 10);
     return (((((section_match & 0x1) << 15) | ((func_match & 0x1) << 14)) | ((quality_score & 0xFF) << 8)) | (completeness & 0xFF));
 }
+
+/* -------------------------------------------------------
+   Tests
+   ------------------------------------------------------- */
+
+void test_output_format_roundtrip(void) {
+    uint64_t f = create_output_format(9, 200, 5, 50000);
+    (void)f;
+    t27_assert((get_format_id(f) == 9), "format id");
+    t27_assert((get_format_version(f) == 200), "version");
+    t27_assert((get_format_compression(f) == 5), "compression");
+    t27_assert((get_format_encoding(f) == 50000), "encoding");
+}
+
+void test_markdown_header_levels(void) {
+    uint64_t h1 = generate_markdown_header(1, 7);
+    (void)h1;
+    t27_assert((((h1 >> 8) & 0xFFFFFF) == 0x23), "level 1 prefix");
+    t27_assert(((h1 & 0xFF) == 7), "title id");
+    uint64_t h3 = generate_markdown_header(3, 7);
+    (void)h3;
+    t27_assert((((h3 >> 8) & 0xFFFFFF) == 0x232323), "level 3 prefix");
+}
+
 
 #endif /* DOCS_GENERATOR_H */

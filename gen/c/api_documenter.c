@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <assert.h>
+#define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
 
 #ifndef API_DOCUMENTER_H
 #define API_DOCUMENTER_H
@@ -337,5 +339,28 @@ uint32_t generate_documentation_report(uint32_t* func_docs, uint32_t func_count,
     uint32_t doc_complexity = ((doc_summary >> 8) & 0xFF);
     return (((((coverage & 0xFF) << 24) | ((quality_score & 0xFF) << 16)) | ((doc_complexity & 0xFF) << 8)) | (xref_count & 0xFF));
 }
+
+/* -------------------------------------------------------
+   Tests
+   ------------------------------------------------------- */
+
+void test_function_doc_roundtrip(void) {
+    uint64_t d = create_function_doc(8, 4, 2, 40000);
+    (void)d;
+    t27_assert((get_doc_function_id(d) == 8), "function id");
+    t27_assert((get_doc_param_count(d) == 4), "param count");
+    t27_assert((get_doc_return_type(d) == 2), "return type");
+    t27_assert((get_doc_complexity(d) == 40000), "complexity");
+}
+
+void test_param_doc_roundtrip(void) {
+    uint64_t p = create_param_doc(3, 5, 2, 100000);
+    (void)p;
+    t27_assert((get_param_doc_id(p) == 3), "param id");
+    t27_assert((get_param_doc_type(p) == 5), "param type");
+    t27_assert((get_param_direction(p) == 2), "direction");
+    t27_assert((get_param_description_id(p) == 100000), "description id");
+}
+
 
 #endif /* API_DOCUMENTER_H */

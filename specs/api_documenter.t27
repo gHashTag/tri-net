@@ -369,4 +369,22 @@ module api_documenter {
                 ((doc_complexity & 0xFF) << 8) |
                 (xref_count & 0xFF));
     }
+
+    // ---- Tests ----
+
+    test function_doc_roundtrip {
+        d = create_function_doc(8, 4, 2, 40000);
+        assert(get_doc_function_id(d) == 8, "function id");
+        assert(get_doc_param_count(d) == 4, "param count");
+        assert(get_doc_return_type(d) == 2, "return type");
+        assert(get_doc_complexity(d) == 40000, "complexity");
+    }
+
+    test param_doc_roundtrip {
+        p = create_param_doc(3, 5, 2, 100000);
+        assert(get_param_doc_id(p) == 3, "param id");
+        assert(get_param_doc_type(p) == 5, "param type");
+        assert(get_param_direction(p) == 2, "direction");
+        assert(get_param_description_id(p) == 100000, "description id");
+    }
 }

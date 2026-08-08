@@ -415,4 +415,21 @@ module topology_visualizer {
                 ((detail_level & 0xFF) << 8) |
                 (complexity & 0xFF));
     }
+
+    // ---- Tests ----
+
+    test visual_node_roundtrip {
+        n = create_visual_node(6, 120, 200, 3);
+        assert(get_viz_node_id(n) == 6, "node id");
+        assert(get_node_x_position(n) == 120, "x");
+        assert(get_node_y_position(n) == 200, "y");
+    }
+
+    test visual_edge_roundtrip {
+        e = create_visual_edge(2, 5, 80, 1);
+        assert(get_viz_edge_source(e) == 2, "source");
+        assert(get_viz_edge_dest(e) == 5, "dest");
+        assert(get_viz_edge_quality(e) == 80, "quality");
+        assert(get_viz_edge_type(e) == 1, "type");
+    }
 }

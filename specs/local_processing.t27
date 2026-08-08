@@ -113,10 +113,14 @@ module local_processing {
         let i: u32 = 0;
         
         while (i < MAX_TASKS) {
-            let task_priority: u32 = get_priority(tasks[i]);
-            if (task_priority < highest_priority) {
-                highest_priority = task_priority;
-                task_index = i;
+            // Empty slots (0) must be skipped: TASK_PRIORITY_HIGH is 0, so an
+            // all-zero record reads as a high-priority task.
+            if (tasks[i] != 0) {
+                let task_priority: u32 = get_priority(tasks[i]);
+                if (task_priority < highest_priority) {
+                    highest_priority = task_priority;
+                    task_index = i;
+                }
             }
             i = i + 1;
         }
@@ -306,5 +310,44 @@ module local_processing {
         } else {
             return 0;
         }
+    }
+
+    // ---- Tests ----
+
+    test task_and_result_roundtrip {
+        t = create_task(9, TASK_PRIORITY_MEDIUM, 200, 12345);
+        assert(get_task_id(t) == 9, "task id");
+        assert(get_priority(t) == TASK_PRIORITY_MEDIUM, "priority");
+        assert(get_data_size(t) == 200, "size");
+        assert(get_processing_time(t) == 12345, "time");
+        r = create_result(9, STATUS_COMPLETED, 200, 9999);
+        assert(get_result_task_id(r) == 9, "result task id");
+        assert(get_status(r) == STATUS_COMPLETED, "status");
+        assert(get_result_value(r) == 9999, "value");
+    }
+
+    test process_and_aggregate {
+        t = create_task(3, TASK_PRIORITY_HIGH, 10, 5);
+        r = process_task(t);
+        assert(get_status(r) == STATUS_COMPLETED, "completed");
+        assert(get_result_value(r) == 50, "size times time");
+        let rs: [u32; 16] = [
+            create_result(1, STATUS_COMPLETED, 0, 100),
+            create_result(2, STATUS_COMPLETED, 0, 250),
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        ];
+        assert(aggregate_results(rs, 2) == 350, "sum of result values");
+    }
+
+    test highest_priority_skips_empty_slots {
+        let ts: [u32; 8] = [
+            create_task(1, TASK_PRIORITY_LOW, 1, 1),
+            create_task(2, TASK_PRIORITY_MEDIUM, 1, 1),
+            create_task(3, TASK_PRIORITY_LOW, 1, 1),
+            0, 0, 0, 0, 0
+        ];
+        // Empty slots read as priority 0 (HIGH) and used to win the search.
+        assert(find_highest_priority_task(ts) == 1, "medium beats low, empties skipped");
+        assert(count_pending_tasks(ts) == 3, "three real tasks");
     }
 }

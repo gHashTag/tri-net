@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <assert.h>
+#define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
 
 #ifndef INTEGRATION_FRAMEWORK_H
 #define INTEGRATION_FRAMEWORK_H
@@ -481,5 +483,32 @@ uint32_t validate_integration_health(uint32_t* modules, uint32_t module_count) {
     }
     return (((active_percentage & 0xFF) << 24) | ((error_count & 0xFF) << 16));
 }
+
+/* -------------------------------------------------------
+   Tests
+   ------------------------------------------------------- */
+
+void test_module_registration_roundtrip(void) {
+    uint64_t m = create_module_registration(7, 3, 9, 50000);
+    (void)m;
+    t27_assert((get_registered_module_id(m) == 7), "module id");
+    t27_assert((get_registered_module_type(m) == 3), "module type");
+    t27_assert((get_registered_module_priority(m) == 9), "priority");
+    t27_assert((get_registered_module_status(m) == 50000), "status");
+}
+
+void test_send_message_requires_active_destination(void) {
+    uint32_t mods[16] = { create_module_registration(1,0,1,STATUS_ACTIVE), create_module_registration(2,0,1,0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    uint64_t msg_ok = create_integration_message(1, 5, 1, 0);
+    (void)msg_ok;
+    t27_assert((send_message(mods, msg_ok) == 1), "active destination accepts");
+    uint64_t msg_down = create_integration_message(2, 5, 2, 0);
+    (void)msg_down;
+    t27_assert((send_message(mods, msg_down) == 0), "inactive destination rejects");
+    uint64_t msg_missing = create_integration_message(3, 5, 99, 0);
+    (void)msg_missing;
+    t27_assert((send_message(mods, msg_missing) == 0), "unknown destination rejects");
+}
+
 
 #endif /* INTEGRATION_FRAMEWORK_H */
