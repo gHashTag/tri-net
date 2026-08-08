@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <assert.h>
+#define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
 
 #ifndef TRAFFIC_ANIMATOR_H
 #define TRAFFIC_ANIMATOR_H
@@ -281,8 +283,18 @@ uint32_t generate_traffic_burst(uint32_t pattern, uint32_t source, uint32_t dest
 }
 
 uint32_t calculate_packet_position(uint32_t source_x, uint32_t source_y, uint32_t dest_x, uint32_t dest_y, uint32_t progress) {
-    uint32_t current_x = (source_x + (((dest_x - source_x) * progress) / 100));
-    uint32_t current_y = (source_y + (((dest_y - source_y) * progress) / 100));
+    uint32_t current_x = source_x;
+    if ((dest_x >= source_x)) {
+        current_x = (source_x + (((dest_x - source_x) * progress) / 100));
+    } else {
+        current_x = (source_x - (((source_x - dest_x) * progress) / 100));
+    }
+    uint32_t current_y = source_y;
+    if ((dest_y >= source_y)) {
+        current_y = (source_y + (((dest_y - source_y) * progress) / 100));
+    } else {
+        current_y = (source_y - (((source_y - dest_y) * progress) / 100));
+    }
     return (((current_x & 0xFF) << 24) | ((current_y & 0xFF) << 16));
 }
 
@@ -416,5 +428,30 @@ uint32_t calculate_animation_stats(uint32_t* frames, uint32_t frame_count) {
     }
     return create_traffic_stats(total_packets, total_bytes, 0, avg_latency);
 }
+
+/* -------------------------------------------------------
+   Tests
+   ------------------------------------------------------- */
+
+void test_anim_packet_roundtrip_and_progress(void) {
+    uint64_t p = create_anim_packet(5, 1, 2, 40);
+    (void)p;
+    t27_assert((get_anim_packet_id(p) == 5), "packet id");
+    t27_assert((get_anim_packet_progress(p) == 40), "progress");
+    p = update_packet_progress(p, 30);
+    t27_assert((get_anim_packet_progress(p) == 70), "advanced");
+    p = update_packet_progress(p, 90);
+    t27_assert((get_anim_packet_progress(p) == 100), "caps at 100");
+}
+
+void test_packet_position_interpolates_both_directions(void) {
+    uint64_t pos = calculate_packet_position(10, 20, 90, 20, 50);
+    (void)pos;
+    t27_assert((((pos >> 24) & 0xFF) == 50), "x midpoint rightward");
+    pos = calculate_packet_position(90, 20, 10, 20, 50);
+    t27_assert((((pos >> 24) & 0xFF) == 50), "x midpoint leftward");
+    t27_assert((((pos >> 16) & 0xFF) == 20), "y unchanged");
+}
+
 
 #endif /* TRAFFIC_ANIMATOR_H */

@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <assert.h>
+#define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
 
 #ifndef LOCAL_PROCESSING_H
 #define LOCAL_PROCESSING_H
@@ -140,10 +142,12 @@ uint32_t find_highest_priority_task(uint32_t* tasks) {
     uint32_t task_index = MAX_TASKS;
     uint32_t i = 0;
     while ((i < MAX_TASKS)) {
-        uint32_t task_priority = get_priority(tasks[i]);
-        if ((task_priority < highest_priority)) {
-            highest_priority = task_priority;
-            task_index = i;
+        if ((tasks[i] != 0)) {
+            uint32_t task_priority = get_priority(tasks[i]);
+            if ((task_priority < highest_priority)) {
+                highest_priority = task_priority;
+                task_index = i;
+            }
         }
         i = (i + 1);
     }
@@ -300,5 +304,41 @@ uint32_t has_resources(uint32_t state, uint32_t required_cpu, uint32_t required_
         return 0;
     }
 }
+
+/* -------------------------------------------------------
+   Tests
+   ------------------------------------------------------- */
+
+void test_task_and_result_roundtrip(void) {
+    uint64_t t = create_task(9, TASK_PRIORITY_MEDIUM, 200, 12345);
+    (void)t;
+    t27_assert((get_task_id(t) == 9), "task id");
+    t27_assert((get_priority(t) == TASK_PRIORITY_MEDIUM), "priority");
+    t27_assert((get_data_size(t) == 200), "size");
+    t27_assert((get_processing_time(t) == 12345), "time");
+    uint64_t r = create_result(9, STATUS_COMPLETED, 200, 9999);
+    (void)r;
+    t27_assert((get_result_task_id(r) == 9), "result task id");
+    t27_assert((get_status(r) == STATUS_COMPLETED), "status");
+    t27_assert((get_result_value(r) == 9999), "value");
+}
+
+void test_process_and_aggregate(void) {
+    uint64_t t = create_task(3, TASK_PRIORITY_HIGH, 10, 5);
+    (void)t;
+    uint64_t r = process_task(t);
+    (void)r;
+    t27_assert((get_status(r) == STATUS_COMPLETED), "completed");
+    t27_assert((get_result_value(r) == 50), "size times time");
+    uint32_t rs[16] = { create_result(1,STATUS_COMPLETED,0,100), create_result(2,STATUS_COMPLETED,0,250), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    t27_assert((aggregate_results(rs, 2) == 350), "sum of result values");
+}
+
+void test_highest_priority_skips_empty_slots(void) {
+    uint32_t ts[8] = { create_task(1,TASK_PRIORITY_LOW,1,1), create_task(2,TASK_PRIORITY_MEDIUM,1,1), create_task(3,TASK_PRIORITY_LOW,1,1), 0, 0, 0, 0, 0 };
+    t27_assert((find_highest_priority_task(ts) == 1), "medium beats low, empties skipped");
+    t27_assert((count_pending_tasks(ts) == 3), "three real tasks");
+}
+
 
 #endif /* LOCAL_PROCESSING_H */

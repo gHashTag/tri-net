@@ -384,4 +384,22 @@ module docs_generator {
                 ((quality_score & 0xFF) << 8) |
                 (completeness & 0xFF));
     }
+
+    // ---- Tests ----
+
+    test output_format_roundtrip {
+        f = create_output_format(9, 200, 5, 50000);
+        assert(get_format_id(f) == 9, "format id");
+        assert(get_format_version(f) == 200, "version");
+        assert(get_format_compression(f) == 5, "compression");
+        assert(get_format_encoding(f) == 50000, "encoding");
+    }
+
+    test markdown_header_levels {
+        h1 = generate_markdown_header(1, 7);
+        assert(((h1 >> 8) & 0xFFFFFF) == 0x23, "level 1 prefix");
+        assert((h1 & 0xFF) == 7, "title id");
+        h3 = generate_markdown_header(3, 7);
+        assert(((h3 >> 8) & 0xFFFFFF) == 0x232323, "level 3 prefix");
+    }
 }

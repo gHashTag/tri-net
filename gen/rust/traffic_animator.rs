@@ -224,8 +224,18 @@ pub fn generate_traffic_burst(pattern: u32, source: u32, dest: u32) -> u32 {
 }
 
 pub fn calculate_packet_position(source_x: u32, source_y: u32, dest_x: u32, dest_y: u32, progress: u32) -> u32 {
-    let current_x: u32 = (source_x + (((dest_x - source_x) * progress) / 100));
-    let current_y: u32 = (source_y + (((dest_y - source_y) * progress) / 100));
+    let mut current_x: u32 = source_x;
+    if (dest_x >= source_x) {
+        current_x = (source_x + (((dest_x - source_x) * progress) / 100));
+    } else {
+        current_x = (source_x - (((source_x - dest_x) * progress) / 100));
+    }
+    let mut current_y: u32 = source_y;
+    if (dest_y >= source_y) {
+        current_y = (source_y + (((dest_y - source_y) * progress) / 100));
+    } else {
+        current_y = (source_y - (((source_y - dest_y) * progress) / 100));
+    }
     return (((current_x & 0xFF) << 24) | ((current_y & 0xFF) << 16));
 }
 

@@ -97,10 +97,12 @@ pub fn find_highest_priority_task(tasks: [u32; MAX_TASKS as usize]) -> u32 {
     let mut task_index: u32 = MAX_TASKS;
     let mut i: u32 = 0;
     while (i < MAX_TASKS) {
-        let task_priority: u32 = get_priority(tasks[(i) as usize]);
-        if (task_priority < highest_priority) {
-            highest_priority = task_priority;
-            task_index = i;
+        if (tasks[(i) as usize] != 0) {
+            let task_priority: u32 = get_priority(tasks[(i) as usize]);
+            if (task_priority < highest_priority) {
+                highest_priority = task_priority;
+                task_index = i;
+            }
         }
         i = (i + 1);
     }
