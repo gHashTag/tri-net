@@ -1,5 +1,5 @@
 $date
-	Sun Aug  9 04:12:54 2026
+	Sun Aug  9 04:29:17 2026
 $end
 $version
 	Icarus Verilog
@@ -7,236 +7,334 @@ $end
 $timescale
 	1ps
 $end
-$scope module MeshNodeSim $end
+$scope module MeshProtocolStack $end
 $var wire 1 ! clk $end
 $var wire 1 " en $end
 $var wire 1 # ready $end
 $var wire 1 $ rst_n $end
-$var parameter 32 % NODE_1 $end
-$var parameter 32 & NODE_2 $end
-$var parameter 32 ' NODE_3 $end
-$var parameter 32 ( NODE_4 $end
+$var parameter 32 % MAX_HOPS $end
+$var parameter 32 & MAX_NODES $end
+$var parameter 32 ' NODE_A $end
+$var parameter 32 ( NODE_B $end
+$var parameter 32 ) NODE_C $end
 $scope function __mul_noop $end
-$var reg 64 ) a [63:0] $end
-$var reg 128 * acc [127:0] $end
-$var reg 64 + b [63:0] $end
-$var integer 32 , i [31:0] $end
+$var reg 64 * a [63:0] $end
+$var reg 128 + acc [127:0] $end
+$var reg 64 , b [63:0] $end
+$var integer 32 - i [31:0] $end
 $upscope $end
-$scope function calculate_hops $end
-$var reg 32 - from [31:0] $end
-$var reg 32 . to [31:0] $end
-$var reg 8 / topology [7:0] $end
-$scope begin calculate_hops_body $end
-$var reg 1 0 __t27_ret $end
-$upscope $end
-$upscope $end
-$scope function create_2node_mesh $end
-$var reg 8 1 quality [7:0] $end
-$scope begin create_2node_mesh_body $end
+$scope function build_packet $end
+$var reg 32 . dst [31:0] $end
+$var reg 8 / payload [7:0] $end
+$var reg 32 0 src [31:0] $end
+$var reg 8 1 ttl [7:0] $end
+$scope begin build_packet_body $end
 $var reg 1 2 __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function create_3node_mesh $end
-$var reg 8 3 q12 [7:0] $end
-$var reg 8 4 q23 [7:0] $end
-$var reg 8 5 q31 [7:0] $end
-$scope begin create_3node_mesh_body $end
+$scope function decrement_ttl $end
+$var reg 32 3 packet [31:0] $end
+$scope begin decrement_ttl_body $end
+$var reg 1 4 __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function extract_dst $end
+$var reg 32 5 packet [31:0] $end
+$scope begin extract_dst_body $end
 $var reg 1 6 __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function create_4node_line $end
-$var reg 8 7 q12 [7:0] $end
-$var reg 8 8 q23 [7:0] $end
-$var reg 8 9 q34 [7:0] $end
-$scope begin create_4node_line_body $end
+$scope function extract_payload $end
+$var reg 32 7 packet [31:0] $end
+$scope begin extract_payload_body $end
+$var reg 1 8 __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function extract_src $end
+$var reg 32 9 packet [31:0] $end
+$scope begin extract_src_body $end
 $var reg 1 : __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function create_link_quality $end
-$var reg 32 ; from [31:0] $end
-$var reg 8 < quality [7:0] $end
-$var reg 32 = to [31:0] $end
-$scope begin create_link_quality_body $end
-$var reg 1 > __t27_ret $end
+$scope function extract_ttl $end
+$var reg 32 ; packet [31:0] $end
+$scope begin extract_ttl_body $end
+$var reg 1 < __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function is_link_good $end
-$var reg 32 ? link [31:0] $end
-$var reg 8 @ threshold [7:0] $end
-$scope begin is_link_good_body $end
-$var reg 1 A __t27_ret $end
+$scope function forward_packet $end
+$var reg 32 = current_node [31:0] $end
+$var reg 32 > packet [31:0] $end
+$scope begin forward_packet_body $end
+$var reg 1 ? __t27_ret $end
+$var reg 33 @ __tup_l85 [32:0] $end
+$var reg 1 A expired $end
+$var reg 32 B new_pkt [31:0] $end
 $upscope $end
 $upscope $end
-$scope function link_from $end
-$var reg 32 B link [31:0] $end
-$scope begin link_from_body $end
-$var reg 1 C __t27_ret $end
+$scope function route_packet $end
+$var reg 32 C dst [31:0] $end
+$var reg 32 D next_hop [31:0] $end
+$var reg 32 E src [31:0] $end
+$scope begin route_packet_body $end
+$var reg 1 F __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function link_quality $end
-$var reg 32 D link [31:0] $end
-$scope begin link_quality_body $end
-$var reg 1 E __t27_ret $end
+$scope function rx_path $end
+$var reg 32 G packet [31:0] $end
+$scope begin rx_path_body $end
+$var reg 1 H __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function link_to $end
-$var reg 32 F link [31:0] $end
-$scope begin link_to_body $end
-$var reg 1 G __t27_ret $end
+$scope function tx_path $end
+$var reg 32 I dst [31:0] $end
+$var reg 8 J payload [7:0] $end
+$var reg 32 K src [31:0] $end
+$scope begin tx_path_body $end
+$var reg 1 L __t27_ret $end
 $upscope $end
 $upscope $end
-$scope begin calculate_hops_2node_test $end
-$var reg 8 H _t27_call_tmp_calculate_hops_2node_0 [7:0] $end
-$var reg 8 I hops [7:0] $end
+$scope begin build_packet_correct_layout_test $end
+$var reg 32 M _t27_call_tmp_build_packet_correct_layout_0 [31:0] $end
+$var reg 32 N _t27_call_tmp_build_packet_correct_layout_1 [31:0] $end
+$var reg 32 O _t27_call_tmp_build_packet_correct_layout_2 [31:0] $end
+$var reg 8 P _t27_call_tmp_build_packet_correct_layout_3 [7:0] $end
+$var reg 8 Q _t27_call_tmp_build_packet_correct_layout_4 [7:0] $end
+$var reg 32 R pkt [31:0] $end
 $upscope $end
-$scope begin calculate_hops_3node_direct_test $end
-$var reg 8 J _t27_call_tmp_calculate_hops_3node_direct_0 [7:0] $end
-$var reg 8 K hops [7:0] $end
+$scope begin decrement_ttl_already_expired_test $end
+$var reg 32 S _t27_call_tmp_decrement_ttl_already_expired_0 [31:0] $end
+$var reg 8 T _t27_call_tmp_decrement_ttl_already_expired_1 [7:0] $end
+$var reg 1 U expired $end
+$var reg 32 V new_pkt [31:0] $end
+$var reg 32 W pkt [31:0] $end
 $upscope $end
-$scope begin calculate_hops_4node_2hops_test $end
-$var reg 8 L _t27_call_tmp_calculate_hops_4node_2hops_0 [7:0] $end
-$var reg 8 M hops [7:0] $end
+$scope begin decrement_ttl_reduces_test $end
+$var reg 32 X _t27_call_tmp_decrement_ttl_reduces_0 [31:0] $end
+$var reg 8 Y _t27_call_tmp_decrement_ttl_reduces_1 [7:0] $end
+$var reg 1 Z expired $end
+$var reg 32 [ new_pkt [31:0] $end
+$var reg 32 \ pkt [31:0] $end
 $upscope $end
-$scope begin calculate_hops_4node_3hops_test $end
-$var reg 8 N _t27_call_tmp_calculate_hops_4node_3hops_0 [7:0] $end
-$var reg 8 O hops [7:0] $end
+$scope begin decrement_ttl_zero_expires_test $end
+$var reg 32 ] _t27_call_tmp_decrement_ttl_zero_expires_0 [31:0] $end
+$var reg 8 ^ _t27_call_tmp_decrement_ttl_zero_expires_1 [7:0] $end
+$var reg 1 _ expired $end
+$var reg 32 ` new_pkt [31:0] $end
+$var reg 32 a pkt [31:0] $end
 $upscope $end
-$scope begin calculate_hops_4node_adjacent_test $end
-$var reg 8 P _t27_call_tmp_calculate_hops_4node_adjacent_0 [7:0] $end
-$var reg 8 Q hops [7:0] $end
+$scope begin end_to_end_tx_rx_test $end
+$var reg 32 b _t27_call_tmp_end_to_end_tx_rx_0 [31:0] $end
+$var reg 8 c _t27_call_tmp_end_to_end_tx_rx_1 [7:0] $end
+$var reg 8 d payload [7:0] $end
+$var reg 32 e pkt [31:0] $end
 $upscope $end
-$scope begin calculate_hops_same_node_test $end
-$var reg 8 R _t27_call_tmp_calculate_hops_same_node_0 [7:0] $end
-$var reg 8 S hops [7:0] $end
+$scope begin forward_packet_decrements_ttl_test $end
+$var reg 32 f _t27_call_tmp_forward_packet_decrements_ttl_0 [31:0] $end
+$var reg 8 g _t27_call_tmp_forward_packet_decrements_ttl_1 [7:0] $end
+$var reg 1 h expired $end
+$var reg 32 i new_pkt [31:0] $end
+$var reg 32 j next_hop [31:0] $end
+$var reg 32 k pkt [31:0] $end
 $upscope $end
-$scope begin create_2node_mesh_test $end
-$var reg 32 T _t27_call_tmp_create_2node_mesh_0 [31:0] $end
-$var reg 32 U _t27_call_tmp_create_2node_mesh_1 [31:0] $end
-$var reg 8 V _t27_call_tmp_create_2node_mesh_2 [7:0] $end
-$var reg 32 W link1 [31:0] $end
-$var reg 32 X link2 [31:0] $end
+$scope begin forward_packet_no_route_test $end
+$var reg 32 l _t27_call_tmp_forward_packet_no_route_0 [31:0] $end
+$var reg 1 m expired $end
+$var reg 32 n new_pkt [31:0] $end
+$var reg 32 o next_hop [31:0] $end
+$var reg 32 p pkt [31:0] $end
 $upscope $end
-$scope begin create_3node_mesh_test $end
-$var reg 32 Y _t27_call_tmp_create_3node_mesh_0 [31:0] $end
-$var reg 32 Z _t27_call_tmp_create_3node_mesh_1 [31:0] $end
-$var reg 32 [ _t27_call_tmp_create_3node_mesh_2 [31:0] $end
-$var reg 32 \ link1 [31:0] $end
-$var reg 32 ] link2 [31:0] $end
-$var reg 32 ^ link3 [31:0] $end
+$scope begin forward_packet_preserves_payload_test $end
+$var reg 1 q __t27_disc_0_1 $end
+$var reg 32 r __t27_disc_0_2 [31:0] $end
+$var reg 32 s _t27_call_tmp_forward_packet_preserves_payload_0 [31:0] $end
+$var reg 8 t _t27_call_tmp_forward_packet_preserves_payload_1 [7:0] $end
+$var reg 32 u _t27_call_tmp_forward_packet_preserves_payload_2 [31:0] $end
+$var reg 32 v _t27_call_tmp_forward_packet_preserves_payload_3 [31:0] $end
+$var reg 8 w _t27_call_tmp_forward_packet_preserves_payload_4 [7:0] $end
+$var reg 8 x _t27_call_tmp_forward_packet_preserves_payload_5 [7:0] $end
+$var reg 32 y _t27_call_tmp_forward_packet_preserves_payload_6 [31:0] $end
+$var reg 32 z _t27_call_tmp_forward_packet_preserves_payload_7 [31:0] $end
+$var reg 8 { _t27_call_tmp_forward_packet_preserves_payload_8 [7:0] $end
+$var reg 32 | fwd [31:0] $end
+$var reg 32 } fwd2 [31:0] $end
+$var reg 32 ~ pkt [31:0] $end
 $upscope $end
-$scope begin create_4node_line_test $end
-$var reg 32 _ _t27_call_tmp_create_4node_line_0 [31:0] $end
-$var reg 32 ` _t27_call_tmp_create_4node_line_1 [31:0] $end
-$var reg 32 a _t27_call_tmp_create_4node_line_2 [31:0] $end
-$var reg 32 b link1 [31:0] $end
-$var reg 32 c link2 [31:0] $end
-$var reg 32 d link3 [31:0] $end
+$scope begin forward_packet_ttl_expired_test $end
+$var reg 32 !" __t27_disc_0_2 [31:0] $end
+$var reg 32 "" _t27_call_tmp_forward_packet_ttl_expired_0 [31:0] $end
+$var reg 1 #" exp1 $end
+$var reg 1 $" exp2 $end
+$var reg 32 %" pkt [31:0] $end
+$var reg 32 &" pkt1 [31:0] $end
+$var reg 32 '" pkt2 [31:0] $end
 $upscope $end
-$scope begin create_link_quality_correct_test $end
-$var reg 32 e _t27_call_tmp_create_link_quality_correct_0 [31:0] $end
-$var reg 32 f _t27_call_tmp_create_link_quality_correct_1 [31:0] $end
-$var reg 32 g _t27_call_tmp_create_link_quality_correct_2 [31:0] $end
-$var reg 8 h _t27_call_tmp_create_link_quality_correct_3 [7:0] $end
-$var reg 32 i link [31:0] $end
+$scope begin multi_hop_routing_test $end
+$var reg 32 (" _t27_call_tmp_multi_hop_routing_0 [31:0] $end
+$var reg 8 )" _t27_call_tmp_multi_hop_routing_1 [7:0] $end
+$var reg 1 *" exp1 $end
+$var reg 1 +" exp2 $end
+$var reg 32 ," hop1 [31:0] $end
+$var reg 32 -" hop2 [31:0] $end
+$var reg 8 ." payload [7:0] $end
+$var reg 32 /" pkt [31:0] $end
+$var reg 32 0" pkt1 [31:0] $end
+$var reg 32 1" pkt2 [31:0] $end
 $upscope $end
-$scope begin is_link_good_threshold_test $end
-$var reg 32 j _t27_call_tmp_is_link_good_threshold_0 [31:0] $end
-$var reg 1 k _t27_call_tmp_is_link_good_threshold_1 $end
-$var reg 1 l _t27_call_tmp_is_link_good_threshold_2 $end
-$var reg 32 m link [31:0] $end
+$scope begin route_packet_direct_a_to_b_test $end
+$var reg 32 2" _t27_call_tmp_route_packet_direct_a_to_b_0 [31:0] $end
+$var reg 32 3" next_hop [31:0] $end
 $upscope $end
-$scope begin link_quality_threshold_check_test $end
-$var reg 32 n __t27_disc_0_1 [31:0] $end
-$var reg 1 o _t27_call_tmp_link_quality_threshold_check_0 $end
-$var reg 1 p _t27_call_tmp_link_quality_threshold_check_1 $end
-$var reg 32 q link1 [31:0] $end
-$var reg 32 r link2 [31:0] $end
+$scope begin route_packet_direct_b_to_c_test $end
+$var reg 32 4" _t27_call_tmp_route_packet_direct_b_to_c_0 [31:0] $end
+$var reg 32 5" next_hop [31:0] $end
+$upscope $end
+$scope begin route_packet_via_b_a_to_c_test $end
+$var reg 32 6" _t27_call_tmp_route_packet_via_b_a_to_c_0 [31:0] $end
+$var reg 32 7" next_hop [31:0] $end
+$upscope $end
+$scope begin rx_path_extracts_payload_test $end
+$var reg 32 8" _t27_call_tmp_rx_path_extracts_payload_0 [31:0] $end
+$var reg 8 9" _t27_call_tmp_rx_path_extracts_payload_1 [7:0] $end
+$var reg 8 :" payload [7:0] $end
+$var reg 32 ;" pkt [31:0] $end
+$upscope $end
+$scope begin tx_path_produces_valid_packet_test $end
+$var reg 32 <" _t27_call_tmp_tx_path_produces_valid_packet_0 [31:0] $end
+$var reg 32 =" _t27_call_tmp_tx_path_produces_valid_packet_1 [31:0] $end
+$var reg 32 >" _t27_call_tmp_tx_path_produces_valid_packet_2 [31:0] $end
+$var reg 8 ?" _t27_call_tmp_tx_path_produces_valid_packet_3 [7:0] $end
+$var reg 32 @" pkt [31:0] $end
 $upscope $end
 $upscope $end
 $enddefinitions $end
 $comment Show the parameter values. $end
 $dumpall
-b100 (
-b11 '
-b10 &
-b1 %
+b11 )
+b10 (
+b1 '
+b11 &
+b11 %
 $end
 #0
 $dumpvars
-b10000001001100100 r
-b10000001000110010 q
-1p
-0o
-b100000000101100100 n
-b10000001010010110 m
-0l
-1k
-b10000001010010110 j
-b10000001011001000 i
-b11001000 h
+b1000000100011000000000111 @"
+b111 ?"
+b10 >"
+b1 ="
+b1000000100011000000000111 <"
+b1000000100011000000001001 ;"
+b1001 :"
+b1001 9"
+b1000000100011000000001001 8"
+b10 7"
+b10 6"
+b11 5"
+b11 4"
+b10 3"
+b10 2"
+b1000000110001000000000111 1"
+b1000000110010000000000111 0"
+b1000000110011000000000111 /"
+b111 ."
+b11 -"
+b10 ,"
+0+"
+0*"
+b111 )"
+b1000000110011000000000111 ("
+b1000000100000000000000101 '"
+b1000000100000000000000101 &"
+b1000000100001000000000101 %"
+1$"
+1#"
+b1000000100001000000000101 ""
+b0 !"
+b1000000100011000000000101 ~
+b1000000100001000000000101 }
+b1000000100010000000000101 |
+b1 {
+b10 z
+b1 y
+b101 x
+b101 w
+b10 v
+b1 u
+b10 t
+b1000000100011000000000101 s
+b10 r
+0q
+b1011000110011000000000101 p
+b0 o
+b1011000110010000000000101 n
+0m
+b1011000110011000000000101 l
+b1000000100011000000000101 k
+b10 j
+b1000000100010000000000101 i
+0h
 b10 g
-b1 f
-b10000001011001000 e
-b110000010010001100 d
-b100000001110000010 c
-b10000001001111000 b
-b11 a
-b10 `
-b1 _
-b110000000111001000 ^
-b100000001110010110 ]
-b10000001001100100 \
-b1 [
-b11 Z
+b1000000100011000000000101 f
+b1000000100011000000101010 e
+b101010 d
+b101010 c
+b1000000100011000000101010 b
+b1000000100001000000000101 a
+b1000000100000000000000101 `
+1_
+b0 ^
+b1000000100001000000000101 ]
+b1000000100011000000000101 \
+b1000000100010000000000101 [
+0Z
 b10 Y
-b100000000110110100 X
-b10000001010110100 W
-b10110100 V
-b10 U
-b1 T
-b0 S
-b0 R
-b1 Q
-b1 P
-b11 O
-b11 N
-b10 M
-b10 L
+b1000000100011000000000101 X
+b1000000100000000000000101 W
+b1000000100000000000000101 V
+1U
+b0 T
+b1000000100000000000000101 S
+b1000000100011000000000101 R
+b101 Q
+b11 P
+b10 O
+b1 N
+b1000000100011000000000101 M
+1L
 b1 K
-b1 J
-b1 I
-b1 H
-1G
-b110000000111001000 F
-1E
-b10000001001100100 D
-1C
-b110000010010001100 B
-1A
-b1001011 @
-b10000001001100100 ?
-1>
+b111 J
+b11 I
+1H
+b1000000110001000000000111 G
+1F
+b10 E
+b0 D
+b11 C
+b1000000110001000000000111 B
+0A
+b1000000110001000000000111 @
+1?
+b1000000110010000000000111 >
 b10 =
-b1100100 <
-b1 ;
+1<
+b1000000110010000000000111 ;
 1:
-b10001100 9
-b10000010 8
-b1111000 7
+b1000000100001000000000101 9
+18
+b1000000110001000000000111 7
 16
-b11001000 5
-b10010110 4
-b1100100 3
+b1000000110001000000000111 5
+14
+b1000000110010000000000111 3
 12
-b1100100 1
-10
-b100 /
-b100 .
-b1 -
+b11 1
+b1 0
+b111 /
+b11 .
+bx -
 bx ,
 bx +
 bx *
-bx )
 z$
 1#
 z"

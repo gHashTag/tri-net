@@ -76,12 +76,13 @@ pub fn rx_path(packet: u32) -> u8 {
 }
 
 pub fn forward_packet(packet: u32, current_node: u32) -> (u32, bool, u32) {
-    if (decrement_ttl(packet).1) != 0 {
-        return (decrement_ttl(packet).0, true, 0);
+    let (new_pkt, expired) = decrement_ttl(packet);
+    if (expired) != 0 {
+        return (new_pkt, true, 0);
     }
-    if (route_packet(current_node, extract_dst(decrement_ttl(packet).0), 0) == 0) {
-        return (decrement_ttl(packet).0, false, 0);
+    if (route_packet(current_node, extract_dst(new_pkt), 0) == 0) {
+        return (new_pkt, false, 0);
     }
-    return (decrement_ttl(packet).0, false, route_packet(current_node, extract_dst(decrement_ttl(packet).0), 0));
+    return (new_pkt, false, route_packet(current_node, extract_dst(new_pkt), 0));
 }
 
