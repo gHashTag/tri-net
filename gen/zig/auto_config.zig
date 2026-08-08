@@ -77,7 +77,8 @@ fn get_config_value(config: [MAX_PARAMS]u32, param_id: u32) u32 {
     }
     return 0;
 }
-fn set_config_value(config: [MAX_PARAMS]u32, param_id: u32, new_value: u32) u32 {
+fn set_config_value(config_arg: [MAX_PARAMS]u32, param_id: u32, new_value: u32) u32 {
+    var config = config_arg;
     var i: u32 = 0;
     _ = &i;
     while (i < MAX_PARAMS) {
@@ -120,7 +121,8 @@ fn discover_network_params(node_count: u32, interference_level: u32) u32 {
     set_config_value(config, PARAM_HELLO_INTERVAL, hello_interval);
     return 1;
 }
-fn apply_config(config: [MAX_PARAMS]u32, param_id: u32) u32 {
+fn apply_config(config_arg: [MAX_PARAMS]u32, param_id: u32) u32 {
+    var config = config_arg;
     var i: u32 = 0;
     _ = &i;
     while (i < MAX_PARAMS) {
@@ -247,7 +249,8 @@ break;
     }
     return synced_count;
 }
-fn rollback_config(config: [MAX_PARAMS]u32, backup_config: [MAX_PARAMS]u32) u32 {
+fn rollback_config(config_arg: [MAX_PARAMS]u32, backup_config: [MAX_PARAMS]u32) u32 {
+    var config = config_arg;
     var rolled_back: u32 = 0;
     _ = &rolled_back;
     var i: u32 = 0;

@@ -157,7 +157,8 @@ fn calculate_force_layout(nodes: [MAX_NODES]u32, edges: [MAX_EDGES]u32, node_cou
     }
     return placed_nodes;
 }
-fn calculate_circular_layout(nodes: [MAX_NODES]u32, node_count: u32) u32 {
+fn calculate_circular_layout(nodes_arg: [MAX_NODES]u32, node_count: u32) u32 {
+    var nodes = nodes_arg;
     const _cse1 = CANVAS_SIZE / 2;
     const center_x: u32 = CANVAS_SIZE / 2;
     const center_y: u32 = _cse1;
@@ -175,7 +176,8 @@ fn calculate_circular_layout(nodes: [MAX_NODES]u32, node_count: u32) u32 {
     }
     return node_count;
 }
-fn calculate_hierarchical_layout(nodes: [MAX_NODES]u32, edges: [MAX_EDGES]u32, node_count: u32, edge_count: u32) u32 {
+fn calculate_hierarchical_layout(nodes_arg: [MAX_NODES]u32, edges: [MAX_EDGES]u32, node_count: u32, edge_count: u32) u32 {
+    var nodes = nodes_arg;
     _ = edges; // unused by the spec body
     _ = edge_count; // unused by the spec body
     const level_count: u32 = 4;
