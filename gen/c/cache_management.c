@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <assert.h>
+#define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
 
 #ifndef CACHE_MANAGEMENT_H
 #define CACHE_MANAGEMENT_H
@@ -163,7 +165,7 @@ uint32_t find_eviction_candidate(uint32_t* cache) {
         if ((data_id != 0)) {
             uint32_t access_count = get_access_count(entry);
             uint32_t age = get_age(entry);
-            uint32_t score = ((access_count << 8) | age);
+            uint32_t score = ((access_count << 8) | (255 - age));
             if ((score < worst_score)) {
                 worst_score = score;
                 candidate = i;
@@ -312,5 +314,40 @@ uint32_t update_stats(uint32_t stats, uint32_t hit, uint32_t evicted) {
     }
     return create_cache_stats(hits, misses, size, evictions);
 }
+
+/* -------------------------------------------------------
+   Tests
+   ------------------------------------------------------- */
+
+void test_cache_entry_roundtrip(void) {
+    uint64_t e = create_cache_entry(9, 3, 40, 128);
+    (void)e;
+    t27_assert((get_data_id(e) == 9), "data id");
+    t27_assert((get_access_count(e) == 3), "access count");
+    t27_assert((get_age(e) == 40), "age");
+    t27_assert((get_entry_size(e) == 128), "size");
+}
+
+void test_access_count_saturates(void) {
+    uint64_t e = create_cache_entry(1, 254, 0, 8);
+    (void)e;
+    uint64_t e2 = update_access_count(e);
+    (void)e2;
+    t27_assert((get_access_count(e2) == 255), "increments");
+    uint64_t e3 = update_access_count(e2);
+    (void)e3;
+    t27_assert((get_access_count(e3) == 255), "saturates at 255");
+}
+
+void test_eviction_prefers_cold_then_old(void) {
+    uint32_t cache[16] = { create_cache_entry(1,5,10,8), create_cache_entry(2,1,10,8), create_cache_entry(3,1,200,8), create_cache_entry(4,9,250,8), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    t27_assert((find_eviction_candidate(cache) == 2), "coldest then oldest wins");
+}
+
+void test_hit_rate_calculation(void) {
+    t27_assert((calculate_hit_rate(75, 100) == 75), "75 percent");
+    t27_assert((calculate_hit_rate(0, 0) == 0), "no accesses is 0");
+}
+
 
 #endif /* CACHE_MANAGEMENT_H */

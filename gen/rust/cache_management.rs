@@ -116,7 +116,7 @@ pub fn find_eviction_candidate(cache: [u32; MAX_ENTRIES as usize]) -> u32 {
         if (data_id != 0) {
             let access_count: u32 = get_access_count(entry);
             let age: u32 = get_age(entry);
-            let score: u32 = ((access_count << 8) | age);
+            let score: u32 = ((access_count << 8) | (255 - age));
             if (score < worst_score) {
                 worst_score = score;
                 candidate = i;

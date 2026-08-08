@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <assert.h>
+#define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
 
 #ifndef AUTO_CONFIG_H
 #define AUTO_CONFIG_H
@@ -65,7 +67,7 @@ uint32_t assign_node_role(uint32_t node_id, uint32_t capabilities);
    ------------------------------------------------------- */
 
 uint32_t create_config_param(uint32_t param_id, uint32_t value, uint32_t scope, uint32_t status) {
-    return (((((param_id & 0xFF) << 24) | ((value & 0xFF) << 16)) | ((scope & 0xF) << 12)) | (status & 0xFFF));
+    return (((((param_id & 0xFF) << 24) | ((value & 0xFFFF) << 8)) | ((scope & 0xF) << 4)) | (status & 0xF));
 }
 
 uint32_t get_param_id(uint32_t param) {
@@ -73,15 +75,15 @@ uint32_t get_param_id(uint32_t param) {
 }
 
 uint32_t get_param_value(uint32_t param) {
-    return ((param >> 16) & 0xFF);
+    return ((param >> 8) & 0xFFFF);
 }
 
 uint32_t get_param_scope(uint32_t param) {
-    return ((param >> 12) & 0xF);
+    return ((param >> 4) & 0xF);
 }
 
 uint32_t get_param_status(uint32_t param) {
-    return (param & 0xFFF);
+    return (param & 0xF);
 }
 
 uint32_t default_config_at(uint32_t index) {
@@ -356,14 +358,47 @@ uint32_t discover_neighbors(uint32_t node_id, uint32_t scan_count) {
 
 uint32_t assign_node_role(uint32_t node_id, uint32_t capabilities) {
     uint32_t role = 0;
-    if ((capabilities & 0x1)) {
+    if (((capabilities & 0x1) != 0)) {
         role = 1;
-    } else if ((capabilities & 0x2)) {
+    } else if (((capabilities & 0x2) != 0)) {
         role = 2;
-    } else if ((capabilities & 0x4)) {
+    } else if (((capabilities & 0x4) != 0)) {
         role = 3;
     }
     return role;
 }
+
+/* -------------------------------------------------------
+   Tests
+   ------------------------------------------------------- */
+
+void test_config_param_roundtrip_wide_value(void) {
+    uint64_t p = create_config_param(PARAM_HELLO_INTERVAL, 2000, SCOPE_NETWORK, STATUS_PENDING);
+    (void)p;
+    t27_assert((get_param_id(p) == PARAM_HELLO_INTERVAL), "param id");
+    t27_assert((get_param_value(p) == 2000), "16-bit value survives");
+    t27_assert((get_param_scope(p) == SCOPE_NETWORK), "scope");
+    t27_assert((get_param_status(p) == STATUS_PENDING), "status");
+}
+
+void test_default_table_values_survive(void) {
+    t27_assert((get_param_value(default_config_at(4)) == 2000), "hello interval");
+    t27_assert((get_param_value(default_config_at(5)) == 10000), "route timeout");
+    t27_assert((get_param_value(default_config_at(0)) == 50), "tx power");
+}
+
+void test_config_lookup_finds_param(void) {
+    uint32_t cfg[16] = { default_config_at(0), default_config_at(1), default_config_at(2), default_config_at(3), default_config_at(4), default_config_at(5), default_config_at(6), default_config_at(7), 0, 0, 0, 0, 0, 0, 0, 0 };
+    t27_assert((get_config_value(cfg, PARAM_RETRY_LIMIT) == 3), "retry limit found");
+    t27_assert((get_config_value(cfg, 99) == 0), "unknown param yields 0");
+}
+
+void test_node_role_assignment(void) {
+    t27_assert((assign_node_role(1, 0x1) == 1), "coordinator capability");
+    t27_assert((assign_node_role(2, 0x2) == 2), "relay capability");
+    t27_assert((assign_node_role(3, 0x4) == 3), "edge capability");
+    t27_assert((assign_node_role(4, 0x0) == 0), "no capability is a normal node");
+}
+
 
 #endif /* AUTO_CONFIG_H */

@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <assert.h>
+#define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
 
 #ifndef HEALTH_DASHBOARD_H
 #define HEALTH_DASHBOARD_H
@@ -123,11 +125,19 @@ uint32_t calculate_node_health(uint32_t* metrics, uint32_t count) {
         uint32_t value = get_health_value(metrics[i]);
         uint32_t metric_score = 0;
         if (((metric_type == METRIC_CPU) || (metric_type == METRIC_MEMORY))) {
-            metric_score = (100 - value);
+            if ((value < 100)) {
+                metric_score = (100 - value);
+            } else {
+                metric_score = 0;
+            }
         } else if (((metric_type == METRIC_BANDWIDTH) || (metric_type == METRIC_LINK_QUALITY))) {
             metric_score = value;
         } else if ((((metric_type == METRIC_LATENCY) || (metric_type == METRIC_PACKET_LOSS)) || (metric_type == METRIC_ERROR_RATE))) {
-            metric_score = (100 - value);
+            if ((value < 100)) {
+                metric_score = (100 - value);
+            } else {
+                metric_score = 0;
+            }
         } else if ((metric_type == METRIC_BATTERY)) {
             metric_score = value;
         } else {
@@ -327,5 +337,35 @@ uint32_t calculate_uptime(uint32_t total_uptime, uint32_t total_time) {
         return 100;
     }
 }
+
+/* -------------------------------------------------------
+   Tests
+   ------------------------------------------------------- */
+
+void test_health_metric_roundtrip(void) {
+    uint64_t m = create_health_metric(4, METRIC_LATENCY, 35, 200);
+    (void)m;
+    t27_assert((get_health_node_id(m) == 4), "node id");
+    t27_assert((get_health_metric_type(m) == METRIC_LATENCY), "metric type");
+    t27_assert((get_health_value(m) == 35), "value");
+    t27_assert((get_health_timestamp(m) == 200), "timestamp");
+}
+
+void test_node_health_mixes_metric_polarity(void) {
+    uint32_t ms[16] = { create_health_metric(1,METRIC_CPU,20,0), create_health_metric(1,METRIC_BANDWIDTH,90,1), create_health_metric(1,METRIC_LATENCY,30,2), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    t27_assert((calculate_node_health(ms, 3) == 80), "polarity-aware mean");
+}
+
+void test_node_health_saturates_out_of_range(void) {
+    uint32_t ms[16] = { create_health_metric(1,METRIC_LATENCY,200,0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    t27_assert((calculate_node_health(ms, 1) == 0), "out-of-range metric floors at 0");
+}
+
+void test_network_health_average(void) {
+    uint32_t nodes[8] = { 90, 70, 80, 0, 0, 0, 0, 0 };
+    t27_assert((calculate_network_health(nodes, 3) == 80), "network mean");
+    t27_assert((calculate_network_health(nodes, 0) == 100), "no nodes is healthy");
+}
+
 
 #endif /* HEALTH_DASHBOARD_H */

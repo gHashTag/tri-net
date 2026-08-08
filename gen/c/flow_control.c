@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <assert.h>
+#define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
 
 #ifndef FLOW_CONTROL_H
 #define FLOW_CONTROL_H
@@ -261,5 +263,42 @@ uint32_t release_backpressure(uint32_t* flows, uint32_t flow_index) {
     uint32_t window = get_window_size(flow);
     return update_credits(flow, window);
 }
+
+/* -------------------------------------------------------
+   Tests
+   ------------------------------------------------------- */
+
+void test_flow_state_roundtrip(void) {
+    uint64_t f = create_flow_state(3, 7, 16, 9);
+    (void)f;
+    t27_assert((get_sender_id(f) == 3), "sender");
+    t27_assert((get_receiver_id(f) == 7), "receiver");
+    t27_assert((get_window_size(f) == 16), "window");
+    t27_assert((get_credits(f) == 9), "credits");
+}
+
+void test_credit_lifecycle(void) {
+    uint64_t f = create_flow_state(1, 2, 16, 1);
+    (void)f;
+    f = consume_credit(f);
+    t27_assert((get_credits(f) == 0), "credit consumed");
+    f = consume_credit(f);
+    t27_assert((get_credits(f) == 0), "no underflow at zero");
+    f = add_credits(f, 100);
+    t27_assert((get_credits(f) == 16), "credits cap at the window");
+}
+
+void test_backpressure_levels(void) {
+    uint64_t f = create_flow_state(1, 2, 16, 2);
+    (void)f;
+    t27_assert((is_under_backpressure(f) == 1), "14 used is backpressure");
+    t27_assert((calculate_backpressure_level(f) == 2), "high level");
+    f = create_flow_state(1, 2, 16, 10);
+    t27_assert((is_under_backpressure(f) == 0), "6 used is fine");
+    t27_assert((calculate_backpressure_level(f) == 1), "moderate level");
+    f = create_flow_state(1, 2, 16, 14);
+    t27_assert((calculate_backpressure_level(f) == 0), "2 used is no backpressure");
+}
+
 
 #endif /* FLOW_CONTROL_H */

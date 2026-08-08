@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <assert.h>
+#define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
 
 #ifndef CONGESTION_CONTROL_H
 #define CONGESTION_CONTROL_H
@@ -240,5 +242,47 @@ uint32_t reset_after_timeout(uint32_t congestion) {
     cwnd = MIN_WINDOW;
     return create_congestion_state(cwnd, ssthresh, STATE_SLOW_START, 0);
 }
+
+/* -------------------------------------------------------
+   Tests
+   ------------------------------------------------------- */
+
+void test_congestion_state_roundtrip(void) {
+    uint64_t st = create_congestion_state(32, 16, STATE_FAST_RECOVERY, 5000);
+    (void)st;
+    t27_assert((get_cwnd(st) == 32), "cwnd");
+    t27_assert((get_ssthresh(st) == 16), "ssthresh");
+    t27_assert((get_congestion_state(st) == STATE_FAST_RECOVERY), "state");
+    t27_assert((get_loss_count(st) == 5000), "loss count");
+}
+
+void test_slow_start_doubles_until_threshold(void) {
+    uint64_t st = initialize_congestion();
+    (void)st;
+    t27_assert((get_cwnd(st) == INITIAL_WINDOW), "initial window");
+    st = on_ack(st);
+    t27_assert((get_cwnd(st) == 8), "4 doubles to 8");
+    st = on_ack(st);
+    st = on_ack(st);
+    st = on_ack(st);
+    t27_assert((get_cwnd(st) == 64), "window reaches the cap");
+    t27_assert((get_congestion_state(st) == STATE_CONGESTION_AVOIDANCE), "leaves slow start");
+    st = on_ack(st);
+    t27_assert((get_cwnd(st) == MAX_WINDOW), "linear growth is capped at MAX_WINDOW");
+}
+
+void test_loss_threshold_resets_window(void) {
+    uint64_t st = create_congestion_state(40, 64, STATE_CONGESTION_AVOIDANCE, 0);
+    (void)st;
+    st = on_loss(st);
+    st = on_loss(st);
+    t27_assert((get_cwnd(st) == 40), "two losses keep the window");
+    st = on_loss(st);
+    t27_assert((get_cwnd(st) == MIN_WINDOW), "third loss collapses the window");
+    t27_assert((get_ssthresh(st) == 20), "ssthresh is half the old window");
+    t27_assert((get_congestion_state(st) == STATE_SLOW_START), "back to slow start");
+    t27_assert((get_loss_count(st) == 0), "loss counter cleared");
+}
+
 
 #endif /* CONGESTION_CONTROL_H */

@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <assert.h>
+#define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
 
 #ifndef COMPRESSION_ENGINE_H
 #define COMPRESSION_ENGINE_H
@@ -106,8 +108,8 @@ uint32_t decompress_rle(uint32_t compressed) {
     uint32_t decompressed = 0;
     uint32_t pos = 0;
     while ((pos < 32)) {
-        uint32_t count = ((compressed >> pos) & 0xF);
-        uint32_t value = ((compressed >> (pos + 4)) & 0xF);
+        uint32_t value = ((compressed >> pos) & 0xF);
+        uint32_t count = ((compressed >> (pos + 4)) & 0xF);
         uint32_t i = 0;
         while (((i < count) && (i < 8))) {
             decompressed = ((decompressed << 4) | value);
@@ -296,5 +298,33 @@ uint32_t calculate_compression_speed(uint32_t original_size, uint32_t compressed
         return 0;
     }
 }
+
+/* -------------------------------------------------------
+   Tests
+   ------------------------------------------------------- */
+
+void test_block_info_roundtrip(void) {
+    uint64_t info = create_block_info(200, 90, METHOD_RLE, 12345);
+    (void)info;
+    t27_assert((get_original_size(info) == 200), "original size");
+    t27_assert((get_compressed_size(info) == 90), "compressed size");
+    t27_assert((get_compression_method(info) == METHOD_RLE), "method");
+    t27_assert((get_compression_quality(info) == 12345), "quality");
+}
+
+void test_compression_ratio(void) {
+    t27_assert((calculate_compression_ratio(200, 100) == 200), "2x ratio is 200");
+    t27_assert((calculate_compression_ratio(100, 0) == 100), "zero compressed guards");
+}
+
+void test_rle_single_run_roundtrip(void) {
+    uint64_t c = compress_rle(0x1111, 4);
+    (void)c;
+    t27_assert((c == 0x41), "run of four ones");
+    uint64_t d = decompress_rle(c);
+    (void)d;
+    t27_assert((d == 0x1111), "roundtrip restores the run");
+}
+
 
 #endif /* COMPRESSION_ENGINE_H */

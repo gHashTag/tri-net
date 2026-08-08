@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <assert.h>
+#define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
 
 #ifndef ANOMALY_DETECTOR_H
 #define ANOMALY_DETECTOR_H
@@ -346,5 +348,51 @@ uint32_t calculate_anomaly_confidence(uint32_t report, uint32_t historical_confi
         return weighted_confidence;
     }
 }
+
+/* -------------------------------------------------------
+   Tests
+   ------------------------------------------------------- */
+
+void test_metric_reading_roundtrip(void) {
+    uint64_t r = create_metric_reading(7, 200, 99, 55);
+    (void)r;
+    t27_assert((get_metric_id(r) == 7), "metric id");
+    t27_assert((get_metric_value(r) == 200), "metric value");
+    t27_assert((get_timestamp(r) == 99), "timestamp");
+    t27_assert((get_confidence(r) == 55), "confidence");
+}
+
+void test_anomaly_report_roundtrip(void) {
+    uint64_t rep = create_anomaly_report(9, 90, TYPE_PATTERN, 12345);
+    (void)rep;
+    t27_assert((get_anomaly_metric_id(rep) == 9), "report metric id");
+    t27_assert((get_severity(rep) == 90), "severity");
+    t27_assert((get_anomaly_type(rep) == TYPE_PATTERN), "anomaly type");
+    t27_assert((get_anomaly_confidence(rep) == 12345), "report confidence");
+}
+
+void test_baseline_and_variance(void) {
+    uint32_t h[16] = { create_metric_reading(1,100,0,50), create_metric_reading(1,120,1,50), create_metric_reading(1,100,2,50), create_metric_reading(1,120,3,50), create_metric_reading(1,100,4,50), create_metric_reading(1,120,5,50), create_metric_reading(1,100,6,50), create_metric_reading(1,120,7,50), 0, 0, 0, 0, 0, 0, 0, 0 };
+    uint64_t b = calculate_baseline(h, 8);
+    (void)b;
+    t27_assert((b == 110), "baseline is the mean");
+    uint64_t v = calculate_variance(h, 8, b);
+    (void)v;
+    t27_assert((v == 10), "variance is the mean absolute deviation");
+}
+
+void test_spike_and_drop_detection(void) {
+    t27_assert((detect_spike(150, 110, 10) == 1), "40 above baseline is a spike");
+    t27_assert((detect_spike(130, 110, 10) == 0), "20 above baseline is noise");
+    t27_assert((detect_drop(70, 110, 10) == 1), "40 below baseline is a drop");
+    t27_assert((detect_drop(95, 110, 10) == 0), "15 below baseline is noise");
+}
+
+void test_severity_bands(void) {
+    t27_assert((calculate_severity(250, 100) == 90), "diff 150 is high severity");
+    t27_assert((calculate_severity(170, 100) == 60), "diff 70 is medium severity");
+    t27_assert((calculate_severity(120, 100) == 30), "diff 20 is low severity");
+}
+
 
 #endif /* ANOMALY_DETECTOR_H */
