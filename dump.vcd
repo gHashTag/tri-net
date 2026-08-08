@@ -1,5 +1,5 @@
 $date
-	Sun Aug  9 03:14:59 2026
+	Sun Aug  9 03:50:39 2026
 $end
 $version
 	Icarus Verilog
@@ -7,242 +7,264 @@ $end
 $timescale
 	1ps
 $end
-$scope module OlsrRouting $end
+$scope module PacketLossInjection $end
 $var wire 1 ! clk $end
 $var wire 1 " en $end
 $var wire 1 # ready $end
 $var wire 1 $ rst_n $end
-$var parameter 32 % MAX_NEIGHBORS $end
-$var parameter 32 & NO_NEIGHBOR $end
-$var parameter 32 ' NO_SLOT $end
-$var parameter 32 ( VALID_TIMEOUT $end
+$var parameter 8 % ERROR_BIT_FLIP $end
+$var parameter 8 & ERROR_CRC_FAIL $end
+$var parameter 8 ' ERROR_DUPLICATE $end
+$var parameter 8 ( ERROR_NONE $end
+$var parameter 8 ) ERROR_OUT_OF_ORDER $end
+$var parameter 8 * ERROR_REPLAY $end
 $scope function __mul_noop $end
-$var reg 64 ) a [63:0] $end
-$var reg 128 * acc [127:0] $end
-$var reg 64 + b [63:0] $end
-$var integer 32 , i [31:0] $end
+$var reg 64 + a [63:0] $end
+$var reg 128 , acc [127:0] $end
+$var reg 64 - b [63:0] $end
+$var integer 32 . i [31:0] $end
 $upscope $end
-$scope function best_of_two $end
-$var reg 32 - a [31:0] $end
-$var reg 32 . b [31:0] $end
-$scope begin best_of_two_body $end
-$var reg 1 / __t27_ret $end
-$upscope $end
-$upscope $end
-$scope function count_neighbors $end
-$var reg 128 0 table [127:0] $end
-$scope begin count_neighbors_body $end
-$var reg 1 1 __t27_ret $end
+$scope function calculate_crc $end
+$var reg 32 / packet [31:0] $end
+$scope begin calculate_crc_body $end
+$var reg 1 0 __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function create_neighbor $end
-$var reg 32 2 id [31:0] $end
-$var reg 32 3 last_seen [31:0] $end
-$var reg 32 4 quality [31:0] $end
-$scope begin create_neighbor_body $end
+$scope function check_replay $end
+$var reg 32 1 last_seq [31:0] $end
+$var reg 32 2 packet [31:0] $end
+$scope begin check_replay_body $end
+$var reg 1 3 __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function duplicate_packet $end
+$var reg 32 4 packet [31:0] $end
+$scope begin duplicate_packet_body $end
 $var reg 1 5 __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function find_index $end
-$var reg 128 6 table [127:0] $end
-$var reg 32 7 target_id [31:0] $end
-$scope begin find_index_body $end
-$var reg 1 8 __t27_ret $end
+$scope function extract_sequence $end
+$var reg 32 6 packet [31:0] $end
+$scope begin extract_sequence_body $end
+$var reg 1 7 __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function get_best_neighbor $end
-$var reg 128 9 table [127:0] $end
-$scope begin get_best_neighbor_body $end
+$scope function inject_bit_flip $end
+$var reg 8 8 bit_pos [7:0] $end
+$var reg 32 9 packet [31:0] $end
+$scope begin inject_bit_flip_body $end
 $var reg 1 : __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function get_id $end
-$var reg 32 ; entry [31:0] $end
-$scope begin get_id_body $end
+$scope function inject_crc_error $end
+$var reg 32 ; packet [31:0] $end
+$scope begin inject_crc_error_body $end
 $var reg 1 < __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function get_id_at $end
-$var reg 32 = index [31:0] $end
-$var reg 128 > table [127:0] $end
-$scope begin get_id_at_body $end
+$scope function inject_out_of_order $end
+$var reg 32 = pkt1 [31:0] $end
+$var reg 32 > pkt2 [31:0] $end
+$scope begin inject_out_of_order_body $end
 $var reg 1 ? __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function get_last_seen $end
-$var reg 32 @ entry [31:0] $end
-$scope begin get_last_seen_body $end
-$var reg 1 A __t27_ret $end
+$scope function is_duplicate $end
+$var reg 32 @ pkt1 [31:0] $end
+$var reg 32 A pkt2 [31:0] $end
+$scope begin is_duplicate_body $end
+$var reg 1 B __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function get_quality $end
-$var reg 32 B entry [31:0] $end
-$scope begin get_quality_body $end
-$var reg 1 C __t27_ret $end
+$scope function verify_crc $end
+$var reg 32 C packet [31:0] $end
+$var reg 16 D received_crc [15:0] $end
+$scope begin verify_crc_body $end
+$var reg 1 E __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function get_second_best $end
-$var reg 32 D best_id [31:0] $end
-$var reg 128 E table [127:0] $end
-$scope begin get_second_best_body $end
-$var reg 1 F __t27_ret $end
+$scope begin calculate_crc_different_test $end
+$var reg 16 F _t27_call_tmp_calculate_crc_different_0 [15:0] $end
+$var reg 16 G _t27_call_tmp_calculate_crc_different_1 [15:0] $end
+$var reg 16 H crc1 [15:0] $end
+$var reg 16 I crc2 [15:0] $end
+$var reg 32 J pkt1 [31:0] $end
+$var reg 32 K pkt2 [31:0] $end
 $upscope $end
+$scope begin calculate_crc_reproducible_test $end
+$var reg 16 L _t27_call_tmp_calculate_crc_reproducible_0 [15:0] $end
+$var reg 16 M crc1 [15:0] $end
+$var reg 16 N crc2 [15:0] $end
+$var reg 32 O pkt [31:0] $end
 $upscope $end
-$scope function is_valid $end
-$var reg 32 G entry [31:0] $end
-$var reg 32 H time [31:0] $end
-$scope begin is_valid_body $end
-$var reg 1 I __t27_ret $end
+$scope begin check_replay_newer_test $end
+$var reg 1 P _t27_call_tmp_check_replay_newer_0 $end
+$var reg 32 Q last [31:0] $end
+$var reg 32 R pkt [31:0] $end
 $upscope $end
+$scope begin check_replay_older_test $end
+$var reg 1 S _t27_call_tmp_check_replay_older_0 $end
+$var reg 32 T last [31:0] $end
+$var reg 32 U pkt [31:0] $end
 $upscope $end
-$scope function mask_if_id $end
-$var reg 32 J best_id [31:0] $end
-$var reg 32 K entry [31:0] $end
-$scope begin mask_if_id_body $end
-$var reg 1 L __t27_ret $end
+$scope begin check_replay_same_test $end
+$var reg 1 V _t27_call_tmp_check_replay_same_0 $end
+$var reg 32 W last [31:0] $end
+$var reg 32 X pkt [31:0] $end
 $upscope $end
+$scope begin duplicate_packet_creates_copy_test $end
+$var reg 32 Y dup1 [31:0] $end
+$var reg 32 Z dup2 [31:0] $end
+$var reg 32 [ pkt [31:0] $end
 $upscope $end
-$scope function one_if_present $end
-$var reg 32 M entry [31:0] $end
-$scope begin one_if_present_body $end
-$var reg 1 N __t27_ret $end
+$scope begin extract_sequence_low_bits_test $end
+$var reg 32 \ _t27_call_tmp_extract_sequence_low_bits_0 [31:0] $end
+$var reg 32 ] pkt [31:0] $end
+$var reg 32 ^ seq [31:0] $end
 $upscope $end
+$scope begin inject_bit_flip_flips_bit_test $end
+$var reg 32 _ _t27_call_tmp_inject_bit_flip_flips_bit_0 [31:0] $end
+$var reg 32 ` corrupted [31:0] $end
+$var reg 32 a pkt [31:0] $end
 $upscope $end
-$scope function select_mprs $end
-$var reg 128 O table [127:0] $end
-$scope begin select_mprs_body $end
-$var reg 1 P __t27_ret $end
-$var reg 32 Q best [31:0] $end
-$var reg 32 R second [31:0] $end
+$scope begin inject_bit_flip_invalid_pos_test $end
+$var reg 32 b _t27_call_tmp_inject_bit_flip_invalid_pos_0 [31:0] $end
+$var reg 32 c pkt [31:0] $end
+$var reg 32 d result [31:0] $end
 $upscope $end
+$scope begin inject_bit_flip_multiple_test $end
+$var reg 32 e _t27_call_tmp_inject_bit_flip_multiple_0 [31:0] $end
+$var reg 32 f corrupted [31:0] $end
+$var reg 32 g pkt [31:0] $end
 $upscope $end
-$scope function slot_for_update $end
-$var reg 32 S id [31:0] $end
-$var reg 128 T table [127:0] $end
-$scope begin slot_for_update_body $end
-$var reg 1 U __t27_ret $end
+$scope begin inject_out_of_order_swaps_test $end
+$var reg 32 h out1 [31:0] $end
+$var reg 32 i out2 [31:0] $end
+$var reg 32 j pkt1 [31:0] $end
+$var reg 32 k pkt2 [31:0] $end
 $upscope $end
+$scope begin is_duplicate_detects_same_test $end
+$var reg 1 l _t27_call_tmp_is_duplicate_detects_same_0 $end
+$var reg 32 m pkt1 [31:0] $end
+$var reg 32 n pkt2 [31:0] $end
 $upscope $end
-$scope begin create_neighbor_basic_test $end
-$var reg 32 V _t27_call_tmp_create_neighbor_basic_0 [31:0] $end
-$var reg 32 W _t27_call_tmp_create_neighbor_basic_1 [31:0] $end
-$var reg 32 X _t27_call_tmp_create_neighbor_basic_2 [31:0] $end
-$var reg 32 Y _t27_call_tmp_create_neighbor_basic_3 [31:0] $end
-$var reg 32 Z n [31:0] $end
+$scope begin is_duplicate_different_test $end
+$var reg 1 o _t27_call_tmp_is_duplicate_different_0 $end
+$var reg 32 p pkt1 [31:0] $end
+$var reg 32 q pkt2 [31:0] $end
 $upscope $end
-$scope begin is_valid_timeout_test $end
-$var reg 32 [ _t27_call_tmp_is_valid_timeout_0 [31:0] $end
-$var reg 1 \ _t27_call_tmp_is_valid_timeout_1 $end
-$var reg 32 ] n [31:0] $end
+$scope begin verify_crc_invalid_test $end
+$var reg 16 r _t27_call_tmp_verify_crc_invalid_0 [15:0] $end
+$var reg 32 s _t27_call_tmp_verify_crc_invalid_1 [31:0] $end
+$var reg 1 t _t27_call_tmp_verify_crc_invalid_2 $end
+$var reg 32 u corrupted [31:0] $end
+$var reg 16 v crc [15:0] $end
+$var reg 32 w pkt [31:0] $end
+$var reg 1 x valid $end
 $upscope $end
-$scope begin is_valid_within_timeout_test $end
-$var reg 32 ^ _t27_call_tmp_is_valid_within_timeout_0 [31:0] $end
-$var reg 1 _ _t27_call_tmp_is_valid_within_timeout_1 $end
-$var reg 32 ` n [31:0] $end
-$upscope $end
-$scope begin mpr_selection_test $end
-$var reg 32 a _t27_call_tmp_mpr_selection_0 [31:0] $end
-$var reg 32 b _t27_call_tmp_mpr_selection_1 [31:0] $end
-$var reg 32 c _t27_call_tmp_mpr_selection_2 [31:0] $end
-$var reg 128 d table [127:0] $end
-$upscope $end
-$scope begin slot_decisions_test $end
-$var reg 32 e _t27_call_tmp_slot_decisions_0 [31:0] $end
-$var reg 32 f _t27_call_tmp_slot_decisions_1 [31:0] $end
-$var reg 32 g _t27_call_tmp_slot_decisions_2 [31:0] $end
-$var reg 128 h full [127:0] $end
-$var reg 128 i table [127:0] $end
-$upscope $end
-$scope begin table_reads_and_find_test $end
-$var reg 32 j _t27_call_tmp_table_reads_and_find_0 [31:0] $end
-$var reg 32 k _t27_call_tmp_table_reads_and_find_1 [31:0] $end
-$var reg 32 l _t27_call_tmp_table_reads_and_find_2 [31:0] $end
-$var reg 32 m _t27_call_tmp_table_reads_and_find_3 [31:0] $end
-$var reg 32 n _t27_call_tmp_table_reads_and_find_4 [31:0] $end
-$var reg 128 o table [127:0] $end
+$scope begin verify_crc_valid_test $end
+$var reg 16 y _t27_call_tmp_verify_crc_valid_0 [15:0] $end
+$var reg 1 z _t27_call_tmp_verify_crc_valid_1 $end
+$var reg 16 { crc [15:0] $end
+$var reg 32 | pkt [31:0] $end
+$var reg 1 } valid $end
 $upscope $end
 $upscope $end
 $enddefinitions $end
 $comment Show the parameter values. $end
 $dumpall
-b1011101110000 (
-b11111111 '
-b11111111 &
-b100 %
+b101 *
+b100 )
+b0 (
+b11 '
+b10 &
+b1 %
 $end
 #0
 $dumpvars
-b100001100100000111110100000000000111001011000001011101110000000001011001000000001111101000000000001011001000000001111101000 o
-b100 n
-b11111111 m
-b10 l
-b100 k
-b1 j
-b100001100100000111110100000000000111001011000001011101110001111111100000000000000000000000000000001011001000000001111101000 i
-b100001100100000111110100000000000111001011000001011101110000000001011001000000001111101000000000001011001000000001111101000 h
-b11111111 g
-b1 f
-b10 e
-b100001100100000111110100000000000111001011000001011101110000000001011001000000001111101000000000001011001000000001111101000 d
-b1000000011 c
-b11 b
-b10 a
-b101110010000000001111101000 `
-1_
-b101110010000000001111101000 ^
-b101110010000000001111101000 ]
-0\
-b101110010000000001111101000 [
-b1011001000001001110001000 Z
-b1001110001000 Y
-b1100100 X
-b1 W
-b1011001000001001110001000 V
-1U
-b100001100100000111110100000000000111001011000001011101110000000001011001000000001111101000000000001011001000000001111101000 T
-b1001 S
-b11 R
-b10 Q
+1}
+b1000000100000001100000100 |
+b1010 {
+1z
+b1010 y
+0x
+b1000000100000001100000100 w
+b1010 v
+b1000000100000001100000101 u
+0t
+b1000000100000001100000101 s
+b1010 r
+b10010001101000101011001111001 q
+b10010001101000101011001111000 p
+0o
+b10010001101000101011001111000 n
+b10010001101000101011001111000 m
+1l
+b100010001000100010001000100010 k
+b10001000100010001000100010001 j
+b10001000100010001000100010001 i
+b100010001000100010001000100010 h
+b11111111111111111111111111111111 g
+b11111111111111111111101111111111 f
+b11111111111111111111101111111111 e
+b10010001101000101011001111000 d
+b10010001101000101011001111000 c
+b10010001101000101011001111000 b
+b0 a
+b100000 `
+b100000 _
+b1010101111001101 ^
+b10010001101001010101111001101 ]
+b1010101111001101 \
+b10101011110011011110111100000000 [
+b10101011110011011110111100000000 Z
+b10101011110011011110111100000000 Y
+b101 X
+b101 W
+0V
+b10 U
+b101 T
+0S
+b101 R
+b11 Q
 1P
-b100001100100000111110100000000000111001011000001011101110000000001011001000000001111101000000000001011001000000001111101000 O
-1N
-b100001100100000111110100000 M
-1L
-b100001100100000111110100000 K
-b10 J
-1I
-b1111101000000 H
-b101110010000000001111101000 G
-1F
-b100001100100000111110100000000000111001011000001011101110000000001011001000000001111101000000000001011001000000001111101000 E
-b10 D
-1C
-b1011001000000001111101000 B
-1A
-b101110010000000001111101000 @
+b10010001101000101011001111000 O
+b100010100 N
+b100010100 M
+b100010100 L
+b10010001101000101011001111001 K
+b10010001101000101011001111000 J
+b100010101 I
+b100010100 H
+b100010101 G
+b100010100 F
+1E
+b1010 D
+b1000000100000001100000101 C
+1B
+b10010001101000101011001111001 A
+b10010001101000101011001111000 @
 1?
-b100001100100000111110100000000000111001011000001011101110000000001011001000000001111101000000000001011001000000001111101000 >
-b11 =
+b100010001000100010001000100010 >
+b10001000100010001000100010001 =
 1<
-b11100101100000101110111000 ;
+b1000000100000001100000100 ;
 1:
-b100001100100000111110100000000000111001011000001011101110000000001011001000000001111101000000000001011001000000001111101000 9
-18
-b1001 7
-b100001100100000111110100000000000111001011000001011101110000000001011001000000001111101000000000001011001000000001111101000 6
+b10010001101000101011001111000 9
+b100011 8
+17
+b101 6
 15
-b1100100 4
-b1111101000 3
-b1 2
-11
-b100001100100000111110100000000000111001011000001011101110000000001011001000000001111101000000000001011001000000001111101000 0
-1/
-b11100101100000101110111000 .
-b1011001000000001111101000 -
+b10101011110011011110111100000000 4
+13
+b101 2
+b101 1
+10
+b1000000100000001100000101 /
+bx .
+bx -
 bx ,
 bx +
-bx *
-bx )
 z$
 1#
 z"
