@@ -1,5 +1,5 @@
 $date
-	Sun Aug  9 01:22:56 2026
+	Sun Aug  9 02:57:14 2026
 $end
 $version
 	Icarus Verilog
@@ -7,570 +7,734 @@ $end
 $timescale
 	1ps
 $end
-$scope module ResourceScheduler $end
+$scope module integration_framework $end
 $var wire 1 ! clk $end
 $var wire 1 " en $end
 $var wire 1 # ready $end
 $var wire 1 $ rst_n $end
-$var parameter 32 % CPU_CAPACITY $end
-$var parameter 32 & MAX_TASKS $end
-$var parameter 32 ' MEMORY_CAPACITY $end
-$var parameter 32 ( PRIORITY_HIGH $end
-$var parameter 32 ) PRIORITY_LOW $end
-$var parameter 32 * PRIORITY_MEDIUM $end
+$var parameter 32 % EVENT_MODULE_LOADED $end
+$var parameter 32 & EVENT_MODULE_UNLOADED $end
+$var parameter 32 ' EVENT_SIMULATION_STEP $end
+$var parameter 32 ( EVENT_TEST_COMPLETED $end
+$var parameter 32 ) EVENT_VISUALIZATION_UPDATE $end
+$var parameter 32 * INTEGRATION_VERSION $end
+$var parameter 32 + MAX_EVENTS $end
+$var parameter 32 , MAX_MESSAGES $end
+$var parameter 32 - MAX_MODULES $end
+$var parameter 32 . MSG_CONTROL $end
+$var parameter 32 / MSG_DATA $end
+$var parameter 32 0 MSG_ERROR $end
+$var parameter 32 1 MSG_EVENT $end
+$var parameter 32 2 MSG_STATUS $end
+$var parameter 32 3 RESOURCE_BANDWIDTH $end
+$var parameter 32 4 RESOURCE_CPU $end
+$var parameter 32 5 RESOURCE_MEMORY $end
+$var parameter 32 6 RESOURCE_STORAGE $end
+$var parameter 32 7 SEVERITY_CRITICAL $end
+$var parameter 32 8 SEVERITY_ERROR $end
+$var parameter 32 9 SEVERITY_INFO $end
+$var parameter 32 : SEVERITY_WARNING $end
+$var parameter 32 ; STATUS_ACTIVE $end
+$var parameter 32 < STATUS_BUSY $end
+$var parameter 32 = STATUS_ERROR $end
+$var parameter 32 > STATUS_IDLE $end
+$var parameter 32 ? STATUS_OFFLINE $end
+$var parameter 32 @ TYPE_NETWORK $end
+$var parameter 32 A TYPE_PROFILING $end
+$var parameter 32 B TYPE_SIMULATION $end
+$var parameter 32 C TYPE_TESTING $end
+$var parameter 32 D TYPE_VISUALIZATION $end
+$var parameter 32 E type_documentation $end
 $scope function __mul_noop $end
-$var reg 64 + a [63:0] $end
-$var reg 128 , acc [127:0] $end
-$var reg 64 - b [63:0] $end
-$var integer 32 . i [31:0] $end
+$var reg 64 F a [63:0] $end
+$var reg 128 G acc [127:0] $end
+$var reg 64 H b [63:0] $end
+$var integer 32 I i [31:0] $end
 $upscope $end
 $scope function allocate_resources $end
-$var reg 32 / state [31:0] $end
-$var reg 32 0 task [31:0] $end
+$var reg 32 J available_resources [31:0] $end
+$var reg 32 K request_count [31:0] $end
+$var reg 1024 L requests [1023:0] $end
 $scope begin allocate_resources_body $end
-$var reg 1 1 __t27_ret $end
-$var reg 32 2 active_tasks [31:0] $end
-$var reg 32 3 cpu_req [31:0] $end
-$var reg 32 4 mem_req [31:0] $end
-$var reg 32 5 new_cpu [31:0] $end
-$var reg 32 6 new_mem [31:0] $end
-$var reg 32 7 new_tasks [31:0] $end
-$var reg 32 8 tick [31:0] $end
-$var reg 32 9 used_cpu [31:0] $end
-$var reg 32 : used_mem [31:0] $end
+$var reg 1 M __t27_ret $end
+$var reg 32 N allocated [31:0] $end
+$var reg 32 O allocated_count [31:0] $end
+$var reg 32 P amount [31:0] $end
+$var reg 32 Q i [31:0] $end
+$var reg 32 R j [31:0] $end
+$var reg 32 S priority [31:0] $end
+$var reg 32 T total_requested [31:0] $end
 $upscope $end
 $upscope $end
-$scope function calculate_cpu_utilization $end
-$var reg 32 ; state [31:0] $end
-$scope begin calculate_cpu_utilization_body $end
-$var reg 1 < __t27_ret $end
+$scope function check_dependencies $end
+$var reg 512 U dependencies [511:0] $end
+$var reg 512 V loaded_modules [511:0] $end
+$var reg 32 W module_count [31:0] $end
+$var reg 32 X module_id [31:0] $end
+$scope begin check_dependencies_body $end
+$var reg 1 Y __t27_ret $end
+$var reg 32 Z dep_module_id [31:0] $end
+$var reg 32 [ depends_on [31:0] $end
+$var reg 32 \ found [31:0] $end
+$var reg 32 ] i [31:0] $end
+$var reg 32 ^ j [31:0] $end
+$var reg 32 _ loaded_id [31:0] $end
+$var reg 32 ` required [31:0] $end
+$var reg 32 a satisfied [31:0] $end
 $upscope $end
 $upscope $end
-$scope function calculate_memory_utilization $end
-$var reg 32 = state [31:0] $end
-$scope begin calculate_memory_utilization_body $end
-$var reg 1 > __t27_ret $end
-$var reg 32 ? used_mem [31:0] $end
+$scope function create_dependency $end
+$var reg 32 b dependency_type [31:0] $end
+$var reg 32 c depends_on [31:0] $end
+$var reg 32 d module_id [31:0] $end
+$var reg 32 e required [31:0] $end
+$scope begin create_dependency_body $end
+$var reg 1 f __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function can_admit_task $end
-$var reg 32 @ state [31:0] $end
-$var reg 32 A task [31:0] $end
-$scope begin can_admit_task_body $end
-$var reg 1 B __t27_ret $end
-$var reg 32 C available_cpu [31:0] $end
-$var reg 32 D available_mem [31:0] $end
-$var reg 32 E cpu_req [31:0] $end
-$var reg 32 F mem_req [31:0] $end
-$var reg 32 G used_cpu [31:0] $end
-$var reg 32 H used_mem [31:0] $end
-$upscope $end
-$upscope $end
-$scope function count_tasks_by_priority $end
-$var reg 32 I priority [31:0] $end
-$var reg 256 J task_array [255:0] $end
-$scope begin count_tasks_by_priority_body $end
-$var reg 1 K __t27_ret $end
-$var reg 32 L count [31:0] $end
-$upscope $end
-$upscope $end
-$scope function create_system_state $end
-$var reg 32 M active_tasks [31:0] $end
-$var reg 32 N sched_tick [31:0] $end
-$var reg 32 O used_cpu [31:0] $end
-$var reg 32 P used_mem [31:0] $end
-$scope begin create_system_state_body $end
-$var reg 1 Q __t27_ret $end
-$upscope $end
-$upscope $end
-$scope function create_task_array $end
-$var reg 32 R t0 [31:0] $end
-$var reg 32 S t1 [31:0] $end
-$var reg 32 T t2 [31:0] $end
-$var reg 32 U t3 [31:0] $end
-$var reg 32 V t4 [31:0] $end
-$var reg 32 W t5 [31:0] $end
-$var reg 32 X t6 [31:0] $end
-$var reg 32 Y t7 [31:0] $end
-$scope begin create_task_array_body $end
-$var reg 1 Z __t27_ret $end
-$upscope $end
-$upscope $end
-$scope function create_task_resource $end
-$var reg 32 [ cpu_req [31:0] $end
-$var reg 32 \ mem_req [31:0] $end
-$var reg 32 ] priority [31:0] $end
-$var reg 32 ^ task_id [31:0] $end
-$scope begin create_task_resource_body $end
-$var reg 1 _ __t27_ret $end
-$upscope $end
-$upscope $end
-$scope function find_admittable_task $end
-$var reg 32 ` state [31:0] $end
-$var reg 256 a task_array [255:0] $end
-$scope begin find_admittable_task_body $end
-$var reg 1 b __t27_ret $end
-$var reg 32 c best_priority [31:0] $end
-$var reg 32 d best_task [31:0] $end
-$var reg 32 e priority [31:0] $end
-$upscope $end
-$upscope $end
-$scope function get_active_tasks $end
-$var reg 32 f state [31:0] $end
-$scope begin get_active_tasks_body $end
-$var reg 1 g __t27_ret $end
-$upscope $end
-$upscope $end
-$scope function get_cpu_req $end
-$var reg 32 h resource [31:0] $end
-$scope begin get_cpu_req_body $end
-$var reg 1 i __t27_ret $end
-$upscope $end
-$upscope $end
-$scope function get_mem_req $end
-$var reg 32 j resource [31:0] $end
-$scope begin get_mem_req_body $end
+$scope function create_error_propagation $end
+$var reg 32 g error_code [31:0] $end
+$var reg 32 h severity [31:0] $end
+$var reg 32 i source_id [31:0] $end
+$var reg 32 j timestamp [31:0] $end
+$scope begin create_error_propagation_body $end
 $var reg 1 k __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function get_priority $end
-$var reg 32 l resource [31:0] $end
-$scope begin get_priority_body $end
-$var reg 1 m __t27_ret $end
+$scope function create_event $end
+$var reg 32 l data [31:0] $end
+$var reg 32 m event_id [31:0] $end
+$var reg 32 n event_type [31:0] $end
+$var reg 32 o source [31:0] $end
+$scope begin create_event_body $end
+$var reg 1 p __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function get_sched_tick $end
-$var reg 32 n state [31:0] $end
-$scope begin get_sched_tick_body $end
-$var reg 1 o __t27_ret $end
+$scope function create_integration_message $end
+$var reg 32 q dest [31:0] $end
+$var reg 32 r msg_id [31:0] $end
+$var reg 32 s msg_type [31:0] $end
+$var reg 32 t source [31:0] $end
+$scope begin create_integration_message_body $end
+$var reg 1 u __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function get_task_id $end
-$var reg 32 p resource [31:0] $end
-$scope begin get_task_id_body $end
-$var reg 1 q __t27_ret $end
+$scope function create_integration_report $end
+$var reg 32 v active_messages [31:0] $end
+$var reg 32 w errors_handled [31:0] $end
+$var reg 32 x events_processed [31:0] $end
+$var reg 32 y loaded_modules [31:0] $end
+$scope begin create_integration_report_body $end
+$var reg 1 z __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function get_task_resource $end
-$var reg 256 r array [255:0] $end
-$var reg 32 s index [31:0] $end
-$scope begin get_task_resource_body $end
-$var reg 1 t __t27_ret $end
+$scope function create_module_registration $end
+$var reg 32 { module_id [31:0] $end
+$var reg 32 | module_type [31:0] $end
+$var reg 32 } priority [31:0] $end
+$var reg 32 ~ status [31:0] $end
+$scope begin create_module_registration_body $end
+$var reg 1 !" __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function get_used_cpu $end
-$var reg 32 u state [31:0] $end
-$scope begin get_used_cpu_body $end
-$var reg 1 v __t27_ret $end
-$upscope $end
-$upscope $end
-$scope function get_used_mem $end
-$var reg 32 w state [31:0] $end
-$scope begin get_used_mem_body $end
-$var reg 1 x __t27_ret $end
-$upscope $end
-$upscope $end
-$scope function has_cpu_capacity $end
-$var reg 32 y cpu_req [31:0] $end
-$var reg 32 z state [31:0] $end
-$scope begin has_cpu_capacity_body $end
-$var reg 1 { __t27_ret $end
-$var reg 32 | available_cpu [31:0] $end
-$var reg 32 } used_cpu [31:0] $end
-$upscope $end
-$upscope $end
-$scope function has_memory_capacity $end
-$var reg 32 ~ mem_req [31:0] $end
-$var reg 32 !" state [31:0] $end
-$scope begin has_memory_capacity_body $end
-$var reg 1 "" __t27_ret $end
-$var reg 32 #" available_mem [31:0] $end
-$var reg 32 $" used_mem [31:0] $end
-$upscope $end
-$upscope $end
-$scope function increment_tick $end
-$var reg 32 %" state [31:0] $end
-$scope begin increment_tick_body $end
+$scope function create_resource_request $end
+$var reg 32 "" amount [31:0] $end
+$var reg 32 #" module_id [31:0] $end
+$var reg 32 $" priority [31:0] $end
+$var reg 32 %" resource_type [31:0] $end
+$scope begin create_resource_request_body $end
 $var reg 1 &" __t27_ret $end
-$var reg 32 '" active_tasks [31:0] $end
-$var reg 32 (" new_tick [31:0] $end
-$var reg 32 )" tick [31:0] $end
-$var reg 32 *" used_cpu [31:0] $end
-$var reg 32 +" used_mem [31:0] $end
 $upscope $end
 $upscope $end
-$scope function is_overloaded $end
-$var reg 32 ," state [31:0] $end
-$scope begin is_overloaded_body $end
-$var reg 1 -" __t27_ret $end
-$var reg 32 ." cpu_util [31:0] $end
+$scope function create_state_sync $end
+$var reg 32 '" checksum [31:0] $end
+$var reg 32 (" module_id [31:0] $end
+$var reg 32 )" state_data [31:0] $end
+$var reg 32 *" state_version [31:0] $end
+$scope begin create_state_sync_body $end
+$var reg 1 +" __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function release_resources $end
-$var reg 32 /" state [31:0] $end
-$var reg 32 0" task [31:0] $end
-$scope begin release_resources_body $end
-$var reg 1 1" __t27_ret $end
-$var reg 32 2" active_tasks [31:0] $end
-$var reg 32 3" cpu_req [31:0] $end
-$var reg 32 4" mem_req [31:0] $end
-$var reg 32 5" new_cpu [31:0] $end
-$var reg 32 6" new_mem [31:0] $end
-$var reg 32 7" new_tasks [31:0] $end
-$var reg 32 8" tick [31:0] $end
-$var reg 32 9" used_cpu [31:0] $end
-$var reg 32 :" used_mem [31:0] $end
+$scope function generate_integration_stats $end
+$var reg 32 ," event_count [31:0] $end
+$var reg 2048 -" events [2047:0] $end
+$var reg 32 ." message_count [31:0] $end
+$var reg 1024 /" messages [1023:0] $end
+$var reg 32 0" module_count [31:0] $end
+$var reg 512 1" modules [511:0] $end
+$scope begin generate_integration_stats_body $end
+$var reg 1 2" __t27_ret $end
+$var reg 32 3" active_messages [31:0] $end
+$var reg 32 4" active_modules [31:0] $end
+$var reg 32 5" errors_handled [31:0] $end
+$var reg 32 6" events_processed [31:0] $end
+$var reg 32 7" i [31:0] $end
+$var reg 32 8" j [31:0] $end
+$var reg 32 9" k [31:0] $end
+$var reg 32 :" status [31:0] $end
 $upscope $end
 $upscope $end
-$scope begin allocate_resources_works_test $end
-$var reg 32 ;" _t27_call_tmp_allocate_resources_works_0 [31:0] $end
-$var reg 32 <" _t27_call_tmp_allocate_resources_works_1 [31:0] $end
-$var reg 32 =" _t27_call_tmp_allocate_resources_works_2 [31:0] $end
-$var reg 32 >" _t27_call_tmp_allocate_resources_works_3 [31:0] $end
-$var reg 32 ?" _t27_call_tmp_allocate_resources_works_4 [31:0] $end
-$var reg 32 @" _t27_call_tmp_allocate_resources_works_5 [31:0] $end
-$var reg 32 A" new_state [31:0] $end
-$var reg 32 B" state [31:0] $end
-$var reg 32 C" task [31:0] $end
+$scope function get_dependency_depends_on $end
+$var reg 32 ;" dep [31:0] $end
+$scope begin get_dependency_depends_on_body $end
+$var reg 1 <" __t27_ret $end
 $upscope $end
-$scope begin calculate_cpu_utilization_test $end
-$var reg 32 D" _t27_call_tmp_calculate_cpu_utilization_0 [31:0] $end
-$var reg 32 E" _t27_call_tmp_calculate_cpu_utilization_1 [31:0] $end
-$var reg 32 F" state [31:0] $end
 $upscope $end
-$scope begin calculate_memory_utilization_test $end
-$var reg 32 G" _t27_call_tmp_calculate_memory_utilization_0 [31:0] $end
-$var reg 32 H" _t27_call_tmp_calculate_memory_utilization_1 [31:0] $end
-$var reg 32 I" state [31:0] $end
+$scope function get_dependency_module_id $end
+$var reg 32 =" dep [31:0] $end
+$scope begin get_dependency_module_id_body $end
+$var reg 1 >" __t27_ret $end
 $upscope $end
-$scope begin can_admit_task_false_cpu_test $end
-$var reg 32 J" _t27_call_tmp_can_admit_task_false_cpu_0 [31:0] $end
-$var reg 32 K" _t27_call_tmp_can_admit_task_false_cpu_1 [31:0] $end
-$var reg 1 L" _t27_call_tmp_can_admit_task_false_cpu_2 $end
-$var reg 32 M" state [31:0] $end
-$var reg 32 N" task [31:0] $end
 $upscope $end
-$scope begin can_admit_task_false_memory_test $end
-$var reg 32 O" _t27_call_tmp_can_admit_task_false_memory_0 [31:0] $end
-$var reg 32 P" _t27_call_tmp_can_admit_task_false_memory_1 [31:0] $end
-$var reg 1 Q" _t27_call_tmp_can_admit_task_false_memory_2 $end
-$var reg 32 R" state [31:0] $end
-$var reg 32 S" task [31:0] $end
+$scope function get_dependency_required $end
+$var reg 32 ?" dep [31:0] $end
+$scope begin get_dependency_required_body $end
+$var reg 1 @" __t27_ret $end
 $upscope $end
-$scope begin can_admit_task_true_test $end
-$var reg 32 T" _t27_call_tmp_can_admit_task_true_0 [31:0] $end
-$var reg 32 U" _t27_call_tmp_can_admit_task_true_1 [31:0] $end
-$var reg 1 V" _t27_call_tmp_can_admit_task_true_2 $end
-$var reg 32 W" state [31:0] $end
-$var reg 32 X" task [31:0] $end
 $upscope $end
-$scope begin count_tasks_by_priority_high_test $end
-$var reg 256 Y" _t27_call_tmp_count_tasks_by_priority_high_0 [255:0] $end
-$var reg 32 Z" _t27_call_tmp_count_tasks_by_priority_high_1 [31:0] $end
-$var reg 32 [" _t27_call_tmp_count_tasks_by_priority_high_2 [31:0] $end
-$var reg 32 \" _t27_call_tmp_count_tasks_by_priority_high_3 [31:0] $end
-$var reg 32 ]" _t27_call_tmp_count_tasks_by_priority_high_4 [31:0] $end
-$var reg 32 ^" _t27_call_tmp_count_tasks_by_priority_high_5 [31:0] $end
-$var reg 256 _" task_array [255:0] $end
+$scope function get_dependency_type $end
+$var reg 32 A" dep [31:0] $end
+$scope begin get_dependency_type_body $end
+$var reg 1 B" __t27_ret $end
 $upscope $end
-$scope begin count_tasks_by_priority_mixed_test $end
-$var reg 256 `" _t27_call_tmp_count_tasks_by_priority_mixed_0 [255:0] $end
-$var reg 32 a" _t27_call_tmp_count_tasks_by_priority_mixed_1 [31:0] $end
-$var reg 32 b" _t27_call_tmp_count_tasks_by_priority_mixed_2 [31:0] $end
-$var reg 32 c" _t27_call_tmp_count_tasks_by_priority_mixed_3 [31:0] $end
-$var reg 32 d" _t27_call_tmp_count_tasks_by_priority_mixed_4 [31:0] $end
-$var reg 32 e" _t27_call_tmp_count_tasks_by_priority_mixed_5 [31:0] $end
-$var reg 256 f" task_array [255:0] $end
 $upscope $end
-$scope begin create_system_state_basic_test $end
-$var reg 32 g" _t27_call_tmp_create_system_state_basic_0 [31:0] $end
-$var reg 32 h" _t27_call_tmp_create_system_state_basic_1 [31:0] $end
-$var reg 32 i" _t27_call_tmp_create_system_state_basic_2 [31:0] $end
-$var reg 32 j" _t27_call_tmp_create_system_state_basic_3 [31:0] $end
-$var reg 32 k" _t27_call_tmp_create_system_state_basic_4 [31:0] $end
-$var reg 32 l" state [31:0] $end
+$scope function get_error_code $end
+$var reg 32 C" err_word [31:0] $end
+$scope begin get_error_code_body $end
+$var reg 1 D" __t27_ret $end
 $upscope $end
-$scope begin create_task_resource_basic_test $end
-$var reg 32 m" _t27_call_tmp_create_task_resource_basic_0 [31:0] $end
-$var reg 32 n" _t27_call_tmp_create_task_resource_basic_1 [31:0] $end
-$var reg 32 o" _t27_call_tmp_create_task_resource_basic_2 [31:0] $end
-$var reg 32 p" _t27_call_tmp_create_task_resource_basic_3 [31:0] $end
-$var reg 32 q" _t27_call_tmp_create_task_resource_basic_4 [31:0] $end
-$var reg 32 r" task [31:0] $end
 $upscope $end
-$scope begin find_admittable_task_high_priority_test $end
-$var reg 32 s" _t27_call_tmp_find_admittable_task_high_priority_0 [31:0] $end
-$var reg 256 t" _t27_call_tmp_find_admittable_task_high_priority_1 [255:0] $end
-$var reg 32 u" _t27_call_tmp_find_admittable_task_high_priority_2 [31:0] $end
-$var reg 32 v" _t27_call_tmp_find_admittable_task_high_priority_3 [31:0] $end
-$var reg 32 w" _t27_call_tmp_find_admittable_task_high_priority_4 [31:0] $end
-$var reg 32 x" _t27_call_tmp_find_admittable_task_high_priority_5 [31:0] $end
-$var reg 32 y" state [31:0] $end
-$var reg 256 z" task_array [255:0] $end
+$scope function get_error_severity $end
+$var reg 32 E" err_word [31:0] $end
+$scope begin get_error_severity_body $end
+$var reg 1 F" __t27_ret $end
 $upscope $end
-$scope begin has_cpu_capacity_false_test $end
-$var reg 32 {" _t27_call_tmp_has_cpu_capacity_false_0 [31:0] $end
-$var reg 1 |" _t27_call_tmp_has_cpu_capacity_false_1 $end
-$var reg 32 }" state [31:0] $end
 $upscope $end
-$scope begin has_cpu_capacity_true_test $end
-$var reg 32 ~" _t27_call_tmp_has_cpu_capacity_true_0 [31:0] $end
-$var reg 1 !# _t27_call_tmp_has_cpu_capacity_true_1 $end
-$var reg 32 "# state [31:0] $end
+$scope function get_error_source $end
+$var reg 32 G" err_word [31:0] $end
+$scope begin get_error_source_body $end
+$var reg 1 H" __t27_ret $end
 $upscope $end
-$scope begin increment_tick_works_test $end
-$var reg 32 ## _t27_call_tmp_increment_tick_works_0 [31:0] $end
-$var reg 32 $# _t27_call_tmp_increment_tick_works_1 [31:0] $end
-$var reg 32 %# _t27_call_tmp_increment_tick_works_2 [31:0] $end
-$var reg 32 &# new_state [31:0] $end
-$var reg 32 '# state [31:0] $end
 $upscope $end
-$scope begin increment_tick_wraps_test $end
-$var reg 32 (# _t27_call_tmp_increment_tick_wraps_0 [31:0] $end
-$var reg 32 )# _t27_call_tmp_increment_tick_wraps_1 [31:0] $end
-$var reg 32 *# _t27_call_tmp_increment_tick_wraps_2 [31:0] $end
-$var reg 32 +# new_state [31:0] $end
-$var reg 32 ,# state [31:0] $end
+$scope function get_error_timestamp $end
+$var reg 32 I" err_word [31:0] $end
+$scope begin get_error_timestamp_body $end
+$var reg 1 J" __t27_ret $end
 $upscope $end
-$scope begin is_overloaded_false_test $end
-$var reg 32 -# _t27_call_tmp_is_overloaded_false_0 [31:0] $end
-$var reg 1 .# _t27_call_tmp_is_overloaded_false_1 $end
-$var reg 32 /# state [31:0] $end
 $upscope $end
-$scope begin is_overloaded_true_test $end
-$var reg 32 0# _t27_call_tmp_is_overloaded_true_0 [31:0] $end
-$var reg 1 1# _t27_call_tmp_is_overloaded_true_1 $end
-$var reg 32 2# state [31:0] $end
+$scope function get_event_data $end
+$var reg 32 K" event [31:0] $end
+$scope begin get_event_data_body $end
+$var reg 1 L" __t27_ret $end
 $upscope $end
-$scope begin release_resources_works_test $end
-$var reg 32 3# _t27_call_tmp_release_resources_works_0 [31:0] $end
-$var reg 32 4# _t27_call_tmp_release_resources_works_1 [31:0] $end
-$var reg 32 5# _t27_call_tmp_release_resources_works_2 [31:0] $end
-$var reg 32 6# _t27_call_tmp_release_resources_works_3 [31:0] $end
-$var reg 32 7# _t27_call_tmp_release_resources_works_4 [31:0] $end
-$var reg 32 8# _t27_call_tmp_release_resources_works_5 [31:0] $end
-$var reg 32 9# new_state [31:0] $end
-$var reg 32 :# state [31:0] $end
-$var reg 32 ;# task [31:0] $end
+$upscope $end
+$scope function get_event_id $end
+$var reg 32 M" event [31:0] $end
+$scope begin get_event_id_body $end
+$var reg 1 N" __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_event_source $end
+$var reg 32 O" event [31:0] $end
+$scope begin get_event_source_body $end
+$var reg 1 P" __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_event_type $end
+$var reg 32 Q" event [31:0] $end
+$scope begin get_event_type_body $end
+$var reg 1 R" __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_integration_message_dest $end
+$var reg 32 S" message [31:0] $end
+$scope begin get_integration_message_dest_body $end
+$var reg 1 T" __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_integration_message_id $end
+$var reg 32 U" message [31:0] $end
+$scope begin get_integration_message_id_body $end
+$var reg 1 V" __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_integration_message_source $end
+$var reg 32 W" message [31:0] $end
+$scope begin get_integration_message_source_body $end
+$var reg 1 X" __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_integration_message_type $end
+$var reg 32 Y" message [31:0] $end
+$scope begin get_integration_message_type_body $end
+$var reg 1 Z" __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_registered_module_id $end
+$var reg 32 [" registration [31:0] $end
+$scope begin get_registered_module_id_body $end
+$var reg 1 \" __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_registered_module_priority $end
+$var reg 32 ]" registration [31:0] $end
+$scope begin get_registered_module_priority_body $end
+$var reg 1 ^" __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_registered_module_status $end
+$var reg 32 _" registration [31:0] $end
+$scope begin get_registered_module_status_body $end
+$var reg 1 `" __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_registered_module_type $end
+$var reg 32 a" registration [31:0] $end
+$scope begin get_registered_module_type_body $end
+$var reg 1 b" __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_resource_request_amount $end
+$var reg 32 c" req [31:0] $end
+$scope begin get_resource_request_amount_body $end
+$var reg 1 d" __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_resource_request_module $end
+$var reg 32 e" req [31:0] $end
+$scope begin get_resource_request_module_body $end
+$var reg 1 f" __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_resource_request_priority $end
+$var reg 32 g" req [31:0] $end
+$scope begin get_resource_request_priority_body $end
+$var reg 1 h" __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_resource_request_type $end
+$var reg 32 i" req [31:0] $end
+$scope begin get_resource_request_type_body $end
+$var reg 1 j" __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_sync_checksum $end
+$var reg 32 k" sync [31:0] $end
+$scope begin get_sync_checksum_body $end
+$var reg 1 l" __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_sync_module_id $end
+$var reg 32 m" sync [31:0] $end
+$scope begin get_sync_module_id_body $end
+$var reg 1 n" __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_sync_state_data $end
+$var reg 32 o" sync [31:0] $end
+$scope begin get_sync_state_data_body $end
+$var reg 1 p" __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_sync_state_version $end
+$var reg 32 q" sync [31:0] $end
+$scope begin get_sync_state_version_body $end
+$var reg 1 r" __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function load_module $end
+$var reg 32 s" module_id [31:0] $end
+$var reg 32 t" module_type [31:0] $end
+$var reg 512 u" modules [511:0] $end
+$var reg 32 v" priority [31:0] $end
+$scope begin load_module_body $end
+$var reg 1 w" __t27_ret $end
+$var reg 32 x" i [31:0] $end
+$upscope $end
+$upscope $end
+$scope function propagate_error $end
+$var reg 32 y" err_word [31:0] $end
+$var reg 32 z" module_count [31:0] $end
+$var reg 512 {" modules [511:0] $end
+$scope begin propagate_error_body $end
+$var reg 1 |" __t27_ret $end
+$var reg 32 }" i [31:0] $end
+$var reg 32 ~" module_type [31:0] $end
+$var reg 32 !# msg [31:0] $end
+$var reg 32 "# notified_count [31:0] $end
+$var reg 32 ## severity [31:0] $end
+$upscope $end
+$upscope $end
+$scope function publish_event $end
+$var reg 32 $# event [31:0] $end
+$var reg 512 %# modules [511:0] $end
+$var reg 2048 &# subscriptions [2047:0] $end
+$scope begin publish_event_body $end
+$var reg 1 '# __t27_ret $end
+$var reg 32 (# event_type [31:0] $end
+$var reg 32 )# i [31:0] $end
+$var reg 32 *# module_id [31:0] $end
+$var reg 32 +# msg [31:0] $end
+$var reg 32 ,# notified_count [31:0] $end
+$var reg 32 -# source [31:0] $end
+$var reg 32 .# sub_event_type [31:0] $end
+$upscope $end
+$upscope $end
+$scope function receive_message $end
+$var reg 32 /# message_count [31:0] $end
+$var reg 1024 0# messages [1023:0] $end
+$var reg 32 1# module_id [31:0] $end
+$scope begin receive_message_body $end
+$var reg 1 2# __t27_ret $end
+$var reg 32 3# dest [31:0] $end
+$var reg 32 4# i [31:0] $end
+$upscope $end
+$upscope $end
+$scope function send_message $end
+$var reg 32 5# message [31:0] $end
+$var reg 512 6# modules [511:0] $end
+$scope begin send_message_body $end
+$var reg 1 7# __t27_ret $end
+$var reg 32 8# dest [31:0] $end
+$var reg 32 9# i [31:0] $end
+$var reg 32 :# module_id [31:0] $end
+$var reg 32 ;# msg_type [31:0] $end
+$var reg 32 <# status [31:0] $end
+$upscope $end
+$upscope $end
+$scope function subscribe_to_event $end
+$var reg 32 =# event_type [31:0] $end
+$var reg 32 ># module_id [31:0] $end
+$var reg 2048 ?# subscriptions [2047:0] $end
+$scope begin subscribe_to_event_body $end
+$var reg 1 @# __t27_ret $end
+$var reg 32 A# i [31:0] $end
+$var reg 32 B# subscription_id [31:0] $end
+$upscope $end
+$upscope $end
+$scope function synchronize_states $end
+$var reg 32 C# module_count [31:0] $end
+$var reg 512 D# modules [511:0] $end
+$var reg 32 E# sync_requests [31:0] $end
+$scope begin synchronize_states_body $end
+$var reg 1 F# __t27_ret $end
+$var reg 32 G# checksum [31:0] $end
+$var reg 32 H# i [31:0] $end
+$var reg 32 I# module_id [31:0] $end
+$var reg 32 J# state_data [31:0] $end
+$var reg 32 K# state_version [31:0] $end
+$var reg 32 L# status [31:0] $end
+$var reg 32 M# sync [31:0] $end
+$var reg 32 N# synced_count [31:0] $end
+$upscope $end
+$upscope $end
+$scope function unload_module $end
+$var reg 32 O# module_id [31:0] $end
+$var reg 512 P# modules [511:0] $end
+$scope begin unload_module_body $end
+$var reg 1 Q# __t27_ret $end
+$var reg 32 R# i [31:0] $end
+$var reg 32 S# registered_id [31:0] $end
+$upscope $end
+$upscope $end
+$scope function validate_integration_health $end
+$var reg 32 T# module_count [31:0] $end
+$var reg 512 U# modules [511:0] $end
+$scope begin validate_integration_health_body $end
+$var reg 1 V# __t27_ret $end
+$var reg 32 W# active_count [31:0] $end
+$var reg 32 X# active_percentage [31:0] $end
+$var reg 32 Y# error_count [31:0] $end
+$var reg 32 Z# i [31:0] $end
+$var reg 32 [# status [31:0] $end
+$upscope $end
+$upscope $end
+$scope begin module_registration_roundtrip_test $end
+$var reg 32 \# _t27_call_tmp_module_registration_roundtrip_0 [31:0] $end
+$var reg 32 ]# _t27_call_tmp_module_registration_roundtrip_1 [31:0] $end
+$var reg 32 ^# _t27_call_tmp_module_registration_roundtrip_2 [31:0] $end
+$var reg 32 _# _t27_call_tmp_module_registration_roundtrip_3 [31:0] $end
+$var reg 32 `# _t27_call_tmp_module_registration_roundtrip_4 [31:0] $end
+$var reg 32 a# m [31:0] $end
+$upscope $end
+$scope begin send_message_requires_active_destination_test $end
+$var reg 32 b# _t27_call_tmp_send_message_requires_active_destination_0 [31:0] $end
+$var reg 32 c# _t27_call_tmp_send_message_requires_active_destination_1 [31:0] $end
+$var reg 32 d# _t27_call_tmp_send_message_requires_active_destination_2 [31:0] $end
+$var reg 32 e# _t27_call_tmp_send_message_requires_active_destination_3 [31:0] $end
+$var reg 32 f# _t27_call_tmp_send_message_requires_active_destination_4 [31:0] $end
+$var reg 32 g# _t27_call_tmp_send_message_requires_active_destination_5 [31:0] $end
+$var reg 512 h# mods [511:0] $end
+$var reg 32 i# msg_down [31:0] $end
+$var reg 32 j# msg_missing [31:0] $end
+$var reg 32 k# msg_ok [31:0] $end
 $upscope $end
 $upscope $end
 $enddefinitions $end
 $comment Show the parameter values. $end
 $dumpall
+b10 E
+b11 D
+b1 C
+b100 B
+b101 A
+b0 @
+b100 ?
+b0 >
+b11 =
+b10 <
+b1 ;
+b1 :
+b0 9
+b10 8
+b11 7
+b11 6
+b1 5
+b0 4
+b10 3
+b10 2
+b100 1
+b11 0
+b0 /
+b1 .
+b10000 -
+b100000 ,
+b1000000 +
 b1 *
-b10 )
-b0 (
-b100000000 '
-b1000 &
-b1100100 %
+b100 )
+b10 (
+b11 '
+b1 &
+b0 %
 $end
 #0
 $dumpvars
-b10100001100100100000000000101 ;#
-b111100100101100000010000000000 :#
-b101000011001000000001100000000 9#
-b11 8#
-b1100100 7#
-b101000 6#
-b101000011001000000001100000000 5#
-b10100001100100100000000000101 4#
-b111100100101100000010000000000 3#
-b1011111100000000000010000000000 2#
-11#
-b1011111100000000000010000000000 0#
-b111100100000000000010000000000 /#
-0.#
-b111100100000000000010000000000 -#
-b111100100000000000010011111111 ,#
-b111100100000000000010000000000 +#
-b0 *#
-b111100100000000000010000000000 )#
-b111100100000000000010011111111 (#
-b111100100000000000010001100100 '#
-b111100100000000000010001100101 &#
-b1100101 %#
-b111100100000000000010001100101 $#
-b111100100000000000010001100100 ##
-b11110011001000000001000000000 "#
-1!#
-b11110011001000000001000000000 ~"
-b1010000011001000000001000000000 }"
-0|"
-b1010000011001000000001000000000 {"
-b110010010001101000000000000110000111100101000000000000000001000010100000111101000000000000001 z"
-b11110011001000000001000000000 y"
-b1 x"
-b11001001000110100000000000011 w"
-b1111001010000000000000000010 v"
-b10100000111101000000000000001 u"
-b110010010001101000000000000110000111100101000000000000000001000010100000111101000000000000001 t"
-b11110011001000000001000000000 s"
-b11110010000000000000000000101 r"
-b101 q"
-b0 p"
-b1000000 o"
-b11110 n"
-b11110010000000000000000000101 m"
-b111100100000000000010001100100 l"
-b1100100 k"
-b100 j"
-b10000000 i"
-b111100 h"
-b111100100000000000010001100100 g"
-b1010000101000100000000000100000110010010001110000000000000110000111100101000010000000000001000010100000111100000000000000001 f"
-b10 e"
-b1010000101000100000000000100 d"
-b11001001000111000000000000011 c"
-b1111001010000100000000000010 b"
-b10100000111100000000000000001 a"
-b1010000101000100000000000100000110010010001110000000000000110000111100101000010000000000001000010100000111100000000000000001 `"
-b1010000101000000000000000100000110010010001110000000000000110000111100101000000000000000001000010100000111100000000000000001 _"
-b11 ^"
-b1010000101000000000000000100 ]"
-b11001001000111000000000000011 \"
-b1111001010000000000000000010 ["
-b10100000111100000000000000001 Z"
-b1010000101000000000000000100000110010010001110000000000000110000111100101000000000000000001000010100000111100000000000000001 Y"
-b10100001100100100000000000101 X"
-b11110011001000000001000000000 W"
-1V"
-b10100001100100100000000000101 U"
-b11110011001000000001000000000 T"
-b10100001100100100000000000101 S"
-b11110111001100000001000000000 R"
-0Q"
-b10100001100100100000000000101 P"
-b11110111001100000001000000000 O"
-b10100001100100100000000000101 N"
-b1011111011001000000001000000000 M"
-0L"
-b10100001100100100000000000101 K"
-b1011111011001000000001000000000 J"
-b111100100000000000010000000000 I"
-b110010 H"
-b111100100000000000010000000000 G"
-b111100100000000000010000000000 F"
-b111100 E"
-b111100100000000000010000000000 D"
-b10100001100100100000000000101 C"
-b11110011001000000001000000000 B"
-b110010100101100000001100000000 A"
-b11 @"
-b10010110 ?"
-b110010 >"
-b110010100101100000001100000000 ="
-b10100001100100100000000000101 <"
-b11110011001000000001000000000 ;"
-b10010110 :"
-b111100 9"
-b0 8"
-b11 7"
-b1100100 6"
-b101000 5"
-b110010 4"
-b10100 3"
-b100 2"
-11"
-b10100001100100100000000000101 0"
-b111100100101100000010000000000 /"
-b111100 ."
-1-"
-b111100100000000000010000000000 ,"
-b10000000 +"
-b111100 *"
-b11111111 )"
-b0 ("
-b100 '"
-1&"
-b111100100000000000010011111111 %"
+b1000001010000000100000000 k#
+b11000001010110001100000000 j#
+b10000001010000001000000000 i#
+b1000000001000000000000000000000001000000010000000000000001 h#
+b0 g#
+b11000001010110001100000000 f#
+b0 e#
+b10000001010000001000000000 d#
+b1 c#
+b1000001010000000100000000 b#
+b111001110011100001101010000 a#
+b1100001101010000 `#
+b1001 _#
+b11 ^#
+b111 ]#
+b111001110011100001101010000 \#
+bx [#
+bx Z#
+bx Y#
+bx X#
+bx W#
+xV#
+bx U#
+bx T#
+bx S#
+bx R#
+xQ#
+bx P#
+bx O#
+bx N#
+bx M#
+bx L#
+bx K#
+bx J#
+bx I#
+bx H#
+bx G#
+xF#
+bx E#
+bx D#
+bx C#
+bx B#
+bx A#
+x@#
+bx ?#
+bx >#
+bx =#
+b0 <#
+b0 ;#
+b0 :#
+b10000 9#
+b1100011 8#
+17#
+b1000000001000000000000000000000001000000010000000000000001 6#
+b11000001010110001100000000 5#
+bx 4#
+bx 3#
+x2#
+bx 1#
+bx 0#
+bx /#
+bx .#
+bx -#
+bx ,#
+bx +#
+bx *#
+bx )#
+bx (#
+x'#
+bx &#
+bx %#
+bx $#
+bx ##
+bx "#
+bx !#
+bx ~"
+bx }"
+x|"
+bx {"
+bx z"
+bx y"
+bx x"
+xw"
+bx v"
+bx u"
+bx t"
+bx s"
+xr"
+bx q"
+xp"
+bx o"
+xn"
+bx m"
+xl"
+bx k"
+xj"
+bx i"
+xh"
+bx g"
+xf"
+bx e"
+xd"
+bx c"
+1b"
+b111001110011100001101010000 a"
+1`"
+b10000000010000000000000000 _"
+1^"
+b111001110011100001101010000 ]"
+1\"
+b0 ["
+1Z"
+b11000001010110001100000000 Y"
+xX"
+bx W"
+xV"
+bx U"
+1T"
+b11000001010110001100000000 S"
+xR"
+bx Q"
+xP"
+bx O"
+xN"
+bx M"
+xL"
+bx K"
+xJ"
+bx I"
+xH"
+bx G"
+xF"
+bx E"
+xD"
+bx C"
+xB"
+bx A"
+x@"
+bx ?"
+x>"
+bx ="
+x<"
+bx ;"
+bx :"
+bx 9"
+bx 8"
+bx 7"
+bx 6"
+bx 5"
+bx 4"
+bx 3"
+x2"
+bx 1"
+bx 0"
+bx /"
+bx ."
+bx -"
+bx ,"
+x+"
+bx *"
+bx )"
+bx ("
+bx '"
+x&"
+bx %"
 bx $"
 bx #"
-x""
-bx !"
-bx ~
-b1010000 }
-b10100 |
-1{
-b1010000011001000000001000000000 z
-b110010 y
-1x
-b111100100000000000010011111111 w
-1v
-b111100100000000000010011111111 u
-1t
-b111 s
-b1010000101000100000000000100000110010010001110000000000000110000111100101000010000000000001000010100000111100000000000000001 r
-1q
-b11110010000000000000000000101 p
-1o
-b111100100000000000010000000000 n
-1m
-b1010000101000100000000000100 l
-1k
-b0 j
-1i
-b0 h
-1g
-b111100100000000000010011111111 f
-b0 e
-b1 d
-b0 c
-1b
-b110010010001101000000000000110000111100101000000000000000001000010100000111101000000000000001 a
-b11110011001000000001000000000 `
-1_
-b100 ^
-b1 ]
-b10100 \
-b1010 [
-1Z
-b0 Y
-b0 X
-b0 W
-b0 V
-b1010000101000100000000000100 U
-b11001001000111000000000000011 T
-b1111001010000100000000000010 S
-b10100000111100000000000000001 R
-1Q
-b10000000 P
-b111100 O
-b0 N
-b100 M
-b10 L
-1K
-b1010000101000100000000000100000110010010001110000000000000110000111100101000010000000000001000010100000111100000000000000001 J
-b1 I
-b1100100 H
-b11110 G
-b0 F
-b0 E
-b10011100 D
-b1000110 C
-1B
-b0 A
-b11110011001000000001000000000 @
-b10000000 ?
-1>
-b111100100000000000010000000000 =
-1<
-b111100100000000000010000000000 ;
-b1100100 :
-b11110 9
-b0 8
-b11 7
-b10010110 6
-b110010 5
-b110010 4
-b10100 3
-b10 2
-11
-b10100001100100100000000000101 0
-b11110011001000000001000000000 /
-b1000000 .
-b1100100 -
-b11001000000000 ,
-b10000000 +
+bx ""
+1!"
+b1 ~
+b1 }
+b0 |
+b1 {
+xz
+bx y
+bx x
+bx w
+bx v
+1u
+b101 t
+b0 s
+b11 r
+b1100011 q
+xp
+bx o
+bx n
+bx m
+bx l
+xk
+bx j
+bx i
+bx h
+bx g
+xf
+bx e
+bx d
+bx c
+bx b
+bx a
+bx `
+bx _
+bx ^
+bx ]
+bx \
+bx [
+bx Z
+xY
+bx X
+bx W
+bx V
+bx U
+bx T
+bx S
+bx R
+bx Q
+bx P
+bx O
+bx N
+xM
+bx L
+bx K
+bx J
+bx I
+bx H
+bx G
+bx F
 z$
 1#
 z"
