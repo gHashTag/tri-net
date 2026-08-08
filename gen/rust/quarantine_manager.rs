@@ -69,7 +69,7 @@ pub fn suspend_node(state: u32, current_time: u32) -> u32 {
 
 pub fn ban_node(state: u32) -> u32 {
     let node_id: u32 = get_quarantine_node_id(state);
-    return create_quarantine_state(node_id, STATUS_BANNED, 0, 0xFFFF);
+    return create_quarantine_state(node_id, STATUS_BANNED, 0, 0x3FFF);
 }
 
 pub fn should_release_quarantine(state: u32, current_time: u32) -> u32 {

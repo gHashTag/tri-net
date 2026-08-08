@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <assert.h>
+#define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
 
 #ifndef PERFORMANCE_PROFILER_H
 #define PERFORMANCE_PROFILER_H
@@ -341,5 +343,28 @@ uint32_t calculate_improvement_opportunity(uint32_t current_performance, uint32_
     uint32_t opportunity = ((gap * 100) / target_performance);
     return opportunity;
 }
+
+/* -------------------------------------------------------
+   Tests
+   ------------------------------------------------------- */
+
+void test_perf_sample_roundtrip(void) {
+    uint64_t smp = create_perf_sample(6, 45, 30, 99);
+    (void)smp;
+    t27_assert((get_sample_function_id(smp) == 6), "function id");
+    t27_assert((get_sample_cpu(smp) == 45), "cpu");
+    t27_assert((get_sample_memory(smp) == 30), "memory");
+    t27_assert((get_sample_timestamp(smp) == 99), "timestamp");
+}
+
+void test_hotspot_roundtrip(void) {
+    uint64_t h = create_hotspot(6, 90, 1, 77);
+    (void)h;
+    t27_assert((get_hotspot_function_id(h) == 6), "function id");
+    t27_assert((get_hotspot_score(h) == 90), "score");
+    t27_assert((get_hotspot_rank(h) == 1), "rank");
+    t27_assert((get_hotspot_impact(h) == 77), "impact");
+}
+
 
 #endif /* PERFORMANCE_PROFILER_H */

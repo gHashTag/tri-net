@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <assert.h>
+#define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
 
 #ifndef NETWORK_ORCHESTRATOR_H
 #define NETWORK_ORCHESTRATOR_H
@@ -331,5 +333,33 @@ uint32_t monitor_network_health(uint32_t* node_states, uint32_t node_count) {
         return 0;
     }
 }
+
+/* -------------------------------------------------------
+   Tests
+   ------------------------------------------------------- */
+
+void test_policy_roundtrip(void) {
+    uint64_t p = create_network_policy(7, 200, 3, 3000);
+    (void)p;
+    t27_assert((get_policy_id(p) == 7), "policy id");
+    t27_assert((get_policy_priority(p) == 200), "priority");
+    t27_assert((get_policy_scope(p) == 3), "scope");
+    t27_assert((get_policy_parameter(p) == 3000), "parameter");
+}
+
+void test_coordination_roundtrip(void) {
+    uint64_t st = create_coordination_state(9, STATE_NEGOTIATING, 3, 50000);
+    (void)st;
+    t27_assert((get_coordinator_id(st) == 9), "coordinator");
+    t27_assert((get_coordination_state(st) == STATE_NEGOTIATING), "state");
+    t27_assert((get_coordination_phase(st) == 3), "phase");
+    t27_assert((get_coordination_timeout(st) == 50000), "timeout");
+}
+
+void test_highest_priority_policy_selection(void) {
+    uint32_t ps[4] = { create_network_policy(1,10,1,0), create_network_policy(2,90,1,0), create_network_policy(3,200,2,0), create_network_policy(4,50,1,0) };
+    t27_assert((find_highest_priority_policy(ps, 1) == 1), "highest in scope wins");
+}
+
 
 #endif /* NETWORK_ORCHESTRATOR_H */

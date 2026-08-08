@@ -353,4 +353,24 @@ module network_simulator {
                 ((duration & 0xFF) << 8) |
                 (node_count & 0xFF));
     }
+
+    // ---- Tests ----
+
+    test sim_event_roundtrip {
+        e = create_sim_event(5, 40000, 9, 12);
+        assert(get_event_id(e) == 5, "event id");
+        assert(get_event_timestamp(e) == 40000, "timestamp");
+        assert(get_event_type(e) == 9, "event type");
+        assert(get_event_node_id(e) == 12, "node id");
+    }
+
+    test energy_drain_fails_node {
+        st = create_node_state(3, NODE_ACTIVE, 10, 7);
+        st = update_node_energy(st, 4);
+        assert(get_node_energy(st) == 6, "energy drained");
+        assert(get_node_status(st) == NODE_ACTIVE, "still active");
+        st = update_node_energy(st, 100);
+        assert(get_node_energy(st) == 0, "clamps at zero");
+        assert(get_node_status(st) == NODE_FAILED, "empty battery fails the node");
+    }
 }

@@ -116,7 +116,12 @@ module load_predictor {
         let predicted: u32 = current;
         
         if (trend == 1) { // increasing
-            let increase: u32 = (current - avg) / 2;
+            // The 3-sample trend can point up while the full-history average
+            // still exceeds the current sample: guard the subtraction.
+            let increase: u32 = 0;
+            if (current > avg) {
+                increase = (current - avg) / 2;
+            }
             predicted = current + increase;
         } else if (trend == 2) { // decreasing
             let decrease: u32 = (avg - current) / 2;
@@ -301,5 +306,51 @@ module load_predictor {
         } else {
             return current_node;
         }
+    }
+
+    // ---- Tests ----
+
+    test load_metrics_roundtrip {
+        m = create_load_metrics(80, 60, 200, 12);
+        assert(get_bandwidth_usage(m) == 80, "bandwidth");
+        assert(get_cpu_usage(m) == 60, "cpu");
+        assert(get_packet_rate(m) == 200, "packets");
+        assert(get_queue_depth(m) == 12, "queue");
+    }
+
+    test prediction_roundtrip {
+        p = create_prediction(90, 75, 2, 9000);
+        assert(get_predicted_load(p) == 90, "load");
+        assert(get_confidence(p) == 75, "confidence");
+        assert(get_trend(p) == 2, "trend");
+        assert(get_time_horizon(p) == 9000, "horizon");
+    }
+
+    test trend_detection_bands {
+        let up: [u32; 16] = [
+            create_load_metrics(10, 0, 0, 0), create_load_metrics(30, 0, 0, 0),
+            create_load_metrics(50, 0, 0, 0), create_load_metrics(70, 0, 0, 0),
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        ];
+        assert(detect_trend(up, 4) == 1, "rising by 40 over the window");
+        let flat: [u32; 16] = [
+            create_load_metrics(50, 0, 0, 0), create_load_metrics(55, 0, 0, 0),
+            create_load_metrics(52, 0, 0, 0), create_load_metrics(58, 0, 0, 0),
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        ];
+        assert(detect_trend(flat, 4) == 0, "8-point wobble is stable");
+    }
+
+    test predict_load_no_underflow_when_average_leads {
+        // Trend points up (0 -> 50 over the window) while the full average
+        // (55) still exceeds the current sample (50): the unguarded
+        // subtraction used to wrap.
+        let h: [u32; 16] = [
+            create_load_metrics(100, 0, 0, 0), create_load_metrics(100, 0, 0, 0),
+            create_load_metrics(0, 0, 0, 0), create_load_metrics(25, 0, 0, 0),
+            create_load_metrics(50, 0, 0, 0),
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        ];
+        assert(predict_load(h, 5) == 50, "no growth credit when below average");
     }
 }

@@ -98,7 +98,10 @@ pub fn predict_load(history: [u32; HISTORY_SIZE as usize], count: u32) -> u32 {
     let avg: u32 = calculate_moving_average(history, count);
     let mut predicted: u32 = current;
     if (trend == 1) {
-        let increase: u32 = ((current - avg) / 2);
+        let mut increase: u32 = 0;
+        if (current > avg) {
+            increase = ((current - avg) / 2);
+        }
         predicted = (current + increase);
     } else {
         if (trend == 2) {

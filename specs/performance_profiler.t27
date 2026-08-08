@@ -352,4 +352,22 @@ module performance_profiler {
         
         return opportunity;
     }
+
+    // ---- Tests ----
+
+    test perf_sample_roundtrip {
+        smp = create_perf_sample(6, 45, 30, 99);
+        assert(get_sample_function_id(smp) == 6, "function id");
+        assert(get_sample_cpu(smp) == 45, "cpu");
+        assert(get_sample_memory(smp) == 30, "memory");
+        assert(get_sample_timestamp(smp) == 99, "timestamp");
+    }
+
+    test hotspot_roundtrip {
+        h = create_hotspot(6, 90, 1, 77);
+        assert(get_hotspot_function_id(h) == 6, "function id");
+        assert(get_hotspot_score(h) == 90, "score");
+        assert(get_hotspot_rank(h) == 1, "rank");
+        assert(get_hotspot_impact(h) == 77, "impact");
+    }
 }
