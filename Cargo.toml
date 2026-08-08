@@ -342,3 +342,7 @@ path = "tests/expiry_verdict_over_mesh.rs"
 [[test]]
 name = "dispute_concurrency"
 path = "tests/dispute_concurrency.rs"
+
+[[test]]
+name = "dispute_swarm_e2e"
+path = "tests/dispute_swarm_e2e.rs"
