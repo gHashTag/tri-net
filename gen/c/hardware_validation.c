@@ -77,6 +77,7 @@ uint8_t calculate_pass_rate(uint32_t passed, uint32_t total) {
     if ((total == 0)) {
         return 0;
     }
+    return ((uint8_t)(((passed * 100) / total)));
 }
 
 bool test_passed(uint32_t result) {
@@ -84,7 +85,7 @@ bool test_passed(uint32_t result) {
 }
 
 bool bit_accurate(uint32_t reference, uint32_t implementation, uint32_t tolerance_mask) {
-    return (((reference ^ implementation) & tolerance_mask) == 0);
+    return (((reference ^ implementation) & (0xFFFFFFFF ^ tolerance_mask)) == 0);
 }
 
 bool fpga_board_ready(uint32_t result) {
@@ -112,11 +113,11 @@ uint32_t extract_capture_timestamp(uint32_t capture) {
 }
 
 uint32_t create_performance_metric(uint32_t metric_type, uint32_t value, uint32_t unit) {
-    return ((((metric_type & 0xF) << 24) | ((value & 0xFFFFFF) << 4)) | (unit & 0xF));
+    return ((((metric_type & 0xF) << 28) | ((value & 0xFFFFFF) << 4)) | (unit & 0xF));
 }
 
 uint32_t extract_metric_type(uint32_t metric) {
-    return ((metric >> 24) & 0xF);
+    return ((metric >> 28) & 0xF);
 }
 
 uint32_t extract_metric_value(uint32_t metric) {
@@ -191,7 +192,7 @@ void test_bit_accurate_tolerance(void) {
 }
 
 void test_bit_accurate_fail(void) {
-    t27_assert((bit_accurate(0x12345678, 0x1234FF78, 0x00FF0000) == false), "diff in tolerated bits");
+    t27_assert((bit_accurate(0x12345678, 0x1234FF78, 0x000000FF) == false), "diff outside tolerated bits");
 }
 
 void test_fpga_board_ready_yes(void) {

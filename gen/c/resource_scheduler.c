@@ -38,19 +38,19 @@ uint32_t get_used_cpu(uint32_t state);
 uint32_t get_used_mem(uint32_t state);
 uint32_t get_active_tasks(uint32_t state);
 uint32_t get_sched_tick(uint32_t state);
-uint64_t create_task_array(uint32_t t0, uint32_t t1, uint32_t t2, uint32_t t3, uint32_t t4, uint32_t t5, uint32_t t6, uint32_t t7);
-uint32_t get_task_resource(uint64_t array, uint32_t index);
+uint32_t* create_task_array(uint32_t t0, uint32_t t1, uint32_t t2, uint32_t t3, uint32_t t4, uint32_t t5, uint32_t t6, uint32_t t7);
+uint32_t get_task_resource(uint32_t* array, uint32_t index);
 bool can_admit_task(uint32_t state, uint32_t task);
 bool has_cpu_capacity(uint32_t state, uint32_t cpu_req);
 bool has_memory_capacity(uint32_t state, uint32_t mem_req);
 uint32_t allocate_resources(uint32_t state, uint32_t task);
 uint32_t release_resources(uint32_t state, uint32_t task);
-uint32_t find_admittable_task(uint32_t state, uint64_t task_array);
+uint32_t find_admittable_task(uint32_t state, uint32_t* task_array);
 uint32_t calculate_cpu_utilization(uint32_t state);
 uint32_t calculate_memory_utilization(uint32_t state);
 bool is_overloaded(uint32_t state);
 uint32_t increment_tick(uint32_t state);
-uint32_t count_tasks_by_priority(uint64_t task_array, uint32_t priority);
+uint32_t count_tasks_by_priority(uint32_t* task_array, uint32_t priority);
 
 /* -------------------------------------------------------
    Function implementations
@@ -96,33 +96,15 @@ uint32_t get_sched_tick(uint32_t state) {
     return (state & 0xFF);
 }
 
-uint64_t create_task_array(uint32_t t0, uint32_t t1, uint32_t t2, uint32_t t3, uint32_t t4, uint32_t t5, uint32_t t6, uint32_t t7) {
-    return ((((((((((uint64_t)(t0)) << 56) | (((uint64_t)(t1)) << 48)) | (((uint64_t)(t2)) << 40)) | (((uint64_t)(t3)) << 32)) | (((uint64_t)(t4)) << 24)) | (((uint64_t)(t5)) << 16)) | (((uint64_t)(t6)) << 8)) | ((uint64_t)(t7)));
+uint32_t* create_task_array(uint32_t t0, uint32_t t1, uint32_t t2, uint32_t t3, uint32_t t4, uint32_t t5, uint32_t t6, uint32_t t7) {
+    return { t0, t1, t2, t3, t4, t5, t6, t7 };
 }
 
-uint32_t get_task_resource(uint64_t array, uint32_t index) {
-    if ((index == 0)) {
-        return ((uint32_t)(((array >> 56) & 0xFFFFFFFF)));
+uint32_t get_task_resource(uint32_t* array, uint32_t index) {
+    if ((index < 8)) {
+        return array[index];
     }
-    if ((index == 1)) {
-        return ((uint32_t)(((array >> 48) & 0xFFFFFFFF)));
-    }
-    if ((index == 2)) {
-        return ((uint32_t)(((array >> 40) & 0xFFFFFFFF)));
-    }
-    if ((index == 3)) {
-        return ((uint32_t)(((array >> 32) & 0xFFFFFFFF)));
-    }
-    if ((index == 4)) {
-        return ((uint32_t)(((array >> 24) & 0xFFFFFFFF)));
-    }
-    if ((index == 5)) {
-        return ((uint32_t)(((array >> 16) & 0xFFFFFFFF)));
-    }
-    if ((index == 6)) {
-        return ((uint32_t)(((array >> 8) & 0xFFFFFFFF)));
-    }
-    return ((uint32_t)((array & 0xFFFFFFFF)));
+    return 0;
 }
 
 bool can_admit_task(uint32_t state, uint32_t task) {
@@ -173,7 +155,7 @@ uint32_t release_resources(uint32_t state, uint32_t task) {
     return create_system_state(new_cpu, new_mem, new_tasks, tick);
 }
 
-uint32_t find_admittable_task(uint32_t state, uint64_t task_array) {
+uint32_t find_admittable_task(uint32_t state, uint32_t* task_array) {
     int best_task = 0xFF;
     int best_priority = 0xFF;
     if (can_admit_task(state, get_task_resource(task_array, 0))) {
@@ -261,30 +243,30 @@ uint32_t increment_tick(uint32_t state) {
     return create_system_state(used_cpu, used_mem, active_tasks, new_tick);
 }
 
-uint32_t count_tasks_by_priority(uint64_t task_array, uint32_t priority) {
+uint32_t count_tasks_by_priority(uint32_t* task_array, uint32_t priority) {
     int count = 0;
-    if ((get_priority(get_task_resource(task_array, 0)) == priority)) {
+    if (((get_task_resource(task_array, 0) != 0) && (get_priority(get_task_resource(task_array, 0)) == priority))) {
         count = (count + 1);
     }
-    if ((get_priority(get_task_resource(task_array, 1)) == priority)) {
+    if (((get_task_resource(task_array, 1) != 0) && (get_priority(get_task_resource(task_array, 1)) == priority))) {
         count = (count + 1);
     }
-    if ((get_priority(get_task_resource(task_array, 2)) == priority)) {
+    if (((get_task_resource(task_array, 2) != 0) && (get_priority(get_task_resource(task_array, 2)) == priority))) {
         count = (count + 1);
     }
-    if ((get_priority(get_task_resource(task_array, 3)) == priority)) {
+    if (((get_task_resource(task_array, 3) != 0) && (get_priority(get_task_resource(task_array, 3)) == priority))) {
         count = (count + 1);
     }
-    if ((get_priority(get_task_resource(task_array, 4)) == priority)) {
+    if (((get_task_resource(task_array, 4) != 0) && (get_priority(get_task_resource(task_array, 4)) == priority))) {
         count = (count + 1);
     }
-    if ((get_priority(get_task_resource(task_array, 5)) == priority)) {
+    if (((get_task_resource(task_array, 5) != 0) && (get_priority(get_task_resource(task_array, 5)) == priority))) {
         count = (count + 1);
     }
-    if ((get_priority(get_task_resource(task_array, 6)) == priority)) {
+    if (((get_task_resource(task_array, 6) != 0) && (get_priority(get_task_resource(task_array, 6)) == priority))) {
         count = (count + 1);
     }
-    if ((get_priority(get_task_resource(task_array, 7)) == priority)) {
+    if (((get_task_resource(task_array, 7) != 0) && (get_priority(get_task_resource(task_array, 7)) == priority))) {
         count = (count + 1);
     }
     return count;

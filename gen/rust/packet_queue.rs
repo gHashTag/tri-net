@@ -27,12 +27,20 @@ pub fn enqueue(state: u32, data: u32) -> u32 {
     if is_full(state) {
         return state;
     }
+    let head: u32 = (state & 7);
+    let tail: u32 = ((state >> 3) & 7);
+    let count: u32 = (get_count(state) as u32);
+    return ((head | ((increment_index((tail as u8)) as u32) << 3)) | ((count + 1) << 6));
 }
 
 pub fn dequeue(state: u32) -> u32 {
     if is_empty(state) {
         return state;
     }
+    let head: u32 = (state & 7);
+    let tail: u32 = ((state >> 3) & 7);
+    let count: u32 = (get_count(state) as u32);
+    return (((increment_index((head as u8)) as u32) | (tail << 3)) | ((count - 1) << 6));
 }
 
 pub fn size(state: u32) -> u8 {

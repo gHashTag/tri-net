@@ -49,21 +49,15 @@ pub fn get_energy_score(energy: u32) -> u32 {
     return (energy & 0x7FFF);
 }
 
-pub fn create_energy_array(e0: u32, e1: u32, e2: u32, e3: u32) -> u64 {
-    return (((((e0 as u64) << 48) | ((e1 as u64) << 32)) | ((e2 as u64) << 16)) | (e3 as u64));
+pub fn create_energy_array(e0: u32, e1: u32, e2: u32, e3: u32) -> [u32; 4] {
+    return [e0,e1,e2,e3];
 }
 
-pub fn get_path_energy(array: u64, index: u32) -> u32 {
-    if (index == 0) {
-        return (((array >> 48) & 0xFFFFFFFF) as u32);
+pub fn get_path_energy(array: [u32; 4], index: u32) -> u32 {
+    if (index < 4) {
+        return array[(index) as usize];
     }
-    if (index == 1) {
-        return (((array >> 32) & 0xFFFFFFFF) as u32);
-    }
-    if (index == 2) {
-        return (((array >> 16) & 0xFFFFFFFF) as u32);
-    }
-    return ((array & 0xFFFFFFFF) as u32);
+    return 0;
 }
 
 pub fn calculate_total_energy_cost(cost: u32) -> u32 {
@@ -93,7 +87,7 @@ pub fn is_path_viable(energy: u32) -> bool {
     return ((valid == 1) && (battery > CRITICAL_BATTERY));
 }
 
-pub fn find_energy_optimal_path(energy_array: u64) -> u32 {
+pub fn find_energy_optimal_path(energy_array: [u32; 4]) -> u32 {
     let mut best_path = 0xFF;
     let mut best_score = 0;
     if is_path_viable(get_path_energy(energy_array, 0)) {
@@ -127,7 +121,7 @@ pub fn find_energy_optimal_path(energy_array: u64) -> u32 {
     return best_path;
 }
 
-pub fn find_min_cost_path(energy_array: u64) -> u32 {
+pub fn find_min_cost_path(energy_array: [u32; 4]) -> u32 {
     let mut best_path = 0xFF;
     let mut best_cost = 0xFFFFFFFF;
     if is_path_viable(get_path_energy(energy_array, 0)) {
@@ -161,7 +155,7 @@ pub fn find_min_cost_path(energy_array: u64) -> u32 {
     return best_path;
 }
 
-pub fn select_balanced_path(energy_array: u64, current_path: u32) -> u32 {
+pub fn select_balanced_path(energy_array: [u32; 4], current_path: u32) -> u32 {
     let mut best_path = current_path;
     let mut best_battery = get_battery_levels(get_path_energy(energy_array, current_path));
     if is_path_viable(get_path_energy(energy_array, 0)) {

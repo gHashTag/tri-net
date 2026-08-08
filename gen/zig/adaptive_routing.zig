@@ -40,20 +40,14 @@ fn get_metric_type(state: u32) u32 {
 fn get_last_update(state: u32) u32 {
     return state & 0xFFFFFF;
 }
-fn create_path_metrics_array(m0: u32, m1: u32, m2: u32, m3: u32) u64 {
-    return (((@as(u64, @intCast(m0)) << 48) | (@as(u64, @intCast(m1)) << 32)) | (@as(u64, @intCast(m2)) << 16)) | @as(u64, @intCast(m3));
+fn create_path_metrics_array(m0: u32, m1: u32, m2: u32, m3: u32) [4]u32 {
+    return .{ m0, m1, m2, m3 };
 }
-fn get_path_metrics(array: u64, index: u32) u32 {
-    if (index == 0) {
-        return @as(u32, @intCast((array >> 48) & 0xFFFFFFFF));
+fn get_path_metrics(array: [4]u32, index: u32) u32 {
+    if (index < 4) {
+        return array[index];
     }
-    if (index == 1) {
-        return @as(u32, @intCast((array >> 32) & 0xFFFFFFFF));
-    }
-    if (index == 2) {
-        return @as(u32, @intCast((array >> 16) & 0xFFFFFFFF));
-    }
-    return @as(u32, @intCast(array & 0xFFFFFFFF));
+    return 0;
 }
 fn calculate_score(metrics: u32, metric_type: u32) u32 {
     if (metric_type == METRIC_LATENCY) {
@@ -73,7 +67,7 @@ fn calculate_score(metrics: u32, metric_type: u32) u32 {
     }
     return 0;
 }
-fn find_best_path(metrics_array: u64, metric_type: u32) u32 {
+fn find_best_path(metrics_array: [4]u32, metric_type: u32) u32 {
     var best_path: u32 = 0xFF;
     _ = &best_path;
     var best_score: u32 = 0;
@@ -114,7 +108,7 @@ fn change_metric_type(state: u32, new_metric: u32) u32 {
 fn is_path_congested(metrics: u32) bool {
     return get_load(metrics) > 80;
 }
-fn find_least_congested(metrics_array: u64) u32 {
+fn find_least_congested(metrics_array: [4]u32) u32 {
     var best_path: u32 = 0;
     _ = &best_path;
     var best_load = get_load(get_path_metrics(metrics_array, 0));

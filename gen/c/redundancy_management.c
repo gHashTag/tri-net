@@ -31,17 +31,18 @@ uint32_t get_path_valid(uint32_t path);
 uint32_t get_hop1(uint32_t path);
 uint32_t get_hop2(uint32_t path);
 uint32_t get_hop3(uint32_t path);
-uint64_t create_path_set(uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3);
-uint32_t get_path(uint64_t path_set, uint32_t index);
-uint32_t find_primary_path(uint64_t path_set);
-uint32_t find_backup_path(uint64_t path_set, uint32_t failed_path);
-uint64_t invalidate_path(uint64_t path_set, uint32_t path_index);
-uint64_t validate_path(uint64_t path_set, uint32_t path_index);
-uint32_t count_valid_paths(uint64_t path_set);
-bool has_redundancy(uint64_t path_set);
+uint32_t* create_path_set(uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3);
+uint32_t* set_slot4(uint32_t* array, uint32_t index, uint32_t value);
+uint32_t get_path(uint32_t* path_set, uint32_t index);
+uint32_t find_primary_path(uint32_t* path_set);
+uint32_t find_backup_path(uint32_t* path_set, uint32_t failed_path);
+uint32_t* invalidate_path(uint32_t* path_set, uint32_t path_index);
+uint32_t* validate_path(uint32_t* path_set, uint32_t path_index);
+uint32_t count_valid_paths(uint32_t* path_set);
+bool has_redundancy(uint32_t* path_set);
 uint32_t get_hop_count(uint32_t path);
-uint32_t find_shortest_path(uint64_t path_set);
-uint64_t failover(uint64_t path_set, uint32_t failed_path);
+uint32_t find_shortest_path(uint32_t* path_set);
+uint32_t* failover(uint32_t* path_set, uint32_t failed_path);
 
 /* -------------------------------------------------------
    Function implementations
@@ -67,24 +68,35 @@ uint32_t get_hop3(uint32_t path) {
     return (path & 0xFF);
 }
 
-uint64_t create_path_set(uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3) {
-    return ((((((uint64_t)(p0)) << 48) | (((uint64_t)(p1)) << 32)) | (((uint64_t)(p2)) << 16)) | ((uint64_t)(p3)));
+uint32_t* create_path_set(uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3) {
+    return { p0, p1, p2, p3 };
 }
 
-uint32_t get_path(uint64_t path_set, uint32_t index) {
+uint32_t* set_slot4(uint32_t* array, uint32_t index, uint32_t value) {
+    uint32_t a0 = array[0];
+    uint32_t a1 = array[1];
+    uint32_t a2 = array[2];
+    uint32_t a3 = array[3];
     if ((index == 0)) {
-        return ((uint32_t)(((path_set >> 48) & 0xFFFFFFFF)));
+        return { value, a1, a2, a3 };
     }
     if ((index == 1)) {
-        return ((uint32_t)(((path_set >> 32) & 0xFFFFFFFF)));
+        return { a0, value, a2, a3 };
     }
     if ((index == 2)) {
-        return ((uint32_t)(((path_set >> 16) & 0xFFFFFFFF)));
+        return { a0, a1, value, a3 };
     }
-    return ((uint32_t)((path_set & 0xFFFFFFFF)));
+    return { a0, a1, a2, value };
 }
 
-uint32_t find_primary_path(uint64_t path_set) {
+uint32_t get_path(uint32_t* path_set, uint32_t index) {
+    if ((index < 4)) {
+        return path_set[index];
+    }
+    return 0;
+}
+
+uint32_t find_primary_path(uint32_t* path_set) {
     if ((get_path_valid(get_path(path_set, 0)) == PATH_VALID)) {
         return 0;
     } else if ((get_path_valid(get_path(path_set, 1)) == PATH_VALID)) {
@@ -97,7 +109,7 @@ uint32_t find_primary_path(uint64_t path_set) {
     return 0xFF;
 }
 
-uint32_t find_backup_path(uint64_t path_set, uint32_t failed_path) {
+uint32_t find_backup_path(uint32_t* path_set, uint32_t failed_path) {
     if (((failed_path != 0) && (get_path_valid(get_path(path_set, 0)) == PATH_VALID))) {
         return 0;
     } else if (((failed_path != 1) && (get_path_valid(get_path(path_set, 1)) == PATH_VALID))) {
@@ -110,35 +122,19 @@ uint32_t find_backup_path(uint64_t path_set, uint32_t failed_path) {
     return 0xFF;
 }
 
-uint64_t invalidate_path(uint64_t path_set, uint32_t path_index) {
+uint32_t* invalidate_path(uint32_t* path_set, uint32_t path_index) {
     int path = get_path(path_set, path_index);
     int new_path = create_path(PATH_INVALID, get_hop1(path), get_hop2(path), get_hop3(path));
-    if ((path_index == 0)) {
-        return ((path_set & 0x0000FFFFFFFFFFFF) | (((uint64_t)(new_path)) << 48));
-    } else if ((path_index == 1)) {
-        return ((path_set & 0xFFFF0000FFFFFFFF) | (((uint64_t)(new_path)) << 32));
-    } else if ((path_index == 2)) {
-        return ((path_set & 0xFFFFFFFF0000FFFF) | (((uint64_t)(new_path)) << 16));
-    } else {
-        return ((path_set & 0xFFFFFFFFFFFF0000) | ((uint64_t)(new_path)));
-    }
+    return set_slot4(path_set, path_index, new_path);
 }
 
-uint64_t validate_path(uint64_t path_set, uint32_t path_index) {
+uint32_t* validate_path(uint32_t* path_set, uint32_t path_index) {
     int path = get_path(path_set, path_index);
     int new_path = create_path(PATH_VALID, get_hop1(path), get_hop2(path), get_hop3(path));
-    if ((path_index == 0)) {
-        return ((path_set & 0x0000FFFFFFFFFFFF) | (((uint64_t)(new_path)) << 48));
-    } else if ((path_index == 1)) {
-        return ((path_set & 0xFFFF0000FFFFFFFF) | (((uint64_t)(new_path)) << 32));
-    } else if ((path_index == 2)) {
-        return ((path_set & 0xFFFFFFFF0000FFFF) | (((uint64_t)(new_path)) << 16));
-    } else {
-        return ((path_set & 0xFFFFFFFFFFFF0000) | ((uint64_t)(new_path)));
-    }
+    return set_slot4(path_set, path_index, new_path);
 }
 
-uint32_t count_valid_paths(uint64_t path_set) {
+uint32_t count_valid_paths(uint32_t* path_set) {
     int count = 0;
     if ((get_path_valid(get_path(path_set, 0)) == PATH_VALID)) {
         count = (count + 1);
@@ -155,7 +151,7 @@ uint32_t count_valid_paths(uint64_t path_set) {
     return count;
 }
 
-bool has_redundancy(uint64_t path_set) {
+bool has_redundancy(uint32_t* path_set) {
     return (count_valid_paths(path_set) > 1);
 }
 
@@ -173,7 +169,7 @@ uint32_t get_hop_count(uint32_t path) {
     return count;
 }
 
-uint32_t find_shortest_path(uint64_t path_set) {
+uint32_t find_shortest_path(uint32_t* path_set) {
     int best_path = 0xFF;
     int best_hops = 255;
     if ((get_path_valid(get_path(path_set, 0)) == PATH_VALID)) {
@@ -207,7 +203,7 @@ uint32_t find_shortest_path(uint64_t path_set) {
     return best_path;
 }
 
-uint64_t failover(uint64_t path_set, uint32_t failed_path) {
+uint32_t* failover(uint32_t* path_set, uint32_t failed_path) {
     int backup = find_backup_path(path_set, failed_path);
     if ((backup != 0xFF)) {
         return invalidate_path(path_set, failed_path);

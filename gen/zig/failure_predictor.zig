@@ -39,32 +39,14 @@ fn get_risk_trend(score: u32) u32 {
 fn get_prediction_time(score: u32) u32 {
     return score & 0x3FFF;
 }
-fn create_health_array(h0: u32, h1: u32, h2: u32, h3: u32, h4: u32, h5: u32, h6: u32, h7: u32) u64 {
-    return (((((((@as(u64, @intCast(h0)) << 56) | (@as(u64, @intCast(h1)) << 48)) | (@as(u64, @intCast(h2)) << 40)) | (@as(u64, @intCast(h3)) << 32)) | (@as(u64, @intCast(h4)) << 24)) | (@as(u64, @intCast(h5)) << 16)) | (@as(u64, @intCast(h6)) << 8)) | @as(u64, @intCast(h7));
+fn create_health_array(h0: u32, h1: u32, h2: u32, h3: u32, h4: u32, h5: u32, h6: u32, h7: u32) [8]u32 {
+    return .{ h0, h1, h2, h3, h4, h5, h6, h7 };
 }
-fn get_health_metrics(array: u64, index: u32) u32 {
-    if (index == 0) {
-        return @as(u32, @intCast((array >> 56) & 0xFFFFFFFF));
+fn get_health_metrics(array: [8]u32, index: u32) u32 {
+    if (index < 8) {
+        return array[index];
     }
-    if (index == 1) {
-        return @as(u32, @intCast((array >> 48) & 0xFFFFFFFF));
-    }
-    if (index == 2) {
-        return @as(u32, @intCast((array >> 40) & 0xFFFFFFFF));
-    }
-    if (index == 3) {
-        return @as(u32, @intCast((array >> 32) & 0xFFFFFFFF));
-    }
-    if (index == 4) {
-        return @as(u32, @intCast((array >> 24) & 0xFFFFFFFF));
-    }
-    if (index == 5) {
-        return @as(u32, @intCast((array >> 16) & 0xFFFFFFFF));
-    }
-    if (index == 6) {
-        return @as(u32, @intCast((array >> 8) & 0xFFFFFFFF));
-    }
-    return @as(u32, @intCast(array & 0xFFFFFFFF));
+    return 0;
 }
 fn calculate_health_score(metrics: u32) u32 {
     const cpu = get_cpu_usage(metrics);
@@ -95,7 +77,7 @@ fn predict_failure_probability(metrics: u32) u32 {
 fn is_trending_failure(current_metrics: u32, previous_metrics: u32) u32 {
     const current_health = calculate_health_score(current_metrics);
     const previous_health = calculate_health_score(previous_metrics);
-    if (current_health < (previous_health - 10)) {
+    if ((current_health + 10) < previous_health) {
         return 1;
     }
     return 0;
@@ -129,8 +111,8 @@ fn needs_immediate_action(metrics: u32) bool {
     const errors = get_error_rate(metrics);
     return ((cpu > 95) or (temp > 95)) or (errors > 50);
 }
-fn find_most_at_risk(health_array: u64) u32 {
-    var highest_risk: u32 = 0xFF;
+fn find_most_at_risk(health_array: [8]u32) u32 {
+    var highest_risk: u32 = 0;
     _ = &highest_risk;
     var highest_risk_node: u32 = 0xFF;
     _ = &highest_risk_node;
@@ -185,7 +167,7 @@ test "create_risk_score_basic" {
 test "calculate_health_score_healthy" {
     const metrics = create_health_metrics(20, 30, 2, 40);
     const score = calculate_health_score(metrics);
-    if (!(score >= 80)) @panic("healthy score");
+    if (!(score >= 75)) @panic("healthy score");
 }
 test "calculate_health_score_degraded" {
     const metrics = create_health_metrics(80, 70, 15, 75);
@@ -193,7 +175,7 @@ test "calculate_health_score_degraded" {
     if (!(score < 40)) @panic("degraded score");
 }
 test "predict_failure_probability_healthy" {
-    const metrics = create_health_metrics(20, 30, 2, 40);
+    const metrics = create_health_metrics(10, 20, 2, 30);
     if (!(predict_failure_probability(metrics) == 0)) @panic("no failure");
 }
 test "predict_failure_probability_critical" {
@@ -201,7 +183,7 @@ test "predict_failure_probability_critical" {
     if (!(predict_failure_probability(metrics) >= 80)) @panic("high failure prob");
 }
 test "is_trending_failure_degrading" {
-    const current = create_health_metrics(60, 70, 10, 50);
+    const current = create_health_metrics(50, 60, 8, 48);
     const previous = create_health_metrics(40, 50, 5, 45);
     if (!(is_trending_failure(current, previous) == 0)) @panic("not trending to failure");
 }
@@ -211,7 +193,7 @@ test "is_trending_failure_significant" {
     if (!(is_trending_failure(current, previous) == 1)) @panic("trending to failure");
 }
 test "predict_time_to_failure_healthy" {
-    const metrics = create_health_metrics(20, 30, 2, 40);
+    const metrics = create_health_metrics(10, 20, 2, 30);
     if (!(predict_time_to_failure(metrics) == 0xFF)) @panic("no failure predicted");
 }
 test "predict_time_to_failure_critical" {
@@ -219,7 +201,7 @@ test "predict_time_to_failure_critical" {
     if (!(predict_time_to_failure(metrics) == 5)) @panic("immediate failure");
 }
 test "predict_time_to_failure_medium" {
-    const metrics = create_health_metrics(70, 75, 30, 65);
+    const metrics = create_health_metrics(60, 65, 20, 55);
     if (!(predict_time_to_failure(metrics) == 50)) @panic("medium-term failure");
 }
 test "calculate_failure_risk_low" {

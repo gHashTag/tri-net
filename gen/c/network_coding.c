@@ -42,10 +42,10 @@ bool same_generation(uint32_t pkt1, uint32_t pkt2);
 uint32_t get_generation_id(uint32_t packet);
 bool is_coding_beneficial(uint32_t pkt1, uint32_t pkt2, uint32_t next_hop1, uint32_t next_hop2);
 uint32_t linear_code_packets(uint32_t pkt1, uint32_t pkt2, uint32_t coeff1, uint32_t coeff2);
-uint64_t create_coded_generation(uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3);
-uint32_t get_coded_packet_gen(uint64_t gen, uint32_t index);
-uint32_t count_generation_packets(uint64_t gen);
-uint32_t is_generation_decodable(uint64_t gen, uint32_t original_count);
+uint32_t* create_coded_generation(uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3);
+uint32_t get_coded_packet_gen(uint32_t* gen, uint32_t index);
+uint32_t count_generation_packets(uint32_t* gen);
+uint32_t is_generation_decodable(uint32_t* gen, uint32_t original_count);
 uint32_t calculate_coding_gain(uint32_t original, uint32_t coded);
 
 /* -------------------------------------------------------
@@ -137,24 +137,18 @@ uint32_t linear_code_packets(uint32_t pkt1, uint32_t pkt2, uint32_t coeff1, uint
     return result;
 }
 
-uint64_t create_coded_generation(uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3) {
-    return ((((((uint64_t)(p0)) << 48) | (((uint64_t)(p1)) << 32)) | (((uint64_t)(p2)) << 16)) | ((uint64_t)(p3)));
+uint32_t* create_coded_generation(uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3) {
+    return { p0, p1, p2, p3 };
 }
 
-uint32_t get_coded_packet_gen(uint64_t gen, uint32_t index) {
-    if ((index == 0)) {
-        return ((uint32_t)(((gen >> 48) & 0xFFFFFFFF)));
+uint32_t get_coded_packet_gen(uint32_t* gen, uint32_t index) {
+    if ((index < 4)) {
+        return gen[index];
     }
-    if ((index == 1)) {
-        return ((uint32_t)(((gen >> 32) & 0xFFFFFFFF)));
-    }
-    if ((index == 2)) {
-        return ((uint32_t)(((gen >> 16) & 0xFFFFFFFF)));
-    }
-    return ((uint32_t)((gen & 0xFFFFFFFF)));
+    return 0;
 }
 
-uint32_t count_generation_packets(uint64_t gen) {
+uint32_t count_generation_packets(uint32_t* gen) {
     int count = 0;
     if ((get_coded_packet_gen(gen, 0) != 0)) {
         count = (count + 1);
@@ -171,7 +165,7 @@ uint32_t count_generation_packets(uint64_t gen) {
     return count;
 }
 
-uint32_t is_generation_decodable(uint64_t gen, uint32_t original_count) {
+uint32_t is_generation_decodable(uint32_t* gen, uint32_t original_count) {
     int coded_count = count_generation_packets(gen);
     if ((coded_count >= original_count)) {
         return 1;

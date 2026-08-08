@@ -55,68 +55,51 @@ pub const RESULT_FAIL: u32 = 2;
 
 pub const RESULT_SKIP: u32 = 3;
 
-pub fn create_health_array(c0: u32, c1: u32, c2: u32, c3: u32, c4: u32, c5: u32, c6: u32, c7: u32) -> u64 {
-    return (((((((((c0 as u64) << 56) | ((c1 as u64) << 48)) | ((c2 as u64) << 40)) | ((c3 as u64) << 32)) | ((c4 as u64) << 24)) | ((c5 as u64) << 16)) | ((c6 as u64) << 8)) | (c7 as u64));
+pub fn create_health_array(c0: u32, c1: u32, c2: u32, c3: u32, c4: u32, c5: u32, c6: u32, c7: u32) -> [u32; 8] {
+    return [c0,c1,c2,c3,c4,c5,c6,c7];
 }
 
-pub fn get_health_check(array: u64, index: u32) -> u32 {
+pub fn get_health_check(array: [u32; 8], index: u32) -> u32 {
+    if (index < 8) {
+        return array[(index) as usize];
+    }
+    return 0;
+}
+
+pub fn update_health_check(array: [u32; 8], index: u32, new_check: u32) -> [u32; 8] {
+    let a0: u32 = array[0];
+    let a1: u32 = array[1];
+    let a2: u32 = array[2];
+    let a3: u32 = array[3];
+    let a4: u32 = array[4];
+    let a5: u32 = array[5];
+    let a6: u32 = array[6];
+    let a7: u32 = array[7];
     if (index == 0) {
-        return (((array >> 56) & 0xFFFFFFFF) as u32);
+        return [new_check,a1,a2,a3,a4,a5,a6,a7];
     }
     if (index == 1) {
-        return (((array >> 48) & 0xFFFFFFFF) as u32);
+        return [a0,new_check,a2,a3,a4,a5,a6,a7];
     }
     if (index == 2) {
-        return (((array >> 40) & 0xFFFFFFFF) as u32);
+        return [a0,a1,new_check,a3,a4,a5,a6,a7];
     }
     if (index == 3) {
-        return (((array >> 32) & 0xFFFFFFFF) as u32);
+        return [a0,a1,a2,new_check,a4,a5,a6,a7];
     }
     if (index == 4) {
-        return (((array >> 24) & 0xFFFFFFFF) as u32);
+        return [a0,a1,a2,a3,new_check,a5,a6,a7];
     }
     if (index == 5) {
-        return (((array >> 16) & 0xFFFFFFFF) as u32);
+        return [a0,a1,a2,a3,a4,new_check,a6,a7];
     }
     if (index == 6) {
-        return (((array >> 8) & 0xFFFFFFFF) as u32);
+        return [a0,a1,a2,a3,a4,a5,new_check,a7];
     }
-    return ((array & 0xFFFFFFFF) as u32);
+    return [a0,a1,a2,a3,a4,a5,a6,new_check];
 }
 
-pub fn update_health_check(array: u64, index: u32, new_check: u32) -> u64 {
-    if (index == 0) {
-        return ((array & 0x00FFFFFFFFFFFFFF) | ((new_check as u64) << 56));
-    } else {
-        if (index == 1) {
-            return ((array & 0xFF00FFFFFFFFFFFF) | ((new_check as u64) << 48));
-        } else {
-            if (index == 2) {
-                return ((array & 0xFFFF00FFFFFFFFFF) | ((new_check as u64) << 40));
-            } else {
-                if (index == 3) {
-                    return ((array & 0xFFFFFF00FFFFFFFF) | ((new_check as u64) << 32));
-                } else {
-                    if (index == 4) {
-                        return ((array & 0xFFFFFFFF00FFFFFF) | ((new_check as u64) << 24));
-                    } else {
-                        if (index == 5) {
-                            return ((array & 0xFFFFFFFFFF00FFFF) | ((new_check as u64) << 16));
-                        } else {
-                            if (index == 6) {
-                                return ((array & 0xFFFFFFFFFFFF00FF) | ((new_check as u64) << 8));
-                            } else {
-                                return ((array & 0xFFFFFFFFFFFFFF00) | (new_check as u64));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-pub fn calculate_overall_health(array: u64) -> u32 {
+pub fn calculate_overall_health(array: [u32; 8]) -> u32 {
     let mut failed = 0;
     let mut warnings = 0;
     if (get_check_result(get_health_check(array, 0)) == RESULT_FAIL) {
@@ -178,7 +161,7 @@ pub fn calculate_overall_health(array: u64) -> u32 {
     }
 }
 
-pub fn count_failed_checks(array: u64) -> u32 {
+pub fn count_failed_checks(array: [u32; 8]) -> u32 {
     let mut count = 0;
     if (get_check_result(get_health_check(array, 0)) == RESULT_FAIL) {
         count = (count + 1);
@@ -207,7 +190,7 @@ pub fn count_failed_checks(array: u64) -> u32 {
     return count;
 }
 
-pub fn count_warning_checks(array: u64) -> u32 {
+pub fn count_warning_checks(array: [u32; 8]) -> u32 {
     let mut count = 0;
     if (get_check_result(get_health_check(array, 0)) == RESULT_WARN) {
         count = (count + 1);
@@ -236,7 +219,7 @@ pub fn count_warning_checks(array: u64) -> u32 {
     return count;
 }
 
-pub fn is_check_failing(array: u64, check_type: u32) -> bool {
+pub fn is_check_failing(array: [u32; 8], check_type: u32) -> bool {
     if ((check_type == CHECK_CPU) && (get_check_type(get_health_check(array, 0)) == CHECK_CPU)) {
         return (get_check_result(get_health_check(array, 0)) == RESULT_FAIL);
     } else {
@@ -247,56 +230,56 @@ pub fn is_check_failing(array: u64, check_type: u32) -> bool {
     return false;
 }
 
-pub fn get_health_percentage(array: u64) -> u32 {
+pub fn get_health_percentage(array: [u32; 8]) -> u32 {
     let mut total = 0;
     let mut passing = 0;
-    if (get_check_result(get_health_check(array, 0)) != RESULT_FAIL) {
-        passing = (passing + 1);
-    }
     if (get_check_result(get_health_check(array, 0)) != RESULT_SKIP) {
         total = (total + 1);
-    }
-    if (get_check_result(get_health_check(array, 1)) != RESULT_FAIL) {
-        passing = (passing + 1);
+        if (get_check_result(get_health_check(array, 0)) != RESULT_FAIL) {
+            passing = (passing + 1);
+        }
     }
     if (get_check_result(get_health_check(array, 1)) != RESULT_SKIP) {
         total = (total + 1);
-    }
-    if (get_check_result(get_health_check(array, 2)) != RESULT_FAIL) {
-        passing = (passing + 1);
+        if (get_check_result(get_health_check(array, 1)) != RESULT_FAIL) {
+            passing = (passing + 1);
+        }
     }
     if (get_check_result(get_health_check(array, 2)) != RESULT_SKIP) {
         total = (total + 1);
-    }
-    if (get_check_result(get_health_check(array, 3)) != RESULT_FAIL) {
-        passing = (passing + 1);
+        if (get_check_result(get_health_check(array, 2)) != RESULT_FAIL) {
+            passing = (passing + 1);
+        }
     }
     if (get_check_result(get_health_check(array, 3)) != RESULT_SKIP) {
         total = (total + 1);
-    }
-    if (get_check_result(get_health_check(array, 4)) != RESULT_FAIL) {
-        passing = (passing + 1);
+        if (get_check_result(get_health_check(array, 3)) != RESULT_FAIL) {
+            passing = (passing + 1);
+        }
     }
     if (get_check_result(get_health_check(array, 4)) != RESULT_SKIP) {
         total = (total + 1);
-    }
-    if (get_check_result(get_health_check(array, 5)) != RESULT_FAIL) {
-        passing = (passing + 1);
+        if (get_check_result(get_health_check(array, 4)) != RESULT_FAIL) {
+            passing = (passing + 1);
+        }
     }
     if (get_check_result(get_health_check(array, 5)) != RESULT_SKIP) {
         total = (total + 1);
-    }
-    if (get_check_result(get_health_check(array, 6)) != RESULT_FAIL) {
-        passing = (passing + 1);
+        if (get_check_result(get_health_check(array, 5)) != RESULT_FAIL) {
+            passing = (passing + 1);
+        }
     }
     if (get_check_result(get_health_check(array, 6)) != RESULT_SKIP) {
         total = (total + 1);
-    }
-    if (get_check_result(get_health_check(array, 7)) != RESULT_FAIL) {
-        passing = (passing + 1);
+        if (get_check_result(get_health_check(array, 6)) != RESULT_FAIL) {
+            passing = (passing + 1);
+        }
     }
     if (get_check_result(get_health_check(array, 7)) != RESULT_SKIP) {
         total = (total + 1);
+        if (get_check_result(get_health_check(array, 7)) != RESULT_FAIL) {
+            passing = (passing + 1);
+        }
     }
     if (total == 0) {
         return 100;

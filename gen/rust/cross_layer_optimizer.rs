@@ -57,37 +57,36 @@ pub fn get_optimization_target(state: u32) -> u32 {
     return (state & 0xFFF);
 }
 
-pub fn create_layer_array(phy: u32, mac: u32, network: u32, transport: u32) -> u64 {
-    return (((((phy as u64) << 48) | ((mac as u64) << 32)) | ((network as u64) << 16)) | (transport as u64));
+pub fn create_layer_array(phy: u32, mac: u32, network: u32, transport: u32) -> [u32; 4] {
+    return [phy,mac,network,transport];
 }
 
-pub fn get_layer_params(array: u64, layer: u32) -> u32 {
-    if (layer == LAYER_PHY) {
-        return (((array >> 48) & 0xFFFFFFFF) as u32);
+pub fn set_slot4(array: [u32; 4], index: u32, value: u32) -> [u32; 4] {
+    let a0: u32 = array[0];
+    let a1: u32 = array[1];
+    let a2: u32 = array[2];
+    let a3: u32 = array[3];
+    if (index == 0) {
+        return [value,a1,a2,a3];
     }
-    if (layer == LAYER_MAC) {
-        return (((array >> 32) & 0xFFFFFFFF) as u32);
+    if (index == 1) {
+        return [a0,value,a2,a3];
     }
-    if (layer == LAYER_NETWORK) {
-        return (((array >> 16) & 0xFFFFFFFF) as u32);
+    if (index == 2) {
+        return [a0,a1,value,a3];
     }
-    return ((array & 0xFFFFFFFF) as u32);
+    return [a0,a1,a2,value];
 }
 
-pub fn update_layer_params(array: u64, layer: u32, new_params: u32) -> u64 {
-    if (layer == LAYER_PHY) {
-        return ((array & 0x0000FFFFFFFFFFFF) | ((new_params as u64) << 48));
-    } else {
-        if (layer == LAYER_MAC) {
-            return ((array & 0xFFFF0000FFFFFFFF) | ((new_params as u64) << 32));
-        } else {
-            if (layer == LAYER_NETWORK) {
-                return ((array & 0xFFFFFFFF0000FFFF) | ((new_params as u64) << 16));
-            } else {
-                return ((array & 0xFFFFFFFFFFFF0000) | (new_params as u64));
-            }
-        }
+pub fn get_layer_params(array: [u32; 4], layer: u32) -> u32 {
+    if (layer < 4) {
+        return array[(layer) as usize];
     }
+    return 0;
+}
+
+pub fn update_layer_params(array: [u32; 4], layer: u32, new_params: u32) -> [u32; 4] {
+    return set_slot4(array, layer, new_params);
 }
 
 pub fn calculate_joint_metric(phy_params: u32, mac_params: u32, net_params: u32) -> u32 {

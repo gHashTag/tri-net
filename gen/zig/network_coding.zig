@@ -79,22 +79,16 @@ fn linear_code_packets(pkt1: u32, pkt2: u32, coeff1: u32, coeff2: u32) u32 {
     }
     return result;
 }
-fn create_coded_generation(p0: u32, p1: u32, p2: u32, p3: u32) u64 {
-    return (((@as(u64, @intCast(p0)) << 48) | (@as(u64, @intCast(p1)) << 32)) | (@as(u64, @intCast(p2)) << 16)) | @as(u64, @intCast(p3));
+fn create_coded_generation(p0: u32, p1: u32, p2: u32, p3: u32) [4]u32 {
+    return .{ p0, p1, p2, p3 };
 }
-fn get_coded_packet_gen(gen: u64, index: u32) u32 {
-    if (index == 0) {
-        return @as(u32, @intCast((gen >> 48) & 0xFFFFFFFF));
+fn get_coded_packet_gen(gen: [4]u32, index: u32) u32 {
+    if (index < 4) {
+        return gen[index];
     }
-    if (index == 1) {
-        return @as(u32, @intCast((gen >> 32) & 0xFFFFFFFF));
-    }
-    if (index == 2) {
-        return @as(u32, @intCast((gen >> 16) & 0xFFFFFFFF));
-    }
-    return @as(u32, @intCast(gen & 0xFFFFFFFF));
+    return 0;
 }
-fn count_generation_packets(gen: u64) u32 {
+fn count_generation_packets(gen: [4]u32) u32 {
     var count: u32 = 0;
     _ = &count;
     if (get_coded_packet_gen(gen, 0) != 0) {
@@ -111,7 +105,7 @@ fn count_generation_packets(gen: u64) u32 {
     }
     return count;
 }
-fn is_generation_decodable(gen: u64, original_count: u32) u32 {
+fn is_generation_decodable(gen: [4]u32, original_count: u32) u32 {
     const coded_count = count_generation_packets(gen);
     if (coded_count >= original_count) {
         return 1;
