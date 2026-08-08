@@ -105,7 +105,8 @@ const EVENT_MODULE_UNLOADED: u32 = 1;
 const EVENT_TEST_COMPLETED: u32 = 2;
 const EVENT_SIMULATION_STEP: u32 = 3;
 const EVENT_VISUALIZATION_UPDATE: u32 = 4;
-fn subscribe_to_event(module_id: u32, event_type: u32, subscriptions: [MAX_EVENTS]u32) u32 {
+fn subscribe_to_event(module_id: u32, event_type: u32, subscriptions_arg: [MAX_EVENTS]u32) u32 {
+    var subscriptions = subscriptions_arg;
     const subscription_id: u32 = (module_id * 10) + event_type;
     var i: u32 = 0;
     _ = &i;
@@ -217,7 +218,8 @@ fn propagate_error(err_word: u32, modules: [MAX_MODULES]u32, module_count: u32) 
     }
     return notified_count;
 }
-fn load_module(module_id: u32, module_type: u32, priority: u32, modules: [MAX_MODULES]u32) u32 {
+fn load_module(module_id: u32, module_type: u32, priority: u32, modules_arg: [MAX_MODULES]u32) u32 {
+    var modules = modules_arg;
     var i: u32 = 0;
     _ = &i;
     while (i < MAX_MODULES) {
@@ -229,7 +231,8 @@ fn load_module(module_id: u32, module_type: u32, priority: u32, modules: [MAX_MO
     }
     return 0;
 }
-fn unload_module(module_id: u32, modules: [MAX_MODULES]u32) u32 {
+fn unload_module(module_id: u32, modules_arg: [MAX_MODULES]u32) u32 {
+    var modules = modules_arg;
     var i: u32 = 0;
     _ = &i;
     while (i < MAX_MODULES) {

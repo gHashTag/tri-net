@@ -166,8 +166,11 @@ module ProductionScenarios {
     }
 
     test battery_drain_kills_node {
+        // Battery lasts 10000/drain_rate ticks: drain 4 -> threshold 2500 < 5000.
+        // (drain 1 gave threshold 10000, which 5000 never exceeds -- the test
+        // could not kill the node.)
         uptime = 5000;
-        drain = 1;
+        drain = 4;
         uptime2 = battery_drain(uptime, drain);
         assert(uptime2 == 0, "battery dead");
     }

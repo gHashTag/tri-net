@@ -207,7 +207,7 @@ void test_simulate_interference_low_ok(void) {
 void test_battery_drain_kills_node(void) {
     uint64_t uptime = 5000;
     (void)uptime;
-    uint64_t drain = 1;
+    uint64_t drain = 4;
     (void)drain;
     uint64_t uptime2 = battery_drain(uptime, drain);
     (void)uptime2;

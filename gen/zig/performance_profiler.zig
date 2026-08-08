@@ -146,7 +146,8 @@ fn get_allocation_lifetime(alloc: u32) u32 {
 fn get_allocation_pool(alloc: u32) u32 {
     return alloc & 0xFF;
 }
-fn track_allocation(allocations: [MAX_SAMPLES]u32, alloc_id: u32, size: u32, pool: u32) u32 {
+fn track_allocation(allocations_arg: [MAX_SAMPLES]u32, alloc_id: u32, size: u32, pool: u32) u32 {
+    var allocations = allocations_arg;
     var i: u32 = 0;
     _ = &i;
     while (i < MAX_SAMPLES) {

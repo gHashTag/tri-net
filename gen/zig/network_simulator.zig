@@ -144,7 +144,8 @@ fn advance_simulation(state: u32, time_delta: u32) u32 {
     const new_time: u32 = current_time + time_delta;
     return create_sim_state(new_time, event_count, node_count);
 }
-fn process_event(event: u32, node_states: [MAX_NODES]u32, link_states: [MAX_NODES]u32) u32 {
+fn process_event(event: u32, node_states_arg: [MAX_NODES]u32, link_states: [MAX_NODES]u32) u32 {
+    var node_states = node_states_arg;
     _ = link_states; // unused by the spec body
     const event_type: u32 = get_event_type(event);
     const node_id: u32 = get_event_node_id(event);
@@ -205,7 +206,8 @@ fn create_topology(node_count: u32, density: u32) u32 {
     }
     return link_count;
 }
-fn inject_fault(fault_type: u32, target_id: u32, node_states: [MAX_NODES]u32) u32 {
+fn inject_fault(fault_type: u32, target_id: u32, node_states_arg: [MAX_NODES]u32) u32 {
+    var node_states = node_states_arg;
     if (fault_type == EVENT_NODE_FAILURE) {
         const current_state: u32 = node_states[target_id];
         node_states[target_id] = update_node_status(current_state, NODE_FAILED);

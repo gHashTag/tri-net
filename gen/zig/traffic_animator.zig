@@ -181,7 +181,8 @@ fn calculate_packet_position(source_x: u32, source_y: u32, dest_x: u32, dest_y: 
     const current_y: u32 = source_y + (((dest_y - source_y) * progress) / 100);
     return ((current_x & 0xFF) << 24) | ((current_y & 0xFF) << 16);
 }
-fn update_animation_packets(packets: [MAX_PACKETS]u32, packet_count: u32, speed: u32) u32 {
+fn update_animation_packets(packets_arg: [MAX_PACKETS]u32, packet_count: u32, speed: u32) u32 {
+    var packets = packets_arg;
     var updated_count: u32 = 0;
     _ = &updated_count;
     var completed_count: u32 = 0;

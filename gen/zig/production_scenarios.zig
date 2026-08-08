@@ -127,7 +127,7 @@ test "simulate_interference_low_ok" {
 }
 test "battery_drain_kills_node" {
     const uptime = 5000;
-    const drain = 1;
+    const drain = 4;
     const uptime2 = battery_drain(uptime, drain);
     if (!(uptime2 == 0)) @panic("battery dead");
 }
@@ -147,7 +147,7 @@ test "check_max_hops_invalid" {
     if (!(check_max_hops(6, 5) == false)) @panic("exceeds max");
 }
 test "complete_scenario_cold_to_connected" {
-    const node = cold_start();
+    var node = cold_start();
     node = discover_neighbor(node);
     node = discover_neighbor(node);
     if (!(node_state_of(node) == STATE_CONNECTED)) @panic("connected");
