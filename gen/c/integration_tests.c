@@ -50,7 +50,7 @@ uint8_t header_byte(uint8_t kind, uint32_t src, uint32_t dst, uint8_t ttl, size_
     } else if ((idx <= 5)) {
         return ((uint8_t)(((src >> (24 - (8 * (idx - 2)))) & 255)));
     } else if ((idx <= 9)) {
-        return ((uint8_t)(((dst >> (48 - (8 * (idx - 6)))) & 255)));
+        return ((uint8_t)(((dst >> (24 - (8 * (idx - 6)))) & 255)));
     } else {
         return ttl;
     }

@@ -16,7 +16,7 @@ pub fn header_byte(kind: u8, src: u32, dst: u32, ttl: u8, idx: usize) -> u8 {
                 return (((src >> (24 - (8 * (idx - 2)))) & 255) as u8);
             } else {
                 if (idx <= 9) {
-                    return (((dst >> (48 - (8 * (idx - 6)))) & 255) as u8);
+                    return (((dst >> (24 - (8 * (idx - 6)))) & 255) as u8);
                 } else {
                     return ttl;
                 }

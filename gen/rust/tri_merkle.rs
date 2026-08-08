@@ -9,9 +9,9 @@ pub fn rotl(x: u32, k: u32) -> u32 {
 
 pub fn mix32(x: u32) -> u32 {
     let a: u32 = (x ^ (x >> 16));
-    let b: u32 = (a + (a << 3));
+    let b: u32 = (a).wrapping_add((a << 3));
     let c: u32 = (b ^ (b >> 11));
-    let d: u32 = (c + (c << 15));
+    let d: u32 = (c).wrapping_add((c << 15));
     return (d ^ (d >> 16));
 }
 
