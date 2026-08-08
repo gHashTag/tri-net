@@ -60,12 +60,20 @@ uint32_t enqueue(uint32_t state, uint32_t data) {
     if (is_full(state)) {
         return state;
     }
+    uint32_t head = (state & 7);
+    uint32_t tail = ((state >> 3) & 7);
+    uint32_t count = ((uint32_t)(get_count(state)));
+    return ((head | (((uint32_t)(increment_index(((uint8_t)(tail))))) << 3)) | ((count + 1) << 6));
 }
 
 uint32_t dequeue(uint32_t state) {
     if (is_empty(state)) {
         return state;
     }
+    uint32_t head = (state & 7);
+    uint32_t tail = ((state >> 3) & 7);
+    uint32_t count = ((uint32_t)(get_count(state)));
+    return ((((uint32_t)(increment_index(((uint8_t)(head))))) | (tail << 3)) | ((count - 1) << 6));
 }
 
 uint8_t size(uint32_t state) {

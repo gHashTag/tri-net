@@ -32,8 +32,8 @@ uint32_t get_is_alive(uint32_t state);
 uint32_t get_failure_count(uint32_t state);
 uint32_t get_last_heartbeat(uint32_t state);
 uint32_t get_link_quality(uint32_t state);
-uint64_t create_node_table(uint32_t n0, uint32_t n1, uint32_t n2, uint32_t n3, uint32_t n4, uint32_t n5, uint32_t n6, uint32_t n7);
-uint32_t get_node_state(uint64_t table, uint32_t index);
+uint32_t* create_node_table(uint32_t n0, uint32_t n1, uint32_t n2, uint32_t n3, uint32_t n4, uint32_t n5, uint32_t n6, uint32_t n7);
+uint32_t get_node_state(uint32_t* table, uint32_t index);
 bool is_heartbeat_timeout(uint32_t state, uint32_t current_time);
 uint32_t detect_node_failure(uint32_t state, uint32_t current_time);
 uint32_t increment_failure_count(uint32_t state);
@@ -44,59 +44,41 @@ bool is_poor_link(uint32_t state);
 uint32_t update_link_quality(uint32_t state, uint32_t new_quality);
 uint32_t mark_node_dead(uint32_t state);
 uint32_t mark_node_alive(uint32_t state, uint32_t current_time);
-uint32_t count_failed_nodes(uint64_t table);
+uint32_t count_failed_nodes(uint32_t* table);
 
 /* -------------------------------------------------------
    Function implementations
    ------------------------------------------------------- */
 
 uint32_t create_node_state(uint32_t is_alive, uint32_t failure_count, uint32_t last_heartbeat, uint32_t link_quality) {
-    return (((((is_alive & 0x1) << 24) | ((failure_count & 0xFF) << 16)) | ((last_heartbeat & 0xFF) << 8)) | (link_quality & 0xFF));
+    return (((((is_alive & 0x1) << 31) | ((failure_count & 0x7F) << 24)) | ((last_heartbeat & 0xFFFF) << 8)) | (link_quality & 0xFF));
 }
 
 uint32_t get_is_alive(uint32_t state) {
-    return ((state >> 24) & 0x1);
+    return ((state >> 31) & 0x1);
 }
 
 uint32_t get_failure_count(uint32_t state) {
-    return ((state >> 16) & 0xFF);
+    return ((state >> 24) & 0x7F);
 }
 
 uint32_t get_last_heartbeat(uint32_t state) {
-    return ((state >> 8) & 0xFF);
+    return ((state >> 8) & 0xFFFF);
 }
 
 uint32_t get_link_quality(uint32_t state) {
     return (state & 0xFF);
 }
 
-uint64_t create_node_table(uint32_t n0, uint32_t n1, uint32_t n2, uint32_t n3, uint32_t n4, uint32_t n5, uint32_t n6, uint32_t n7) {
-    return ((((((((((uint64_t)(n0)) << 56) | (((uint64_t)(n1)) << 48)) | (((uint64_t)(n2)) << 40)) | (((uint64_t)(n3)) << 32)) | (((uint64_t)(n4)) << 24)) | (((uint64_t)(n5)) << 16)) | (((uint64_t)(n6)) << 8)) | ((uint64_t)(n7)));
+uint32_t* create_node_table(uint32_t n0, uint32_t n1, uint32_t n2, uint32_t n3, uint32_t n4, uint32_t n5, uint32_t n6, uint32_t n7) {
+    return { n0, n1, n2, n3, n4, n5, n6, n7 };
 }
 
-uint32_t get_node_state(uint64_t table, uint32_t index) {
-    if ((index == 0)) {
-        return ((uint32_t)(((table >> 56) & 0xFF)));
+uint32_t get_node_state(uint32_t* table, uint32_t index) {
+    if ((index < 8)) {
+        return table[index];
     }
-    if ((index == 1)) {
-        return ((uint32_t)(((table >> 48) & 0xFF)));
-    }
-    if ((index == 2)) {
-        return ((uint32_t)(((table >> 40) & 0xFF)));
-    }
-    if ((index == 3)) {
-        return ((uint32_t)(((table >> 32) & 0xFF)));
-    }
-    if ((index == 4)) {
-        return ((uint32_t)(((table >> 24) & 0xFF)));
-    }
-    if ((index == 5)) {
-        return ((uint32_t)(((table >> 16) & 0xFF)));
-    }
-    if ((index == 6)) {
-        return ((uint32_t)(((table >> 8) & 0xFF)));
-    }
-    return ((uint32_t)((table & 0xFF)));
+    return 0;
 }
 
 bool is_heartbeat_timeout(uint32_t state, uint32_t current_time) {
@@ -159,7 +141,7 @@ uint32_t mark_node_alive(uint32_t state, uint32_t current_time) {
     return create_node_state(1, 0, current_time, quality);
 }
 
-uint32_t count_failed_nodes(uint64_t table) {
+uint32_t count_failed_nodes(uint32_t* table) {
     int count = 0;
     if (is_node_failed(get_node_state(table, 0))) {
         count = (count + 1);

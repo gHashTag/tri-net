@@ -46,9 +46,10 @@ uint32_t get_mode(uint32_t state);
 uint32_t get_update_counter(uint32_t state);
 uint32_t get_last_sync(uint32_t state);
 uint32_t get_optimization_target(uint32_t state);
-uint64_t create_layer_array(uint32_t phy, uint32_t mac, uint32_t network, uint32_t transport);
-uint32_t get_layer_params(uint64_t array, uint32_t layer);
-uint64_t update_layer_params(uint64_t array, uint32_t layer, uint32_t new_params);
+uint32_t* create_layer_array(uint32_t phy, uint32_t mac, uint32_t network, uint32_t transport);
+uint32_t* set_slot4(uint32_t* array, uint32_t index, uint32_t value);
+uint32_t get_layer_params(uint32_t* array, uint32_t layer);
+uint32_t* update_layer_params(uint32_t* array, uint32_t layer, uint32_t new_params);
 uint32_t calculate_joint_metric(uint32_t phy_params, uint32_t mac_params, uint32_t net_params);
 t27_tuple_uint32_t_uint32_t coordinate_power(uint32_t state, uint32_t phy_params, uint32_t mac_params);
 t27_tuple_uint32_t_uint32_t optimize_for_target(uint32_t state, uint32_t phy_params, uint32_t mac_params);
@@ -100,33 +101,36 @@ uint32_t get_optimization_target(uint32_t state) {
     return (state & 0xFFF);
 }
 
-uint64_t create_layer_array(uint32_t phy, uint32_t mac, uint32_t network, uint32_t transport) {
-    return ((((((uint64_t)(phy)) << 48) | (((uint64_t)(mac)) << 32)) | (((uint64_t)(network)) << 16)) | ((uint64_t)(transport)));
+uint32_t* create_layer_array(uint32_t phy, uint32_t mac, uint32_t network, uint32_t transport) {
+    return { phy, mac, network, transport };
 }
 
-uint32_t get_layer_params(uint64_t array, uint32_t layer) {
-    if ((layer == LAYER_PHY)) {
-        return ((uint32_t)(((array >> 48) & 0xFFFFFFFF)));
+uint32_t* set_slot4(uint32_t* array, uint32_t index, uint32_t value) {
+    uint32_t a0 = array[0];
+    uint32_t a1 = array[1];
+    uint32_t a2 = array[2];
+    uint32_t a3 = array[3];
+    if ((index == 0)) {
+        return { value, a1, a2, a3 };
     }
-    if ((layer == LAYER_MAC)) {
-        return ((uint32_t)(((array >> 32) & 0xFFFFFFFF)));
+    if ((index == 1)) {
+        return { a0, value, a2, a3 };
     }
-    if ((layer == LAYER_NETWORK)) {
-        return ((uint32_t)(((array >> 16) & 0xFFFFFFFF)));
+    if ((index == 2)) {
+        return { a0, a1, value, a3 };
     }
-    return ((uint32_t)((array & 0xFFFFFFFF)));
+    return { a0, a1, a2, value };
 }
 
-uint64_t update_layer_params(uint64_t array, uint32_t layer, uint32_t new_params) {
-    if ((layer == LAYER_PHY)) {
-        return ((array & 0x0000FFFFFFFFFFFF) | (((uint64_t)(new_params)) << 48));
-    } else if ((layer == LAYER_MAC)) {
-        return ((array & 0xFFFF0000FFFFFFFF) | (((uint64_t)(new_params)) << 32));
-    } else if ((layer == LAYER_NETWORK)) {
-        return ((array & 0xFFFFFFFF0000FFFF) | (((uint64_t)(new_params)) << 16));
-    } else {
-        return ((array & 0xFFFFFFFFFFFF0000) | ((uint64_t)(new_params)));
+uint32_t get_layer_params(uint32_t* array, uint32_t layer) {
+    if ((layer < 4)) {
+        return array[layer];
     }
+    return 0;
+}
+
+uint32_t* update_layer_params(uint32_t* array, uint32_t layer, uint32_t new_params) {
+    return set_slot4(array, layer, new_params);
 }
 
 uint32_t calculate_joint_metric(uint32_t phy_params, uint32_t mac_params, uint32_t net_params) {
@@ -279,9 +283,9 @@ void test_coordinate_power_conservative(void) {
     (void)phy;
     uint64_t mac = create_layer_params(80, 120, 2, 128);
     (void)mac;
-    t27_tuple_uint32_t_uint32_t __t_c238 = coordinate_power(state, phy, mac);
-    uint32_t new_phy = __t_c238.f0;
-    uint32_t new_mac = __t_c238.f1;
+    t27_tuple_uint32_t_uint32_t __t_c242 = coordinate_power(state, phy, mac);
+    uint32_t new_phy = __t_c242.f0;
+    uint32_t new_mac = __t_c242.f1;
     t27_assert((new_phy == 90), "PHY power reduced");
     t27_assert((new_mac == 75), "MAC power reduced");
 }
@@ -293,9 +297,9 @@ void test_coordinate_power_aggressive(void) {
     (void)phy;
     uint64_t mac = create_layer_params(40, 120, 2, 128);
     (void)mac;
-    t27_tuple_uint32_t_uint32_t __t_c247 = coordinate_power(state, phy, mac);
-    uint32_t new_phy = __t_c247.f0;
-    uint32_t new_mac = __t_c247.f1;
+    t27_tuple_uint32_t_uint32_t __t_c251 = coordinate_power(state, phy, mac);
+    uint32_t new_phy = __t_c251.f0;
+    uint32_t new_mac = __t_c251.f1;
     t27_assert((new_phy == 60), "PHY power increased");
     t27_assert((new_mac == 45), "MAC power increased");
 }
@@ -307,9 +311,9 @@ void test_coordinate_power_moderate(void) {
     (void)phy;
     uint64_t mac = create_layer_params(40, 120, 2, 128);
     (void)mac;
-    t27_tuple_uint32_t_uint32_t __t_c256 = coordinate_power(state, phy, mac);
-    uint32_t new_phy = __t_c256.f0;
-    uint32_t new_mac = __t_c256.f1;
+    t27_tuple_uint32_t_uint32_t __t_c260 = coordinate_power(state, phy, mac);
+    uint32_t new_phy = __t_c260.f0;
+    uint32_t new_mac = __t_c260.f1;
     t27_assert((new_phy == 50), "PHY power unchanged");
     t27_assert((new_mac == 40), "MAC power unchanged");
 }
@@ -321,9 +325,9 @@ void test_optimize_for_target_latency(void) {
     (void)phy;
     uint64_t mac = create_layer_params(60, 100, 2, 128);
     (void)mac;
-    t27_tuple_uint32_t_uint32_t __t_c265 = optimize_for_target(state, phy, mac);
-    uint32_t val1 = __t_c265.f0;
-    uint32_t val2 = __t_c265.f1;
+    t27_tuple_uint32_t_uint32_t __t_c269 = optimize_for_target(state, phy, mac);
+    uint32_t val1 = __t_c269.f0;
+    uint32_t val2 = __t_c269.f1;
     t27_assert((val1 == 120), "rate increased for latency");
     t27_assert((val2 == 4), "retries decreased for latency");
 }
@@ -335,9 +339,9 @@ void test_optimize_for_target_throughput(void) {
     (void)phy;
     uint64_t mac = create_layer_params(60, 100, 2, 128);
     (void)mac;
-    t27_tuple_uint32_t_uint32_t __t_c274 = optimize_for_target(state, phy, mac);
-    uint32_t val1 = __t_c274.f0;
-    uint32_t val2 = __t_c274.f1;
+    t27_tuple_uint32_t_uint32_t __t_c278 = optimize_for_target(state, phy, mac);
+    uint32_t val1 = __t_c278.f0;
+    uint32_t val2 = __t_c278.f1;
     t27_assert((val1 == 255), "rate maximized for throughput");
     t27_assert((val2 == 138), "window increased for throughput");
 }
@@ -349,9 +353,9 @@ void test_optimize_for_target_reliability(void) {
     (void)phy;
     uint64_t mac = create_layer_params(60, 100, 2, 128);
     (void)mac;
-    t27_tuple_uint32_t_uint32_t __t_c283 = optimize_for_target(state, phy, mac);
-    uint32_t val1 = __t_c283.f0;
-    uint32_t val2 = __t_c283.f1;
+    t27_tuple_uint32_t_uint32_t __t_c287 = optimize_for_target(state, phy, mac);
+    uint32_t val1 = __t_c287.f0;
+    uint32_t val2 = __t_c287.f1;
     t27_assert((val1 == 8), "retries increased for reliability");
     t27_assert((val2 == 65), "power increased for reliability");
 }

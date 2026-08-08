@@ -39,20 +39,14 @@ fn get_path_valid(energy: u32) u32 {
 fn get_energy_score(energy: u32) u32 {
     return energy & 0x7FFF;
 }
-fn create_energy_array(e0: u32, e1: u32, e2: u32, e3: u32) u64 {
-    return (((@as(u64, @intCast(e0)) << 48) | (@as(u64, @intCast(e1)) << 32)) | (@as(u64, @intCast(e2)) << 16)) | @as(u64, @intCast(e3));
+fn create_energy_array(e0: u32, e1: u32, e2: u32, e3: u32) [4]u32 {
+    return .{ e0, e1, e2, e3 };
 }
-fn get_path_energy(array: u64, index: u32) u32 {
-    if (index == 0) {
-        return @as(u32, @intCast((array >> 48) & 0xFFFFFFFF));
+fn get_path_energy(array: [4]u32, index: u32) u32 {
+    if (index < 4) {
+        return array[index];
     }
-    if (index == 1) {
-        return @as(u32, @intCast((array >> 32) & 0xFFFFFFFF));
-    }
-    if (index == 2) {
-        return @as(u32, @intCast((array >> 16) & 0xFFFFFFFF));
-    }
-    return @as(u32, @intCast(array & 0xFFFFFFFF));
+    return 0;
 }
 fn calculate_total_energy_cost(cost: u32) u32 {
     const tx = get_tx_power(cost);
@@ -79,7 +73,7 @@ fn is_path_viable(energy: u32) bool {
     const valid = get_path_valid(energy);
     return (valid == 1) and (battery > CRITICAL_BATTERY);
 }
-fn find_energy_optimal_path(energy_array: u64) u32 {
+fn find_energy_optimal_path(energy_array: [4]u32) u32 {
     var best_path: u32 = 0xFF;
     _ = &best_path;
     var best_score: u32 = 0;
@@ -114,7 +108,7 @@ fn find_energy_optimal_path(energy_array: u64) u32 {
     }
     return best_path;
 }
-fn find_min_cost_path(energy_array: u64) u32 {
+fn find_min_cost_path(energy_array: [4]u32) u32 {
     var best_path: u32 = 0xFF;
     _ = &best_path;
     var best_cost: u32 = 0xFFFFFFFF;
@@ -149,7 +143,7 @@ fn find_min_cost_path(energy_array: u64) u32 {
     }
     return best_path;
 }
-fn select_balanced_path(energy_array: u64, current_path: u32) u32 {
+fn select_balanced_path(energy_array: [4]u32, current_path: u32) u32 {
     var best_path = current_path;
     _ = &best_path;
     var best_battery = get_battery_levels(get_path_energy(energy_array, current_path));
@@ -218,7 +212,7 @@ test "calculate_energy_score_high_battery" {
 test "calculate_energy_score_low_cost" {
     const cost = create_energy_cost(20, 10, 10, 2);
     const score = calculate_energy_score(50, cost);
-    if (!(score == 125)) @panic("energy score");
+    if (!(score == 62)) @panic("energy score");
 }
 test "is_path_viable_true" {
     const energy = create_path_energy(60, 100, 1, 500);

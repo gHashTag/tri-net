@@ -11,46 +11,28 @@ const WARNING_THRESHOLD: u32 = 2;
 const HEARTBEAT_TIMEOUT: u32 = 10000;
 const LINK_QUALITY_POOR: u32 = 30;
 fn create_node_state(is_alive: u32, failure_count: u32, last_heartbeat: u32, link_quality: u32) u32 {
-    return ((((is_alive & 0x1) << 24) | ((failure_count & 0xFF) << 16)) | ((last_heartbeat & 0xFF) << 8)) | (link_quality & 0xFF);
+    return ((((is_alive & 0x1) << 31) | ((failure_count & 0x7F) << 24)) | ((last_heartbeat & 0xFFFF) << 8)) | (link_quality & 0xFF);
 }
 fn get_is_alive(state: u32) u32 {
-    return (state >> 24) & 0x1;
+    return (state >> 31) & 0x1;
 }
 fn get_failure_count(state: u32) u32 {
-    return (state >> 16) & 0xFF;
+    return (state >> 24) & 0x7F;
 }
 fn get_last_heartbeat(state: u32) u32 {
-    return (state >> 8) & 0xFF;
+    return (state >> 8) & 0xFFFF;
 }
 fn get_link_quality(state: u32) u32 {
     return state & 0xFF;
 }
-fn create_node_table(n0: u32, n1: u32, n2: u32, n3: u32, n4: u32, n5: u32, n6: u32, n7: u32) u64 {
-    return (((((((@as(u64, @intCast(n0)) << 56) | (@as(u64, @intCast(n1)) << 48)) | (@as(u64, @intCast(n2)) << 40)) | (@as(u64, @intCast(n3)) << 32)) | (@as(u64, @intCast(n4)) << 24)) | (@as(u64, @intCast(n5)) << 16)) | (@as(u64, @intCast(n6)) << 8)) | @as(u64, @intCast(n7));
+fn create_node_table(n0: u32, n1: u32, n2: u32, n3: u32, n4: u32, n5: u32, n6: u32, n7: u32) [8]u32 {
+    return .{ n0, n1, n2, n3, n4, n5, n6, n7 };
 }
-fn get_node_state(table: u64, index: u32) u32 {
-    if (index == 0) {
-        return @as(u32, @intCast((table >> 56) & 0xFF));
+fn get_node_state(table: [8]u32, index: u32) u32 {
+    if (index < 8) {
+        return table[index];
     }
-    if (index == 1) {
-        return @as(u32, @intCast((table >> 48) & 0xFF));
-    }
-    if (index == 2) {
-        return @as(u32, @intCast((table >> 40) & 0xFF));
-    }
-    if (index == 3) {
-        return @as(u32, @intCast((table >> 32) & 0xFF));
-    }
-    if (index == 4) {
-        return @as(u32, @intCast((table >> 24) & 0xFF));
-    }
-    if (index == 5) {
-        return @as(u32, @intCast((table >> 16) & 0xFF));
-    }
-    if (index == 6) {
-        return @as(u32, @intCast((table >> 8) & 0xFF));
-    }
-    return @as(u32, @intCast(table & 0xFF));
+    return 0;
 }
 fn is_heartbeat_timeout(state: u32, current_time: u32) bool {
     const last_seen = get_last_heartbeat(state);
@@ -102,7 +84,7 @@ fn mark_node_alive(state: u32, current_time: u32) u32 {
     const quality = get_link_quality(state);
     return create_node_state(1, 0, current_time, quality);
 }
-fn count_failed_nodes(table: u64) u32 {
+fn count_failed_nodes(table: [8]u32) u32 {
     var count: u32 = 0;
     _ = &count;
     if (is_node_failed(get_node_state(table, 0))) {

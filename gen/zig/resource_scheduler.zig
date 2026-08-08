@@ -41,32 +41,14 @@ fn get_active_tasks(state: u32) u32 {
 fn get_sched_tick(state: u32) u32 {
     return state & 0xFF;
 }
-fn create_task_array(t0: u32, t1: u32, t2: u32, t3: u32, t4: u32, t5: u32, t6: u32, t7: u32) u64 {
-    return (((((((@as(u64, @intCast(t0)) << 56) | (@as(u64, @intCast(t1)) << 48)) | (@as(u64, @intCast(t2)) << 40)) | (@as(u64, @intCast(t3)) << 32)) | (@as(u64, @intCast(t4)) << 24)) | (@as(u64, @intCast(t5)) << 16)) | (@as(u64, @intCast(t6)) << 8)) | @as(u64, @intCast(t7));
+fn create_task_array(t0: u32, t1: u32, t2: u32, t3: u32, t4: u32, t5: u32, t6: u32, t7: u32) [8]u32 {
+    return .{ t0, t1, t2, t3, t4, t5, t6, t7 };
 }
-fn get_task_resource(array: u64, index: u32) u32 {
-    if (index == 0) {
-        return @as(u32, @intCast((array >> 56) & 0xFFFFFFFF));
+fn get_task_resource(array: [8]u32, index: u32) u32 {
+    if (index < 8) {
+        return array[index];
     }
-    if (index == 1) {
-        return @as(u32, @intCast((array >> 48) & 0xFFFFFFFF));
-    }
-    if (index == 2) {
-        return @as(u32, @intCast((array >> 40) & 0xFFFFFFFF));
-    }
-    if (index == 3) {
-        return @as(u32, @intCast((array >> 32) & 0xFFFFFFFF));
-    }
-    if (index == 4) {
-        return @as(u32, @intCast((array >> 24) & 0xFFFFFFFF));
-    }
-    if (index == 5) {
-        return @as(u32, @intCast((array >> 16) & 0xFFFFFFFF));
-    }
-    if (index == 6) {
-        return @as(u32, @intCast((array >> 8) & 0xFFFFFFFF));
-    }
-    return @as(u32, @intCast(array & 0xFFFFFFFF));
+    return 0;
 }
 fn can_admit_task(state: u32, task: u32) bool {
     const cpu_req = get_cpu_req(task);
@@ -111,7 +93,7 @@ fn release_resources(state: u32, task: u32) u32 {
     const new_tasks = active_tasks - 1;
     return create_system_state(new_cpu, new_mem, new_tasks, tick);
 }
-fn find_admittable_task(state: u32, task_array: u64) u32 {
+fn find_admittable_task(state: u32, task_array: [8]u32) u32 {
     var best_task: u32 = 0xFF;
     _ = &best_task;
     var best_priority: u32 = 0xFF;
@@ -197,31 +179,31 @@ fn increment_tick(state: u32) u32 {
     }
     return create_system_state(used_cpu, used_mem, active_tasks, new_tick);
 }
-fn count_tasks_by_priority(task_array: u64, priority: u32) u32 {
+fn count_tasks_by_priority(task_array: [8]u32, priority: u32) u32 {
     var count: u32 = 0;
     _ = &count;
-    if (get_priority(get_task_resource(task_array, 0)) == priority) {
+    if ((get_task_resource(task_array, 0) != 0) and (get_priority(get_task_resource(task_array, 0)) == priority)) {
         count = count + 1;
     }
-    if (get_priority(get_task_resource(task_array, 1)) == priority) {
+    if ((get_task_resource(task_array, 1) != 0) and (get_priority(get_task_resource(task_array, 1)) == priority)) {
         count = count + 1;
     }
-    if (get_priority(get_task_resource(task_array, 2)) == priority) {
+    if ((get_task_resource(task_array, 2) != 0) and (get_priority(get_task_resource(task_array, 2)) == priority)) {
         count = count + 1;
     }
-    if (get_priority(get_task_resource(task_array, 3)) == priority) {
+    if ((get_task_resource(task_array, 3) != 0) and (get_priority(get_task_resource(task_array, 3)) == priority)) {
         count = count + 1;
     }
-    if (get_priority(get_task_resource(task_array, 4)) == priority) {
+    if ((get_task_resource(task_array, 4) != 0) and (get_priority(get_task_resource(task_array, 4)) == priority)) {
         count = count + 1;
     }
-    if (get_priority(get_task_resource(task_array, 5)) == priority) {
+    if ((get_task_resource(task_array, 5) != 0) and (get_priority(get_task_resource(task_array, 5)) == priority)) {
         count = count + 1;
     }
-    if (get_priority(get_task_resource(task_array, 6)) == priority) {
+    if ((get_task_resource(task_array, 6) != 0) and (get_priority(get_task_resource(task_array, 6)) == priority)) {
         count = count + 1;
     }
-    if (get_priority(get_task_resource(task_array, 7)) == priority) {
+    if ((get_task_resource(task_array, 7) != 0) and (get_priority(get_task_resource(task_array, 7)) == priority)) {
         count = count + 1;
     }
     return count;

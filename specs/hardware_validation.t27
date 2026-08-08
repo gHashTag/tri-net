@@ -45,7 +45,7 @@ module HardwareValidation {
         if (total == 0) {
             return 0;
         }
-        return (((passed * 100) / total) as u8;
+        return ((passed * 100) / total) as u8;
     }
 
     // Check if test passed (no errors)
@@ -55,7 +55,10 @@ module HardwareValidation {
 
     // Check if bit-accurate (reference matches)
     fn bit_accurate(reference: u32, implementation: u32, tolerance_mask: u32) -> bool {
-        return (((reference ^ implementation) & tolerance_mask) == 0);
+        // tolerance_mask marks bits ALLOWED to differ; accuracy requires all
+        // bits OUTSIDE the mask to match. The old check tested the tolerated
+        // bits themselves, failing exactly the differences it should permit.
+        return (((reference ^ implementation) & (0xFFFFFFFF ^ tolerance_mask)) == 0);
     }
 
     // FPGA board test status
@@ -90,14 +93,17 @@ module HardwareValidation {
     }
 
     // Performance measurement
+    // Layout [type:4][value:24][unit:4] = exactly 32. The old layout put
+    // type at bit 24 UNDER the value field's top bits (4..27) -- the two
+    // overlapped and corrupted each other.
     fn create_performance_metric(metric_type: u32, value: u32, unit: u32) -> u32 {
-        return (((metric_type & 0xF) << 24) | 
-                ((value & 0xFFFFFF) << 4) | 
+        return (((metric_type & 0xF) << 28) |
+                ((value & 0xFFFFFF) << 4) |
                 (unit & 0xF));
     }
 
     fn extract_metric_type(metric: u32) -> u32 {
-        return ((metric >> 24) & 0xF);
+        return ((metric >> 28) & 0xF);
     }
 
     fn extract_metric_value(metric: u32) -> u32 {
@@ -162,7 +168,7 @@ module HardwareValidation {
     }
 
     test bit_accurate_fail {
-        assert(bit_accurate(0x12345678, 0x1234FF78, 0x00FF0000) == false, "diff in tolerated bits");
+        assert(bit_accurate(0x12345678, 0x1234FF78, 0x000000FF) == false, "diff outside tolerated bits");
     }
 
     test fpga_board_ready_yes {

@@ -37,53 +37,48 @@ const RESULT_PASS: u32 = 0;
 const RESULT_WARN: u32 = 1;
 const RESULT_FAIL: u32 = 2;
 const RESULT_SKIP: u32 = 3;
-fn create_health_array(c0: u32, c1: u32, c2: u32, c3: u32, c4: u32, c5: u32, c6: u32, c7: u32) u64 {
-    return (((((((@as(u64, @intCast(c0)) << 56) | (@as(u64, @intCast(c1)) << 48)) | (@as(u64, @intCast(c2)) << 40)) | (@as(u64, @intCast(c3)) << 32)) | (@as(u64, @intCast(c4)) << 24)) | (@as(u64, @intCast(c5)) << 16)) | (@as(u64, @intCast(c6)) << 8)) | @as(u64, @intCast(c7));
+fn create_health_array(c0: u32, c1: u32, c2: u32, c3: u32, c4: u32, c5: u32, c6: u32, c7: u32) [8]u32 {
+    return .{ c0, c1, c2, c3, c4, c5, c6, c7 };
 }
-fn get_health_check(array: u64, index: u32) u32 {
+fn get_health_check(array: [8]u32, index: u32) u32 {
+    if (index < 8) {
+        return array[index];
+    }
+    return 0;
+}
+fn update_health_check(array: [8]u32, index: u32, new_check: u32) [8]u32 {
+    const a0: u32 = array[0];
+    const a1: u32 = array[1];
+    const a2: u32 = array[2];
+    const a3: u32 = array[3];
+    const a4: u32 = array[4];
+    const a5: u32 = array[5];
+    const a6: u32 = array[6];
+    const a7: u32 = array[7];
     if (index == 0) {
-        return @as(u32, @intCast((array >> 56) & 0xFFFFFFFF));
+        return .{ new_check, a1, a2, a3, a4, a5, a6, a7 };
     }
     if (index == 1) {
-        return @as(u32, @intCast((array >> 48) & 0xFFFFFFFF));
+        return .{ a0, new_check, a2, a3, a4, a5, a6, a7 };
     }
     if (index == 2) {
-        return @as(u32, @intCast((array >> 40) & 0xFFFFFFFF));
+        return .{ a0, a1, new_check, a3, a4, a5, a6, a7 };
     }
     if (index == 3) {
-        return @as(u32, @intCast((array >> 32) & 0xFFFFFFFF));
+        return .{ a0, a1, a2, new_check, a4, a5, a6, a7 };
     }
     if (index == 4) {
-        return @as(u32, @intCast((array >> 24) & 0xFFFFFFFF));
+        return .{ a0, a1, a2, a3, new_check, a5, a6, a7 };
     }
     if (index == 5) {
-        return @as(u32, @intCast((array >> 16) & 0xFFFFFFFF));
+        return .{ a0, a1, a2, a3, a4, new_check, a6, a7 };
     }
     if (index == 6) {
-        return @as(u32, @intCast((array >> 8) & 0xFFFFFFFF));
+        return .{ a0, a1, a2, a3, a4, a5, new_check, a7 };
     }
-    return @as(u32, @intCast(array & 0xFFFFFFFF));
+    return .{ a0, a1, a2, a3, a4, a5, a6, new_check };
 }
-fn update_health_check(array: u64, index: u32, new_check: u32) u64 {
-    if (index == 0) {
-        return (array & 0x00FFFFFFFFFFFFFF) | (@as(u64, @intCast(new_check)) << 56);
-    } else if (index == 1) {
-        return (array & 0xFF00FFFFFFFFFFFF) | (@as(u64, @intCast(new_check)) << 48);
-    } else if (index == 2) {
-        return (array & 0xFFFF00FFFFFFFFFF) | (@as(u64, @intCast(new_check)) << 40);
-    } else if (index == 3) {
-        return (array & 0xFFFFFF00FFFFFFFF) | (@as(u64, @intCast(new_check)) << 32);
-    } else if (index == 4) {
-        return (array & 0xFFFFFFFF00FFFFFF) | (@as(u64, @intCast(new_check)) << 24);
-    } else if (index == 5) {
-        return (array & 0xFFFFFFFFFF00FFFF) | (@as(u64, @intCast(new_check)) << 16);
-    } else if (index == 6) {
-        return (array & 0xFFFFFFFFFFFF00FF) | (@as(u64, @intCast(new_check)) << 8);
-    } else {
-        return (array & 0xFFFFFFFFFFFFFF00) | @as(u64, @intCast(new_check));
-    }
-}
-fn calculate_overall_health(array: u64) u32 {
+fn calculate_overall_health(array: [8]u32) u32 {
     var failed: u32 = 0;
     _ = &failed;
     var warnings: u32 = 0;
@@ -144,7 +139,7 @@ fn calculate_overall_health(array: u64) u32 {
         return HEALTH_HEALTHY;
     }
 }
-fn count_failed_checks(array: u64) u32 {
+fn count_failed_checks(array: [8]u32) u32 {
     var count: u32 = 0;
     _ = &count;
     if (get_check_result(get_health_check(array, 0)) == RESULT_FAIL) {
@@ -173,7 +168,7 @@ fn count_failed_checks(array: u64) u32 {
     }
     return count;
 }
-fn count_warning_checks(array: u64) u32 {
+fn count_warning_checks(array: [8]u32) u32 {
     var count: u32 = 0;
     _ = &count;
     if (get_check_result(get_health_check(array, 0)) == RESULT_WARN) {
@@ -202,7 +197,7 @@ fn count_warning_checks(array: u64) u32 {
     }
     return count;
 }
-fn is_check_failing(array: u64, check_type: u32) bool {
+fn is_check_failing(array: [8]u32, check_type: u32) bool {
     if ((check_type == CHECK_CPU) and (get_check_type(get_health_check(array, 0)) == CHECK_CPU)) {
         return get_check_result(get_health_check(array, 0)) == RESULT_FAIL;
     } else if ((check_type == CHECK_MEMORY) and (get_check_type(get_health_check(array, 1)) == CHECK_MEMORY)) {
@@ -210,58 +205,58 @@ fn is_check_failing(array: u64, check_type: u32) bool {
     }
     return false;
 }
-fn get_health_percentage(array: u64) u32 {
+fn get_health_percentage(array: [8]u32) u32 {
     var total: u32 = 0;
     _ = &total;
     var passing: u32 = 0;
     _ = &passing;
-    if (get_check_result(get_health_check(array, 0)) != RESULT_FAIL) {
-        passing = passing + 1;
-    }
     if (get_check_result(get_health_check(array, 0)) != RESULT_SKIP) {
         total = total + 1;
-    }
-    if (get_check_result(get_health_check(array, 1)) != RESULT_FAIL) {
-        passing = passing + 1;
+        if (get_check_result(get_health_check(array, 0)) != RESULT_FAIL) {
+            passing = passing + 1;
+        }
     }
     if (get_check_result(get_health_check(array, 1)) != RESULT_SKIP) {
         total = total + 1;
-    }
-    if (get_check_result(get_health_check(array, 2)) != RESULT_FAIL) {
-        passing = passing + 1;
+        if (get_check_result(get_health_check(array, 1)) != RESULT_FAIL) {
+            passing = passing + 1;
+        }
     }
     if (get_check_result(get_health_check(array, 2)) != RESULT_SKIP) {
         total = total + 1;
-    }
-    if (get_check_result(get_health_check(array, 3)) != RESULT_FAIL) {
-        passing = passing + 1;
+        if (get_check_result(get_health_check(array, 2)) != RESULT_FAIL) {
+            passing = passing + 1;
+        }
     }
     if (get_check_result(get_health_check(array, 3)) != RESULT_SKIP) {
         total = total + 1;
-    }
-    if (get_check_result(get_health_check(array, 4)) != RESULT_FAIL) {
-        passing = passing + 1;
+        if (get_check_result(get_health_check(array, 3)) != RESULT_FAIL) {
+            passing = passing + 1;
+        }
     }
     if (get_check_result(get_health_check(array, 4)) != RESULT_SKIP) {
         total = total + 1;
-    }
-    if (get_check_result(get_health_check(array, 5)) != RESULT_FAIL) {
-        passing = passing + 1;
+        if (get_check_result(get_health_check(array, 4)) != RESULT_FAIL) {
+            passing = passing + 1;
+        }
     }
     if (get_check_result(get_health_check(array, 5)) != RESULT_SKIP) {
         total = total + 1;
-    }
-    if (get_check_result(get_health_check(array, 6)) != RESULT_FAIL) {
-        passing = passing + 1;
+        if (get_check_result(get_health_check(array, 5)) != RESULT_FAIL) {
+            passing = passing + 1;
+        }
     }
     if (get_check_result(get_health_check(array, 6)) != RESULT_SKIP) {
         total = total + 1;
-    }
-    if (get_check_result(get_health_check(array, 7)) != RESULT_FAIL) {
-        passing = passing + 1;
+        if (get_check_result(get_health_check(array, 6)) != RESULT_FAIL) {
+            passing = passing + 1;
+        }
     }
     if (get_check_result(get_health_check(array, 7)) != RESULT_SKIP) {
         total = total + 1;
+        if (get_check_result(get_health_check(array, 7)) != RESULT_FAIL) {
+            passing = passing + 1;
+        }
     }
     if (total == 0) {
         return 100;
@@ -305,6 +300,6 @@ test "get_health_percentage_all_pass" {
     if (!(get_health_percentage(array) == 100)) @panic("100% healthy");
 }
 test "get_health_percentage_some_fail" {
-    const array = create_health_array(create_health_check(CHECK_CPU, RESULT_FAIL, 95, 100), create_health_check(CHECK_MEMORY, RESULT_PASS, 40, 101), create_health_check(CHECK_DISK, RESULT_FAIL, 90, 102), create_health_check(CHECK_NETWORK, RESULT_PASS, 35, 103), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0));
+    const array = create_health_array(create_health_check(CHECK_CPU, RESULT_FAIL, 95, 100), create_health_check(CHECK_MEMORY, RESULT_PASS, 40, 101), create_health_check(CHECK_DISK, RESULT_FAIL, 90, 102), create_health_check(CHECK_NETWORK, RESULT_PASS, 35, 103), create_health_check(0, RESULT_SKIP, 0, 0), create_health_check(0, RESULT_SKIP, 0, 0), create_health_check(0, RESULT_SKIP, 0, 0), create_health_check(0, RESULT_SKIP, 0, 0));
     if (!(get_health_percentage(array) == 50)) @panic("50% healthy");
 }

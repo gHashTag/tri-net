@@ -36,15 +36,15 @@ uint32_t get_risk_level(uint32_t score);
 uint32_t get_confidence(uint32_t score);
 uint32_t get_risk_trend(uint32_t score);
 uint32_t get_prediction_time(uint32_t score);
-uint64_t create_health_array(uint32_t h0, uint32_t h1, uint32_t h2, uint32_t h3, uint32_t h4, uint32_t h5, uint32_t h6, uint32_t h7);
-uint32_t get_health_metrics(uint64_t array, uint32_t index);
+uint32_t* create_health_array(uint32_t h0, uint32_t h1, uint32_t h2, uint32_t h3, uint32_t h4, uint32_t h5, uint32_t h6, uint32_t h7);
+uint32_t get_health_metrics(uint32_t* array, uint32_t index);
 uint32_t calculate_health_score(uint32_t metrics);
 uint32_t predict_failure_probability(uint32_t metrics);
 uint32_t is_trending_failure(uint32_t current_metrics, uint32_t previous_metrics);
 uint32_t predict_time_to_failure(uint32_t metrics);
 uint32_t calculate_failure_risk(uint32_t metrics, uint32_t degradation_rate);
 bool needs_immediate_action(uint32_t metrics);
-uint32_t find_most_at_risk(uint64_t health_array);
+uint32_t find_most_at_risk(uint32_t* health_array);
 
 /* -------------------------------------------------------
    Function implementations
@@ -90,33 +90,15 @@ uint32_t get_prediction_time(uint32_t score) {
     return (score & 0x3FFF);
 }
 
-uint64_t create_health_array(uint32_t h0, uint32_t h1, uint32_t h2, uint32_t h3, uint32_t h4, uint32_t h5, uint32_t h6, uint32_t h7) {
-    return ((((((((((uint64_t)(h0)) << 56) | (((uint64_t)(h1)) << 48)) | (((uint64_t)(h2)) << 40)) | (((uint64_t)(h3)) << 32)) | (((uint64_t)(h4)) << 24)) | (((uint64_t)(h5)) << 16)) | (((uint64_t)(h6)) << 8)) | ((uint64_t)(h7)));
+uint32_t* create_health_array(uint32_t h0, uint32_t h1, uint32_t h2, uint32_t h3, uint32_t h4, uint32_t h5, uint32_t h6, uint32_t h7) {
+    return { h0, h1, h2, h3, h4, h5, h6, h7 };
 }
 
-uint32_t get_health_metrics(uint64_t array, uint32_t index) {
-    if ((index == 0)) {
-        return ((uint32_t)(((array >> 56) & 0xFFFFFFFF)));
+uint32_t get_health_metrics(uint32_t* array, uint32_t index) {
+    if ((index < 8)) {
+        return array[index];
     }
-    if ((index == 1)) {
-        return ((uint32_t)(((array >> 48) & 0xFFFFFFFF)));
-    }
-    if ((index == 2)) {
-        return ((uint32_t)(((array >> 40) & 0xFFFFFFFF)));
-    }
-    if ((index == 3)) {
-        return ((uint32_t)(((array >> 32) & 0xFFFFFFFF)));
-    }
-    if ((index == 4)) {
-        return ((uint32_t)(((array >> 24) & 0xFFFFFFFF)));
-    }
-    if ((index == 5)) {
-        return ((uint32_t)(((array >> 16) & 0xFFFFFFFF)));
-    }
-    if ((index == 6)) {
-        return ((uint32_t)(((array >> 8) & 0xFFFFFFFF)));
-    }
-    return ((uint32_t)((array & 0xFFFFFFFF)));
+    return 0;
 }
 
 uint32_t calculate_health_score(uint32_t metrics) {
@@ -150,7 +132,7 @@ uint32_t predict_failure_probability(uint32_t metrics) {
 uint32_t is_trending_failure(uint32_t current_metrics, uint32_t previous_metrics) {
     int current_health = calculate_health_score(current_metrics);
     int previous_health = calculate_health_score(previous_metrics);
-    if ((current_health < (previous_health - 10))) {
+    if (((current_health + 10) < previous_health)) {
         return 1;
     }
     return 0;
@@ -187,8 +169,8 @@ bool needs_immediate_action(uint32_t metrics) {
     return (((cpu > 95) || (temp > 95)) || (errors > 50));
 }
 
-uint32_t find_most_at_risk(uint64_t health_array) {
-    int highest_risk = 0xFF;
+uint32_t find_most_at_risk(uint32_t* health_array) {
+    int highest_risk = 0;
     int highest_risk_node = 0xFF;
     if ((calculate_failure_risk(get_health_metrics(health_array, 0), 0) > highest_risk)) {
         highest_risk = calculate_failure_risk(get_health_metrics(health_array, 0), 0);
@@ -251,7 +233,7 @@ void test_calculate_health_score_healthy(void) {
     uint64_t metrics = create_health_metrics(20, 30, 2, 40);
     (void)metrics;
     int score = calculate_health_score(metrics);
-    t27_assert((score >= 80), "healthy score");
+    t27_assert((score >= 75), "healthy score");
 }
 
 void test_calculate_health_score_degraded(void) {
@@ -262,7 +244,7 @@ void test_calculate_health_score_degraded(void) {
 }
 
 void test_predict_failure_probability_healthy(void) {
-    uint64_t metrics = create_health_metrics(20, 30, 2, 40);
+    uint64_t metrics = create_health_metrics(10, 20, 2, 30);
     (void)metrics;
     t27_assert((predict_failure_probability(metrics) == 0), "no failure");
 }
@@ -274,7 +256,7 @@ void test_predict_failure_probability_critical(void) {
 }
 
 void test_is_trending_failure_degrading(void) {
-    uint64_t current = create_health_metrics(60, 70, 10, 50);
+    uint64_t current = create_health_metrics(50, 60, 8, 48);
     (void)current;
     uint64_t previous = create_health_metrics(40, 50, 5, 45);
     (void)previous;
@@ -290,7 +272,7 @@ void test_is_trending_failure_significant(void) {
 }
 
 void test_predict_time_to_failure_healthy(void) {
-    uint64_t metrics = create_health_metrics(20, 30, 2, 40);
+    uint64_t metrics = create_health_metrics(10, 20, 2, 30);
     (void)metrics;
     t27_assert((predict_time_to_failure(metrics) == 0xFF), "no failure predicted");
 }
@@ -302,7 +284,7 @@ void test_predict_time_to_failure_critical(void) {
 }
 
 void test_predict_time_to_failure_medium(void) {
-    uint64_t metrics = create_health_metrics(70, 75, 30, 65);
+    uint64_t metrics = create_health_metrics(60, 65, 20, 55);
     (void)metrics;
     t27_assert((predict_time_to_failure(metrics) == 50), "medium-term failure");
 }

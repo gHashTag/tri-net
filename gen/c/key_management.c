@@ -32,22 +32,23 @@ uint32_t get_key_valid(uint32_t entry);
 uint32_t get_key_id(uint32_t entry);
 uint32_t get_key_value(uint32_t entry);
 uint32_t get_key_timestamp(uint32_t entry);
-uint64_t create_key_store(uint32_t k0, uint32_t k1, uint32_t k2, uint32_t k3);
-uint32_t get_key_entry(uint64_t store, uint32_t index);
-uint32_t find_key_by_id(uint64_t store, uint32_t key_id);
-uint64_t add_key(uint64_t store, uint32_t key_id, uint32_t key_value, uint32_t timestamp);
-uint64_t invalidate_key(uint64_t store, uint32_t key_id);
+uint32_t* create_key_store(uint32_t k0, uint32_t k1, uint32_t k2, uint32_t k3);
+uint32_t* set_key_slot(uint32_t* store, uint32_t index, uint32_t entry);
+uint32_t get_key_entry(uint32_t* store, uint32_t index);
+uint32_t find_key_by_id(uint32_t* store, uint32_t key_id);
+uint32_t* add_key(uint32_t* store, uint32_t key_id, uint32_t key_value, uint32_t timestamp);
+uint32_t* invalidate_key(uint32_t* store, uint32_t key_id);
 bool needs_rotation(uint32_t entry, uint32_t current_time);
-uint64_t rotate_key(uint64_t store, uint32_t key_id, uint32_t new_value, uint32_t current_time);
-uint32_t get_active_key(uint64_t store);
-uint32_t count_valid_keys(uint64_t store);
+uint32_t* rotate_key(uint32_t* store, uint32_t key_id, uint32_t new_value, uint32_t current_time);
+uint32_t get_active_key(uint32_t* store);
+uint32_t count_valid_keys(uint32_t* store);
 
 /* -------------------------------------------------------
    Function implementations
    ------------------------------------------------------- */
 
 uint32_t create_key_entry(uint32_t valid, uint32_t key_id, uint32_t key_value, uint32_t timestamp) {
-    return (((((valid & 0x1) << 31) | ((key_id & 0xFF) << 24)) | ((key_value & 0xFFFF) << 8)) | (timestamp & 0xFF));
+    return (((((valid & 0x1) << 31) | ((key_id & 0x7F) << 24)) | ((key_value & 0xFFFF) << 8)) | (timestamp & 0xFF));
 }
 
 uint32_t get_key_valid(uint32_t entry) {
@@ -55,7 +56,7 @@ uint32_t get_key_valid(uint32_t entry) {
 }
 
 uint32_t get_key_id(uint32_t entry) {
-    return ((entry >> 24) & 0xFF);
+    return ((entry >> 24) & 0x7F);
 }
 
 uint32_t get_key_value(uint32_t entry) {
@@ -66,24 +67,35 @@ uint32_t get_key_timestamp(uint32_t entry) {
     return (entry & 0xFF);
 }
 
-uint64_t create_key_store(uint32_t k0, uint32_t k1, uint32_t k2, uint32_t k3) {
-    return ((((((uint64_t)(k0)) << 48) | (((uint64_t)(k1)) << 32)) | (((uint64_t)(k2)) << 16)) | ((uint64_t)(k3)));
+uint32_t* create_key_store(uint32_t k0, uint32_t k1, uint32_t k2, uint32_t k3) {
+    return { k0, k1, k2, k3 };
 }
 
-uint32_t get_key_entry(uint64_t store, uint32_t index) {
+uint32_t* set_key_slot(uint32_t* store, uint32_t index, uint32_t entry) {
+    uint32_t k0 = store[0];
+    uint32_t k1 = store[1];
+    uint32_t k2 = store[2];
+    uint32_t k3 = store[3];
     if ((index == 0)) {
-        return ((uint32_t)(((store >> 48) & 0xFFFFFFFF)));
+        return { entry, k1, k2, k3 };
     }
     if ((index == 1)) {
-        return ((uint32_t)(((store >> 32) & 0xFFFFFFFF)));
+        return { k0, entry, k2, k3 };
     }
     if ((index == 2)) {
-        return ((uint32_t)(((store >> 16) & 0xFFFFFFFF)));
+        return { k0, k1, entry, k3 };
     }
-    return ((uint32_t)((store & 0xFFFFFFFF)));
+    return { k0, k1, k2, entry };
 }
 
-uint32_t find_key_by_id(uint64_t store, uint32_t key_id) {
+uint32_t get_key_entry(uint32_t* store, uint32_t index) {
+    if ((index < 4)) {
+        return store[index];
+    }
+    return 0;
+}
+
+uint32_t find_key_by_id(uint32_t* store, uint32_t key_id) {
     if (((get_key_id(get_key_entry(store, 0)) == key_id) && (get_key_valid(get_key_entry(store, 0)) == KEY_VALID))) {
         return 0;
     } else if (((get_key_id(get_key_entry(store, 1)) == key_id) && (get_key_valid(get_key_entry(store, 1)) == KEY_VALID))) {
@@ -96,33 +108,25 @@ uint32_t find_key_by_id(uint64_t store, uint32_t key_id) {
     return 0xFF;
 }
 
-uint64_t add_key(uint64_t store, uint32_t key_id, uint32_t key_value, uint32_t timestamp) {
+uint32_t* add_key(uint32_t* store, uint32_t key_id, uint32_t key_value, uint32_t timestamp) {
     if ((get_key_valid(get_key_entry(store, 0)) == KEY_INVALID)) {
-        return ((store & 0x0000FFFFFFFFFFFF) | (((uint64_t)(create_key_entry(KEY_VALID, key_id, key_value, timestamp))) << 48));
+        return set_key_slot(store, 0, create_key_entry(KEY_VALID, key_id, key_value, timestamp));
     } else if ((get_key_valid(get_key_entry(store, 1)) == KEY_INVALID)) {
-        return ((store & 0xFFFF0000FFFFFFFF) | (((uint64_t)(create_key_entry(KEY_VALID, key_id, key_value, timestamp))) << 32));
+        return set_key_slot(store, 1, create_key_entry(KEY_VALID, key_id, key_value, timestamp));
     } else if ((get_key_valid(get_key_entry(store, 2)) == KEY_INVALID)) {
-        return ((store & 0xFFFFFFFF0000FFFF) | (((uint64_t)(create_key_entry(KEY_VALID, key_id, key_value, timestamp))) << 16));
+        return set_key_slot(store, 2, create_key_entry(KEY_VALID, key_id, key_value, timestamp));
     } else if ((get_key_valid(get_key_entry(store, 3)) == KEY_INVALID)) {
-        return ((store & 0xFFFFFFFFFFFF0000) | ((uint64_t)(create_key_entry(KEY_VALID, key_id, key_value, timestamp))));
+        return set_key_slot(store, 3, create_key_entry(KEY_VALID, key_id, key_value, timestamp));
     }
     return store;
 }
 
-uint64_t invalidate_key(uint64_t store, uint32_t key_id) {
+uint32_t* invalidate_key(uint32_t* store, uint32_t key_id) {
     int index = find_key_by_id(store, key_id);
     if ((index != 0xFF)) {
         int entry = get_key_entry(store, index);
         int new_entry = create_key_entry(KEY_INVALID, get_key_id(entry), get_key_value(entry), get_key_timestamp(entry));
-        if ((index == 0)) {
-            return ((store & 0x0000FFFFFFFFFFFF) | (((uint64_t)(new_entry)) << 48));
-        } else if ((index == 1)) {
-            return ((store & 0xFFFF0000FFFFFFFF) | (((uint64_t)(new_entry)) << 32));
-        } else if ((index == 2)) {
-            return ((store & 0xFFFFFFFF0000FFFF) | (((uint64_t)(new_entry)) << 16));
-        } else {
-            return ((store & 0xFFFFFFFFFFFF0000) | ((uint64_t)(new_entry)));
-        }
+        return set_key_slot(store, index, new_entry);
     }
     return store;
 }
@@ -135,24 +139,16 @@ bool needs_rotation(uint32_t entry, uint32_t current_time) {
     return (age >= ROTATION_INTERVAL);
 }
 
-uint64_t rotate_key(uint64_t store, uint32_t key_id, uint32_t new_value, uint32_t current_time) {
+uint32_t* rotate_key(uint32_t* store, uint32_t key_id, uint32_t new_value, uint32_t current_time) {
     int index = find_key_by_id(store, key_id);
     if ((index != 0xFF)) {
         int new_entry = create_key_entry(KEY_VALID, key_id, new_value, current_time);
-        if ((index == 0)) {
-            return ((store & 0x0000FFFFFFFFFFFF) | (((uint64_t)(new_entry)) << 48));
-        } else if ((index == 1)) {
-            return ((store & 0xFFFF0000FFFFFFFF) | (((uint64_t)(new_entry)) << 32));
-        } else if ((index == 2)) {
-            return ((store & 0xFFFFFFFF0000FFFF) | (((uint64_t)(new_entry)) << 16));
-        } else {
-            return ((store & 0xFFFFFFFFFFFF0000) | ((uint64_t)(new_entry)));
-        }
+        return set_key_slot(store, index, new_entry);
     }
     return store;
 }
 
-uint32_t get_active_key(uint64_t store) {
+uint32_t get_active_key(uint32_t* store) {
     int best_index = 0xFF;
     int best_timestamp = 0;
     if ((get_key_valid(get_key_entry(store, 0)) == KEY_VALID)) {
@@ -189,7 +185,7 @@ uint32_t get_active_key(uint64_t store) {
     return 0;
 }
 
-uint32_t count_valid_keys(uint64_t store) {
+uint32_t count_valid_keys(uint32_t* store) {
     int count = 0;
     if ((get_key_valid(get_key_entry(store, 0)) == KEY_VALID)) {
         count = (count + 1);

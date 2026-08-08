@@ -29,16 +29,16 @@ fn extract_iterations(result: u32) u32 {
     return result & 0xFFFF;
 }
 fn calculate_pass_rate(passed: u32, total: u32) u8 {
-    _ = passed; // unused by the spec body
     if (total == 0) {
         return 0;
     }
+    return @as(u8, @intCast((passed * 100) / total));
 }
 fn test_passed(result: u32) bool {
     return (extract_errors(result) == 0) and (extract_state(result) == VAL_PASSED);
 }
 fn bit_accurate(reference: u32, implementation: u32, tolerance_mask: u32) bool {
-    return ((reference ^ implementation) & tolerance_mask) == 0;
+    return ((reference ^ implementation) & (0xFFFFFFFF ^ tolerance_mask)) == 0;
 }
 fn fpga_board_ready(result: u32) bool {
     return (extract_state(result) == VAL_PASSED) and (extract_test_type(result) == TEST_FPGA_BOARD);
@@ -59,10 +59,10 @@ fn extract_capture_timestamp(capture: u32) u32 {
     return capture & 0xFF;
 }
 fn create_performance_metric(metric_type: u32, value: u32, unit: u32) u32 {
-    return (((metric_type & 0xF) << 24) | ((value & 0xFFFFFF) << 4)) | (unit & 0xF);
+    return (((metric_type & 0xF) << 28) | ((value & 0xFFFFFF) << 4)) | (unit & 0xF);
 }
 fn extract_metric_type(metric: u32) u32 {
-    return (metric >> 24) & 0xF;
+    return (metric >> 28) & 0xF;
 }
 fn extract_metric_value(metric: u32) u32 {
     return (metric >> 4) & 0xFFFFFF;
@@ -112,7 +112,7 @@ test "bit_accurate_tolerance" {
     if (!(bit_accurate(0x12345678, 0x12345670, 0x000000FF) == true)) @panic("tolerance OK");
 }
 test "bit_accurate_fail" {
-    if (!(bit_accurate(0x12345678, 0x1234FF78, 0x00FF0000) == false)) @panic("diff in tolerated bits");
+    if (!(bit_accurate(0x12345678, 0x1234FF78, 0x000000FF) == false)) @panic("diff outside tolerated bits");
 }
 test "fpga_board_ready_yes" {
     const result = create_test_result(VAL_PASSED, TEST_FPGA_BOARD, 0, 100);

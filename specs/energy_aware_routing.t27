@@ -58,18 +58,17 @@ module EnergyAwareRouting {
     }
 
     // 4-path energy storage
-    fn create_energy_array(e0: u32, e1: u32, e2: u32, e3: u32) -> u64 {
-        return (((e0 as u64) << 48) |
-                ((e1 as u64) << 32) |
-                ((e2 as u64) << 16) |
-                (e3 as u64));
+    // Four 32-bit slots need 128 bits: the old u64 packing at 16-bit
+    // strides made every 32-bit read overlap its neighbors. A real array.
+    fn create_energy_array(e0: u32, e1: u32, e2: u32, e3: u32) -> [u32; 4] {
+        return [e0, e1, e2, e3];
     }
 
-    fn get_path_energy(array: u64, index: u32) -> u32 {
-        if (index == 0) { return ((array >> 48) & 0xFFFFFFFF) as u32; }
-        if (index == 1) { return ((array >> 32) & 0xFFFFFFFF) as u32; }
-        if (index == 2) { return ((array >> 16) & 0xFFFFFFFF) as u32; }
-        return (array & 0xFFFFFFFF) as u32;
+    fn get_path_energy(array: [u32; 4], index: u32) -> u32 {
+        if (index < 4) {
+            return array[index];
+        }
+        return 0;
     }
 
     // Calculate total energy cost for a path
@@ -108,7 +107,7 @@ module EnergyAwareRouting {
     }
 
     // Find most energy-efficient path
-    fn find_energy_optimal_path(energy_array: u64) -> u32 {
+    fn find_energy_optimal_path(energy_array: [u32; 4]) -> u32 {
         let best_path = 0xFF;
         let best_score = 0;
         
@@ -148,7 +147,7 @@ module EnergyAwareRouting {
     }
 
     // Find path with minimum energy cost
-    fn find_min_cost_path(energy_array: u64) -> u32 {
+    fn find_min_cost_path(energy_array: [u32; 4]) -> u32 {
         let best_path = 0xFF;
         let best_cost = 0xFFFFFFFF;
         
@@ -188,7 +187,7 @@ module EnergyAwareRouting {
     }
 
     // Balance load across paths based on battery levels
-    fn select_balanced_path(energy_array: u64, current_path: u32) -> u32 {
+    fn select_balanced_path(energy_array: [u32; 4], current_path: u32) -> u32 {
         let best_path = current_path;
         let best_battery = get_battery_levels(get_path_energy(energy_array, current_path));
         
@@ -272,7 +271,9 @@ module EnergyAwareRouting {
     test calculate_energy_score_low_cost {
         cost = create_energy_cost(20, 10, 10, 2);
         let score = calculate_energy_score(50, cost);
-        assert(score == 125, "energy score"); // (50 * 100) / 40 = 125
+        // total cost = (20 + 10 + 10) * 2 hops = 80; (50 * 100) / 80 = 62.
+        // The old expectation ignored the hop multiplier in the formula.
+        assert(score == 62, "energy score");
     }
 
     test is_path_viable_true {

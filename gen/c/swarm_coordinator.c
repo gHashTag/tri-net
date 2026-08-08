@@ -44,12 +44,12 @@ uint32_t get_vote_node(uint32_t vote);
 uint32_t get_vote_value(uint32_t vote);
 uint32_t get_vote_proposal_id(uint32_t vote);
 uint32_t get_vote_timestamp(uint32_t vote);
-uint64_t create_vote_array(uint32_t v0, uint32_t v1, uint32_t v2, uint32_t v3, uint32_t v4, uint32_t v5, uint32_t v6, uint32_t v7);
-uint32_t get_vote(uint64_t array, uint32_t index);
-t27_tuple_uint32_t_uint32_t_uint32_t count_votes(uint64_t vote_array, uint32_t proposal_id);
+uint32_t* create_vote_array(uint32_t v0, uint32_t v1, uint32_t v2, uint32_t v3, uint32_t v4, uint32_t v5, uint32_t v6, uint32_t v7);
+uint32_t get_vote(uint32_t* array, uint32_t index);
+t27_tuple_uint32_t_uint32_t_uint32_t count_votes(uint32_t* vote_array, uint32_t proposal_id);
 bool has_quorum(uint32_t yes_count, uint32_t no_count, uint32_t abstain_count);
 bool proposal_passes(uint32_t yes_count, uint32_t no_count);
-uint32_t calculate_consensus_value(uint64_t vote_array, uint32_t proposal_id);
+uint32_t calculate_consensus_value(uint32_t* vote_array, uint32_t proposal_id);
 uint32_t cooperative_decision(uint32_t neighbor_values, uint32_t my_value, uint32_t weight_neighbors);
 
 /* -------------------------------------------------------
@@ -57,23 +57,23 @@ uint32_t cooperative_decision(uint32_t neighbor_values, uint32_t my_value, uint3
    ------------------------------------------------------- */
 
 uint32_t create_proposal(uint32_t proposal_id, uint32_t node_id, uint32_t value, uint32_t timestamp) {
-    return (((((proposal_id & 0xFF) << 24) | ((node_id & 0xFF) << 16)) | ((value & 0xFF) << 8)) | (timestamp & 0xFF));
+    return (((((proposal_id & 0x3F) << 26) | ((node_id & 0x3F) << 20)) | ((value & 0xFF) << 12)) | (timestamp & 0xFFF));
 }
 
 uint32_t get_proposal_id(uint32_t proposal) {
-    return ((proposal >> 24) & 0xFF);
+    return ((proposal >> 26) & 0x3F);
 }
 
 uint32_t get_proposal_node(uint32_t proposal) {
-    return ((proposal >> 16) & 0xFF);
+    return ((proposal >> 20) & 0x3F);
 }
 
 uint32_t get_proposal_value(uint32_t proposal) {
-    return ((proposal >> 8) & 0xFF);
+    return ((proposal >> 12) & 0xFF);
 }
 
 uint32_t get_proposal_timestamp(uint32_t proposal) {
-    return (proposal & 0xFF);
+    return (proposal & 0xFFF);
 }
 
 uint32_t create_vote(uint32_t node_id, uint32_t vote, uint32_t proposal_id, uint32_t timestamp) {
@@ -96,36 +96,18 @@ uint32_t get_vote_timestamp(uint32_t vote) {
     return (vote & 0x3FFF);
 }
 
-uint64_t create_vote_array(uint32_t v0, uint32_t v1, uint32_t v2, uint32_t v3, uint32_t v4, uint32_t v5, uint32_t v6, uint32_t v7) {
-    return ((((((((((uint64_t)(v0)) << 56) | (((uint64_t)(v1)) << 48)) | (((uint64_t)(v2)) << 40)) | (((uint64_t)(v3)) << 32)) | (((uint64_t)(v4)) << 24)) | (((uint64_t)(v5)) << 16)) | (((uint64_t)(v6)) << 8)) | ((uint64_t)(v7)));
+uint32_t* create_vote_array(uint32_t v0, uint32_t v1, uint32_t v2, uint32_t v3, uint32_t v4, uint32_t v5, uint32_t v6, uint32_t v7) {
+    return { v0, v1, v2, v3, v4, v5, v6, v7 };
 }
 
-uint32_t get_vote(uint64_t array, uint32_t index) {
-    if ((index == 0)) {
-        return ((uint32_t)(((array >> 56) & 0xFFFFFFFF)));
+uint32_t get_vote(uint32_t* array, uint32_t index) {
+    if ((index < 8)) {
+        return array[index];
     }
-    if ((index == 1)) {
-        return ((uint32_t)(((array >> 48) & 0xFFFFFFFF)));
-    }
-    if ((index == 2)) {
-        return ((uint32_t)(((array >> 40) & 0xFFFFFFFF)));
-    }
-    if ((index == 3)) {
-        return ((uint32_t)(((array >> 32) & 0xFFFFFFFF)));
-    }
-    if ((index == 4)) {
-        return ((uint32_t)(((array >> 24) & 0xFFFFFFFF)));
-    }
-    if ((index == 5)) {
-        return ((uint32_t)(((array >> 16) & 0xFFFFFFFF)));
-    }
-    if ((index == 6)) {
-        return ((uint32_t)(((array >> 8) & 0xFFFFFFFF)));
-    }
-    return ((uint32_t)((array & 0xFFFFFFFF)));
+    return 0;
 }
 
-t27_tuple_uint32_t_uint32_t_uint32_t count_votes(uint64_t vote_array, uint32_t proposal_id) {
+t27_tuple_uint32_t_uint32_t_uint32_t count_votes(uint32_t* vote_array, uint32_t proposal_id) {
     int yes_count = 0;
     int no_count = 0;
     int abstain_count = 0;
@@ -213,38 +195,38 @@ bool proposal_passes(uint32_t yes_count, uint32_t no_count) {
     return (yes_count > no_count);
 }
 
-uint32_t calculate_consensus_value(uint64_t vote_array, uint32_t proposal_id) {
+uint32_t calculate_consensus_value(uint32_t* vote_array, uint32_t proposal_id) {
     int sum = 0;
     int count = 0;
-    if ((get_vote_proposal_id(get_vote(vote_array, 0)) == proposal_id)) {
+    if (((get_proposal_node(get_vote(vote_array, 0)) == proposal_id) && (get_proposal_timestamp(get_vote(vote_array, 0)) != 0))) {
         sum = (sum + get_proposal_value(get_vote(vote_array, 0)));
         count = (count + 1);
     }
-    if ((get_vote_proposal_id(get_vote(vote_array, 1)) == proposal_id)) {
+    if (((get_proposal_node(get_vote(vote_array, 1)) == proposal_id) && (get_proposal_timestamp(get_vote(vote_array, 1)) != 0))) {
         sum = (sum + get_proposal_value(get_vote(vote_array, 1)));
         count = (count + 1);
     }
-    if ((get_vote_proposal_id(get_vote(vote_array, 2)) == proposal_id)) {
+    if (((get_proposal_node(get_vote(vote_array, 2)) == proposal_id) && (get_proposal_timestamp(get_vote(vote_array, 2)) != 0))) {
         sum = (sum + get_proposal_value(get_vote(vote_array, 2)));
         count = (count + 1);
     }
-    if ((get_vote_proposal_id(get_vote(vote_array, 3)) == proposal_id)) {
+    if (((get_proposal_node(get_vote(vote_array, 3)) == proposal_id) && (get_proposal_timestamp(get_vote(vote_array, 3)) != 0))) {
         sum = (sum + get_proposal_value(get_vote(vote_array, 3)));
         count = (count + 1);
     }
-    if ((get_vote_proposal_id(get_vote(vote_array, 4)) == proposal_id)) {
+    if (((get_proposal_node(get_vote(vote_array, 4)) == proposal_id) && (get_proposal_timestamp(get_vote(vote_array, 4)) != 0))) {
         sum = (sum + get_proposal_value(get_vote(vote_array, 4)));
         count = (count + 1);
     }
-    if ((get_vote_proposal_id(get_vote(vote_array, 5)) == proposal_id)) {
+    if (((get_proposal_node(get_vote(vote_array, 5)) == proposal_id) && (get_proposal_timestamp(get_vote(vote_array, 5)) != 0))) {
         sum = (sum + get_proposal_value(get_vote(vote_array, 5)));
         count = (count + 1);
     }
-    if ((get_vote_proposal_id(get_vote(vote_array, 6)) == proposal_id)) {
+    if (((get_proposal_node(get_vote(vote_array, 6)) == proposal_id) && (get_proposal_timestamp(get_vote(vote_array, 6)) != 0))) {
         sum = (sum + get_proposal_value(get_vote(vote_array, 6)));
         count = (count + 1);
     }
-    if ((get_vote_proposal_id(get_vote(vote_array, 7)) == proposal_id)) {
+    if (((get_proposal_node(get_vote(vote_array, 7)) == proposal_id) && (get_proposal_timestamp(get_vote(vote_array, 7)) != 0))) {
         sum = (sum + get_proposal_value(get_vote(vote_array, 7)));
         count = (count + 1);
     }
@@ -297,10 +279,10 @@ void test_create_vote_abstain(void) {
 void test_count_votes_unanimous_yes(void) {
     uint64_t vote_array = create_vote_array(create_vote(1, VOTE_YES, 10, 1000), create_vote(2, VOTE_YES, 10, 1000), create_vote(3, VOTE_YES, 10, 1000), create_vote(4, VOTE_YES, 10, 1000), create_vote(5, VOTE_YES, 10, 1000), create_vote(6, VOTE_YES, 10, 1000), create_vote(7, VOTE_YES, 10, 1000), create_vote(8, VOTE_YES, 10, 1000));
     (void)vote_array;
-    t27_tuple_uint32_t_uint32_t_uint32_t __t_c252 = count_votes(vote_array, 10);
-    uint32_t yes = __t_c252.f0;
-    uint32_t no = __t_c252.f1;
-    uint32_t abstain = __t_c252.f2;
+    t27_tuple_uint32_t_uint32_t_uint32_t __t_c247 = count_votes(vote_array, 10);
+    uint32_t yes = __t_c247.f0;
+    uint32_t no = __t_c247.f1;
+    uint32_t abstain = __t_c247.f2;
     t27_assert((yes == 8), "8 yes votes");
     t27_assert((no == 0), "0 no votes");
     t27_assert((abstain == 0), "0 abstain");
@@ -309,10 +291,10 @@ void test_count_votes_unanimous_yes(void) {
 void test_count_votes_mixed(void) {
     uint64_t vote_array = create_vote_array(create_vote(1, VOTE_YES, 10, 1000), create_vote(2, VOTE_NO, 10, 1000), create_vote(3, VOTE_YES, 10, 1000), create_vote(4, VOTE_ABSTAIN, 10, 1000), create_vote(5, VOTE_YES, 10, 1000), create_vote(6, VOTE_NO, 10, 1000), create_vote(7, VOTE_YES, 10, 1000), create_vote(8, VOTE_ABSTAIN, 10, 1000));
     (void)vote_array;
-    t27_tuple_uint32_t_uint32_t_uint32_t __t_c269 = count_votes(vote_array, 10);
-    uint32_t yes = __t_c269.f0;
-    uint32_t no = __t_c269.f1;
-    uint32_t abstain = __t_c269.f2;
+    t27_tuple_uint32_t_uint32_t_uint32_t __t_c264 = count_votes(vote_array, 10);
+    uint32_t yes = __t_c264.f0;
+    uint32_t no = __t_c264.f1;
+    uint32_t abstain = __t_c264.f2;
     t27_assert((yes == 4), "4 yes votes");
     t27_assert((no == 2), "2 no votes");
     t27_assert((abstain == 2), "2 abstain");

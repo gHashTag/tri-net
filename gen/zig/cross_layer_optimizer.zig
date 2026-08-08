@@ -43,31 +43,33 @@ fn get_last_sync(state: u32) u32 {
 fn get_optimization_target(state: u32) u32 {
     return state & 0xFFF;
 }
-fn create_layer_array(phy: u32, mac: u32, network: u32, transport: u32) u64 {
-    return (((@as(u64, @intCast(phy)) << 48) | (@as(u64, @intCast(mac)) << 32)) | (@as(u64, @intCast(network)) << 16)) | @as(u64, @intCast(transport));
+fn create_layer_array(phy: u32, mac: u32, network: u32, transport: u32) [4]u32 {
+    return .{ phy, mac, network, transport };
 }
-fn get_layer_params(array: u64, layer: u32) u32 {
-    if (layer == LAYER_PHY) {
-        return @as(u32, @intCast((array >> 48) & 0xFFFFFFFF));
+fn set_slot4(array: [4]u32, index: u32, value: u32) [4]u32 {
+    const a0: u32 = array[0];
+    const a1: u32 = array[1];
+    const a2: u32 = array[2];
+    const a3: u32 = array[3];
+    if (index == 0) {
+        return .{ value, a1, a2, a3 };
     }
-    if (layer == LAYER_MAC) {
-        return @as(u32, @intCast((array >> 32) & 0xFFFFFFFF));
+    if (index == 1) {
+        return .{ a0, value, a2, a3 };
     }
-    if (layer == LAYER_NETWORK) {
-        return @as(u32, @intCast((array >> 16) & 0xFFFFFFFF));
+    if (index == 2) {
+        return .{ a0, a1, value, a3 };
     }
-    return @as(u32, @intCast(array & 0xFFFFFFFF));
+    return .{ a0, a1, a2, value };
 }
-fn update_layer_params(array: u64, layer: u32, new_params: u32) u64 {
-    if (layer == LAYER_PHY) {
-        return (array & 0x0000FFFFFFFFFFFF) | (@as(u64, @intCast(new_params)) << 48);
-    } else if (layer == LAYER_MAC) {
-        return (array & 0xFFFF0000FFFFFFFF) | (@as(u64, @intCast(new_params)) << 32);
-    } else if (layer == LAYER_NETWORK) {
-        return (array & 0xFFFFFFFF0000FFFF) | (@as(u64, @intCast(new_params)) << 16);
-    } else {
-        return (array & 0xFFFFFFFFFFFF0000) | @as(u64, @intCast(new_params));
+fn get_layer_params(array: [4]u32, layer: u32) u32 {
+    if (layer < 4) {
+        return array[layer];
     }
+    return 0;
+}
+fn update_layer_params(array: [4]u32, layer: u32, new_params: u32) [4]u32 {
+    return set_slot4(array, layer, new_params);
 }
 fn calculate_joint_metric(phy_params: u32, mac_params: u32, net_params: u32) u32 {
     const power_eff = 255 - get_power(phy_params);

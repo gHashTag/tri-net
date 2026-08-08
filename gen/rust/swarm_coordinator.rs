@@ -14,23 +14,23 @@ pub const VOTE_NO: u32 = 0;
 pub const VOTE_ABSTAIN: u32 = 2;
 
 pub fn create_proposal(proposal_id: u32, node_id: u32, value: u32, timestamp: u32) -> u32 {
-    return (((((proposal_id & 0xFF) << 24) | ((node_id & 0xFF) << 16)) | ((value & 0xFF) << 8)) | (timestamp & 0xFF));
+    return (((((proposal_id & 0x3F) << 26) | ((node_id & 0x3F) << 20)) | ((value & 0xFF) << 12)) | (timestamp & 0xFFF));
 }
 
 pub fn get_proposal_id(proposal: u32) -> u32 {
-    return ((proposal >> 24) & 0xFF);
+    return ((proposal >> 26) & 0x3F);
 }
 
 pub fn get_proposal_node(proposal: u32) -> u32 {
-    return ((proposal >> 16) & 0xFF);
+    return ((proposal >> 20) & 0x3F);
 }
 
 pub fn get_proposal_value(proposal: u32) -> u32 {
-    return ((proposal >> 8) & 0xFF);
+    return ((proposal >> 12) & 0xFF);
 }
 
 pub fn get_proposal_timestamp(proposal: u32) -> u32 {
-    return (proposal & 0xFF);
+    return (proposal & 0xFFF);
 }
 
 pub fn create_vote(node_id: u32, vote: u32, proposal_id: u32, timestamp: u32) -> u32 {
@@ -53,36 +53,18 @@ pub fn get_vote_timestamp(vote: u32) -> u32 {
     return (vote & 0x3FFF);
 }
 
-pub fn create_vote_array(v0: u32, v1: u32, v2: u32, v3: u32, v4: u32, v5: u32, v6: u32, v7: u32) -> u64 {
-    return (((((((((v0 as u64) << 56) | ((v1 as u64) << 48)) | ((v2 as u64) << 40)) | ((v3 as u64) << 32)) | ((v4 as u64) << 24)) | ((v5 as u64) << 16)) | ((v6 as u64) << 8)) | (v7 as u64));
+pub fn create_vote_array(v0: u32, v1: u32, v2: u32, v3: u32, v4: u32, v5: u32, v6: u32, v7: u32) -> [u32; 8] {
+    return [v0,v1,v2,v3,v4,v5,v6,v7];
 }
 
-pub fn get_vote(array: u64, index: u32) -> u32 {
-    if (index == 0) {
-        return (((array >> 56) & 0xFFFFFFFF) as u32);
+pub fn get_vote(array: [u32; 8], index: u32) -> u32 {
+    if (index < 8) {
+        return array[(index) as usize];
     }
-    if (index == 1) {
-        return (((array >> 48) & 0xFFFFFFFF) as u32);
-    }
-    if (index == 2) {
-        return (((array >> 40) & 0xFFFFFFFF) as u32);
-    }
-    if (index == 3) {
-        return (((array >> 32) & 0xFFFFFFFF) as u32);
-    }
-    if (index == 4) {
-        return (((array >> 24) & 0xFFFFFFFF) as u32);
-    }
-    if (index == 5) {
-        return (((array >> 16) & 0xFFFFFFFF) as u32);
-    }
-    if (index == 6) {
-        return (((array >> 8) & 0xFFFFFFFF) as u32);
-    }
-    return ((array & 0xFFFFFFFF) as u32);
+    return 0;
 }
 
-pub fn count_votes(vote_array: u64, proposal_id: u32) -> (u32, u32, u32) {
+pub fn count_votes(vote_array: [u32; 8], proposal_id: u32) -> (u32, u32, u32) {
     let mut yes_count = 0;
     let mut no_count = 0;
     let mut abstain_count = 0;
@@ -186,38 +168,38 @@ pub fn proposal_passes(yes_count: u32, no_count: u32) -> bool {
     return (yes_count > no_count);
 }
 
-pub fn calculate_consensus_value(vote_array: u64, proposal_id: u32) -> u32 {
+pub fn calculate_consensus_value(vote_array: [u32; 8], proposal_id: u32) -> u32 {
     let mut sum = 0;
     let mut count = 0;
-    if (get_vote_proposal_id(get_vote(vote_array, 0)) == proposal_id) {
+    if ((get_proposal_node(get_vote(vote_array, 0)) == proposal_id) && (get_proposal_timestamp(get_vote(vote_array, 0)) != 0)) {
         sum = (sum + get_proposal_value(get_vote(vote_array, 0)));
         count = (count + 1);
     }
-    if (get_vote_proposal_id(get_vote(vote_array, 1)) == proposal_id) {
+    if ((get_proposal_node(get_vote(vote_array, 1)) == proposal_id) && (get_proposal_timestamp(get_vote(vote_array, 1)) != 0)) {
         sum = (sum + get_proposal_value(get_vote(vote_array, 1)));
         count = (count + 1);
     }
-    if (get_vote_proposal_id(get_vote(vote_array, 2)) == proposal_id) {
+    if ((get_proposal_node(get_vote(vote_array, 2)) == proposal_id) && (get_proposal_timestamp(get_vote(vote_array, 2)) != 0)) {
         sum = (sum + get_proposal_value(get_vote(vote_array, 2)));
         count = (count + 1);
     }
-    if (get_vote_proposal_id(get_vote(vote_array, 3)) == proposal_id) {
+    if ((get_proposal_node(get_vote(vote_array, 3)) == proposal_id) && (get_proposal_timestamp(get_vote(vote_array, 3)) != 0)) {
         sum = (sum + get_proposal_value(get_vote(vote_array, 3)));
         count = (count + 1);
     }
-    if (get_vote_proposal_id(get_vote(vote_array, 4)) == proposal_id) {
+    if ((get_proposal_node(get_vote(vote_array, 4)) == proposal_id) && (get_proposal_timestamp(get_vote(vote_array, 4)) != 0)) {
         sum = (sum + get_proposal_value(get_vote(vote_array, 4)));
         count = (count + 1);
     }
-    if (get_vote_proposal_id(get_vote(vote_array, 5)) == proposal_id) {
+    if ((get_proposal_node(get_vote(vote_array, 5)) == proposal_id) && (get_proposal_timestamp(get_vote(vote_array, 5)) != 0)) {
         sum = (sum + get_proposal_value(get_vote(vote_array, 5)));
         count = (count + 1);
     }
-    if (get_vote_proposal_id(get_vote(vote_array, 6)) == proposal_id) {
+    if ((get_proposal_node(get_vote(vote_array, 6)) == proposal_id) && (get_proposal_timestamp(get_vote(vote_array, 6)) != 0)) {
         sum = (sum + get_proposal_value(get_vote(vote_array, 6)));
         count = (count + 1);
     }
-    if (get_vote_proposal_id(get_vote(vote_array, 7)) == proposal_id) {
+    if ((get_proposal_node(get_vote(vote_array, 7)) == proposal_id) && (get_proposal_timestamp(get_vote(vote_array, 7)) != 0)) {
         sum = (sum + get_proposal_value(get_vote(vote_array, 7)));
         count = (count + 1);
     }

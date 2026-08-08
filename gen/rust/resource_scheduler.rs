@@ -53,33 +53,15 @@ pub fn get_sched_tick(state: u32) -> u32 {
     return (state & 0xFF);
 }
 
-pub fn create_task_array(t0: u32, t1: u32, t2: u32, t3: u32, t4: u32, t5: u32, t6: u32, t7: u32) -> u64 {
-    return (((((((((t0 as u64) << 56) | ((t1 as u64) << 48)) | ((t2 as u64) << 40)) | ((t3 as u64) << 32)) | ((t4 as u64) << 24)) | ((t5 as u64) << 16)) | ((t6 as u64) << 8)) | (t7 as u64));
+pub fn create_task_array(t0: u32, t1: u32, t2: u32, t3: u32, t4: u32, t5: u32, t6: u32, t7: u32) -> [u32; 8] {
+    return [t0,t1,t2,t3,t4,t5,t6,t7];
 }
 
-pub fn get_task_resource(array: u64, index: u32) -> u32 {
-    if (index == 0) {
-        return (((array >> 56) & 0xFFFFFFFF) as u32);
+pub fn get_task_resource(array: [u32; 8], index: u32) -> u32 {
+    if (index < 8) {
+        return array[(index) as usize];
     }
-    if (index == 1) {
-        return (((array >> 48) & 0xFFFFFFFF) as u32);
-    }
-    if (index == 2) {
-        return (((array >> 40) & 0xFFFFFFFF) as u32);
-    }
-    if (index == 3) {
-        return (((array >> 32) & 0xFFFFFFFF) as u32);
-    }
-    if (index == 4) {
-        return (((array >> 24) & 0xFFFFFFFF) as u32);
-    }
-    if (index == 5) {
-        return (((array >> 16) & 0xFFFFFFFF) as u32);
-    }
-    if (index == 6) {
-        return (((array >> 8) & 0xFFFFFFFF) as u32);
-    }
-    return ((array & 0xFFFFFFFF) as u32);
+    return 0;
 }
 
 pub fn can_admit_task(state: u32, task: u32) -> bool {
@@ -130,7 +112,7 @@ pub fn release_resources(state: u32, task: u32) -> u32 {
     return create_system_state(new_cpu, new_mem, new_tasks, tick);
 }
 
-pub fn find_admittable_task(state: u32, task_array: u64) -> u32 {
+pub fn find_admittable_task(state: u32, task_array: [u32; 8]) -> u32 {
     let mut best_task = 0xFF;
     let mut best_priority = 0xFF;
     if can_admit_task(state, get_task_resource(task_array, 0)) {
@@ -218,30 +200,30 @@ pub fn increment_tick(state: u32) -> u32 {
     return create_system_state(used_cpu, used_mem, active_tasks, new_tick);
 }
 
-pub fn count_tasks_by_priority(task_array: u64, priority: u32) -> u32 {
+pub fn count_tasks_by_priority(task_array: [u32; 8], priority: u32) -> u32 {
     let mut count = 0;
-    if (get_priority(get_task_resource(task_array, 0)) == priority) {
+    if ((get_task_resource(task_array, 0) != 0) && (get_priority(get_task_resource(task_array, 0)) == priority)) {
         count = (count + 1);
     }
-    if (get_priority(get_task_resource(task_array, 1)) == priority) {
+    if ((get_task_resource(task_array, 1) != 0) && (get_priority(get_task_resource(task_array, 1)) == priority)) {
         count = (count + 1);
     }
-    if (get_priority(get_task_resource(task_array, 2)) == priority) {
+    if ((get_task_resource(task_array, 2) != 0) && (get_priority(get_task_resource(task_array, 2)) == priority)) {
         count = (count + 1);
     }
-    if (get_priority(get_task_resource(task_array, 3)) == priority) {
+    if ((get_task_resource(task_array, 3) != 0) && (get_priority(get_task_resource(task_array, 3)) == priority)) {
         count = (count + 1);
     }
-    if (get_priority(get_task_resource(task_array, 4)) == priority) {
+    if ((get_task_resource(task_array, 4) != 0) && (get_priority(get_task_resource(task_array, 4)) == priority)) {
         count = (count + 1);
     }
-    if (get_priority(get_task_resource(task_array, 5)) == priority) {
+    if ((get_task_resource(task_array, 5) != 0) && (get_priority(get_task_resource(task_array, 5)) == priority)) {
         count = (count + 1);
     }
-    if (get_priority(get_task_resource(task_array, 6)) == priority) {
+    if ((get_task_resource(task_array, 6) != 0) && (get_priority(get_task_resource(task_array, 6)) == priority)) {
         count = (count + 1);
     }
-    if (get_priority(get_task_resource(task_array, 7)) == priority) {
+    if ((get_task_resource(task_array, 7) != 0) && (get_priority(get_task_resource(task_array, 7)) == priority)) {
         count = (count + 1);
     }
     return count;

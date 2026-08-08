@@ -11,13 +11,13 @@ const KEY_VALID: u32 = 1;
 const KEY_INVALID: u32 = 0;
 const ROTATION_INTERVAL: u32 = 30000;
 fn create_key_entry(valid: u32, key_id: u32, key_value: u32, timestamp: u32) u32 {
-    return ((((valid & 0x1) << 31) | ((key_id & 0xFF) << 24)) | ((key_value & 0xFFFF) << 8)) | (timestamp & 0xFF);
+    return ((((valid & 0x1) << 31) | ((key_id & 0x7F) << 24)) | ((key_value & 0xFFFF) << 8)) | (timestamp & 0xFF);
 }
 fn get_key_valid(entry: u32) u32 {
     return (entry >> 31) & 0x1;
 }
 fn get_key_id(entry: u32) u32 {
-    return (entry >> 24) & 0xFF;
+    return (entry >> 24) & 0x7F;
 }
 fn get_key_value(entry: u32) u32 {
     return (entry >> 8) & 0xFFFF;
@@ -25,22 +25,32 @@ fn get_key_value(entry: u32) u32 {
 fn get_key_timestamp(entry: u32) u32 {
     return entry & 0xFF;
 }
-fn create_key_store(k0: u32, k1: u32, k2: u32, k3: u32) u64 {
-    return (((@as(u64, @intCast(k0)) << 48) | (@as(u64, @intCast(k1)) << 32)) | (@as(u64, @intCast(k2)) << 16)) | @as(u64, @intCast(k3));
+fn create_key_store(k0: u32, k1: u32, k2: u32, k3: u32) [4]u32 {
+    return .{ k0, k1, k2, k3 };
 }
-fn get_key_entry(store: u64, index: u32) u32 {
+fn set_key_slot(store: [4]u32, index: u32, entry: u32) [4]u32 {
+    const k0: u32 = store[0];
+    const k1: u32 = store[1];
+    const k2: u32 = store[2];
+    const k3: u32 = store[3];
     if (index == 0) {
-        return @as(u32, @intCast((store >> 48) & 0xFFFFFFFF));
+        return .{ entry, k1, k2, k3 };
     }
     if (index == 1) {
-        return @as(u32, @intCast((store >> 32) & 0xFFFFFFFF));
+        return .{ k0, entry, k2, k3 };
     }
     if (index == 2) {
-        return @as(u32, @intCast((store >> 16) & 0xFFFFFFFF));
+        return .{ k0, k1, entry, k3 };
     }
-    return @as(u32, @intCast(store & 0xFFFFFFFF));
+    return .{ k0, k1, k2, entry };
 }
-fn find_key_by_id(store: u64, key_id: u32) u32 {
+fn get_key_entry(store: [4]u32, index: u32) u32 {
+    if (index < 4) {
+        return store[index];
+    }
+    return 0;
+}
+fn find_key_by_id(store: [4]u32, key_id: u32) u32 {
     if ((get_key_id(get_key_entry(store, 0)) == key_id) and (get_key_valid(get_key_entry(store, 0)) == KEY_VALID)) {
         return 0;
     } else if ((get_key_id(get_key_entry(store, 1)) == key_id) and (get_key_valid(get_key_entry(store, 1)) == KEY_VALID)) {
@@ -52,32 +62,24 @@ fn find_key_by_id(store: u64, key_id: u32) u32 {
     }
     return 0xFF;
 }
-fn add_key(store: u64, key_id: u32, key_value: u32, timestamp: u32) u64 {
+fn add_key(store: [4]u32, key_id: u32, key_value: u32, timestamp: u32) [4]u32 {
     if (get_key_valid(get_key_entry(store, 0)) == KEY_INVALID) {
-        return (store & 0x0000FFFFFFFFFFFF) | (@as(u64, @intCast(create_key_entry(KEY_VALID, key_id, key_value, timestamp))) << 48);
+        return set_key_slot(store, 0, create_key_entry(KEY_VALID, key_id, key_value, timestamp));
     } else if (get_key_valid(get_key_entry(store, 1)) == KEY_INVALID) {
-        return (store & 0xFFFF0000FFFFFFFF) | (@as(u64, @intCast(create_key_entry(KEY_VALID, key_id, key_value, timestamp))) << 32);
+        return set_key_slot(store, 1, create_key_entry(KEY_VALID, key_id, key_value, timestamp));
     } else if (get_key_valid(get_key_entry(store, 2)) == KEY_INVALID) {
-        return (store & 0xFFFFFFFF0000FFFF) | (@as(u64, @intCast(create_key_entry(KEY_VALID, key_id, key_value, timestamp))) << 16);
+        return set_key_slot(store, 2, create_key_entry(KEY_VALID, key_id, key_value, timestamp));
     } else if (get_key_valid(get_key_entry(store, 3)) == KEY_INVALID) {
-        return (store & 0xFFFFFFFFFFFF0000) | @as(u64, @intCast(create_key_entry(KEY_VALID, key_id, key_value, timestamp)));
+        return set_key_slot(store, 3, create_key_entry(KEY_VALID, key_id, key_value, timestamp));
     }
     return store;
 }
-fn invalidate_key(store: u64, key_id: u32) u64 {
+fn invalidate_key(store: [4]u32, key_id: u32) [4]u32 {
     const index = find_key_by_id(store, key_id);
     if (index != 0xFF) {
         const entry = get_key_entry(store, index);
         const new_entry = create_key_entry(KEY_INVALID, get_key_id(entry), get_key_value(entry), get_key_timestamp(entry));
-        if (index == 0) {
-            return (store & 0x0000FFFFFFFFFFFF) | (@as(u64, @intCast(new_entry)) << 48);
-        } else if (index == 1) {
-            return (store & 0xFFFF0000FFFFFFFF) | (@as(u64, @intCast(new_entry)) << 32);
-        } else if (index == 2) {
-            return (store & 0xFFFFFFFF0000FFFF) | (@as(u64, @intCast(new_entry)) << 16);
-        } else {
-            return (store & 0xFFFFFFFFFFFF0000) | @as(u64, @intCast(new_entry));
-        }
+        return set_key_slot(store, index, new_entry);
     }
     return store;
 }
@@ -88,23 +90,15 @@ fn needs_rotation(entry: u32, current_time: u32) bool {
     const age = current_time - get_key_timestamp(entry);
     return age >= ROTATION_INTERVAL;
 }
-fn rotate_key(store: u64, key_id: u32, new_value: u32, current_time: u32) u64 {
+fn rotate_key(store: [4]u32, key_id: u32, new_value: u32, current_time: u32) [4]u32 {
     const index = find_key_by_id(store, key_id);
     if (index != 0xFF) {
         const new_entry = create_key_entry(KEY_VALID, key_id, new_value, current_time);
-        if (index == 0) {
-            return (store & 0x0000FFFFFFFFFFFF) | (@as(u64, @intCast(new_entry)) << 48);
-        } else if (index == 1) {
-            return (store & 0xFFFF0000FFFFFFFF) | (@as(u64, @intCast(new_entry)) << 32);
-        } else if (index == 2) {
-            return (store & 0xFFFFFFFF0000FFFF) | (@as(u64, @intCast(new_entry)) << 16);
-        } else {
-            return (store & 0xFFFFFFFFFFFF0000) | @as(u64, @intCast(new_entry));
-        }
+        return set_key_slot(store, index, new_entry);
     }
     return store;
 }
-fn get_active_key(store: u64) u32 {
+fn get_active_key(store: [4]u32) u32 {
     var best_index: u32 = 0xFF;
     _ = &best_index;
     var best_timestamp: u32 = 0;
@@ -142,7 +136,7 @@ fn get_active_key(store: u64) u32 {
     }
     return 0;
 }
-fn count_valid_keys(store: u64) u32 {
+fn count_valid_keys(store: [4]u32) u32 {
     var count: u32 = 0;
     _ = &count;
     if (get_key_valid(get_key_entry(store, 0)) == KEY_VALID) {

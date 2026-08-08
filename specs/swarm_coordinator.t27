@@ -12,27 +12,29 @@ module SwarmCoordinator {
     const VOTE_ABSTAIN: u32 = 2;
 
     // Node proposal [proposal_id][node_id][value][timestamp]
+    // Layout [id:6][node:6][value:8][timestamp:12]: timestamps like 1000
+    // need 12 bits -- the old 8-bit field truncated them.
     fn create_proposal(proposal_id: u32, node_id: u32, value: u32, timestamp: u32) -> u32 {
-        return (((proposal_id & 0xFF) << 24) |
-                ((node_id & 0xFF) << 16) |
-                ((value & 0xFF) << 8) |
-                (timestamp & 0xFF));
+        return (((proposal_id & 0x3F) << 26) |
+                ((node_id & 0x3F) << 20) |
+                ((value & 0xFF) << 12) |
+                (timestamp & 0xFFF));
     }
 
     fn get_proposal_id(proposal: u32) -> u32 {
-        return ((proposal >> 24) & 0xFF);
+        return ((proposal >> 26) & 0x3F);
     }
 
     fn get_proposal_node(proposal: u32) -> u32 {
-        return ((proposal >> 16) & 0xFF);
+        return ((proposal >> 20) & 0x3F);
     }
 
     fn get_proposal_value(proposal: u32) -> u32 {
-        return ((proposal >> 8) & 0xFF);
+        return ((proposal >> 12) & 0xFF);
     }
 
     fn get_proposal_timestamp(proposal: u32) -> u32 {
-        return (proposal & 0xFF);
+        return (proposal & 0xFFF);
     }
 
     // Vote record [node_id][vote][proposal_id][timestamp]
@@ -60,30 +62,21 @@ module SwarmCoordinator {
     }
 
     // 8-node vote storage
-    fn create_vote_array(v0: u32, v1: u32, v2: u32, v3: u32, v4: u32, v5: u32, v6: u32, v7: u32) -> u64 {
-        return (((v0 as u64) << 56) |
-                ((v1 as u64) << 48) |
-                ((v2 as u64) << 40) |
-                ((v3 as u64) << 32) |
-                ((v4 as u64) << 24) |
-                ((v5 as u64) << 16) |
-                ((v6 as u64) << 8) |
-                (v7 as u64));
+    // Eight 32-bit slots need 256 bits: the old u64 packing at 8-bit
+    // strides made every 32-bit read overlap its neighbors. A real array.
+    fn create_vote_array(v0: u32, v1: u32, v2: u32, v3: u32, v4: u32, v5: u32, v6: u32, v7: u32) -> [u32; 8] {
+        return [v0, v1, v2, v3, v4, v5, v6, v7];
     }
 
-    fn get_vote(array: u64, index: u32) -> u32 {
-        if (index == 0) { return ((array >> 56) & 0xFFFFFFFF) as u32; }
-        if (index == 1) { return ((array >> 48) & 0xFFFFFFFF) as u32; }
-        if (index == 2) { return ((array >> 40) & 0xFFFFFFFF) as u32; }
-        if (index == 3) { return ((array >> 32) & 0xFFFFFFFF) as u32; }
-        if (index == 4) { return ((array >> 24) & 0xFFFFFFFF) as u32; }
-        if (index == 5) { return ((array >> 16) & 0xFFFFFFFF) as u32; }
-        if (index == 6) { return ((array >> 8) & 0xFFFFFFFF) as u32; }
-        return (array & 0xFFFFFFFF) as u32;
+    fn get_vote(array: [u32; 8], index: u32) -> u32 {
+        if (index < 8) {
+            return array[index];
+        }
+        return 0;
     }
 
     // Count votes for a proposal
-    fn count_votes(vote_array: u64, proposal_id: u32) -> (u32, u32, u32) {
+    fn count_votes(vote_array: [u32; 8], proposal_id: u32) -> (u32, u32, u32) {
         let yes_count = 0;
         let no_count = 0;
         let abstain_count = 0;
@@ -150,47 +143,49 @@ module SwarmCoordinator {
         return (yes_count > no_count);
     }
 
-    // Calculate consensus value (average of proposals)
-    fn calculate_consensus_value(vote_array: u64, proposal_id: u32) -> u32 {
+    // Calculate consensus value (average of proposals). The array holds
+    // PROPOSAL records: filter by the node field (the old code read them
+    // through vote-record accessors) and skip empty slots (timestamp 0).
+    fn calculate_consensus_value(vote_array: [u32; 8], proposal_id: u32) -> u32 {
         let sum = 0;
         let count = 0;
         
-        if (get_vote_proposal_id(get_vote(vote_array, 0)) == proposal_id) {
+        if (get_proposal_node(get_vote(vote_array, 0)) == proposal_id && get_proposal_timestamp(get_vote(vote_array, 0)) != 0) {
             sum = sum + get_proposal_value(get_vote(vote_array, 0));
             count = count + 1;
         }
         
-        if (get_vote_proposal_id(get_vote(vote_array, 1)) == proposal_id) {
+        if (get_proposal_node(get_vote(vote_array, 1)) == proposal_id && get_proposal_timestamp(get_vote(vote_array, 1)) != 0) {
             sum = sum + get_proposal_value(get_vote(vote_array, 1));
             count = count + 1;
         }
         
-        if (get_vote_proposal_id(get_vote(vote_array, 2)) == proposal_id) {
+        if (get_proposal_node(get_vote(vote_array, 2)) == proposal_id && get_proposal_timestamp(get_vote(vote_array, 2)) != 0) {
             sum = sum + get_proposal_value(get_vote(vote_array, 2));
             count = count + 1;
         }
         
-        if (get_vote_proposal_id(get_vote(vote_array, 3)) == proposal_id) {
+        if (get_proposal_node(get_vote(vote_array, 3)) == proposal_id && get_proposal_timestamp(get_vote(vote_array, 3)) != 0) {
             sum = sum + get_proposal_value(get_vote(vote_array, 3));
             count = count + 1;
         }
         
-        if (get_vote_proposal_id(get_vote(vote_array, 4)) == proposal_id) {
+        if (get_proposal_node(get_vote(vote_array, 4)) == proposal_id && get_proposal_timestamp(get_vote(vote_array, 4)) != 0) {
             sum = sum + get_proposal_value(get_vote(vote_array, 4));
             count = count + 1;
         }
         
-        if (get_vote_proposal_id(get_vote(vote_array, 5)) == proposal_id) {
+        if (get_proposal_node(get_vote(vote_array, 5)) == proposal_id && get_proposal_timestamp(get_vote(vote_array, 5)) != 0) {
             sum = sum + get_proposal_value(get_vote(vote_array, 5));
             count = count + 1;
         }
         
-        if (get_vote_proposal_id(get_vote(vote_array, 6)) == proposal_id) {
+        if (get_proposal_node(get_vote(vote_array, 6)) == proposal_id && get_proposal_timestamp(get_vote(vote_array, 6)) != 0) {
             sum = sum + get_proposal_value(get_vote(vote_array, 6));
             count = count + 1;
         }
         
-        if (get_vote_proposal_id(get_vote(vote_array, 7)) == proposal_id) {
+        if (get_proposal_node(get_vote(vote_array, 7)) == proposal_id && get_proposal_timestamp(get_vote(vote_array, 7)) != 0) {
             sum = sum + get_proposal_value(get_vote(vote_array, 7));
             count = count + 1;
         }

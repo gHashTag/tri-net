@@ -37,15 +37,15 @@ uint32_t get_primary_path(uint32_t state);
 uint32_t get_backup_path(uint32_t state);
 uint32_t get_metric_type(uint32_t state);
 uint32_t get_last_update(uint32_t state);
-uint64_t create_path_metrics_array(uint32_t m0, uint32_t m1, uint32_t m2, uint32_t m3);
-uint32_t get_path_metrics(uint64_t array, uint32_t index);
+uint32_t* create_path_metrics_array(uint32_t m0, uint32_t m1, uint32_t m2, uint32_t m3);
+uint32_t get_path_metrics(uint32_t* array, uint32_t index);
 uint32_t calculate_score(uint32_t metrics, uint32_t metric_type);
-uint32_t find_best_path(uint64_t metrics_array, uint32_t metric_type);
+uint32_t find_best_path(uint32_t* metrics_array, uint32_t metric_type);
 bool needs_update(uint32_t state, uint32_t current_time);
 uint32_t update_selection(uint32_t state, uint32_t primary, uint32_t backup, uint32_t current_time);
 uint32_t change_metric_type(uint32_t state, uint32_t new_metric);
 bool is_path_congested(uint32_t metrics);
-uint32_t find_least_congested(uint64_t metrics_array);
+uint32_t find_least_congested(uint32_t* metrics_array);
 
 /* -------------------------------------------------------
    Function implementations
@@ -91,21 +91,15 @@ uint32_t get_last_update(uint32_t state) {
     return (state & 0xFFFFFF);
 }
 
-uint64_t create_path_metrics_array(uint32_t m0, uint32_t m1, uint32_t m2, uint32_t m3) {
-    return ((((((uint64_t)(m0)) << 48) | (((uint64_t)(m1)) << 32)) | (((uint64_t)(m2)) << 16)) | ((uint64_t)(m3)));
+uint32_t* create_path_metrics_array(uint32_t m0, uint32_t m1, uint32_t m2, uint32_t m3) {
+    return { m0, m1, m2, m3 };
 }
 
-uint32_t get_path_metrics(uint64_t array, uint32_t index) {
-    if ((index == 0)) {
-        return ((uint32_t)(((array >> 48) & 0xFFFFFFFF)));
+uint32_t get_path_metrics(uint32_t* array, uint32_t index) {
+    if ((index < 4)) {
+        return array[index];
     }
-    if ((index == 1)) {
-        return ((uint32_t)(((array >> 32) & 0xFFFFFFFF)));
-    }
-    if ((index == 2)) {
-        return ((uint32_t)(((array >> 16) & 0xFFFFFFFF)));
-    }
-    return ((uint32_t)((array & 0xFFFFFFFF)));
+    return 0;
 }
 
 uint32_t calculate_score(uint32_t metrics, uint32_t metric_type) {
@@ -127,7 +121,7 @@ uint32_t calculate_score(uint32_t metrics, uint32_t metric_type) {
     return 0;
 }
 
-uint32_t find_best_path(uint64_t metrics_array, uint32_t metric_type) {
+uint32_t find_best_path(uint32_t* metrics_array, uint32_t metric_type) {
     int best_path = 0xFF;
     int best_score = 0;
     if ((calculate_score(get_path_metrics(metrics_array, 0), metric_type) > best_score)) {
@@ -171,7 +165,7 @@ bool is_path_congested(uint32_t metrics) {
     return (get_load(metrics) > 80);
 }
 
-uint32_t find_least_congested(uint64_t metrics_array) {
+uint32_t find_least_congested(uint32_t* metrics_array) {
     int best_path = 0;
     int best_load = get_load(get_path_metrics(metrics_array, 0));
     if ((get_load(get_path_metrics(metrics_array, 1)) < best_load)) {
