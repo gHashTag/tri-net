@@ -8,34 +8,18 @@ const std = @import("std");
 const PSK_SIZE: u32 = 16;
 const MD5_BLOCK_SIZE: u32 = 64;
 const CHACHA20_STATE_SIZE: u32 = 16;
-fn md5_process_block(block: u32, state: u32) struct { u32, u32 } {
-    const compressed = block ^ state;
-    return .{ (compressed >> 32) & 0xFFFFFFFF, compressed & 0xFFFFFFFF };
+fn md5_process_block(block: u64, state: u64) struct { u32, u32 } {
+    const compressed: u64 = block ^ state;
+    return .{ @as(u32, @intCast((compressed >> 32) & 0xFFFFFFFF)), @as(u32, @intCast(compressed & 0xFFFFFFFF)) };
 }
 fn md5_digest(hash1: u32, hash2: u32) u64 {
     return (@as(u64, @intCast(hash1)) << 32) | @as(u64, @intCast(hash2));
 }
 fn quarter_round(state: u32, input: u32) u32 {
-    const s0 = (state >> 96) & 0xFFFFFFFF;
-    const s1 = (state >> 64) & 0xFFFFFFFF;
-    const s2 = (state >> 32) & 0xFFFFFFFF;
-    const s3 = state & 0xFFFFFFFF;
-    const c0 = 0x61707865;
+    const c0: u32 = 0x61707865;
     _ = c0; // dead after const-inlining
-    const c1 = 0x3320646E;
-    _ = c1; // dead after const-inlining
-    const c2 = 0x79622D2E;
-    _ = c2; // dead after const-inlining
-    const c3 = 0x6B206574;
-    _ = c3; // dead after const-inlining
-    const new_s0 = (s0 + input) & 0xFFFFFFFF;
-    _ = new_s0; // dead after const-inlining
-    const new_s1 = (s1 + 0x61707865) & 0xFFFFFFFF;
-    _ = new_s1; // dead after const-inlining
-    const new_s2 = (s2 + 0x3320646E) & 0xFFFFFFFF;
-    _ = new_s2; // dead after const-inlining
-    const new_s3 = (s3 + 0x79622D2E) & 0xFFFFFFFF;
-    _ = new_s3; // dead after const-inlining
+    const mixed: u32 = (state +% input) ^ 0x61707865;
+    return mixed;
 }
 fn generate_psk(seed: u32) u32 {
     return seed & 0xFFFFFFFF;

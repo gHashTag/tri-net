@@ -57,11 +57,21 @@ fn extract_metrics_enabled(config: u32) u32 {
     return config & 0xFFFF;
 }
 fn create_checklist(power: bool, cooling: bool, network: bool, monitoring: bool) u32 {
-    _ = power; // unused by the spec body
-    _ = cooling; // unused by the spec body
-    _ = network; // unused by the spec body
-    _ = monitoring; // unused by the spec body
-    @compileError("not yet implemented");
+    var bits: u32 = 0;
+    _ = &bits;
+    if (power) {
+        bits = bits | 8;
+    }
+    if (cooling) {
+        bits = bits | 4;
+    }
+    if (network) {
+        bits = bits | 2;
+    }
+    if (monitoring) {
+        bits = bits | 1;
+    }
+    return bits;
 }
 fn checklist_power(checklist: u32) bool {
     return ((checklist >> 3) & 1) == 1;

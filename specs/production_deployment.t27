@@ -87,10 +87,12 @@ module ProductionDeployment {
 
     // Field deployment checklist
     fn create_checklist(power: bool, cooling: bool, network: bool, monitoring: bool) -> u32 {
-        return ((if power { 1u32 } else { 0u32 }) << 3) |
-               ((if cooling { 1u32 } else { 0u32 }) << 2) |
-               ((if network { 1u32 } else { 0u32 }) << 1) |
-               (if monitoring { 1u32 } else { 0u32 });
+        let bits: u32 = 0;
+        if (power) { bits = bits | 8; }
+        if (cooling) { bits = bits | 4; }
+        if (network) { bits = bits | 2; }
+        if (monitoring) { bits = bits | 1; }
+        return bits;
     }
 
     fn checklist_power(checklist: u32) -> bool {

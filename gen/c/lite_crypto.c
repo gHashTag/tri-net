@@ -31,7 +31,7 @@ typedef struct { uint32_t f0; uint32_t f1; } t27_tuple_uint32_t_uint32_t;
    Function prototypes
    ------------------------------------------------------- */
 
-t27_tuple_uint32_t_uint32_t md5_process_block(uint32_t block, uint32_t state);
+t27_tuple_uint32_t_uint32_t md5_process_block(uint64_t block, uint64_t state);
 uint64_t md5_digest(uint32_t hash1, uint32_t hash2);
 uint32_t quarter_round(uint32_t state, uint32_t input);
 uint32_t generate_psk(uint32_t seed);
@@ -42,9 +42,9 @@ bool verify_hmac(uint32_t key, uint32_t message, uint32_t received_mac);
    Function implementations
    ------------------------------------------------------- */
 
-t27_tuple_uint32_t_uint32_t md5_process_block(uint32_t block, uint32_t state) {
-    int compressed = (block ^ state);
-    return (t27_tuple_uint32_t_uint32_t){ ((compressed >> 32) & 0xFFFFFFFF), (compressed & 0xFFFFFFFF) };
+t27_tuple_uint32_t_uint32_t md5_process_block(uint64_t block, uint64_t state) {
+    uint64_t compressed = (block ^ state);
+    return (t27_tuple_uint32_t_uint32_t){ ((uint32_t)(((compressed >> 32) & 0xFFFFFFFF))), ((uint32_t)((compressed & 0xFFFFFFFF))) };
 }
 
 uint64_t md5_digest(uint32_t hash1, uint32_t hash2) {
@@ -52,18 +52,9 @@ uint64_t md5_digest(uint32_t hash1, uint32_t hash2) {
 }
 
 uint32_t quarter_round(uint32_t state, uint32_t input) {
-    int s0 = ((state >> 96) & 0xFFFFFFFF);
-    int s1 = ((state >> 64) & 0xFFFFFFFF);
-    int s2 = ((state >> 32) & 0xFFFFFFFF);
-    int s3 = (state & 0xFFFFFFFF);
-    int c0 = 0x61707865;
-    int c1 = 0x3320646E;
-    int c2 = 0x79622D2E;
-    int c3 = 0x6B206574;
-    int new_s0 = ((s0 + input) & 0xFFFFFFFF);
-    int new_s1 = ((s1 + c0) & 0xFFFFFFFF);
-    int new_s2 = ((s2 + c1) & 0xFFFFFFFF);
-    int new_s3 = ((s3 + c2) & 0xFFFFFFFF);
+    uint32_t c0 = 0x61707865;
+    uint32_t mixed = ((state + input) ^ c0);
+    return mixed;
 }
 
 uint32_t generate_psk(uint32_t seed) {
