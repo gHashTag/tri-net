@@ -77,7 +77,10 @@ pub fn reduce_consumption(state: u32, reduction: u32) -> u32 {
     let mode = get_power_mode(state);
     let current_consumption = get_consumption(state);
     let uptime = get_uptime(state);
-    let mut new_consumption = (current_consumption - reduction);
+    let mut new_consumption: u32 = 1;
+    if (reduction < current_consumption) {
+        new_consumption = (current_consumption - reduction);
+    }
     if (new_consumption < 1) {
         new_consumption = 1;
     }
@@ -89,8 +92,11 @@ pub fn drain_battery(state: u32, amount: u32) -> u32 {
     let mode = get_power_mode(state);
     let consumption = get_consumption(state);
     let uptime = get_uptime(state);
-    let mut new_battery = (battery - amount);
-    if (new_battery < 0) {
+    let mut new_battery: u32 = 0;
+    if (amount < battery) {
+        new_battery = (battery - amount);
+    }
+    if (new_battery < 1) {
         new_battery = 0;
     }
     return create_power_state(new_battery, mode, consumption, uptime);

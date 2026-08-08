@@ -138,7 +138,7 @@ pub fn dispute_slots_ok(open_count: u32) -> bool {
 }
 
 pub fn risk_after_open(risk: u32, reward: u32) -> u32 {
-    let sum: u32 = (risk + reward);
+    let sum: u32 = (risk).wrapping_add(reward);
     if (sum < risk) {
         return 0xFFFFFFFF;
     } else {
