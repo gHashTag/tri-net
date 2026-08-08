@@ -34,16 +34,14 @@ uint32_t create_pattern_storage(uint32_t samples, uint32_t pattern_count, uint32
 uint32_t get_pattern_samples(uint32_t storage);
 uint32_t get_pattern_count(uint32_t storage);
 uint32_t get_trend_direction(uint32_t storage);
-uint64_t create_sample_array(uint32_t s0, uint32_t s1, uint32_t s2, uint32_t s3, uint32_t s4, uint32_t s5, uint32_t s6, uint32_t s7, uint32_t s8, uint32_t s9, uint32_t s10, uint32_t s11, uint32_t s12, uint32_t s13, uint32_t s14, uint32_t s15);
-uint64_t get_sample_array_upper(uint64_t array);
-uint32_t get_sample_array_lower(uint64_t array);
-uint32_t get_sample_at(uint64_t array, uint32_t index);
-uint32_t calculate_moving_average(uint64_t array, uint32_t window);
-uint32_t detect_trend(uint64_t array, uint32_t samples);
-uint32_t predict_next_value(uint64_t array, uint32_t samples);
-uint32_t is_anomalous(uint64_t array, uint32_t samples, uint32_t current_value);
-uint32_t detect_repeating_pattern(uint64_t array, uint32_t samples);
-uint32_t calculate_variance(uint64_t array, uint32_t samples);
+uint32_t* create_sample_array(uint32_t s0, uint32_t s1, uint32_t s2, uint32_t s3, uint32_t s4, uint32_t s5, uint32_t s6, uint32_t s7, uint32_t s8, uint32_t s9, uint32_t s10, uint32_t s11, uint32_t s12, uint32_t s13, uint32_t s14, uint32_t s15);
+uint32_t get_sample_at(uint32_t* array, uint32_t index);
+uint32_t calculate_moving_average(uint32_t* array, uint32_t window);
+uint32_t detect_trend(uint32_t* array, uint32_t samples);
+uint32_t predict_next_value(uint32_t* array, uint32_t samples);
+uint32_t is_anomalous(uint32_t* array, uint32_t samples, uint32_t current_value);
+uint32_t detect_repeating_pattern(uint32_t* array, uint32_t samples);
+uint32_t calculate_variance(uint32_t* array, uint32_t samples);
 
 /* -------------------------------------------------------
    Function implementations
@@ -85,29 +83,18 @@ uint32_t get_trend_direction(uint32_t storage) {
     return (storage & 0x3);
 }
 
-uint64_t create_sample_array(uint32_t s0, uint32_t s1, uint32_t s2, uint32_t s3, uint32_t s4, uint32_t s5, uint32_t s6, uint32_t s7, uint32_t s8, uint32_t s9, uint32_t s10, uint32_t s11, uint32_t s12, uint32_t s13, uint32_t s14, uint32_t s15) {
-    return ((((((((((uint64_t)(s0)) << 56) | (((uint64_t)(s1)) << 48)) | (((uint64_t)(s2)) << 40)) | (((uint64_t)(s3)) << 32)) | (((uint64_t)(s4)) << 24)) | (((uint64_t)(s5)) << 16)) | (((uint64_t)(s6)) << 8)) | ((uint64_t)(s7)));
+uint32_t* create_sample_array(uint32_t s0, uint32_t s1, uint32_t s2, uint32_t s3, uint32_t s4, uint32_t s5, uint32_t s6, uint32_t s7, uint32_t s8, uint32_t s9, uint32_t s10, uint32_t s11, uint32_t s12, uint32_t s13, uint32_t s14, uint32_t s15) {
+    return { s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s14, s15 };
 }
 
-uint64_t get_sample_array_upper(uint64_t array) {
-    /* TODO: implement */
-}
-
-uint32_t get_sample_array_lower(uint64_t array) {
-    return (array & 0xFFFFFFFF);
-}
-
-uint32_t get_sample_at(uint64_t array, uint32_t index) {
-    if ((index < 8)) {
-        int lower = get_sample_array_lower(array);
-        return ((uint32_t)(((lower >> ((7 - index) * 8)) & 0xFF)));
-    } else {
-        int upper = get_sample_array_upper(array);
-        return ((uint32_t)(((upper >> ((15 - index) * 8)) & 0xFF)));
+uint32_t get_sample_at(uint32_t* array, uint32_t index) {
+    if ((index < 16)) {
+        return array[index];
     }
+    return 0;
 }
 
-uint32_t calculate_moving_average(uint64_t array, uint32_t window) {
+uint32_t calculate_moving_average(uint32_t* array, uint32_t window) {
     int sum = 0;
     int count = window;
     if ((count > 16)) {
@@ -138,7 +125,7 @@ uint32_t calculate_moving_average(uint64_t array, uint32_t window) {
     return (sum / count);
 }
 
-uint32_t detect_trend(uint64_t array, uint32_t samples) {
+uint32_t detect_trend(uint32_t* array, uint32_t samples) {
     if ((samples < 2)) {
         return 0;
     }
@@ -153,7 +140,7 @@ uint32_t detect_trend(uint64_t array, uint32_t samples) {
     }
 }
 
-uint32_t predict_next_value(uint64_t array, uint32_t samples) {
+uint32_t predict_next_value(uint32_t* array, uint32_t samples) {
     int trend = detect_trend(array, samples);
     int current = get_sample_value(get_sample_at(array, (samples - 1)));
     if ((trend == 1)) {
@@ -169,7 +156,7 @@ uint32_t predict_next_value(uint64_t array, uint32_t samples) {
     }
 }
 
-uint32_t is_anomalous(uint64_t array, uint32_t samples, uint32_t current_value) {
+uint32_t is_anomalous(uint32_t* array, uint32_t samples, uint32_t current_value) {
     int predicted = predict_next_value(array, samples);
     if ((predicted > current_value)) {
         return (predicted - current_value);
@@ -178,7 +165,7 @@ uint32_t is_anomalous(uint64_t array, uint32_t samples, uint32_t current_value) 
     }
 }
 
-uint32_t detect_repeating_pattern(uint64_t array, uint32_t samples) {
+uint32_t detect_repeating_pattern(uint32_t* array, uint32_t samples) {
     if ((samples < 4)) {
         return 0;
     }
@@ -199,26 +186,50 @@ uint32_t detect_repeating_pattern(uint64_t array, uint32_t samples) {
     return 0;
 }
 
-uint32_t calculate_variance(uint64_t array, uint32_t samples) {
+uint32_t calculate_variance(uint32_t* array, uint32_t samples) {
     if ((samples < 2)) {
         return 0;
     }
     int avg = calculate_moving_average(array, samples);
     int sum_sq_diff = 0;
     if ((samples >= 1)) {
-        int diff = (get_sample_value(get_sample_at(array, 0)) - avg);
+        uint32_t v0 = get_sample_value(get_sample_at(array, 0));
+        uint32_t diff = 0;
+        if ((v0 >= avg)) {
+            diff = (v0 - avg);
+        } else {
+            diff = (avg - v0);
+        }
         sum_sq_diff = (sum_sq_diff + (diff * diff));
     }
     if ((samples >= 2)) {
-        int diff = (get_sample_value(get_sample_at(array, 1)) - avg);
+        uint32_t v1 = get_sample_value(get_sample_at(array, 1));
+        uint32_t diff = 0;
+        if ((v1 >= avg)) {
+            diff = (v1 - avg);
+        } else {
+            diff = (avg - v1);
+        }
         sum_sq_diff = (sum_sq_diff + (diff * diff));
     }
     if ((samples >= 3)) {
-        int diff = (get_sample_value(get_sample_at(array, 2)) - avg);
+        uint32_t v2 = get_sample_value(get_sample_at(array, 2));
+        uint32_t diff = 0;
+        if ((v2 >= avg)) {
+            diff = (v2 - avg);
+        } else {
+            diff = (avg - v2);
+        }
         sum_sq_diff = (sum_sq_diff + (diff * diff));
     }
     if ((samples >= 4)) {
-        int diff = (get_sample_value(get_sample_at(array, 3)) - avg);
+        uint32_t v3 = get_sample_value(get_sample_at(array, 3));
+        uint32_t diff = 0;
+        if ((v3 >= avg)) {
+            diff = (v3 - avg);
+        } else {
+            diff = (avg - v3);
+        }
         sum_sq_diff = (sum_sq_diff + (diff * diff));
     }
     if ((samples < 2)) {

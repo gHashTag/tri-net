@@ -75,7 +75,22 @@ pub fn extract_metrics_enabled(config: u32) -> u32 {
     return (config & 0xFFFF);
 }
 
-pub fn create_checklist(power: bool, cooling: bool, network: bool, monitoring: bool) -> u32 { unimplemented!() }
+pub fn create_checklist(power: bool, cooling: bool, network: bool, monitoring: bool) -> u32 {
+    let mut bits: u32 = 0;
+    if power {
+        bits = (bits | 8);
+    }
+    if cooling {
+        bits = (bits | 4);
+    }
+    if network {
+        bits = (bits | 2);
+    }
+    if monitoring {
+        bits = (bits | 1);
+    }
+    return bits;
+}
 
 pub fn checklist_power(checklist: u32) -> bool {
     return (((checklist >> 3) & 1) == 1);

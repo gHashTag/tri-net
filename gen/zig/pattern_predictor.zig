@@ -35,34 +35,16 @@ fn get_pattern_count(storage: u32) u32 {
 fn get_trend_direction(storage: u32) u32 {
     return storage & 0x3;
 }
-fn create_sample_array(s0: u32, s1: u32, s2: u32, s3: u32, s4: u32, s5: u32, s6: u32, s7: u32, s8: u32, s9: u32, s10: u32, s11: u32, s12: u32, s13: u32, s14: u32, s15: u32) u64 {
-    _ = s8; // unused by the spec body
-    _ = s9; // unused by the spec body
-    _ = s10; // unused by the spec body
-    _ = s11; // unused by the spec body
-    _ = s12; // unused by the spec body
-    _ = s13; // unused by the spec body
-    _ = s14; // unused by the spec body
-    _ = s15; // unused by the spec body
-    return (((((((@as(u64, @intCast(s0)) << 56) | (@as(u64, @intCast(s1)) << 48)) | (@as(u64, @intCast(s2)) << 40)) | (@as(u64, @intCast(s3)) << 32)) | (@as(u64, @intCast(s4)) << 24)) | (@as(u64, @intCast(s5)) << 16)) | (@as(u64, @intCast(s6)) << 8)) | @as(u64, @intCast(s7));
+fn create_sample_array(s0: u32, s1: u32, s2: u32, s3: u32, s4: u32, s5: u32, s6: u32, s7: u32, s8: u32, s9: u32, s10: u32, s11: u32, s12: u32, s13: u32, s14: u32, s15: u32) [16]u32 {
+    return .{ s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s14, s15 };
 }
-fn get_sample_array_upper(array: u64) u64 {
-    _ = array; // unused by the spec body
-    @compileError("not yet implemented");
-}
-fn get_sample_array_lower(array: u64) u32 {
-    return array & 0xFFFFFFFF;
-}
-fn get_sample_at(array: u64, index: u32) u32 {
-    if (index < 8) {
-        const lower = get_sample_array_lower(array);
-        return @as(u32, @intCast((lower >> @intCast((7 - index) * 8)) & 0xFF));
-    } else {
-        const upper = get_sample_array_upper(array);
-        return @as(u32, @intCast((upper >> @intCast((15 - index) * 8)) & 0xFF));
+fn get_sample_at(array: [16]u32, index: u32) u32 {
+    if (index < 16) {
+        return array[index];
     }
+    return 0;
 }
-fn calculate_moving_average(array: u64, window: u32) u32 {
+fn calculate_moving_average(array: [16]u32, window: u32) u32 {
     var sum: u32 = 0;
     _ = &sum;
     var count = window;
@@ -94,7 +76,7 @@ fn calculate_moving_average(array: u64, window: u32) u32 {
     }
     return sum / count;
 }
-fn detect_trend(array: u64, samples: u32) u32 {
+fn detect_trend(array: [16]u32, samples: u32) u32 {
     if (samples < 2) {
         return 0;
     }
@@ -108,7 +90,7 @@ fn detect_trend(array: u64, samples: u32) u32 {
         return 0;
     }
 }
-fn predict_next_value(array: u64, samples: u32) u32 {
+fn predict_next_value(array: [16]u32, samples: u32) u32 {
     const trend = detect_trend(array, samples);
     const current = get_sample_value(get_sample_at(array, samples - 1));
     if (trend == 1) {
@@ -124,7 +106,7 @@ fn predict_next_value(array: u64, samples: u32) u32 {
         return current;
     }
 }
-fn is_anomalous(array: u64, samples: u32, current_value: u32) u32 {
+fn is_anomalous(array: [16]u32, samples: u32, current_value: u32) u32 {
     const predicted = predict_next_value(array, samples);
     if (predicted > current_value) {
         return predicted - current_value;
@@ -132,7 +114,7 @@ fn is_anomalous(array: u64, samples: u32, current_value: u32) u32 {
         return current_value - predicted;
     }
 }
-fn detect_repeating_pattern(array: u64, samples: u32) u32 {
+fn detect_repeating_pattern(array: [16]u32, samples: u32) u32 {
     if (samples < 4) {
         return 0;
     }
@@ -152,7 +134,7 @@ fn detect_repeating_pattern(array: u64, samples: u32) u32 {
     }
     return 0;
 }
-fn calculate_variance(array: u64, samples: u32) u32 {
+fn calculate_variance(array: [16]u32, samples: u32) u32 {
     if (samples < 2) {
         return 0;
     }
@@ -160,19 +142,47 @@ fn calculate_variance(array: u64, samples: u32) u32 {
     var sum_sq_diff: u32 = 0;
     _ = &sum_sq_diff;
     if (samples >= 1) {
-        const diff = get_sample_value(get_sample_at(array, 0)) - avg;
+        const v0: u32 = get_sample_value(get_sample_at(array, 0));
+        var diff: u32 = 0;
+        _ = &diff;
+        if (v0 >= avg) {
+            diff = v0 - avg;
+        } else {
+            diff = avg - v0;
+        }
         sum_sq_diff = sum_sq_diff + (diff * diff);
     }
     if (samples >= 2) {
-        const diff = get_sample_value(get_sample_at(array, 1)) - avg;
+        const v1: u32 = get_sample_value(get_sample_at(array, 1));
+        var diff: u32 = 0;
+        _ = &diff;
+        if (v1 >= avg) {
+            diff = v1 - avg;
+        } else {
+            diff = avg - v1;
+        }
         sum_sq_diff = sum_sq_diff + (diff * diff);
     }
     if (samples >= 3) {
-        const diff = get_sample_value(get_sample_at(array, 2)) - avg;
+        const v2: u32 = get_sample_value(get_sample_at(array, 2));
+        var diff: u32 = 0;
+        _ = &diff;
+        if (v2 >= avg) {
+            diff = v2 - avg;
+        } else {
+            diff = avg - v2;
+        }
         sum_sq_diff = sum_sq_diff + (diff * diff);
     }
     if (samples >= 4) {
-        const diff = get_sample_value(get_sample_at(array, 3)) - avg;
+        const v3: u32 = get_sample_value(get_sample_at(array, 3));
+        var diff: u32 = 0;
+        _ = &diff;
+        if (v3 >= avg) {
+            diff = v3 - avg;
+        } else {
+            diff = avg - v3;
+        }
         sum_sq_diff = sum_sq_diff + (diff * diff);
     }
     if (samples < 2) {

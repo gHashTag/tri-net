@@ -113,7 +113,20 @@ uint32_t extract_metrics_enabled(uint32_t config) {
 }
 
 uint32_t create_checklist(bool power, bool cooling, bool network, bool monitoring) {
-    /* TODO: implement */
+    uint32_t bits = 0;
+    if (power) {
+        bits = (bits | 8);
+    }
+    if (cooling) {
+        bits = (bits | 4);
+    }
+    if (network) {
+        bits = (bits | 2);
+    }
+    if (monitoring) {
+        bits = (bits | 1);
+    }
+    return bits;
 }
 
 bool checklist_power(uint32_t checklist) {
