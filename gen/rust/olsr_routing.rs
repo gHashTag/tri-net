@@ -5,48 +5,35 @@ pub const MAX_NEIGHBORS: u32 = 4;
 
 pub const VALID_TIMEOUT: u32 = 6000;
 
+pub const NO_NEIGHBOR: u32 = 0xFF;
+
+pub const NO_SLOT: u32 = 0xFF;
+
 pub fn create_neighbor(id: u32, quality: u32, last_seen: u32) -> u32 {
-    return ((((id & 0xFF) << 56) | ((quality & 0xFFFF) << 32)) | (last_seen & 0xFFFFFFFF));
+    return ((((id & 0xFF) << 24) | ((quality & 0xFF) << 16)) | (last_seen & 0xFFFF));
 }
 
 pub fn get_id(entry: u32) -> u32 {
-    return ((entry >> 56) & 0xFF);
+    return ((entry >> 24) & 0xFF);
 }
 
 pub fn get_quality(entry: u32) -> u32 {
-    return ((entry >> 32) & 0xFFFF);
+    return ((entry >> 16) & 0xFF);
 }
 
 pub fn get_last_seen(entry: u32) -> u32 {
-    return (entry & 0xFFFFFFFF);
+    return (entry & 0xFFFF);
 }
 
 pub fn is_valid(entry: u32, time: u32) -> bool {
     return ((time - get_last_seen(entry)) < VALID_TIMEOUT);
 }
 
-pub fn create_table(n0: u32, n1: u32, n2: u32, n3: u32) -> u32 {
-    return (((((n0 & 0xFFFFFFFFFFFFFFFF) << 192) | ((n1 & 0xFFFFFFFFFFFFFFFF) << 128)) | ((n2 & 0xFFFFFFFFFFFFFFFF) << 64)) | (n3 & 0xFFFFFFFFFFFFFFFF));
+pub fn get_id_at(table: [u32; 4], index: u32) -> u32 {
+    return get_id(table[((index as usize)) as usize]);
 }
 
-pub fn get_entry(table: u32, index: u32) -> u32 {
-    if (index == 0) {
-        return (table & 0xFFFFFFFFFFFFFFFF);
-    }
-    if (index == 1) {
-        return ((table >> 128) & 0xFFFFFFFFFFFFFFFF);
-    }
-    if (index == 2) {
-        return ((table >> 64) & 0xFFFFFFFFFFFFFFFF);
-    }
-    return ((table >> 192) & 0xFFFFFFFFFFFFFFFF);
-}
-
-pub fn get_id_at(table: u32, index: u32) -> u32 {
-    return get_id(get_entry(table, index));
-}
-
-pub fn find_index(table: u32, target_id: u32) -> u32 {
+pub fn find_index(table: [u32; 4], target_id: u32) -> u32 {
     if (get_id_at(table, 0) == target_id) {
         return 0;
     }
@@ -59,57 +46,67 @@ pub fn find_index(table: u32, target_id: u32) -> u32 {
     if (get_id_at(table, 3) == target_id) {
         return 3;
     }
-    return 0xFF;
+    return NO_SLOT;
 }
 
-pub fn set_entry(table: u32, index: u32, new_entry: u32) -> u32 {
-    if (index == 0) {
-        return ((((table & 0xFFFFFFFFFFFFFFFF0000000000000000) as u64) | ((new_entry as u64) << 192))) as u32;
+pub fn slot_for_update(table: [u32; 4], id: u32) -> u32 {
+    if (find_index(table, id) != NO_SLOT) {
+        return find_index(table, id);
+    }
+    if (get_id_at(table, 0) == NO_NEIGHBOR) {
+        return 0;
+    }
+    if (get_id_at(table, 1) == NO_NEIGHBOR) {
+        return 1;
+    }
+    if (get_id_at(table, 2) == NO_NEIGHBOR) {
+        return 2;
+    }
+    if (get_id_at(table, 3) == NO_NEIGHBOR) {
+        return 3;
+    }
+    return NO_SLOT;
+}
+
+pub fn best_of_two(a: u32, b: u32) -> u32 {
+    if (get_quality(a) >= get_quality(b)) {
+        return a;
     } else {
-        if (index == 1) {
-            return ((((table & 0xFFFFFFFFFFFFFFFF0000000000000000) as u64) | ((new_entry as u64) << 128))) as u32;
-        } else {
-            if (index == 2) {
-                return ((((table & 0xFFFFFFFFFFFFFFFF0000000000000000) as u64) | ((new_entry as u64) << 64))) as u32;
-            } else {
-                return (table & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF);
-            }
-        }
+        return b;
     }
 }
 
-pub fn update_or_add(table: u32, id: u32, quality: u32, time: u32) -> u32 {
-    if (find_index(table, id) < 4) {
-        return set_entry(table, find_index(table, id), create_neighbor(id, quality, time));
+pub fn get_best_neighbor(table: [u32; 4]) -> u32 {
+    return get_id(best_of_two(best_of_two(table[0], table[1]), best_of_two(table[2], table[3])));
+}
+
+pub fn mask_if_id(entry: u32, best_id: u32) -> u32 {
+    if (get_id(entry) == best_id) {
+        return 0;
     } else {
-        if (get_id_at(table, 0) == 0xFF) {
-            return set_entry(table, 0, create_neighbor(id, quality, time));
-        } else {
-            if (get_id_at(table, 1) == 0xFF) {
-                return set_entry(table, 1, create_neighbor(id, quality, time));
-            } else {
-                return table;
-            }
-        }
+        return entry;
     }
 }
 
-pub fn get_best_neighbor(table: u32) -> u32 { unimplemented!() }
-
-pub fn get_second_best(table: u32, best_id: u32) -> u32 {
-    if (best_id == get_id(get_entry(table, 0))) {
-    } else {
-        if (best_id == get_id(get_entry(table, 1))) {
-        } else {
-        }
-    }
+pub fn get_second_best(table: [u32; 4], best_id: u32) -> u32 {
+    return get_id(best_of_two(best_of_two(mask_if_id(table[0], best_id), mask_if_id(table[1], best_id)), best_of_two(mask_if_id(table[2], best_id), mask_if_id(table[3], best_id))));
 }
 
-pub fn select_mprs(table: u32) -> u32 {
-    let best = get_best_neighbor(table);
-    let second = get_second_best(table, best);
+pub fn select_mprs(table: [u32; 4]) -> u32 {
+    let best: u32 = get_best_neighbor(table);
+    let second: u32 = get_second_best(table, best);
     return (((best & 0xFF) << 8) | (second & 0xFF));
 }
 
-pub fn count_neighbors(table: u32) -> u32 { unimplemented!() }
+pub fn one_if_present(entry: u32) -> u32 {
+    if (get_id(entry) != NO_NEIGHBOR) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+pub fn count_neighbors(table: [u32; 4]) -> u32 {
+    return (((one_if_present(table[0]) + one_if_present(table[1])) + one_if_present(table[2])) + one_if_present(table[3]));
+}
 

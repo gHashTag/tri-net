@@ -39,9 +39,32 @@ const PARAM_HELLO_INTERVAL: u32 = 4;
 const PARAM_ROUTE_TIMEOUT: u32 = 5;
 const PARAM_QOS_ENABLED: u32 = 6;
 const PARAM_SECURITY_LEVEL: u32 = 7;
-fn create_default_config() [MAX_PARAMS]u32 {
-    const config: [MAX_PARAMS]u32 = .{ create_config_param(PARAM_TX_POWER,50,SCOPE_NODE,STATUS_PENDING), create_config_param(PARAM_CHANNEL,0,SCOPE_LINK,STATUS_PENDING), create_config_param(PARAM_DATA_RATE,2,SCOPE_LINK,STATUS_PENDING), create_config_param(PARAM_RETRY_LIMIT,3,SCOPE_NETWORK,STATUS_PENDING), create_config_param(PARAM_HELLO_INTERVAL,2000,SCOPE_NETWORK,STATUS_PENDING), create_config_param(PARAM_ROUTE_TIMEOUT,10000,SCOPE_NETWORK,STATUS_PENDING), create_config_param(PARAM_QOS_ENABLED,1,SCOPE_GLOBAL,STATUS_PENDING), create_config_param(PARAM_SECURITY_LEVEL,2,SCOPE_GLOBAL,STATUS_PENDING), 0, 0, 0, 0, 0, 0, 0, 0 };
-    return config;
+fn default_config_at(index: u32) u32 {
+    if (index == 0) {
+        return create_config_param(PARAM_TX_POWER, 50, SCOPE_NODE, STATUS_PENDING);
+    }
+    if (index == 1) {
+        return create_config_param(PARAM_CHANNEL, 0, SCOPE_LINK, STATUS_PENDING);
+    }
+    if (index == 2) {
+        return create_config_param(PARAM_DATA_RATE, 2, SCOPE_LINK, STATUS_PENDING);
+    }
+    if (index == 3) {
+        return create_config_param(PARAM_RETRY_LIMIT, 3, SCOPE_NETWORK, STATUS_PENDING);
+    }
+    if (index == 4) {
+        return create_config_param(PARAM_HELLO_INTERVAL, 2000, SCOPE_NETWORK, STATUS_PENDING);
+    }
+    if (index == 5) {
+        return create_config_param(PARAM_ROUTE_TIMEOUT, 10000, SCOPE_NETWORK, STATUS_PENDING);
+    }
+    if (index == 6) {
+        return create_config_param(PARAM_QOS_ENABLED, 1, SCOPE_GLOBAL, STATUS_PENDING);
+    }
+    if (index == 7) {
+        return create_config_param(PARAM_SECURITY_LEVEL, 2, SCOPE_GLOBAL, STATUS_PENDING);
+    }
+    return 0;
 }
 fn get_config_value(config: [MAX_PARAMS]u32, param_id: u32) u32 {
     var i: u32 = 0;
@@ -71,7 +94,7 @@ fn set_config_value(config: [MAX_PARAMS]u32, param_id: u32, new_value: u32) u32 
     return 0;
 }
 fn discover_network_params(node_count: u32, interference_level: u32) u32 {
-    const config: [MAX_PARAMS]u32 = create_default_config();
+    const config: [MAX_PARAMS]u32 = .{ default_config_at(0), default_config_at(1), default_config_at(2), default_config_at(3), default_config_at(4), default_config_at(5), default_config_at(6), default_config_at(7), 0, 0, 0, 0, 0, 0, 0, 0 };
     var tx_power: u32 = 50;
     _ = &tx_power;
     if (node_count < 4) {
@@ -249,16 +272,8 @@ break;
     }
     return rolled_back;
 }
-fn create_backup(config: [MAX_PARAMS]u32) [MAX_PARAMS]u32 {
-    var backup: [MAX_PARAMS]u32 = undefined;
-    _ = &backup;
-    var i: u32 = 0;
-    _ = &i;
-    while (i < MAX_PARAMS) {
-        backup[i] = config[i];
-        i = i + 1;
-    }
-    return backup;
+fn backup_element(config: [MAX_PARAMS]u32, index: u32) u32 {
+    return config[@as(usize, @intCast(index))];
 }
 fn calculate_config_drift(config1: [MAX_PARAMS]u32, config2: [MAX_PARAMS]u32) u32 {
     var drift_count: u32 = 0;

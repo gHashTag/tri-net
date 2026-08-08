@@ -56,20 +56,19 @@ module auto_config {
     const PARAM_SECURITY_LEVEL: u32 = 7;
 
     // Create default configuration
-    fn create_default_config() -> [u32; MAX_PARAMS] {
-        let config: [u32; MAX_PARAMS] = [
-            create_config_param(PARAM_TX_POWER, 50, SCOPE_NODE, STATUS_PENDING),
-            create_config_param(PARAM_CHANNEL, 0, SCOPE_LINK, STATUS_PENDING),
-            create_config_param(PARAM_DATA_RATE, 2, SCOPE_LINK, STATUS_PENDING),
-            create_config_param(PARAM_RETRY_LIMIT, 3, SCOPE_NETWORK, STATUS_PENDING),
-            create_config_param(PARAM_HELLO_INTERVAL, 2000, SCOPE_NETWORK, STATUS_PENDING),
-            create_config_param(PARAM_ROUTE_TIMEOUT, 10000, SCOPE_NETWORK, STATUS_PENDING),
-            create_config_param(PARAM_QOS_ENABLED, 1, SCOPE_GLOBAL, STATUS_PENDING),
-            create_config_param(PARAM_SECURITY_LEVEL, 2, SCOPE_GLOBAL, STATUS_PENDING),
-            0, 0, 0, 0, 0, 0, 0, 0
-        ];
-        
-        return config;
+    // Per-index accessor: t27 functions cannot return arrays in every
+    // backend (C in particular), so callers build `[default_config_at(0),
+    // ..., default_config_at(15)]` where they need the whole table.
+    fn default_config_at(index: u32) -> u32 {
+        if (index == 0) { return create_config_param(PARAM_TX_POWER, 50, SCOPE_NODE, STATUS_PENDING); }
+        if (index == 1) { return create_config_param(PARAM_CHANNEL, 0, SCOPE_LINK, STATUS_PENDING); }
+        if (index == 2) { return create_config_param(PARAM_DATA_RATE, 2, SCOPE_LINK, STATUS_PENDING); }
+        if (index == 3) { return create_config_param(PARAM_RETRY_LIMIT, 3, SCOPE_NETWORK, STATUS_PENDING); }
+        if (index == 4) { return create_config_param(PARAM_HELLO_INTERVAL, 2000, SCOPE_NETWORK, STATUS_PENDING); }
+        if (index == 5) { return create_config_param(PARAM_ROUTE_TIMEOUT, 10000, SCOPE_NETWORK, STATUS_PENDING); }
+        if (index == 6) { return create_config_param(PARAM_QOS_ENABLED, 1, SCOPE_GLOBAL, STATUS_PENDING); }
+        if (index == 7) { return create_config_param(PARAM_SECURITY_LEVEL, 2, SCOPE_GLOBAL, STATUS_PENDING); }
+        return 0;
     }
 
     // Get configuration value
@@ -107,7 +106,11 @@ module auto_config {
 
     // Auto-discover network parameters
     fn discover_network_params(node_count: u32, interference_level: u32) -> u32 {
-        let config: [u32; MAX_PARAMS] = create_default_config();
+        let config: [u32; MAX_PARAMS] = [
+            default_config_at(0), default_config_at(1), default_config_at(2), default_config_at(3),
+            default_config_at(4), default_config_at(5), default_config_at(6), default_config_at(7),
+            0, 0, 0, 0, 0, 0, 0, 0
+        ];
         
         // Auto-configure TX power based on node count
         let tx_power: u32 = 50;
@@ -322,16 +325,10 @@ module auto_config {
     }
 
     // Create configuration backup
-    fn create_backup(config: [u32; MAX_PARAMS]) -> [u32; MAX_PARAMS] {
-        let backup: [u32; MAX_PARAMS];
-        let i: u32 = 0;
-        
-        while (i < MAX_PARAMS) {
-            backup[i] = config[i];
-            i = i + 1;
-        }
-        
-        return backup;
+    // Backup is an element-wise copy; with array returns off the table the
+    // spec exposes the per-element view (callers rebuild the array literal).
+    fn backup_element(config: [u32; MAX_PARAMS], index: u32) -> u32 {
+        return config[index as usize];
     }
 
     // Calculate configuration drift
