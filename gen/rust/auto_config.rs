@@ -10,7 +10,7 @@ pub const CONFIG_VERSION: u32 = 1;
 pub const AUTO_DISCOVERY_INTERVAL: u32 = 1000;
 
 pub fn create_config_param(param_id: u32, value: u32, scope: u32, status: u32) -> u32 {
-    return (((((param_id & 0xFF) << 24) | ((value & 0xFF) << 16)) | ((scope & 0xF) << 12)) | (status & 0xFFF));
+    return (((((param_id & 0xFF) << 24) | ((value & 0xFFFF) << 8)) | ((scope & 0xF) << 4)) | (status & 0xF));
 }
 
 pub fn get_param_id(param: u32) -> u32 {
@@ -18,15 +18,15 @@ pub fn get_param_id(param: u32) -> u32 {
 }
 
 pub fn get_param_value(param: u32) -> u32 {
-    return ((param >> 16) & 0xFF);
+    return ((param >> 8) & 0xFFFF);
 }
 
 pub fn get_param_scope(param: u32) -> u32 {
-    return ((param >> 12) & 0xF);
+    return ((param >> 4) & 0xF);
 }
 
 pub fn get_param_status(param: u32) -> u32 {
-    return (param & 0xFFF);
+    return (param & 0xF);
 }
 
 pub const SCOPE_NODE: u32 = 0;
@@ -353,13 +353,13 @@ pub fn discover_neighbors(node_id: u32, scan_count: u32) -> u32 {
 
 pub fn assign_node_role(node_id: u32, capabilities: u32) -> u32 {
     let mut role: u32 = 0;
-    if ((capabilities & 0x1)) != 0 {
+    if ((capabilities & 0x1) != 0) {
         role = 1;
     } else {
-        if ((capabilities & 0x2)) != 0 {
+        if ((capabilities & 0x2) != 0) {
             role = 2;
         } else {
-            if ((capabilities & 0x4)) != 0 {
+            if ((capabilities & 0x4) != 0) {
                 role = 3;
             }
         }

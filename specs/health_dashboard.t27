@@ -85,14 +85,15 @@ module health_dashboard {
             
             // Convert metric to health score (higher is better)
             if (metric_type == METRIC_CPU || metric_type == METRIC_MEMORY) {
-                // For CPU/memory, lower is better
-                metric_score = 100 - value;
+                // For CPU/memory, lower is better. The 8-bit field can carry
+                // values above 100: saturate at 0 instead of wrapping.
+                if (value < 100) { metric_score = 100 - value; } else { metric_score = 0; }
             } else if (metric_type == METRIC_BANDWIDTH || metric_type == METRIC_LINK_QUALITY) {
                 // For bandwidth/quality, higher is better
                 metric_score = value;
             } else if (metric_type == METRIC_LATENCY || metric_type == METRIC_PACKET_LOSS || metric_type == METRIC_ERROR_RATE) {
-                // For latency/loss/errors, lower is better
-                metric_score = 100 - value;
+                // For latency/loss/errors, lower is better (same saturation)
+                if (value < 100) { metric_score = 100 - value; } else { metric_score = 0; }
             } else if (metric_type == METRIC_BATTERY) {
                 // For battery, higher is better
                 metric_score = value;
@@ -345,5 +346,41 @@ module health_dashboard {
         } else {
             return 100;
         }
+    }
+
+    // ---- Tests ----
+
+    test health_metric_roundtrip {
+        m = create_health_metric(4, METRIC_LATENCY, 35, 200);
+        assert(get_health_node_id(m) == 4, "node id");
+        assert(get_health_metric_type(m) == METRIC_LATENCY, "metric type");
+        assert(get_health_value(m) == 35, "value");
+        assert(get_health_timestamp(m) == 200, "timestamp");
+    }
+
+    test node_health_mixes_metric_polarity {
+        // CPU 20 -> 80, bandwidth 90 -> 90, latency 30 -> 70: mean 80.
+        let ms: [u32; 16] = [
+            create_health_metric(1, METRIC_CPU, 20, 0),
+            create_health_metric(1, METRIC_BANDWIDTH, 90, 1),
+            create_health_metric(1, METRIC_LATENCY, 30, 2),
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        ];
+        assert(calculate_node_health(ms, 3) == 80, "polarity-aware mean");
+    }
+
+    test node_health_saturates_out_of_range {
+        // Latency 200 exceeds the percent scale: contributes 0, not a wrap.
+        let ms: [u32; 16] = [
+            create_health_metric(1, METRIC_LATENCY, 200, 0),
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        ];
+        assert(calculate_node_health(ms, 1) == 0, "out-of-range metric floors at 0");
+    }
+
+    test network_health_average {
+        let nodes: [u32; 8] = [90, 70, 80, 0, 0, 0, 0, 0];
+        assert(calculate_network_health(nodes, 3) == 80, "network mean");
+        assert(calculate_network_health(nodes, 0) == 100, "no nodes is healthy");
     }
 }

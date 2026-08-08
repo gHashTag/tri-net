@@ -84,8 +84,11 @@ module compression_engine {
         let pos: u32 = 0;
         
         while (pos < 32) {
-            let count: u32 = (compressed >> pos) & 0xF;
-            let value: u32 = (compressed >> (pos + 4)) & 0xF;
+            // compress_rle stores (count << 4) | value: the VALUE is the low
+            // nibble. The old reader swapped them, so a roundtrip emitted
+            // "value" copies of the count.
+            let value: u32 = (compressed >> pos) & 0xF;
+            let count: u32 = (compressed >> (pos + 4)) & 0xF;
             
             let i: u32 = 0;
             while (i < count && i < 8) {
@@ -316,5 +319,28 @@ module compression_engine {
         } else {
             return 0;
         }
+    }
+
+    // ---- Tests ----
+
+    test block_info_roundtrip {
+        info = create_block_info(200, 90, METHOD_RLE, 12345);
+        assert(get_original_size(info) == 200, "original size");
+        assert(get_compressed_size(info) == 90, "compressed size");
+        assert(get_compression_method(info) == METHOD_RLE, "method");
+        assert(get_compression_quality(info) == 12345, "quality");
+    }
+
+    test compression_ratio {
+        assert(calculate_compression_ratio(200, 100) == 200, "2x ratio is 200");
+        assert(calculate_compression_ratio(100, 0) == 100, "zero compressed guards");
+    }
+
+    test rle_single_run_roundtrip {
+        // Four nibbles of 1 compress to one run (count 4, value 1) = 0x41.
+        c = compress_rle(0x1111, 4);
+        assert(c == 0x41, "run of four ones");
+        d = decompress_rle(c);
+        assert(d == 0x1111, "roundtrip restores the run");
     }
 }

@@ -71,8 +71,8 @@ pub fn decompress_rle(compressed: u32) -> u32 {
     let mut decompressed: u32 = 0;
     let mut pos: u32 = 0;
     while (pos < 32) {
-        let count: u32 = ((compressed >> pos) & 0xF);
-        let value: u32 = ((compressed >> (pos + 4)) & 0xF);
+        let value: u32 = ((compressed >> pos) & 0xF);
+        let count: u32 = ((compressed >> (pos + 4)) & 0xF);
         let mut i: u32 = 0;
         while ((i < count) && (i < 8)) {
             decompressed = ((decompressed << 4) | value);

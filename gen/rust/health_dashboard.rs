@@ -81,7 +81,11 @@ pub fn calculate_node_health(metrics: [u32; MAX_METRICS as usize], count: u32) -
         let value: u32 = get_health_value(metrics[(i) as usize]);
         let mut metric_score: u32 = 0;
         if ((metric_type == METRIC_CPU) || (metric_type == METRIC_MEMORY)) {
-            metric_score = (100 - value);
+            if (value < 100) {
+                metric_score = (100 - value);
+            } else {
+                metric_score = 0;
+            }
         } else {
             if ((metric_type == METRIC_BANDWIDTH) || (metric_type == METRIC_LINK_QUALITY)) {
                 metric_score = value;
@@ -89,7 +93,11 @@ pub fn calculate_node_health(metrics: [u32; MAX_METRICS as usize], count: u32) -
                 if (((metric_type == METRIC_LATENCY) || (metric_type == METRIC_PACKET_LOSS))
                     || (metric_type == METRIC_ERROR_RATE))
                 {
-                    metric_score = (100 - value);
+                    if (value < 100) {
+                        metric_score = (100 - value);
+                    } else {
+                        metric_score = 0;
+                    }
                 } else {
                     if (metric_type == METRIC_BATTERY) {
                         metric_score = value;

@@ -10,11 +10,14 @@ module auto_config {
     const AUTO_DISCOVERY_INTERVAL: u32 = 1000;
 
     // Configuration parameter [param_id][value][scope][status]
+    // Layout [id:8][value:16][scope:4][status:4]: the default table stores
+    // values like HELLO_INTERVAL = 2000 and ROUTE_TIMEOUT = 10000 -- the old
+    // 8-bit value field silently truncated them to 208 and 16.
     fn create_config_param(param_id: u32, value: u32, scope: u32, status: u32) -> u32 {
         return (((param_id & 0xFF) << 24) |
-                ((value & 0xFF) << 16) |
-                ((scope & 0xF) << 12) |
-                (status & 0xFFF));
+                ((value & 0xFFFF) << 8) |
+                ((scope & 0xF) << 4) |
+                (status & 0xF));
     }
 
     fn get_param_id(param: u32) -> u32 {
@@ -22,15 +25,15 @@ module auto_config {
     }
 
     fn get_param_value(param: u32) -> u32 {
-        return ((param >> 16) & 0xFF);
+        return ((param >> 8) & 0xFFFF);
     }
 
     fn get_param_scope(param: u32) -> u32 {
-        return ((param >> 12) & 0xF);
+        return ((param >> 4) & 0xF);
     }
 
     fn get_param_status(param: u32) -> u32 {
-        return (param & 0xFFF);
+        return (param & 0xF);
     }
 
     // Configuration scopes
@@ -387,14 +390,47 @@ module auto_config {
         // Roles: 0=normal, 1=coordinator, 2=relay, 3=edge
         let role: u32 = 0;
         
-        if (capabilities & 0x1) {
+        if ((capabilities & 0x1) != 0) {
             role = 1; // coordinator capability
-        } else if (capabilities & 0x2) {
+        } else if ((capabilities & 0x2) != 0) {
             role = 2; // relay capability
-        } else if (capabilities & 0x4) {
+        } else if ((capabilities & 0x4) != 0) {
             role = 3; // edge capability
         }
         
         return role;
+    }
+
+    // ---- Tests ----
+
+    test config_param_roundtrip_wide_value {
+        p = create_config_param(PARAM_HELLO_INTERVAL, 2000, SCOPE_NETWORK, STATUS_PENDING);
+        assert(get_param_id(p) == PARAM_HELLO_INTERVAL, "param id");
+        assert(get_param_value(p) == 2000, "16-bit value survives");
+        assert(get_param_scope(p) == SCOPE_NETWORK, "scope");
+        assert(get_param_status(p) == STATUS_PENDING, "status");
+    }
+
+    test default_table_values_survive {
+        assert(get_param_value(default_config_at(4)) == 2000, "hello interval");
+        assert(get_param_value(default_config_at(5)) == 10000, "route timeout");
+        assert(get_param_value(default_config_at(0)) == 50, "tx power");
+    }
+
+    test config_lookup_finds_param {
+        let cfg: [u32; 16] = [
+            default_config_at(0), default_config_at(1), default_config_at(2), default_config_at(3),
+            default_config_at(4), default_config_at(5), default_config_at(6), default_config_at(7),
+            0, 0, 0, 0, 0, 0, 0, 0
+        ];
+        assert(get_config_value(cfg, PARAM_RETRY_LIMIT) == 3, "retry limit found");
+        assert(get_config_value(cfg, 99) == 0, "unknown param yields 0");
+    }
+
+    test node_role_assignment {
+        assert(assign_node_role(1, 0x1) == 1, "coordinator capability");
+        assert(assign_node_role(2, 0x2) == 2, "relay capability");
+        assert(assign_node_role(3, 0x4) == 3, "edge capability");
+        assert(assign_node_role(4, 0x0) == 0, "no capability is a normal node");
     }
 }
