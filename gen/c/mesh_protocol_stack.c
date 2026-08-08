@@ -104,13 +104,16 @@ uint8_t rx_path(uint32_t packet) {
 }
 
 t27_tuple_uint32_t_bool_uint32_t forward_packet(uint32_t packet, uint32_t current_node) {
-    if (decrement_ttl(packet).f1) {
-        return (t27_tuple_uint32_t_bool_uint32_t){ decrement_ttl(packet).f0, true, 0 };
+    t27_tuple_uint32_t_bool __t_c85 = decrement_ttl(packet);
+    uint32_t new_pkt = __t_c85.f0;
+    bool expired = __t_c85.f1;
+    if (expired) {
+        return (t27_tuple_uint32_t_bool_uint32_t){ new_pkt, true, 0 };
     }
-    if ((route_packet(current_node, extract_dst(decrement_ttl(packet).f0), 0) == 0)) {
-        return (t27_tuple_uint32_t_bool_uint32_t){ decrement_ttl(packet).f0, false, 0 };
+    if ((route_packet(current_node, extract_dst(new_pkt), 0) == 0)) {
+        return (t27_tuple_uint32_t_bool_uint32_t){ new_pkt, false, 0 };
     }
-    return (t27_tuple_uint32_t_bool_uint32_t){ decrement_ttl(packet).f0, false, route_packet(current_node, extract_dst(decrement_ttl(packet).f0), 0) };
+    return (t27_tuple_uint32_t_bool_uint32_t){ new_pkt, false, route_packet(current_node, extract_dst(new_pkt), 0) };
 }
 
 /* -------------------------------------------------------
@@ -145,9 +148,10 @@ void test_rx_path_extracts_payload(void) {
 void test_decrement_ttl_reduces(void) {
     uint64_t pkt = build_packet(NODE_A, NODE_B, 3, 5);
     (void)pkt;
-    uint64_t new_pkt = decrement_ttl(pkt).f0;
+    __auto_type __t27_tup1 = decrement_ttl(pkt);
+    __auto_type new_pkt = __t27_tup1.f0;
     (void)new_pkt;
-    uint64_t expired = decrement_ttl(pkt).f1;
+    __auto_type expired = __t27_tup1.f1;
     (void)expired;
     t27_assert((extract_ttl(new_pkt) == 2), "ttl decremented");
     t27_assert((expired == false), "not expired");
@@ -156,9 +160,10 @@ void test_decrement_ttl_reduces(void) {
 void test_decrement_ttl_zero_expires(void) {
     uint64_t pkt = build_packet(NODE_A, NODE_B, 1, 5);
     (void)pkt;
-    uint64_t new_pkt = decrement_ttl(pkt).f0;
+    __auto_type __t27_tup1 = decrement_ttl(pkt);
+    __auto_type new_pkt = __t27_tup1.f0;
     (void)new_pkt;
-    uint64_t expired = decrement_ttl(pkt).f1;
+    __auto_type expired = __t27_tup1.f1;
     (void)expired;
     t27_assert((extract_ttl(new_pkt) == 0), "ttl zero");
     t27_assert((expired == true), "expired");
@@ -167,9 +172,10 @@ void test_decrement_ttl_zero_expires(void) {
 void test_decrement_ttl_already_expired(void) {
     uint64_t pkt = build_packet(NODE_A, NODE_B, 0, 5);
     (void)pkt;
-    uint64_t new_pkt = decrement_ttl(pkt).f0;
+    __auto_type __t27_tup1 = decrement_ttl(pkt);
+    __auto_type new_pkt = __t27_tup1.f0;
     (void)new_pkt;
-    uint64_t expired = decrement_ttl(pkt).f1;
+    __auto_type expired = __t27_tup1.f1;
     (void)expired;
     t27_assert((extract_ttl(new_pkt) == 0), "ttl zero");
     t27_assert((expired == true), "expired");
@@ -196,11 +202,12 @@ void test_route_packet_direct_b_to_c(void) {
 void test_forward_packet_decrements_ttl(void) {
     uint64_t pkt = build_packet(NODE_A, NODE_B, 3, 5);
     (void)pkt;
-    uint64_t new_pkt = forward_packet(pkt, NODE_A).f0;
+    __auto_type __t27_tup1 = forward_packet(pkt, NODE_A);
+    __auto_type new_pkt = __t27_tup1.f0;
     (void)new_pkt;
-    uint64_t expired = forward_packet(pkt, NODE_A).f1;
+    __auto_type expired = __t27_tup1.f1;
     (void)expired;
-    uint64_t next_hop = forward_packet(pkt, NODE_A).f2;
+    __auto_type next_hop = __t27_tup1.f2;
     (void)next_hop;
     t27_assert((extract_ttl(new_pkt) == 2), "ttl decreased");
     t27_assert((expired == false), "not expired");
@@ -210,13 +217,15 @@ void test_forward_packet_decrements_ttl(void) {
 void test_forward_packet_preserves_payload(void) {
     uint64_t pkt = build_packet(NODE_A, NODE_B, 3, 5);
     (void)pkt;
-    uint64_t fwd = forward_packet(pkt, NODE_A).f0;
+    __auto_type __t27_tup1 = forward_packet(pkt, NODE_A);
+    __auto_type fwd = __t27_tup1.f0;
     (void)fwd;
     t27_assert((extract_ttl(fwd) == 2), "only the TTL changes (3 -> 2)");
     t27_assert((extract_src(fwd) == NODE_A), "src preserved across the hop");
     t27_assert((extract_dst(fwd) == NODE_B), "dst preserved across the hop");
     t27_assert((extract_payload(fwd) == 5), "payload preserved across the hop");
-    uint64_t fwd2 = forward_packet(fwd, NODE_A).f0;
+    __auto_type __t27_tup2 = forward_packet(fwd, NODE_A);
+    __auto_type fwd2 = __t27_tup2.f0;
     (void)fwd2;
     t27_assert((extract_payload(fwd2) == 5), "payload preserved after a second hop");
     t27_assert((extract_src(fwd2) == NODE_A), "src still preserved");
@@ -227,13 +236,15 @@ void test_forward_packet_preserves_payload(void) {
 void test_forward_packet_ttl_expired(void) {
     uint64_t pkt = build_packet(NODE_A, NODE_B, 1, 5);
     (void)pkt;
-    uint64_t pkt1 = forward_packet(pkt, NODE_A).f0;
+    __auto_type __t27_tup1 = forward_packet(pkt, NODE_A);
+    __auto_type pkt1 = __t27_tup1.f0;
     (void)pkt1;
-    uint64_t exp1 = forward_packet(pkt, NODE_A).f1;
+    __auto_type exp1 = __t27_tup1.f1;
     (void)exp1;
-    uint64_t pkt2 = forward_packet(pkt1, NODE_B).f0;
+    __auto_type __t27_tup2 = forward_packet(pkt1, NODE_B);
+    __auto_type pkt2 = __t27_tup2.f0;
     (void)pkt2;
-    uint64_t exp2 = forward_packet(pkt1, NODE_B).f1;
+    __auto_type exp2 = __t27_tup2.f1;
     (void)exp2;
     t27_assert((exp2 == true), "expired after 2 hops");
 }
@@ -241,11 +252,12 @@ void test_forward_packet_ttl_expired(void) {
 void test_forward_packet_no_route(void) {
     uint64_t pkt = build_packet(NODE_A, 99, 3, 5);
     (void)pkt;
-    uint64_t new_pkt = forward_packet(pkt, NODE_A).f0;
+    __auto_type __t27_tup1 = forward_packet(pkt, NODE_A);
+    __auto_type new_pkt = __t27_tup1.f0;
     (void)new_pkt;
-    uint64_t expired = forward_packet(pkt, NODE_A).f1;
+    __auto_type expired = __t27_tup1.f1;
     (void)expired;
-    uint64_t next_hop = forward_packet(pkt, NODE_A).f2;
+    __auto_type next_hop = __t27_tup1.f2;
     (void)next_hop;
     t27_assert((next_hop == 0), "no route");
     t27_assert((expired == false), "ttl not expired yet");
@@ -262,19 +274,21 @@ void test_end_to_end_tx_rx(void) {
 void test_multi_hop_routing(void) {
     uint64_t pkt = tx_path(NODE_A, NODE_C, 7);
     (void)pkt;
-    uint64_t pkt1 = forward_packet(pkt, NODE_A).f0;
+    __auto_type __t27_tup1 = forward_packet(pkt, NODE_A);
+    __auto_type pkt1 = __t27_tup1.f0;
     (void)pkt1;
-    uint64_t exp1 = forward_packet(pkt, NODE_A).f1;
+    __auto_type exp1 = __t27_tup1.f1;
     (void)exp1;
-    uint64_t hop1 = forward_packet(pkt, NODE_A).f2;
+    __auto_type hop1 = __t27_tup1.f2;
     (void)hop1;
     t27_assert((hop1 == NODE_B), "first hop to B");
     t27_assert((exp1 == false), "not expired");
-    uint64_t pkt2 = forward_packet(pkt1, NODE_B).f0;
+    __auto_type __t27_tup2 = forward_packet(pkt1, NODE_B);
+    __auto_type pkt2 = __t27_tup2.f0;
     (void)pkt2;
-    uint64_t exp2 = forward_packet(pkt1, NODE_B).f1;
+    __auto_type exp2 = __t27_tup2.f1;
     (void)exp2;
-    uint64_t hop2 = forward_packet(pkt1, NODE_B).f2;
+    __auto_type hop2 = __t27_tup2.f2;
     (void)hop2;
     t27_assert((hop2 == NODE_C), "second hop to C");
     t27_assert((exp2 == false), "not expired");

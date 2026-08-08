@@ -57,13 +57,14 @@ fn rx_path(packet: u32) u8 {
     return extract_payload(packet);
 }
 fn forward_packet(packet: u32, current_node: u32) struct { u32, bool, u32 } {
-    if (decrement_ttl(packet).@"1") {
-        return .{ decrement_ttl(packet).@"0", true, 0 };
+    const new_pkt, const expired = decrement_ttl(packet);
+    if (expired) {
+        return .{ new_pkt, true, 0 };
     }
-    if (route_packet(current_node, extract_dst(decrement_ttl(packet).@"0"), 0) == 0) {
-        return .{ decrement_ttl(packet).@"0", false, 0 };
+    if (route_packet(current_node, extract_dst(new_pkt), 0) == 0) {
+        return .{ new_pkt, false, 0 };
     }
-    return .{ decrement_ttl(packet).@"0", false, route_packet(current_node, extract_dst(decrement_ttl(packet).@"0"), 0) };
+    return .{ new_pkt, false, route_packet(current_node, extract_dst(new_pkt), 0) };
 }
 test "build_packet_correct_layout" {
     const pkt = build_packet(NODE_A, NODE_B, 3, 5);
@@ -85,22 +86,19 @@ test "rx_path_extracts_payload" {
 }
 test "decrement_ttl_reduces" {
     const pkt = build_packet(NODE_A, NODE_B, 3, 5);
-    const new_pkt = decrement_ttl(pkt).@"0";
-    const expired = decrement_ttl(pkt).@"1";
+    const new_pkt, const expired = decrement_ttl(pkt);
     if (!(extract_ttl(new_pkt) == 2)) @panic("ttl decremented");
     if (!(expired == false)) @panic("not expired");
 }
 test "decrement_ttl_zero_expires" {
     const pkt = build_packet(NODE_A, NODE_B, 1, 5);
-    const new_pkt = decrement_ttl(pkt).@"0";
-    const expired = decrement_ttl(pkt).@"1";
+    const new_pkt, const expired = decrement_ttl(pkt);
     if (!(extract_ttl(new_pkt) == 0)) @panic("ttl zero");
     if (!(expired == true)) @panic("expired");
 }
 test "decrement_ttl_already_expired" {
     const pkt = build_packet(NODE_A, NODE_B, 0, 5);
-    const new_pkt = decrement_ttl(pkt).@"0";
-    const expired = decrement_ttl(pkt).@"1";
+    const new_pkt, const expired = decrement_ttl(pkt);
     if (!(extract_ttl(new_pkt) == 0)) @panic("ttl zero");
     if (!(expired == true)) @panic("expired");
 }
@@ -118,21 +116,19 @@ test "route_packet_direct_b_to_c" {
 }
 test "forward_packet_decrements_ttl" {
     const pkt = build_packet(NODE_A, NODE_B, 3, 5);
-    const new_pkt = forward_packet(pkt, NODE_A).@"0";
-    const expired = forward_packet(pkt, NODE_A).@"1";
-    const next_hop = forward_packet(pkt, NODE_A).@"2";
+    const new_pkt, const expired, const next_hop = forward_packet(pkt, NODE_A);
     if (!(extract_ttl(new_pkt) == 2)) @panic("ttl decreased");
     if (!(expired == false)) @panic("not expired");
     if (!(next_hop == NODE_B)) @panic("next hop B");
 }
 test "forward_packet_preserves_payload" {
     const pkt = build_packet(NODE_A, NODE_B, 3, 5);
-    const fwd = forward_packet(pkt, NODE_A).@"0";
+    const fwd, _, _ = forward_packet(pkt, NODE_A);
     if (!(extract_ttl(fwd) == 2)) @panic("only the TTL changes (3 -> 2)");
     if (!(extract_src(fwd) == NODE_A)) @panic("src preserved across the hop");
     if (!(extract_dst(fwd) == NODE_B)) @panic("dst preserved across the hop");
     if (!(extract_payload(fwd) == 5)) @panic("payload preserved across the hop");
-    const fwd2 = forward_packet(fwd, NODE_A).@"0";
+    const fwd2, _, _ = forward_packet(fwd, NODE_A);
     if (!(extract_payload(fwd2) == 5)) @panic("payload preserved after a second hop");
     if (!(extract_src(fwd2) == NODE_A)) @panic("src still preserved");
     if (!(extract_dst(fwd2) == NODE_B)) @panic("dst still preserved");
@@ -140,20 +136,13 @@ test "forward_packet_preserves_payload" {
 }
 test "forward_packet_ttl_expired" {
     const pkt = build_packet(NODE_A, NODE_B, 1, 5);
-    const pkt1 = forward_packet(pkt, NODE_A).@"0";
-    const exp1 = forward_packet(pkt, NODE_A).@"1";
-    _ = exp1; // dead after const-inlining
-    const pkt2 = forward_packet(pkt1, NODE_B).@"0";
-    _ = pkt2; // dead after const-inlining
-    const exp2 = forward_packet(pkt1, NODE_B).@"1";
+    const pkt1, _, _ = forward_packet(pkt, NODE_A);
+    _, const exp2, _ = forward_packet(pkt1, NODE_B);
     if (!(exp2 == true)) @panic("expired after 2 hops");
 }
 test "forward_packet_no_route" {
     const pkt = build_packet(NODE_A, 99, 3, 5);
-    const new_pkt = forward_packet(pkt, NODE_A).@"0";
-    _ = new_pkt; // dead after const-inlining
-    const expired = forward_packet(pkt, NODE_A).@"1";
-    const next_hop = forward_packet(pkt, NODE_A).@"2";
+    _, const expired, const next_hop = forward_packet(pkt, NODE_A);
     if (!(next_hop == 0)) @panic("no route");
     if (!(expired == false)) @panic("ttl not expired yet");
 }
@@ -164,14 +153,10 @@ test "end_to_end_tx_rx" {
 }
 test "multi_hop_routing" {
     const pkt = tx_path(NODE_A, NODE_C, 7);
-    const pkt1 = forward_packet(pkt, NODE_A).@"0";
-    const exp1 = forward_packet(pkt, NODE_A).@"1";
-    const hop1 = forward_packet(pkt, NODE_A).@"2";
+    const pkt1, const exp1, const hop1 = forward_packet(pkt, NODE_A);
     if (!(hop1 == NODE_B)) @panic("first hop to B");
     if (!(exp1 == false)) @panic("not expired");
-    const pkt2 = forward_packet(pkt1, NODE_B).@"0";
-    const exp2 = forward_packet(pkt1, NODE_B).@"1";
-    const hop2 = forward_packet(pkt1, NODE_B).@"2";
+    const pkt2, const exp2, const hop2 = forward_packet(pkt1, NODE_B);
     if (!(hop2 == NODE_C)) @panic("second hop to C");
     if (!(exp2 == false)) @panic("not expired");
     const payload = rx_path(pkt2);
