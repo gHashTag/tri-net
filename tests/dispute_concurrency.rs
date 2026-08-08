@@ -48,6 +48,25 @@ fn may_open_dispute(open_count: u32, risk: u32, reward: u32, bond: u32, min_bps:
     }
     bond >= dispute_required_bond(risk_after_open(risk, reward), min_bps)
 }
+const GFT16_ET: u32 = 4;
+const BPS_PER_TRIT: u32 = 500;
+fn rung_min_bps(min_bps: u32, gf_et: u32) -> u32 {
+    if gf_et <= GFT16_ET {
+        min_bps
+    } else {
+        min_bps + (gf_et - GFT16_ET) * BPS_PER_TRIT
+    }
+}
+fn may_open_dispute_rung(
+    open_count: u32,
+    risk: u32,
+    reward: u32,
+    bond: u32,
+    min_bps: u32,
+    gf_et: u32,
+) -> bool {
+    may_open_dispute(open_count, risk, reward, bond, rung_min_bps(min_bps, gf_et))
+}
 
 #[test]
 fn the_bps_unit_is_literally_the_bond_specs_unit() {
@@ -149,5 +168,62 @@ fn a_swarm_cannot_out_open_the_bond() {
         dispute_required_bond(risk_after_open(risk, reward), min_bps),
         120,
         "the rejected third dispute would need 120 > bond 100"
+    );
+}
+
+#[test]
+fn the_rung_premium_mirrors_the_bond_spec_literally() {
+    // Same premium ladder as tri_compute_bond.rung_min_bps: retune either spec's
+    // per-trit premium (or flagship Et) alone and this fails first.
+    assert_eq!(
+        spec_const(CH_SPEC, "CH_BOND_BPS_PER_TRIT"),
+        spec_const(BOND_SPEC, "BOND_BPS_PER_TRIT"),
+        "per-trit premium parity"
+    );
+    assert_eq!(
+        spec_const(CH_SPEC, "CH_GFT16_ET"),
+        spec_const(BOND_SPEC, "GFT16_ET"),
+        "flagship Et parity"
+    );
+    assert_eq!(
+        u128::from(BPS_PER_TRIT),
+        spec_const(CH_SPEC, "CH_BOND_BPS_PER_TRIT")
+    );
+}
+
+#[test]
+fn a_wide_rung_demands_more_coverage_for_the_same_dispute() {
+    // Identical dispute, identical bond: admitted at the flagship, refused at Et9
+    // (which adds 5 trits x 500 bps = +25%), admitted again at the exact wide cover.
+    assert!(
+        may_open_dispute_rung(0, 400, 100, 100, 2000, 4),
+        "flagship: 100 covers 20% of 500"
+    );
+    assert!(
+        !may_open_dispute_rung(0, 400, 100, 100, 2000, 9),
+        "the SAME bond fails the SAME dispute at Et9 (45%)"
+    );
+    assert!(
+        may_open_dispute_rung(0, 400, 100, 225, 2000, 9),
+        "225 is the exact 45% cover of 500"
+    );
+    assert!(
+        !may_open_dispute_rung(0, 400, 100, 224, 2000, 9),
+        "one unit short still fails"
+    );
+    // Premium is monotone in the rung and flat at/below the flagship.
+    let mut prev = 0u32;
+    for et in 0..=12u32 {
+        let p = rung_min_bps(2000, et);
+        assert!(
+            p >= 2000 && p >= prev,
+            "premium monotone, floored at base (Et{et})"
+        );
+        prev = p;
+    }
+    assert_eq!(
+        rung_min_bps(2000, 2),
+        rung_min_bps(2000, 4),
+        "flat at/below the flagship"
     );
 }
