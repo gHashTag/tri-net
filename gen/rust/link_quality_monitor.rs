@@ -19,15 +19,30 @@ pub fn update_ewma(current: u8, sample: u8) -> u8 {
     let term1: u16 = (((ALPHA_Q8 as u16) * (sample as u16)) >> 8);
     let term2: u16 = (((ONE_MINUS_ALPHA_Q8 as u16) * (current as u16)) >> 8);
     let new_estimate: u16 = (term1 + term2);
+    if (new_estimate > 0xFF) {
+        return 0xFF;
+    }
+    return (new_estimate as u8);
 }
 
 pub fn calculate_trend(history: [u8; 8]) -> i8 {
     let recent_avg: u8 = ((((((history[7] as u16) + (history[6] as u16)) + (history[5] as u16)) + (history[4] as u16)) >> 2) as u8);
     let older_avg: u8 = ((((((history[3] as u16) + (history[2] as u16)) + (history[1] as u16)) + (history[0] as u16)) >> 2) as u8);
+    if (recent_avg > older_avg) {
+        return ((recent_avg - older_avg) as i8);
+    }
+    return -(((older_avg - recent_avg) as i8));
 }
 
 pub fn predict_next_etx(current: u8, trend: i8) -> u8 {
     let prediction: i16 = ((current as i16) + (trend as i16));
+    if (prediction < 0x40) {
+        return 0x40;
+    }
+    if (prediction > 0xFF) {
+        return 0xFF;
+    }
+    return (prediction as u8);
 }
 
 pub fn is_degrading(current_etx: u8, trend: i8) -> bool {
@@ -38,7 +53,25 @@ pub fn quality_score(etx: u8, latency_ms: u16) -> u8 {
     let etx_component: u16 = (((etx as u16) * 7) / 10);
     let latency_component: u16 = (latency_ms / 100);
     let combined: u16 = (etx_component + latency_component);
+    if (combined > 255) {
+        return 255;
+    }
+    return (combined as u8);
 }
 
-pub fn classify_quality(score: u8) -> u8 { unimplemented!() }
+pub fn classify_quality(score: u8) -> u8 {
+    if (score <= 50) {
+        return 0;
+    }
+    if (score <= 100) {
+        return 1;
+    }
+    if (score <= 150) {
+        return 2;
+    }
+    if (score <= 200) {
+        return 3;
+    }
+    return 4;
+}
 
