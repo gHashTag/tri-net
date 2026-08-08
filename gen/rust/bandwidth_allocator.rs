@@ -9,6 +9,12 @@ pub const MIN_BANDWIDTH: u32 = 10;
 
 pub const MAX_BANDWIDTH: u32 = 500;
 
+pub const PRIORITY_LOW: u32 = 1;
+
+pub const PRIORITY_MEDIUM: u32 = 2;
+
+pub const PRIORITY_HIGH: u32 = 3;
+
 pub fn create_flow_requirement(flow_id: u32, priority: u32, min_bw: u32, current_bw: u32) -> u32 {
     return (((((flow_id & 0xFF) << 24) | ((priority & 0x3) << 22)) | ((min_bw & 0x3FF) << 12)) | (current_bw & 0xFFF));
 }

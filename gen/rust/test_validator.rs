@@ -13,20 +13,20 @@ pub fn create_validation_error(error_id: u32, error_type: u32, line: u32, severi
     return (((((error_id & 0xFF) << 24) | ((error_type & 0xF) << 20)) | ((line & 0xFF) << 12)) | (severity & 0xFFF));
 }
 
-pub fn get_error_id(error: u32) -> u32 {
-    return ((error >> 24) & 0xFF);
+pub fn get_error_id(err_word: u32) -> u32 {
+    return ((err_word >> 24) & 0xFF);
 }
 
-pub fn get_error_type(error: u32) -> u32 {
-    return ((error >> 20) & 0xF);
+pub fn get_error_type(err_word: u32) -> u32 {
+    return ((err_word >> 20) & 0xF);
 }
 
-pub fn get_error_line(error: u32) -> u32 {
-    return ((error >> 12) & 0xFF);
+pub fn get_error_line(err_word: u32) -> u32 {
+    return ((err_word >> 12) & 0xFF);
 }
 
-pub fn get_error_severity(error: u32) -> u32 {
-    return (error & 0xFFF);
+pub fn get_error_severity(err_word: u32) -> u32 {
+    return (err_word & 0xFFF);
 }
 
 pub const ERROR_SYNTAX: u32 = 0;
