@@ -1,5 +1,5 @@
 $date
-	Sun Aug  9 04:50:51 2026
+	Sun Aug  9 05:39:04 2026
 $end
 $version
 	Icarus Verilog
@@ -7,572 +7,262 @@ $end
 $timescale
 	1ps
 $end
-$scope module CrossLayerOptimizer $end
+$scope module M3MultiHop $end
 $var wire 1 ! clk $end
 $var wire 1 " en $end
 $var wire 1 # ready $end
 $var wire 1 $ rst_n $end
-$var parameter 32 % LAYER_MAC $end
-$var parameter 32 & LAYER_NETWORK $end
-$var parameter 32 ' LAYER_PHY $end
-$var parameter 32 ( LAYER_TRANSPORT $end
-$var parameter 32 ) MAX_LAYERS $end
-$var parameter 32 * MODE_AGGRESSIVE $end
-$var parameter 32 + MODE_CONSERVATIVE $end
-$var parameter 32 , MODE_MODERATE $end
+$var parameter 8 % ATTEN_MAX $end
+$var parameter 8 & ATTEN_MIN $end
+$var parameter 8 ' IPERF3_HDR_LEN $end
+$var parameter 32 ( NODE_A $end
+$var parameter 32 ) NODE_B $end
+$var parameter 32 * NODE_C $end
+$var parameter 32 + TARGET_LATENCY_MS $end
+$var parameter 32 , TARGET_PACKET_LOSS_PCT $end
+$var parameter 32 - TARGET_THROUGHPUT_MBPS $end
 $scope function __mul_noop $end
-$var reg 64 - a [63:0] $end
-$var reg 128 . acc [127:0] $end
-$var reg 64 / b [63:0] $end
-$var integer 32 0 i [31:0] $end
+$var reg 64 . a [63:0] $end
+$var reg 128 / acc [127:0] $end
+$var reg 64 0 b [63:0] $end
+$var integer 32 1 i [31:0] $end
 $upscope $end
-$scope function calculate_joint_metric $end
-$var reg 32 1 mac_params [31:0] $end
-$var reg 32 2 net_params [31:0] $end
-$var reg 32 3 phy_params [31:0] $end
-$scope begin calculate_joint_metric_body $end
+$scope function delivery_rate_p8 $end
+$var reg 8 2 hop1_db [7:0] $end
+$var reg 8 3 hop2_db [7:0] $end
+$scope begin delivery_rate_p8_body $end
 $var reg 1 4 __t27_ret $end
-$var reg 32 5 metric [31:0] $end
-$var reg 32 6 power_eff [31:0] $end
-$var reg 32 7 rate [31:0] $end
-$var reg 32 8 reliability [31:0] $end
+$var reg 8 5 factor1 [7:0] $end
+$var reg 8 6 factor2 [7:0] $end
+$var reg 16 7 product [15:0] $end
 $upscope $end
 $upscope $end
-$scope function coordinate_power $end
-$var reg 32 9 mac_params [31:0] $end
-$var reg 32 : phy_params [31:0] $end
-$var reg 32 ; state [31:0] $end
-$scope begin coordinate_power_body $end
-$var reg 1 < __t27_ret $end
-$var reg 32 = current_mac_power [31:0] $end
-$var reg 32 > current_phy_power [31:0] $end
-$var reg 32 ? mode [31:0] $end
-$var reg 32 @ new_mac [31:0] $end
-$var reg 32 A new_phy [31:0] $end
+$scope function expected_loss_rate_p10 $end
+$var reg 8 8 attenuation_db [7:0] $end
+$scope begin expected_loss_rate_p10_body $end
+$var reg 1 9 __t27_ret $end
+$var reg 8 : add_loss [7:0] $end
+$var reg 8 ; att_factor [7:0] $end
+$var reg 8 < base_loss [7:0] $end
+$var reg 16 = total [15:0] $end
 $upscope $end
 $upscope $end
-$scope function create_cross_layer_state $end
-$var reg 32 B last_sync [31:0] $end
-$var reg 32 C mode [31:0] $end
-$var reg 32 D target [31:0] $end
-$var reg 32 E update_counter [31:0] $end
-$scope begin create_cross_layer_state_body $end
-$var reg 1 F __t27_ret $end
+$scope function forward_packet $end
+$var reg 8 > hop1_db [7:0] $end
+$var reg 8 ? hop2_db [7:0] $end
+$var reg 8 @ packet_seq [7:0] $end
+$scope begin forward_packet_body $end
+$var reg 1 A __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function create_layer_array $end
-$var reg 32 G mac [31:0] $end
-$var reg 32 H network [31:0] $end
-$var reg 32 I phy [31:0] $end
-$var reg 32 J transport [31:0] $end
-$scope begin create_layer_array_body $end
-$var reg 1 K __t27_ret $end
+$scope function iperf3_sequence $end
+$var reg 8 B packet_byte [7:0] $end
+$scope begin iperf3_sequence_body $end
+$var reg 1 C __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function create_layer_params $end
-$var reg 32 L power [31:0] $end
-$var reg 32 M rate [31:0] $end
-$var reg 32 N retries [31:0] $end
-$var reg 32 O window [31:0] $end
-$scope begin create_layer_params_body $end
-$var reg 1 P __t27_ret $end
+$scope function signal_quality $end
+$var reg 8 D attenuation_db [7:0] $end
+$scope begin signal_quality_body $end
+$var reg 1 E __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function get_last_sync $end
-$var reg 32 Q state [31:0] $end
-$scope begin get_last_sync_body $end
-$var reg 1 R __t27_ret $end
+$scope function simulate_hop $end
+$var reg 8 F attenuation_db [7:0] $end
+$var reg 8 G packet_seq [7:0] $end
+$scope begin simulate_hop_body $end
+$var reg 1 H __t27_ret $end
+$var reg 8 I random_factor [7:0] $end
+$var reg 8 J random_threshold [7:0] $end
+$var reg 8 K success_p8 [7:0] $end
 $upscope $end
 $upscope $end
-$scope function get_layer_params $end
-$var reg 128 S array [127:0] $end
-$var reg 32 T layer [31:0] $end
-$scope begin get_layer_params_body $end
-$var reg 1 U __t27_ret $end
+$scope function tcp_packet_byte $end
+$var reg 8 L byte_index [7:0] $end
+$var reg 8 M data_byte [7:0] $end
+$var reg 32 N seq [31:0] $end
+$scope begin tcp_packet_byte_body $end
+$var reg 1 O __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function get_mode $end
-$var reg 32 V state [31:0] $end
-$scope begin get_mode_body $end
-$var reg 1 W __t27_ret $end
+$scope function throughput_factor_p8 $end
+$var reg 8 P attenuation_db [7:0] $end
+$scope begin throughput_factor_p8_body $end
+$var reg 1 Q __t27_ret $end
+$var reg 8 R loss_p10 [7:0] $end
+$var reg 8 S loss_p8 [7:0] $end
 $upscope $end
 $upscope $end
-$scope function get_optimization_target $end
-$var reg 32 X state [31:0] $end
-$scope begin get_optimization_target_body $end
-$var reg 1 Y __t27_ret $end
+$scope function total_attenuation $end
+$var reg 8 T hop1_db [7:0] $end
+$var reg 8 U hop2_db [7:0] $end
+$scope begin total_attenuation_body $end
+$var reg 1 V __t27_ret $end
+$var reg 16 W sum [15:0] $end
 $upscope $end
 $upscope $end
-$scope function get_power $end
-$var reg 32 Z params [31:0] $end
-$scope begin get_power_body $end
+$scope function udp_packet_byte $end
+$var reg 8 X byte_index [7:0] $end
+$var reg 8 Y data_byte [7:0] $end
+$var reg 16 Z seq [15:0] $end
+$scope begin udp_packet_byte_body $end
 $var reg 1 [ __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function get_rate $end
-$var reg 32 \ params [31:0] $end
-$scope begin get_rate_body $end
-$var reg 1 ] __t27_ret $end
+$scope begin delivery_rate_calculation_test $end
+$var reg 8 \ _t27_call_tmp_delivery_rate_calculation_0 [7:0] $end
+$var reg 8 ] _t27_call_tmp_delivery_rate_calculation_1 [7:0] $end
+$var reg 8 ^ rate0 [7:0] $end
+$var reg 8 _ rate10 [7:0] $end
 $upscope $end
+$scope begin expected_loss_rate_calculation_test $end
+$var reg 8 ` _t27_call_tmp_expected_loss_rate_calculation_0 [7:0] $end
+$var reg 8 a _t27_call_tmp_expected_loss_rate_calculation_1 [7:0] $end
+$var reg 8 b _t27_call_tmp_expected_loss_rate_calculation_2 [7:0] $end
 $upscope $end
-$scope function get_retries $end
-$var reg 32 ^ params [31:0] $end
-$scope begin get_retries_body $end
-$var reg 1 _ __t27_ret $end
+$scope begin hop_simulation_test $end
+$var reg 8 c success_count [7:0] $end
+$var reg 8 d success_count_high [7:0] $end
+$var integer 32 e i [31:0] $end
 $upscope $end
+$scope begin signal_quality_classification_test $end
+$var reg 8 f _t27_call_tmp_signal_quality_classification_0 [7:0] $end
+$var reg 8 g _t27_call_tmp_signal_quality_classification_1 [7:0] $end
+$var reg 8 h _t27_call_tmp_signal_quality_classification_2 [7:0] $end
+$var reg 8 i _t27_call_tmp_signal_quality_classification_3 [7:0] $end
+$var reg 8 j _t27_call_tmp_signal_quality_classification_4 [7:0] $end
 $upscope $end
-$scope function get_update_counter $end
-$var reg 32 ` state [31:0] $end
-$scope begin get_update_counter_body $end
-$var reg 1 a __t27_ret $end
+$scope begin tcp_packet_generation_test $end
+$var reg 8 k _t27_call_tmp_tcp_packet_generation_0 [7:0] $end
+$var reg 8 l _t27_call_tmp_tcp_packet_generation_1 [7:0] $end
+$var reg 8 m _t27_call_tmp_tcp_packet_generation_2 [7:0] $end
+$var reg 8 n _t27_call_tmp_tcp_packet_generation_3 [7:0] $end
+$var reg 8 o _t27_call_tmp_tcp_packet_generation_4 [7:0] $end
+$var reg 32 p seq [31:0] $end
 $upscope $end
+$scope begin throughput_factor_calculation_test $end
+$var reg 8 q _t27_call_tmp_throughput_factor_calculation_0 [7:0] $end
+$var reg 8 r _t27_call_tmp_throughput_factor_calculation_1 [7:0] $end
+$var reg 8 s _t27_call_tmp_throughput_factor_calculation_2 [7:0] $end
+$var reg 8 t factor0 [7:0] $end
+$var reg 8 u factor10 [7:0] $end
+$var reg 8 v factor30 [7:0] $end
 $upscope $end
-$scope function get_window $end
-$var reg 32 b params [31:0] $end
-$scope begin get_window_body $end
-$var reg 1 c __t27_ret $end
+$scope begin total_attenuation_calculation_test $end
+$var reg 8 w _t27_call_tmp_total_attenuation_calculation_0 [7:0] $end
+$var reg 8 x _t27_call_tmp_total_attenuation_calculation_1 [7:0] $end
+$var reg 8 y _t27_call_tmp_total_attenuation_calculation_2 [7:0] $end
 $upscope $end
+$scope begin two_hop_forwarding_test $end
+$var reg 8 z success_count [7:0] $end
+$var reg 8 { success_count_high [7:0] $end
+$var integer 32 | i [31:0] $end
 $upscope $end
-$scope function increment_updates $end
-$var reg 32 d state [31:0] $end
-$scope begin increment_updates_body $end
-$var reg 1 e __t27_ret $end
-$var reg 32 f counter [31:0] $end
-$var reg 32 g last_sync [31:0] $end
-$var reg 32 h mode [31:0] $end
-$var reg 32 i new_counter [31:0] $end
-$var reg 32 j target [31:0] $end
-$upscope $end
-$upscope $end
-$scope function needs_synchronization $end
-$var reg 32 k current_time [31:0] $end
-$var reg 32 l state [31:0] $end
-$scope begin needs_synchronization_body $end
-$var reg 1 m __t27_ret $end
-$var reg 32 n elapsed [31:0] $end
-$var reg 32 o last_sync [31:0] $end
-$upscope $end
-$upscope $end
-$scope function optimize_for_target $end
-$var reg 32 p mac_params [31:0] $end
-$var reg 32 q phy_params [31:0] $end
-$var reg 32 r state [31:0] $end
-$scope begin optimize_for_target_body $end
-$var reg 1 s __t27_ret $end
-$var reg 32 t new_power [31:0] $end
-$var reg 32 u new_rate [31:0] $end
-$var reg 32 v new_retries [31:0] $end
-$var reg 32 w new_window [31:0] $end
-$var reg 32 x target [31:0] $end
-$upscope $end
-$upscope $end
-$scope function set_slot4 $end
-$var reg 128 y array [127:0] $end
-$var reg 32 z index [31:0] $end
-$var reg 32 { value [31:0] $end
-$scope begin set_slot4_body $end
-$var reg 1 | __t27_ret $end
-$var reg 32 } a0 [31:0] $end
-$var reg 32 ~ a1 [31:0] $end
-$var reg 32 !" a2 [31:0] $end
-$var reg 32 "" a3 [31:0] $end
-$upscope $end
-$upscope $end
-$scope function switch_mode $end
-$var reg 32 #" new_mode [31:0] $end
-$var reg 32 $" state [31:0] $end
-$scope begin switch_mode_body $end
-$var reg 1 %" __t27_ret $end
-$var reg 32 &" counter [31:0] $end
-$var reg 32 '" last_sync [31:0] $end
-$var reg 32 (" target [31:0] $end
-$upscope $end
-$upscope $end
-$scope function update_layer_params $end
-$var reg 128 )" array [127:0] $end
-$var reg 32 *" layer [31:0] $end
-$var reg 32 +" new_params [31:0] $end
-$scope begin update_layer_params_body $end
-$var reg 1 ," __t27_ret $end
-$upscope $end
-$upscope $end
-$scope begin calculate_joint_metric_balanced_test $end
-$var reg 32 -" _t27_call_tmp_calculate_joint_metric_balanced_0 [31:0] $end
-$var reg 32 ." _t27_call_tmp_calculate_joint_metric_balanced_1 [31:0] $end
-$var reg 32 /" _t27_call_tmp_calculate_joint_metric_balanced_2 [31:0] $end
-$var reg 32 0" _t27_call_tmp_calculate_joint_metric_balanced_3 [31:0] $end
-$var reg 32 1" mac [31:0] $end
-$var reg 32 2" metric [31:0] $end
-$var reg 32 3" net [31:0] $end
-$var reg 32 4" phy [31:0] $end
-$upscope $end
-$scope begin coordinate_power_aggressive_test $end
-$var reg 64 5" __tup_l251 [63:0] $end
-$var reg 32 6" _t27_call_tmp_coordinate_power_aggressive_0 [31:0] $end
-$var reg 32 7" _t27_call_tmp_coordinate_power_aggressive_1 [31:0] $end
-$var reg 32 8" _t27_call_tmp_coordinate_power_aggressive_2 [31:0] $end
-$var reg 32 9" mac [31:0] $end
-$var reg 32 :" new_mac [31:0] $end
-$var reg 32 ;" new_phy [31:0] $end
-$var reg 32 <" phy [31:0] $end
-$var reg 32 =" state [31:0] $end
-$upscope $end
-$scope begin coordinate_power_conservative_test $end
-$var reg 64 >" __tup_l242 [63:0] $end
-$var reg 32 ?" _t27_call_tmp_coordinate_power_conservative_0 [31:0] $end
-$var reg 32 @" _t27_call_tmp_coordinate_power_conservative_1 [31:0] $end
-$var reg 32 A" _t27_call_tmp_coordinate_power_conservative_2 [31:0] $end
-$var reg 32 B" mac [31:0] $end
-$var reg 32 C" new_mac [31:0] $end
-$var reg 32 D" new_phy [31:0] $end
-$var reg 32 E" phy [31:0] $end
-$var reg 32 F" state [31:0] $end
-$upscope $end
-$scope begin coordinate_power_moderate_test $end
-$var reg 64 G" __tup_l260 [63:0] $end
-$var reg 32 H" _t27_call_tmp_coordinate_power_moderate_0 [31:0] $end
-$var reg 32 I" _t27_call_tmp_coordinate_power_moderate_1 [31:0] $end
-$var reg 32 J" _t27_call_tmp_coordinate_power_moderate_2 [31:0] $end
-$var reg 32 K" mac [31:0] $end
-$var reg 32 L" new_mac [31:0] $end
-$var reg 32 M" new_phy [31:0] $end
-$var reg 32 N" phy [31:0] $end
-$var reg 32 O" state [31:0] $end
-$upscope $end
-$scope begin create_cross_layer_state_basic_test $end
-$var reg 32 P" _t27_call_tmp_create_cross_layer_state_basic_0 [31:0] $end
-$var reg 32 Q" _t27_call_tmp_create_cross_layer_state_basic_1 [31:0] $end
-$var reg 32 R" _t27_call_tmp_create_cross_layer_state_basic_2 [31:0] $end
-$var reg 32 S" _t27_call_tmp_create_cross_layer_state_basic_3 [31:0] $end
-$var reg 32 T" _t27_call_tmp_create_cross_layer_state_basic_4 [31:0] $end
-$var reg 32 U" state [31:0] $end
-$upscope $end
-$scope begin create_layer_array_basic_test $end
-$var reg 128 V" _t27_call_tmp_create_layer_array_basic_0 [127:0] $end
-$var reg 32 W" _t27_call_tmp_create_layer_array_basic_1 [31:0] $end
-$var reg 32 X" _t27_call_tmp_create_layer_array_basic_10 [31:0] $end
-$var reg 32 Y" _t27_call_tmp_create_layer_array_basic_2 [31:0] $end
-$var reg 32 Z" _t27_call_tmp_create_layer_array_basic_3 [31:0] $end
-$var reg 32 [" _t27_call_tmp_create_layer_array_basic_4 [31:0] $end
-$var reg 32 \" _t27_call_tmp_create_layer_array_basic_5 [31:0] $end
-$var reg 32 ]" _t27_call_tmp_create_layer_array_basic_6 [31:0] $end
-$var reg 32 ^" _t27_call_tmp_create_layer_array_basic_7 [31:0] $end
-$var reg 32 _" _t27_call_tmp_create_layer_array_basic_8 [31:0] $end
-$var reg 32 `" _t27_call_tmp_create_layer_array_basic_9 [31:0] $end
-$var reg 128 a" array [127:0] $end
-$upscope $end
-$scope begin create_layer_params_basic_test $end
-$var reg 32 b" _t27_call_tmp_create_layer_params_basic_0 [31:0] $end
-$var reg 32 c" _t27_call_tmp_create_layer_params_basic_1 [31:0] $end
-$var reg 32 d" _t27_call_tmp_create_layer_params_basic_2 [31:0] $end
-$var reg 32 e" _t27_call_tmp_create_layer_params_basic_3 [31:0] $end
-$var reg 32 f" _t27_call_tmp_create_layer_params_basic_4 [31:0] $end
-$var reg 32 g" params [31:0] $end
-$upscope $end
-$scope begin increment_updates_works_test $end
-$var reg 32 h" _t27_call_tmp_increment_updates_works_0 [31:0] $end
-$var reg 32 i" _t27_call_tmp_increment_updates_works_1 [31:0] $end
-$var reg 32 j" _t27_call_tmp_increment_updates_works_2 [31:0] $end
-$var reg 32 k" new_state [31:0] $end
-$var reg 32 l" state [31:0] $end
-$upscope $end
-$scope begin increment_updates_wraps_test $end
-$var reg 32 m" _t27_call_tmp_increment_updates_wraps_0 [31:0] $end
-$var reg 32 n" _t27_call_tmp_increment_updates_wraps_1 [31:0] $end
-$var reg 32 o" _t27_call_tmp_increment_updates_wraps_2 [31:0] $end
-$var reg 32 p" new_state [31:0] $end
-$var reg 32 q" state [31:0] $end
-$upscope $end
-$scope begin needs_synchronization_false_test $end
-$var reg 32 r" _t27_call_tmp_needs_synchronization_false_0 [31:0] $end
-$var reg 1 s" _t27_call_tmp_needs_synchronization_false_1 $end
-$var reg 32 t" state [31:0] $end
-$upscope $end
-$scope begin needs_synchronization_true_test $end
-$var reg 32 u" _t27_call_tmp_needs_synchronization_true_0 [31:0] $end
-$var reg 1 v" _t27_call_tmp_needs_synchronization_true_1 $end
-$var reg 32 w" state [31:0] $end
-$upscope $end
-$scope begin optimize_for_target_latency_test $end
-$var reg 64 x" __tup_l269 [63:0] $end
-$var reg 32 y" _t27_call_tmp_optimize_for_target_latency_0 [31:0] $end
-$var reg 32 z" _t27_call_tmp_optimize_for_target_latency_1 [31:0] $end
-$var reg 32 {" _t27_call_tmp_optimize_for_target_latency_2 [31:0] $end
-$var reg 32 |" mac [31:0] $end
-$var reg 32 }" phy [31:0] $end
-$var reg 32 ~" state [31:0] $end
-$var reg 32 !# val1 [31:0] $end
-$var reg 32 "# val2 [31:0] $end
-$upscope $end
-$scope begin optimize_for_target_reliability_test $end
-$var reg 64 ## __tup_l287 [63:0] $end
-$var reg 32 $# _t27_call_tmp_optimize_for_target_reliability_0 [31:0] $end
-$var reg 32 %# _t27_call_tmp_optimize_for_target_reliability_1 [31:0] $end
-$var reg 32 &# _t27_call_tmp_optimize_for_target_reliability_2 [31:0] $end
-$var reg 32 '# mac [31:0] $end
-$var reg 32 (# phy [31:0] $end
-$var reg 32 )# state [31:0] $end
-$var reg 32 *# val1 [31:0] $end
-$var reg 32 +# val2 [31:0] $end
-$upscope $end
-$scope begin optimize_for_target_throughput_test $end
-$var reg 64 ,# __tup_l278 [63:0] $end
-$var reg 32 -# _t27_call_tmp_optimize_for_target_throughput_0 [31:0] $end
-$var reg 32 .# _t27_call_tmp_optimize_for_target_throughput_1 [31:0] $end
-$var reg 32 /# _t27_call_tmp_optimize_for_target_throughput_2 [31:0] $end
-$var reg 32 0# mac [31:0] $end
-$var reg 32 1# phy [31:0] $end
-$var reg 32 2# state [31:0] $end
-$var reg 32 3# val1 [31:0] $end
-$var reg 32 4# val2 [31:0] $end
-$upscope $end
-$scope begin switch_mode_works_test $end
-$var reg 32 5# _t27_call_tmp_switch_mode_works_0 [31:0] $end
-$var reg 32 6# _t27_call_tmp_switch_mode_works_1 [31:0] $end
-$var reg 32 7# _t27_call_tmp_switch_mode_works_2 [31:0] $end
-$var reg 32 8# new_state [31:0] $end
-$var reg 32 9# state [31:0] $end
-$upscope $end
-$scope begin update_layer_params_phy_test $end
-$var reg 128 :# _t27_call_tmp_update_layer_params_phy_0 [127:0] $end
-$var reg 32 ;# _t27_call_tmp_update_layer_params_phy_1 [31:0] $end
-$var reg 32 <# _t27_call_tmp_update_layer_params_phy_2 [31:0] $end
-$var reg 32 =# _t27_call_tmp_update_layer_params_phy_3 [31:0] $end
-$var reg 32 ># _t27_call_tmp_update_layer_params_phy_4 [31:0] $end
-$var reg 128 ?# _t27_call_tmp_update_layer_params_phy_5 [127:0] $end
-$var reg 32 @# _t27_call_tmp_update_layer_params_phy_6 [31:0] $end
-$var reg 32 A# _t27_call_tmp_update_layer_params_phy_7 [31:0] $end
-$var reg 32 B# _t27_call_tmp_update_layer_params_phy_8 [31:0] $end
-$var reg 128 C# array [127:0] $end
-$var reg 128 D# new_array [127:0] $end
+$scope begin udp_packet_generation_test $end
+$var reg 8 } _t27_call_tmp_udp_packet_generation_0 [7:0] $end
+$var reg 8 ~ _t27_call_tmp_udp_packet_generation_1 [7:0] $end
+$var reg 8 !" _t27_call_tmp_udp_packet_generation_2 [7:0] $end
+$var reg 16 "" seq [15:0] $end
 $upscope $end
 $upscope $end
 $enddefinitions $end
 $comment Show the parameter values. $end
 $dumpall
-b1 ,
-b0 +
-b10 *
-b100 )
-b11 (
-b0 '
-b10 &
-b1 %
+b1 -
+b101 ,
+b1010 +
+b11 *
+b10 )
+b1 (
+b1000 '
+b0 &
+b11110 %
 $end
 #0
 $dumpvars
-b1000110100101100000000100000000001010000101000000000101001000000011110001111000000000101000000001010000100101100000000110000000 D#
-b1000110100101100000000100000000001010000101000000000101001000000011110001111000000000101000000000110010011001000000001101000000 C#
-b1010000100101100000000110000000 B#
-b1010000 A#
-b1010000100101100000000110000000 @#
-b1000110100101100000000100000000001010000101000000000101001000000011110001111000000000101000000001010000100101100000000110000000 ?#
-b1000110100101100000000100000000 >#
-b101000010100000000010100100000 =#
-b111100011110000000001010000000 <#
-b110010011001000000001101000000 ;#
-b1000110100101100000000100000000001010000101000000000101001000000011110001111000000000101000000000110010011001000000001101000000 :#
-b1000010101111101000000000000000 9#
-b10000010101111101000000000000000 8#
-b10 7#
-b10000010101111101000000000000000 6#
-b1000010101111101000000000000000 5#
-b10001010 4#
-b11111111 3#
-b1000000000000000000000000000001 2#
-b110010011001000000010101000000 1#
-b111100011001000000001010000000 0#
-b111100011001000000001010000000 /#
-b110010011001000000010101000000 .#
-b1000000000000000000000000000001 -#
-b1000101000000000000000000000000011111111 ,#
-b1000001 +#
-b1000 *#
-b1000000000000000000000000000010 )#
-b110010011001000000010101000000 (#
-b111100011001000000001010000000 '#
-b111100011001000000001010000000 &#
-b110010011001000000010101000000 %#
-b1000000000000000000000000000010 $#
-b100000100000000000000000000000000001000 ##
-b100 "#
-b1111000 !#
-b1000000000000000000000000000000 ~"
-b110010011001000000010101000000 }"
-b111100011001000000001010000000 |"
-b111100011001000000001010000000 {"
-b110010011001000000010101000000 z"
-b1000000000000000000000000000000 y"
-b10000000000000000000000000001111000 x"
-b1000000001111101000000000000000 w"
-1v"
-b1000000001111101000000000000000 u"
-b1000000001111101000000000000000 t"
-0s"
-b1000000001111101000000000000000 r"
-b1111111111111101000000000000000 q"
-b1000000001111101000000000000000 p"
-b0 o"
-b1000000001111101000000000000000 n"
-b1111111111111101000000000000000 m"
-b1000010101111101000000000000000 l"
-b1000010111111101000000000000000 k"
-b1011 j"
-b1000010111111101000000000000000 i"
-b1000010101111101000000000000000 h"
-b110010011001000000001101000000 g"
-b1000000 f"
-b11 e"
-b1100100 d"
-b110010 c"
-b110010011001000000001101000000 b"
-b1000110100101100000000100000000001010000101000000000101001000000011110001111000000000101000000000110010011001000000001101000000 a"
-b101 `"
-b111100011110000000001010000000 _"
-b1111000 ^"
-b110010011001000000001101000000 ]"
-b110010 \"
-b1000110100101100000000100000000 ["
-b101000010100000000010100100000 Z"
-b111100011110000000001010000000 Y"
-b101000010100000000010100100000 X"
-b110010011001000000001101000000 W"
-b1000110100101100000000100000000001010000101000000000101001000000011110001111000000000101000000000110010011001000000001101000000 V"
-b1000010101111101000000000000001 U"
-b1 T"
-b1111101000 S"
-b1010 R"
-b1 Q"
-b1000010101111101000000000000001 P"
-b1000000000000000000000000000000 O"
-b110010011001000000001101000000 N"
-b110010 M"
-b101000 L"
-b101000011110000000001010000000 K"
-b101000011110000000001010000000 J"
-b110010011001000000001101000000 I"
-b1000000000000000000000000000000 H"
-b10100000000000000000000000000000110010 G"
-b0 F"
-b1100100011001000000001101000000 E"
-b1011010 D"
-b1001011 C"
-b1010000011110000000001010000000 B"
-b1010000011110000000001010000000 A"
-b1100100011001000000001101000000 @"
-b0 ?"
-b100101100000000000000000000000001011010 >"
-b10000000000000000000000000000000 ="
-b110010011001000000001101000000 <"
-b111100 ;"
-b101101 :"
-b101000011110000000001010000000 9"
-b101000011110000000001010000000 8"
-b110010011001000000001101000000 7"
-b10000000000000000000000000000000 6"
-b10110100000000000000000000000000111100 5"
-b110010011001000000001101000000 4"
-b101000010100000000010100100000 3"
-b10001011 2"
-b111100011110000000001010000000 1"
-b10001011 0"
-b101000010100000000010100100000 /"
-b111100011110000000001010000000 ."
-b110010011001000000001101000000 -"
-1,"
-b1010000100101100000000110000000 +"
-b0 *"
-b1000110100101100000000100000000001010000101000000000101001000000011110001111000000000101000000000110010011001000000001101000000 )"
-b0 ("
-b1111101000 '"
-b1010 &"
-1%"
-b1000010101111101000000000000000 $"
-b10 #"
-b1000110100101100000000100000000 ""
-b101000010100000000010100100000 !"
-b111100011110000000001010000000 ~
-b110010011001000000001101000000 }
-1|
-b1010000100101100000000110000000 {
-b0 z
-b1000110100101100000000100000000001010000101000000000101001000000011110001111000000000101000000000110010011001000000001101000000 y
-b10 x
-b10001010 w
-b1000 v
-b11111111 u
-b1000001 t
-1s
-b1000000000000000000000000000010 r
-b110010011001000000010101000000 q
-b111100011001000000001010000000 p
-b1111101000 o
-b110010 n
-1m
-b1000000001111101000000000000000 l
-b10000011010 k
-b0 j
-b0 i
-b1 h
-b1111101000 g
-b11111111 f
-1e
-b1111111111111101000000000000000 d
-1c
-b111100011001000000001010000000 b
-1a
-b1000010101111101000000000000000 `
-1_
-b110010011001000000010101000000 ^
-1]
-b111100011001000000001010000000 \
+b1001000110100 ""
+b10111011 !"
+b110100 ~
+b10010 }
+b1010 |
+b1001 {
+b1010 z
+b11110 y
+b11110 x
+b10100 w
+b11101111 v
+b11111010 u
+b11111111 t
+b11101111 s
+b11111010 r
+b11111111 q
+b10010001101000101011001111000 p
+b10101010 o
+b1111000 n
+b1010110 m
+b110100 l
+b10010 k
+b101 j
+b100 i
+b10 h
+b1 g
+b0 f
+b1010 e
+b1001 d
+b1010 c
+b11000000 b
+b1000000 a
+b10000 `
+b11110100 _
+b11111110 ^
+b11110100 ]
+b11111110 \
 1[
-b110010011001000000010101000000 Z
-1Y
-b1000010101111101000000000000000 X
-1W
-b10000010101111101000000000000000 V
-1U
-b0 T
-b1000110100101100000000100000000001010000101000000000101001000000011110001111000000000101000000001010000100101100000000110000000 S
-1R
-b1000010101111101000000000000000 Q
-1P
-b10000000 O
-b10 N
-b1100100 M
-b111100 L
-1K
-b1000110100101100000000100000000 J
-b110010011001000000001101000000 I
-b101000010100000000010100100000 H
-b111100011110000000001010000000 G
-1F
-b1010 E
-b0 D
-b10 C
-b1111101000 B
-b111100 A
-b101101 @
-b1 ?
-b110010 >
-b101000 =
-1<
-b1000000000000000000000000000000 ;
-b110010011001000000001101000000 :
-b101000011110000000001010000000 9
-b101 8
-b1111000 7
-b11001101 6
-b10001011 5
+b1001000110100 Z
+b0 Y
+b1010 X
+b101000 W
+1V
+b10100 U
+b10100 T
+b1001 S
+b1100000 R
+1Q
+b1111 P
+1O
+b10010001101000101011001111000 N
+b0 M
+b1010 L
+b11110111 K
+b11111101 J
+b1100011 I
+1H
+b1100011 G
+b1111 F
+1E
+b11110 D
+xC
+bx B
+1A
+b1100011 @
+b1111 ?
+b1111 >
+b1100000 =
+b10000 <
+b101 ;
+b1010000 :
+19
+b1111 8
+b1111010000100100 7
+b11111010 6
+b11111010 5
 14
-b110010011001000000001101000000 3
-b101000010100000000010100100000 2
-b111100011110000000001010000000 1
-b1000000 0
-b11 /
-b101101000 .
-b1111000 -
+b1010 3
+b1010 2
+b1000000 1
+b100000000 0
+b110001100000000 /
+b1100011 .
 z$
 1#
 z"
