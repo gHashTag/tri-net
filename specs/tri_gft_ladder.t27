@@ -287,4 +287,38 @@ module TriGftLadder {
         assert(gft_bias_u64(GFT512_ET) == 25015772549499853, "GF-T512 bias (3^35-1)/2");
         assert(gft_pow3_u64(GFT1024_ET) == 0, "GF-T1024 (Et56) exceeds u64 -- bignum, absent not wrong");
     }
+
+    // Perf-profile bench: walk the ratified ladder end to end -- Et, mantissa bits,
+    // offset_max and bias for every silicon rung in one pass, so the whole golden
+    // Fibonacci geometry executes as a single hardware sweep with a cycle count.
+    bench ladder_rung_walk {
+        e1 = gft_et_of_rung(1);
+        e2 = gft_et_of_rung(2);
+        e3 = gft_et_of_rung(3);
+        e4 = gft_et_of_rung(4);
+        e5 = gft_et_of_rung(5);
+        e6 = gft_et_of_rung(6);
+        m1 = gft_mant_of_rung(1);
+        m3 = gft_mant_of_rung(3);
+        m5 = gft_mant_of_rung(5);
+        x2 = gft_offset_max(2);
+        x4 = gft_offset_max(4);
+        x9 = gft_offset_max(9);
+        b4 = gft_bias(4);
+        b9 = gft_bias(9);
+        assert(e1 == 2, "GF-T4 Et 2");
+        assert(e2 == 3, "GF-T8 Et 3");
+        assert(e3 == 4, "GF-T16 Et 4");
+        assert(e4 == 6, "GF-T32 Et 6");
+        assert(e5 == 9, "GF-T64 Et 9");
+        assert(e6 == 14, "GF-T128 Et 14");
+        assert(m1 == 1, "GF-T4 mant 1");
+        assert(m3 == 9, "GF-T16 mant 9");
+        assert(m5 == 64, "GF-T64 mant 64");
+        assert(x2 == 8, "3^2 - 1");
+        assert(x4 == 80, "3^4 - 1");
+        assert(x9 == 19682, "3^9 - 1");
+        assert(b4 == 40, "GF-T16 bias");
+        assert(b9 == 9841, "GF-T64 bias");
+    }
 }

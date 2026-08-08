@@ -292,4 +292,38 @@ module TriGftArith {
         assert(verify_gft_mul_full_u64(364, 16777216, 364, 16777216, 365, 4194304, 364, 728, 33554432) == true, "GF-T32 1.5*1.5 = offset 365, mant 2^22");
         assert(verify_gft_mul_full_u64(364, 16777216, 364, 16777216, 364, 4194304, 364, 728, 33554432) == false, "GF-T32 missed carry rejected");
     }
+
+    // Perf-profile bench (completing the ALU trio with add/sub sweeps): a GF-T16
+    // multiply sweep across the mantissa range, both carry regimes and the offset
+    // path, cycle count reported by the icarus flow.
+    bench mul_mantissa_sweep {
+        m0 = gft_mul_mant(0, 0);
+        c0 = gft_mul_mant_carry(0, 0);
+        m1 = gft_mul_mant(128, 128);
+        c1 = gft_mul_mant_carry(128, 128);
+        m2 = gft_mul_mant(256, 0);
+        m3 = gft_mul_mant(256, 256);
+        c3 = gft_mul_mant_carry(256, 256);
+        m4 = gft_mul_mant(384, 384);
+        m5 = gft_mul_mant(448, 64);
+        m6 = gft_mul_mant(64, 448);
+        m7 = gft_mul_mant(511, 511);
+        c7 = gft_mul_mant_carry(511, 511);
+        o0 = gft_mul_offset(44, 44, 40, 80);
+        of = gft_mul_offset_full(44, 256, 44, 256, 40, 80);
+        assert(m0 == 0, "1.0 * 1.0 mantissa 0");
+        assert(c0 == 0, "1.0 * 1.0 no carry");
+        assert(m1 == 288, "1.25^2 = 1.5625 -> mantissa 288");
+        assert(c1 == 0, "1.25^2 no carry");
+        assert(m2 == 256, "1.5 * 1.0 = 1.5");
+        assert(m3 == 64, "1.5^2 = 2.25 -> mantissa 64");
+        assert(c3 == 1, "1.5^2 carries");
+        assert(m4 == 272, "1.75^2 = 3.0625 -> mantissa 272");
+        assert(m5 == 28, "1.875 * 1.125 -> mantissa 28 (carry regime)");
+        assert(m6 == 28, "multiply is commutative across the carry regime");
+        assert(m7 == 510, "max mantissa product stays in range");
+        assert(c7 == 1, "max product carries");
+        assert(o0 == 48, "offset path: 44 + 44 - bias 40");
+        assert(of == 49, "full offset includes the mantissa carry");
+    }
 }
