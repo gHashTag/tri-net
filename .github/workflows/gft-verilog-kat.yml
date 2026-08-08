@@ -60,9 +60,31 @@ jobs:
           STATUS=0
           for spec in tri_gft_add tri_gft_sub tri_gft_ladder tri_gft_arith tri_a2a tri_a2a_card tri_a2a_wire tri_challenge tri_compute_account tri_compute_bitnet tri_compute_bond tri_compute_challenge tri_compute_gfvalid tri_compute_optimistic tri_compute_payout tri_compute_pool tri_compute_receipt tri_compute_reputation tri_compute_safety tri_compute_settle tri_depin tri_fec tri_ilv tri_ledger tri_merkle tri_node_identity tri_receipt_verify tri_settle tri_sha256 tri_slash; do
             echo "== ${spec}"
-            if ! $T27C icarus-simulate specs/${spec}.t27; then
+            if ! $T27C icarus-simulate specs/${spec}.t27 | tee /tmp/${spec}.simlog; then
               echo "::error file=specs/${spec}.t27::icarus-simulate failed for specs/${spec}.t27"
               STATUS=1
             fi
           done
+          # Bench cycle budgets: the [BENCH] cycle counts are deterministic
+          # (verified across repeated runs), so a count above budget is a real
+          # regression of the generated datapath/testbench, not noise. Budgets
+          # are the measured values at adoption; raise them ONLY with a spec
+          # change that justifies it.
+          check_budget() {
+            spec="$1"; bench="$2"; budget="$3"
+            got=$(grep "cycles" /tmp/${spec}.simlog | grep "${bench}" | grep -oE '[0-9]+$' | head -1)
+            if [ -z "$got" ]; then
+              echo "::error file=specs/${spec}.t27::bench ${bench} produced no cycle count"
+              STATUS=1
+            elif [ "$got" -gt "$budget" ]; then
+              echo "::error file=specs/${spec}.t27::bench ${bench} took ${got} cycles > budget ${budget}"
+              STATUS=1
+            else
+              echo "bench ${bench}: ${got} cycles (budget ${budget})"
+            fi
+          }
+          check_budget tri_gft_add add_mantissa_sweep 34
+          check_budget tri_gft_sub sub_mantissa_sweep 28
+          check_budget tri_gft_ladder ladder_rung_walk 28
+          check_budget tri_gft_arith mul_mantissa_sweep 28
           exit $STATUS
