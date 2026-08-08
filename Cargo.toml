@@ -330,3 +330,7 @@ path = "tests/challenge_window.rs"
 [[test]]
 name = "challenge_lifecycle_e2e"
 path = "tests/challenge_lifecycle_e2e.rs"
+
+[[test]]
+name = "challenge_rung_window"
+path = "tests/challenge_rung_window.rs"
