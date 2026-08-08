@@ -127,6 +127,6 @@ test "in_heard_list_first_position" {
     if (!(result == true)) @panic("7 in heard list position 0");
 }
 test "n_exceeds_max_rejected" {
-    const n, const valid = parse_hello_n_valid(4);
+    _, const valid = parse_hello_n_valid(4);
     if (!(valid == false)) @panic("n > MAX_HEARD should be invalid");
 }

@@ -168,15 +168,15 @@ fn find_reclaimable_bandwidth(state: u32, flow_array: [8]u32) u32 {
 fn prioritize_bandwidth(flow_array: [8]u32, available_bw: u32) [8]u32 {
     const remaining_bw = available_bw;
     _ = remaining_bw; // dead after const-inlining
-    const f0 = get_flow_req(flow_array, 0);
-    const f1 = get_flow_req(flow_array, 1);
-    const f2 = get_flow_req(flow_array, 2);
-    const f3 = get_flow_req(flow_array, 3);
-    const f4 = get_flow_req(flow_array, 4);
-    const f5 = get_flow_req(flow_array, 5);
-    const f6 = get_flow_req(flow_array, 6);
-    const f7 = get_flow_req(flow_array, 7);
-    return create_flow_array(update_flow_bandwidth(f0, calculate_fair_share(available_bw, 8)), update_flow_bandwidth(f1, calculate_fair_share(available_bw, 8)), update_flow_bandwidth(f2, calculate_fair_share(available_bw, 8)), update_flow_bandwidth(f3, calculate_fair_share(available_bw, 8)), update_flow_bandwidth(f4, calculate_fair_share(available_bw, 8)), update_flow_bandwidth(f5, calculate_fair_share(available_bw, 8)), update_flow_bandwidth(f6, calculate_fair_share(available_bw, 8)), update_flow_bandwidth(f7, calculate_fair_share(available_bw, 8)));
+    const @"f0" = get_flow_req(flow_array, 0);
+    const @"f1" = get_flow_req(flow_array, 1);
+    const @"f2" = get_flow_req(flow_array, 2);
+    const @"f3" = get_flow_req(flow_array, 3);
+    const @"f4" = get_flow_req(flow_array, 4);
+    const @"f5" = get_flow_req(flow_array, 5);
+    const @"f6" = get_flow_req(flow_array, 6);
+    const @"f7" = get_flow_req(flow_array, 7);
+    return create_flow_array(update_flow_bandwidth(@"f0", calculate_fair_share(available_bw, 8)), update_flow_bandwidth(@"f1", calculate_fair_share(available_bw, 8)), update_flow_bandwidth(@"f2", calculate_fair_share(available_bw, 8)), update_flow_bandwidth(@"f3", calculate_fair_share(available_bw, 8)), update_flow_bandwidth(@"f4", calculate_fair_share(available_bw, 8)), update_flow_bandwidth(@"f5", calculate_fair_share(available_bw, 8)), update_flow_bandwidth(@"f6", calculate_fair_share(available_bw, 8)), update_flow_bandwidth(@"f7", calculate_fair_share(available_bw, 8)));
 }
 test "create_flow_requirement_basic" {
     const flow = create_flow_requirement(5, PRIORITY_HIGH, 50, 100);

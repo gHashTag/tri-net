@@ -276,7 +276,7 @@ pub fn optimize_animation_performance(packet_count: u32, target_fps: u32) -> u32
 }
 
 pub fn generate_traffic_heat_map(packets: [u32; MAX_PACKETS as usize], packet_count: u32, node_count: u32) -> u32 {
-    let mut traffic_counts: [u32; 32] = vec![];
+    let mut traffic_counts: [u32; 32] = [0; 32];
     let mut max_traffic: u32 = 0;
     let mut i: u32 = 0;
     while (i < packet_count) {

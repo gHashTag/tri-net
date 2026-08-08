@@ -48,7 +48,7 @@ pub fn alert_threshold(sensitivity: u8, is_night: bool) -> u16 {
 
 pub fn classify_alert(brightness: u8, size_cells: u8, sensitivity: u8, is_night: bool) -> u8 {
     let threshold: u16 = alert_threshold(sensitivity, is_night);
-    if (brightness < threshold) {
+    if ((brightness as u16) < threshold) {
         return ALERT_NONE;
     }
     if (size_cells > 8) {

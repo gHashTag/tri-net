@@ -56,7 +56,7 @@ pub fn get_last_update(state: u32) -> u32 {
 }
 
 pub fn create_flow_array(f0: u32, f1: u32, f2: u32, f3: u32, f4: u32, f5: u32, f6: u32, f7: u32) -> [u32; 8] {
-    return vec![];
+    return [f0,f1,f2,f3,f4,f5,f6,f7];
 }
 
 pub fn get_flow_req(array: [u32; 8], index: u32) -> u32 {

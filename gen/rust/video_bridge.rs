@@ -52,11 +52,11 @@ pub fn fb_util_pct(spent: u16, rate: u16) -> u8 {
         return 100;
     }
     let scaled: u32 = spent;
-    let pct: u32 = ((spent * 100) / rate);
+    let pct: u32 = ((scaled * 100) / (rate as u32));
     if (pct > 100) {
         return 100;
     }
-    return pct;
+    return (pct as u8);
 }
 
 pub fn fb_drop_pct(dropped: u16, offered: u16) -> u8 {
@@ -65,8 +65,8 @@ pub fn fb_drop_pct(dropped: u16, offered: u16) -> u8 {
     }
     let scaled: u32 = dropped;
     let total: u32 = offered;
-    let pct: u32 = ((dropped * 100) / offered);
-    return pct;
+    let pct: u32 = ((scaled * 100) / total);
+    return (pct as u8);
 }
 
 pub const CLIMB_BELOW_PCT: u8 = 85;
@@ -117,8 +117,8 @@ pub fn fb_effective_rate(sent: u16, delivered: u16, configured: u16) -> u16 {
     }
     let s: u32 = sent;
     let d: u32 = delivered;
-    let threshold: u32 = ((sent * 9) / 10);
-    if (delivered >= threshold) {
+    let threshold: u32 = ((s * 9) / 10);
+    if (d >= threshold) {
         return configured;
     }
     return delivered;
@@ -185,20 +185,20 @@ pub fn fec_packet_size() -> u8 {
     return (FEC_HEADER_LEN + MAX_FRAG_DATA);
 }
 
-pub fn frag_seq(seq_lo: u8, seq_hi: u8) -> u16 {
-    let lo: u16 = seq_lo;
-    let hi: u16 = seq_hi;
-    return (seq_lo + (seq_hi << 8));
+pub fn frag_seq(s_lo: u8, s_hi: u8) -> u16 {
+    let lo: u16 = s_lo;
+    let hi: u16 = s_hi;
+    return (lo + (hi * 256));
 }
 
 pub fn seq_lo(seq: u16) -> u8 {
     let low: u16 = (seq % 256);
-    return low;
+    return (low as u8);
 }
 
 pub fn seq_hi(seq: u16) -> u8 {
     let high: u16 = (seq / 256);
-    return high;
+    return (high as u8);
 }
 
 pub fn fragment_count(nal_size: u16) -> u8 {
@@ -208,9 +208,9 @@ pub fn fragment_count(nal_size: u16) -> u8 {
     let full_frags: u16 = (nal_size / 70);
     let remainder: u16 = (nal_size % 70);
     if (remainder > 0) {
-        return (full_frags + 1);
+        return ((full_frags + 1) as u8);
     }
-    return full_frags;
+    return (full_frags as u8);
 }
 
 pub fn packet_size(data_len: u8) -> u8 {

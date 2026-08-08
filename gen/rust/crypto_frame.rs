@@ -37,12 +37,12 @@ pub fn must_reject(tx_counter: u64) -> bool {
 
 pub fn nonce_byte(dir: u8, epoch: u32, ctr: u64, i: u32) -> u32 {
     if (i == 0) {
-        return dir;
+        return (dir as u32);
     }
     if (i < 5) {
         return ((epoch >> ((4 - i) * 8)) & 255);
     }
-    return ((ctr >> ((11 - i) << 3)) & 255);
+    return (((ctr >> ((11 - i) * 8)) & 255) as u32);
 }
 
 pub fn rx_dir(tx_dir: u8) -> u8 {
@@ -52,7 +52,7 @@ pub fn rx_dir(tx_dir: u8) -> u8 {
 pub const WINDOW_WIDTH: u64 = 64;
 
 pub fn replay_accept(seen_any: bool, top: u64, blo: u32, bhi: u32, ctr: u64) -> bool {
-    if ((seen_any) == 0) {
+    if (seen_any == false) {
         return true;
     }
     if (ctr > top) {
@@ -69,7 +69,7 @@ pub fn replay_accept(seen_any: bool, top: u64, blo: u32, bhi: u32, ctr: u64) -> 
 }
 
 pub fn replay_next_top(seen_any: bool, top: u64, ctr: u64) -> u64 {
-    if ((seen_any) == 0) {
+    if (seen_any == false) {
         return ctr;
     }
     if (ctr > top) {
@@ -79,7 +79,7 @@ pub fn replay_next_top(seen_any: bool, top: u64, ctr: u64) -> u64 {
 }
 
 pub fn replay_next_blo(seen_any: bool, top: u64, blo: u32, bhi: u32, ctr: u64) -> u32 {
-    if ((seen_any) == 0) {
+    if (seen_any == false) {
         return 1;
     }
     if (ctr > top) {
@@ -97,7 +97,7 @@ pub fn replay_next_blo(seen_any: bool, top: u64, blo: u32, bhi: u32, ctr: u64) -
 }
 
 pub fn replay_next_bhi(seen_any: bool, top: u64, blo: u32, bhi: u32, ctr: u64) -> u32 {
-    if ((seen_any) == 0) {
+    if (seen_any == false) {
         return 0;
     }
     if (ctr > top) {

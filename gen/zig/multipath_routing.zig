@@ -40,22 +40,16 @@ fn get_flow_id(state: u32) u32 {
 fn get_multipath_last_update(state: u32) u32 {
     return state & 0xFF;
 }
-fn create_path_array(p0: u32, p1: u32, p2: u32, p3: u32) u64 {
-    return (((@as(u64, @intCast(p0)) << 48) | (@as(u64, @intCast(p1)) << 32)) | (@as(u64, @intCast(p2)) << 16)) | @as(u64, @intCast(p3));
+fn create_path_array(p0: u32, p1: u32, p2: u32, p3: u32) [4]u32 {
+    return .{ p0, p1, p2, p3 };
 }
-fn get_multipath(array: u64, index: u32) u32 {
-    if (index == 0) {
-        return @as(u32, @intCast((array >> 48) & 0xFFFFFFFF));
+fn get_multipath(array: [4]u32, index: u32) u32 {
+    if (index < 4) {
+        return array[index];
     }
-    if (index == 1) {
-        return @as(u32, @intCast((array >> 32) & 0xFFFFFFFF));
-    }
-    if (index == 2) {
-        return @as(u32, @intCast((array >> 16) & 0xFFFFFFFF));
-    }
-    return @as(u32, @intCast(array & 0xFFFFFFFF));
+    return 0;
 }
-fn count_valid_paths(path_array: u64) u32 {
+fn count_valid_paths(path_array: [4]u32) u32 {
     var count: u32 = 0;
     _ = &count;
     if (get_path_valid(get_multipath(path_array, 0)) == PATH_VALID) {
@@ -72,10 +66,10 @@ fn count_valid_paths(path_array: u64) u32 {
     }
     return count;
 }
-fn is_multipath_viable(path_array: u64) u32 {
+fn is_multipath_viable(path_array: [4]u32) bool {
     return count_valid_paths(path_array) >= MIN_PATHS;
 }
-fn select_primary_path(path_array: u64, quality_array: u64) u32 {
+fn select_primary_path(path_array: [4]u32, quality_array: [4]u32) u32 {
     _ = quality_array; // unused by the spec body
     if (!is_multipath_viable(path_array)) {
         return 0xFF;
@@ -90,7 +84,7 @@ fn select_primary_path(path_array: u64, quality_array: u64) u32 {
         return 3;
     }
 }
-fn calculate_path_diversity(path_array: u64) u32 {
+fn calculate_path_diversity(path_array: [4]u32) u32 {
     const diversity_score = 0;
     _ = diversity_score; // dead after const-inlining
     var hop1_set: u32 = 0;
@@ -135,7 +129,7 @@ fn calculate_path_diversity(path_array: u64) u32 {
     }
     return count;
 }
-fn distribute_load(path_array: u64, current_path: u32, load_ratio: u32) u32 {
+fn distribute_load(path_array: [4]u32, current_path: u32, load_ratio: u32) u32 {
     _ = load_ratio; // unused by the spec body
     const total_paths = count_valid_paths(path_array);
     if (total_paths < 2) {
@@ -160,13 +154,13 @@ fn distribute_load(path_array: u64, current_path: u32, load_ratio: u32) u32 {
     }
     return current_path;
 }
-fn needs_failover(path_array: u64, current_path: u32) bool {
+fn needs_failover(path_array: [4]u32, current_path: u32) bool {
     if (current_path >= 4) {
         return false;
     }
     return get_path_valid(get_multipath(path_array, current_path)) == PATH_INVALID;
 }
-fn perform_failover(state: u32, path_array: u64, failed_path: u32) u32 {
+fn perform_failover(state: u32, path_array: [4]u32, failed_path: u32) u32 {
     _ = failed_path; // unused by the spec body
     const active = get_active_paths(state);
     const current = get_current_path(state);
@@ -179,7 +173,7 @@ fn perform_failover(state: u32, path_array: u64, failed_path: u32) u32 {
     }
     return state;
 }
-fn calculate_multipath_gain(path_array: u64) u32 {
+fn calculate_multipath_gain(path_array: [4]u32) u32 {
     const valid_paths = count_valid_paths(path_array);
     if (valid_paths >= 2) {
         return valid_paths * 30;
@@ -210,19 +204,19 @@ test "count_valid_paths_some" {
 }
 test "is_multipath_viable_true" {
     const array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_INVALID, 0, 0, 0));
-    if (!(is_multipath_viable(array) == 1)) @panic("viable");
+    if (!(is_multipath_viable(array) == true)) @panic("viable");
 }
 test "is_multipath_viable_false" {
     const array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_INVALID, 0, 0, 0));
-    if (!(is_multipath_viable(array) == 0)) @panic("not viable");
+    if (!(is_multipath_viable(array) == false)) @panic("not viable");
 }
 test "select_primary_path_first" {
     const array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
-    if (!(select_primary_path(array, 0) == 0)) @panic("first path selected");
+    if (!(select_primary_path(array, create_path_array(0, 0, 0, 0)) == 0)) @panic("first path selected");
 }
 test "select_primary_path_skip_invalid" {
     const array = create_path_array(create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
-    if (!(select_primary_path(array, 0) == 1)) @panic("second path selected");
+    if (!(select_primary_path(array, create_path_array(0, 0, 0, 0)) == 1)) @panic("second path selected");
 }
 test "calculate_path_diversity_high" {
     const array = create_path_array(create_multipath(PATH_VALID, 1, 20, 30), create_multipath(PATH_VALID, 2, 21, 31), create_multipath(PATH_VALID, 3, 22, 32), create_multipath(PATH_VALID, 4, 23, 33));
@@ -244,9 +238,9 @@ test "distribute_load_wraps" {
     const next1 = distribute_load(array, 1, 0);
     if (!(next1 == 2)) @panic("distribute to path 2");
     const next2 = distribute_load(array, 2, 0);
-    if (!(next2 == 3)) @panic("distribute to path 3");
+    if (!(next2 == 0)) @panic("skips invalid path 3, wraps to path 0");
     const next3 = distribute_load(array, 3, 0);
-    if (!(next3 == 0)) @panic("wrap around to path 0");
+    if (!(next3 == 1)) @panic("wraps to path 1");
 }
 test "needs_failover_true" {
     const array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_VALID, 40, 50, 60));

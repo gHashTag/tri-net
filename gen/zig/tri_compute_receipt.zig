@@ -345,8 +345,8 @@ test "chain_deterministic" {
 test "chain_order_sensitive" {
     const la = receipt_leaf(0xE0E0, 0x11, 0x1111, 5, 1);
     const lb = receipt_leaf(0xE0E0, 0x12, 0x2222, 7, 2);
-    const f0 = receipt_step(RECEIPT_GENESIS, la);
-    const forward = receipt_step(f0, lb);
+    const @"f0" = receipt_step(RECEIPT_GENESIS, la);
+    const forward = receipt_step(@"f0", lb);
     const r0 = receipt_step(RECEIPT_GENESIS, lb);
     const swapped = receipt_step(r0, la);
     if (!(forward != swapped)) @panic("reordering receipts changes the head");

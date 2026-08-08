@@ -278,17 +278,16 @@ fn generate_traffic_heat_map(packets: [MAX_PACKETS]u32, packet_count: u32, node_
 fn generate_traffic_animation(packets: [MAX_PACKETS]u32, packet_count: u32, paths: [MAX_PATHS]u32, path_count: u32, node_count: u32, duration_frames: u32) u32 {
     _ = paths; // unused by the spec body
     const total_frames: u32 = duration_frames;
-    _ = total_frames; // dead after const-inlining
     const current_frame: u32 = 0;
     _ = current_frame; // dead after const-inlining
     const complexity: u32 = calculate_animation_complexity(packet_count, path_count, node_count);
     const optimization: u32 = optimize_animation_performance(packet_count, ANIMATION_FPS);
     const actual_packet_count: u32 = packet_count - optimization;
-    const timeline: u32 = create_animation_timeline(0, duration_frames, 0, 1);
+    const timeline: u32 = create_animation_timeline(0, total_frames, 0, 1);
     _ = timeline; // dead after const-inlining
     const heat_map: u32 = generate_traffic_heat_map(packets, actual_packet_count, node_count);
     const max_traffic: u32 = (heat_map >> 24) & 0xFF;
-    return ((((duration_frames & 0xFF) << 24) | ((complexity & 0xFF) << 16)) | ((actual_packet_count & 0xFF) << 8)) | (max_traffic & 0xFF);
+    return ((((total_frames & 0xFF) << 24) | ((complexity & 0xFF) << 16)) | ((actual_packet_count & 0xFF) << 8)) | (max_traffic & 0xFF);
 }
 fn create_animation_controls(play_pause: u32, step_forward: u32, step_backward: u32, reset: u32) u32 {
     return ((((play_pause & 0x1) << 3) | ((step_forward & 0x1) << 2)) | ((step_backward & 0x1) << 1)) | (reset & 0x1);

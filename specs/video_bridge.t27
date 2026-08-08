@@ -87,7 +87,7 @@ module VideoBridge {
         if (pct > 100) {
             return 100;
         }
-        return pct;
+        return pct as u8;
     }
 
     // Share of offered payloads the node had to drop, as a percentage.
@@ -102,7 +102,7 @@ module VideoBridge {
         let scaled: u32 = dropped;
         let total: u32 = offered;
         let pct: u32 = (scaled * 100) / total;
-        return pct;
+        return pct as u8;
     }
 
     // NO DEAD ZONE. Back off at >=85% or any drop; otherwise CLIMB. An earlier
@@ -302,21 +302,22 @@ module VideoBridge {
     }
 
     // Extract sequence number from fragment header (little-endian u16)
-    fn frag_seq(seq_lo: u8, seq_hi: u8) -> u16 {
-        let lo: u16 = seq_lo;
-        let hi: u16 = seq_hi;
+    // Param names must not shadow the seq_lo/seq_hi module fns below.
+    fn frag_seq(s_lo: u8, s_hi: u8) -> u16 {
+        let lo: u16 = s_lo;
+        let hi: u16 = s_hi;
         return lo + (hi * 256);
     }
 
     // Split sequence into bytes
     fn seq_lo(seq: u16) -> u8 {
         let low: u16 = seq % 256;
-        return low;
+        return low as u8;
     }
 
     fn seq_hi(seq: u16) -> u8 {
         let high: u16 = seq / 256;
-        return high;
+        return high as u8;
     }
 
     // Calculate number of fragments needed for a NAL unit of given size
@@ -327,9 +328,9 @@ module VideoBridge {
         let full_frags: u16 = nal_size / 70;
         let remainder: u16 = nal_size % 70;
         if (remainder > 0) {
-            return (full_frags + 1);
+            return (full_frags + 1) as u8;
         }
-        return full_frags;
+        return full_frags as u8;
     }
 
     // Total packet size for a fragment with given data length
@@ -574,7 +575,10 @@ module VideoBridge {
     }
 
     test fb_advice_holds_in_the_band {
-        assert(fb_advice(70, 0, 75, 85) == ADVICE_HOLD, "60..85 is the hysteresis band");
+        // HOLD zone is [climb_below, back_off_at) = [75, 85): 80 sits inside it.
+        // (70 < climb_below legitimately CLIMBS -- the old vector contradicted
+        // the thresholds it passed.)
+        assert(fb_advice(80, 0, 75, 85) == ADVICE_HOLD, "75..85 is the hysteresis band");
     }
 
     test fb_advice_backs_off_when_full {

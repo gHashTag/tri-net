@@ -143,8 +143,7 @@ fn create_load_prediction(history: [HISTORY_SIZE]u32, count: u32) u32 {
     const confidence: u32 = calculate_confidence(history, count);
     const trend: u32 = detect_trend(history, count);
     const horizon: u32 = PREDICTION_WINDOW;
-    _ = horizon; // dead after const-inlining
-    return create_prediction(predicted, confidence, trend, PREDICTION_WINDOW);
+    return create_prediction(predicted, confidence, trend, horizon);
 }
 fn is_congestion_predicted(prediction: u32) u32 {
     const load: u32 = get_predicted_load(prediction);
