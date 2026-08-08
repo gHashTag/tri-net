@@ -243,4 +243,47 @@ module TriGftAdd {
         assert(gft_dot4_offset_p(364, 0, 364, 0, 364, 0, 364, 0, 728, 33554432, 26) == 366, "GF-T32 4 x 1.0 = 4.0 -> offset 366");
         assert(gft_dot4_mant_p(364, 0, 364, 0, 364, 0, 364, 0, 728, 33554432, 26) == 0, "GF-T32 4.0 mantissa 0");
     }
+
+    // First executable bench block of the ring (L4): a mantissa sweep through the
+    // GF-T16 adder. Where a test pins single KAT points, the bench walks a range --
+    // 16 mantissa steps through gft_add_mant/gft_add_offset at equal exponents,
+    // pinning the closed forms: equal-exponent add is (ma+mb)/2 with a carry into
+    // offset+1. Runs wherever test blocks run (cargo-transcribed guards, icarus
+    // simulation), so it doubles as a mini differential sweep in hardware.
+    bench add_mantissa_sweep {
+        m0 = gft_add_mant(40, 40, 0, 0);
+        o0 = gft_add_offset(40, 40, 0, 0, 80);
+        m1 = gft_add_mant(40, 40, 32, 96);
+        m2 = gft_add_mant(40, 40, 64, 192);
+        m3 = gft_add_mant(40, 40, 96, 288);
+        m4 = gft_add_mant(40, 40, 128, 384);
+        m5 = gft_add_mant(40, 40, 160, 480);
+        m6 = gft_add_mant(40, 40, 192, 64);
+        m7 = gft_add_mant(40, 40, 224, 160);
+        m8 = gft_add_mant(40, 40, 256, 256);
+        m9 = gft_add_mant(40, 40, 288, 352);
+        m10 = gft_add_mant(40, 40, 320, 448);
+        m11 = gft_add_mant(40, 40, 352, 32);
+        m12 = gft_add_mant(40, 40, 384, 128);
+        m13 = gft_add_mant(40, 40, 416, 224);
+        m14 = gft_add_mant(40, 40, 448, 320);
+        m15 = gft_add_mant(40, 40, 480, 416);
+        assert(m0 == 0, "1.0+1.0 -> mantissa 0 with carry");
+        assert(o0 == 41, "1.0+1.0 -> offset 41");
+        assert(m1 == 64, "sweep step 1: (32+96)/2");
+        assert(m2 == 128, "sweep step 2: (64+192)/2");
+        assert(m3 == 192, "sweep step 3: (96+288)/2");
+        assert(m4 == 256, "sweep step 4: (128+384)/2");
+        assert(m5 == 320, "sweep step 5: (160+480)/2");
+        assert(m6 == 128, "sweep step 6: (192+64)/2");
+        assert(m7 == 192, "sweep step 7: (224+160)/2");
+        assert(m8 == 256, "sweep step 8: (256+256)/2");
+        assert(m9 == 320, "sweep step 9: (288+352)/2");
+        assert(m10 == 384, "sweep step 10: (320+448)/2");
+        assert(m11 == 192, "sweep step 11: (352+32)/2");
+        assert(m12 == 256, "sweep step 12: (384+128)/2");
+        assert(m13 == 320, "sweep step 13: (416+224)/2");
+        assert(m14 == 384, "sweep step 14: (448+320)/2");
+        assert(m15 == 448, "sweep step 15: (480+416)/2");
+    }
 }
