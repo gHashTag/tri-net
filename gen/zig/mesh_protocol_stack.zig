@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const MAX_NODES: u32 = 3;
 const MAX_HOPS: u32 = 3;
 const NODE_A: u32 = 1;
@@ -68,76 +67,76 @@ fn forward_packet(packet: u32, current_node: u32) struct { u32, bool, u32 } {
 }
 test "build_packet_correct_layout" {
     const pkt = build_packet(NODE_A, NODE_B, 3, 5);
-    if (!(extract_src(pkt) == NODE_A)) @compileError("assertion failed");
-    if (!(extract_dst(pkt) == NODE_B)) @compileError("assertion failed");
-    if (!(extract_ttl(pkt) == 3)) @compileError("assertion failed");
-    if (!(extract_payload(pkt) == 5)) @compileError("assertion failed");
+    if (!(extract_src(pkt) == NODE_A)) @panic("src preserved");
+    if (!(extract_dst(pkt) == NODE_B)) @panic("dst preserved");
+    if (!(extract_ttl(pkt) == 3)) @panic("ttl preserved");
+    if (!(extract_payload(pkt) == 5)) @panic("payload preserved");
 }
 test "tx_path_produces_valid_packet" {
     const pkt = tx_path(NODE_A, NODE_B, 7);
-    if (!(extract_src(pkt) == NODE_A)) @compileError("assertion failed");
-    if (!(extract_dst(pkt) == NODE_B)) @compileError("assertion failed");
-    if (!(extract_payload(pkt) == 7)) @compileError("assertion failed");
+    if (!(extract_src(pkt) == NODE_A)) @panic("tx src");
+    if (!(extract_dst(pkt) == NODE_B)) @panic("tx dst");
+    if (!(extract_payload(pkt) == 7)) @panic("tx payload");
 }
 test "rx_path_extracts_payload" {
     const pkt = build_packet(NODE_A, NODE_B, 3, 9);
     const payload = rx_path(pkt);
-    if (!(payload == 9)) @compileError("assertion failed");
+    if (!(payload == 9)) @panic("rx payload");
 }
 test "decrement_ttl_reduces" {
     const pkt = build_packet(NODE_A, NODE_B, 3, 5);
     const new_pkt = decrement_ttl(pkt).@"0";
     const expired = decrement_ttl(pkt).@"1";
-    if (!(extract_ttl(new_pkt) == 2)) @compileError("assertion failed");
-    if (!(expired == false)) @compileError("assertion failed");
+    if (!(extract_ttl(new_pkt) == 2)) @panic("ttl decremented");
+    if (!(expired == false)) @panic("not expired");
 }
 test "decrement_ttl_zero_expires" {
     const pkt = build_packet(NODE_A, NODE_B, 1, 5);
     const new_pkt = decrement_ttl(pkt).@"0";
     const expired = decrement_ttl(pkt).@"1";
-    if (!(extract_ttl(new_pkt) == 0)) @compileError("assertion failed");
-    if (!(expired == true)) @compileError("assertion failed");
+    if (!(extract_ttl(new_pkt) == 0)) @panic("ttl zero");
+    if (!(expired == true)) @panic("expired");
 }
 test "decrement_ttl_already_expired" {
     const pkt = build_packet(NODE_A, NODE_B, 0, 5);
     const new_pkt = decrement_ttl(pkt).@"0";
     const expired = decrement_ttl(pkt).@"1";
-    if (!(extract_ttl(new_pkt) == 0)) @compileError("assertion failed");
-    if (!(expired == true)) @compileError("assertion failed");
+    if (!(extract_ttl(new_pkt) == 0)) @panic("ttl zero");
+    if (!(expired == true)) @panic("expired");
 }
 test "route_packet_direct_a_to_b" {
     const next_hop = route_packet(NODE_A, NODE_B, 0);
-    if (!(next_hop == NODE_B)) @compileError("assertion failed");
+    if (!(next_hop == NODE_B)) @panic("direct route AâB");
 }
 test "route_packet_via_b_a_to_c" {
     const next_hop = route_packet(NODE_A, NODE_C, 0);
-    if (!(next_hop == NODE_B)) @compileError("assertion failed");
+    if (!(next_hop == NODE_B)) @panic("route AâC via B");
 }
 test "route_packet_direct_b_to_c" {
     const next_hop = route_packet(NODE_B, NODE_C, 0);
-    if (!(next_hop == NODE_C)) @compileError("assertion failed");
+    if (!(next_hop == NODE_C)) @panic("direct route BâC");
 }
 test "forward_packet_decrements_ttl" {
     const pkt = build_packet(NODE_A, NODE_B, 3, 5);
     const new_pkt = forward_packet(pkt, NODE_A).@"0";
     const expired = forward_packet(pkt, NODE_A).@"1";
     const next_hop = forward_packet(pkt, NODE_A).@"2";
-    if (!(extract_ttl(new_pkt) == 2)) @compileError("assertion failed");
-    if (!(expired == false)) @compileError("assertion failed");
-    if (!(next_hop == NODE_B)) @compileError("assertion failed");
+    if (!(extract_ttl(new_pkt) == 2)) @panic("ttl decreased");
+    if (!(expired == false)) @panic("not expired");
+    if (!(next_hop == NODE_B)) @panic("next hop B");
 }
 test "forward_packet_preserves_payload" {
     const pkt = build_packet(NODE_A, NODE_B, 3, 5);
     const fwd = forward_packet(pkt, NODE_A).@"0";
-    if (!(extract_ttl(fwd) == 2)) @compileError("assertion failed");
-    if (!(extract_src(fwd) == NODE_A)) @compileError("assertion failed");
-    if (!(extract_dst(fwd) == NODE_B)) @compileError("assertion failed");
-    if (!(extract_payload(fwd) == 5)) @compileError("assertion failed");
+    if (!(extract_ttl(fwd) == 2)) @panic("only the TTL changes (3 -> 2)");
+    if (!(extract_src(fwd) == NODE_A)) @panic("src preserved across the hop");
+    if (!(extract_dst(fwd) == NODE_B)) @panic("dst preserved across the hop");
+    if (!(extract_payload(fwd) == 5)) @panic("payload preserved across the hop");
     const fwd2 = forward_packet(fwd, NODE_A).@"0";
-    if (!(extract_payload(fwd2) == 5)) @compileError("assertion failed");
-    if (!(extract_src(fwd2) == NODE_A)) @compileError("assertion failed");
-    if (!(extract_dst(fwd2) == NODE_B)) @compileError("assertion failed");
-    if (!(extract_ttl(fwd2) == 1)) @compileError("assertion failed");
+    if (!(extract_payload(fwd2) == 5)) @panic("payload preserved after a second hop");
+    if (!(extract_src(fwd2) == NODE_A)) @panic("src still preserved");
+    if (!(extract_dst(fwd2) == NODE_B)) @panic("dst still preserved");
+    if (!(extract_ttl(fwd2) == 1)) @panic("TTL 2 -> 1 on the second hop");
 }
 test "forward_packet_ttl_expired" {
     const pkt = build_packet(NODE_A, NODE_B, 1, 5);
@@ -147,7 +146,7 @@ test "forward_packet_ttl_expired" {
     const pkt2 = forward_packet(pkt1, NODE_B).@"0";
     _ = pkt2; // dead after const-inlining
     const exp2 = forward_packet(pkt1, NODE_B).@"1";
-    if (!(exp2 == true)) @compileError("assertion failed");
+    if (!(exp2 == true)) @panic("expired after 2 hops");
 }
 test "forward_packet_no_route" {
     const pkt = build_packet(NODE_A, 99, 3, 5);
@@ -155,26 +154,26 @@ test "forward_packet_no_route" {
     _ = new_pkt; // dead after const-inlining
     const expired = forward_packet(pkt, NODE_A).@"1";
     const next_hop = forward_packet(pkt, NODE_A).@"2";
-    if (!(next_hop == 0)) @compileError("assertion failed");
-    if (!(expired == false)) @compileError("assertion failed");
+    if (!(next_hop == 0)) @panic("no route");
+    if (!(expired == false)) @panic("ttl not expired yet");
 }
 test "end_to_end_tx_rx" {
     const pkt = tx_path(NODE_A, NODE_B, 42);
     const payload = rx_path(pkt);
-    if (!(payload == 42)) @compileError("assertion failed");
+    if (!(payload == 42)) @panic("end-to-end payload");
 }
 test "multi_hop_routing" {
     const pkt = tx_path(NODE_A, NODE_C, 7);
     const pkt1 = forward_packet(pkt, NODE_A).@"0";
     const exp1 = forward_packet(pkt, NODE_A).@"1";
     const hop1 = forward_packet(pkt, NODE_A).@"2";
-    if (!(hop1 == NODE_B)) @compileError("assertion failed");
-    if (!(exp1 == false)) @compileError("assertion failed");
+    if (!(hop1 == NODE_B)) @panic("first hop to B");
+    if (!(exp1 == false)) @panic("not expired");
     const pkt2 = forward_packet(pkt1, NODE_B).@"0";
     const exp2 = forward_packet(pkt1, NODE_B).@"1";
     const hop2 = forward_packet(pkt1, NODE_B).@"2";
-    if (!(hop2 == NODE_C)) @compileError("assertion failed");
-    if (!(exp2 == false)) @compileError("assertion failed");
+    if (!(hop2 == NODE_C)) @panic("second hop to C");
+    if (!(exp2 == false)) @panic("not expired");
     const payload = rx_path(pkt2);
-    if (!(payload == 7)) @compileError("assertion failed");
+    if (!(payload == 7)) @panic("multi-hop payload");
 }

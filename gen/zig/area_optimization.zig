@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const OPT_NONE: u32 = 0;
 const OPT_RESOURCE_SHARE: u32 = 1;
 const OPT_BIT_WIDTH_REDUCE: u32 = 2;
@@ -85,87 +84,87 @@ fn analyze_bit_width(min_val: u32, max_val: u32) u8 {
 }
 test "estimate_complexity_simple" {
     const complexity = estimate_complexity(10, 5, 16);
-    if (!(complexity == 250)) @compileError("assertion failed");
+    if (!(complexity == 250)) @panic("simple complexity");
 }
 test "estimate_complexity_high" {
     const complexity = estimate_complexity(50, 20, 32);
-    if (!(complexity == 1110)) @compileError("assertion failed");
+    if (!(complexity == 1110)) @panic("high complexity");
 }
 test "calculate_sharing_savings_half" {
     const savings = calculate_sharing_savings(1000, 2);
-    if (!(savings == 500)) @compileError("assertion failed");
+    if (!(savings == 500)) @panic("50% savings");
 }
 test "calculate_sharing_savings_quarter" {
     const savings = calculate_sharing_savings(1000, 4);
-    if (!(savings == 750)) @compileError("assertion failed");
+    if (!(savings == 750)) @panic("75% savings");
 }
 test "calculate_sharing_savings_zero_factor" {
     const savings = calculate_sharing_savings(1000, 0);
-    if (!(savings == 0)) @compileError("assertion failed");
+    if (!(savings == 0)) @panic("zero factor = no savings");
 }
 test "calculate_bitwidth_savings_reduces" {
     const savings = calculate_bitwidth_savings(32, 16, 100);
-    if (!(savings == 200)) @compileError("assertion failed");
+    if (!(savings == 200)) @panic("200 bytes saved");
 }
 test "calculate_bitwidth_savings_no_reduction" {
     const savings = calculate_bitwidth_savings(16, 32, 100);
-    if (!(savings == 0)) @compileError("assertion failed");
+    if (!(savings == 0)) @panic("no reduction = no savings");
 }
 test "const_folding_applicable_high_ratio" {
-    if (!(const_folding_applicable(100, 50) == true)) @compileError("assertion failed");
+    if (!(const_folding_applicable(100, 50) == true)) @panic("50% constants");
 }
 test "const_folding_applicable_low_ratio" {
-    if (!(const_folding_applicable(100, 20) == false)) @compileError("assertion failed");
+    if (!(const_folding_applicable(100, 20) == false)) @panic("20% constants");
 }
 test "fifo_to_ram_applicable_yes" {
-    if (!(fifo_to_ram_applicable(32, 16) == true)) @compileError("assertion failed");
+    if (!(fifo_to_ram_applicable(32, 16) == true)) @panic("deep+wide");
 }
 test "fifo_to_ram_applicable_shallow" {
-    if (!(fifo_to_ram_applicable(8, 16) == false)) @compileError("assertion failed");
+    if (!(fifo_to_ram_applicable(8, 16) == false)) @panic("too shallow");
 }
 test "fifo_to_ram_applicable_narrow" {
-    if (!(fifo_to_ram_applicable(32, 4) == false)) @compileError("assertion failed");
+    if (!(fifo_to_ram_applicable(32, 4) == false)) @panic("too narrow");
 }
 test "create_resource_type_correct" {
     const res = create_resource_type(1, 5000);
-    if (!(extract_resource_type(res) == 1)) @compileError("assertion failed");
-    if (!(extract_resource_amount(res) == 5000)) @compileError("assertion failed");
+    if (!(extract_resource_type(res) == 1)) @panic("type");
+    if (!(extract_resource_amount(res) == 5000)) @panic("amount");
 }
 test "create_optimization_result_correct" {
     const result = create_optimization_result(2, 100, 70);
-    if (!(extract_strategy(result) == 2)) @compileError("assertion failed");
-    if (!(extract_original(result) == 100)) @compileError("assertion failed");
-    if (!(extract_optimized(result) == 70)) @compileError("assertion failed");
+    if (!(extract_strategy(result) == 2)) @panic("strategy");
+    if (!(extract_original(result) == 100)) @panic("original");
+    if (!(extract_optimized(result) == 70)) @panic("optimized");
 }
 test "calculate_savings_percentage_30" {
     const pct = calculate_savings_percentage(100, 70);
-    if (!(pct == 30)) @compileError("assertion failed");
+    if (!(pct == 30)) @panic("30% savings");
 }
 test "calculate_savings_percentage_zero" {
     const pct = calculate_savings_percentage(100, 100);
-    if (!(pct == 0)) @compileError("assertion failed");
+    if (!(pct == 0)) @panic("0% savings");
 }
 test "calculate_savings_percentage_negative" {
     const pct = calculate_savings_percentage(70, 100);
-    if (!(pct == 0)) @compileError("assertion failed");
+    if (!(pct == 0)) @panic("negative = 0%");
 }
 test "optimization_worthwhile_yes" {
     const result = create_optimization_result(1, 100, 80);
-    if (!(optimization_worthwhile(result) == true)) @compileError("assertion failed");
+    if (!(optimization_worthwhile(result) == true)) @panic("20% savings");
 }
 test "optimization_worthwhile_no" {
     const result = create_optimization_result(1, 100, 95);
-    if (!(optimization_worthwhile(result) == false)) @compileError("assertion failed");
+    if (!(optimization_worthwhile(result) == false)) @panic("5% savings");
 }
 test "analyze_bit_width_8bit" {
     const bits = analyze_bit_width(0, 255);
-    if (!(bits == 8)) @compileError("assertion failed");
+    if (!(bits == 8)) @panic("8-bit range");
 }
 test "analyze_bit_width_16bit" {
     const bits = analyze_bit_width(0, 65535);
-    if (!(bits == 16)) @compileError("assertion failed");
+    if (!(bits == 16)) @panic("16-bit range");
 }
 test "analyze_bit_width_32bit" {
     const bits = analyze_bit_width(0, 0xFFFFFFFF);
-    if (!(bits == 32)) @compileError("assertion failed");
+    if (!(bits == 32)) @panic("32-bit range");
 }

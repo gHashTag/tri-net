@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const CRC16_CCITT_POLY: u16 = 0x1021;
 const CRC16_INIT: u16 = 0xFFFF;
 fn crc_update_bit(crc: u16, bit: u8) u16 {
@@ -26,30 +25,30 @@ fn verify_crc16_4bytes(b0: u8, b1: u8, b2: u8, b3: u8, crc_received: u16) bool {
 }
 test "crc_update_byte_changes" {
     const crc = crc_update_byte(0xFFFF, 0);
-    if (!(crc != 0xFFFF)) @compileError("assertion failed");
+    if (!(crc != 0xFFFF)) @panic("changes");
 }
 test "crc16_4bytes_reproducible" {
     const crc1 = crc16_4bytes(1, 2, 3, 4);
     const crc2 = crc16_4bytes(1, 2, 3, 4);
-    if (!(crc1 == crc2)) @compileError("assertion failed");
+    if (!(crc1 == crc2)) @panic("reproducible");
 }
 test "crc16_4bytes_different" {
     const crc1 = crc16_4bytes(1, 2, 3, 4);
     const crc2 = crc16_4bytes(1, 2, 3, 5);
-    if (!(crc1 != crc2)) @compileError("assertion failed");
+    if (!(crc1 != crc2)) @panic("different");
 }
 test "verify_crc16_valid" {
     const crc_calc = crc16_4bytes(0xAA, 0xBB, 0xCC, 0xDD);
     const valid = verify_crc16_4bytes(0xAA, 0xBB, 0xCC, 0xDD, crc_calc);
-    if (!(valid)) @compileError("assertion failed");
+    if (!(valid)) @panic("valid");
 }
 test "verify_crc16_invalid" {
     const crc_calc = crc16_4bytes(0xAA, 0xBB, 0xCC, 0xDD);
     const valid = verify_crc16_4bytes(0xAA, 0xBB, 0xCC, 0xFF, crc_calc);
-    if (!(valid == false)) @compileError("assertion failed");
+    if (!(valid == false)) @panic("invalid");
 }
 test "crc16_sensitivity" {
     const crc1 = crc16_4bytes(0x01, 0x02, 0x03, 0x04);
     const crc2 = crc16_4bytes(0x01, 0x02, 0x03, 0x05);
-    if (!(crc1 != crc2)) @compileError("assertion failed");
+    if (!(crc1 != crc2)) @panic("sensitive");
 }

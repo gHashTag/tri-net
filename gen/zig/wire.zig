@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const VERSION: u8 = 1;
 const KIND_HELLO: u8 = 0;
 const KIND_DATA: u8 = 1;

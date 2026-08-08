@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const BASE_MS: u16 = 10;
 fn calc_timeout(retry: u8) u16 {
     if (retry == 0) {
@@ -30,29 +29,29 @@ fn is_expired(counter: u16) bool {
 }
 test "calc_timeout_zero" {
     const t0 = calc_timeout(0);
-    if (!(t0 == BASE_MS)) @compileError("assertion failed");
+    if (!(t0 == BASE_MS)) @panic("retry 0 â base");
 }
 test "calc_timeout_doubles" {
     const t0 = calc_timeout(0);
     const t1 = calc_timeout(1);
     const t2 = calc_timeout(2);
-    if (!(t0 == 10)) @compileError("assertion failed");
-    if (!(t1 == 20)) @compileError("assertion failed");
-    if (!(t2 == 40)) @compileError("assertion failed");
+    if (!(t0 == 10)) @panic("0â10");
+    if (!(t1 == 20)) @panic("1â20");
+    if (!(t2 == 40)) @panic("2â40");
 }
 test "calc_timeout_capped" {
     const t3 = calc_timeout(3);
-    if (!(t3 == 80)) @compileError("assertion failed");
+    if (!(t3 == 80)) @panic("3â80 (capped)");
 }
 test "tick_counter_decrements" {
     const c1 = tick_counter(10);
     const c2 = tick_counter(c1);
-    if (!(c1 == 9)) @compileError("assertion failed");
-    if (!(c2 == 8)) @compileError("assertion failed");
+    if (!(c1 == 9)) @panic("first tick");
+    if (!(c2 == 8)) @panic("second tick");
 }
 test "tick_counter_stops_at_zero" {
     const c0 = tick_counter(0);
-    if (!(c0 == 0)) @compileError("assertion failed");
+    if (!(c0 == 0)) @panic("stays at zero");
 }
 test "tick_counter_reaches_zero" {
     const c1 = tick_counter(5);
@@ -60,19 +59,19 @@ test "tick_counter_reaches_zero" {
     const c3 = tick_counter(c2);
     const c4 = tick_counter(c3);
     const c5 = tick_counter(c4);
-    if (!(c5 == 0)) @compileError("assertion failed");
+    if (!(c5 == 0)) @panic("reaches zero");
 }
 test "is_expired_check" {
-    if (!(is_expired(0) == true)) @compileError("assertion failed");
-    if (!(is_expired(1) == false)) @compileError("assertion failed");
+    if (!(is_expired(0) == true)) @panic("zero is expired");
+    if (!(is_expired(1) == false)) @panic("non-zero not expired");
 }
 test "full_backoff_sequence" {
     const r0 = calc_timeout(0);
     const r1 = calc_timeout(1);
     const r2 = calc_timeout(2);
     const r3 = calc_timeout(3);
-    if (!(r0 == 10)) @compileError("assertion failed");
-    if (!(r1 == 20)) @compileError("assertion failed");
-    if (!(r2 == 40)) @compileError("assertion failed");
-    if (!(r3 == 80)) @compileError("assertion failed");
+    if (!(r0 == 10)) @panic("0â10");
+    if (!(r1 == 20)) @panic("1â20");
+    if (!(r2 == 40)) @panic("2â40");
+    if (!(r3 == 80)) @panic("3â80");
 }

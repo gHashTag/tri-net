@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const ST_IDLE: u8 = 0;
 const ST_ENQUEUE: u8 = 1;
 const ST_BUILD_HDR: u8 = 2;
@@ -97,39 +96,39 @@ fn header_byte(kind: u8, src: u32, dst: u32, ttl: u8, idx: usize) u8 {
 }
 test "idle_to_enqueue_on_frame" {
     const next = next_state(ST_IDLE, true, false, false);
-    if (!(next == ST_ENQUEUE)) @compileError("assertion failed");
+    if (!(next == ST_ENQUEUE)) @panic("should transition to ENQUEUE");
 }
 test "idle_stays_idle_when_no_frame" {
     const next = next_state(ST_IDLE, false, false, false);
-    if (!(next == ST_IDLE)) @compileError("assertion failed");
+    if (!(next == ST_IDLE)) @panic("should stay IDLE");
 }
 test "enqueue_to_build_hdr" {
     const next = next_state(ST_ENQUEUE, false, false, false);
-    if (!(next == ST_BUILD_HDR)) @compileError("assertion failed");
+    if (!(next == ST_BUILD_HDR)) @panic("should transition to BUILD_HDR");
 }
 test "build_hdr_to_tx_wait" {
     const next = next_state(ST_BUILD_HDR, false, false, false);
-    if (!(next == ST_TX_WAIT)) @compileError("assertion failed");
+    if (!(next == ST_TX_WAIT)) @panic("should transition to TX_WAIT");
 }
 test "tx_wait_to_acked_on_success" {
     const next = next_state(ST_TX_WAIT, false, true, false);
-    if (!(next == ST_ACKED)) @compileError("assertion failed");
+    if (!(next == ST_ACKED)) @panic("should transition to ACKED");
 }
 test "tx_wait_stays_waiting_when_no_ack" {
     const next = next_state(ST_TX_WAIT, false, false, false);
-    if (!(next == ST_TX_WAIT)) @compileError("assertion failed");
+    if (!(next == ST_TX_WAIT)) @panic("should stay in TX_WAIT");
 }
 test "tx_wait_to_failed_on_retry_exceeded" {
     const next = next_state(ST_TX_WAIT, false, false, true);
-    if (!(next == ST_FAILED)) @compileError("assertion failed");
+    if (!(next == ST_FAILED)) @panic("should transition to FAILED");
 }
 test "acked_returns_to_idle" {
     const next = next_state(ST_ACKED, false, false, false);
-    if (!(next == ST_IDLE)) @compileError("assertion failed");
+    if (!(next == ST_IDLE)) @panic("should return to IDLE");
 }
 test "failed_returns_to_idle" {
     const next = next_state(ST_FAILED, false, false, false);
-    if (!(next == ST_IDLE)) @compileError("assertion failed");
+    if (!(next == ST_IDLE)) @panic("should return to IDLE");
 }
 test "retry_exponential_backoff" {
     const delay0 = retry_delay_ms(0, 10);
@@ -137,49 +136,49 @@ test "retry_exponential_backoff" {
     const delay2 = retry_delay_ms(2, 10);
     const delay3 = retry_delay_ms(3, 10);
     const delay4 = retry_delay_ms(4, 10);
-    if (!(delay0 == 10)) @compileError("assertion failed");
-    if (!(delay1 == 20)) @compileError("assertion failed");
-    if (!(delay2 == 40)) @compileError("assertion failed");
-    if (!(delay3 == 80)) @compileError("assertion failed");
-    if (!(delay4 == 160)) @compileError("assertion failed");
+    if (!(delay0 == 10)) @panic("retry 0 should be 10ms");
+    if (!(delay1 == 20)) @panic("retry 1 should be 20ms");
+    if (!(delay2 == 40)) @panic("retry 2 should be 40ms");
+    if (!(delay3 == 80)) @panic("retry 3 should be 80ms");
+    if (!(delay4 == 160)) @panic("retry 4 should be 160ms");
 }
 test "is_retries_exceeded_check" {
     const exceeded = is_retries_exceeded(5);
     const not_exceeded = is_retries_exceeded(4);
-    if (!(exceeded)) @compileError("assertion failed");
-    if (!(not_exceeded == false)) @compileError("assertion failed");
+    if (!(exceeded)) @panic("5 retries should be exceeded");
+    if (!(not_exceeded == false)) @panic("4 retries should not be exceeded");
 }
 test "increment_retry_saturates" {
     const r0 = increment_retry(0);
     const r1 = increment_retry(1);
     const r4 = increment_retry(4);
     const r5 = increment_retry(5);
-    if (!(r0 == 1)) @compileError("assertion failed");
-    if (!(r1 == 2)) @compileError("assertion failed");
-    if (!(r4 == 5)) @compileError("assertion failed");
-    if (!(r5 == 5)) @compileError("assertion failed");
+    if (!(r0 == 1)) @panic("0â1");
+    if (!(r1 == 2)) @panic("1â2");
+    if (!(r4 == 5)) @panic("4â5");
+    if (!(r5 == 5)) @panic("5 should saturate at 5");
 }
 test "header_byte_correctness_version" {
     const b0 = header_byte(KIND_DATA, 0x01020304, 0x05060708, 8, 0);
-    if (!(b0 == VERSION)) @compileError("assertion failed");
+    if (!(b0 == VERSION)) @panic("byte 0 should be VERSION");
 }
 test "header_byte_correctness_kind" {
     const b1 = header_byte(KIND_DATA, 0x01020304, 0x05060708, 8, 1);
-    if (!(b1 == KIND_DATA)) @compileError("assertion failed");
+    if (!(b1 == KIND_DATA)) @panic("byte 1 should be KIND_DATA");
 }
 test "header_byte_correctness_src" {
     const b2 = header_byte(KIND_DATA, 0x01020304, 0x05060708, 8, 2);
     const b5 = header_byte(KIND_DATA, 0x01020304, 0x05060708, 8, 5);
-    if (!(b2 == 1)) @compileError("assertion failed");
-    if (!(b5 == 4)) @compileError("assertion failed");
+    if (!(b2 == 1)) @panic("src byte 0 should be 0x01");
+    if (!(b5 == 4)) @panic("src byte 3 should be 0x04");
 }
 test "header_byte_correctness_dst" {
     const b6 = header_byte(KIND_DATA, 0x01020304, 0x05060708, 8, 6);
     const b9 = header_byte(KIND_DATA, 0x01020304, 0x05060708, 8, 9);
-    if (!(b6 == 5)) @compileError("assertion failed");
-    if (!(b9 == 8)) @compileError("assertion failed");
+    if (!(b6 == 5)) @panic("dst byte 0 should be 0x05");
+    if (!(b9 == 8)) @panic("dst byte 3 should be 0x08");
 }
 test "header_byte_correctness_ttl" {
     const b10 = header_byte(KIND_DATA, 0x01020304, 0x05060708, 8, 10);
-    if (!(b10 == 8)) @compileError("assertion failed");
+    if (!(b10 == 8)) @panic("byte 10 should be TTL");
 }

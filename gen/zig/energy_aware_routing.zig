@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const MAX_PATHS: u32 = 4;
 const BATTERY_WEIGHT: u32 = 7;
 const HOP_WEIGHT: u32 = 3;
@@ -194,63 +193,63 @@ fn estimate_path_lifetime(energy: u32, drain_rate: u32) u32 {
 }
 test "create_energy_cost_basic" {
     const cost = create_energy_cost(50, 30, 20, 3);
-    if (!(get_tx_power(cost) == 50)) @compileError("assertion failed");
-    if (!(get_rx_power(cost) == 30)) @compileError("assertion failed");
-    if (!(get_processing_cost(cost) == 20)) @compileError("assertion failed");
-    if (!(get_hop_count_cost(cost) == 3)) @compileError("assertion failed");
+    if (!(get_tx_power(cost) == 50)) @panic("TX power");
+    if (!(get_rx_power(cost) == 30)) @panic("RX power");
+    if (!(get_processing_cost(cost) == 20)) @panic("processing");
+    if (!(get_hop_count_cost(cost) == 3)) @panic("hop count");
 }
 test "create_path_energy_basic" {
     const energy = create_path_energy(80, 100, 1, 500);
-    if (!(get_battery_levels(energy) == 80)) @compileError("assertion failed");
-    if (!(get_total_cost(energy) == 100)) @compileError("assertion failed");
-    if (!(get_path_valid(energy) == 1)) @compileError("assertion failed");
-    if (!(get_energy_score(energy) == 500)) @compileError("assertion failed");
+    if (!(get_battery_levels(energy) == 80)) @panic("battery");
+    if (!(get_total_cost(energy) == 100)) @panic("cost");
+    if (!(get_path_valid(energy) == 1)) @panic("valid");
+    if (!(get_energy_score(energy) == 500)) @panic("score");
 }
 test "calculate_total_energy_cost" {
     const cost = create_energy_cost(50, 30, 20, 3);
     const total = calculate_total_energy_cost(cost);
-    if (!(total == 300)) @compileError("assertion failed");
+    if (!(total == 300)) @panic("total energy");
 }
 test "calculate_energy_score_high_battery" {
     const cost = create_energy_cost(50, 30, 20, 3);
     const score = calculate_energy_score(80, cost);
-    if (!((score >= 26) and (score <= 27))) @compileError("assertion failed");
+    if (!((score >= 26) and (score <= 27))) @panic("energy score");
 }
 test "calculate_energy_score_low_cost" {
     const cost = create_energy_cost(20, 10, 10, 2);
     const score = calculate_energy_score(50, cost);
-    if (!(score == 125)) @compileError("assertion failed");
+    if (!(score == 125)) @panic("energy score");
 }
 test "is_path_viable_true" {
     const energy = create_path_energy(60, 100, 1, 500);
-    if (!(is_path_viable(energy) == true)) @compileError("assertion failed");
+    if (!(is_path_viable(energy) == true)) @panic("viable");
 }
 test "is_path_viable_critical_battery" {
     const energy = create_path_energy(15, 100, 1, 500);
-    if (!(is_path_viable(energy) == false)) @compileError("assertion failed");
+    if (!(is_path_viable(energy) == false)) @panic("critical battery");
 }
 test "is_path_viable_invalid_path" {
     const energy = create_path_energy(60, 100, 0, 500);
-    if (!(is_path_viable(energy) == false)) @compileError("assertion failed");
+    if (!(is_path_viable(energy) == false)) @panic("invalid path");
 }
 test "find_energy_optimal_path_highest_score" {
     const array = create_energy_array(create_path_energy(60, 100, 1, 200), create_path_energy(80, 100, 1, 400), create_path_energy(70, 100, 1, 300), create_path_energy(50, 100, 1, 100));
-    if (!(find_energy_optimal_path(array) == 1)) @compileError("assertion failed");
+    if (!(find_energy_optimal_path(array) == 1)) @panic("path 1 optimal");
 }
 test "find_min_cost_path" {
     const array = create_energy_array(create_path_energy(80, 150, 1, 200), create_path_energy(70, 80, 1, 300), create_path_energy(60, 120, 1, 250), create_path_energy(90, 200, 1, 400));
-    if (!(find_min_cost_path(array) == 1)) @compileError("assertion failed");
+    if (!(find_min_cost_path(array) == 1)) @panic("path 1 minimum cost");
 }
 test "select_balanced_path_highest_battery" {
     const array = create_energy_array(create_path_energy(50, 100, 1, 200), create_path_energy(90, 100, 1, 300), create_path_energy(70, 100, 1, 250), create_path_energy(60, 100, 1, 150));
-    if (!(select_balanced_path(array, 0) == 1)) @compileError("assertion failed");
+    if (!(select_balanced_path(array, 0) == 1)) @panic("path 1 selected");
 }
 test "estimate_path_lifetime_normal" {
     const energy = create_path_energy(80, 100, 1, 500);
     const lifetime = estimate_path_lifetime(energy, 10);
-    if (!(lifetime == 8)) @compileError("assertion failed");
+    if (!(lifetime == 8)) @panic("8 time units");
 }
 test "estimate_path_lifetime_zero_drain" {
     const energy = create_path_energy(80, 100, 1, 500);
-    if (!(estimate_path_lifetime(energy, 0) == 0xFF)) @compileError("assertion failed");
+    if (!(estimate_path_lifetime(energy, 0) == 0xFF)) @panic("infinite lifetime");
 }

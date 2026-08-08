@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 fn get_sent(metrics: u32) u32 {
     return metrics;
 }
@@ -35,29 +34,29 @@ fn success_rate(sent: u32, success: u32) u8 {
     }
 }
 test "initial_zero" {
-    if (!(get_sent(0) == 0)) @compileError("assertion failed");
+    if (!(get_sent(0) == 0)) @panic("initial");
 }
 test "inc_sent_works" {
     const m1 = inc_sent(0);
-    if (!(get_sent(m1) == 1)) @compileError("assertion failed");
+    if (!(get_sent(m1) == 1)) @panic("inc works");
 }
 test "inc_recv_works" {
     const m1 = inc_recv(0);
-    if (!(get_recv(m1) == 1)) @compileError("assertion failed");
+    if (!(get_recv(m1) == 1)) @panic("inc works");
 }
 test "inc_success_works" {
     const m1 = inc_success(0);
-    if (!(get_success(m1) == 1)) @compileError("assertion failed");
+    if (!(get_success(m1) == 1)) @panic("inc success");
 }
 test "success_rate_perfect" {
-    if (!(success_rate(1, 1) == 100)) @compileError("assertion failed");
+    if (!(success_rate(1, 1) == 100)) @panic("100%");
 }
 test "success_rate_zero_sent" {
-    if (!(success_rate(0, 0) == 100)) @compileError("assertion failed");
+    if (!(success_rate(0, 0) == 100)) @panic("none sent = 100%");
 }
 test "success_rate_half" {
-    if (!(success_rate(10, 5) == 50)) @compileError("assertion failed");
+    if (!(success_rate(10, 5) == 50)) @panic("50%");
 }
 test "success_rate_zero_success" {
-    if (!(success_rate(10, 0) == 0)) @compileError("assertion failed");
+    if (!(success_rate(10, 0) == 0)) @panic("0%");
 }

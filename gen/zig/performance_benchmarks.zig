@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const MAX_QUEUE_SIZE: u32 = 16;
 const MAX_COUNTER: u32 = 255;
 const TIMER_TICK_US: u32 = 100;
@@ -62,39 +61,39 @@ fn ticks_to_milliseconds(ticks: u32) u32 {
 }
 test "create_queue_correct_layout" {
     const q = create_queue(5, 10, 15);
-    if (!(queue_count(q) == 5)) @compileError("assertion failed");
-    if (!(queue_head(q) == 10)) @compileError("assertion failed");
-    if (!(queue_tail(q) == 15)) @compileError("assertion failed");
+    if (!(queue_count(q) == 5)) @panic("count");
+    if (!(queue_head(q) == 10)) @panic("head");
+    if (!(queue_tail(q) == 15)) @panic("tail");
 }
 test "queue_enqueue_increases_count" {
     const q = create_queue(0, 0, 0);
     const q2 = queue_enqueue(q);
-    if (!(queue_count(q2) == 1)) @compileError("assertion failed");
-    if (!(queue_tail(q2) == 1)) @compileError("assertion failed");
+    if (!(queue_count(q2) == 1)) @panic("count increased");
+    if (!(queue_tail(q2) == 1)) @panic("tail advanced");
 }
 test "queue_enqueue_full" {
     const q = create_queue(MAX_QUEUE_SIZE, 0, MAX_QUEUE_SIZE - 1);
     const q2 = queue_enqueue(q);
-    if (!(queue_count(q2) == MAX_QUEUE_SIZE)) @compileError("assertion failed");
+    if (!(queue_count(q2) == MAX_QUEUE_SIZE)) @panic("still full");
 }
 test "queue_dequeue_decreases_count" {
     const q = create_queue(5, 0, 5);
     const q2 = queue_dequeue(q);
-    if (!(queue_count(q2) == 4)) @compileError("assertion failed");
-    if (!(queue_head(q2) == 1)) @compileError("assertion failed");
+    if (!(queue_count(q2) == 4)) @panic("count decreased");
+    if (!(queue_head(q2) == 1)) @panic("head advanced");
 }
 test "queue_dequeue_empty" {
     const q = create_queue(0, 0, 0);
     const q2 = queue_dequeue(q);
-    if (!(queue_count(q2) == 0)) @compileError("assertion failed");
+    if (!(queue_count(q2) == 0)) @panic("still empty");
 }
 test "queue_is_full_detects_full" {
     const q = create_queue(MAX_QUEUE_SIZE, 0, MAX_QUEUE_SIZE - 1);
-    if (!(queue_is_full(q) == true)) @compileError("assertion failed");
+    if (!(queue_is_full(q) == true)) @panic("is full");
 }
 test "queue_is_empty_detects_empty" {
     const q = create_queue(0, 0, 0);
-    if (!(queue_is_empty(q) == true)) @compileError("assertion failed");
+    if (!(queue_is_empty(q) == true)) @panic("is empty");
 }
 test "queue_max_capacity" {
     const q = create_queue(0, 0, 0);
@@ -113,38 +112,38 @@ test "queue_max_capacity" {
     const q14 = queue_enqueue(q13);
     const q15 = queue_enqueue(q14);
     const q16 = queue_enqueue(q15);
-    if (!(queue_count(q16) == MAX_QUEUE_SIZE)) @compileError("assertion failed");
-    if (!(queue_is_full(q16) == true)) @compileError("assertion failed");
+    if (!(queue_count(q16) == MAX_QUEUE_SIZE)) @panic("max capacity");
+    if (!(queue_is_full(q16) == true)) @panic("is full");
 }
 test "inc_counter_increments" {
     const c = inc_counter(0);
-    if (!(c == 1)) @compileError("assertion failed");
+    if (!(c == 1)) @panic("incremented");
 }
 test "inc_counter_overflows_at_max" {
     const c = inc_counter(MAX_COUNTER);
-    if (!(c == 0)) @compileError("assertion failed");
+    if (!(c == 0)) @panic("wrapped to zero");
 }
 test "counter_will_overflow_detects_max" {
-    if (!(counter_will_overflow(MAX_COUNTER) == true)) @compileError("assertion failed");
-    if (!(counter_will_overflow(MAX_COUNTER - 1) == false)) @compileError("assertion failed");
+    if (!(counter_will_overflow(MAX_COUNTER) == true)) @panic("will overflow");
+    if (!(counter_will_overflow(MAX_COUNTER - 1) == false)) @panic("not yet");
 }
 test "ticks_to_microseconds_converts" {
     const us = ticks_to_microseconds(10);
-    if (!(us == 1000)) @compileError("assertion failed");
+    if (!(us == 1000)) @panic("10 ticks = 1000us");
 }
 test "microseconds_to_ticks_converts" {
     const ticks = microseconds_to_ticks(1000);
-    if (!(ticks == 10)) @compileError("assertion failed");
+    if (!(ticks == 10)) @panic("1000us = 10 ticks");
 }
 test "ticks_to_milliseconds_converts" {
     const ms = ticks_to_milliseconds(100);
-    if (!(ms == 10)) @compileError("assertion failed");
+    if (!(ms == 10)) @panic("100 ticks = 10ms");
 }
 test "timer_conversion_roundtrip" {
     const us = 5000;
     const ticks = microseconds_to_ticks(us);
     const us2 = ticks_to_microseconds(ticks);
-    if (!(us2 >= (us - TIMER_TICK_US))) @compileError("assertion failed");
+    if (!(us2 >= (us - TIMER_TICK_US))) @panic("roundtrip within 1 tick");
 }
 test "queue_enqueue_dequeue_balance" {
     const q = create_queue(0, 0, 0);
@@ -152,5 +151,5 @@ test "queue_enqueue_dequeue_balance" {
     const q3 = queue_enqueue(q2);
     const q4 = queue_dequeue(q3);
     const q5 = queue_dequeue(q4);
-    if (!(queue_count(q5) == 0)) @compileError("assertion failed");
+    if (!(queue_count(q5) == 0)) @panic("balanced enqueue/dequeue");
 }

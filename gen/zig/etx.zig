@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const OPTIMISTIC: u8 = 230;
 const DEAD_EPS: u8 = 38;
 const ONE_FP: u16 = 256;
@@ -59,43 +58,43 @@ test "test_perfect_link" {
     const fwd = ewma_update(ewma_update(ewma_update(OPTIMISTIC, 255, ALPHA_HALF), 255, ALPHA_HALF), 255, ALPHA_HALF);
     const rev = ewma_update(ewma_update(ewma_update(OPTIMISTIC, 255, ALPHA_HALF), 255, ALPHA_HALF), 255, ALPHA_HALF);
     const etx = calc_etx(fwd, rev);
-    if (!((etx >= 200) and (etx <= 312))) @compileError("assertion failed");
+    if (!((etx >= 200) and (etx <= 312))) @panic("ETX ~1.0 expected");
 }
 test "test_half_forward" {
     const fwd = ewma_update(ewma_update(OPTIMISTIC, 255, ALPHA_HALF), 0, ALPHA_HALF);
     const rev = ewma_update(ewma_update(OPTIMISTIC, 255, ALPHA_HALF), 255, ALPHA_HALF);
     const etx = calc_etx(fwd, rev);
-    if (!((etx >= 384) and (etx <= 512))) @compileError("assertion failed");
+    if (!((etx >= 384) and (etx <= 512))) @panic("ETX ~2.0 expected");
 }
 test "test_dead_direction" {
     const fwd = ewma_update(ewma_update(OPTIMISTIC, 255, ALPHA_HALF), 255, ALPHA_HALF);
     const rev = ewma_update(ewma_update(OPTIMISTIC, 0, ALPHA_HALF), 0, ALPHA_HALF);
     const etx = calc_etx(fwd, rev);
-    if (!(etx == 0xFFFF)) @compileError("assertion failed");
+    if (!(etx == 0xFFFF)) @panic("dead link should be infinite");
 }
 test "test_force_dead" {
     const fwd = ewma_update(OPTIMISTIC, 255, 160);
     const rev = ewma_update(OPTIMISTIC, 255, 160);
     const etx_healthy = calc_etx(fwd, rev);
-    if (!(etx_healthy != 0xFFFF)) @compileError("assertion failed");
+    if (!(etx_healthy != 0xFFFF)) @panic("healthy link should be finite");
     const etx_dead = calc_etx(0, 0);
-    if (!(etx_dead == 0xFFFF)) @compileError("assertion failed");
+    if (!(etx_dead == 0xFFFF)) @panic("zeroed link should be infinite");
     const fwd2 = ewma_update(0, 255, 160);
     const rev2 = ewma_update(0, 255, 160);
     const etx_resurrect = calc_etx(fwd2, rev2);
-    if (!(etx_resurrect != 0xFFFF)) @compileError("assertion failed");
+    if (!(etx_resurrect != 0xFFFF)) @panic("resurrected link should be finite");
 }
 test "test_etx_buckets" {
     const etx_perfect = calc_etx(230, 230);
-    if (!((etx_perfect >= 200) and (etx_perfect <= 312))) @compileError("assertion failed");
+    if (!((etx_perfect >= 200) and (etx_perfect <= 312))) @panic("perfect ETX ~1.0");
     const etx_half = calc_etx(115, 230);
-    if (!((etx_half >= 384) and (etx_half <= 512))) @compileError("assertion failed");
+    if (!((etx_half >= 384) and (etx_half <= 512))) @panic("half ETX ~2.0");
     const etx_dead = calc_etx(230, 0);
-    if (!(etx_dead == 0xFFFF)) @compileError("assertion failed");
+    if (!(etx_dead == 0xFFFF)) @panic("dead direction infinite");
 }
 test "test_ewma_convergence" {
     const est1 = ewma_update(ewma_update(OPTIMISTIC, 255, ALPHA_HALF), 255, ALPHA_HALF);
-    if (!(est1 > OPTIMISTIC)) @compileError("assertion failed");
+    if (!(est1 > OPTIMISTIC)) @panic("EWMA should increase");
     const est2 = ewma_update(ewma_update(OPTIMISTIC, 0, ALPHA_HALF), 0, ALPHA_HALF);
-    if (!(est2 < OPTIMISTIC)) @compileError("assertion failed");
+    if (!(est2 < OPTIMISTIC)) @panic("EWMA should decrease");
 }

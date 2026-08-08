@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const MAX_FLOWS: u32 = 8;
 const TOTAL_BANDWIDTH: u32 = 1000;
 const MIN_BANDWIDTH: u32 = 10;
@@ -198,84 +197,84 @@ fn prioritize_bandwidth(flow_array: u64, available_bw: u32) u64 {
 }
 test "create_flow_requirement_basic" {
     const flow = create_flow_requirement(5, PRIORITY_HIGH, 50, 100);
-    if (!(get_flow_id(flow) == 5)) @compileError("assertion failed");
-    if (!(get_flow_priority(flow) == PRIORITY_HIGH)) @compileError("assertion failed");
-    if (!(get_min_bandwidth(flow) == 50)) @compileError("assertion failed");
-    if (!(get_current_bandwidth(flow) == 100)) @compileError("assertion failed");
+    if (!(get_flow_id(flow) == 5)) @panic("flow ID");
+    if (!(get_flow_priority(flow) == PRIORITY_HIGH)) @panic("high priority");
+    if (!(get_min_bandwidth(flow) == 50)) @panic("min bandwidth");
+    if (!(get_current_bandwidth(flow) == 100)) @panic("current bandwidth");
 }
 test "create_allocation_state_basic" {
     const state = create_allocation_state(500, 3, 125, 10);
-    if (!(get_allocated_bw(state) == 500)) @compileError("assertion failed");
-    if (!(get_pending_requests(state) == 3)) @compileError("assertion failed");
-    if (!(get_fair_share(state) == 125)) @compileError("assertion failed");
-    if (!(get_last_update(state) == 10)) @compileError("assertion failed");
+    if (!(get_allocated_bw(state) == 500)) @panic("allocated bandwidth");
+    if (!(get_pending_requests(state) == 3)) @panic("pending requests");
+    if (!(get_fair_share(state) == 125)) @panic("fair share");
+    if (!(get_last_update(state) == 10)) @panic("last update");
 }
 test "calculate_fair_share_normal" {
     const share = calculate_fair_share(1000, 8);
-    if (!(share == 125)) @compileError("assertion failed");
+    if (!(share == 125)) @panic("fair share for 8 flows");
 }
 test "calculate_fair_share_zero_flows" {
-    if (!(calculate_fair_share(1000, 0) == 0)) @compileError("assertion failed");
+    if (!(calculate_fair_share(1000, 0) == 0)) @panic("no flows = no share");
 }
 test "allocate_bandwidth_high_priority" {
     const state = create_allocation_state(200, 1, 100, 0);
     const flow = create_flow_requirement(5, PRIORITY_HIGH, 50, 100);
     const new_state = allocate_bandwidth(state, flow, 300);
-    if (!(get_allocated_bw(new_state) >= 400)) @compileError("assertion failed");
+    if (!(get_allocated_bw(new_state) >= 400)) @panic("high priority allocation");
 }
 test "allocate_bandwidth_medium_priority" {
     const state = create_allocation_state(200, 1, 100, 0);
     const flow = create_flow_requirement(5, PRIORITY_MEDIUM, 50, 100);
     const new_state = allocate_bandwidth(state, flow, 200);
-    if (!(get_allocated_bw(new_state) >= 200)) @compileError("assertion failed");
+    if (!(get_allocated_bw(new_state) >= 200)) @panic("medium priority allocation");
 }
 test "allocate_bandwidth_low_priority" {
     const state = create_allocation_state(200, 1, 100, 0);
     const flow = create_flow_requirement(5, PRIORITY_LOW, 50, 100);
     const new_state = allocate_bandwidth(state, flow, 200);
-    if (!(get_allocated_bw(new_state) >= 250)) @compileError("assertion failed");
+    if (!(get_allocated_bw(new_state) >= 250)) @panic("low priority allocation");
 }
 test "needs_more_bandwidth_true" {
     const flow = create_flow_requirement(5, PRIORITY_HIGH, 100, 50);
-    if (!(needs_more_bandwidth(flow) == true)) @compileError("assertion failed");
+    if (!(needs_more_bandwidth(flow) == true)) @panic("needs more bandwidth");
 }
 test "needs_more_bandwidth_false" {
     const flow = create_flow_requirement(5, PRIORITY_HIGH, 50, 100);
-    if (!(needs_more_bandwidth(flow) == false)) @compileError("assertion failed");
+    if (!(needs_more_bandwidth(flow) == false)) @panic("sufficient bandwidth");
 }
 test "update_flow_bandwidth_increase" {
     const flow = create_flow_requirement(5, PRIORITY_HIGH, 50, 100);
     const new_flow = update_flow_bandwidth(flow, 200);
-    if (!(get_current_bandwidth(new_flow) == 200)) @compileError("assertion failed");
+    if (!(get_current_bandwidth(new_flow) == 200)) @panic("bandwidth increased");
 }
 test "update_flow_bandwidth_respects_min" {
     const flow = create_flow_requirement(5, PRIORITY_HIGH, 50, 100);
     const new_flow = update_flow_bandwidth(flow, 30);
-    if (!(get_current_bandwidth(new_flow) == 50)) @compileError("assertion failed");
+    if (!(get_current_bandwidth(new_flow) == 50)) @panic("minimum bandwidth respected");
 }
 test "update_flow_bandwidth_respects_max" {
     const flow = create_flow_requirement(5, PRIORITY_HIGH, 50, 100);
     const new_flow = update_flow_bandwidth(flow, 600);
-    if (!(get_current_bandwidth(new_flow) == MAX_BANDWIDTH)) @compileError("assertion failed");
+    if (!(get_current_bandwidth(new_flow) == MAX_BANDWIDTH)) @panic("maximum bandwidth respected");
 }
 test "count_active_flows_full" {
     const flow_array = create_flow_array(create_flow_requirement(1, PRIORITY_HIGH, 50, 100), create_flow_requirement(2, PRIORITY_MEDIUM, 40, 80), create_flow_requirement(3, PRIORITY_LOW, 30, 60), create_flow_requirement(4, PRIORITY_HIGH, 70, 120), create_flow_requirement(5, PRIORITY_MEDIUM, 35, 70), create_flow_requirement(6, PRIORITY_LOW, 25, 50), create_flow_requirement(7, PRIORITY_HIGH, 60, 110), create_flow_requirement(8, PRIORITY_LOW, 20, 40));
-    if (!(count_active_flows(flow_array) == 8)) @compileError("assertion failed");
+    if (!(count_active_flows(flow_array) == 8)) @panic("8 active flows");
 }
 test "count_active_flows_partial" {
     const flow_array = create_flow_array(create_flow_requirement(1, PRIORITY_HIGH, 50, 100), create_flow_requirement(2, PRIORITY_MEDIUM, 40, 0), create_flow_requirement(3, PRIORITY_LOW, 30, 60), create_flow_requirement(4, PRIORITY_HIGH, 70, 0), 0, 0, 0, 0);
-    if (!(count_active_flows(flow_array) == 2)) @compileError("assertion failed");
+    if (!(count_active_flows(flow_array) == 2)) @panic("2 active flows");
 }
 test "find_reclaimable_bandwidth" {
     const state = create_allocation_state(500, 1, 100, 0);
     const flow_array = create_flow_array(create_flow_requirement(1, PRIORITY_HIGH, 50, 100), create_flow_requirement(2, PRIORITY_MEDIUM, 40, 80), create_flow_requirement(3, PRIORITY_LOW, 30, 60), create_flow_requirement(4, PRIORITY_HIGH, 70, 120), 0, 0, 0, 0);
     const reclaimable = find_reclaimable_bandwidth(state, flow_array);
     const total_used = ((100 + 80) + 60) + 120;
-    if (!(reclaimable == (500 - total_used))) @compileError("assertion failed");
+    if (!(reclaimable == (500 - total_used))) @panic("reclaimable bandwidth calculated");
 }
 test "prioritize_bandwidth_distributes" {
     const flow_array = create_flow_array(create_flow_requirement(1, PRIORITY_HIGH, 50, 100), create_flow_requirement(2, PRIORITY_MEDIUM, 40, 80), create_flow_requirement(3, PRIORITY_LOW, 30, 60), create_flow_requirement(4, PRIORITY_HIGH, 70, 120), 0, 0, 0, 0);
     const new_array = prioritize_bandwidth(flow_array, 800);
-    if (!(get_current_bandwidth(get_flow_req(new_array, 0)) == 100)) @compileError("assertion failed");
-    if (!(get_current_bandwidth(get_flow_req(new_array, 1)) == 100)) @compileError("assertion failed");
+    if (!(get_current_bandwidth(get_flow_req(new_array, 0)) == 100)) @panic("flow 0 bandwidth");
+    if (!(get_current_bandwidth(get_flow_req(new_array, 1)) == 100)) @panic("flow 1 bandwidth");
 }

@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const NODE_1: u32 = 1;
 const NODE_2: u32 = 2;
 const NODE_3: u32 = 3;
@@ -61,60 +60,60 @@ fn calculate_hops(from: u32, to: u32, topology: u8) u8 {
 }
 test "create_link_quality_correct" {
     const link = create_link_quality(NODE_1, NODE_2, 200);
-    if (!(link_from(link) == NODE_1)) @compileError("assertion failed");
-    if (!(link_to(link) == NODE_2)) @compileError("assertion failed");
-    if (!(link_quality(link) == 200)) @compileError("assertion failed");
+    if (!(link_from(link) == NODE_1)) @panic("from node");
+    if (!(link_to(link) == NODE_2)) @panic("to node");
+    if (!(link_quality(link) == 200)) @panic("quality");
 }
 test "is_link_good_threshold" {
     const link = create_link_quality(NODE_1, NODE_2, 150);
-    if (!(is_link_good(link, 100) == true)) @compileError("assertion failed");
-    if (!(is_link_good(link, 200) == false)) @compileError("assertion failed");
+    if (!(is_link_good(link, 100) == true)) @panic("above threshold");
+    if (!(is_link_good(link, 200) == false)) @panic("below threshold");
 }
 test "create_2node_mesh" {
     const link1, const link2 = create_2node_mesh(180);
-    if (!(link_from(link1) == NODE_1)) @compileError("assertion failed");
-    if (!(link_from(link2) == NODE_2)) @compileError("assertion failed");
-    if (!(link_quality(link1) == 180)) @compileError("assertion failed");
+    if (!(link_from(link1) == NODE_1)) @panic("1â2");
+    if (!(link_from(link2) == NODE_2)) @panic("2â1");
+    if (!(link_quality(link1) == 180)) @panic("quality same");
 }
 test "create_3node_mesh" {
     const link1, const link2, const link3 = create_3node_mesh(100, 150, 200);
-    if (!(link_to(link1) == NODE_2)) @compileError("assertion failed");
-    if (!(link_to(link2) == NODE_3)) @compileError("assertion failed");
-    if (!(link_to(link3) == NODE_1)) @compileError("assertion failed");
+    if (!(link_to(link1) == NODE_2)) @panic("1â2");
+    if (!(link_to(link2) == NODE_3)) @panic("2â3");
+    if (!(link_to(link3) == NODE_1)) @panic("3â1");
 }
 test "create_4node_line" {
     const link1, const link2, const link3 = create_4node_line(120, 130, 140);
-    if (!(link_from(link1) == NODE_1)) @compileError("assertion failed");
-    if (!(link_from(link2) == NODE_2)) @compileError("assertion failed");
-    if (!(link_from(link3) == NODE_3)) @compileError("assertion failed");
+    if (!(link_from(link1) == NODE_1)) @panic("1â2");
+    if (!(link_from(link2) == NODE_2)) @panic("2â3");
+    if (!(link_from(link3) == NODE_3)) @panic("3â4");
 }
 test "calculate_hops_same_node" {
     const hops = calculate_hops(NODE_1, NODE_1, 2);
-    if (!(hops == 0)) @compileError("assertion failed");
+    if (!(hops == 0)) @panic("same node = 0 hops");
 }
 test "calculate_hops_2node" {
     const hops = calculate_hops(NODE_1, NODE_2, 2);
-    if (!(hops == 1)) @compileError("assertion failed");
+    if (!(hops == 1)) @panic("2-node = 1 hop");
 }
 test "calculate_hops_3node_direct" {
     const hops = calculate_hops(NODE_1, NODE_2, 3);
-    if (!(hops == 1)) @compileError("assertion failed");
+    if (!(hops == 1)) @panic("3-node direct = 1 hop");
 }
 test "calculate_hops_4node_adjacent" {
     const hops = calculate_hops(NODE_1, NODE_2, 4);
-    if (!(hops == 1)) @compileError("assertion failed");
+    if (!(hops == 1)) @panic("4-node adjacent = 1 hop");
 }
 test "calculate_hops_4node_2hops" {
     const hops = calculate_hops(NODE_1, NODE_3, 4);
-    if (!(hops == 2)) @compileError("assertion failed");
+    if (!(hops == 2)) @panic("4-node 1â3 = 2 hops");
 }
 test "calculate_hops_4node_3hops" {
     const hops = calculate_hops(NODE_1, NODE_4, 4);
-    if (!(hops == 3)) @compileError("assertion failed");
+    if (!(hops == 3)) @panic("4-node 1â4 = 3 hops");
 }
 test "link_quality_threshold_check" {
     const link1, _ = create_2node_mesh(50);
-    if (!(is_link_good(link1, 75) == false)) @compileError("assertion failed");
+    if (!(is_link_good(link1, 75) == false)) @panic("poor link");
     const link2, _ = create_2node_mesh(100);
-    if (!(is_link_good(link2, 75) == true)) @compileError("assertion failed");
+    if (!(is_link_good(link2, 75) == true)) @panic("good link");
 }

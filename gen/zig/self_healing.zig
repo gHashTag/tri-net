@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const RECOVERY_COOLDOWN: u32 = 5000;
 const MAX_RECOVERY_ATTEMPTS: u32 = 3;
 const RECOVERY_SUCCESS: u32 = 1;
@@ -113,108 +112,108 @@ fn update_network_after_recovery(network_state: u32, nodes_recovered: u32, links
 }
 test "create_recovery_state_basic" {
     const state = create_recovery_state(2, 1000, 1, 5);
-    if (!(get_attempts(state) == 2)) @compileError("assertion failed");
-    if (!(get_last_attempt(state) == 1000)) @compileError("assertion failed");
-    if (!(get_in_progress(state) == 1)) @compileError("assertion failed");
-    if (!(get_success_count(state) == 5)) @compileError("assertion failed");
+    if (!(get_attempts(state) == 2)) @panic("attempts");
+    if (!(get_last_attempt(state) == 1000)) @panic("last attempt");
+    if (!(get_in_progress(state) == 1)) @panic("in progress");
+    if (!(get_success_count(state) == 5)) @panic("success count");
 }
 test "can_recover_true" {
     const state = create_recovery_state(1, 1000, 0, 2);
-    if (!(can_recover(state, 8000) == true)) @compileError("assertion failed");
+    if (!(can_recover(state, 8000) == true)) @panic("can recover");
 }
 test "can_recover_max_attempts" {
     const state = create_recovery_state(3, 1000, 0, 0);
-    if (!(can_recover(state, 8000) == false)) @compileError("assertion failed");
+    if (!(can_recover(state, 8000) == false)) @panic("max attempts reached");
 }
 test "can_recover_in_progress" {
     const state = create_recovery_state(1, 1000, 1, 0);
-    if (!(can_recover(state, 8000) == false)) @compileError("assertion failed");
+    if (!(can_recover(state, 8000) == false)) @panic("already in progress");
 }
 test "can_recover_cooldown" {
     const state = create_recovery_state(1, 7000, 0, 0);
-    if (!(can_recover(state, 8000) == false)) @compileError("assertion failed");
+    if (!(can_recover(state, 8000) == false)) @panic("cooldown not met");
 }
 test "start_recovery_sets_flag" {
     const state = create_recovery_state(1, 1000, 0, 0);
     const new_state = start_recovery(state, 5000);
-    if (!(get_in_progress(new_state) == 1)) @compileError("assertion failed");
-    if (!(get_last_attempt(new_state) == 5000)) @compileError("assertion failed");
+    if (!(get_in_progress(new_state) == 1)) @panic("in progress set");
+    if (!(get_last_attempt(new_state) == 5000)) @panic("time updated");
 }
 test "complete_recovery_success" {
     const state = create_recovery_state(2, 5000, 1, 3);
     const new_state = complete_recovery_success(state);
-    if (!(get_in_progress(new_state) == 0)) @compileError("assertion failed");
-    if (!(get_success_count(new_state) == 4)) @compileError("assertion failed");
+    if (!(get_in_progress(new_state) == 0)) @panic("in progress cleared");
+    if (!(get_success_count(new_state) == 4)) @panic("success incremented");
 }
 test "complete_recovery_failure" {
     const state = create_recovery_state(2, 5000, 1, 3);
     const new_state = complete_recovery_failure(state);
-    if (!(get_in_progress(new_state) == 0)) @compileError("assertion failed");
-    if (!(get_attempts(new_state) == 3)) @compileError("assertion failed");
+    if (!(get_in_progress(new_state) == 0)) @panic("in progress cleared");
+    if (!(get_attempts(new_state) == 3)) @panic("attempts incremented");
 }
 test "reset_recovery_clears" {
     const state = create_recovery_state(3, 5000, 1, 0);
     const new_state = reset_recovery(state);
-    if (!(get_attempts(new_state) == 0)) @compileError("assertion failed");
-    if (!(get_in_progress(new_state) == 0)) @compileError("assertion failed");
+    if (!(get_attempts(new_state) == 0)) @panic("attempts cleared");
+    if (!(get_in_progress(new_state) == 0)) @panic("in progress cleared");
 }
 test "is_recovery_failed_max" {
     const state = create_recovery_state(3, 5000, 0, 0);
-    if (!(is_recovery_failed(state) == true)) @compileError("assertion failed");
+    if (!(is_recovery_failed(state) == true)) @panic("recovery failed");
 }
 test "is_recovery_failed_below_max" {
     const state = create_recovery_state(2, 5000, 0, 0);
-    if (!(is_recovery_failed(state) == false)) @compileError("assertion failed");
+    if (!(is_recovery_failed(state) == false)) @panic("recovery not failed");
 }
 test "create_network_state_basic" {
     const state = create_network_state(7, 8, 2, 12);
-    if (!(get_healthy_nodes(state) == 7)) @compileError("assertion failed");
-    if (!(get_total_nodes(state) == 8)) @compileError("assertion failed");
-    if (!(get_degraded_links(state) == 2)) @compileError("assertion failed");
-    if (!(get_total_links(state) == 12)) @compileError("assertion failed");
+    if (!(get_healthy_nodes(state) == 7)) @panic("healthy nodes");
+    if (!(get_total_nodes(state) == 8)) @panic("total nodes");
+    if (!(get_degraded_links(state) == 2)) @panic("degraded links");
+    if (!(get_total_links(state) == 12)) @panic("total links");
 }
 test "network_health_percent_calculates" {
     const state = create_network_state(6, 8, 2, 12);
-    if (!(network_health_percent(state) == 75)) @compileError("assertion failed");
+    if (!(network_health_percent(state) == 75)) @panic("75% healthy");
 }
 test "network_health_percent_zero_nodes" {
     const state = create_network_state(0, 0, 0, 0);
-    if (!(network_health_percent(state) == 100)) @compileError("assertion failed");
+    if (!(network_health_percent(state) == 100)) @panic("100% when no nodes");
 }
 test "is_network_healthy_true" {
     const state = create_network_state(7, 8, 1, 12);
-    if (!(is_network_healthy(state) == true)) @compileError("assertion failed");
+    if (!(is_network_healthy(state) == true)) @panic("network healthy");
 }
 test "is_network_healthy_false" {
     const state = create_network_state(4, 8, 4, 12);
-    if (!(is_network_healthy(state) == false)) @compileError("assertion failed");
+    if (!(is_network_healthy(state) == false)) @panic("network not healthy");
 }
 test "is_network_degraded" {
     const state = create_network_state(5, 8, 3, 12);
-    if (!(is_network_degraded(state) == true)) @compileError("assertion failed");
+    if (!(is_network_degraded(state) == true)) @panic("network degraded");
 }
 test "is_network_critical" {
     const state = create_network_state(3, 8, 5, 12);
-    if (!(is_network_critical(state) == true)) @compileError("assertion failed");
+    if (!(is_network_critical(state) == true)) @panic("network critical");
 }
 test "should_initiate_healing_needed" {
     const rec_state = create_recovery_state(1, 1000, 0, 2);
     const net_state = create_network_state(5, 8, 3, 12);
-    if (!(should_initiate_healing(rec_state, net_state, 8000) == 1)) @compileError("assertion failed");
+    if (!(should_initiate_healing(rec_state, net_state, 8000) == 1)) @panic("start healing");
 }
 test "should_initiate_healing_not_needed" {
     const rec_state = create_recovery_state(1, 1000, 0, 2);
     const net_state = create_network_state(7, 8, 1, 12);
-    if (!(should_initiate_healing(rec_state, net_state, 8000) == 0)) @compileError("assertion failed");
+    if (!(should_initiate_healing(rec_state, net_state, 8000) == 0)) @panic("no healing");
 }
 test "should_initiate_healing_wait" {
     const rec_state = create_recovery_state(1, 7000, 0, 2);
     const net_state = create_network_state(5, 8, 3, 12);
-    if (!(should_initiate_healing(rec_state, net_state, 8000) == 2)) @compileError("assertion failed");
+    if (!(should_initiate_healing(rec_state, net_state, 8000) == 2)) @panic("wait cooldown");
 }
 test "update_network_after_recovery_improves" {
     const state = create_network_state(5, 8, 4, 12);
     const new_state = update_network_after_recovery(state, 2, 1);
-    if (!(get_healthy_nodes(new_state) == 7)) @compileError("assertion failed");
-    if (!(get_degraded_links(new_state) == 3)) @compileError("assertion failed");
+    if (!(get_healthy_nodes(new_state) == 7)) @panic("nodes recovered");
+    if (!(get_degraded_links(new_state) == 3)) @panic("links restored");
 }

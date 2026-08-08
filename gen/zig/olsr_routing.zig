@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const MAX_NEIGHBORS: u32 = 4;
 const VALID_TIMEOUT: u32 = 6000;
 const NO_NEIGHBOR: u32 = 0xFF;
@@ -98,36 +97,36 @@ fn count_neighbors(table: [4]u32) u32 {
 }
 test "create_neighbor_basic" {
     const n = create_neighbor(1, 100, 5000);
-    if (!(get_id(n) == 1)) @compileError("assertion failed");
-    if (!(get_quality(n) == 100)) @compileError("assertion failed");
-    if (!(get_last_seen(n) == 5000)) @compileError("assertion failed");
+    if (!(get_id(n) == 1)) @panic("id");
+    if (!(get_quality(n) == 100)) @panic("quality");
+    if (!(get_last_seen(n) == 5000)) @panic("timestamp");
 }
 test "is_valid_within_timeout" {
     const n = create_neighbor(5, 200, 1000);
-    if (!(is_valid(n, 5000) == true)) @compileError("assertion failed");
+    if (!(is_valid(n, 5000) == true)) @panic("within timeout");
 }
 test "is_valid_timeout" {
     const n = create_neighbor(5, 200, 1000);
-    if (!(is_valid(n, 8000) == false)) @compileError("assertion failed");
+    if (!(is_valid(n, 8000) == false)) @panic("timeout");
 }
 test "table_reads_and_find" {
     const table: [4]u32 = .{ create_neighbor(1,100,1000), create_neighbor(2,200,2000), create_neighbor(3,150,3000), create_neighbor(4,50,4000) };
-    if (!(get_id_at(table, 0) == 1)) @compileError("assertion failed");
-    if (!(get_id_at(table, 3) == 4)) @compileError("assertion failed");
-    if (!(find_index(table, 3) == 2)) @compileError("assertion failed");
-    if (!(find_index(table, 9) == NO_SLOT)) @compileError("assertion failed");
-    if (!(count_neighbors(table) == 4)) @compileError("assertion failed");
+    if (!(get_id_at(table, 0) == 1)) @panic("entry 0");
+    if (!(get_id_at(table, 3) == 4)) @panic("entry 3");
+    if (!(find_index(table, 3) == 2)) @panic("find id 3");
+    if (!(find_index(table, 9) == NO_SLOT)) @panic("unknown id");
+    if (!(count_neighbors(table) == 4)) @panic("all four present");
 }
 test "slot_decisions" {
     const table: [4]u32 = .{ create_neighbor(1,100,1000), create_neighbor(NO_NEIGHBOR,0,0), create_neighbor(3,150,3000), create_neighbor(4,50,4000) };
-    if (!(slot_for_update(table, 3) == 2)) @compileError("assertion failed");
-    if (!(slot_for_update(table, 9) == 1)) @compileError("assertion failed");
+    if (!(slot_for_update(table, 3) == 2)) @panic("known id updates in place");
+    if (!(slot_for_update(table, 9) == 1)) @panic("unknown id takes the first empty slot");
     const full: [4]u32 = .{ create_neighbor(1,100,1000), create_neighbor(2,200,2000), create_neighbor(3,150,3000), create_neighbor(4,50,4000) };
-    if (!(slot_for_update(full, 9) == NO_SLOT)) @compileError("assertion failed");
+    if (!(slot_for_update(full, 9) == NO_SLOT)) @panic("full table admits nothing new");
 }
 test "mpr_selection" {
     const table: [4]u32 = .{ create_neighbor(1,100,1000), create_neighbor(2,200,2000), create_neighbor(3,150,3000), create_neighbor(4,50,4000) };
-    if (!(get_best_neighbor(table) == 2)) @compileError("assertion failed");
-    if (!(get_second_best(table, 2) == 3)) @compileError("assertion failed");
-    if (!(select_mprs(table) == ((2 << 8) | 3))) @compileError("assertion failed");
+    if (!(get_best_neighbor(table) == 2)) @panic("best by quality");
+    if (!(get_second_best(table, 2) == 3)) @panic("second best excludes the best");
+    if (!(select_mprs(table) == ((2 << 8) | 3))) @panic("mpr pack [best][second]");
 }

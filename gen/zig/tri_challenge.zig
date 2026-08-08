@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const DEFENDER_HONEST: u32 = 1;
 const DEFENDER_LIED: u32 = 2;
 fn is_valid_challenge(defender_seal: u32, challenger_seal: u32) bool {
@@ -33,35 +32,35 @@ fn challenger_bond_after(verdict: u32, defender_bond: u32, challenger_bond: u32)
     }
 }
 test "challenge_needs_disagreement" {
-    if (!(is_valid_challenge(0x6EAC3F90, 0xDEADBEEF) == true)) @compileError("assertion failed");
-    if (!(is_valid_challenge(0x6EAC3F90, 0x6EAC3F90) == false)) @compileError("assertion failed");
+    if (!(is_valid_challenge(0x6EAC3F90, 0xDEADBEEF) == true)) @panic("different seals -> valid");
+    if (!(is_valid_challenge(0x6EAC3F90, 0x6EAC3F90) == false)) @panic("same seal -> no dispute");
 }
 test "honest_defender_wins" {
     const v = resolve(0x6EAC3F90, 0x6EAC3F90);
-    if (!(v == DEFENDER_HONEST)) @compileError("assertion failed");
+    if (!(v == DEFENDER_HONEST)) @panic("defender honest");
 }
 test "lying_defender_slashed" {
     const v = resolve(0xBADBAD00, 0x6EAC3F90);
-    if (!(v == DEFENDER_LIED)) @compileError("assertion failed");
+    if (!(v == DEFENDER_LIED)) @panic("defender lied");
 }
 test "bonds_honest_defender" {
     const da = defender_bond_after(DEFENDER_HONEST, 100, 100);
     const ca = challenger_bond_after(DEFENDER_HONEST, 100, 100);
-    if (!(da == 200)) @compileError("assertion failed");
-    if (!(ca == 0)) @compileError("assertion failed");
-    if (!((da + ca) == 200)) @compileError("assertion failed");
+    if (!(da == 200)) @panic("defender gains challenger's bond");
+    if (!(ca == 0)) @panic("challenger loses its bond");
+    if (!((da + ca) == 200)) @panic("total bond conserved");
 }
 test "bonds_lying_defender" {
     const da = defender_bond_after(DEFENDER_LIED, 100, 100);
     const ca = challenger_bond_after(DEFENDER_LIED, 100, 100);
-    if (!(da == 0)) @compileError("assertion failed");
-    if (!(ca == 200)) @compileError("assertion failed");
-    if (!((da + ca) == 200)) @compileError("assertion failed");
+    if (!(da == 0)) @panic("defender is slashed");
+    if (!(ca == 200)) @panic("challenger gains defender's bond");
+    if (!((da + ca) == 200)) @panic("total bond conserved");
 }
 test "griefing_unprofitable" {
     const v = resolve(0x11223344, 0x11223344);
     const ca = challenger_bond_after(v, 100, 100);
-    if (!(ca < 100)) @compileError("assertion failed");
+    if (!(ca < 100)) @panic("frivolous challenger ends with less than it posted");
 }
 const RESOLVE_TIMEOUT: u32 = 27;
 fn challenge_admissible(now_epoch: u32, receipt_epoch: u32, window: u32) bool {
@@ -118,11 +117,11 @@ test "witness_quorum" {
     const v_frame = witness_verdict(0xAAAA, 0xBBBB, 0xAAAA, 0xAAAA);
     const v_caught = witness_verdict(0xBAD0, 0xAAAA, 0xAAAA, 0xDEAD);
     const v_none = witness_verdict(0xAAAA, 0x1111, 0x2222, 0x3333);
-    if (!(v_unanimous == DEFENDER_HONEST)) @compileError("assertion failed");
-    if (!(v_one_liar == DEFENDER_HONEST)) @compileError("assertion failed");
-    if (!(v_frame == DEFENDER_HONEST)) @compileError("assertion failed");
-    if (!(v_caught == DEFENDER_LIED)) @compileError("assertion failed");
-    if (!(v_none == VERDICT_NONE)) @compileError("assertion failed");
+    if (!(v_unanimous == DEFENDER_HONEST)) @panic("unanimous truth clears the defender");
+    if (!(v_one_liar == DEFENDER_HONEST)) @panic("one lying witness cannot flip an honest majority");
+    if (!(v_frame == DEFENDER_HONEST)) @panic("one framing witness cannot slash an honest defender");
+    if (!(v_caught == DEFENDER_LIED)) @panic("a real lie is caught by the majority");
+    if (!(v_none == VERDICT_NONE)) @panic("no quorum -> no verdict, dispute stays open");
 }
 fn witness_is_majority(seal: u32, majority: u32) bool {
     return (majority != 0) and (seal == majority);
@@ -159,11 +158,11 @@ test "witness_economics" {
     const m = witness_payout(0xAAAA, 0xAAAA, 0xAAAA, 0xDEAD, 100);
     const l = witness_payout(0xDEAD, 0xAAAA, 0xAAAA, 0xDEAD, 100);
     const n = witness_payout(0x1111, 0x1111, 0x2222, 0x3333, 100);
-    if (!(u == 100)) @compileError("assertion failed");
-    if (!(m == 150)) @compileError("assertion failed");
-    if (!(l == 0)) @compileError("assertion failed");
-    if (!(n == 100)) @compileError("assertion failed");
-    if (!(((m + m) + l) == 300)) @compileError("assertion failed");
+    if (!(u == 100)) @panic("unanimous round: stake back, no free reward");
+    if (!(m == 150)) @panic("majority of two splits the one forfeited stake");
+    if (!(l == 0)) @panic("the dissenter forfeits");
+    if (!(n == 100)) @panic("no quorum refunds everyone");
+    if (!(((m + m) + l) == 300)) @panic("2-1 round conserves the three stakes");
 }
 const MAX_OPEN_DISPUTES: u32 = 3;
 const CH_BPS_UNIT: u32 = 10000;
@@ -212,11 +211,11 @@ test "rung_aware_admission" {
     const f0 = may_open_dispute_rung(0, 400, 100, 100, 2000, 4);
     const w0 = may_open_dispute_rung(0, 400, 100, 100, 2000, 9);
     const w1 = may_open_dispute_rung(0, 400, 100, 225, 2000, 9);
-    if (!(p4 == 2000)) @compileError("assertion failed");
-    if (!(p9 == 4500)) @compileError("assertion failed");
-    if (!(f0 == true)) @compileError("assertion failed");
-    if (!(w0 == false)) @compileError("assertion failed");
-    if (!(w1 == true)) @compileError("assertion failed");
+    if (!(p4 == 2000)) @panic("at the flagship the base premium applies");
+    if (!(p9 == 4500)) @panic("Et9 adds 2500 bps");
+    if (!(f0 == true)) @panic("bond 100 covers 500 at 20% on the flagship");
+    if (!(w0 == false)) @panic("the SAME bond fails the SAME dispute at Et9 (needs 45%)");
+    if (!(w1 == true)) @panic("225 covers 500 at 45% on the wide rung");
 }
 test "dispute_slots_and_risk_ledger" {
     const s0 = dispute_slots_ok(0);
@@ -226,13 +225,13 @@ test "dispute_slots_and_risk_ledger" {
     const r0 = risk_after_close(140, 40);
     const ru = risk_after_close(30, 40);
     const rs = risk_after_open(0xFFFFFFF0, 0x100);
-    if (!(s0 == true)) @compileError("assertion failed");
-    if (!(s2 == true)) @compileError("assertion failed");
-    if (!(s3 == false)) @compileError("assertion failed");
-    if (!(r1 == 140)) @compileError("assertion failed");
-    if (!(r0 == 100)) @compileError("assertion failed");
-    if (!(ru == 0)) @compileError("assertion failed");
-    if (!(rs == 0xFFFFFFFF)) @compileError("assertion failed");
+    if (!(s0 == true)) @panic("empty ledger has slots");
+    if (!(s2 == true)) @panic("slot 3 of 3 may open");
+    if (!(s3 == false)) @panic("the cap is exact at MAX_OPEN_DISPUTES");
+    if (!(r1 == 140)) @panic("open adds the reward at risk");
+    if (!(r0 == 100)) @panic("close returns to the baseline");
+    if (!(ru == 0)) @panic("close floors at zero, never wraps");
+    if (!(rs == 0xFFFFFFFF)) @panic("an overflowing open saturates");
 }
 test "dispute_admission_gate" {
     const a0 = may_open_dispute(0, 0, 400, 100, 2000);
@@ -240,11 +239,11 @@ test "dispute_admission_gate" {
     const a2 = may_open_dispute(3, 0, 10, 1000000, 2000);
     const a3 = may_open_dispute(1, 400, 100, 100, 2000);
     const a4 = may_open_dispute(1, 450, 100, 100, 2000);
-    if (!(a0 == true)) @compileError("assertion failed");
-    if (!(a1 == false)) @compileError("assertion failed");
-    if (!(a2 == false)) @compileError("assertion failed");
-    if (!(a3 == true)) @compileError("assertion failed");
-    if (!(a4 == false)) @compileError("assertion failed");
+    if (!(a0 == true)) @panic("bond 100 covers 20% of 400");
+    if (!(a1 == false)) @panic("bond 100 cannot cover 20% of 600");
+    if (!(a2 == false)) @panic("no slot, no dispute, whatever the bond");
+    if (!(a3 == true)) @panic("risk 400 + 100 = 500 requires exactly the full bond -- exact cover admits");
+    if (!(a4 == false)) @panic("risk 450 + 100 = 550 requires 110 > bond 100 -- rejected");
 }
 test "rung_window_edges" {
     const f0 = challenge_admissible_rung(1063, 1000, 4);
@@ -252,36 +251,36 @@ test "rung_window_edges" {
     const w0 = challenge_admissible_rung(1064, 1000, 9);
     const w1 = challenge_admissible_rung(1143, 1000, 9);
     const w2 = challenge_admissible_rung(1144, 1000, 9);
-    if (!(f0 == true)) @compileError("assertion failed");
-    if (!(f1 == false)) @compileError("assertion failed");
-    if (!(w0 == true)) @compileError("assertion failed");
-    if (!(w1 == true)) @compileError("assertion failed");
-    if (!(w2 == false)) @compileError("assertion failed");
+    if (!(f0 == true)) @panic("flagship: epoch 63 of 64 is challengeable");
+    if (!(f1 == false)) @panic("flagship: the finalization epoch admits nothing");
+    if (!(w0 == true)) @panic("GF-T64 (Et9) is still challengeable where GF-T16 finalized");
+    if (!(w1 == true)) @panic("GF-T64: epoch 143 of 144 is challengeable");
+    if (!(w2 == false)) @panic("GF-T64: its own finalization epoch admits nothing");
 }
 test "window_edges" {
     const a0 = challenge_admissible(100, 100, 8);
     const a1 = challenge_admissible(107, 100, 8);
     const a2 = challenge_admissible(108, 100, 8);
     const a3 = challenge_admissible(99, 100, 8);
-    if (!(a0 == true)) @compileError("assertion failed");
-    if (!(a1 == true)) @compileError("assertion failed");
-    if (!(a2 == false)) @compileError("assertion failed");
-    if (!(a3 == false)) @compileError("assertion failed");
+    if (!(a0 == true)) @panic("fresh receipt is challengeable");
+    if (!(a1 == true)) @panic("last in-window epoch (window - 1) is challengeable");
+    if (!(a2 == false)) @panic("the finalization epoch itself admits no challenge");
+    if (!(a3 == false)) @panic("a backwards clock admits nothing");
 }
 test "expiry_edges" {
     const e0 = dispute_expired(50, 77);
     const e1 = dispute_expired(50, 78);
     const e2 = dispute_expired(50, 49);
-    if (!(e0 == false)) @compileError("assertion failed");
-    if (!(e1 == true)) @compileError("assertion failed");
-    if (!(e2 == false)) @compileError("assertion failed");
+    if (!(e0 == false)) @panic("at the timeout the dispute is still live");
+    if (!(e1 == true)) @panic("one epoch past the timeout it expires");
+    if (!(e2 == false)) @panic("a backwards clock never expires a dispute");
 }
 test "expired_dispute_settles_for_defender" {
     const v = expired_verdict();
     const da = defender_bond_after(v, 150, 100);
     const ca = challenger_bond_after(v, 150, 100);
-    if (!(v == DEFENDER_HONEST)) @compileError("assertion failed");
-    if (!(da == 250)) @compileError("assertion failed");
-    if (!(ca == 0)) @compileError("assertion failed");
-    if (!((da + ca) == 250)) @compileError("assertion failed");
+    if (!(v == DEFENDER_HONEST)) @panic("no proof -> no slash");
+    if (!(da == 250)) @panic("defender keeps both bonds");
+    if (!(ca == 0)) @panic("the non-resolving challenger forfeits");
+    if (!((da + ca) == 250)) @panic("total bond conserved on the expiry path");
 }

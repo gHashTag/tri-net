@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const MAX_TASKS: u32 = 8;
 const CPU_CAPACITY: u32 = 100;
 const MEMORY_CAPACITY: u32 = 256;
@@ -229,93 +228,93 @@ fn count_tasks_by_priority(task_array: u64, priority: u32) u32 {
 }
 test "create_task_resource_basic" {
     const task = create_task_resource(30, 64, PRIORITY_HIGH, 5);
-    if (!(get_cpu_req(task) == 30)) @compileError("assertion failed");
-    if (!(get_mem_req(task) == 64)) @compileError("assertion failed");
-    if (!(get_priority(task) == PRIORITY_HIGH)) @compileError("assertion failed");
-    if (!(get_task_id(task) == 5)) @compileError("assertion failed");
+    if (!(get_cpu_req(task) == 30)) @panic("CPU requirement");
+    if (!(get_mem_req(task) == 64)) @panic("memory requirement");
+    if (!(get_priority(task) == PRIORITY_HIGH)) @panic("priority");
+    if (!(get_task_id(task) == 5)) @panic("task ID");
 }
 test "create_system_state_basic" {
     const state = create_system_state(60, 128, 4, 100);
-    if (!(get_used_cpu(state) == 60)) @compileError("assertion failed");
-    if (!(get_used_mem(state) == 128)) @compileError("assertion failed");
-    if (!(get_active_tasks(state) == 4)) @compileError("assertion failed");
-    if (!(get_sched_tick(state) == 100)) @compileError("assertion failed");
+    if (!(get_used_cpu(state) == 60)) @panic("used CPU");
+    if (!(get_used_mem(state) == 128)) @panic("used memory");
+    if (!(get_active_tasks(state) == 4)) @panic("active tasks");
+    if (!(get_sched_tick(state) == 100)) @panic("scheduler tick");
 }
 test "can_admit_task_true" {
     const state = create_system_state(30, 100, 2, 0);
     const task = create_task_resource(20, 50, PRIORITY_MEDIUM, 5);
-    if (!(can_admit_task(state, task) == true)) @compileError("assertion failed");
+    if (!(can_admit_task(state, task) == true)) @panic("can admit");
 }
 test "can_admit_task_false_cpu" {
     const state = create_system_state(95, 100, 2, 0);
     const task = create_task_resource(20, 50, PRIORITY_MEDIUM, 5);
-    if (!(can_admit_task(state, task) == false)) @compileError("assertion failed");
+    if (!(can_admit_task(state, task) == false)) @panic("insufficient CPU");
 }
 test "can_admit_task_false_memory" {
     const state = create_system_state(30, 230, 2, 0);
     const task = create_task_resource(20, 50, PRIORITY_MEDIUM, 5);
-    if (!(can_admit_task(state, task) == false)) @compileError("assertion failed");
+    if (!(can_admit_task(state, task) == false)) @panic("insufficient memory");
 }
 test "has_cpu_capacity_true" {
     const state = create_system_state(30, 100, 2, 0);
-    if (!(has_cpu_capacity(state, 50) == true)) @compileError("assertion failed");
+    if (!(has_cpu_capacity(state, 50) == true)) @panic("has CPU capacity");
 }
 test "has_cpu_capacity_false" {
     const state = create_system_state(80, 100, 2, 0);
-    if (!(has_cpu_capacity(state, 50) == false)) @compileError("assertion failed");
+    if (!(has_cpu_capacity(state, 50) == false)) @panic("no CPU capacity");
 }
 test "allocate_resources_works" {
     const state = create_system_state(30, 100, 2, 0);
     const task = create_task_resource(20, 50, PRIORITY_MEDIUM, 5);
     const new_state = allocate_resources(state, task);
-    if (!(get_used_cpu(new_state) == 50)) @compileError("assertion failed");
-    if (!(get_used_mem(new_state) == 150)) @compileError("assertion failed");
-    if (!(get_active_tasks(new_state) == 3)) @compileError("assertion failed");
+    if (!(get_used_cpu(new_state) == 50)) @panic("CPU allocated");
+    if (!(get_used_mem(new_state) == 150)) @panic("memory allocated");
+    if (!(get_active_tasks(new_state) == 3)) @panic("task count increased");
 }
 test "release_resources_works" {
     const state = create_system_state(60, 150, 4, 0);
     const task = create_task_resource(20, 50, PRIORITY_MEDIUM, 5);
     const new_state = release_resources(state, task);
-    if (!(get_used_cpu(new_state) == 40)) @compileError("assertion failed");
-    if (!(get_used_mem(new_state) == 100)) @compileError("assertion failed");
-    if (!(get_active_tasks(new_state) == 3)) @compileError("assertion failed");
+    if (!(get_used_cpu(new_state) == 40)) @panic("CPU released");
+    if (!(get_used_mem(new_state) == 100)) @panic("memory released");
+    if (!(get_active_tasks(new_state) == 3)) @panic("task count decreased");
 }
 test "find_admittable_task_high_priority" {
     const state = create_system_state(30, 100, 2, 0);
     const task_array = create_task_array(create_task_resource(20, 30, PRIORITY_LOW, 1), create_task_resource(15, 40, PRIORITY_HIGH, 2), create_task_resource(25, 35, PRIORITY_MEDIUM, 3), 0, 0, 0, 0, 0);
-    if (!(find_admittable_task(state, task_array) == 1)) @compileError("assertion failed");
+    if (!(find_admittable_task(state, task_array) == 1)) @panic("high priority task");
 }
 test "calculate_cpu_utilization" {
     const state = create_system_state(60, 128, 4, 0);
-    if (!(calculate_cpu_utilization(state) == 60)) @compileError("assertion failed");
+    if (!(calculate_cpu_utilization(state) == 60)) @panic("60% CPU utilization");
 }
 test "calculate_memory_utilization" {
     const state = create_system_state(60, 128, 4, 0);
-    if (!(calculate_memory_utilization(state) == 50)) @compileError("assertion failed");
+    if (!(calculate_memory_utilization(state) == 50)) @panic("50% memory utilization");
 }
 test "is_overloaded_true" {
     const state = create_system_state(95, 128, 4, 0);
-    if (!(is_overloaded(state) == true)) @compileError("assertion failed");
+    if (!(is_overloaded(state) == true)) @panic("system overloaded");
 }
 test "is_overloaded_false" {
     const state = create_system_state(60, 128, 4, 0);
-    if (!(is_overloaded(state) == false)) @compileError("assertion failed");
+    if (!(is_overloaded(state) == false)) @panic("system not overloaded");
 }
 test "increment_tick_works" {
     const state = create_system_state(60, 128, 4, 100);
     const new_state = increment_tick(state);
-    if (!(get_sched_tick(new_state) == 101)) @compileError("assertion failed");
+    if (!(get_sched_tick(new_state) == 101)) @panic("tick incremented");
 }
 test "increment_tick_wraps" {
     const state = create_system_state(60, 128, 4, 255);
     const new_state = increment_tick(state);
-    if (!(get_sched_tick(new_state) == 0)) @compileError("assertion failed");
+    if (!(get_sched_tick(new_state) == 0)) @panic("tick wrapped");
 }
 test "count_tasks_by_priority_high" {
     const task_array = create_task_array(create_task_resource(20, 30, PRIORITY_HIGH, 1), create_task_resource(15, 40, PRIORITY_HIGH, 2), create_task_resource(25, 35, PRIORITY_LOW, 3), create_task_resource(10, 20, PRIORITY_HIGH, 4), 0, 0, 0, 0);
-    if (!(count_tasks_by_priority(task_array, PRIORITY_HIGH) == 3)) @compileError("assertion failed");
+    if (!(count_tasks_by_priority(task_array, PRIORITY_HIGH) == 3)) @panic("3 high priority tasks");
 }
 test "count_tasks_by_priority_mixed" {
     const task_array = create_task_array(create_task_resource(20, 30, PRIORITY_HIGH, 1), create_task_resource(15, 40, PRIORITY_MEDIUM, 2), create_task_resource(25, 35, PRIORITY_LOW, 3), create_task_resource(10, 20, PRIORITY_MEDIUM, 4), 0, 0, 0, 0);
-    if (!(count_tasks_by_priority(task_array, PRIORITY_MEDIUM) == 2)) @compileError("assertion failed");
+    if (!(count_tasks_by_priority(task_array, PRIORITY_MEDIUM) == 2)) @panic("2 medium priority tasks");
 }

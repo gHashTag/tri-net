@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 fn get_src(meta: u32) u8 {
     return @as(u8, @intCast((meta >> 1) & 15));
 }
@@ -25,42 +24,42 @@ fn empty_meta() u32 {
     return 0;
 }
 test "empty_meta_invalid" {
-    if (!(get_valid(empty_meta()) == false)) @compileError("assertion failed");
+    if (!(get_valid(empty_meta()) == false)) @panic("invalid");
 }
 test "create_meta_valid" {
     const meta = create_meta(1, 2, 8);
-    if (!(get_valid(meta))) @compileError("assertion failed");
+    if (!(get_valid(meta))) @panic("valid");
 }
 test "get_src_field" {
-    if (!(get_src(create_meta(5, 2, 8)) == 5)) @compileError("assertion failed");
+    if (!(get_src(create_meta(5, 2, 8)) == 5)) @panic("src");
 }
 test "get_dst_field" {
-    if (!(get_dst(create_meta(1, 7, 8)) == 7)) @compileError("assertion failed");
+    if (!(get_dst(create_meta(1, 7, 8)) == 7)) @panic("dst");
 }
 test "get_ttl_field" {
-    if (!(get_ttl(create_meta(1, 2, 15)) == 15)) @compileError("assertion failed");
+    if (!(get_ttl(create_meta(1, 2, 15)) == 15)) @panic("ttl");
 }
 test "roundtrip" {
     const meta = create_meta(3, 5, 10);
-    if (!(get_src(meta) == 3)) @compileError("assertion failed");
-    if (!(get_dst(meta) == 5)) @compileError("assertion failed");
-    if (!(get_ttl(meta) == 10)) @compileError("assertion failed");
+    if (!(get_src(meta) == 3)) @panic("src");
+    if (!(get_dst(meta) == 5)) @panic("dst");
+    if (!(get_ttl(meta) == 10)) @panic("ttl");
 }
 test "invalid_flag" {
-    if (!(get_valid(0) == false)) @compileError("assertion failed");
+    if (!(get_valid(0) == false)) @panic("zero invalid");
 }
 test "field_independence" {
     const m1 = create_meta(1, 2, 3);
     const m2 = create_meta(4, 5, 6);
-    if (!(get_src(m1) == 1)) @compileError("assertion failed");
-    if (!(get_dst(m2) == 5)) @compileError("assertion failed");
+    if (!(get_src(m1) == 1)) @panic("m1 src");
+    if (!(get_dst(m2) == 5)) @panic("m2 dst");
 }
 test "zero_ttl" {
     const meta = create_meta(1, 2, 0);
-    if (!(get_ttl(meta) == 0)) @compileError("assertion failed");
+    if (!(get_ttl(meta) == 0)) @panic("zero ok");
 }
 test "max_values" {
     const meta = create_meta(15, 15, 15);
-    if (!(get_src(meta) == 15)) @compileError("assertion failed");
-    if (!(get_dst(meta) == 15)) @compileError("assertion failed");
+    if (!(get_src(meta) == 15)) @panic("max src");
+    if (!(get_dst(meta) == 15)) @panic("max dst");
 }

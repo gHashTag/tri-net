@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const MAX_NODES: u32 = 8;
 const ROLE_NONE: u32 = 0;
 const ROLE_GUEST: u32 = 1;
@@ -96,78 +95,78 @@ fn check_resource_access(creds: u32, policy: u32, provided_token: u32) u32 {
 }
 test "create_node_creds_basic" {
     const creds = create_node_creds(5, ROLE_USER, 0x123, 1);
-    if (!(get_node_id(creds) == 5)) @compileError("assertion failed");
-    if (!(get_role(creds) == ROLE_USER)) @compileError("assertion failed");
-    if (!(get_auth_token(creds) == 0x123)) @compileError("assertion failed");
-    if (!(is_authorized(creds) == 1)) @compileError("assertion failed");
+    if (!(get_node_id(creds) == 5)) @panic("node id");
+    if (!(get_role(creds) == ROLE_USER)) @panic("user role");
+    if (!(get_auth_token(creds) == 0x123)) @panic("auth token");
+    if (!(is_authorized(creds) == 1)) @panic("authorized");
 }
 test "create_policy_basic" {
     const policy = create_policy(1, ROLE_USER, 0, 1, 1);
-    if (!(get_resource(policy) == 1)) @compileError("assertion failed");
-    if (!(get_min_role(policy) == ROLE_USER)) @compileError("assertion failed");
-    if (!(get_guest_perm(policy) == 0)) @compileError("assertion failed");
-    if (!(get_user_perm(policy) == 1)) @compileError("assertion failed");
+    if (!(get_resource(policy) == 1)) @panic("resource");
+    if (!(get_min_role(policy) == ROLE_USER)) @panic("min role");
+    if (!(get_guest_perm(policy) == 0)) @panic("guest denied");
+    if (!(get_user_perm(policy) == 1)) @panic("user permitted");
 }
 test "role_meets_minimum_true" {
-    if (!(role_meets_minimum(ROLE_USER, ROLE_GUEST) == true)) @compileError("assertion failed");
-    if (!(role_meets_minimum(ROLE_ADMIN, ROLE_USER) == true)) @compileError("assertion failed");
+    if (!(role_meets_minimum(ROLE_USER, ROLE_GUEST) == true)) @panic("user >= guest");
+    if (!(role_meets_minimum(ROLE_ADMIN, ROLE_USER) == true)) @panic("admin >= user");
 }
 test "role_meets_minimum_false" {
-    if (!(role_meets_minimum(ROLE_GUEST, ROLE_USER) == false)) @compileError("assertion failed");
-    if (!(role_meets_minimum(ROLE_USER, ROLE_ADMIN) == false)) @compileError("assertion failed");
+    if (!(role_meets_minimum(ROLE_GUEST, ROLE_USER) == false)) @panic("guest < user");
+    if (!(role_meets_minimum(ROLE_USER, ROLE_ADMIN) == false)) @panic("user < admin");
 }
 test "check_access_admin" {
     const policy = create_policy(1, ROLE_GUEST, 0, 0, 1);
-    if (!(check_access(policy, ROLE_ADMIN) == 1)) @compileError("assertion failed");
+    if (!(check_access(policy, ROLE_ADMIN) == 1)) @panic("admin permitted");
 }
 test "check_access_user" {
     const policy = create_policy(1, ROLE_USER, 0, 1, 1);
-    if (!(check_access(policy, ROLE_USER) == 1)) @compileError("assertion failed");
+    if (!(check_access(policy, ROLE_USER) == 1)) @panic("user permitted");
 }
 test "check_access_guest_denied" {
     const policy = create_policy(1, ROLE_USER, 0, 1, 1);
-    if (!(check_access(policy, ROLE_GUEST) == 0)) @compileError("assertion failed");
+    if (!(check_access(policy, ROLE_GUEST) == 0)) @panic("guest denied (min role)");
 }
 test "verify_creds_valid" {
     const creds = create_node_creds(5, ROLE_USER, 0x123, 1);
-    if (!(verify_creds(creds, 0x123) == true)) @compileError("assertion failed");
+    if (!(verify_creds(creds, 0x123) == true)) @panic("valid credentials");
 }
 test "verify_creds_invalid_token" {
     const creds = create_node_creds(5, ROLE_USER, 0x123, 1);
-    if (!(verify_creds(creds, 0x999) == false)) @compileError("assertion failed");
+    if (!(verify_creds(creds, 0x999) == false)) @panic("invalid token");
 }
 test "verify_creds_unauthorized" {
     const creds = create_node_creds(5, ROLE_USER, 0x123, 0);
-    if (!(verify_creds(creds, 0x123) == false)) @compileError("assertion failed");
+    if (!(verify_creds(creds, 0x123) == false)) @panic("unauthorized node");
 }
 test "authorize_node_works" {
     const creds = create_node_creds(5, ROLE_USER, 0x123, 0);
     const new_creds = authorize_node(creds);
-    if (!(is_authorized(new_creds) == 1)) @compileError("assertion failed");
+    if (!(is_authorized(new_creds) == 1)) @panic("node authorized");
 }
 test "revoke_node_works" {
     const creds = create_node_creds(5, ROLE_USER, 0x123, 1);
     const new_creds = revoke_node(creds);
-    if (!(is_authorized(new_creds) == 0)) @compileError("assertion failed");
+    if (!(is_authorized(new_creds) == 0)) @panic("node revoked");
 }
 test "change_role_works" {
     const creds = create_node_creds(5, ROLE_USER, 0x123, 1);
     const new_creds = change_role(creds, ROLE_ADMIN);
-    if (!(get_role(new_creds) == ROLE_ADMIN)) @compileError("assertion failed");
-    if (!(is_authorized(new_creds) == 1)) @compileError("assertion failed");
+    if (!(get_role(new_creds) == ROLE_ADMIN)) @panic("role changed");
+    if (!(is_authorized(new_creds) == 1)) @panic("authorization kept");
 }
 test "check_resource_access_full_grant" {
     const creds = create_node_creds(5, ROLE_USER, 0x123, 1);
     const policy = create_policy(1, ROLE_GUEST, 0, 1, 1);
-    if (!(check_resource_access(creds, policy, 0x123) == 1)) @compileError("assertion failed");
+    if (!(check_resource_access(creds, policy, 0x123) == 1)) @panic("access granted");
 }
 test "check_resource_access_invalid_creds" {
     const creds = create_node_creds(5, ROLE_USER, 0x123, 1);
     const policy = create_policy(1, ROLE_GUEST, 0, 1, 1);
-    if (!(check_resource_access(creds, policy, 0x999) == 0)) @compileError("assertion failed");
+    if (!(check_resource_access(creds, policy, 0x999) == 0)) @panic("access denied");
 }
 test "check_resource_access_role_too_low" {
     const creds = create_node_creds(5, ROLE_GUEST, 0x123, 1);
     const policy = create_policy(1, ROLE_USER, 0, 1, 1);
-    if (!(check_resource_access(creds, policy, 0x123) == 0)) @compileError("assertion failed");
+    if (!(check_resource_access(creds, policy, 0x123) == 0)) @panic("role too low");
 }

@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const MAX_HEARD: u8 = 3;
 const HEADER_LEN: usize = 13;
 fn u32_byte(w: u32, idx: usize) u8 {
@@ -80,11 +79,11 @@ test "hello_roundtrips" {
     const seq = parse_hello_seq(b4, b5, b6, b7);
     const n, const valid = parse_hello_n_valid(b8);
     const heard0 = parse_hello_heard0(b9, b10, b11, b12);
-    if (!(src == 7)) @compileError("assertion failed");
-    if (!(seq == 42)) @compileError("assertion failed");
-    if (!(n == 3)) @compileError("assertion failed");
-    if (!(heard0 == 1)) @compileError("assertion failed");
-    if (!(valid)) @compileError("assertion failed");
+    if (!(src == 7)) @panic("src should be 7");
+    if (!(seq == 42)) @panic("seq should be 42");
+    if (!(n == 3)) @panic("n should be 3");
+    if (!(heard0 == 1)) @panic("heard0 should be 1");
+    if (!(valid)) @panic("parse should be valid");
 }
 test "empty_heard_list_ok" {
     const b0 = hello_byte(9, 1, 0, 0, 0, 0, 0);
@@ -105,8 +104,8 @@ test "empty_heard_list_ok" {
     _ = b7; // dead after const-inlining
     const b8 = hello_byte(9, 1, 0, 0, 0, 0, 8);
     const n, const valid = parse_hello_n_valid(b8);
-    if (!(n == 0)) @compileError("assertion failed");
-    if (!(valid)) @compileError("assertion failed");
+    if (!(n == 0)) @panic("n should be 0");
+    if (!(valid)) @panic("empty heard list should be valid");
 }
 test "max_heard_neighbors" {
     const src = parse_hello_src(0, 0, 0, 1);
@@ -115,20 +114,19 @@ test "max_heard_neighbors" {
     _ = seq; // dead after const-inlining
     const n, const valid = parse_hello_n_valid(3);
     const heard0 = parse_hello_heard0(0, 0, 0, 5);
-    if (!(n == 3)) @compileError("assertion failed");
-    if (!(heard0 == 5)) @compileError("assertion failed");
-    if (!(valid)) @compileError("assertion failed");
+    if (!(n == 3)) @panic("n should be 3");
+    if (!(heard0 == 5)) @panic("heard0 should be 5");
+    if (!(valid)) @panic("max neighbors should be valid");
 }
 test "not_in_heard_list" {
     const result = reports_hearing(1, 0, 0, 3, 5);
-    if (!(result == false)) @compileError("assertion failed");
+    if (!(result == false)) @panic("5 not in heard list");
 }
 test "in_heard_list_first_position" {
     const result = reports_hearing(7, 0, 0, 3, 7);
-    if (!(result == true)) @compileError("assertion failed");
+    if (!(result == true)) @panic("7 in heard list position 0");
 }
 test "n_exceeds_max_rejected" {
     const n, const valid = parse_hello_n_valid(4);
-    _ = n; // dead after const-inlining
-    if (!(valid == false)) @compileError("assertion failed");
+    if (!(valid == false)) @panic("n > MAX_HEARD should be invalid");
 }

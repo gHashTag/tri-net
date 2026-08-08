@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 fn get_sent(stats: u32) u16 {
     return @as(u16, @intCast(stats & 0xFFFF));
 }
@@ -24,24 +23,24 @@ fn reset() u32 {
 test "inc_sent_increments" {
     const s1 = reset();
     const s2 = inc_sent(s1);
-    if (!(get_sent(s2) == 1)) @compileError("assertion failed");
+    if (!(get_sent(s2) == 1)) @panic("inc works");
 }
 test "inc_recv_increments" {
     const s1 = reset();
     const s2 = inc_recv(s1);
-    if (!(get_recv(s2) == 1)) @compileError("assertion failed");
+    if (!(get_recv(s2) == 1)) @panic("inc works");
 }
 test "both_counters" {
     const s1 = reset();
     const s2 = inc_sent(s1);
     const s3 = inc_recv(s2);
-    if (!(get_sent(s3) == 1)) @compileError("assertion failed");
-    if (!(get_recv(s3) == 1)) @compileError("assertion failed");
+    if (!(get_sent(s3) == 1)) @panic("sent");
+    if (!(get_recv(s3) == 1)) @panic("recv");
 }
 test "reset_clears" {
     const s1 = reset();
     const s2 = inc_sent(s1);
     _ = s2; // dead after const-inlining
     const s3 = reset();
-    if (!(get_sent(s3) == 0)) @compileError("assertion failed");
+    if (!(get_sent(s3) == 0)) @panic("clears");
 }

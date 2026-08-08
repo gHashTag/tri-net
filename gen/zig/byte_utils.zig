@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 fn get_bit(byte: u8, i: usize) u8 {
     if (i == 0) {
         return byte & 1;
@@ -39,25 +38,25 @@ fn swap_nibbles(byte: u8) u8 {
 }
 test "get_bit_lsb" {
     const bit = get_bit(0x01, 0);
-    if (!(bit == 1)) @compileError("assertion failed");
+    if (!(bit == 1)) @panic("LSB is 1");
 }
 test "get_bit_msb" {
     const bit = get_bit(0x80, 7);
-    if (!(bit == 1)) @compileError("assertion failed");
+    if (!(bit == 1)) @panic("MSB is 1");
 }
 test "low_nibble_test" {
     const nib = low_nibble(0xAB);
-    if (!(nib == 0x0B)) @compileError("assertion failed");
+    if (!(nib == 0x0B)) @panic("low nibble");
 }
 test "high_nibble_test" {
     const nib = high_nibble(0xAB);
-    if (!(nib == 0x0A)) @compileError("assertion failed");
+    if (!(nib == 0x0A)) @panic("high nibble");
 }
 test "combine_nibbles_test" {
     const byte = combine_nibbles(0x0A, 0x0B);
-    if (!(byte == 0xAB)) @compileError("assertion failed");
+    if (!(byte == 0xAB)) @panic("combine");
 }
 test "swap_nibbles_test" {
     const result = swap_nibbles(0xAB);
-    if (!(result == 0xBA)) @compileError("assertion failed");
+    if (!(result == 0xBA)) @panic("swap");
 }
