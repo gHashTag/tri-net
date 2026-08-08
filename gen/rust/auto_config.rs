@@ -61,9 +61,32 @@ pub const PARAM_QOS_ENABLED: u32 = 6;
 
 pub const PARAM_SECURITY_LEVEL: u32 = 7;
 
-pub fn create_default_config() -> [u32; MAX_PARAMS as usize] {
-    let config: [u32; MAX_PARAMS as usize] = vec![];
-    return config;
+pub fn default_config_at(index: u32) -> u32 {
+    if (index == 0) {
+        return create_config_param(PARAM_TX_POWER, 50, SCOPE_NODE, STATUS_PENDING);
+    }
+    if (index == 1) {
+        return create_config_param(PARAM_CHANNEL, 0, SCOPE_LINK, STATUS_PENDING);
+    }
+    if (index == 2) {
+        return create_config_param(PARAM_DATA_RATE, 2, SCOPE_LINK, STATUS_PENDING);
+    }
+    if (index == 3) {
+        return create_config_param(PARAM_RETRY_LIMIT, 3, SCOPE_NETWORK, STATUS_PENDING);
+    }
+    if (index == 4) {
+        return create_config_param(PARAM_HELLO_INTERVAL, 2000, SCOPE_NETWORK, STATUS_PENDING);
+    }
+    if (index == 5) {
+        return create_config_param(PARAM_ROUTE_TIMEOUT, 10000, SCOPE_NETWORK, STATUS_PENDING);
+    }
+    if (index == 6) {
+        return create_config_param(PARAM_QOS_ENABLED, 1, SCOPE_GLOBAL, STATUS_PENDING);
+    }
+    if (index == 7) {
+        return create_config_param(PARAM_SECURITY_LEVEL, 2, SCOPE_GLOBAL, STATUS_PENDING);
+    }
+    return 0;
 }
 
 pub fn get_config_value(config: [u32; MAX_PARAMS as usize], param_id: u32) -> u32 {
@@ -94,7 +117,7 @@ pub fn set_config_value(config: [u32; MAX_PARAMS as usize], param_id: u32, new_v
 }
 
 pub fn discover_network_params(node_count: u32, interference_level: u32) -> u32 {
-    let config: [u32; MAX_PARAMS as usize] = create_default_config();
+    let config: [u32; MAX_PARAMS as usize] = vec![];
     let mut tx_power: u32 = 50;
     if (node_count < 4) {
         tx_power = 30;
@@ -285,14 +308,8 @@ pub fn rollback_config(config: [u32; MAX_PARAMS as usize], backup_config: [u32; 
     return rolled_back;
 }
 
-pub fn create_backup(config: [u32; MAX_PARAMS as usize]) -> [u32; MAX_PARAMS as usize] {
-    let mut backup: [u32; MAX_PARAMS as usize];
-    let mut i: u32 = 0;
-    while (i < MAX_PARAMS) {
-        backup[(i) as usize] = config[(i) as usize];
-        i = (i + 1);
-    }
-    return backup;
+pub fn backup_element(config: [u32; MAX_PARAMS as usize], index: u32) -> u32 {
+    return config[((index as usize)) as usize];
 }
 
 pub fn calculate_config_drift(config1: [u32; MAX_PARAMS as usize], config2: [u32; MAX_PARAMS as usize]) -> u32 {

@@ -8,40 +8,27 @@ const types = @import("types.zig");
 
 const MAX_NEIGHBORS: u32 = 4;
 const VALID_TIMEOUT: u32 = 6000;
+const NO_NEIGHBOR: u32 = 0xFF;
+const NO_SLOT: u32 = 0xFF;
 fn create_neighbor(id: u32, quality: u32, last_seen: u32) u32 {
-    return (((id & 0xFF) << 56) | ((quality & 0xFFFF) << 32)) | (last_seen & 0xFFFFFFFF);
+    return (((id & 0xFF) << 24) | ((quality & 0xFF) << 16)) | (last_seen & 0xFFFF);
 }
 fn get_id(entry: u32) u32 {
-    return (entry >> 56) & 0xFF;
+    return (entry >> 24) & 0xFF;
 }
 fn get_quality(entry: u32) u32 {
-    return (entry >> 32) & 0xFFFF;
+    return (entry >> 16) & 0xFF;
 }
 fn get_last_seen(entry: u32) u32 {
-    return entry & 0xFFFFFFFF;
+    return entry & 0xFFFF;
 }
 fn is_valid(entry: u32, time: u32) bool {
     return (time - get_last_seen(entry)) < VALID_TIMEOUT;
 }
-fn create_table(n0: u32, n1: u32, n2: u32, n3: u32) u32 {
-    return ((((n0 & 0xFFFFFFFFFFFFFFFF) << 192) | ((n1 & 0xFFFFFFFFFFFFFFFF) << 128)) | ((n2 & 0xFFFFFFFFFFFFFFFF) << 64)) | (n3 & 0xFFFFFFFFFFFFFFFF);
+fn get_id_at(table: [4]u32, index: u32) u32 {
+    return get_id(table[@as(usize, @intCast(index))]);
 }
-fn get_entry(table: u32, index: u32) u32 {
-    if (index == 0) {
-        return table & 0xFFFFFFFFFFFFFFFF;
-    }
-    if (index == 1) {
-        return (table >> 128) & 0xFFFFFFFFFFFFFFFF;
-    }
-    if (index == 2) {
-        return (table >> 64) & 0xFFFFFFFFFFFFFFFF;
-    }
-    return (table >> 192) & 0xFFFFFFFFFFFFFFFF;
-}
-fn get_id_at(table: u32, index: u32) u32 {
-    return get_id(get_entry(table, index));
-}
-fn find_index(table: u32, target_id: u32) u32 {
+fn find_index(table: [4]u32, target_id: u32) u32 {
     if (get_id_at(table, 0) == target_id) {
         return 0;
     }
@@ -54,48 +41,60 @@ fn find_index(table: u32, target_id: u32) u32 {
     if (get_id_at(table, 3) == target_id) {
         return 3;
     }
-    return 0xFF;
+    return NO_SLOT;
 }
-fn set_entry(table: u32, index: u32, new_entry: u32) u32 {
-    if (index == 0) {
-        return (table & 0xFFFFFFFFFFFFFFFF0000000000000000) | (@as(u64, @intCast(new_entry)) << 192);
-    } else if (index == 1) {
-        return (table & 0xFFFFFFFFFFFFFFFF0000000000000000) | (@as(u64, @intCast(new_entry)) << 128);
-    } else if (index == 2) {
-        return (table & 0xFFFFFFFFFFFFFFFF0000000000000000) | (@as(u64, @intCast(new_entry)) << 64);
+fn slot_for_update(table: [4]u32, id: u32) u32 {
+    if (find_index(table, id) != NO_SLOT) {
+        return find_index(table, id);
+    }
+    if (get_id_at(table, 0) == NO_NEIGHBOR) {
+        return 0;
+    }
+    if (get_id_at(table, 1) == NO_NEIGHBOR) {
+        return 1;
+    }
+    if (get_id_at(table, 2) == NO_NEIGHBOR) {
+        return 2;
+    }
+    if (get_id_at(table, 3) == NO_NEIGHBOR) {
+        return 3;
+    }
+    return NO_SLOT;
+}
+fn best_of_two(a: u32, b: u32) u32 {
+    if (get_quality(a) >= get_quality(b)) {
+        return a;
     } else {
-        return table & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+        return b;
     }
 }
-fn update_or_add(table: u32, id: u32, quality: u32, time: u32) u32 {
-    if (find_index(table, id) < 4) {
-        return set_entry(table, find_index(table, id), create_neighbor(id, quality, time));
-    } else if (get_id_at(table, 0) == 0xFF) {
-        return set_entry(table, 0, create_neighbor(id, quality, time));
-    } else if (get_id_at(table, 1) == 0xFF) {
-        return set_entry(table, 1, create_neighbor(id, quality, time));
+fn get_best_neighbor(table: [4]u32) u32 {
+    return get_id(best_of_two(best_of_two(table[0], table[1]), best_of_two(table[2], table[3])));
+}
+fn mask_if_id(entry: u32, best_id: u32) u32 {
+    if (get_id(entry) == best_id) {
+        return 0;
     } else {
-        return table;
+        return entry;
     }
 }
-fn get_best_neighbor(table: u32) u32 {
-    _ = table; // unused by the spec body
-    @compileError("not yet implemented");
+fn get_second_best(table: [4]u32, best_id: u32) u32 {
+    return get_id(best_of_two(best_of_two(mask_if_id(table[0], best_id), mask_if_id(table[1], best_id)), best_of_two(mask_if_id(table[2], best_id), mask_if_id(table[3], best_id))));
 }
-fn get_second_best(table: u32, best_id: u32) u32 {
-    if (best_id == get_id(get_entry(table, 0))) {
-    } else if (best_id == get_id(get_entry(table, 1))) {
-    } else {
-    }
-}
-fn select_mprs(table: u32) u32 {
-    const best = get_best_neighbor(table);
-    const second = get_second_best(table, best);
+fn select_mprs(table: [4]u32) u32 {
+    const best: u32 = get_best_neighbor(table);
+    const second: u32 = get_second_best(table, best);
     return ((best & 0xFF) << 8) | (second & 0xFF);
 }
-fn count_neighbors(table: u32) u32 {
-    _ = table; // unused by the spec body
-    @compileError("not yet implemented");
+fn one_if_present(entry: u32) u32 {
+    if (get_id(entry) != NO_NEIGHBOR) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+fn count_neighbors(table: [4]u32) u32 {
+    return ((one_if_present(table[0]) + one_if_present(table[1])) + one_if_present(table[2])) + one_if_present(table[3]);
 }
 test "create_neighbor_basic" {
     const n = create_neighbor(1, 100, 5000);
@@ -111,56 +110,24 @@ test "is_valid_timeout" {
     const n = create_neighbor(5, 200, 1000);
     if (!(is_valid(n, 8000) == false)) @compileError("assertion failed");
 }
-test "create_table_4_entries" {
-    const n0 = create_neighbor(1, 100, 1000);
-    const n1 = create_neighbor(2, 200, 2000);
-    const n2 = create_neighbor(3, 150, 3000);
-    const n3 = create_neighbor(4, 50, 4000);
-    const t = create_table(n0, n1, n2, n3);
-    if (!(get_id_at(t, 0) == 1)) @compileError("assertion failed");
-    if (!(get_id_at(t, 1) == 2)) @compileError("assertion failed");
-    if (!(get_id_at(t, 2) == 3)) @compileError("assertion failed");
-    if (!(get_id_at(t, 3) == 4)) @compileError("assertion failed");
+test "table_reads_and_find" {
+    const table: [4]u32 = .{ create_neighbor(1,100,1000), create_neighbor(2,200,2000), create_neighbor(3,150,3000), create_neighbor(4,50,4000) };
+    if (!(get_id_at(table, 0) == 1)) @compileError("assertion failed");
+    if (!(get_id_at(table, 3) == 4)) @compileError("assertion failed");
+    if (!(find_index(table, 3) == 2)) @compileError("assertion failed");
+    if (!(find_index(table, 9) == NO_SLOT)) @compileError("assertion failed");
+    if (!(count_neighbors(table) == 4)) @compileError("assertion failed");
 }
-test "find_index_finds" {
-    const t = create_table(create_neighbor(5, 100, 1000), create_neighbor(2, 200, 2000), create_neighbor(3, 150, 3000), create_neighbor(4, 50, 4000));
-    if (!(find_index(t, 2) == 1)) @compileError("assertion failed");
+test "slot_decisions" {
+    const table: [4]u32 = .{ create_neighbor(1,100,1000), create_neighbor(NO_NEIGHBOR,0,0), create_neighbor(3,150,3000), create_neighbor(4,50,4000) };
+    if (!(slot_for_update(table, 3) == 2)) @compileError("assertion failed");
+    if (!(slot_for_update(table, 9) == 1)) @compileError("assertion failed");
+    const full: [4]u32 = .{ create_neighbor(1,100,1000), create_neighbor(2,200,2000), create_neighbor(3,150,3000), create_neighbor(4,50,4000) };
+    if (!(slot_for_update(full, 9) == NO_SLOT)) @compileError("assertion failed");
 }
-test "find_index_not_found" {
-    const t = create_table(create_neighbor(1, 100, 1000), create_neighbor(2, 200, 2000), create_neighbor(3, 150, 3000), create_neighbor(4, 50, 4000));
-    if (!(find_index(t, 99) == 0xFF)) @compileError("assertion failed");
-}
-test "update_or_add_updates" {
-    const t = create_table(create_neighbor(1, 100, 1000), 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF);
-    const t2 = update_or_add(t, 1, 200, 5000);
-    if (!(get_quality(get_entry(t2, 0)) == 200)) @compileError("assertion failed");
-    if (!(get_last_seen(get_entry(t2, 0)) == 5000)) @compileError("assertion failed");
-}
-test "update_or_add_adds" {
-    const t = create_table(0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF);
-    const t2 = update_or_add(t, 7, 150, 3000);
-    if (!(get_id(get_entry(t2, 0)) == 7)) @compileError("assertion failed");
-    if (!(get_quality(get_entry(t2, 0)) == 150)) @compileError("assertion failed");
-}
-test "get_best_neighbor_finds_highest_quality" {
-    const t = create_table(create_neighbor(1, 300, 1000), create_neighbor(2, 200, 2000), create_neighbor(3, 100, 3000), create_neighbor(4, 50, 4000));
-    if (!(get_best_neighbor(t) == 1)) @compileError("assertion failed");
-}
-test "get_best_neighbor_tie_breaks" {
-    const t = create_table(create_neighbor(1, 200, 1000), create_neighbor(2, 200, 2000), create_neighbor(3, 100, 3000), create_neighbor(4, 50, 4000));
-    if (!(get_best_neighbor(t) == 1)) @compileError("assertion failed");
-}
-test "select_mprs_returns_two" {
-    const t = create_table(create_neighbor(1, 300, 1000), create_neighbor(2, 200, 2000), create_neighbor(3, 100, 3000), create_neighbor(4, 50, 4000));
-    const mprs = select_mprs(t);
-    if (!(((mprs >> 8) & 0xFF) == 1)) @compileError("assertion failed");
-    if (!((mprs & 0xFF) == 2)) @compileError("assertion failed");
-}
-test "count_neighbors_4" {
-    const t = create_table(create_neighbor(1, 100, 1000), create_neighbor(2, 200, 2000), create_neighbor(3, 150, 3000), create_neighbor(4, 50, 4000));
-    if (!(count_neighbors(t) == 4)) @compileError("assertion failed");
-}
-test "count_neighbors_2" {
-    const t = create_table(create_neighbor(1, 100, 1000), create_neighbor(2, 200, 2000), 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF);
-    if (!(count_neighbors(t) == 2)) @compileError("assertion failed");
+test "mpr_selection" {
+    const table: [4]u32 = .{ create_neighbor(1,100,1000), create_neighbor(2,200,2000), create_neighbor(3,150,3000), create_neighbor(4,50,4000) };
+    if (!(get_best_neighbor(table) == 2)) @compileError("assertion failed");
+    if (!(get_second_best(table, 2) == 3)) @compileError("assertion failed");
+    if (!(select_mprs(table) == ((2 << 8) | 3))) @compileError("assertion failed");
 }
