@@ -108,3 +108,17 @@ pub fn may_open_dispute(open_count: u32, risk: u32, reward: u32, bond: u32, min_
     return (bond >= dispute_required_bond(risk_after_open(risk, reward), min_bps));
 }
 
+pub const CH_BOND_BPS_PER_TRIT: u32 = 500;
+
+pub fn dispute_rung_min_bps(min_bps: u32, gf_et: u32) -> u32 {
+    if (gf_et <= CH_GFT16_ET) {
+        return min_bps;
+    } else {
+        return (min_bps + ((gf_et - CH_GFT16_ET) * CH_BOND_BPS_PER_TRIT));
+    }
+}
+
+pub fn may_open_dispute_rung(open_count: u32, risk: u32, reward: u32, bond: u32, min_bps: u32, gf_et: u32) -> bool {
+    return may_open_dispute(open_count, risk, reward, bond, dispute_rung_min_bps(min_bps, gf_et));
+}
+
