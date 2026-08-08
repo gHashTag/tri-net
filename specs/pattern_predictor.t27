@@ -247,7 +247,7 @@ module pattern_predictor {
             create_sample(70, 3, 3, 1),
             create_sample(80, 4, 4, 1),
             0, 0, 0, 0, 0, 0, 0, 0
-        );
+        , 0, 0, 0, 0);
         let avg = calculate_moving_average(array, 4);
         assert(avg == 65, "average of 50,60,70,80");
     }
@@ -275,7 +275,7 @@ module pattern_predictor {
             create_sample(30, 3, 3, 1),
             create_sample(40, 4, 4, 1),
             0, 0, 0, 0, 0, 0, 0, 0
-        );
+        , 0, 0, 0, 0);
         assert(detect_trend(array, 4) == 1, "increasing trend");
     }
 
@@ -286,7 +286,7 @@ module pattern_predictor {
             create_sample(40, 3, 3, 1),
             create_sample(20, 4, 4, 1),
             0, 0, 0, 0, 0, 0, 0, 0
-        );
+        , 0, 0, 0, 0);
         assert(detect_trend(array, 4) == 2, "decreasing trend");
     }
 
@@ -297,7 +297,7 @@ module pattern_predictor {
             create_sample(48, 3, 3, 1),
             create_sample(51, 4, 4, 1),
             0, 0, 0, 0, 0, 0, 0, 0
-        );
+        , 0, 0, 0, 0);
         assert(detect_trend(array, 4) == 0, "stable trend");
     }
 
@@ -308,7 +308,7 @@ module pattern_predictor {
             create_sample(70, 3, 3, 1),
             create_sample(80, 4, 4, 1),
             0, 0, 0, 0, 0, 0, 0, 0
-        );
+        , 0, 0, 0, 0);
         let predicted = predict_next_value(array, 4);
         assert(predicted == 90, "predict 90 (80 + 10)");
     }
@@ -320,7 +320,7 @@ module pattern_predictor {
             create_sample(40, 3, 3, 1),
             create_sample(20, 4, 4, 1),
             0, 0, 0, 0, 0, 0, 0, 0
-        );
+        , 0, 0, 0, 0);
         let predicted = predict_next_value(array, 4);
         assert(predicted == 10, "predict 10 (20 - 10)");
     }
@@ -332,7 +332,7 @@ module pattern_predictor {
             create_sample(48, 3, 3, 1),
             create_sample(51, 4, 4, 1),
             0, 0, 0, 0, 0, 0, 0, 0
-        );
+        , 0, 0, 0, 0);
         let predicted = predict_next_value(array, 4);
         assert(predicted == 51, "predict 51 (stable)");
     }
@@ -344,7 +344,7 @@ module pattern_predictor {
             create_sample(70, 3, 3, 1),
             create_sample(80, 4, 4, 1),
             0, 0, 0, 0, 0, 0, 0, 0
-        );
+        , 0, 0, 0, 0);
         let anomaly = is_anomalous(array, 4, 120);
         assert(anomaly > 20, "large deviation");
     }
@@ -356,7 +356,7 @@ module pattern_predictor {
             create_sample(70, 3, 3, 1),
             create_sample(80, 4, 4, 1),
             0, 0, 0, 0, 0, 0, 0, 0
-        );
+        , 0, 0, 0, 0);
         let anomaly = is_anomalous(array, 4, 85);
         assert(anomaly <= 5, "normal deviation");
     }
@@ -368,7 +368,7 @@ module pattern_predictor {
             create_sample(10, 3, 3, 1),
             create_sample(20, 4, 4, 1),
             0, 0, 0, 0, 0, 0, 0, 0
-        );
+        , 0, 0, 0, 0);
         assert(detect_repeating_pattern(array, 4) == 1, "pattern found");
     }
 
@@ -379,7 +379,7 @@ module pattern_predictor {
             create_sample(30, 3, 3, 1),
             create_sample(40, 4, 4, 1),
             0, 0, 0, 0, 0, 0, 0, 0
-        );
+        , 0, 0, 0, 0);
         assert(detect_repeating_pattern(array, 4) == 0, "no pattern");
     }
 
@@ -390,7 +390,7 @@ module pattern_predictor {
             create_sample(48, 3, 3, 1),
             create_sample(51, 4, 4, 1),
             0, 0, 0, 0, 0, 0, 0, 0
-        );
+        , 0, 0, 0, 0);
         let variance = calculate_variance(array, 4);
         assert(variance < 10, "low variance");
     }
@@ -402,7 +402,7 @@ module pattern_predictor {
             create_sample(20, 3, 3, 1),
             create_sample(90, 4, 4, 1),
             0, 0, 0, 0, 0, 0, 0, 0
-        );
+        , 0, 0, 0, 0);
         let variance = calculate_variance(array, 4);
         assert(variance > 1000, "high variance");
     }

@@ -195,7 +195,7 @@ test "create_pattern_storage_basic" {
     if (!(get_trend_direction(storage) == 1)) @compileError("assertion failed");
 }
 test "calculate_moving_average_4_samples" {
-    const array = create_sample_array(create_sample(50, 1, 1, 1), create_sample(60, 2, 2, 1), create_sample(70, 3, 3, 1), create_sample(80, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0);
+    const array = create_sample_array(create_sample(50, 1, 1, 1), create_sample(60, 2, 2, 1), create_sample(70, 3, 3, 1), create_sample(80, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     const avg = calculate_moving_average(array, 4);
     if (!(avg == 65)) @compileError("assertion failed");
 }
@@ -205,57 +205,57 @@ test "calculate_moving_average_all_samples" {
     if (!(avg == 100)) @compileError("assertion failed");
 }
 test "detect_trend_increasing" {
-    const array = create_sample_array(create_sample(10, 1, 1, 1), create_sample(20, 2, 2, 1), create_sample(30, 3, 3, 1), create_sample(40, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0);
+    const array = create_sample_array(create_sample(10, 1, 1, 1), create_sample(20, 2, 2, 1), create_sample(30, 3, 3, 1), create_sample(40, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     if (!(detect_trend(array, 4) == 1)) @compileError("assertion failed");
 }
 test "detect_trend_decreasing" {
-    const array = create_sample_array(create_sample(80, 1, 1, 1), create_sample(60, 2, 2, 1), create_sample(40, 3, 3, 1), create_sample(20, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0);
+    const array = create_sample_array(create_sample(80, 1, 1, 1), create_sample(60, 2, 2, 1), create_sample(40, 3, 3, 1), create_sample(20, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     if (!(detect_trend(array, 4) == 2)) @compileError("assertion failed");
 }
 test "detect_trend_stable" {
-    const array = create_sample_array(create_sample(50, 1, 1, 1), create_sample(52, 2, 2, 1), create_sample(48, 3, 3, 1), create_sample(51, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0);
+    const array = create_sample_array(create_sample(50, 1, 1, 1), create_sample(52, 2, 2, 1), create_sample(48, 3, 3, 1), create_sample(51, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     if (!(detect_trend(array, 4) == 0)) @compileError("assertion failed");
 }
 test "predict_next_value_increasing" {
-    const array = create_sample_array(create_sample(50, 1, 1, 1), create_sample(60, 2, 2, 1), create_sample(70, 3, 3, 1), create_sample(80, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0);
+    const array = create_sample_array(create_sample(50, 1, 1, 1), create_sample(60, 2, 2, 1), create_sample(70, 3, 3, 1), create_sample(80, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     const predicted = predict_next_value(array, 4);
     if (!(predicted == 90)) @compileError("assertion failed");
 }
 test "predict_next_value_decreasing" {
-    const array = create_sample_array(create_sample(80, 1, 1, 1), create_sample(60, 2, 2, 1), create_sample(40, 3, 3, 1), create_sample(20, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0);
+    const array = create_sample_array(create_sample(80, 1, 1, 1), create_sample(60, 2, 2, 1), create_sample(40, 3, 3, 1), create_sample(20, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     const predicted = predict_next_value(array, 4);
     if (!(predicted == 10)) @compileError("assertion failed");
 }
 test "predict_next_value_stable" {
-    const array = create_sample_array(create_sample(50, 1, 1, 1), create_sample(52, 2, 2, 1), create_sample(48, 3, 3, 1), create_sample(51, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0);
+    const array = create_sample_array(create_sample(50, 1, 1, 1), create_sample(52, 2, 2, 1), create_sample(48, 3, 3, 1), create_sample(51, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     const predicted = predict_next_value(array, 4);
     if (!(predicted == 51)) @compileError("assertion failed");
 }
 test "is_anomalous_large_deviation" {
-    const array = create_sample_array(create_sample(50, 1, 1, 1), create_sample(60, 2, 2, 1), create_sample(70, 3, 3, 1), create_sample(80, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0);
+    const array = create_sample_array(create_sample(50, 1, 1, 1), create_sample(60, 2, 2, 1), create_sample(70, 3, 3, 1), create_sample(80, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     const anomaly = is_anomalous(array, 4, 120);
     if (!(anomaly > 20)) @compileError("assertion failed");
 }
 test "is_anomalous_normal" {
-    const array = create_sample_array(create_sample(50, 1, 1, 1), create_sample(60, 2, 2, 1), create_sample(70, 3, 3, 1), create_sample(80, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0);
+    const array = create_sample_array(create_sample(50, 1, 1, 1), create_sample(60, 2, 2, 1), create_sample(70, 3, 3, 1), create_sample(80, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     const anomaly = is_anomalous(array, 4, 85);
     if (!(anomaly <= 5)) @compileError("assertion failed");
 }
 test "detect_repeating_pattern_found" {
-    const array = create_sample_array(create_sample(10, 1, 1, 1), create_sample(20, 2, 2, 1), create_sample(10, 3, 3, 1), create_sample(20, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0);
+    const array = create_sample_array(create_sample(10, 1, 1, 1), create_sample(20, 2, 2, 1), create_sample(10, 3, 3, 1), create_sample(20, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     if (!(detect_repeating_pattern(array, 4) == 1)) @compileError("assertion failed");
 }
 test "detect_repeating_pattern_not_found" {
-    const array = create_sample_array(create_sample(10, 1, 1, 1), create_sample(20, 2, 2, 1), create_sample(30, 3, 3, 1), create_sample(40, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0);
+    const array = create_sample_array(create_sample(10, 1, 1, 1), create_sample(20, 2, 2, 1), create_sample(30, 3, 3, 1), create_sample(40, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     if (!(detect_repeating_pattern(array, 4) == 0)) @compileError("assertion failed");
 }
 test "calculate_variance_low" {
-    const array = create_sample_array(create_sample(50, 1, 1, 1), create_sample(52, 2, 2, 1), create_sample(48, 3, 3, 1), create_sample(51, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0);
+    const array = create_sample_array(create_sample(50, 1, 1, 1), create_sample(52, 2, 2, 1), create_sample(48, 3, 3, 1), create_sample(51, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     const variance = calculate_variance(array, 4);
     if (!(variance < 10)) @compileError("assertion failed");
 }
 test "calculate_variance_high" {
-    const array = create_sample_array(create_sample(10, 1, 1, 1), create_sample(100, 2, 2, 1), create_sample(20, 3, 3, 1), create_sample(90, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0);
+    const array = create_sample_array(create_sample(10, 1, 1, 1), create_sample(100, 2, 2, 1), create_sample(20, 3, 3, 1), create_sample(90, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     const variance = calculate_variance(array, 4);
     if (!(variance > 1000)) @compileError("assertion failed");
 }
