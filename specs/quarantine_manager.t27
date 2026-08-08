@@ -78,7 +78,9 @@ module quarantine_manager {
     fn ban_node(state: u32) -> u32 {
         let node_id: u32 = get_quarantine_node_id(state);
         
-        return create_quarantine_state(node_id, STATUS_BANNED, 0, 0xFFFF);
+        // Violations field is 14-bit: 0x3FFF is the honest sentinel (the old
+        // 0xFFFF silently truncated to the same value, but lied in the source).
+        return create_quarantine_state(node_id, STATUS_BANNED, 0, 0x3FFF);
     }
 
     // Check if quarantine should be lifted
@@ -312,5 +314,34 @@ module quarantine_manager {
 
     fn get_notification_duration(notification: u32) -> u32 {
         return (notification & 0xFFFF);
+    }
+
+    // ---- Tests ----
+
+    test quarantine_state_roundtrip {
+        st = create_quarantine_state(9, STATUS_SUSPENDED, 200, 12345);
+        assert(get_quarantine_node_id(st) == 9, "node id");
+        assert(get_quarantine_status(st) == STATUS_SUSPENDED, "status");
+        assert(get_start_time(st) == 200, "start time");
+        assert(get_violation_count(st) == 12345, "violations");
+    }
+
+    test quarantine_lifecycle {
+        st = create_quarantine_state(5, STATUS_NORMAL, 0, 0);
+        st = quarantine_node(st, 100);
+        assert(get_quarantine_status(st) == STATUS_QUARANTINED, "quarantined");
+        assert(get_violation_count(st) == 1, "violation recorded");
+        assert(should_release_quarantine(st, 100 + QUARANTINE_DURATION) == 1, "released after the duration");
+        assert(should_release_quarantine(st, 100) == 0, "held before the duration");
+        st = release_quarantine(st);
+        assert(get_quarantine_status(st) == STATUS_NORMAL, "released");
+        assert(get_violation_count(st) == 1, "violations persist");
+    }
+
+    test ban_pins_violation_ceiling {
+        st = create_quarantine_state(5, STATUS_NORMAL, 0, 3);
+        st = ban_node(st);
+        assert(get_quarantine_status(st) == STATUS_BANNED, "banned");
+        assert(get_violation_count(st) == 0x3FFF, "ceiling fits the 14-bit field");
     }
 }

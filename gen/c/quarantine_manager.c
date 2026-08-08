@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <assert.h>
+#define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
 
 #ifndef QUARANTINE_MANAGER_H
 #define QUARANTINE_MANAGER_H
@@ -119,7 +121,7 @@ uint32_t suspend_node(uint32_t state, uint32_t current_time) {
 
 uint32_t ban_node(uint32_t state) {
     uint32_t node_id = get_quarantine_node_id(state);
-    return create_quarantine_state(node_id, STATUS_BANNED, 0, 0xFFFF);
+    return create_quarantine_state(node_id, STATUS_BANNED, 0, 0x3FFF);
 }
 
 uint32_t should_release_quarantine(uint32_t state, uint32_t current_time) {
@@ -306,5 +308,40 @@ uint32_t get_notification_reason(uint32_t notification) {
 uint32_t get_notification_duration(uint32_t notification) {
     return (notification & 0xFFFF);
 }
+
+/* -------------------------------------------------------
+   Tests
+   ------------------------------------------------------- */
+
+void test_quarantine_state_roundtrip(void) {
+    uint64_t st = create_quarantine_state(9, STATUS_SUSPENDED, 200, 12345);
+    (void)st;
+    t27_assert((get_quarantine_node_id(st) == 9), "node id");
+    t27_assert((get_quarantine_status(st) == STATUS_SUSPENDED), "status");
+    t27_assert((get_start_time(st) == 200), "start time");
+    t27_assert((get_violation_count(st) == 12345), "violations");
+}
+
+void test_quarantine_lifecycle(void) {
+    uint64_t st = create_quarantine_state(5, STATUS_NORMAL, 0, 0);
+    (void)st;
+    st = quarantine_node(st, 100);
+    t27_assert((get_quarantine_status(st) == STATUS_QUARANTINED), "quarantined");
+    t27_assert((get_violation_count(st) == 1), "violation recorded");
+    t27_assert((should_release_quarantine(st, (100 + QUARANTINE_DURATION)) == 1), "released after the duration");
+    t27_assert((should_release_quarantine(st, 100) == 0), "held before the duration");
+    st = release_quarantine(st);
+    t27_assert((get_quarantine_status(st) == STATUS_NORMAL), "released");
+    t27_assert((get_violation_count(st) == 1), "violations persist");
+}
+
+void test_ban_pins_violation_ceiling(void) {
+    uint64_t st = create_quarantine_state(5, STATUS_NORMAL, 0, 3);
+    (void)st;
+    st = ban_node(st);
+    t27_assert((get_quarantine_status(st) == STATUS_BANNED), "banned");
+    t27_assert((get_violation_count(st) == 0x3FFF), "ceiling fits the 14-bit field");
+}
+
 
 #endif /* QUARANTINE_MANAGER_H */

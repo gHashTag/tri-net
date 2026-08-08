@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <assert.h>
+#define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
 
 #ifndef NETWORK_SIMULATOR_H
 #define NETWORK_SIMULATOR_H
@@ -339,5 +341,30 @@ uint32_t generate_simulation_report(uint32_t stats, uint32_t duration, uint32_t 
     uint32_t avg_latency = calculate_average_latency(stats);
     return (((((delivery_ratio & 0xFF) << 24) | ((avg_latency & 0xFF) << 16)) | ((duration & 0xFF) << 8)) | (node_count & 0xFF));
 }
+
+/* -------------------------------------------------------
+   Tests
+   ------------------------------------------------------- */
+
+void test_sim_event_roundtrip(void) {
+    uint64_t e = create_sim_event(5, 40000, 9, 12);
+    (void)e;
+    t27_assert((get_event_id(e) == 5), "event id");
+    t27_assert((get_event_timestamp(e) == 40000), "timestamp");
+    t27_assert((get_event_type(e) == 9), "event type");
+    t27_assert((get_event_node_id(e) == 12), "node id");
+}
+
+void test_energy_drain_fails_node(void) {
+    uint64_t st = create_node_state(3, NODE_ACTIVE, 10, 7);
+    (void)st;
+    st = update_node_energy(st, 4);
+    t27_assert((get_node_energy(st) == 6), "energy drained");
+    t27_assert((get_node_status(st) == NODE_ACTIVE), "still active");
+    st = update_node_energy(st, 100);
+    t27_assert((get_node_energy(st) == 0), "clamps at zero");
+    t27_assert((get_node_status(st) == NODE_FAILED), "empty battery fails the node");
+}
+
 
 #endif /* NETWORK_SIMULATOR_H */

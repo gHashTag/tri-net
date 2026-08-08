@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <assert.h>
+#define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
 
 #ifndef TEST_VALIDATOR_H
 #define TEST_VALIDATOR_H
@@ -356,5 +358,35 @@ uint32_t generate_validation_report(uint32_t summary, uint32_t metrics, uint32_t
     uint32_t quality_ok = is_quality_acceptable(metrics);
     return (((((status & 0xF) << 28) | ((errors & 0xFF) << 20)) | ((warnings & 0xFF) << 12)) | (quality_ok & 0xFFF));
 }
+
+/* -------------------------------------------------------
+   Tests
+   ------------------------------------------------------- */
+
+void test_validation_error_roundtrip(void) {
+    uint64_t e = create_validation_error(7, ERROR_TYPE_MISMATCH, 199, 3000);
+    (void)e;
+    t27_assert((get_error_id(e) == 7), "error id");
+    t27_assert((get_error_type(e) == ERROR_TYPE_MISMATCH), "error type");
+    t27_assert((get_error_line(e) == 199), "line");
+    t27_assert((get_error_severity(e) == 3000), "severity");
+}
+
+void test_signature_validation_paths(void) {
+    uint64_t ok_sig = create_function_signature(5, 4, 2, 1);
+    (void)ok_sig;
+    t27_assert((validate_function_signature(ok_sig) == 0), "4 params bool return is valid");
+    uint64_t many = create_function_signature(5, 12, 2, 1);
+    (void)many;
+    uint64_t e1 = validate_function_signature(many);
+    (void)e1;
+    t27_assert((get_error_type(e1) == ERROR_CONSTRAINT_VIOLATION), "12 params violates the constraint");
+    uint64_t badret = create_function_signature(5, 4, 9, 1);
+    (void)badret;
+    uint64_t e2 = validate_function_signature(badret);
+    (void)e2;
+    t27_assert((get_error_type(e2) == ERROR_TYPE_MISMATCH), "return type 9 is invalid");
+}
+
 
 #endif /* TEST_VALIDATOR_H */

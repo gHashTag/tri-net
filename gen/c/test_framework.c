@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <assert.h>
+#define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
 
 #ifndef TEST_FRAMEWORK_H
 #define TEST_FRAMEWORK_H
@@ -393,5 +395,28 @@ uint32_t generate_test_report(uint32_t summary, uint32_t coverage, uint32_t dura
     }
     return ((((pass_rate & 0xFF) << 24) | ((coverage_pct & 0xFF) << 16)) | ((duration_ms & 0xFFFF) << 0));
 }
+
+/* -------------------------------------------------------
+   Tests
+   ------------------------------------------------------- */
+
+void test_test_result_roundtrip(void) {
+    uint64_t r = create_test_result(8, 2, 40, 3);
+    (void)r;
+    t27_assert((get_test_id(r) == 8), "test id");
+    t27_assert((get_test_status(r) == 2), "status");
+    t27_assert((get_assertion_count(r) == 40), "assertions");
+    t27_assert((get_failure_count(r) == 3), "failures");
+}
+
+void test_test_case_roundtrip(void) {
+    uint64_t tc = create_test_case(4, 9, 55, 110);
+    (void)tc;
+    t27_assert((get_test_case_id(tc) == 4), "case id");
+    t27_assert((get_function_id(tc) == 9), "function id");
+    t27_assert((get_test_input(tc) == 55), "input");
+    t27_assert((get_expected_output(tc) == 110), "expected");
+}
+
 
 #endif /* TEST_FRAMEWORK_H */

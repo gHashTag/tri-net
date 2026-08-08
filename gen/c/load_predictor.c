@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <assert.h>
+#define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
 
 #ifndef LOAD_PREDICTOR_H
 #define LOAD_PREDICTOR_H
@@ -139,7 +141,10 @@ uint32_t predict_load(uint32_t* history, uint32_t count) {
     uint32_t avg = calculate_moving_average(history, count);
     uint32_t predicted = current;
     if ((trend == 1)) {
-        uint32_t increase = ((current - avg) / 2);
+        uint32_t increase = 0;
+        if ((current > avg)) {
+            increase = ((current - avg) / 2);
+        }
         predicted = (current + increase);
     } else if ((trend == 2)) {
         uint32_t decrease = ((avg - current) / 2);
@@ -293,5 +298,40 @@ uint32_t recommend_rerouting(uint32_t prediction, uint32_t current_node, uint32_
         return current_node;
     }
 }
+
+/* -------------------------------------------------------
+   Tests
+   ------------------------------------------------------- */
+
+void test_load_metrics_roundtrip(void) {
+    uint64_t m = create_load_metrics(80, 60, 200, 12);
+    (void)m;
+    t27_assert((get_bandwidth_usage(m) == 80), "bandwidth");
+    t27_assert((get_cpu_usage(m) == 60), "cpu");
+    t27_assert((get_packet_rate(m) == 200), "packets");
+    t27_assert((get_queue_depth(m) == 12), "queue");
+}
+
+void test_prediction_roundtrip(void) {
+    uint64_t p = create_prediction(90, 75, 2, 9000);
+    (void)p;
+    t27_assert((get_predicted_load(p) == 90), "load");
+    t27_assert((get_confidence(p) == 75), "confidence");
+    t27_assert((get_trend(p) == 2), "trend");
+    t27_assert((get_time_horizon(p) == 9000), "horizon");
+}
+
+void test_trend_detection_bands(void) {
+    uint32_t up[16] = { create_load_metrics(10,0,0,0), create_load_metrics(30,0,0,0), create_load_metrics(50,0,0,0), create_load_metrics(70,0,0,0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    t27_assert((detect_trend(up, 4) == 1), "rising by 40 over the window");
+    uint32_t flat[16] = { create_load_metrics(50,0,0,0), create_load_metrics(55,0,0,0), create_load_metrics(52,0,0,0), create_load_metrics(58,0,0,0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    t27_assert((detect_trend(flat, 4) == 0), "8-point wobble is stable");
+}
+
+void test_predict_load_no_underflow_when_average_leads(void) {
+    uint32_t h[16] = { create_load_metrics(100,0,0,0), create_load_metrics(100,0,0,0), create_load_metrics(0,0,0,0), create_load_metrics(25,0,0,0), create_load_metrics(50,0,0,0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    t27_assert((predict_load(h, 5) == 50), "no growth credit when below average");
+}
+
 
 #endif /* LOAD_PREDICTOR_H */
