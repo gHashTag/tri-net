@@ -1,5 +1,5 @@
 $date
-	Sun Aug  9 03:50:39 2026
+	Sun Aug  9 04:12:54 2026
 $end
 $version
 	Icarus Verilog
@@ -7,264 +7,236 @@ $end
 $timescale
 	1ps
 $end
-$scope module PacketLossInjection $end
+$scope module MeshNodeSim $end
 $var wire 1 ! clk $end
 $var wire 1 " en $end
 $var wire 1 # ready $end
 $var wire 1 $ rst_n $end
-$var parameter 8 % ERROR_BIT_FLIP $end
-$var parameter 8 & ERROR_CRC_FAIL $end
-$var parameter 8 ' ERROR_DUPLICATE $end
-$var parameter 8 ( ERROR_NONE $end
-$var parameter 8 ) ERROR_OUT_OF_ORDER $end
-$var parameter 8 * ERROR_REPLAY $end
+$var parameter 32 % NODE_1 $end
+$var parameter 32 & NODE_2 $end
+$var parameter 32 ' NODE_3 $end
+$var parameter 32 ( NODE_4 $end
 $scope function __mul_noop $end
-$var reg 64 + a [63:0] $end
-$var reg 128 , acc [127:0] $end
-$var reg 64 - b [63:0] $end
-$var integer 32 . i [31:0] $end
+$var reg 64 ) a [63:0] $end
+$var reg 128 * acc [127:0] $end
+$var reg 64 + b [63:0] $end
+$var integer 32 , i [31:0] $end
 $upscope $end
-$scope function calculate_crc $end
-$var reg 32 / packet [31:0] $end
-$scope begin calculate_crc_body $end
+$scope function calculate_hops $end
+$var reg 32 - from [31:0] $end
+$var reg 32 . to [31:0] $end
+$var reg 8 / topology [7:0] $end
+$scope begin calculate_hops_body $end
 $var reg 1 0 __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function check_replay $end
-$var reg 32 1 last_seq [31:0] $end
-$var reg 32 2 packet [31:0] $end
-$scope begin check_replay_body $end
-$var reg 1 3 __t27_ret $end
+$scope function create_2node_mesh $end
+$var reg 8 1 quality [7:0] $end
+$scope begin create_2node_mesh_body $end
+$var reg 1 2 __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function duplicate_packet $end
-$var reg 32 4 packet [31:0] $end
-$scope begin duplicate_packet_body $end
-$var reg 1 5 __t27_ret $end
+$scope function create_3node_mesh $end
+$var reg 8 3 q12 [7:0] $end
+$var reg 8 4 q23 [7:0] $end
+$var reg 8 5 q31 [7:0] $end
+$scope begin create_3node_mesh_body $end
+$var reg 1 6 __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function extract_sequence $end
-$var reg 32 6 packet [31:0] $end
-$scope begin extract_sequence_body $end
-$var reg 1 7 __t27_ret $end
-$upscope $end
-$upscope $end
-$scope function inject_bit_flip $end
-$var reg 8 8 bit_pos [7:0] $end
-$var reg 32 9 packet [31:0] $end
-$scope begin inject_bit_flip_body $end
+$scope function create_4node_line $end
+$var reg 8 7 q12 [7:0] $end
+$var reg 8 8 q23 [7:0] $end
+$var reg 8 9 q34 [7:0] $end
+$scope begin create_4node_line_body $end
 $var reg 1 : __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function inject_crc_error $end
-$var reg 32 ; packet [31:0] $end
-$scope begin inject_crc_error_body $end
-$var reg 1 < __t27_ret $end
+$scope function create_link_quality $end
+$var reg 32 ; from [31:0] $end
+$var reg 8 < quality [7:0] $end
+$var reg 32 = to [31:0] $end
+$scope begin create_link_quality_body $end
+$var reg 1 > __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function inject_out_of_order $end
-$var reg 32 = pkt1 [31:0] $end
-$var reg 32 > pkt2 [31:0] $end
-$scope begin inject_out_of_order_body $end
-$var reg 1 ? __t27_ret $end
+$scope function is_link_good $end
+$var reg 32 ? link [31:0] $end
+$var reg 8 @ threshold [7:0] $end
+$scope begin is_link_good_body $end
+$var reg 1 A __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function is_duplicate $end
-$var reg 32 @ pkt1 [31:0] $end
-$var reg 32 A pkt2 [31:0] $end
-$scope begin is_duplicate_body $end
-$var reg 1 B __t27_ret $end
+$scope function link_from $end
+$var reg 32 B link [31:0] $end
+$scope begin link_from_body $end
+$var reg 1 C __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function verify_crc $end
-$var reg 32 C packet [31:0] $end
-$var reg 16 D received_crc [15:0] $end
-$scope begin verify_crc_body $end
+$scope function link_quality $end
+$var reg 32 D link [31:0] $end
+$scope begin link_quality_body $end
 $var reg 1 E __t27_ret $end
 $upscope $end
 $upscope $end
-$scope begin calculate_crc_different_test $end
-$var reg 16 F _t27_call_tmp_calculate_crc_different_0 [15:0] $end
-$var reg 16 G _t27_call_tmp_calculate_crc_different_1 [15:0] $end
-$var reg 16 H crc1 [15:0] $end
-$var reg 16 I crc2 [15:0] $end
-$var reg 32 J pkt1 [31:0] $end
-$var reg 32 K pkt2 [31:0] $end
+$scope function link_to $end
+$var reg 32 F link [31:0] $end
+$scope begin link_to_body $end
+$var reg 1 G __t27_ret $end
 $upscope $end
-$scope begin calculate_crc_reproducible_test $end
-$var reg 16 L _t27_call_tmp_calculate_crc_reproducible_0 [15:0] $end
-$var reg 16 M crc1 [15:0] $end
-$var reg 16 N crc2 [15:0] $end
-$var reg 32 O pkt [31:0] $end
 $upscope $end
-$scope begin check_replay_newer_test $end
-$var reg 1 P _t27_call_tmp_check_replay_newer_0 $end
-$var reg 32 Q last [31:0] $end
-$var reg 32 R pkt [31:0] $end
+$scope begin calculate_hops_2node_test $end
+$var reg 8 H _t27_call_tmp_calculate_hops_2node_0 [7:0] $end
+$var reg 8 I hops [7:0] $end
 $upscope $end
-$scope begin check_replay_older_test $end
-$var reg 1 S _t27_call_tmp_check_replay_older_0 $end
-$var reg 32 T last [31:0] $end
-$var reg 32 U pkt [31:0] $end
+$scope begin calculate_hops_3node_direct_test $end
+$var reg 8 J _t27_call_tmp_calculate_hops_3node_direct_0 [7:0] $end
+$var reg 8 K hops [7:0] $end
 $upscope $end
-$scope begin check_replay_same_test $end
-$var reg 1 V _t27_call_tmp_check_replay_same_0 $end
-$var reg 32 W last [31:0] $end
-$var reg 32 X pkt [31:0] $end
+$scope begin calculate_hops_4node_2hops_test $end
+$var reg 8 L _t27_call_tmp_calculate_hops_4node_2hops_0 [7:0] $end
+$var reg 8 M hops [7:0] $end
 $upscope $end
-$scope begin duplicate_packet_creates_copy_test $end
-$var reg 32 Y dup1 [31:0] $end
-$var reg 32 Z dup2 [31:0] $end
-$var reg 32 [ pkt [31:0] $end
+$scope begin calculate_hops_4node_3hops_test $end
+$var reg 8 N _t27_call_tmp_calculate_hops_4node_3hops_0 [7:0] $end
+$var reg 8 O hops [7:0] $end
 $upscope $end
-$scope begin extract_sequence_low_bits_test $end
-$var reg 32 \ _t27_call_tmp_extract_sequence_low_bits_0 [31:0] $end
-$var reg 32 ] pkt [31:0] $end
-$var reg 32 ^ seq [31:0] $end
+$scope begin calculate_hops_4node_adjacent_test $end
+$var reg 8 P _t27_call_tmp_calculate_hops_4node_adjacent_0 [7:0] $end
+$var reg 8 Q hops [7:0] $end
 $upscope $end
-$scope begin inject_bit_flip_flips_bit_test $end
-$var reg 32 _ _t27_call_tmp_inject_bit_flip_flips_bit_0 [31:0] $end
-$var reg 32 ` corrupted [31:0] $end
-$var reg 32 a pkt [31:0] $end
+$scope begin calculate_hops_same_node_test $end
+$var reg 8 R _t27_call_tmp_calculate_hops_same_node_0 [7:0] $end
+$var reg 8 S hops [7:0] $end
 $upscope $end
-$scope begin inject_bit_flip_invalid_pos_test $end
-$var reg 32 b _t27_call_tmp_inject_bit_flip_invalid_pos_0 [31:0] $end
-$var reg 32 c pkt [31:0] $end
-$var reg 32 d result [31:0] $end
+$scope begin create_2node_mesh_test $end
+$var reg 32 T _t27_call_tmp_create_2node_mesh_0 [31:0] $end
+$var reg 32 U _t27_call_tmp_create_2node_mesh_1 [31:0] $end
+$var reg 8 V _t27_call_tmp_create_2node_mesh_2 [7:0] $end
+$var reg 32 W link1 [31:0] $end
+$var reg 32 X link2 [31:0] $end
 $upscope $end
-$scope begin inject_bit_flip_multiple_test $end
-$var reg 32 e _t27_call_tmp_inject_bit_flip_multiple_0 [31:0] $end
-$var reg 32 f corrupted [31:0] $end
-$var reg 32 g pkt [31:0] $end
+$scope begin create_3node_mesh_test $end
+$var reg 32 Y _t27_call_tmp_create_3node_mesh_0 [31:0] $end
+$var reg 32 Z _t27_call_tmp_create_3node_mesh_1 [31:0] $end
+$var reg 32 [ _t27_call_tmp_create_3node_mesh_2 [31:0] $end
+$var reg 32 \ link1 [31:0] $end
+$var reg 32 ] link2 [31:0] $end
+$var reg 32 ^ link3 [31:0] $end
 $upscope $end
-$scope begin inject_out_of_order_swaps_test $end
-$var reg 32 h out1 [31:0] $end
-$var reg 32 i out2 [31:0] $end
-$var reg 32 j pkt1 [31:0] $end
-$var reg 32 k pkt2 [31:0] $end
+$scope begin create_4node_line_test $end
+$var reg 32 _ _t27_call_tmp_create_4node_line_0 [31:0] $end
+$var reg 32 ` _t27_call_tmp_create_4node_line_1 [31:0] $end
+$var reg 32 a _t27_call_tmp_create_4node_line_2 [31:0] $end
+$var reg 32 b link1 [31:0] $end
+$var reg 32 c link2 [31:0] $end
+$var reg 32 d link3 [31:0] $end
 $upscope $end
-$scope begin is_duplicate_detects_same_test $end
-$var reg 1 l _t27_call_tmp_is_duplicate_detects_same_0 $end
-$var reg 32 m pkt1 [31:0] $end
-$var reg 32 n pkt2 [31:0] $end
+$scope begin create_link_quality_correct_test $end
+$var reg 32 e _t27_call_tmp_create_link_quality_correct_0 [31:0] $end
+$var reg 32 f _t27_call_tmp_create_link_quality_correct_1 [31:0] $end
+$var reg 32 g _t27_call_tmp_create_link_quality_correct_2 [31:0] $end
+$var reg 8 h _t27_call_tmp_create_link_quality_correct_3 [7:0] $end
+$var reg 32 i link [31:0] $end
 $upscope $end
-$scope begin is_duplicate_different_test $end
-$var reg 1 o _t27_call_tmp_is_duplicate_different_0 $end
-$var reg 32 p pkt1 [31:0] $end
-$var reg 32 q pkt2 [31:0] $end
+$scope begin is_link_good_threshold_test $end
+$var reg 32 j _t27_call_tmp_is_link_good_threshold_0 [31:0] $end
+$var reg 1 k _t27_call_tmp_is_link_good_threshold_1 $end
+$var reg 1 l _t27_call_tmp_is_link_good_threshold_2 $end
+$var reg 32 m link [31:0] $end
 $upscope $end
-$scope begin verify_crc_invalid_test $end
-$var reg 16 r _t27_call_tmp_verify_crc_invalid_0 [15:0] $end
-$var reg 32 s _t27_call_tmp_verify_crc_invalid_1 [31:0] $end
-$var reg 1 t _t27_call_tmp_verify_crc_invalid_2 $end
-$var reg 32 u corrupted [31:0] $end
-$var reg 16 v crc [15:0] $end
-$var reg 32 w pkt [31:0] $end
-$var reg 1 x valid $end
-$upscope $end
-$scope begin verify_crc_valid_test $end
-$var reg 16 y _t27_call_tmp_verify_crc_valid_0 [15:0] $end
-$var reg 1 z _t27_call_tmp_verify_crc_valid_1 $end
-$var reg 16 { crc [15:0] $end
-$var reg 32 | pkt [31:0] $end
-$var reg 1 } valid $end
+$scope begin link_quality_threshold_check_test $end
+$var reg 32 n __t27_disc_0_1 [31:0] $end
+$var reg 1 o _t27_call_tmp_link_quality_threshold_check_0 $end
+$var reg 1 p _t27_call_tmp_link_quality_threshold_check_1 $end
+$var reg 32 q link1 [31:0] $end
+$var reg 32 r link2 [31:0] $end
 $upscope $end
 $upscope $end
 $enddefinitions $end
 $comment Show the parameter values. $end
 $dumpall
-b101 *
-b100 )
-b0 (
+b100 (
 b11 '
 b10 &
 b1 %
 $end
 #0
 $dumpvars
-1}
-b1000000100000001100000100 |
-b1010 {
-1z
-b1010 y
-0x
-b1000000100000001100000100 w
-b1010 v
-b1000000100000001100000101 u
-0t
-b1000000100000001100000101 s
-b1010 r
-b10010001101000101011001111001 q
-b10010001101000101011001111000 p
+b10000001001100100 r
+b10000001000110010 q
+1p
 0o
-b10010001101000101011001111000 n
-b10010001101000101011001111000 m
-1l
-b100010001000100010001000100010 k
-b10001000100010001000100010001 j
-b10001000100010001000100010001 i
-b100010001000100010001000100010 h
-b11111111111111111111111111111111 g
-b11111111111111111111101111111111 f
-b11111111111111111111101111111111 e
-b10010001101000101011001111000 d
-b10010001101000101011001111000 c
-b10010001101000101011001111000 b
-b0 a
-b100000 `
-b100000 _
-b1010101111001101 ^
-b10010001101001010101111001101 ]
-b1010101111001101 \
-b10101011110011011110111100000000 [
-b10101011110011011110111100000000 Z
-b10101011110011011110111100000000 Y
-b101 X
-b101 W
-0V
+b100000000101100100 n
+b10000001010010110 m
+0l
+1k
+b10000001010010110 j
+b10000001011001000 i
+b11001000 h
+b10 g
+b1 f
+b10000001011001000 e
+b110000010010001100 d
+b100000001110000010 c
+b10000001001111000 b
+b11 a
+b10 `
+b1 _
+b110000000111001000 ^
+b100000001110010110 ]
+b10000001001100100 \
+b1 [
+b11 Z
+b10 Y
+b100000000110110100 X
+b10000001010110100 W
+b10110100 V
 b10 U
-b101 T
-0S
-b101 R
-b11 Q
-1P
-b10010001101000101011001111000 O
-b100010100 N
-b100010100 M
-b100010100 L
-b10010001101000101011001111001 K
-b10010001101000101011001111000 J
-b100010101 I
-b100010100 H
-b100010101 G
-b100010100 F
+b1 T
+b0 S
+b0 R
+b1 Q
+b1 P
+b11 O
+b11 N
+b10 M
+b10 L
+b1 K
+b1 J
+b1 I
+b1 H
+1G
+b110000000111001000 F
 1E
-b1010 D
-b1000000100000001100000101 C
-1B
-b10010001101000101011001111001 A
-b10010001101000101011001111000 @
-1?
-b100010001000100010001000100010 >
-b10001000100010001000100010001 =
-1<
-b1000000100000001100000100 ;
+b10000001001100100 D
+1C
+b110000010010001100 B
+1A
+b1001011 @
+b10000001001100100 ?
+1>
+b10 =
+b1100100 <
+b1 ;
 1:
-b10010001101000101011001111000 9
-b100011 8
-17
-b101 6
-15
-b10101011110011011110111100000000 4
-13
-b101 2
-b101 1
+b10001100 9
+b10000010 8
+b1111000 7
+16
+b11001000 5
+b10010110 4
+b1100100 3
+12
+b1100100 1
 10
-b1000000100000001100000101 /
-bx .
-bx -
+b100 /
+b100 .
+b1 -
 bx ,
 bx +
+bx *
+bx )
 z$
 1#
 z"
