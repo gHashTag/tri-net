@@ -15,7 +15,7 @@ fn header_byte(kind: u8, src: u32, dst: u32, ttl: u8, idx: usize) u8 {
     } else if (idx <= 5) {
         return @as(u8, @intCast((src >> @intCast(24 - (8 * (idx - 2)))) & 255));
     } else if (idx <= 9) {
-        return @as(u8, @intCast((dst >> @intCast(48 - (8 * (idx - 6)))) & 255));
+        return @as(u8, @intCast((dst >> @intCast(24 - (8 * (idx - 6)))) & 255));
     } else {
         return ttl;
     }

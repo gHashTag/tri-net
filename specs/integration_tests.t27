@@ -18,7 +18,7 @@ module MeshIntegrationTests {
         } else if (idx <= 5) {
             return ((src >> (24 - 8*(idx - 2))) & 255) as u8;
         } else if (idx <= 9) {
-            return ((dst >> (48 - 8*(idx - 6))) & 255) as u8;
+            return ((dst >> (24 - 8*(idx - 6))) & 255) as u8;
         } else {
             return ttl;
         }
