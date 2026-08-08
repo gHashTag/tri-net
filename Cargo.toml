@@ -334,3 +334,7 @@ path = "tests/challenge_lifecycle_e2e.rs"
 [[test]]
 name = "challenge_rung_window"
 path = "tests/challenge_rung_window.rs"
+
+[[test]]
+name = "expiry_verdict_over_mesh"
+path = "tests/expiry_verdict_over_mesh.rs"
