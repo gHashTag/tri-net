@@ -27,12 +27,13 @@ module LinkQualityMonitor {
         
         let new_estimate: u16 = term1 + term2;
         
-        // Cap at reasonable maximum (10.0 in Q8 = 0x280)
-        if new_estimate > 0x280 {
-            0x280
-        } else {
-            new_estimate as u8
+        // Cap at the u8 ceiling: the old body capped at 0x280, which cannot
+        // fit the u8 return (and the whole Rust-style body was silently
+        // DROPPED by the parser -- the fn was an unimplemented stub).
+        if (new_estimate > 0xFF) {
+            return 0xFF;
         }
+        return new_estimate as u8;
     }
     
     // Calculate trend based on historical data
@@ -45,11 +46,10 @@ module LinkQualityMonitor {
                               history[1] as u16 + history[0] as u16) >> 2) as u8;
         
         // Trend = recent - older (positive = worsening)
-        if recent_avg > older_avg {
-            (recent_avg - older_avg) as i8
-        } else {
-            -((older_avg - recent_avg) as i8)
+        if (recent_avg > older_avg) {
+            return (recent_avg - older_avg) as i8;
         }
+        return -((older_avg - recent_avg) as i8);
     }
     
     // Predict next ETX value based on trend
@@ -57,13 +57,14 @@ module LinkQualityMonitor {
         let prediction: i16 = (current as i16) + (trend as i16);
         
         // Ensure reasonable bounds (1.0 to 10.0 in Q8 = 0x40 to 0x280)
-        if prediction < 0x40 {
-            0x40  // Minimum ETX of 1.0
-        } else if prediction > 0x280 {
-            0x280  // Maximum ETX of 10.0
-        } else {
-            prediction as u8
+        // Caps must fit the u8 return: the old 0x280 ceiling did not.
+        if (prediction < 0x40) {
+            return 0x40; // Minimum ETX of 1.0
         }
+        if (prediction > 0xFF) {
+            return 0xFF;
+        }
+        return prediction as u8;
     }
     
     // Determine if link quality is degrading
@@ -81,22 +82,27 @@ module LinkQualityMonitor {
         let combined: u16 = etx_component + latency_component;
         
         // Cap at 255
-        if combined > 255 { 255 } else { combined as u8 }
+        if (combined > 255) {
+            return 255;
+        }
+        return combined as u8;
     }
     
     // Convert quality score to classification
     fn classify_quality(score: u8) -> u8 {
-        if score <= 50 {
-            0  // Excellent
-        } else if score <= 100 {
-            1  // Good
-        } else if score <= 150 {
-            2  // Fair
-        } else if score <= 200 {
-            3  // Poor
-        } else {
-            4  // Very Poor
+        if (score <= 50) {
+            return 0; // Excellent
         }
+        if (score <= 100) {
+            return 1; // Good
+        }
+        if (score <= 150) {
+            return 2; // Fair
+        }
+        if (score <= 200) {
+            return 3; // Poor
+        }
+        return 4; // Very Poor
     }
 }
 

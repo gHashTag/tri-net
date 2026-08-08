@@ -37,11 +37,28 @@ uint16_t total_retry_time(uint8_t max_retries);
    ------------------------------------------------------- */
 
 uint16_t backoff_delay_ms(uint8_t attempt) {
-    /* TODO: implement */
+    if ((attempt == 0)) {
+        return ((uint16_t)(BASE_DELAY_MS));
+    }
+    if ((attempt <= 5)) {
+        uint16_t multiplier = ((uint16_t)((1 << attempt)));
+        uint16_t delay = (((uint16_t)(BASE_DELAY_MS)) * multiplier);
+        if ((delay > 5000)) {
+            return 5000;
+        }
+        return delay;
+    }
+    return 5000;
 }
 
 uint8_t max_retries_for_quality(uint8_t quality_q8) {
-    /* TODO: implement */
+    if ((quality_q8 >= QUALITY_HIGH)) {
+        return 5;
+    }
+    if ((quality_q8 >= QUALITY_MEDIUM)) {
+        return 3;
+    }
+    return 1;
 }
 
 bool should_retry(uint8_t current_attempt, uint8_t link_quality_q8) {
@@ -50,16 +67,29 @@ bool should_retry(uint8_t current_attempt, uint8_t link_quality_q8) {
 }
 
 uint8_t base_probability(uint8_t quality_q8) {
-    /* TODO: implement */
+    if ((quality_q8 >= QUALITY_HIGH)) {
+        return 200;
+    }
+    if ((quality_q8 >= QUALITY_MEDIUM)) {
+        return 150;
+    }
+    return 100;
 }
 
 uint8_t retry_success_probability(uint8_t attempt, uint8_t quality_q8) {
     uint8_t base_prob = base_probability(quality_q8);
     uint8_t decay = ((base_prob / 4) * attempt);
+    if ((base_prob > decay)) {
+        return (base_prob - decay);
+    }
+    return 10;
 }
 
 uint16_t total_retry_time(uint8_t max_retries) {
-    /* TODO: implement */
+    if ((max_retries == 0)) {
+        return 0;
+    }
+    return (backoff_delay_ms((max_retries - 1)) + total_retry_time((max_retries - 1)));
 }
 
 #endif /* ADAPTIVERETRY_H */

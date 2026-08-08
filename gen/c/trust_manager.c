@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <assert.h>
+#define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
 
 #ifndef TRUST_MANAGER_H
 #define TRUST_MANAGER_H
@@ -35,8 +37,17 @@ uint32_t get_trust_source(uint32_t rel);
 uint32_t get_trust_destination(uint32_t rel);
 uint32_t get_trust_level(uint32_t rel);
 uint32_t get_trust_verified(uint32_t rel);
-uint64_t create_trust_array(uint32_t t0, uint32_t t1, uint32_t t2, uint32_t t3, uint32_t t4, uint32_t t5, uint32_t t6, uint32_t t7);
-uint32_t get_trust_score(uint64_t array, uint32_t index);
+uint32_t* create_trust_array(uint32_t t0, uint32_t t1, uint32_t t2, uint32_t t3, uint32_t t4, uint32_t t5, uint32_t t6, uint32_t t7);
+uint32_t get_trust_score(uint32_t* array, uint32_t index);
+uint32_t calculate_trust_score(uint32_t positive, uint32_t negative);
+uint32_t update_trust_score(uint32_t current_score, uint32_t positive, uint32_t negative);
+bool is_node_trusted(uint32_t score);
+bool is_node_highly_trusted(uint32_t score);
+bool is_node_low_trusted(uint32_t score);
+uint32_t find_most_trusted(uint32_t* trust_array);
+bool should_route_via_node(uint32_t* trust_array, uint32_t node_index, uint32_t min_trust);
+uint32_t penalize_node(uint32_t current_score, uint32_t penalty);
+uint32_t reward_node(uint32_t current_score, uint32_t reward);
 
 /* -------------------------------------------------------
    Function implementations
@@ -63,50 +74,248 @@ uint32_t get_negative_interactions(uint32_t score) {
 }
 
 uint32_t create_trust_relationship(uint32_t source, uint32_t destination, uint32_t level, uint32_t verified) {
-    return (((((source & 0xFF) << 24) | ((destination & 0xFF) << 16)) | ((level & 0xFF) << 8)) | (verified & 0xFF));
+    return (((((source & 0x3F) << 26) | ((destination & 0x3F) << 20)) | ((level & 0xFF) << 12)) | (verified & 0xFFF));
 }
 
 uint32_t get_trust_source(uint32_t rel) {
-    return ((rel >> 24) & 0xFF);
+    return ((rel >> 26) & 0x3F);
 }
 
 uint32_t get_trust_destination(uint32_t rel) {
-    return ((rel >> 16) & 0xFF);
+    return ((rel >> 20) & 0x3F);
 }
 
 uint32_t get_trust_level(uint32_t rel) {
-    return ((rel >> 8) & 0xFF);
+    return ((rel >> 12) & 0xFF);
 }
 
 uint32_t get_trust_verified(uint32_t rel) {
-    return (rel & 0xFF);
+    return (rel & 0xFFF);
 }
 
-uint64_t create_trust_array(uint32_t t0, uint32_t t1, uint32_t t2, uint32_t t3, uint32_t t4, uint32_t t5, uint32_t t6, uint32_t t7) {
-    return ((((((((uint64_t)(t0)) << 56) | (((uint64_t)(t1)) << 48)) | (((uint64_t)(t2)) << 40)) | (((uint64_t)(t3)) << 32)) | (((uint64_t)(t4)) << 24)) || (((((uint64_t)(t5)) << 16) | (((uint64_t)(t6)) << 8)) | ((uint64_t)(t7))));
+uint32_t* create_trust_array(uint32_t t0, uint32_t t1, uint32_t t2, uint32_t t3, uint32_t t4, uint32_t t5, uint32_t t6, uint32_t t7) {
+    return { t0, t1, t2, t3, t4, t5, t6, t7 };
 }
 
-uint32_t get_trust_score(uint64_t array, uint32_t index) {
-    if ((index == 0)) {
-        return ((uint32_t)(((array >> 56) & 0xFFFFFFFF)));
+uint32_t get_trust_score(uint32_t* array, uint32_t index) {
+    if ((index < 8)) {
+        return array[index];
     }
-    if ((index == 1)) {
-        return ((uint32_t)(((array >> 48) & 0xFFFFFFFF)));
-    }
-    if ((index == 2)) {
-        return ((uint32_t)(((array >> 40) & 0xFFFFFFFF)));
-    }
-    if ((index == 3)) {
-        return ((uint32_t)(((array >> 32) & 0xFFFFFFFF)));
-    }
-    if ((index == 4)) {
-        return ((uint32_t)(((array >> 24) & 0xFFFFFFFF)));
-    }
-    if ((index == 5)) {
-        return ((uint32_t)(((array >> 16) & 0xFFFFFFFF)));
-    }
-    if ((index == 6)) {
-    }
+    return 0;
 }
+
+uint32_t calculate_trust_score(uint32_t positive, uint32_t negative) {
+    int total = (positive + negative);
+    if ((total == 0)) {
+        return 50;
+    }
+    int score = ((positive * 100) / total);
+    if ((score > MAX_TRUST_SCORE)) {
+        score = MAX_TRUST_SCORE;
+    }
+    return score;
+}
+
+uint32_t update_trust_score(uint32_t current_score, uint32_t positive, uint32_t negative) {
+    int current_positive = get_positive_interactions(current_score);
+    int current_negative = get_negative_interactions(current_score);
+    int node_id = get_trust_node_id(current_score);
+    int new_positive = (current_positive + positive);
+    int new_negative = (current_negative + negative);
+    int new_score = calculate_trust_score(new_positive, new_negative);
+    return create_trust_score(node_id, new_score, new_positive, new_negative);
+}
+
+bool is_node_trusted(uint32_t score) {
+    return (get_trust_score_value(score) >= TRUST_THRESHOLD);
+}
+
+bool is_node_highly_trusted(uint32_t score) {
+    return (get_trust_score_value(score) >= TRUST_HIGH);
+}
+
+bool is_node_low_trusted(uint32_t score) {
+    return (get_trust_score_value(score) <= TRUST_LOW);
+}
+
+uint32_t find_most_trusted(uint32_t* trust_array) {
+    int highest_score = 0;
+    int most_trusted = 0xFF;
+    if ((get_trust_score_value(get_trust_score(trust_array, 0)) > highest_score)) {
+        highest_score = get_trust_score_value(get_trust_score(trust_array, 0));
+        most_trusted = 0;
+    }
+    if ((get_trust_score_value(get_trust_score(trust_array, 1)) > highest_score)) {
+        highest_score = get_trust_score_value(get_trust_score(trust_array, 1));
+        most_trusted = 1;
+    }
+    if ((get_trust_score_value(get_trust_score(trust_array, 2)) > highest_score)) {
+        highest_score = get_trust_score_value(get_trust_score(trust_array, 2));
+        most_trusted = 2;
+    }
+    if ((get_trust_score_value(get_trust_score(trust_array, 3)) > highest_score)) {
+        highest_score = get_trust_score_value(get_trust_score(trust_array, 3));
+        most_trusted = 3;
+    }
+    if ((get_trust_score_value(get_trust_score(trust_array, 4)) > highest_score)) {
+        highest_score = get_trust_score_value(get_trust_score(trust_array, 4));
+        most_trusted = 4;
+    }
+    if ((get_trust_score_value(get_trust_score(trust_array, 5)) > highest_score)) {
+        highest_score = get_trust_score_value(get_trust_score(trust_array, 5));
+        most_trusted = 5;
+    }
+    if ((get_trust_score_value(get_trust_score(trust_array, 6)) > highest_score)) {
+        highest_score = get_trust_score_value(get_trust_score(trust_array, 6));
+        most_trusted = 6;
+    }
+    if ((get_trust_score_value(get_trust_score(trust_array, 7)) > highest_score)) {
+        highest_score = get_trust_score_value(get_trust_score(trust_array, 7));
+        most_trusted = 7;
+    }
+    return most_trusted;
+}
+
+bool should_route_via_node(uint32_t* trust_array, uint32_t node_index, uint32_t min_trust) {
+    if ((node_index >= MAX_NODES)) {
+        return false;
+    }
+    int score = get_trust_score(trust_array, node_index);
+    return (get_trust_score_value(score) >= min_trust);
+}
+
+uint32_t penalize_node(uint32_t current_score, uint32_t penalty) {
+    int node_id = get_trust_node_id(current_score);
+    int positive = get_positive_interactions(current_score);
+    int negative = get_negative_interactions(current_score);
+    int new_negative = (negative + penalty);
+    int new_score = calculate_trust_score(positive, new_negative);
+    return create_trust_score(node_id, new_score, positive, new_negative);
+}
+
+uint32_t reward_node(uint32_t current_score, uint32_t reward) {
+    int node_id = get_trust_node_id(current_score);
+    int positive = get_positive_interactions(current_score);
+    int negative = get_negative_interactions(current_score);
+    int new_positive = (positive + reward);
+    int new_score = calculate_trust_score(new_positive, negative);
+    return create_trust_score(node_id, new_score, new_positive, negative);
+}
+
+/* -------------------------------------------------------
+   Tests
+   ------------------------------------------------------- */
+
+void test_create_trust_score_basic(void) {
+    uint64_t score = create_trust_score(5, 75, 8, 2);
+    (void)score;
+    t27_assert((get_trust_node_id(score) == 5), "node id");
+    t27_assert((get_trust_score_value(score) == 75), "trust score");
+    t27_assert((get_positive_interactions(score) == 8), "positive interactions");
+    t27_assert((get_negative_interactions(score) == 2), "negative interactions");
+}
+
+void test_create_trust_relationship_basic(void) {
+    uint64_t rel = create_trust_relationship(1, 2, 80, 1000);
+    (void)rel;
+    t27_assert((get_trust_source(rel) == 1), "source");
+    t27_assert((get_trust_destination(rel) == 2), "destination");
+    t27_assert((get_trust_level(rel) == 80), "trust level");
+    t27_assert((get_trust_verified(rel) == 1000), "verified time");
+}
+
+void test_calculate_trust_score_balanced(void) {
+    int score = calculate_trust_score(10, 10);
+    t27_assert((score == 50), "balanced trust");
+}
+
+void test_calculate_trust_score_mostly_positive(void) {
+    int score = calculate_trust_score(18, 2);
+    t27_assert((score == 90), "high trust");
+}
+
+void test_calculate_trust_score_mostly_negative(void) {
+    int score = calculate_trust_score(2, 18);
+    t27_assert((score == 10), "low trust");
+}
+
+void test_calculate_trust_score_no_interactions(void) {
+    t27_assert((calculate_trust_score(0, 0) == 50), "neutral trust");
+}
+
+void test_update_trust_score_increases(void) {
+    uint64_t current = create_trust_score(5, 50, 5, 5);
+    (void)current;
+    uint64_t updated = update_trust_score(current, 3, 1);
+    (void)updated;
+    t27_assert((get_trust_score_value(updated) >= 55), "trust increased");
+}
+
+void test_update_trust_score_decreases(void) {
+    uint64_t current = create_trust_score(5, 50, 5, 5);
+    (void)current;
+    uint64_t updated = update_trust_score(current, 1, 3);
+    (void)updated;
+    t27_assert((get_trust_score_value(updated) < 50), "trust decreased");
+}
+
+void test_is_node_trusted_true(void) {
+    uint64_t score = create_trust_score(5, 75, 15, 5);
+    (void)score;
+    t27_assert((is_node_trusted(score) == true), "trusted");
+}
+
+void test_is_node_trusted_false(void) {
+    uint64_t score = create_trust_score(5, 30, 3, 7);
+    (void)score;
+    t27_assert((is_node_trusted(score) == false), "not trusted");
+}
+
+void test_is_node_highly_trusted(void) {
+    uint64_t score = create_trust_score(5, 85, 17, 3);
+    (void)score;
+    t27_assert((is_node_highly_trusted(score) == true), "highly trusted");
+}
+
+void test_is_node_low_trusted(void) {
+    uint64_t score = create_trust_score(5, 15, 2, 8);
+    (void)score;
+    t27_assert((is_node_low_trusted(score) == true), "low trusted");
+}
+
+void test_find_most_trusted_middle(void) {
+    uint64_t array = create_trust_array(create_trust_score(1, 60, 6, 4), create_trust_score(2, 90, 9, 1), create_trust_score(3, 45, 5, 5), create_trust_score(4, 75, 8, 2), 0, 0, 0, 0);
+    (void)array;
+    t27_assert((find_most_trusted(array) == 1), "node 1 most trusted");
+}
+
+void test_should_route_via_node_true(void) {
+    uint64_t array = create_trust_array(create_trust_score(1, 80, 8, 2), create_trust_score(2, 60, 6, 4), create_trust_score(3, 75, 7, 3), create_trust_score(4, 70, 7, 3), 0, 0, 0, 0);
+    (void)array;
+    t27_assert((should_route_via_node(array, 0, 70) == true), "can route via node 0");
+}
+
+void test_should_route_via_node_false(void) {
+    uint64_t array = create_trust_array(create_trust_score(1, 80, 8, 2), create_trust_score(2, 60, 6, 4), create_trust_score(3, 75, 7, 3), create_trust_score(4, 70, 7, 3), 0, 0, 0, 0);
+    (void)array;
+    t27_assert((should_route_via_node(array, 2, 90) == false), "cannot route via node 2");
+}
+
+void test_penalize_node_reduces_trust(void) {
+    uint64_t current = create_trust_score(5, 70, 7, 3);
+    (void)current;
+    uint64_t penalized = penalize_node(current, 5);
+    (void)penalized;
+    t27_assert((get_trust_score_value(penalized) < 70), "trust reduced");
+}
+
+void test_reward_node_increases_trust(void) {
+    uint64_t current = create_trust_score(5, 70, 7, 3);
+    (void)current;
+    uint64_t rewarded = reward_node(current, 5);
+    (void)rewarded;
+    t27_assert((get_trust_score_value(rewarded) > 70), "trust increased");
+}
+
 
 #endif /* TRUST_MANAGER_H */

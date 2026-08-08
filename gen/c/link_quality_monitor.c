@@ -42,15 +42,30 @@ uint8_t update_ewma(uint8_t current, uint8_t sample) {
     uint16_t term1 = ((((uint16_t)(ALPHA_Q8)) * ((uint16_t)(sample))) >> 8);
     uint16_t term2 = ((((uint16_t)(ONE_MINUS_ALPHA_Q8)) * ((uint16_t)(current))) >> 8);
     uint16_t new_estimate = (term1 + term2);
+    if ((new_estimate > 0xFF)) {
+        return 0xFF;
+    }
+    return ((uint8_t)(new_estimate));
 }
 
 int8_t calculate_trend(uint8_t* history) {
     uint8_t recent_avg = ((uint8_t)(((((((uint16_t)(history[7])) + ((uint16_t)(history[6]))) + ((uint16_t)(history[5]))) + ((uint16_t)(history[4]))) >> 2)));
     uint8_t older_avg = ((uint8_t)(((((((uint16_t)(history[3])) + ((uint16_t)(history[2]))) + ((uint16_t)(history[1]))) + ((uint16_t)(history[0]))) >> 2)));
+    if ((recent_avg > older_avg)) {
+        return ((int8_t)((recent_avg - older_avg)));
+    }
+    return -((int8_t)((older_avg - recent_avg)));
 }
 
 uint8_t predict_next_etx(uint8_t current, int8_t trend) {
     int16_t prediction = (((int16_t)(current)) + ((int16_t)(trend)));
+    if ((prediction < 0x40)) {
+        return 0x40;
+    }
+    if ((prediction > 0xFF)) {
+        return 0xFF;
+    }
+    return ((uint8_t)(prediction));
 }
 
 bool is_degrading(uint8_t current_etx, int8_t trend) {
@@ -61,10 +76,26 @@ uint8_t quality_score(uint8_t etx, uint16_t latency_ms) {
     uint16_t etx_component = ((((uint16_t)(etx)) * 7) / 10);
     uint16_t latency_component = (latency_ms / 100);
     uint16_t combined = (etx_component + latency_component);
+    if ((combined > 255)) {
+        return 255;
+    }
+    return ((uint8_t)(combined));
 }
 
 uint8_t classify_quality(uint8_t score) {
-    /* TODO: implement */
+    if ((score <= 50)) {
+        return 0;
+    }
+    if ((score <= 100)) {
+        return 1;
+    }
+    if ((score <= 150)) {
+        return 2;
+    }
+    if ((score <= 200)) {
+        return 3;
+    }
+    return 4;
 }
 
 #endif /* LINKQUALITYMONITOR_H */

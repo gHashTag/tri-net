@@ -13,17 +13,28 @@ fn update_ewma(current: u8, sample: u8) u8 {
     const term1: u16 = (@as(u16, @intCast(ALPHA_Q8)) * @as(u16, @intCast(sample))) >> 8;
     const term2: u16 = (@as(u16, @intCast(ONE_MINUS_ALPHA_Q8)) * @as(u16, @intCast(current))) >> 8;
     const new_estimate: u16 = term1 + term2;
-    _ = new_estimate; // dead after const-inlining
+    if (new_estimate > 0xFF) {
+        return 0xFF;
+    }
+    return @as(u8, @intCast(new_estimate));
 }
 fn calculate_trend(history: [8]u8) i8 {
     const recent_avg: u8 = @as(u8, @intCast((((@as(u16, @intCast(history[7])) + @as(u16, @intCast(history[6]))) + @as(u16, @intCast(history[5]))) + @as(u16, @intCast(history[4]))) >> 2));
-    _ = recent_avg; // dead after const-inlining
     const older_avg: u8 = @as(u8, @intCast((((@as(u16, @intCast(history[3])) + @as(u16, @intCast(history[2]))) + @as(u16, @intCast(history[1]))) + @as(u16, @intCast(history[0]))) >> 2));
-    _ = older_avg; // dead after const-inlining
+    if (recent_avg > older_avg) {
+        return @as(i8, @intCast(recent_avg - older_avg));
+    }
+    return -@as(i8, @intCast(older_avg - recent_avg));
 }
 fn predict_next_etx(current: u8, trend: i8) u8 {
     const prediction: i16 = @as(i16, @intCast(current)) + @as(i16, @intCast(trend));
-    _ = prediction; // dead after const-inlining
+    if (prediction < 0x40) {
+        return 0x40;
+    }
+    if (prediction > 0xFF) {
+        return 0xFF;
+    }
+    return @as(u8, @intCast(prediction));
 }
 fn is_degrading(current_etx: u8, trend: i8) bool {
     (current_etx > QUALITY_POOR) and (trend > TREND_THRESHOLD);
@@ -32,9 +43,23 @@ fn quality_score(etx: u8, latency_ms: u16) u8 {
     const etx_component: u16 = (@as(u16, @intCast(etx)) * 7) / 10;
     const latency_component: u16 = latency_ms / 100;
     const combined: u16 = etx_component + latency_component;
-    _ = combined; // dead after const-inlining
+    if (combined > 255) {
+        return 255;
+    }
+    return @as(u8, @intCast(combined));
 }
 fn classify_quality(score: u8) u8 {
-    _ = score; // unused by the spec body
-    @compileError("not yet implemented");
+    if (score <= 50) {
+        return 0;
+    }
+    if (score <= 100) {
+        return 1;
+    }
+    if (score <= 150) {
+        return 2;
+    }
+    if (score <= 200) {
+        return 3;
+    }
+    return 4;
 }

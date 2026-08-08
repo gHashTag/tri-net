@@ -8,27 +8,52 @@ const BACKOFF_MULTIPLIER: u8 = 2;
 const QUALITY_HIGH: u8 = 0xCC;
 const QUALITY_MEDIUM: u8 = 0x80;
 fn backoff_delay_ms(attempt: u8) u16 {
-    _ = attempt; // unused by the spec body
-    @compileError("not yet implemented");
+    if (attempt == 0) {
+        return @as(u16, @intCast(BASE_DELAY_MS));
+    }
+    if (attempt <= 5) {
+        const multiplier: u16 = @as(u16, @intCast(@as(u32, 1) << @intCast(attempt)));
+        const delay: u16 = @as(u16, @intCast(BASE_DELAY_MS)) * multiplier;
+        if (delay > 5000) {
+            return 5000;
+        }
+        return delay;
+    }
+    return 5000;
 }
 fn max_retries_for_quality(quality_q8: u8) u8 {
-    _ = quality_q8; // unused by the spec body
-    @compileError("not yet implemented");
+    if (quality_q8 >= QUALITY_HIGH) {
+        return 5;
+    }
+    if (quality_q8 >= QUALITY_MEDIUM) {
+        return 3;
+    }
+    return 1;
 }
 fn should_retry(current_attempt: u8, link_quality_q8: u8) bool {
     const max_retries: u8 = max_retries_for_quality(link_quality_q8);
     current_attempt < max_retries;
 }
 fn base_probability(quality_q8: u8) u8 {
-    _ = quality_q8; // unused by the spec body
-    @compileError("not yet implemented");
+    if (quality_q8 >= QUALITY_HIGH) {
+        return 200;
+    }
+    if (quality_q8 >= QUALITY_MEDIUM) {
+        return 150;
+    }
+    return 100;
 }
 fn retry_success_probability(attempt: u8, quality_q8: u8) u8 {
     const base_prob: u8 = base_probability(quality_q8);
     const decay: u8 = (base_prob / 4) * attempt;
-    _ = decay; // dead after const-inlining
+    if (base_prob > decay) {
+        return base_prob - decay;
+    }
+    return 10;
 }
 fn total_retry_time(max_retries: u8) u16 {
-    _ = max_retries; // unused by the spec body
-    @compileError("not yet implemented");
+    if (max_retries == 0) {
+        return 0;
+    }
+    return backoff_delay_ms(max_retries - 1) + total_retry_time(max_retries - 1);
 }
