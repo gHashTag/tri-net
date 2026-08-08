@@ -23,6 +23,12 @@
 #define NO_SLOT 0xFF
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[4]; } t27_arr_uint32_t_4;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -31,16 +37,16 @@ uint32_t get_id(uint32_t entry);
 uint32_t get_quality(uint32_t entry);
 uint32_t get_last_seen(uint32_t entry);
 bool is_valid(uint32_t entry, uint32_t time);
-uint32_t get_id_at(uint32_t* table, uint32_t index);
-uint32_t find_index(uint32_t* table, uint32_t target_id);
-uint32_t slot_for_update(uint32_t* table, uint32_t id);
+uint32_t get_id_at(t27_arr_uint32_t_4 table, uint32_t index);
+uint32_t find_index(t27_arr_uint32_t_4 table, uint32_t target_id);
+uint32_t slot_for_update(t27_arr_uint32_t_4 table, uint32_t id);
 uint32_t best_of_two(uint32_t a, uint32_t b);
-uint32_t get_best_neighbor(uint32_t* table);
+uint32_t get_best_neighbor(t27_arr_uint32_t_4 table);
 uint32_t mask_if_id(uint32_t entry, uint32_t best_id);
-uint32_t get_second_best(uint32_t* table, uint32_t best_id);
-uint32_t select_mprs(uint32_t* table);
+uint32_t get_second_best(t27_arr_uint32_t_4 table, uint32_t best_id);
+uint32_t select_mprs(t27_arr_uint32_t_4 table);
 uint32_t one_if_present(uint32_t entry);
-uint32_t count_neighbors(uint32_t* table);
+uint32_t count_neighbors(t27_arr_uint32_t_4 table);
 
 /* -------------------------------------------------------
    Function implementations
@@ -66,11 +72,11 @@ bool is_valid(uint32_t entry, uint32_t time) {
     return ((time - get_last_seen(entry)) < VALID_TIMEOUT);
 }
 
-uint32_t get_id_at(uint32_t* table, uint32_t index) {
-    return get_id(table[((size_t)(index))]);
+uint32_t get_id_at(t27_arr_uint32_t_4 table, uint32_t index) {
+    return get_id(table.v[((size_t)(index))]);
 }
 
-uint32_t find_index(uint32_t* table, uint32_t target_id) {
+uint32_t find_index(t27_arr_uint32_t_4 table, uint32_t target_id) {
     if ((get_id_at(table, 0) == target_id)) {
         return 0;
     }
@@ -86,7 +92,7 @@ uint32_t find_index(uint32_t* table, uint32_t target_id) {
     return NO_SLOT;
 }
 
-uint32_t slot_for_update(uint32_t* table, uint32_t id) {
+uint32_t slot_for_update(t27_arr_uint32_t_4 table, uint32_t id) {
     if ((find_index(table, id) != NO_SLOT)) {
         return find_index(table, id);
     }
@@ -113,8 +119,8 @@ uint32_t best_of_two(uint32_t a, uint32_t b) {
     }
 }
 
-uint32_t get_best_neighbor(uint32_t* table) {
-    return get_id(best_of_two(best_of_two(table[0], table[1]), best_of_two(table[2], table[3])));
+uint32_t get_best_neighbor(t27_arr_uint32_t_4 table) {
+    return get_id(best_of_two(best_of_two(table.v[0], table.v[1]), best_of_two(table.v[2], table.v[3])));
 }
 
 uint32_t mask_if_id(uint32_t entry, uint32_t best_id) {
@@ -125,11 +131,11 @@ uint32_t mask_if_id(uint32_t entry, uint32_t best_id) {
     }
 }
 
-uint32_t get_second_best(uint32_t* table, uint32_t best_id) {
-    return get_id(best_of_two(best_of_two(mask_if_id(table[0], best_id), mask_if_id(table[1], best_id)), best_of_two(mask_if_id(table[2], best_id), mask_if_id(table[3], best_id))));
+uint32_t get_second_best(t27_arr_uint32_t_4 table, uint32_t best_id) {
+    return get_id(best_of_two(best_of_two(mask_if_id(table.v[0], best_id), mask_if_id(table.v[1], best_id)), best_of_two(mask_if_id(table.v[2], best_id), mask_if_id(table.v[3], best_id))));
 }
 
-uint32_t select_mprs(uint32_t* table) {
+uint32_t select_mprs(t27_arr_uint32_t_4 table) {
     uint32_t best = get_best_neighbor(table);
     uint32_t second = get_second_best(table, best);
     return (((best & 0xFF) << 8) | (second & 0xFF));
@@ -143,8 +149,8 @@ uint32_t one_if_present(uint32_t entry) {
     }
 }
 
-uint32_t count_neighbors(uint32_t* table) {
-    return (((one_if_present(table[0]) + one_if_present(table[1])) + one_if_present(table[2])) + one_if_present(table[3]));
+uint32_t count_neighbors(t27_arr_uint32_t_4 table) {
+    return (((one_if_present(table.v[0]) + one_if_present(table.v[1])) + one_if_present(table.v[2])) + one_if_present(table.v[3]));
 }
 
 /* -------------------------------------------------------
@@ -172,7 +178,7 @@ void test_is_valid_timeout(void) {
 }
 
 void test_table_reads_and_find(void) {
-    uint32_t table[4] = { create_neighbor(1,100,1000), create_neighbor(2,200,2000), create_neighbor(3,150,3000), create_neighbor(4,50,4000) };
+    t27_arr_uint32_t_4 table = { .v = { create_neighbor(1,100,1000), create_neighbor(2,200,2000), create_neighbor(3,150,3000), create_neighbor(4,50,4000) } };
     t27_assert((get_id_at(table, 0) == 1), "entry 0");
     t27_assert((get_id_at(table, 3) == 4), "entry 3");
     t27_assert((find_index(table, 3) == 2), "find id 3");
@@ -181,15 +187,15 @@ void test_table_reads_and_find(void) {
 }
 
 void test_slot_decisions(void) {
-    uint32_t table[4] = { create_neighbor(1,100,1000), create_neighbor(NO_NEIGHBOR,0,0), create_neighbor(3,150,3000), create_neighbor(4,50,4000) };
+    t27_arr_uint32_t_4 table = { .v = { create_neighbor(1,100,1000), create_neighbor(NO_NEIGHBOR,0,0), create_neighbor(3,150,3000), create_neighbor(4,50,4000) } };
     t27_assert((slot_for_update(table, 3) == 2), "known id updates in place");
     t27_assert((slot_for_update(table, 9) == 1), "unknown id takes the first empty slot");
-    uint32_t full[4] = { create_neighbor(1,100,1000), create_neighbor(2,200,2000), create_neighbor(3,150,3000), create_neighbor(4,50,4000) };
+    t27_arr_uint32_t_4 full = { .v = { create_neighbor(1,100,1000), create_neighbor(2,200,2000), create_neighbor(3,150,3000), create_neighbor(4,50,4000) } };
     t27_assert((slot_for_update(full, 9) == NO_SLOT), "full table admits nothing new");
 }
 
 void test_mpr_selection(void) {
-    uint32_t table[4] = { create_neighbor(1,100,1000), create_neighbor(2,200,2000), create_neighbor(3,150,3000), create_neighbor(4,50,4000) };
+    t27_arr_uint32_t_4 table = { .v = { create_neighbor(1,100,1000), create_neighbor(2,200,2000), create_neighbor(3,150,3000), create_neighbor(4,50,4000) } };
     t27_assert((get_best_neighbor(table) == 2), "best by quality");
     t27_assert((get_second_best(table, 2) == 3), "second best excludes the best");
     t27_assert((select_mprs(table) == ((2 << 8) | 3)), "mpr pack [best][second]");

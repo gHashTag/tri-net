@@ -23,6 +23,12 @@
 #define HISTORY_SIZE 10
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[8]; } t27_arr_uint32_t_8;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -36,15 +42,15 @@ uint32_t get_risk_level(uint32_t score);
 uint32_t get_confidence(uint32_t score);
 uint32_t get_risk_trend(uint32_t score);
 uint32_t get_prediction_time(uint32_t score);
-uint32_t* create_health_array(uint32_t h0, uint32_t h1, uint32_t h2, uint32_t h3, uint32_t h4, uint32_t h5, uint32_t h6, uint32_t h7);
-uint32_t get_health_metrics(uint32_t* array, uint32_t index);
+t27_arr_uint32_t_8 create_health_array(uint32_t h0, uint32_t h1, uint32_t h2, uint32_t h3, uint32_t h4, uint32_t h5, uint32_t h6, uint32_t h7);
+uint32_t get_health_metrics(t27_arr_uint32_t_8 array, uint32_t index);
 uint32_t calculate_health_score(uint32_t metrics);
 uint32_t predict_failure_probability(uint32_t metrics);
 uint32_t is_trending_failure(uint32_t current_metrics, uint32_t previous_metrics);
 uint32_t predict_time_to_failure(uint32_t metrics);
 uint32_t calculate_failure_risk(uint32_t metrics, uint32_t degradation_rate);
 bool needs_immediate_action(uint32_t metrics);
-uint32_t find_most_at_risk(uint32_t* health_array);
+uint32_t find_most_at_risk(t27_arr_uint32_t_8 health_array);
 
 /* -------------------------------------------------------
    Function implementations
@@ -90,13 +96,13 @@ uint32_t get_prediction_time(uint32_t score) {
     return (score & 0x3FFF);
 }
 
-uint32_t* create_health_array(uint32_t h0, uint32_t h1, uint32_t h2, uint32_t h3, uint32_t h4, uint32_t h5, uint32_t h6, uint32_t h7) {
-    return { h0, h1, h2, h3, h4, h5, h6, h7 };
+t27_arr_uint32_t_8 create_health_array(uint32_t h0, uint32_t h1, uint32_t h2, uint32_t h3, uint32_t h4, uint32_t h5, uint32_t h6, uint32_t h7) {
+    return (t27_arr_uint32_t_8){ .v = { h0, h1, h2, h3, h4, h5, h6, h7 } };
 }
 
-uint32_t get_health_metrics(uint32_t* array, uint32_t index) {
+uint32_t get_health_metrics(t27_arr_uint32_t_8 array, uint32_t index) {
     if ((index < 8)) {
-        return array[index];
+        return array.v[index];
     }
     return 0;
 }
@@ -169,9 +175,9 @@ bool needs_immediate_action(uint32_t metrics) {
     return (((cpu > 95) || (temp > 95)) || (errors > 50));
 }
 
-uint32_t find_most_at_risk(uint32_t* health_array) {
-    int highest_risk = 0;
-    int highest_risk_node = 0xFF;
+uint32_t find_most_at_risk(t27_arr_uint32_t_8 health_array) {
+    uint32_t highest_risk = 0;
+    uint32_t highest_risk_node = 0xFF;
     if ((calculate_failure_risk(get_health_metrics(health_array, 0), 0) > highest_risk)) {
         highest_risk = calculate_failure_risk(get_health_metrics(health_array, 0), 0);
         highest_risk_node = 0;
@@ -316,13 +322,13 @@ void test_needs_immediate_action_false(void) {
 }
 
 void test_find_most_at_risk_middle(void) {
-    uint64_t array = create_health_array(create_health_metrics(30, 40, 5, 45), create_health_metrics(90, 95, 60, 90), create_health_metrics(50, 60, 10, 55), create_health_metrics(40, 50, 8, 50), 0, 0, 0, 0);
+    t27_arr_uint32_t_8 array = create_health_array(create_health_metrics(30, 40, 5, 45), create_health_metrics(90, 95, 60, 90), create_health_metrics(50, 60, 10, 55), create_health_metrics(40, 50, 8, 50), 0, 0, 0, 0);
     (void)array;
     t27_assert((find_most_at_risk(array) == 1), "node 1 most at-risk");
 }
 
 void test_find_most_at_risk_all_healthy(void) {
-    uint64_t array = create_health_array(create_health_metrics(30, 40, 5, 45), create_health_metrics(20, 30, 2, 40), create_health_metrics(25, 35, 3, 42), create_health_metrics(35, 45, 4, 48), 0, 0, 0, 0);
+    t27_arr_uint32_t_8 array = create_health_array(create_health_metrics(30, 40, 5, 45), create_health_metrics(20, 30, 2, 40), create_health_metrics(25, 35, 3, 42), create_health_metrics(35, 45, 4, 48), 0, 0, 0, 0);
     (void)array;
     int riskiest = find_most_at_risk(array);
     int risk = calculate_failure_risk(get_health_metrics(array, riskiest), 0);

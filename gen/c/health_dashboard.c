@@ -38,6 +38,13 @@
 #define ALERT_SECURITY 5
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[16]; } t27_arr_uint32_t_16;
+typedef struct { uint32_t v[8]; } t27_arr_uint32_t_8;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -51,11 +58,11 @@ uint32_t get_overall_health(uint32_t score);
 uint32_t get_critical_count(uint32_t score);
 uint32_t get_warning_count(uint32_t score);
 uint32_t get_score_timestamp(uint32_t score);
-uint32_t calculate_node_health(uint32_t* metrics, uint32_t count);
-uint32_t calculate_network_health(uint32_t* node_metrics, uint32_t node_count);
-uint32_t detect_critical_issues(uint32_t* metrics, uint32_t count);
-uint32_t detect_warning_issues(uint32_t* metrics, uint32_t count);
-uint32_t generate_health_report(uint32_t* node_metrics, uint32_t count, uint32_t timestamp);
+uint32_t calculate_node_health(t27_arr_uint32_t_16 metrics, uint32_t count);
+uint32_t calculate_network_health(t27_arr_uint32_t_8 node_metrics, uint32_t node_count);
+uint32_t detect_critical_issues(t27_arr_uint32_t_16 metrics, uint32_t count);
+uint32_t detect_warning_issues(t27_arr_uint32_t_16 metrics, uint32_t count);
+uint32_t generate_health_report(t27_arr_uint32_t_16 node_metrics, uint32_t count, uint32_t timestamp);
 uint32_t create_health_alert(uint32_t node_id, uint32_t alert_type, uint32_t severity, uint32_t timestamp);
 uint32_t get_alert_node_id(uint32_t alert);
 uint32_t get_alert_type(uint32_t alert);
@@ -63,8 +70,8 @@ uint32_t get_alert_severity(uint32_t alert);
 uint32_t get_alert_timestamp(uint32_t alert);
 uint32_t generate_alert(uint32_t node_id, uint32_t alert_type, uint32_t value, uint32_t timestamp);
 uint32_t analyze_health_trend(uint32_t current_health, uint32_t previous_health);
-uint32_t find_unhealthy_nodes(uint32_t* node_healths, uint32_t threshold);
-uint32_t calculate_network_trend(uint32_t* current_scores, uint32_t* previous_scores, uint32_t node_count);
+uint32_t find_unhealthy_nodes(t27_arr_uint32_t_8 node_healths, uint32_t threshold);
+uint32_t calculate_network_trend(t27_arr_uint32_t_8 current_scores, t27_arr_uint32_t_8 previous_scores, uint32_t node_count);
 uint32_t generate_summary_report(uint32_t network_health, uint32_t critical_count, uint32_t warning_count, uint32_t timestamp);
 uint32_t is_monitoring_active(uint32_t last_update, uint32_t current_time);
 uint32_t calculate_uptime(uint32_t total_uptime, uint32_t total_time);
@@ -113,16 +120,16 @@ uint32_t get_score_timestamp(uint32_t score) {
     return (score & 0xFF);
 }
 
-uint32_t calculate_node_health(uint32_t* metrics, uint32_t count) {
+uint32_t calculate_node_health(t27_arr_uint32_t_16 metrics, uint32_t count) {
     if ((count == 0)) {
         return 100;
     }
     uint32_t total_score = 0;
     uint32_t metric_count = 0;
     uint32_t i = 0;
-    while (((i < count) && (metrics[i] != 0))) {
-        uint32_t metric_type = get_health_metric_type(metrics[i]);
-        uint32_t value = get_health_value(metrics[i]);
+    while (((i < count) && (metrics.v[i] != 0))) {
+        uint32_t metric_type = get_health_metric_type(metrics.v[i]);
+        uint32_t value = get_health_value(metrics.v[i]);
         uint32_t metric_score = 0;
         if (((metric_type == METRIC_CPU) || (metric_type == METRIC_MEMORY))) {
             if ((value < 100)) {
@@ -154,26 +161,26 @@ uint32_t calculate_node_health(uint32_t* metrics, uint32_t count) {
     }
 }
 
-uint32_t calculate_network_health(uint32_t* node_metrics, uint32_t node_count) {
+uint32_t calculate_network_health(t27_arr_uint32_t_8 node_metrics, uint32_t node_count) {
     if ((node_count == 0)) {
         return 100;
     }
     uint32_t total_health = 0;
     uint32_t i = 0;
     while ((i < node_count)) {
-        uint32_t node_health = node_metrics[i];
+        uint32_t node_health = node_metrics.v[i];
         total_health = (total_health + node_health);
         i = (i + 1);
     }
     return (total_health / node_count);
 }
 
-uint32_t detect_critical_issues(uint32_t* metrics, uint32_t count) {
+uint32_t detect_critical_issues(t27_arr_uint32_t_16 metrics, uint32_t count) {
     uint32_t critical_count = 0;
     uint32_t i = 0;
-    while (((i < count) && (metrics[i] != 0))) {
-        uint32_t metric_type = get_health_metric_type(metrics[i]);
-        uint32_t value = get_health_value(metrics[i]);
+    while (((i < count) && (metrics.v[i] != 0))) {
+        uint32_t metric_type = get_health_metric_type(metrics.v[i]);
+        uint32_t value = get_health_value(metrics.v[i]);
         uint32_t is_critical = 0;
         if (((metric_type == METRIC_CPU) || (metric_type == METRIC_MEMORY))) {
             if ((value > CRITICAL_THRESHOLD)) {
@@ -196,12 +203,12 @@ uint32_t detect_critical_issues(uint32_t* metrics, uint32_t count) {
     return critical_count;
 }
 
-uint32_t detect_warning_issues(uint32_t* metrics, uint32_t count) {
+uint32_t detect_warning_issues(t27_arr_uint32_t_16 metrics, uint32_t count) {
     uint32_t warning_count = 0;
     uint32_t i = 0;
-    while (((i < count) && (metrics[i] != 0))) {
-        uint32_t metric_type = get_health_metric_type(metrics[i]);
-        uint32_t value = get_health_value(metrics[i]);
+    while (((i < count) && (metrics.v[i] != 0))) {
+        uint32_t metric_type = get_health_metric_type(metrics.v[i]);
+        uint32_t value = get_health_value(metrics.v[i]);
         uint32_t is_warning = 0;
         if (((metric_type == METRIC_CPU) || (metric_type == METRIC_MEMORY))) {
             if (((value > ALERT_THRESHOLD) && (value <= CRITICAL_THRESHOLD))) {
@@ -224,7 +231,7 @@ uint32_t detect_warning_issues(uint32_t* metrics, uint32_t count) {
     return warning_count;
 }
 
-uint32_t generate_health_report(uint32_t* node_metrics, uint32_t count, uint32_t timestamp) {
+uint32_t generate_health_report(t27_arr_uint32_t_16 node_metrics, uint32_t count, uint32_t timestamp) {
     uint32_t node_health = calculate_node_health(node_metrics, count);
     uint32_t critical_count = detect_critical_issues(node_metrics, count);
     uint32_t warning_count = detect_warning_issues(node_metrics, count);
@@ -283,11 +290,11 @@ uint32_t analyze_health_trend(uint32_t current_health, uint32_t previous_health)
     }
 }
 
-uint32_t find_unhealthy_nodes(uint32_t* node_healths, uint32_t threshold) {
+uint32_t find_unhealthy_nodes(t27_arr_uint32_t_8 node_healths, uint32_t threshold) {
     uint32_t count = 0;
     uint32_t i = 0;
     while ((i < MAX_NODES)) {
-        if ((node_healths[i] < threshold)) {
+        if ((node_healths.v[i] < threshold)) {
             count = (count + 1);
         }
         i = (i + 1);
@@ -295,12 +302,12 @@ uint32_t find_unhealthy_nodes(uint32_t* node_healths, uint32_t threshold) {
     return count;
 }
 
-uint32_t calculate_network_trend(uint32_t* current_scores, uint32_t* previous_scores, uint32_t node_count) {
+uint32_t calculate_network_trend(t27_arr_uint32_t_8 current_scores, t27_arr_uint32_t_8 previous_scores, uint32_t node_count) {
     uint32_t improving = 0;
     uint32_t degrading = 0;
     uint32_t i = 0;
     while ((i < node_count)) {
-        uint32_t trend = analyze_health_trend(current_scores[i], previous_scores[i]);
+        uint32_t trend = analyze_health_trend(current_scores.v[i], previous_scores.v[i]);
         if (((trend == 1) || (trend == 2))) {
             improving = (improving + 1);
         } else if (((trend == 3) || (trend == 4))) {
@@ -352,17 +359,17 @@ void test_health_metric_roundtrip(void) {
 }
 
 void test_node_health_mixes_metric_polarity(void) {
-    uint32_t ms[16] = { create_health_metric(1,METRIC_CPU,20,0), create_health_metric(1,METRIC_BANDWIDTH,90,1), create_health_metric(1,METRIC_LATENCY,30,2), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    t27_arr_uint32_t_16 ms = { .v = { create_health_metric(1,METRIC_CPU,20,0), create_health_metric(1,METRIC_BANDWIDTH,90,1), create_health_metric(1,METRIC_LATENCY,30,2), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } };
     t27_assert((calculate_node_health(ms, 3) == 80), "polarity-aware mean");
 }
 
 void test_node_health_saturates_out_of_range(void) {
-    uint32_t ms[16] = { create_health_metric(1,METRIC_LATENCY,200,0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    t27_arr_uint32_t_16 ms = { .v = { create_health_metric(1,METRIC_LATENCY,200,0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } };
     t27_assert((calculate_node_health(ms, 1) == 0), "out-of-range metric floors at 0");
 }
 
 void test_network_health_average(void) {
-    uint32_t nodes[8] = { 90, 70, 80, 0, 0, 0, 0, 0 };
+    t27_arr_uint32_t_8 nodes = { .v = { 90, 70, 80, 0, 0, 0, 0, 0 } };
     t27_assert((calculate_network_health(nodes, 3) == 80), "network mean");
     t27_assert((calculate_network_health(nodes, 0) == 100), "no nodes is healthy");
 }

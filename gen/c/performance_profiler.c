@@ -23,6 +23,13 @@
 #define OVERHEAD_THRESHOLD 5
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[64]; } t27_arr_uint32_t_64;
+typedef struct { uint32_t v[32]; } t27_arr_uint32_t_32;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -40,9 +47,9 @@ uint32_t get_hotspot_function_id(uint32_t hotspot);
 uint32_t get_hotspot_score(uint32_t hotspot);
 uint32_t get_hotspot_rank(uint32_t hotspot);
 uint32_t get_hotspot_impact(uint32_t hotspot);
-uint32_t calculate_average_cpu(uint32_t* samples, uint32_t sample_count, uint32_t func_id);
-uint32_t calculate_average_memory(uint32_t* samples, uint32_t sample_count, uint32_t func_id);
-uint32_t identify_hotspots(uint32_t* profiles, uint32_t profile_count);
+uint32_t calculate_average_cpu(t27_arr_uint32_t_64 samples, uint32_t sample_count, uint32_t func_id);
+uint32_t calculate_average_memory(t27_arr_uint32_t_64 samples, uint32_t sample_count, uint32_t func_id);
+uint32_t identify_hotspots(t27_arr_uint32_t_32 profiles, uint32_t profile_count);
 uint32_t calculate_profiling_overhead(uint32_t base_runtime, uint32_t profiled_runtime);
 uint32_t is_overhead_acceptable(uint32_t overhead_percentage);
 uint32_t create_allocation(uint32_t alloc_id, uint32_t size, uint32_t lifetime, uint32_t pool);
@@ -50,15 +57,15 @@ uint32_t get_allocation_id(uint32_t alloc);
 uint32_t get_allocation_size(uint32_t alloc);
 uint32_t get_allocation_lifetime(uint32_t alloc);
 uint32_t get_allocation_pool(uint32_t alloc);
-uint32_t track_allocation(uint32_t* allocations, uint32_t alloc_id, uint32_t size, uint32_t pool);
-uint32_t calculate_total_memory(uint32_t* allocations, uint32_t sample_count);
-uint32_t detect_memory_leak(uint32_t* allocations, uint32_t current_count, uint32_t previous_count);
+uint32_t track_allocation(t27_arr_uint32_t_64 allocations, uint32_t alloc_id, uint32_t size, uint32_t pool);
+uint32_t calculate_total_memory(t27_arr_uint32_t_64 allocations, uint32_t sample_count);
+uint32_t detect_memory_leak(t27_arr_uint32_t_64 allocations, uint32_t current_count, uint32_t previous_count);
 uint32_t create_call_stack_entry(uint32_t depth, uint32_t func_id, uint32_t parent_id, uint32_t cpu_contrib);
 uint32_t get_stack_depth(uint32_t entry);
 uint32_t get_stack_function_id(uint32_t entry);
 uint32_t get_stack_parent_id(uint32_t entry);
 uint32_t get_stack_cpu_contribution(uint32_t entry);
-uint32_t analyze_call_tree(uint32_t* call_stack, uint32_t stack_size);
+uint32_t analyze_call_tree(t27_arr_uint32_t_64 call_stack, uint32_t stack_size);
 uint32_t create_performance_report(uint32_t total_cpu, uint32_t total_mem, uint32_t hotspots, uint32_t overhead);
 uint32_t get_report_total_cpu(uint32_t report);
 uint32_t get_report_total_memory(uint32_t report);
@@ -127,13 +134,13 @@ uint32_t get_hotspot_impact(uint32_t hotspot) {
     return (hotspot & 0xFF);
 }
 
-uint32_t calculate_average_cpu(uint32_t* samples, uint32_t sample_count, uint32_t func_id) {
+uint32_t calculate_average_cpu(t27_arr_uint32_t_64 samples, uint32_t sample_count, uint32_t func_id) {
     uint32_t total_cpu = 0;
     uint32_t matching_samples = 0;
     uint32_t i = 0;
     while ((i < sample_count)) {
-        if ((get_sample_function_id(samples[i]) == func_id)) {
-            total_cpu = (total_cpu + get_sample_cpu(samples[i]));
+        if ((get_sample_function_id(samples.v[i]) == func_id)) {
+            total_cpu = (total_cpu + get_sample_cpu(samples.v[i]));
             matching_samples = (matching_samples + 1);
         }
         i = (i + 1);
@@ -145,13 +152,13 @@ uint32_t calculate_average_cpu(uint32_t* samples, uint32_t sample_count, uint32_
     }
 }
 
-uint32_t calculate_average_memory(uint32_t* samples, uint32_t sample_count, uint32_t func_id) {
+uint32_t calculate_average_memory(t27_arr_uint32_t_64 samples, uint32_t sample_count, uint32_t func_id) {
     uint32_t total_memory = 0;
     uint32_t matching_samples = 0;
     uint32_t i = 0;
     while ((i < sample_count)) {
-        if ((get_sample_function_id(samples[i]) == func_id)) {
-            total_memory = (total_memory + get_sample_memory(samples[i]));
+        if ((get_sample_function_id(samples.v[i]) == func_id)) {
+            total_memory = (total_memory + get_sample_memory(samples.v[i]));
             matching_samples = (matching_samples + 1);
         }
         i = (i + 1);
@@ -163,18 +170,18 @@ uint32_t calculate_average_memory(uint32_t* samples, uint32_t sample_count, uint
     }
 }
 
-uint32_t identify_hotspots(uint32_t* profiles, uint32_t profile_count) {
+uint32_t identify_hotspots(t27_arr_uint32_t_32 profiles, uint32_t profile_count) {
     uint32_t max_calls = 0;
     uint32_t max_cpu = 0;
     uint32_t hotspot_func = 0;
     uint32_t i = 0;
     while ((i < profile_count)) {
-        uint32_t calls = get_profile_call_count(profiles[i]);
-        uint32_t cpu = get_profile_total_cpu(profiles[i]);
+        uint32_t calls = get_profile_call_count(profiles.v[i]);
+        uint32_t cpu = get_profile_total_cpu(profiles.v[i]);
         if (((calls > max_calls) || ((calls == max_calls) && (cpu > max_cpu)))) {
             max_calls = calls;
             max_cpu = cpu;
-            hotspot_func = get_profile_function_id(profiles[i]);
+            hotspot_func = get_profile_function_id(profiles.v[i]);
         }
         i = (i + 1);
     }
@@ -222,11 +229,11 @@ uint32_t get_allocation_pool(uint32_t alloc) {
     return (alloc & 0xFF);
 }
 
-uint32_t track_allocation(uint32_t* allocations, uint32_t alloc_id, uint32_t size, uint32_t pool) {
+uint32_t track_allocation(t27_arr_uint32_t_64 allocations, uint32_t alloc_id, uint32_t size, uint32_t pool) {
     uint32_t i = 0;
     while ((i < MAX_SAMPLES)) {
-        if ((get_allocation_id(allocations[i]) == 0)) {
-            allocations[i] = create_allocation(alloc_id, size, 255, pool);
+        if ((get_allocation_id(allocations.v[i]) == 0)) {
+            allocations.v[i] = create_allocation(alloc_id, size, 255, pool);
             return 1;
         }
         i = (i + 1);
@@ -234,18 +241,18 @@ uint32_t track_allocation(uint32_t* allocations, uint32_t alloc_id, uint32_t siz
     return 0;
 }
 
-uint32_t calculate_total_memory(uint32_t* allocations, uint32_t sample_count) {
+uint32_t calculate_total_memory(t27_arr_uint32_t_64 allocations, uint32_t sample_count) {
     uint32_t total_memory = 0;
     uint32_t i = 0;
     while ((i < sample_count)) {
-        uint32_t size = get_allocation_size(allocations[i]);
+        uint32_t size = get_allocation_size(allocations.v[i]);
         total_memory = (total_memory + size);
         i = (i + 1);
     }
     return total_memory;
 }
 
-uint32_t detect_memory_leak(uint32_t* allocations, uint32_t current_count, uint32_t previous_count) {
+uint32_t detect_memory_leak(t27_arr_uint32_t_64 allocations, uint32_t current_count, uint32_t previous_count) {
     if ((current_count > previous_count)) {
         uint32_t growth = (current_count - previous_count);
         if ((growth > 5)) {
@@ -275,13 +282,13 @@ uint32_t get_stack_cpu_contribution(uint32_t entry) {
     return (entry & 0xFF);
 }
 
-uint32_t analyze_call_tree(uint32_t* call_stack, uint32_t stack_size) {
+uint32_t analyze_call_tree(t27_arr_uint32_t_64 call_stack, uint32_t stack_size) {
     uint32_t max_depth = 0;
     uint32_t total_cpu = 0;
     uint32_t i = 0;
     while ((i < stack_size)) {
-        uint32_t depth = get_stack_depth(call_stack[i]);
-        uint32_t cpu = get_stack_cpu_contribution(call_stack[i]);
+        uint32_t depth = get_stack_depth(call_stack.v[i]);
+        uint32_t cpu = get_stack_cpu_contribution(call_stack.v[i]);
         if ((depth > max_depth)) {
             max_depth = depth;
         }

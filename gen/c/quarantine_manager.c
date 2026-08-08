@@ -33,6 +33,12 @@
 #define VIOLATION_TRUST_VIOLATION 5
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[8]; } t27_arr_uint32_t_8;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -56,11 +62,11 @@ uint32_t get_violation_timestamp(uint32_t record);
 uint32_t record_violation(uint32_t state, uint32_t violation_record);
 uint32_t should_quarantine(uint32_t state);
 uint32_t calculate_quarantine_severity(uint32_t state);
-uint32_t find_quarantined_node(uint32_t* states, uint32_t node_id);
-uint32_t count_quarantined_nodes(uint32_t* states);
+uint32_t find_quarantined_node(t27_arr_uint32_t_8 states, uint32_t node_id);
+uint32_t count_quarantined_nodes(t27_arr_uint32_t_8 states);
 uint32_t get_quarantine_reason(uint32_t violation_type);
 uint32_t is_communication_allowed(uint32_t state, uint32_t trust_score);
-uint32_t calculate_health_impact(uint32_t* states);
+uint32_t calculate_health_impact(t27_arr_uint32_t_8 states);
 uint32_t recommend_quarantine_action(uint32_t state, uint32_t trust_score);
 uint32_t create_notification(uint32_t node_id, uint32_t action, uint32_t reason, uint32_t duration);
 uint32_t get_notification_node_id(uint32_t notification);
@@ -207,10 +213,10 @@ uint32_t calculate_quarantine_severity(uint32_t state) {
     }
 }
 
-uint32_t find_quarantined_node(uint32_t* states, uint32_t node_id) {
+uint32_t find_quarantined_node(t27_arr_uint32_t_8 states, uint32_t node_id) {
     uint32_t i = 0;
     while ((i < MAX_NODES)) {
-        uint32_t state_node_id = get_quarantine_node_id(states[i]);
+        uint32_t state_node_id = get_quarantine_node_id(states.v[i]);
         if ((state_node_id == node_id)) {
             return i;
         }
@@ -219,11 +225,11 @@ uint32_t find_quarantined_node(uint32_t* states, uint32_t node_id) {
     return MAX_NODES;
 }
 
-uint32_t count_quarantined_nodes(uint32_t* states) {
+uint32_t count_quarantined_nodes(t27_arr_uint32_t_8 states) {
     uint32_t count = 0;
     uint32_t i = 0;
     while ((i < MAX_NODES)) {
-        if ((is_quarantined(states[i]) == 1)) {
+        if ((is_quarantined(states.v[i]) == 1)) {
             count = (count + 1);
         }
         i = (i + 1);
@@ -263,7 +269,7 @@ uint32_t is_communication_allowed(uint32_t state, uint32_t trust_score) {
     return 1;
 }
 
-uint32_t calculate_health_impact(uint32_t* states) {
+uint32_t calculate_health_impact(t27_arr_uint32_t_8 states) {
     uint32_t quarantined_count = count_quarantined_nodes(states);
     uint32_t total_nodes = MAX_NODES;
     if ((total_nodes > 0)) {

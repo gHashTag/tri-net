@@ -33,6 +33,12 @@
 #define ASSERT_BITMASK 5
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[32]; } t27_arr_uint32_t_32;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -58,14 +64,14 @@ uint32_t get_suite_id(uint32_t suite);
 uint32_t get_suite_test_count(uint32_t suite);
 uint32_t get_setup_id(uint32_t suite);
 uint32_t get_teardown_id(uint32_t suite);
-uint32_t run_test_suite(uint32_t suite, uint32_t* tests, uint32_t test_count);
+uint32_t run_test_suite(uint32_t suite, t27_arr_uint32_t_32 tests, uint32_t test_count);
 uint32_t create_coverage_data(uint32_t func_id, uint32_t branches, uint32_t covered, uint32_t lines);
 uint32_t get_coverage_function_id(uint32_t coverage);
 uint32_t get_branch_count(uint32_t coverage);
 uint32_t get_covered_branches(uint32_t coverage);
 uint32_t get_line_count(uint32_t coverage);
 uint32_t calculate_coverage_percentage(uint32_t coverage);
-uint32_t aggregate_coverage(uint32_t* coverage_data, uint32_t count);
+uint32_t aggregate_coverage(t27_arr_uint32_t_32 coverage_data, uint32_t count);
 uint32_t create_property_test(uint32_t prop_id, uint32_t generators, uint32_t tests, uint32_t failures);
 uint32_t get_property_id(uint32_t prop_test);
 uint32_t get_generator_count(uint32_t prop_test);
@@ -228,14 +234,14 @@ uint32_t get_teardown_id(uint32_t suite) {
     return (suite & 0xFF);
 }
 
-uint32_t run_test_suite(uint32_t suite, uint32_t* tests, uint32_t test_count) {
+uint32_t run_test_suite(uint32_t suite, t27_arr_uint32_t_32 tests, uint32_t test_count) {
     uint32_t suite_id = get_suite_id(suite);
     uint32_t total_assertions = 0;
     uint32_t total_failures = 0;
     uint32_t passed_tests = 0;
     uint32_t i = 0;
     while ((i < test_count)) {
-        uint32_t result = run_test_case(tests[i], 0);
+        uint32_t result = run_test_case(tests.v[i], 0);
         uint32_t assertions = get_assertion_count(result);
         uint32_t failures = get_failure_count(result);
         uint32_t status = get_test_status(result);
@@ -279,13 +285,13 @@ uint32_t calculate_coverage_percentage(uint32_t coverage) {
     }
 }
 
-uint32_t aggregate_coverage(uint32_t* coverage_data, uint32_t count) {
+uint32_t aggregate_coverage(t27_arr_uint32_t_32 coverage_data, uint32_t count) {
     uint32_t total_branches = 0;
     uint32_t total_covered = 0;
     uint32_t i = 0;
     while ((i < count)) {
-        total_branches = (total_branches + get_branch_count(coverage_data[i]));
-        total_covered = (total_covered + get_covered_branches(coverage_data[i]));
+        total_branches = (total_branches + get_branch_count(coverage_data.v[i]));
+        total_covered = (total_covered + get_covered_branches(coverage_data.v[i]));
         i = (i + 1);
     }
     if ((total_branches > 0)) {

@@ -38,6 +38,13 @@
 #define LINK_EXAMPLE 3
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[16]; } t27_arr_uint32_t_16;
+typedef struct { uint32_t v[64]; } t27_arr_uint32_t_64;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -86,14 +93,14 @@ uint32_t get_margin_top(uint32_t layout);
 uint32_t get_margin_bottom(uint32_t layout);
 uint32_t get_margin_left(uint32_t layout);
 uint32_t get_margin_right(uint32_t layout);
-uint32_t calculate_document_stats(uint32_t* sections, uint32_t section_count);
+uint32_t calculate_document_stats(t27_arr_uint32_t_16 sections, uint32_t section_count);
 uint32_t generate_document_metadata(uint32_t title_id, uint32_t author_id, uint32_t date, uint32_t version);
 uint32_t get_metadata_title(uint32_t metadata);
 uint32_t get_metadata_author(uint32_t metadata);
 uint32_t get_metadata_date(uint32_t metadata);
 uint32_t get_metadata_version(uint32_t metadata);
-uint32_t format_document(uint32_t* sections, uint32_t section_count, uint32_t format, uint32_t layout);
-uint32_t generate_complete_document(uint32_t* func_docs, uint32_t func_count, uint32_t* sections, uint32_t section_count, uint32_t format);
+uint32_t format_document(t27_arr_uint32_t_16 sections, uint32_t section_count, uint32_t format, uint32_t layout);
+uint32_t generate_complete_document(t27_arr_uint32_t_64 func_docs, uint32_t func_count, t27_arr_uint32_t_16 sections, uint32_t section_count, uint32_t format);
 uint32_t validate_documentation(uint32_t generated_doc, uint32_t expected_sections, uint32_t expected_funcs);
 
 /* -------------------------------------------------------
@@ -288,15 +295,15 @@ uint32_t get_margin_right(uint32_t layout) {
     return (layout & 0xFF);
 }
 
-uint32_t calculate_document_stats(uint32_t* sections, uint32_t section_count) {
+uint32_t calculate_document_stats(t27_arr_uint32_t_16 sections, uint32_t section_count) {
     uint32_t total_pages = 0;
     uint32_t total_words = 0;
     uint32_t total_tables = 0;
     uint32_t total_figures = 0;
     uint32_t i = 0;
     while ((i < section_count)) {
-        uint32_t content_len = get_section_content_length(sections[i]);
-        uint32_t subsections = get_section_subsection_count(sections[i]);
+        uint32_t content_len = get_section_content_length(sections.v[i]);
+        uint32_t subsections = get_section_subsection_count(sections.v[i]);
         total_words = (total_words + (content_len / 5));
         total_pages = (total_pages + (content_len / 300));
         if ((subsections > 0)) {
@@ -327,11 +334,11 @@ uint32_t get_metadata_version(uint32_t metadata) {
     return (metadata & 0xFF);
 }
 
-uint32_t format_document(uint32_t* sections, uint32_t section_count, uint32_t format, uint32_t layout) {
+uint32_t format_document(t27_arr_uint32_t_16 sections, uint32_t section_count, uint32_t format, uint32_t layout) {
     uint32_t formatted_size = 0;
     uint32_t i = 0;
     while ((i < section_count)) {
-        uint32_t content_len = get_section_content_length(sections[i]);
+        uint32_t content_len = get_section_content_length(sections.v[i]);
         formatted_size = (formatted_size + content_len);
         i = (i + 1);
     }
@@ -346,7 +353,7 @@ uint32_t format_document(uint32_t* sections, uint32_t section_count, uint32_t fo
     return formatted_size;
 }
 
-uint32_t generate_complete_document(uint32_t* func_docs, uint32_t func_count, uint32_t* sections, uint32_t section_count, uint32_t format) {
+uint32_t generate_complete_document(t27_arr_uint32_t_64 func_docs, uint32_t func_count, t27_arr_uint32_t_16 sections, uint32_t section_count, uint32_t format) {
     uint32_t metadata = generate_document_metadata(1, 1, 20260703, 1);
     uint32_t layout = generate_page_layout(20, 20, 15, 15);
     uint32_t toc_size = (section_count * 10);

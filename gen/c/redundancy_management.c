@@ -23,6 +23,12 @@
 #define PATH_INVALID 0
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[4]; } t27_arr_uint32_t_4;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -31,18 +37,18 @@ uint32_t get_path_valid(uint32_t path);
 uint32_t get_hop1(uint32_t path);
 uint32_t get_hop2(uint32_t path);
 uint32_t get_hop3(uint32_t path);
-uint32_t* create_path_set(uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3);
-uint32_t* set_slot4(uint32_t* array, uint32_t index, uint32_t value);
-uint32_t get_path(uint32_t* path_set, uint32_t index);
-uint32_t find_primary_path(uint32_t* path_set);
-uint32_t find_backup_path(uint32_t* path_set, uint32_t failed_path);
-uint32_t* invalidate_path(uint32_t* path_set, uint32_t path_index);
-uint32_t* validate_path(uint32_t* path_set, uint32_t path_index);
-uint32_t count_valid_paths(uint32_t* path_set);
-bool has_redundancy(uint32_t* path_set);
+t27_arr_uint32_t_4 create_path_set(uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3);
+t27_arr_uint32_t_4 set_slot4(t27_arr_uint32_t_4 array, uint32_t index, uint32_t value);
+uint32_t get_path(t27_arr_uint32_t_4 path_set, uint32_t index);
+uint32_t find_primary_path(t27_arr_uint32_t_4 path_set);
+uint32_t find_backup_path(t27_arr_uint32_t_4 path_set, uint32_t failed_path);
+t27_arr_uint32_t_4 invalidate_path(t27_arr_uint32_t_4 path_set, uint32_t path_index);
+t27_arr_uint32_t_4 validate_path(t27_arr_uint32_t_4 path_set, uint32_t path_index);
+uint32_t count_valid_paths(t27_arr_uint32_t_4 path_set);
+bool has_redundancy(t27_arr_uint32_t_4 path_set);
 uint32_t get_hop_count(uint32_t path);
-uint32_t find_shortest_path(uint32_t* path_set);
-uint32_t* failover(uint32_t* path_set, uint32_t failed_path);
+uint32_t find_shortest_path(t27_arr_uint32_t_4 path_set);
+t27_arr_uint32_t_4 failover(t27_arr_uint32_t_4 path_set, uint32_t failed_path);
 
 /* -------------------------------------------------------
    Function implementations
@@ -68,35 +74,35 @@ uint32_t get_hop3(uint32_t path) {
     return (path & 0xFF);
 }
 
-uint32_t* create_path_set(uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3) {
-    return { p0, p1, p2, p3 };
+t27_arr_uint32_t_4 create_path_set(uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3) {
+    return (t27_arr_uint32_t_4){ .v = { p0, p1, p2, p3 } };
 }
 
-uint32_t* set_slot4(uint32_t* array, uint32_t index, uint32_t value) {
-    uint32_t a0 = array[0];
-    uint32_t a1 = array[1];
-    uint32_t a2 = array[2];
-    uint32_t a3 = array[3];
+t27_arr_uint32_t_4 set_slot4(t27_arr_uint32_t_4 array, uint32_t index, uint32_t value) {
+    uint32_t a0 = array.v[0];
+    uint32_t a1 = array.v[1];
+    uint32_t a2 = array.v[2];
+    uint32_t a3 = array.v[3];
     if ((index == 0)) {
-        return { value, a1, a2, a3 };
+        return (t27_arr_uint32_t_4){ .v = { value, a1, a2, a3 } };
     }
     if ((index == 1)) {
-        return { a0, value, a2, a3 };
+        return (t27_arr_uint32_t_4){ .v = { a0, value, a2, a3 } };
     }
     if ((index == 2)) {
-        return { a0, a1, value, a3 };
+        return (t27_arr_uint32_t_4){ .v = { a0, a1, value, a3 } };
     }
-    return { a0, a1, a2, value };
+    return (t27_arr_uint32_t_4){ .v = { a0, a1, a2, value } };
 }
 
-uint32_t get_path(uint32_t* path_set, uint32_t index) {
+uint32_t get_path(t27_arr_uint32_t_4 path_set, uint32_t index) {
     if ((index < 4)) {
-        return path_set[index];
+        return path_set.v[index];
     }
     return 0;
 }
 
-uint32_t find_primary_path(uint32_t* path_set) {
+uint32_t find_primary_path(t27_arr_uint32_t_4 path_set) {
     if ((get_path_valid(get_path(path_set, 0)) == PATH_VALID)) {
         return 0;
     } else if ((get_path_valid(get_path(path_set, 1)) == PATH_VALID)) {
@@ -109,7 +115,7 @@ uint32_t find_primary_path(uint32_t* path_set) {
     return 0xFF;
 }
 
-uint32_t find_backup_path(uint32_t* path_set, uint32_t failed_path) {
+uint32_t find_backup_path(t27_arr_uint32_t_4 path_set, uint32_t failed_path) {
     if (((failed_path != 0) && (get_path_valid(get_path(path_set, 0)) == PATH_VALID))) {
         return 0;
     } else if (((failed_path != 1) && (get_path_valid(get_path(path_set, 1)) == PATH_VALID))) {
@@ -122,20 +128,20 @@ uint32_t find_backup_path(uint32_t* path_set, uint32_t failed_path) {
     return 0xFF;
 }
 
-uint32_t* invalidate_path(uint32_t* path_set, uint32_t path_index) {
+t27_arr_uint32_t_4 invalidate_path(t27_arr_uint32_t_4 path_set, uint32_t path_index) {
     int path = get_path(path_set, path_index);
     int new_path = create_path(PATH_INVALID, get_hop1(path), get_hop2(path), get_hop3(path));
     return set_slot4(path_set, path_index, new_path);
 }
 
-uint32_t* validate_path(uint32_t* path_set, uint32_t path_index) {
+t27_arr_uint32_t_4 validate_path(t27_arr_uint32_t_4 path_set, uint32_t path_index) {
     int path = get_path(path_set, path_index);
     int new_path = create_path(PATH_VALID, get_hop1(path), get_hop2(path), get_hop3(path));
     return set_slot4(path_set, path_index, new_path);
 }
 
-uint32_t count_valid_paths(uint32_t* path_set) {
-    int count = 0;
+uint32_t count_valid_paths(t27_arr_uint32_t_4 path_set) {
+    uint32_t count = 0;
     if ((get_path_valid(get_path(path_set, 0)) == PATH_VALID)) {
         count = (count + 1);
     }
@@ -151,12 +157,12 @@ uint32_t count_valid_paths(uint32_t* path_set) {
     return count;
 }
 
-bool has_redundancy(uint32_t* path_set) {
+bool has_redundancy(t27_arr_uint32_t_4 path_set) {
     return (count_valid_paths(path_set) > 1);
 }
 
 uint32_t get_hop_count(uint32_t path) {
-    int count = 0;
+    uint32_t count = 0;
     if ((get_hop1(path) != 0)) {
         count = (count + 1);
     }
@@ -169,9 +175,9 @@ uint32_t get_hop_count(uint32_t path) {
     return count;
 }
 
-uint32_t find_shortest_path(uint32_t* path_set) {
-    int best_path = 0xFF;
-    int best_hops = 255;
+uint32_t find_shortest_path(t27_arr_uint32_t_4 path_set) {
+    uint32_t best_path = 0xFF;
+    uint32_t best_hops = 255;
     if ((get_path_valid(get_path(path_set, 0)) == PATH_VALID)) {
         int hops = get_hop_count(get_path(path_set, 0));
         if ((hops < best_hops)) {
@@ -203,7 +209,7 @@ uint32_t find_shortest_path(uint32_t* path_set) {
     return best_path;
 }
 
-uint32_t* failover(uint32_t* path_set, uint32_t failed_path) {
+t27_arr_uint32_t_4 failover(t27_arr_uint32_t_4 path_set, uint32_t failed_path) {
     int backup = find_backup_path(path_set, failed_path);
     if ((backup != 0xFF)) {
         return invalidate_path(path_set, failed_path);
@@ -225,66 +231,66 @@ void test_create_path_basic(void) {
 }
 
 void test_create_path_set(void) {
-    uint64_t path_set = create_path_set(create_path(1, 10, 20, 30), create_path(0, 40, 50, 60), create_path(1, 70, 80, 90), create_path(1, 15, 25, 35));
+    t27_arr_uint32_t_4 path_set = create_path_set(create_path(1, 10, 20, 30), create_path(0, 40, 50, 60), create_path(1, 70, 80, 90), create_path(1, 15, 25, 35));
     (void)path_set;
     t27_assert((get_path_valid(get_path(path_set, 0)) == 1), "path 0 valid");
     t27_assert((get_path_valid(get_path(path_set, 1)) == 0), "path 1 invalid");
 }
 
 void test_find_primary_path_first(void) {
-    uint64_t path_set = create_path_set(create_path(1, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(1, 15, 25, 35));
+    t27_arr_uint32_t_4 path_set = create_path_set(create_path(1, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(1, 15, 25, 35));
     (void)path_set;
     t27_assert((find_primary_path(path_set) == 0), "first path is primary");
 }
 
 void test_find_primary_path_skip_invalid(void) {
-    uint64_t path_set = create_path_set(create_path(0, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(1, 15, 25, 35));
+    t27_arr_uint32_t_4 path_set = create_path_set(create_path(0, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(1, 15, 25, 35));
     (void)path_set;
     t27_assert((find_primary_path(path_set) == 1), "second path is primary");
 }
 
 void test_find_backup_path(void) {
-    uint64_t path_set = create_path_set(create_path(1, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(0, 15, 25, 35));
+    t27_arr_uint32_t_4 path_set = create_path_set(create_path(1, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(0, 15, 25, 35));
     (void)path_set;
     t27_assert((find_backup_path(path_set, 0) == 1), "backup is path 1");
 }
 
 void test_invalidate_path_works(void) {
-    uint64_t path_set = create_path_set(create_path(1, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(0, 15, 25, 35));
+    t27_arr_uint32_t_4 path_set = create_path_set(create_path(1, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(0, 15, 25, 35));
     (void)path_set;
-    uint64_t new_set = invalidate_path(path_set, 0);
+    t27_arr_uint32_t_4 new_set = invalidate_path(path_set, 0);
     (void)new_set;
     t27_assert((get_path_valid(get_path(new_set, 0)) == 0), "path invalidated");
 }
 
 void test_validate_path_works(void) {
-    uint64_t path_set = create_path_set(create_path(0, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(1, 15, 25, 35));
+    t27_arr_uint32_t_4 path_set = create_path_set(create_path(0, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(1, 15, 25, 35));
     (void)path_set;
-    uint64_t new_set = validate_path(path_set, 0);
+    t27_arr_uint32_t_4 new_set = validate_path(path_set, 0);
     (void)new_set;
     t27_assert((get_path_valid(get_path(new_set, 0)) == 1), "path validated");
 }
 
 void test_count_valid_paths_all(void) {
-    uint64_t path_set = create_path_set(create_path(1, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(1, 15, 25, 35));
+    t27_arr_uint32_t_4 path_set = create_path_set(create_path(1, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(1, 15, 25, 35));
     (void)path_set;
     t27_assert((count_valid_paths(path_set) == 4), "4 valid paths");
 }
 
 void test_count_valid_paths_some(void) {
-    uint64_t path_set = create_path_set(create_path(1, 10, 20, 30), create_path(0, 40, 50, 60), create_path(1, 70, 80, 90), create_path(0, 15, 25, 35));
+    t27_arr_uint32_t_4 path_set = create_path_set(create_path(1, 10, 20, 30), create_path(0, 40, 50, 60), create_path(1, 70, 80, 90), create_path(0, 15, 25, 35));
     (void)path_set;
     t27_assert((count_valid_paths(path_set) == 2), "2 valid paths");
 }
 
 void test_has_redundancy_true(void) {
-    uint64_t path_set = create_path_set(create_path(1, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(0, 15, 25, 35));
+    t27_arr_uint32_t_4 path_set = create_path_set(create_path(1, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(0, 15, 25, 35));
     (void)path_set;
     t27_assert((has_redundancy(path_set) == true), "has redundancy");
 }
 
 void test_has_redundancy_false(void) {
-    uint64_t path_set = create_path_set(create_path(1, 10, 20, 30), create_path(0, 40, 50, 60), create_path(0, 70, 80, 90), create_path(0, 15, 25, 35));
+    t27_arr_uint32_t_4 path_set = create_path_set(create_path(1, 10, 20, 30), create_path(0, 40, 50, 60), create_path(0, 70, 80, 90), create_path(0, 15, 25, 35));
     (void)path_set;
     t27_assert((has_redundancy(path_set) == false), "no redundancy");
 }
@@ -302,23 +308,23 @@ void test_get_hop_count_one(void) {
 }
 
 void test_find_shortest_path(void) {
-    uint64_t path_set = create_path_set(create_path(1, 10, 0, 0), create_path(1, 40, 50, 0), create_path(1, 70, 80, 90), create_path(0, 15, 25, 35));
+    t27_arr_uint32_t_4 path_set = create_path_set(create_path(1, 10, 0, 0), create_path(1, 40, 50, 0), create_path(1, 70, 80, 90), create_path(0, 15, 25, 35));
     (void)path_set;
     t27_assert((find_shortest_path(path_set) == 0), "shortest is path 0");
 }
 
 void test_failover_invalidates_failed(void) {
-    uint64_t path_set = create_path_set(create_path(1, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(0, 15, 25, 35));
+    t27_arr_uint32_t_4 path_set = create_path_set(create_path(1, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(0, 15, 25, 35));
     (void)path_set;
-    uint64_t new_set = failover(path_set, 0);
+    t27_arr_uint32_t_4 new_set = failover(path_set, 0);
     (void)new_set;
     t27_assert((get_path_valid(get_path(new_set, 0)) == 0), "failed path invalidated");
 }
 
 void test_failover_no_backup(void) {
-    uint64_t path_set = create_path_set(create_path(1, 10, 20, 30), create_path(0, 40, 50, 60), create_path(0, 70, 80, 90), create_path(0, 15, 25, 35));
+    t27_arr_uint32_t_4 path_set = create_path_set(create_path(1, 10, 20, 30), create_path(0, 40, 50, 60), create_path(0, 70, 80, 90), create_path(0, 15, 25, 35));
     (void)path_set;
-    uint64_t new_set = failover(path_set, 0);
+    t27_arr_uint32_t_4 new_set = failover(path_set, 0);
     (void)new_set;
     t27_assert((get_path_valid(get_path(new_set, 0)) == 1), "no change when no backup");
 }

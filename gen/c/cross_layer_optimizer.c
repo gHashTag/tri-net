@@ -33,6 +33,12 @@ typedef struct { uint32_t f0; uint32_t f1; } t27_tuple_uint32_t_uint32_t;
 #define MODE_AGGRESSIVE 2
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[4]; } t27_arr_uint32_t_4;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -46,10 +52,10 @@ uint32_t get_mode(uint32_t state);
 uint32_t get_update_counter(uint32_t state);
 uint32_t get_last_sync(uint32_t state);
 uint32_t get_optimization_target(uint32_t state);
-uint32_t* create_layer_array(uint32_t phy, uint32_t mac, uint32_t network, uint32_t transport);
-uint32_t* set_slot4(uint32_t* array, uint32_t index, uint32_t value);
-uint32_t get_layer_params(uint32_t* array, uint32_t layer);
-uint32_t* update_layer_params(uint32_t* array, uint32_t layer, uint32_t new_params);
+t27_arr_uint32_t_4 create_layer_array(uint32_t phy, uint32_t mac, uint32_t network, uint32_t transport);
+t27_arr_uint32_t_4 set_slot4(t27_arr_uint32_t_4 array, uint32_t index, uint32_t value);
+uint32_t get_layer_params(t27_arr_uint32_t_4 array, uint32_t layer);
+t27_arr_uint32_t_4 update_layer_params(t27_arr_uint32_t_4 array, uint32_t layer, uint32_t new_params);
 uint32_t calculate_joint_metric(uint32_t phy_params, uint32_t mac_params, uint32_t net_params);
 t27_tuple_uint32_t_uint32_t coordinate_power(uint32_t state, uint32_t phy_params, uint32_t mac_params);
 t27_tuple_uint32_t_uint32_t optimize_for_target(uint32_t state, uint32_t phy_params, uint32_t mac_params);
@@ -101,35 +107,35 @@ uint32_t get_optimization_target(uint32_t state) {
     return (state & 0xFFF);
 }
 
-uint32_t* create_layer_array(uint32_t phy, uint32_t mac, uint32_t network, uint32_t transport) {
-    return { phy, mac, network, transport };
+t27_arr_uint32_t_4 create_layer_array(uint32_t phy, uint32_t mac, uint32_t network, uint32_t transport) {
+    return (t27_arr_uint32_t_4){ .v = { phy, mac, network, transport } };
 }
 
-uint32_t* set_slot4(uint32_t* array, uint32_t index, uint32_t value) {
-    uint32_t a0 = array[0];
-    uint32_t a1 = array[1];
-    uint32_t a2 = array[2];
-    uint32_t a3 = array[3];
+t27_arr_uint32_t_4 set_slot4(t27_arr_uint32_t_4 array, uint32_t index, uint32_t value) {
+    uint32_t a0 = array.v[0];
+    uint32_t a1 = array.v[1];
+    uint32_t a2 = array.v[2];
+    uint32_t a3 = array.v[3];
     if ((index == 0)) {
-        return { value, a1, a2, a3 };
+        return (t27_arr_uint32_t_4){ .v = { value, a1, a2, a3 } };
     }
     if ((index == 1)) {
-        return { a0, value, a2, a3 };
+        return (t27_arr_uint32_t_4){ .v = { a0, value, a2, a3 } };
     }
     if ((index == 2)) {
-        return { a0, a1, value, a3 };
+        return (t27_arr_uint32_t_4){ .v = { a0, a1, value, a3 } };
     }
-    return { a0, a1, a2, value };
+    return (t27_arr_uint32_t_4){ .v = { a0, a1, a2, value } };
 }
 
-uint32_t get_layer_params(uint32_t* array, uint32_t layer) {
+uint32_t get_layer_params(t27_arr_uint32_t_4 array, uint32_t layer) {
     if ((layer < 4)) {
-        return array[layer];
+        return array.v[layer];
     }
     return 0;
 }
 
-uint32_t* update_layer_params(uint32_t* array, uint32_t layer, uint32_t new_params) {
+t27_arr_uint32_t_4 update_layer_params(t27_arr_uint32_t_4 array, uint32_t layer, uint32_t new_params) {
     return set_slot4(array, layer, new_params);
 }
 
@@ -183,7 +189,7 @@ t27_tuple_uint32_t_uint32_t optimize_for_target(uint32_t state, uint32_t phy_par
         }
         return (t27_tuple_uint32_t_uint32_t){ new_rate, new_retries };
     } else if ((target == 1)) {
-        int new_rate = 255;
+        uint32_t new_rate = 255;
         int new_window = (get_window(mac_params) + 10);
         if ((new_window > 255)) {
             new_window = 255;
@@ -250,7 +256,7 @@ void test_create_cross_layer_state_basic(void) {
 }
 
 void test_create_layer_array_basic(void) {
-    uint64_t array = create_layer_array(create_layer_params(50, 100, 3, 64), create_layer_params(60, 120, 2, 128), create_layer_params(40, 80, 5, 32), create_layer_params(70, 150, 1, 256));
+    t27_arr_uint32_t_4 array = create_layer_array(create_layer_params(50, 100, 3, 64), create_layer_params(60, 120, 2, 128), create_layer_params(40, 80, 5, 32), create_layer_params(70, 150, 1, 256));
     (void)array;
     t27_assert((get_power(get_layer_params(array, LAYER_PHY)) == 50), "PHY power");
     t27_assert((get_rate(get_layer_params(array, LAYER_MAC)) == 120), "MAC rate");
@@ -258,9 +264,9 @@ void test_create_layer_array_basic(void) {
 }
 
 void test_update_layer_params_phy(void) {
-    uint64_t array = create_layer_array(create_layer_params(50, 100, 3, 64), create_layer_params(60, 120, 2, 128), create_layer_params(40, 80, 5, 32), create_layer_params(70, 150, 1, 256));
+    t27_arr_uint32_t_4 array = create_layer_array(create_layer_params(50, 100, 3, 64), create_layer_params(60, 120, 2, 128), create_layer_params(40, 80, 5, 32), create_layer_params(70, 150, 1, 256));
     (void)array;
-    uint64_t new_array = update_layer_params(array, LAYER_PHY, create_layer_params(80, 150, 1, 128));
+    t27_arr_uint32_t_4 new_array = update_layer_params(array, LAYER_PHY, create_layer_params(80, 150, 1, 128));
     (void)new_array;
     t27_assert((get_power(get_layer_params(new_array, LAYER_PHY)) == 80), "PHY power updated");
 }

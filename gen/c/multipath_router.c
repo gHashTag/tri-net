@@ -22,10 +22,16 @@
 #define ETX_THRESHOLD_POOR 0x60
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint8_t v[3]; } t27_arr_uint8_t_3;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
-uint8_t select_path_index(uint8_t* etx_values);
+uint8_t select_path_index(t27_arr_uint8_t_3 etx_values);
 uint8_t path_quality_score(uint8_t etx, uint16_t latency, uint8_t loss_p8);
 bool needs_failover(uint8_t current_etx, uint8_t current_idx, uint8_t max_paths);
 uint8_t next_path_index(uint8_t current_idx, uint8_t max_paths);
@@ -35,13 +41,13 @@ uint8_t path_reliability(uint8_t etx, uint8_t loss_rate);
    Function implementations
    ------------------------------------------------------- */
 
-uint8_t select_path_index(uint8_t* etx_values) {
-    uint8_t min_etx = etx_values[0];
+uint8_t select_path_index(t27_arr_uint8_t_3 etx_values) {
+    uint8_t min_etx = etx_values.v[0];
     uint8_t best_idx = 0;
-    if ((etx_values[1] < min_etx)) {
+    if ((etx_values.v[1] < min_etx)) {
         best_idx = 1;
     }
-    if ((etx_values[2] < etx_values[((size_t)(best_idx))])) {
+    if ((etx_values.v[2] < etx_values.v[((size_t)(best_idx))])) {
         best_idx = 2;
     }
     return best_idx;
@@ -85,7 +91,7 @@ uint8_t path_reliability(uint8_t etx, uint8_t loss_rate) {
    ------------------------------------------------------- */
 
 void test_path_selection_logic(void) {
-    uint8_t etx_values[3] = { 0x25, 0x30, 0x20 };
+    t27_arr_uint8_t_3 etx_values = { .v = { 0x25, 0x30, 0x20 } };
     uint8_t best_idx = select_path_index(etx_values);
     t27_assert((best_idx == 2), "best_idx == 2");
 }

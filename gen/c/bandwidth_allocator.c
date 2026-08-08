@@ -26,6 +26,12 @@
 #define PRIORITY_HIGH 3
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[8]; } t27_arr_uint32_t_8;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -39,15 +45,15 @@ uint32_t get_allocated_bw(uint32_t state);
 uint32_t get_pending_requests(uint32_t state);
 uint32_t get_fair_share(uint32_t state);
 uint32_t get_last_update(uint32_t state);
-uint32_t* create_flow_array(uint32_t f0, uint32_t f1, uint32_t f2, uint32_t f3, uint32_t f4, uint32_t f5, uint32_t f6, uint32_t f7);
-uint32_t get_flow_req(uint32_t* array, uint32_t index);
+t27_arr_uint32_t_8 create_flow_array(uint32_t f0, uint32_t f1, uint32_t f2, uint32_t f3, uint32_t f4, uint32_t f5, uint32_t f6, uint32_t f7);
+uint32_t get_flow_req(t27_arr_uint32_t_8 array, uint32_t index);
 uint32_t calculate_fair_share(uint32_t total_bw, uint32_t flow_count);
 uint32_t allocate_bandwidth(uint32_t state, uint32_t flow_req, uint32_t available_bw);
 bool needs_more_bandwidth(uint32_t flow_req);
 uint32_t update_flow_bandwidth(uint32_t flow_req, uint32_t new_bw);
-uint32_t count_active_flows(uint32_t* flow_array);
-uint32_t find_reclaimable_bandwidth(uint32_t state, uint32_t* flow_array);
-uint32_t* prioritize_bandwidth(uint32_t* flow_array, uint32_t available_bw);
+uint32_t count_active_flows(t27_arr_uint32_t_8 flow_array);
+uint32_t find_reclaimable_bandwidth(uint32_t state, t27_arr_uint32_t_8 flow_array);
+t27_arr_uint32_t_8 prioritize_bandwidth(t27_arr_uint32_t_8 flow_array, uint32_t available_bw);
 
 /* -------------------------------------------------------
    Function implementations
@@ -93,13 +99,13 @@ uint32_t get_last_update(uint32_t state) {
     return (state & 0xF);
 }
 
-uint32_t* create_flow_array(uint32_t f0, uint32_t f1, uint32_t f2, uint32_t f3, uint32_t f4, uint32_t f5, uint32_t f6, uint32_t f7) {
-    return { f0, f1, f2, f3, f4, f5, f6, f7 };
+t27_arr_uint32_t_8 create_flow_array(uint32_t f0, uint32_t f1, uint32_t f2, uint32_t f3, uint32_t f4, uint32_t f5, uint32_t f6, uint32_t f7) {
+    return (t27_arr_uint32_t_8){ .v = { f0, f1, f2, f3, f4, f5, f6, f7 } };
 }
 
-uint32_t get_flow_req(uint32_t* array, uint32_t index) {
+uint32_t get_flow_req(t27_arr_uint32_t_8 array, uint32_t index) {
     if ((index < 8)) {
-        return array[index];
+        return array.v[index];
     }
     return 0;
 }
@@ -115,7 +121,7 @@ uint32_t allocate_bandwidth(uint32_t state, uint32_t flow_req, uint32_t availabl
     int priority = get_flow_priority(flow_req);
     int min_bw = get_min_bandwidth(flow_req);
     int allocated = get_allocated_bw(state);
-    int allocation = 0;
+    uint32_t allocation = 0;
     if ((priority == PRIORITY_HIGH)) {
         allocation = (min_bw + ((available_bw * 7) / 10));
     } else if ((priority == PRIORITY_MEDIUM)) {
@@ -158,8 +164,8 @@ uint32_t update_flow_bandwidth(uint32_t flow_req, uint32_t new_bw) {
     return create_flow_requirement(flow_id, priority, min_bw, new_bw);
 }
 
-uint32_t count_active_flows(uint32_t* flow_array) {
-    int count = 0;
+uint32_t count_active_flows(t27_arr_uint32_t_8 flow_array) {
+    uint32_t count = 0;
     if ((get_current_bandwidth(get_flow_req(flow_array, 0)) > 0)) {
         count = (count + 1);
     }
@@ -187,9 +193,9 @@ uint32_t count_active_flows(uint32_t* flow_array) {
     return count;
 }
 
-uint32_t find_reclaimable_bandwidth(uint32_t state, uint32_t* flow_array) {
+uint32_t find_reclaimable_bandwidth(uint32_t state, t27_arr_uint32_t_8 flow_array) {
     int allocated = get_allocated_bw(state);
-    int total_used = 0;
+    uint32_t total_used = 0;
     if ((get_current_bandwidth(get_flow_req(flow_array, 0)) > 0)) {
         total_used = (total_used + get_current_bandwidth(get_flow_req(flow_array, 0)));
     }
@@ -220,7 +226,7 @@ uint32_t find_reclaimable_bandwidth(uint32_t state, uint32_t* flow_array) {
     return 0;
 }
 
-uint32_t* prioritize_bandwidth(uint32_t* flow_array, uint32_t available_bw) {
+t27_arr_uint32_t_8 prioritize_bandwidth(t27_arr_uint32_t_8 flow_array, uint32_t available_bw) {
     int remaining_bw = available_bw;
     int f0 = get_flow_req(flow_array, 0);
     int f1 = get_flow_req(flow_array, 1);
@@ -331,13 +337,13 @@ void test_update_flow_bandwidth_respects_max(void) {
 }
 
 void test_count_active_flows_full(void) {
-    uint64_t flow_array = create_flow_array(create_flow_requirement(1, PRIORITY_HIGH, 50, 100), create_flow_requirement(2, PRIORITY_MEDIUM, 40, 80), create_flow_requirement(3, PRIORITY_LOW, 30, 60), create_flow_requirement(4, PRIORITY_HIGH, 70, 120), create_flow_requirement(5, PRIORITY_MEDIUM, 35, 70), create_flow_requirement(6, PRIORITY_LOW, 25, 50), create_flow_requirement(7, PRIORITY_HIGH, 60, 110), create_flow_requirement(8, PRIORITY_LOW, 20, 40));
+    t27_arr_uint32_t_8 flow_array = create_flow_array(create_flow_requirement(1, PRIORITY_HIGH, 50, 100), create_flow_requirement(2, PRIORITY_MEDIUM, 40, 80), create_flow_requirement(3, PRIORITY_LOW, 30, 60), create_flow_requirement(4, PRIORITY_HIGH, 70, 120), create_flow_requirement(5, PRIORITY_MEDIUM, 35, 70), create_flow_requirement(6, PRIORITY_LOW, 25, 50), create_flow_requirement(7, PRIORITY_HIGH, 60, 110), create_flow_requirement(8, PRIORITY_LOW, 20, 40));
     (void)flow_array;
     t27_assert((count_active_flows(flow_array) == 8), "8 active flows");
 }
 
 void test_count_active_flows_partial(void) {
-    uint64_t flow_array = create_flow_array(create_flow_requirement(1, PRIORITY_HIGH, 50, 100), create_flow_requirement(2, PRIORITY_MEDIUM, 40, 0), create_flow_requirement(3, PRIORITY_LOW, 30, 60), create_flow_requirement(4, PRIORITY_HIGH, 70, 0), 0, 0, 0, 0);
+    t27_arr_uint32_t_8 flow_array = create_flow_array(create_flow_requirement(1, PRIORITY_HIGH, 50, 100), create_flow_requirement(2, PRIORITY_MEDIUM, 40, 0), create_flow_requirement(3, PRIORITY_LOW, 30, 60), create_flow_requirement(4, PRIORITY_HIGH, 70, 0), 0, 0, 0, 0);
     (void)flow_array;
     t27_assert((count_active_flows(flow_array) == 2), "2 active flows");
 }
@@ -345,7 +351,7 @@ void test_count_active_flows_partial(void) {
 void test_find_reclaimable_bandwidth(void) {
     uint64_t state = create_allocation_state(500, 1, 100, 0);
     (void)state;
-    uint64_t flow_array = create_flow_array(create_flow_requirement(1, PRIORITY_HIGH, 50, 100), create_flow_requirement(2, PRIORITY_MEDIUM, 40, 80), create_flow_requirement(3, PRIORITY_LOW, 30, 60), create_flow_requirement(4, PRIORITY_HIGH, 70, 120), 0, 0, 0, 0);
+    t27_arr_uint32_t_8 flow_array = create_flow_array(create_flow_requirement(1, PRIORITY_HIGH, 50, 100), create_flow_requirement(2, PRIORITY_MEDIUM, 40, 80), create_flow_requirement(3, PRIORITY_LOW, 30, 60), create_flow_requirement(4, PRIORITY_HIGH, 70, 120), 0, 0, 0, 0);
     (void)flow_array;
     int reclaimable = find_reclaimable_bandwidth(state, flow_array);
     int total_used = (((100 + 80) + 60) + 120);
@@ -353,9 +359,9 @@ void test_find_reclaimable_bandwidth(void) {
 }
 
 void test_prioritize_bandwidth_distributes(void) {
-    uint64_t flow_array = create_flow_array(create_flow_requirement(1, PRIORITY_HIGH, 50, 100), create_flow_requirement(2, PRIORITY_MEDIUM, 40, 80), create_flow_requirement(3, PRIORITY_LOW, 30, 60), create_flow_requirement(4, PRIORITY_HIGH, 70, 120), 0, 0, 0, 0);
+    t27_arr_uint32_t_8 flow_array = create_flow_array(create_flow_requirement(1, PRIORITY_HIGH, 50, 100), create_flow_requirement(2, PRIORITY_MEDIUM, 40, 80), create_flow_requirement(3, PRIORITY_LOW, 30, 60), create_flow_requirement(4, PRIORITY_HIGH, 70, 120), 0, 0, 0, 0);
     (void)flow_array;
-    int new_array = prioritize_bandwidth(flow_array, 800);
+    t27_arr_uint32_t_8 new_array = prioritize_bandwidth(flow_array, 800);
     t27_assert((get_current_bandwidth(get_flow_req(new_array, 0)) == 100), "flow 0 bandwidth");
     t27_assert((get_current_bandwidth(get_flow_req(new_array, 1)) == 100), "flow 1 bandwidth");
 }

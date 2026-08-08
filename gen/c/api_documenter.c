@@ -30,6 +30,13 @@
 #define XREF_SIMILAR 3
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[64]; } t27_arr_uint32_t_64;
+typedef struct { uint32_t v[16]; } t27_arr_uint32_t_16;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -68,13 +75,13 @@ uint32_t get_module_doc_id(uint32_t module_doc);
 uint32_t get_module_function_count(uint32_t module_doc);
 uint32_t get_module_total_complexity(uint32_t module_doc);
 uint32_t get_module_description(uint32_t module_doc);
-uint32_t calculate_average_complexity(uint32_t* func_docs, uint32_t func_count);
-uint32_t generate_api_documentation(uint32_t* func_docs, uint32_t func_count, uint32_t* param_docs, uint32_t param_count);
+uint32_t calculate_average_complexity(t27_arr_uint32_t_64 func_docs, uint32_t func_count);
+uint32_t generate_api_documentation(t27_arr_uint32_t_64 func_docs, uint32_t func_count, t27_arr_uint32_t_16 param_docs, uint32_t param_count);
 uint32_t calculate_documentation_coverage(uint32_t documented_funcs, uint32_t total_funcs);
 uint32_t generate_usage_example(uint32_t func_doc, uint32_t context);
-uint32_t create_dependency_graph(uint32_t* xrefs, uint32_t xref_count);
-uint32_t validate_documentation(uint32_t* func_docs, uint32_t func_count);
-uint32_t generate_documentation_report(uint32_t* func_docs, uint32_t func_count, uint32_t* xrefs, uint32_t xref_count);
+uint32_t create_dependency_graph(t27_arr_uint32_t_64 xrefs, uint32_t xref_count);
+uint32_t validate_documentation(t27_arr_uint32_t_64 func_docs, uint32_t func_count);
+uint32_t generate_documentation_report(t27_arr_uint32_t_64 func_docs, uint32_t func_count, t27_arr_uint32_t_64 xrefs, uint32_t xref_count);
 
 /* -------------------------------------------------------
    Function implementations
@@ -241,11 +248,11 @@ uint32_t get_module_description(uint32_t module_doc) {
     return (module_doc & 0xFF);
 }
 
-uint32_t calculate_average_complexity(uint32_t* func_docs, uint32_t func_count) {
+uint32_t calculate_average_complexity(t27_arr_uint32_t_64 func_docs, uint32_t func_count) {
     uint32_t total_complexity = 0;
     uint32_t i = 0;
     while ((i < func_count)) {
-        total_complexity = (total_complexity + get_doc_complexity(func_docs[i]));
+        total_complexity = (total_complexity + get_doc_complexity(func_docs.v[i]));
         i = (i + 1);
     }
     if ((func_count > 0)) {
@@ -255,12 +262,12 @@ uint32_t calculate_average_complexity(uint32_t* func_docs, uint32_t func_count) 
     }
 }
 
-uint32_t generate_api_documentation(uint32_t* func_docs, uint32_t func_count, uint32_t* param_docs, uint32_t param_count) {
+uint32_t generate_api_documentation(t27_arr_uint32_t_64 func_docs, uint32_t func_count, t27_arr_uint32_t_16 param_docs, uint32_t param_count) {
     uint32_t total_complexity = 0;
     uint32_t documented_funcs = 0;
     uint32_t i = 0;
     while ((i < func_count)) {
-        uint32_t func_doc = func_docs[i];
+        uint32_t func_doc = func_docs.v[i];
         total_complexity = (total_complexity + get_doc_complexity(func_doc));
         uint32_t description = generate_function_description(func_doc, get_doc_complexity(func_doc));
         uint32_t example = generate_function_example(func_doc);
@@ -286,12 +293,12 @@ uint32_t generate_usage_example(uint32_t func_doc, uint32_t context) {
     return create_function_example(func_id, usage_pattern, (usage_pattern + 10), 2);
 }
 
-uint32_t create_dependency_graph(uint32_t* xrefs, uint32_t xref_count) {
+uint32_t create_dependency_graph(t27_arr_uint32_t_64 xrefs, uint32_t xref_count) {
     uint32_t total_connections = 0;
     uint32_t strong_connections = 0;
     uint32_t i = 0;
     while ((i < xref_count)) {
-        uint32_t strength = get_xref_strength(xrefs[i]);
+        uint32_t strength = get_xref_strength(xrefs.v[i]);
         total_connections = (total_connections + 1);
         if ((strength > 70)) {
             strong_connections = (strong_connections + 1);
@@ -305,13 +312,13 @@ uint32_t create_dependency_graph(uint32_t* xrefs, uint32_t xref_count) {
     return (((((total_connections & 0xFF) << 24) | ((strong_connections & 0xFF) << 16)) | ((avg_strength & 0xFF) << 8)) | (xref_count & 0xFF));
 }
 
-uint32_t validate_documentation(uint32_t* func_docs, uint32_t func_count) {
+uint32_t validate_documentation(t27_arr_uint32_t_64 func_docs, uint32_t func_count) {
     uint32_t missing_descriptions = 0;
     uint32_t missing_examples = 0;
     uint32_t missing_params = 0;
     uint32_t i = 0;
     while ((i < func_count)) {
-        uint32_t func_doc = func_docs[i];
+        uint32_t func_doc = func_docs.v[i];
         uint32_t complexity = get_doc_complexity(func_doc);
         if ((complexity == 0)) {
             missing_descriptions = (missing_descriptions + 1);
@@ -329,8 +336,9 @@ uint32_t validate_documentation(uint32_t* func_docs, uint32_t func_count) {
     return (((((missing_descriptions & 0xFF) << 24) | ((missing_examples & 0xFF) << 16)) | ((missing_params & 0xFF) << 8)) | (quality_score & 0xFF));
 }
 
-uint32_t generate_documentation_report(uint32_t* func_docs, uint32_t func_count, uint32_t* xrefs, uint32_t xref_count) {
-    uint32_t doc_summary = generate_api_documentation(func_docs, func_count, func_docs, 0);
+uint32_t generate_documentation_report(t27_arr_uint32_t_64 func_docs, uint32_t func_count, t27_arr_uint32_t_64 xrefs, uint32_t xref_count) {
+    t27_arr_uint32_t_16 empty_params = { .v = { [0 ... (MAX_PARAMETERS) - 1] = 0 } };
+    uint32_t doc_summary = generate_api_documentation(func_docs, func_count, empty_params, 0);
     uint32_t documented_funcs = ((doc_summary >> 24) & 0xFF);
     uint32_t coverage = calculate_documentation_coverage(documented_funcs, func_count);
     uint32_t validation = validate_documentation(func_docs, func_count);

@@ -33,6 +33,13 @@
 #define NODE_SLEEPING 3
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[32]; } t27_arr_uint32_t_32;
+typedef struct { uint32_t v[128]; } t27_arr_uint32_t_128;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -67,7 +74,7 @@ uint32_t get_sim_time(uint32_t state);
 uint32_t get_sim_event_count(uint32_t state);
 uint32_t get_sim_node_count(uint32_t state);
 uint32_t advance_simulation(uint32_t state, uint32_t time_delta);
-uint32_t process_event(uint32_t event, uint32_t* node_states, uint32_t* link_states);
+uint32_t process_event(uint32_t event, t27_arr_uint32_t_32 node_states, t27_arr_uint32_t_32 link_states);
 uint32_t create_sim_stats(uint32_t sent, uint32_t recv, uint32_t dropped, uint32_t latency);
 uint32_t get_packets_sent(uint32_t stats);
 uint32_t get_packets_recv(uint32_t stats);
@@ -76,8 +83,8 @@ uint32_t get_total_latency(uint32_t stats);
 uint32_t calculate_delivery_ratio(uint32_t stats);
 uint32_t calculate_average_latency(uint32_t stats);
 uint32_t create_topology(uint32_t node_count, uint32_t density);
-uint32_t inject_fault(uint32_t fault_type, uint32_t target_id, uint32_t* node_states);
-uint32_t run_simulation_step(uint32_t state, uint32_t* events, uint32_t event_count, uint32_t* node_states, uint32_t* link_states);
+uint32_t inject_fault(uint32_t fault_type, uint32_t target_id, t27_arr_uint32_t_32 node_states);
+uint32_t run_simulation_step(uint32_t state, t27_arr_uint32_t_128 events, uint32_t event_count, t27_arr_uint32_t_32 node_states, t27_arr_uint32_t_32 link_states);
 uint32_t generate_simulation_report(uint32_t stats, uint32_t duration, uint32_t node_count);
 
 /* -------------------------------------------------------
@@ -240,7 +247,7 @@ uint32_t advance_simulation(uint32_t state, uint32_t time_delta) {
     return create_sim_state(new_time, event_count, node_count);
 }
 
-uint32_t process_event(uint32_t event, uint32_t* node_states, uint32_t* link_states) {
+uint32_t process_event(uint32_t event, t27_arr_uint32_t_32 node_states, t27_arr_uint32_t_32 link_states) {
     uint32_t event_type = get_event_type(event);
     uint32_t node_id = get_event_node_id(event);
     if ((event_type == EVENT_PACKET_SEND)) {
@@ -248,8 +255,8 @@ uint32_t process_event(uint32_t event, uint32_t* node_states, uint32_t* link_sta
     } else if ((event_type == EVENT_PACKET_RECV)) {
         return 1;
     } else if ((event_type == EVENT_NODE_FAILURE)) {
-        uint32_t current_state = node_states[node_id];
-        node_states[node_id] = update_node_status(current_state, NODE_FAILED);
+        uint32_t current_state = node_states.v[node_id];
+        node_states.v[node_id] = update_node_status(current_state, NODE_FAILED);
         return 1;
     } else if ((event_type == EVENT_LINK_FAILURE)) {
         return 1;
@@ -308,10 +315,10 @@ uint32_t create_topology(uint32_t node_count, uint32_t density) {
     return link_count;
 }
 
-uint32_t inject_fault(uint32_t fault_type, uint32_t target_id, uint32_t* node_states) {
+uint32_t inject_fault(uint32_t fault_type, uint32_t target_id, t27_arr_uint32_t_32 node_states) {
     if ((fault_type == EVENT_NODE_FAILURE)) {
-        uint32_t current_state = node_states[target_id];
-        node_states[target_id] = update_node_status(current_state, NODE_FAILED);
+        uint32_t current_state = node_states.v[target_id];
+        node_states.v[target_id] = update_node_status(current_state, NODE_FAILED);
         return 1;
     } else if ((fault_type == EVENT_LINK_FAILURE)) {
         return 1;
@@ -320,14 +327,14 @@ uint32_t inject_fault(uint32_t fault_type, uint32_t target_id, uint32_t* node_st
     }
 }
 
-uint32_t run_simulation_step(uint32_t state, uint32_t* events, uint32_t event_count, uint32_t* node_states, uint32_t* link_states) {
+uint32_t run_simulation_step(uint32_t state, t27_arr_uint32_t_128 events, uint32_t event_count, t27_arr_uint32_t_32 node_states, t27_arr_uint32_t_32 link_states) {
     uint32_t current_time = get_sim_time(state);
     uint32_t processed_count = 0;
     uint32_t i = 0;
     while ((i < event_count)) {
-        uint32_t event_time = get_event_timestamp(events[i]);
+        uint32_t event_time = get_event_timestamp(events.v[i]);
         if ((event_time <= current_time)) {
-            process_event(events[i], node_states, link_states);
+            process_event(events.v[i], node_states, link_states);
             processed_count = (processed_count + 1);
         }
         i = (i + 1);

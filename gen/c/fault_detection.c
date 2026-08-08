@@ -24,6 +24,12 @@
 #define LINK_QUALITY_POOR 30
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[8]; } t27_arr_uint32_t_8;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -32,8 +38,8 @@ uint32_t get_is_alive(uint32_t state);
 uint32_t get_failure_count(uint32_t state);
 uint32_t get_last_heartbeat(uint32_t state);
 uint32_t get_link_quality(uint32_t state);
-uint32_t* create_node_table(uint32_t n0, uint32_t n1, uint32_t n2, uint32_t n3, uint32_t n4, uint32_t n5, uint32_t n6, uint32_t n7);
-uint32_t get_node_state(uint32_t* table, uint32_t index);
+t27_arr_uint32_t_8 create_node_table(uint32_t n0, uint32_t n1, uint32_t n2, uint32_t n3, uint32_t n4, uint32_t n5, uint32_t n6, uint32_t n7);
+uint32_t get_node_state(t27_arr_uint32_t_8 table, uint32_t index);
 bool is_heartbeat_timeout(uint32_t state, uint32_t current_time);
 uint32_t detect_node_failure(uint32_t state, uint32_t current_time);
 uint32_t increment_failure_count(uint32_t state);
@@ -44,7 +50,7 @@ bool is_poor_link(uint32_t state);
 uint32_t update_link_quality(uint32_t state, uint32_t new_quality);
 uint32_t mark_node_dead(uint32_t state);
 uint32_t mark_node_alive(uint32_t state, uint32_t current_time);
-uint32_t count_failed_nodes(uint32_t* table);
+uint32_t count_failed_nodes(t27_arr_uint32_t_8 table);
 
 /* -------------------------------------------------------
    Function implementations
@@ -70,13 +76,13 @@ uint32_t get_link_quality(uint32_t state) {
     return (state & 0xFF);
 }
 
-uint32_t* create_node_table(uint32_t n0, uint32_t n1, uint32_t n2, uint32_t n3, uint32_t n4, uint32_t n5, uint32_t n6, uint32_t n7) {
-    return { n0, n1, n2, n3, n4, n5, n6, n7 };
+t27_arr_uint32_t_8 create_node_table(uint32_t n0, uint32_t n1, uint32_t n2, uint32_t n3, uint32_t n4, uint32_t n5, uint32_t n6, uint32_t n7) {
+    return (t27_arr_uint32_t_8){ .v = { n0, n1, n2, n3, n4, n5, n6, n7 } };
 }
 
-uint32_t get_node_state(uint32_t* table, uint32_t index) {
+uint32_t get_node_state(t27_arr_uint32_t_8 table, uint32_t index) {
     if ((index < 8)) {
-        return table[index];
+        return table.v[index];
     }
     return 0;
 }
@@ -141,8 +147,8 @@ uint32_t mark_node_alive(uint32_t state, uint32_t current_time) {
     return create_node_state(1, 0, current_time, quality);
 }
 
-uint32_t count_failed_nodes(uint32_t* table) {
-    int count = 0;
+uint32_t count_failed_nodes(t27_arr_uint32_t_8 table) {
+    uint32_t count = 0;
     if (is_node_failed(get_node_state(table, 0))) {
         count = (count + 1);
     }
@@ -280,13 +286,13 @@ void test_mark_node_alive(void) {
 }
 
 void test_count_failed_nodes_multiple(void) {
-    uint64_t table = create_node_table(create_node_state(1, 3, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 4, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 5, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 0, 5000, 80));
+    t27_arr_uint32_t_8 table = create_node_table(create_node_state(1, 3, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 4, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 5, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 0, 5000, 80));
     (void)table;
     t27_assert((count_failed_nodes(table) == 3), "3 failed nodes");
 }
 
 void test_count_failed_nodes_zero(void) {
-    uint64_t table = create_node_table(create_node_state(1, 0, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 0, 5000, 80));
+    t27_arr_uint32_t_8 table = create_node_table(create_node_state(1, 0, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 0, 5000, 80));
     (void)table;
     t27_assert((count_failed_nodes(table) == 0), "0 failed nodes");
 }

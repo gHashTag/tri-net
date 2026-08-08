@@ -24,6 +24,12 @@
 #define ROTATION_INTERVAL 30000
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[4]; } t27_arr_uint32_t_4;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -32,16 +38,16 @@ uint32_t get_key_valid(uint32_t entry);
 uint32_t get_key_id(uint32_t entry);
 uint32_t get_key_value(uint32_t entry);
 uint32_t get_key_timestamp(uint32_t entry);
-uint32_t* create_key_store(uint32_t k0, uint32_t k1, uint32_t k2, uint32_t k3);
-uint32_t* set_key_slot(uint32_t* store, uint32_t index, uint32_t entry);
-uint32_t get_key_entry(uint32_t* store, uint32_t index);
-uint32_t find_key_by_id(uint32_t* store, uint32_t key_id);
-uint32_t* add_key(uint32_t* store, uint32_t key_id, uint32_t key_value, uint32_t timestamp);
-uint32_t* invalidate_key(uint32_t* store, uint32_t key_id);
+t27_arr_uint32_t_4 create_key_store(uint32_t k0, uint32_t k1, uint32_t k2, uint32_t k3);
+t27_arr_uint32_t_4 set_key_slot(t27_arr_uint32_t_4 store, uint32_t index, uint32_t entry);
+uint32_t get_key_entry(t27_arr_uint32_t_4 store, uint32_t index);
+uint32_t find_key_by_id(t27_arr_uint32_t_4 store, uint32_t key_id);
+t27_arr_uint32_t_4 add_key(t27_arr_uint32_t_4 store, uint32_t key_id, uint32_t key_value, uint32_t timestamp);
+t27_arr_uint32_t_4 invalidate_key(t27_arr_uint32_t_4 store, uint32_t key_id);
 bool needs_rotation(uint32_t entry, uint32_t current_time);
-uint32_t* rotate_key(uint32_t* store, uint32_t key_id, uint32_t new_value, uint32_t current_time);
-uint32_t get_active_key(uint32_t* store);
-uint32_t count_valid_keys(uint32_t* store);
+t27_arr_uint32_t_4 rotate_key(t27_arr_uint32_t_4 store, uint32_t key_id, uint32_t new_value, uint32_t current_time);
+uint32_t get_active_key(t27_arr_uint32_t_4 store);
+uint32_t count_valid_keys(t27_arr_uint32_t_4 store);
 
 /* -------------------------------------------------------
    Function implementations
@@ -67,35 +73,35 @@ uint32_t get_key_timestamp(uint32_t entry) {
     return (entry & 0xFF);
 }
 
-uint32_t* create_key_store(uint32_t k0, uint32_t k1, uint32_t k2, uint32_t k3) {
-    return { k0, k1, k2, k3 };
+t27_arr_uint32_t_4 create_key_store(uint32_t k0, uint32_t k1, uint32_t k2, uint32_t k3) {
+    return (t27_arr_uint32_t_4){ .v = { k0, k1, k2, k3 } };
 }
 
-uint32_t* set_key_slot(uint32_t* store, uint32_t index, uint32_t entry) {
-    uint32_t k0 = store[0];
-    uint32_t k1 = store[1];
-    uint32_t k2 = store[2];
-    uint32_t k3 = store[3];
+t27_arr_uint32_t_4 set_key_slot(t27_arr_uint32_t_4 store, uint32_t index, uint32_t entry) {
+    uint32_t k0 = store.v[0];
+    uint32_t k1 = store.v[1];
+    uint32_t k2 = store.v[2];
+    uint32_t k3 = store.v[3];
     if ((index == 0)) {
-        return { entry, k1, k2, k3 };
+        return (t27_arr_uint32_t_4){ .v = { entry, k1, k2, k3 } };
     }
     if ((index == 1)) {
-        return { k0, entry, k2, k3 };
+        return (t27_arr_uint32_t_4){ .v = { k0, entry, k2, k3 } };
     }
     if ((index == 2)) {
-        return { k0, k1, entry, k3 };
+        return (t27_arr_uint32_t_4){ .v = { k0, k1, entry, k3 } };
     }
-    return { k0, k1, k2, entry };
+    return (t27_arr_uint32_t_4){ .v = { k0, k1, k2, entry } };
 }
 
-uint32_t get_key_entry(uint32_t* store, uint32_t index) {
+uint32_t get_key_entry(t27_arr_uint32_t_4 store, uint32_t index) {
     if ((index < 4)) {
-        return store[index];
+        return store.v[index];
     }
     return 0;
 }
 
-uint32_t find_key_by_id(uint32_t* store, uint32_t key_id) {
+uint32_t find_key_by_id(t27_arr_uint32_t_4 store, uint32_t key_id) {
     if (((get_key_id(get_key_entry(store, 0)) == key_id) && (get_key_valid(get_key_entry(store, 0)) == KEY_VALID))) {
         return 0;
     } else if (((get_key_id(get_key_entry(store, 1)) == key_id) && (get_key_valid(get_key_entry(store, 1)) == KEY_VALID))) {
@@ -108,7 +114,7 @@ uint32_t find_key_by_id(uint32_t* store, uint32_t key_id) {
     return 0xFF;
 }
 
-uint32_t* add_key(uint32_t* store, uint32_t key_id, uint32_t key_value, uint32_t timestamp) {
+t27_arr_uint32_t_4 add_key(t27_arr_uint32_t_4 store, uint32_t key_id, uint32_t key_value, uint32_t timestamp) {
     if ((get_key_valid(get_key_entry(store, 0)) == KEY_INVALID)) {
         return set_key_slot(store, 0, create_key_entry(KEY_VALID, key_id, key_value, timestamp));
     } else if ((get_key_valid(get_key_entry(store, 1)) == KEY_INVALID)) {
@@ -121,7 +127,7 @@ uint32_t* add_key(uint32_t* store, uint32_t key_id, uint32_t key_value, uint32_t
     return store;
 }
 
-uint32_t* invalidate_key(uint32_t* store, uint32_t key_id) {
+t27_arr_uint32_t_4 invalidate_key(t27_arr_uint32_t_4 store, uint32_t key_id) {
     int index = find_key_by_id(store, key_id);
     if ((index != 0xFF)) {
         int entry = get_key_entry(store, index);
@@ -139,7 +145,7 @@ bool needs_rotation(uint32_t entry, uint32_t current_time) {
     return (age >= ROTATION_INTERVAL);
 }
 
-uint32_t* rotate_key(uint32_t* store, uint32_t key_id, uint32_t new_value, uint32_t current_time) {
+t27_arr_uint32_t_4 rotate_key(t27_arr_uint32_t_4 store, uint32_t key_id, uint32_t new_value, uint32_t current_time) {
     int index = find_key_by_id(store, key_id);
     if ((index != 0xFF)) {
         int new_entry = create_key_entry(KEY_VALID, key_id, new_value, current_time);
@@ -148,9 +154,9 @@ uint32_t* rotate_key(uint32_t* store, uint32_t key_id, uint32_t new_value, uint3
     return store;
 }
 
-uint32_t get_active_key(uint32_t* store) {
-    int best_index = 0xFF;
-    int best_timestamp = 0;
+uint32_t get_active_key(t27_arr_uint32_t_4 store) {
+    uint32_t best_index = 0xFF;
+    uint32_t best_timestamp = 0;
     if ((get_key_valid(get_key_entry(store, 0)) == KEY_VALID)) {
         int ts = get_key_timestamp(get_key_entry(store, 0));
         if ((ts >= best_timestamp)) {
@@ -185,8 +191,8 @@ uint32_t get_active_key(uint32_t* store) {
     return 0;
 }
 
-uint32_t count_valid_keys(uint32_t* store) {
-    int count = 0;
+uint32_t count_valid_keys(t27_arr_uint32_t_4 store) {
+    uint32_t count = 0;
     if ((get_key_valid(get_key_entry(store, 0)) == KEY_VALID)) {
         count = (count + 1);
     }
@@ -216,35 +222,35 @@ void test_create_key_entry_basic(void) {
 }
 
 void test_find_key_by_id_found(void) {
-    uint64_t store = create_key_store(create_key_entry(1, 1, 0x1111, 10), create_key_entry(1, 2, 0x2222, 20), create_key_entry(0, 3, 0x3333, 30), create_key_entry(1, 4, 0x4444, 40));
+    t27_arr_uint32_t_4 store = create_key_store(create_key_entry(1, 1, 0x1111, 10), create_key_entry(1, 2, 0x2222, 20), create_key_entry(0, 3, 0x3333, 30), create_key_entry(1, 4, 0x4444, 40));
     (void)store;
     t27_assert((find_key_by_id(store, 2) == 1), "found at index 1");
 }
 
 void test_find_key_by_id_not_found(void) {
-    uint64_t store = create_key_store(create_key_entry(1, 1, 0x1111, 10), create_key_entry(1, 2, 0x2222, 20), create_key_entry(0, 3, 0x3333, 30), create_key_entry(1, 4, 0x4444, 40));
+    t27_arr_uint32_t_4 store = create_key_store(create_key_entry(1, 1, 0x1111, 10), create_key_entry(1, 2, 0x2222, 20), create_key_entry(0, 3, 0x3333, 30), create_key_entry(1, 4, 0x4444, 40));
     (void)store;
     t27_assert((find_key_by_id(store, 99) == 0xFF), "not found");
 }
 
 void test_find_key_by_id_invalid_ignored(void) {
-    uint64_t store = create_key_store(create_key_entry(1, 1, 0x1111, 10), create_key_entry(0, 2, 0x2222, 20), create_key_entry(1, 3, 0x3333, 30), create_key_entry(1, 4, 0x4444, 40));
+    t27_arr_uint32_t_4 store = create_key_store(create_key_entry(1, 1, 0x1111, 10), create_key_entry(0, 2, 0x2222, 20), create_key_entry(1, 3, 0x3333, 30), create_key_entry(1, 4, 0x4444, 40));
     (void)store;
     t27_assert((find_key_by_id(store, 2) == 0xFF), "invalid key ignored");
 }
 
 void test_add_key_empty_slot(void) {
-    uint64_t store = create_key_store(create_key_entry(0, 0, 0, 0), create_key_entry(0, 0, 0, 0), create_key_entry(0, 0, 0, 0), create_key_entry(0, 0, 0, 0));
+    t27_arr_uint32_t_4 store = create_key_store(create_key_entry(0, 0, 0, 0), create_key_entry(0, 0, 0, 0), create_key_entry(0, 0, 0, 0), create_key_entry(0, 0, 0, 0));
     (void)store;
-    uint64_t new_store = add_key(store, 5, 0xABCD, 100);
+    t27_arr_uint32_t_4 new_store = add_key(store, 5, 0xABCD, 100);
     (void)new_store;
     t27_assert((get_key_id(get_key_entry(new_store, 0)) == 5), "key added");
 }
 
 void test_invalidate_key_works(void) {
-    uint64_t store = create_key_store(create_key_entry(1, 1, 0x1111, 10), create_key_entry(1, 2, 0x2222, 20), create_key_entry(1, 3, 0x3333, 30), create_key_entry(0, 0, 0, 0));
+    t27_arr_uint32_t_4 store = create_key_store(create_key_entry(1, 1, 0x1111, 10), create_key_entry(1, 2, 0x2222, 20), create_key_entry(1, 3, 0x3333, 30), create_key_entry(0, 0, 0, 0));
     (void)store;
-    uint64_t new_store = invalidate_key(store, 2);
+    t27_arr_uint32_t_4 new_store = invalidate_key(store, 2);
     (void)new_store;
     t27_assert((get_key_valid(get_key_entry(new_store, 1)) == 0), "key invalidated");
 }
@@ -268,27 +274,27 @@ void test_needs_rotation_invalid(void) {
 }
 
 void test_rotate_key_works(void) {
-    uint64_t store = create_key_store(create_key_entry(1, 1, 0x1111, 10000), create_key_entry(0, 0, 0, 0), create_key_entry(0, 0, 0, 0), create_key_entry(0, 0, 0, 0));
+    t27_arr_uint32_t_4 store = create_key_store(create_key_entry(1, 1, 0x1111, 10000), create_key_entry(0, 0, 0, 0), create_key_entry(0, 0, 0, 0), create_key_entry(0, 0, 0, 0));
     (void)store;
-    uint64_t new_store = rotate_key(store, 1, 0x9999, 50000);
+    t27_arr_uint32_t_4 new_store = rotate_key(store, 1, 0x9999, 50000);
     (void)new_store;
     t27_assert((get_key_value(get_key_entry(new_store, 0)) == 0x9999), "value updated");
 }
 
 void test_get_active_key_returns_latest(void) {
-    uint64_t store = create_key_store(create_key_entry(1, 1, 0x1111, 10), create_key_entry(1, 2, 0x2222, 30), create_key_entry(1, 3, 0x3333, 20), create_key_entry(0, 0, 0, 0));
+    t27_arr_uint32_t_4 store = create_key_store(create_key_entry(1, 1, 0x1111, 10), create_key_entry(1, 2, 0x2222, 30), create_key_entry(1, 3, 0x3333, 20), create_key_entry(0, 0, 0, 0));
     (void)store;
     t27_assert((get_active_key(store) == 0x2222), "latest key");
 }
 
 void test_count_valid_keys_all(void) {
-    uint64_t store = create_key_store(create_key_entry(1, 1, 0x1111, 10), create_key_entry(1, 2, 0x2222, 20), create_key_entry(1, 3, 0x3333, 30), create_key_entry(1, 4, 0x4444, 40));
+    t27_arr_uint32_t_4 store = create_key_store(create_key_entry(1, 1, 0x1111, 10), create_key_entry(1, 2, 0x2222, 20), create_key_entry(1, 3, 0x3333, 30), create_key_entry(1, 4, 0x4444, 40));
     (void)store;
     t27_assert((count_valid_keys(store) == 4), "4 valid keys");
 }
 
 void test_count_valid_keys_some(void) {
-    uint64_t store = create_key_store(create_key_entry(1, 1, 0x1111, 10), create_key_entry(0, 2, 0x2222, 20), create_key_entry(1, 3, 0x3333, 30), create_key_entry(0, 4, 0x4444, 40));
+    t27_arr_uint32_t_4 store = create_key_store(create_key_entry(1, 1, 0x1111, 10), create_key_entry(0, 2, 0x2222, 20), create_key_entry(1, 3, 0x3333, 30), create_key_entry(0, 4, 0x4444, 40));
     (void)store;
     t27_assert((count_valid_keys(store) == 2), "2 valid keys");
 }

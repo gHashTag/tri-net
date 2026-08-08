@@ -23,6 +23,12 @@
 #define EVICTION_AGE 1000
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[16]; } t27_arr_uint32_t_16;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -33,19 +39,19 @@ uint32_t get_age(uint32_t entry);
 uint32_t get_entry_size(uint32_t entry);
 uint32_t update_access_count(uint32_t entry);
 uint32_t update_age(uint32_t entry, uint32_t new_age);
-uint32_t find_entry(uint32_t* cache, uint32_t data_id);
-uint32_t cache_hit(uint32_t* cache, uint32_t data_id);
-uint32_t get_entry(uint32_t* cache, uint32_t data_id);
-uint32_t add_entry(uint32_t* cache, uint32_t current_size, uint32_t data_id, uint32_t size);
-uint32_t find_eviction_candidate(uint32_t* cache);
-uint32_t remove_entry(uint32_t* cache, uint32_t current_size, uint32_t data_id);
-uint32_t access_cache(uint32_t* cache, uint32_t data_id);
-void age_cache(uint32_t* cache);
+uint32_t find_entry(t27_arr_uint32_t_16 cache, uint32_t data_id);
+uint32_t cache_hit(t27_arr_uint32_t_16 cache, uint32_t data_id);
+uint32_t get_entry(t27_arr_uint32_t_16 cache, uint32_t data_id);
+uint32_t add_entry(t27_arr_uint32_t_16 cache, uint32_t current_size, uint32_t data_id, uint32_t size);
+uint32_t find_eviction_candidate(t27_arr_uint32_t_16 cache);
+uint32_t remove_entry(t27_arr_uint32_t_16 cache, uint32_t current_size, uint32_t data_id);
+uint32_t access_cache(t27_arr_uint32_t_16 cache, uint32_t data_id);
+void age_cache(t27_arr_uint32_t_16 cache);
 uint32_t calculate_hit_rate(uint32_t hits, uint32_t total_accesses);
 uint32_t calculate_utilization(uint32_t current_size);
-uint32_t find_most_popular(uint32_t* cache);
-uint32_t find_least_popular(uint32_t* cache);
-uint32_t should_prefetch(uint32_t* cache, uint32_t data_id);
+uint32_t find_most_popular(t27_arr_uint32_t_16 cache);
+uint32_t find_least_popular(t27_arr_uint32_t_16 cache);
+uint32_t should_prefetch(t27_arr_uint32_t_16 cache, uint32_t data_id);
 uint32_t calculate_efficiency(uint32_t hits, uint32_t total_accesses, uint32_t current_size);
 uint32_t create_cache_stats(uint32_t hits, uint32_t misses, uint32_t size, uint32_t evictions);
 uint32_t get_hits(uint32_t stats);
@@ -96,10 +102,10 @@ uint32_t update_age(uint32_t entry, uint32_t new_age) {
     return create_cache_entry(data_id, access_count, new_age, size);
 }
 
-uint32_t find_entry(uint32_t* cache, uint32_t data_id) {
+uint32_t find_entry(t27_arr_uint32_t_16 cache, uint32_t data_id) {
     uint32_t i = 0;
     while ((i < MAX_ENTRIES)) {
-        uint32_t entry_data_id = get_data_id(cache[i]);
+        uint32_t entry_data_id = get_data_id(cache.v[i]);
         if ((entry_data_id == data_id)) {
             return i;
         }
@@ -108,7 +114,7 @@ uint32_t find_entry(uint32_t* cache, uint32_t data_id) {
     return MAX_ENTRIES;
 }
 
-uint32_t cache_hit(uint32_t* cache, uint32_t data_id) {
+uint32_t cache_hit(t27_arr_uint32_t_16 cache, uint32_t data_id) {
     uint32_t entry_index = find_entry(cache, data_id);
     if ((entry_index < MAX_ENTRIES)) {
         return 1;
@@ -117,16 +123,16 @@ uint32_t cache_hit(uint32_t* cache, uint32_t data_id) {
     }
 }
 
-uint32_t get_entry(uint32_t* cache, uint32_t data_id) {
+uint32_t get_entry(t27_arr_uint32_t_16 cache, uint32_t data_id) {
     uint32_t entry_index = find_entry(cache, data_id);
     if ((entry_index < MAX_ENTRIES)) {
-        return cache[entry_index];
+        return cache.v[entry_index];
     } else {
         return 0;
     }
 }
 
-uint32_t add_entry(uint32_t* cache, uint32_t current_size, uint32_t data_id, uint32_t size) {
+uint32_t add_entry(t27_arr_uint32_t_16 cache, uint32_t current_size, uint32_t data_id, uint32_t size) {
     uint32_t existing_index = find_entry(cache, data_id);
     if ((existing_index < MAX_ENTRIES)) {
         return current_size;
@@ -134,7 +140,7 @@ uint32_t add_entry(uint32_t* cache, uint32_t current_size, uint32_t data_id, uin
     uint32_t empty_index = MAX_ENTRIES;
     uint32_t i = 0;
     while ((i < MAX_ENTRIES)) {
-        if ((get_data_id(cache[i]) == 0)) {
+        if ((get_data_id(cache.v[i]) == 0)) {
             empty_index = i;
 break;
         }
@@ -145,22 +151,22 @@ break;
         if ((empty_index == MAX_ENTRIES)) {
             return current_size;
         }
-        uint32_t evicted_size = get_entry_size(cache[empty_index]);
+        uint32_t evicted_size = get_entry_size(cache.v[empty_index]);
         current_size = (current_size - evicted_size);
     }
     if (((current_size + size) > MAX_CACHE_SIZE)) {
         return current_size;
     }
-    cache[empty_index] = create_cache_entry(data_id, 1, 0, size);
+    cache.v[empty_index] = create_cache_entry(data_id, 1, 0, size);
     return (current_size + size);
 }
 
-uint32_t find_eviction_candidate(uint32_t* cache) {
+uint32_t find_eviction_candidate(t27_arr_uint32_t_16 cache) {
     uint32_t worst_score = 0xFFFFFFFF;
     uint32_t candidate = MAX_ENTRIES;
     uint32_t i = 0;
     while ((i < MAX_ENTRIES)) {
-        uint32_t entry = cache[i];
+        uint32_t entry = cache.v[i];
         uint32_t data_id = get_data_id(entry);
         if ((data_id != 0)) {
             uint32_t access_count = get_access_count(entry);
@@ -176,35 +182,35 @@ uint32_t find_eviction_candidate(uint32_t* cache) {
     return candidate;
 }
 
-uint32_t remove_entry(uint32_t* cache, uint32_t current_size, uint32_t data_id) {
+uint32_t remove_entry(t27_arr_uint32_t_16 cache, uint32_t current_size, uint32_t data_id) {
     uint32_t entry_index = find_entry(cache, data_id);
     if ((entry_index < MAX_ENTRIES)) {
-        uint32_t entry_size = get_entry_size(cache[entry_index]);
-        cache[entry_index] = 0;
+        uint32_t entry_size = get_entry_size(cache.v[entry_index]);
+        cache.v[entry_index] = 0;
         return (current_size - entry_size);
     } else {
         return current_size;
     }
 }
 
-uint32_t access_cache(uint32_t* cache, uint32_t data_id) {
+uint32_t access_cache(t27_arr_uint32_t_16 cache, uint32_t data_id) {
     uint32_t entry_index = find_entry(cache, data_id);
     if ((entry_index < MAX_ENTRIES)) {
-        cache[entry_index] = update_access_count(cache[entry_index]);
-        cache[entry_index] = update_age(cache[entry_index], 0);
+        cache.v[entry_index] = update_access_count(cache.v[entry_index]);
+        cache.v[entry_index] = update_age(cache.v[entry_index], 0);
         return 1;
     } else {
         return 0;
     }
 }
 
-void age_cache(uint32_t* cache) {
+void age_cache(t27_arr_uint32_t_16 cache) {
     uint32_t i = 0;
     while ((i < MAX_ENTRIES)) {
-        uint32_t entry = cache[i];
+        uint32_t entry = cache.v[i];
         uint32_t age = get_age(entry);
         if ((age < 255)) {
-            cache[i] = update_age(entry, (age + 1));
+            cache.v[i] = update_age(entry, (age + 1));
         }
         i = (i + 1);
     }
@@ -222,12 +228,12 @@ uint32_t calculate_utilization(uint32_t current_size) {
     return ((current_size * 100) / MAX_CACHE_SIZE);
 }
 
-uint32_t find_most_popular(uint32_t* cache) {
+uint32_t find_most_popular(t27_arr_uint32_t_16 cache) {
     uint32_t max_access = 0;
     uint32_t popular_index = MAX_ENTRIES;
     uint32_t i = 0;
     while ((i < MAX_ENTRIES)) {
-        uint32_t access_count = get_access_count(cache[i]);
+        uint32_t access_count = get_access_count(cache.v[i]);
         if ((access_count > max_access)) {
             max_access = access_count;
             popular_index = i;
@@ -237,12 +243,12 @@ uint32_t find_most_popular(uint32_t* cache) {
     return popular_index;
 }
 
-uint32_t find_least_popular(uint32_t* cache) {
+uint32_t find_least_popular(t27_arr_uint32_t_16 cache) {
     uint32_t min_access = 0xFFFFFFFF;
     uint32_t unpopular_index = MAX_ENTRIES;
     uint32_t i = 0;
     while ((i < MAX_ENTRIES)) {
-        uint32_t entry = cache[i];
+        uint32_t entry = cache.v[i];
         uint32_t data_id = get_data_id(entry);
         uint32_t access_count = get_access_count(entry);
         if (((data_id != 0) && (access_count < min_access))) {
@@ -254,13 +260,13 @@ uint32_t find_least_popular(uint32_t* cache) {
     return unpopular_index;
 }
 
-uint32_t should_prefetch(uint32_t* cache, uint32_t data_id) {
+uint32_t should_prefetch(t27_arr_uint32_t_16 cache, uint32_t data_id) {
     uint32_t popular_index = find_most_popular(cache);
     if ((popular_index < MAX_ENTRIES)) {
-        uint32_t popular_access = get_access_count(cache[popular_index]);
+        uint32_t popular_access = get_access_count(cache.v[popular_index]);
         uint32_t entry_index = find_entry(cache, data_id);
         if ((entry_index < MAX_ENTRIES)) {
-            uint32_t access_count = get_access_count(cache[entry_index]);
+            uint32_t access_count = get_access_count(cache.v[entry_index]);
             if ((access_count >= CACHE_HIT_THRESHOLD)) {
                 return 1;
             }
@@ -340,7 +346,7 @@ void test_access_count_saturates(void) {
 }
 
 void test_eviction_prefers_cold_then_old(void) {
-    uint32_t cache[16] = { create_cache_entry(1,5,10,8), create_cache_entry(2,1,10,8), create_cache_entry(3,1,200,8), create_cache_entry(4,9,250,8), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    t27_arr_uint32_t_16 cache = { .v = { create_cache_entry(1,5,10,8), create_cache_entry(2,1,10,8), create_cache_entry(3,1,200,8), create_cache_entry(4,9,250,8), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } };
     t27_assert((find_eviction_candidate(cache) == 2), "coldest then oldest wins");
 }
 

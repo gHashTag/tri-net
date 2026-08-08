@@ -24,6 +24,13 @@
 #define PREDICTION_WINDOW 5
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[16]; } t27_arr_uint32_t_16;
+typedef struct { uint32_t v[8]; } t27_arr_uint32_t_8;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -37,18 +44,18 @@ uint32_t get_predicted_load(uint32_t prediction);
 uint32_t get_confidence(uint32_t prediction);
 uint32_t get_trend(uint32_t prediction);
 uint32_t get_time_horizon(uint32_t prediction);
-uint32_t calculate_moving_average(uint32_t* history, uint32_t count);
-uint32_t detect_trend(uint32_t* history, uint32_t count);
-uint32_t predict_load(uint32_t* history, uint32_t count);
-uint32_t calculate_confidence(uint32_t* history, uint32_t count);
-uint32_t create_load_prediction(uint32_t* history, uint32_t count);
+uint32_t calculate_moving_average(t27_arr_uint32_t_16 history, uint32_t count);
+uint32_t detect_trend(t27_arr_uint32_t_16 history, uint32_t count);
+uint32_t predict_load(t27_arr_uint32_t_16 history, uint32_t count);
+uint32_t calculate_confidence(t27_arr_uint32_t_16 history, uint32_t count);
+uint32_t create_load_prediction(t27_arr_uint32_t_16 history, uint32_t count);
 uint32_t is_congestion_predicted(uint32_t prediction);
 uint32_t is_warning_predicted(uint32_t prediction);
-uint32_t calculate_network_load(uint32_t* node_metrics, uint32_t node_count);
-uint32_t find_most_loaded_node(uint32_t* node_metrics, uint32_t node_count);
-uint32_t find_least_loaded_node(uint32_t* node_metrics, uint32_t node_count);
-uint32_t calculate_load_imbalance(uint32_t* node_metrics, uint32_t node_count);
-uint32_t recommend_rerouting(uint32_t prediction, uint32_t current_node, uint32_t* node_metrics, uint32_t node_count);
+uint32_t calculate_network_load(t27_arr_uint32_t_8 node_metrics, uint32_t node_count);
+uint32_t find_most_loaded_node(t27_arr_uint32_t_8 node_metrics, uint32_t node_count);
+uint32_t find_least_loaded_node(t27_arr_uint32_t_8 node_metrics, uint32_t node_count);
+uint32_t calculate_load_imbalance(t27_arr_uint32_t_8 node_metrics, uint32_t node_count);
+uint32_t recommend_rerouting(uint32_t prediction, uint32_t current_node, t27_arr_uint32_t_8 node_metrics, uint32_t node_count);
 
 /* -------------------------------------------------------
    Function implementations
@@ -94,11 +101,11 @@ uint32_t get_time_horizon(uint32_t prediction) {
     return (prediction & 0x3FFF);
 }
 
-uint32_t calculate_moving_average(uint32_t* history, uint32_t count) {
+uint32_t calculate_moving_average(t27_arr_uint32_t_16 history, uint32_t count) {
     uint32_t sum = 0;
     uint32_t i = 0;
     while ((i < count)) {
-        int metrics = history[i];
+        int metrics = history.v[i];
         sum = (sum + get_bandwidth_usage(metrics));
         i = (i + 1);
     }
@@ -109,12 +116,12 @@ uint32_t calculate_moving_average(uint32_t* history, uint32_t count) {
     }
 }
 
-uint32_t detect_trend(uint32_t* history, uint32_t count) {
+uint32_t detect_trend(t27_arr_uint32_t_16 history, uint32_t count) {
     if ((count < 3)) {
         return 0;
     }
-    uint32_t recent = get_bandwidth_usage(history[(count - 1)]);
-    uint32_t previous = get_bandwidth_usage(history[(count - 3)]);
+    uint32_t recent = get_bandwidth_usage(history.v[(count - 1)]);
+    uint32_t previous = get_bandwidth_usage(history.v[(count - 3)]);
     uint32_t diff = 0;
     if ((recent > previous)) {
         diff = (recent - previous);
@@ -132,11 +139,11 @@ uint32_t detect_trend(uint32_t* history, uint32_t count) {
     }
 }
 
-uint32_t predict_load(uint32_t* history, uint32_t count) {
+uint32_t predict_load(t27_arr_uint32_t_16 history, uint32_t count) {
     if ((count == 0)) {
         return 0;
     }
-    uint32_t current = get_bandwidth_usage(history[(count - 1)]);
+    uint32_t current = get_bandwidth_usage(history.v[(count - 1)]);
     uint32_t trend = detect_trend(history, count);
     uint32_t avg = calculate_moving_average(history, count);
     uint32_t predicted = current;
@@ -160,7 +167,7 @@ uint32_t predict_load(uint32_t* history, uint32_t count) {
     return predicted;
 }
 
-uint32_t calculate_confidence(uint32_t* history, uint32_t count) {
+uint32_t calculate_confidence(t27_arr_uint32_t_16 history, uint32_t count) {
     if ((count < 3)) {
         return 20;
     }
@@ -168,7 +175,7 @@ uint32_t calculate_confidence(uint32_t* history, uint32_t count) {
     uint32_t avg = calculate_moving_average(history, count);
     uint32_t i = 0;
     while ((i < count)) {
-        uint32_t value = get_bandwidth_usage(history[i]);
+        uint32_t value = get_bandwidth_usage(history.v[i]);
         uint32_t diff = 0;
         if ((value > avg)) {
             diff = (value - avg);
@@ -193,7 +200,7 @@ uint32_t calculate_confidence(uint32_t* history, uint32_t count) {
     }
 }
 
-uint32_t create_load_prediction(uint32_t* history, uint32_t count) {
+uint32_t create_load_prediction(t27_arr_uint32_t_16 history, uint32_t count) {
     uint32_t predicted = predict_load(history, count);
     uint32_t confidence = calculate_confidence(history, count);
     uint32_t trend = detect_trend(history, count);
@@ -221,11 +228,11 @@ uint32_t is_warning_predicted(uint32_t prediction) {
     }
 }
 
-uint32_t calculate_network_load(uint32_t* node_metrics, uint32_t node_count) {
+uint32_t calculate_network_load(t27_arr_uint32_t_8 node_metrics, uint32_t node_count) {
     uint32_t total_load = 0;
     uint32_t i = 0;
     while ((i < node_count)) {
-        uint32_t load = get_bandwidth_usage(node_metrics[i]);
+        uint32_t load = get_bandwidth_usage(node_metrics.v[i]);
         total_load = (total_load + load);
         i = (i + 1);
     }
@@ -236,12 +243,12 @@ uint32_t calculate_network_load(uint32_t* node_metrics, uint32_t node_count) {
     }
 }
 
-uint32_t find_most_loaded_node(uint32_t* node_metrics, uint32_t node_count) {
+uint32_t find_most_loaded_node(t27_arr_uint32_t_8 node_metrics, uint32_t node_count) {
     uint32_t max_load = 0;
     uint32_t max_node = 0;
     uint32_t i = 0;
     while ((i < node_count)) {
-        uint32_t load = get_bandwidth_usage(node_metrics[i]);
+        uint32_t load = get_bandwidth_usage(node_metrics.v[i]);
         if ((load > max_load)) {
             max_load = load;
             max_node = i;
@@ -251,12 +258,12 @@ uint32_t find_most_loaded_node(uint32_t* node_metrics, uint32_t node_count) {
     return max_node;
 }
 
-uint32_t find_least_loaded_node(uint32_t* node_metrics, uint32_t node_count) {
+uint32_t find_least_loaded_node(t27_arr_uint32_t_8 node_metrics, uint32_t node_count) {
     uint32_t min_load = 255;
     uint32_t min_node = 0;
     uint32_t i = 0;
     while ((i < node_count)) {
-        uint32_t load = get_bandwidth_usage(node_metrics[i]);
+        uint32_t load = get_bandwidth_usage(node_metrics.v[i]);
         if ((load < min_load)) {
             min_load = load;
             min_node = i;
@@ -266,12 +273,12 @@ uint32_t find_least_loaded_node(uint32_t* node_metrics, uint32_t node_count) {
     return min_node;
 }
 
-uint32_t calculate_load_imbalance(uint32_t* node_metrics, uint32_t node_count) {
+uint32_t calculate_load_imbalance(t27_arr_uint32_t_8 node_metrics, uint32_t node_count) {
     uint32_t max_load = 0;
     uint32_t min_load = 255;
     uint32_t i = 0;
     while ((i < node_count)) {
-        uint32_t load = get_bandwidth_usage(node_metrics[i]);
+        uint32_t load = get_bandwidth_usage(node_metrics.v[i]);
         if ((load > max_load)) {
             max_load = load;
         }
@@ -287,7 +294,7 @@ uint32_t calculate_load_imbalance(uint32_t* node_metrics, uint32_t node_count) {
     return imbalance;
 }
 
-uint32_t recommend_rerouting(uint32_t prediction, uint32_t current_node, uint32_t* node_metrics, uint32_t node_count) {
+uint32_t recommend_rerouting(uint32_t prediction, uint32_t current_node, t27_arr_uint32_t_8 node_metrics, uint32_t node_count) {
     if (!is_congestion_predicted(prediction)) {
         return current_node;
     }
@@ -322,14 +329,14 @@ void test_prediction_roundtrip(void) {
 }
 
 void test_trend_detection_bands(void) {
-    uint32_t up[16] = { create_load_metrics(10,0,0,0), create_load_metrics(30,0,0,0), create_load_metrics(50,0,0,0), create_load_metrics(70,0,0,0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    t27_arr_uint32_t_16 up = { .v = { create_load_metrics(10,0,0,0), create_load_metrics(30,0,0,0), create_load_metrics(50,0,0,0), create_load_metrics(70,0,0,0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } };
     t27_assert((detect_trend(up, 4) == 1), "rising by 40 over the window");
-    uint32_t flat[16] = { create_load_metrics(50,0,0,0), create_load_metrics(55,0,0,0), create_load_metrics(52,0,0,0), create_load_metrics(58,0,0,0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    t27_arr_uint32_t_16 flat = { .v = { create_load_metrics(50,0,0,0), create_load_metrics(55,0,0,0), create_load_metrics(52,0,0,0), create_load_metrics(58,0,0,0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } };
     t27_assert((detect_trend(flat, 4) == 0), "8-point wobble is stable");
 }
 
 void test_predict_load_no_underflow_when_average_leads(void) {
-    uint32_t h[16] = { create_load_metrics(100,0,0,0), create_load_metrics(100,0,0,0), create_load_metrics(0,0,0,0), create_load_metrics(25,0,0,0), create_load_metrics(50,0,0,0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    t27_arr_uint32_t_16 h = { .v = { create_load_metrics(100,0,0,0), create_load_metrics(100,0,0,0), create_load_metrics(0,0,0,0), create_load_metrics(25,0,0,0), create_load_metrics(50,0,0,0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } };
     t27_assert((predict_load(h, 5) == 50), "no growth credit when below average");
 }
 

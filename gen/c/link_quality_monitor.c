@@ -26,11 +26,17 @@
 #define TREND_THRESHOLD 0x05
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint8_t v[8]; } t27_arr_uint8_t_8;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
 uint8_t update_ewma(uint8_t current, uint8_t sample);
-int8_t calculate_trend(uint8_t* history);
+int8_t calculate_trend(t27_arr_uint8_t_8 history);
 uint8_t predict_next_etx(uint8_t current, int8_t trend);
 bool is_degrading(uint8_t current_etx, int8_t trend);
 uint8_t quality_score(uint8_t etx, uint16_t latency_ms);
@@ -50,9 +56,9 @@ uint8_t update_ewma(uint8_t current, uint8_t sample) {
     return ((uint8_t)(new_estimate));
 }
 
-int8_t calculate_trend(uint8_t* history) {
-    uint8_t recent_avg = ((uint8_t)(((((((uint16_t)(history[7])) + ((uint16_t)(history[6]))) + ((uint16_t)(history[5]))) + ((uint16_t)(history[4]))) >> 2)));
-    uint8_t older_avg = ((uint8_t)(((((((uint16_t)(history[3])) + ((uint16_t)(history[2]))) + ((uint16_t)(history[1]))) + ((uint16_t)(history[0]))) >> 2)));
+int8_t calculate_trend(t27_arr_uint8_t_8 history) {
+    uint8_t recent_avg = ((uint8_t)(((((((uint16_t)(history.v[7])) + ((uint16_t)(history.v[6]))) + ((uint16_t)(history.v[5]))) + ((uint16_t)(history.v[4]))) >> 2)));
+    uint8_t older_avg = ((uint8_t)(((((((uint16_t)(history.v[3])) + ((uint16_t)(history.v[2]))) + ((uint16_t)(history.v[1]))) + ((uint16_t)(history.v[0]))) >> 2)));
     if ((recent_avg > older_avg)) {
         return ((int8_t)((recent_avg - older_avg)));
     }
@@ -113,10 +119,10 @@ void test_ewma_calculation(void) {
 }
 
 void test_trend_detection(void) {
-    uint8_t improving_history[8] = { 0x70, 0x68, 0x60, 0x58, 0x50, 0x48, 0x40, 0x38 };
+    t27_arr_uint8_t_8 improving_history = { .v = { 0x70, 0x68, 0x60, 0x58, 0x50, 0x48, 0x40, 0x38 } };
     int8_t trend = calculate_trend(improving_history);
     t27_assert((trend < 0), "trend < 0");
-    uint8_t worsening_history[8] = { 0x40, 0x48, 0x50, 0x58, 0x60, 0x68, 0x70, 0x78 };
+    t27_arr_uint8_t_8 worsening_history = { .v = { 0x40, 0x48, 0x50, 0x58, 0x60, 0x68, 0x70, 0x78 } };
     int8_t trend2 = calculate_trend(worsening_history);
     t27_assert((trend2 > 0), "trend2 > 0");
 }

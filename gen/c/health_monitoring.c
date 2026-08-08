@@ -36,6 +36,12 @@
 #define RESULT_SKIP 3
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[8]; } t27_arr_uint32_t_8;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -44,14 +50,14 @@ uint32_t get_check_type(uint32_t check);
 uint32_t get_check_result(uint32_t check);
 uint32_t get_check_value(uint32_t check);
 uint32_t get_check_timestamp(uint32_t check);
-uint32_t* create_health_array(uint32_t c0, uint32_t c1, uint32_t c2, uint32_t c3, uint32_t c4, uint32_t c5, uint32_t c6, uint32_t c7);
-uint32_t get_health_check(uint32_t* array, uint32_t index);
-uint32_t* update_health_check(uint32_t* array, uint32_t index, uint32_t new_check);
-uint32_t calculate_overall_health(uint32_t* array);
-uint32_t count_failed_checks(uint32_t* array);
-uint32_t count_warning_checks(uint32_t* array);
-bool is_check_failing(uint32_t* array, uint32_t check_type);
-uint32_t get_health_percentage(uint32_t* array);
+t27_arr_uint32_t_8 create_health_array(uint32_t c0, uint32_t c1, uint32_t c2, uint32_t c3, uint32_t c4, uint32_t c5, uint32_t c6, uint32_t c7);
+uint32_t get_health_check(t27_arr_uint32_t_8 array, uint32_t index);
+t27_arr_uint32_t_8 update_health_check(t27_arr_uint32_t_8 array, uint32_t index, uint32_t new_check);
+uint32_t calculate_overall_health(t27_arr_uint32_t_8 array);
+uint32_t count_failed_checks(t27_arr_uint32_t_8 array);
+uint32_t count_warning_checks(t27_arr_uint32_t_8 array);
+bool is_check_failing(t27_arr_uint32_t_8 array, uint32_t check_type);
+uint32_t get_health_percentage(t27_arr_uint32_t_8 array);
 
 /* -------------------------------------------------------
    Function implementations
@@ -77,53 +83,53 @@ uint32_t get_check_timestamp(uint32_t check) {
     return (check & 0xFF);
 }
 
-uint32_t* create_health_array(uint32_t c0, uint32_t c1, uint32_t c2, uint32_t c3, uint32_t c4, uint32_t c5, uint32_t c6, uint32_t c7) {
-    return { c0, c1, c2, c3, c4, c5, c6, c7 };
+t27_arr_uint32_t_8 create_health_array(uint32_t c0, uint32_t c1, uint32_t c2, uint32_t c3, uint32_t c4, uint32_t c5, uint32_t c6, uint32_t c7) {
+    return (t27_arr_uint32_t_8){ .v = { c0, c1, c2, c3, c4, c5, c6, c7 } };
 }
 
-uint32_t get_health_check(uint32_t* array, uint32_t index) {
+uint32_t get_health_check(t27_arr_uint32_t_8 array, uint32_t index) {
     if ((index < 8)) {
-        return array[index];
+        return array.v[index];
     }
     return 0;
 }
 
-uint32_t* update_health_check(uint32_t* array, uint32_t index, uint32_t new_check) {
-    uint32_t a0 = array[0];
-    uint32_t a1 = array[1];
-    uint32_t a2 = array[2];
-    uint32_t a3 = array[3];
-    uint32_t a4 = array[4];
-    uint32_t a5 = array[5];
-    uint32_t a6 = array[6];
-    uint32_t a7 = array[7];
+t27_arr_uint32_t_8 update_health_check(t27_arr_uint32_t_8 array, uint32_t index, uint32_t new_check) {
+    uint32_t a0 = array.v[0];
+    uint32_t a1 = array.v[1];
+    uint32_t a2 = array.v[2];
+    uint32_t a3 = array.v[3];
+    uint32_t a4 = array.v[4];
+    uint32_t a5 = array.v[5];
+    uint32_t a6 = array.v[6];
+    uint32_t a7 = array.v[7];
     if ((index == 0)) {
-        return { new_check, a1, a2, a3, a4, a5, a6, a7 };
+        return (t27_arr_uint32_t_8){ .v = { new_check, a1, a2, a3, a4, a5, a6, a7 } };
     }
     if ((index == 1)) {
-        return { a0, new_check, a2, a3, a4, a5, a6, a7 };
+        return (t27_arr_uint32_t_8){ .v = { a0, new_check, a2, a3, a4, a5, a6, a7 } };
     }
     if ((index == 2)) {
-        return { a0, a1, new_check, a3, a4, a5, a6, a7 };
+        return (t27_arr_uint32_t_8){ .v = { a0, a1, new_check, a3, a4, a5, a6, a7 } };
     }
     if ((index == 3)) {
-        return { a0, a1, a2, new_check, a4, a5, a6, a7 };
+        return (t27_arr_uint32_t_8){ .v = { a0, a1, a2, new_check, a4, a5, a6, a7 } };
     }
     if ((index == 4)) {
-        return { a0, a1, a2, a3, new_check, a5, a6, a7 };
+        return (t27_arr_uint32_t_8){ .v = { a0, a1, a2, a3, new_check, a5, a6, a7 } };
     }
     if ((index == 5)) {
-        return { a0, a1, a2, a3, a4, new_check, a6, a7 };
+        return (t27_arr_uint32_t_8){ .v = { a0, a1, a2, a3, a4, new_check, a6, a7 } };
     }
     if ((index == 6)) {
-        return { a0, a1, a2, a3, a4, a5, new_check, a7 };
+        return (t27_arr_uint32_t_8){ .v = { a0, a1, a2, a3, a4, a5, new_check, a7 } };
     }
-    return { a0, a1, a2, a3, a4, a5, a6, new_check };
+    return (t27_arr_uint32_t_8){ .v = { a0, a1, a2, a3, a4, a5, a6, new_check } };
 }
 
-uint32_t calculate_overall_health(uint32_t* array) {
-    int failed = 0;
-    int warnings = 0;
+uint32_t calculate_overall_health(t27_arr_uint32_t_8 array) {
+    uint32_t failed = 0;
+    uint32_t warnings = 0;
     if ((get_check_result(get_health_check(array, 0)) == RESULT_FAIL)) {
         failed = (failed + 1);
     }
@@ -181,8 +187,8 @@ uint32_t calculate_overall_health(uint32_t* array) {
     }
 }
 
-uint32_t count_failed_checks(uint32_t* array) {
-    int count = 0;
+uint32_t count_failed_checks(t27_arr_uint32_t_8 array) {
+    uint32_t count = 0;
     if ((get_check_result(get_health_check(array, 0)) == RESULT_FAIL)) {
         count = (count + 1);
     }
@@ -210,8 +216,8 @@ uint32_t count_failed_checks(uint32_t* array) {
     return count;
 }
 
-uint32_t count_warning_checks(uint32_t* array) {
-    int count = 0;
+uint32_t count_warning_checks(t27_arr_uint32_t_8 array) {
+    uint32_t count = 0;
     if ((get_check_result(get_health_check(array, 0)) == RESULT_WARN)) {
         count = (count + 1);
     }
@@ -239,7 +245,7 @@ uint32_t count_warning_checks(uint32_t* array) {
     return count;
 }
 
-bool is_check_failing(uint32_t* array, uint32_t check_type) {
+bool is_check_failing(t27_arr_uint32_t_8 array, uint32_t check_type) {
     if (((check_type == CHECK_CPU) && (get_check_type(get_health_check(array, 0)) == CHECK_CPU))) {
         return (get_check_result(get_health_check(array, 0)) == RESULT_FAIL);
     } else if (((check_type == CHECK_MEMORY) && (get_check_type(get_health_check(array, 1)) == CHECK_MEMORY))) {
@@ -248,9 +254,9 @@ bool is_check_failing(uint32_t* array, uint32_t check_type) {
     return false;
 }
 
-uint32_t get_health_percentage(uint32_t* array) {
-    int total = 0;
-    int passing = 0;
+uint32_t get_health_percentage(t27_arr_uint32_t_8 array) {
+    uint32_t total = 0;
+    uint32_t passing = 0;
     if ((get_check_result(get_health_check(array, 0)) != RESULT_SKIP)) {
         total = (total + 1);
         if ((get_check_result(get_health_check(array, 0)) != RESULT_FAIL)) {
@@ -319,51 +325,51 @@ void test_create_health_check_basic(void) {
 }
 
 void test_calculate_overall_health_critical(void) {
-    uint64_t array = create_health_array(create_health_check(CHECK_CPU, RESULT_PASS, 50, 100), create_health_check(CHECK_MEMORY, RESULT_FAIL, 90, 101), create_health_check(CHECK_DISK, RESULT_PASS, 40, 102), create_health_check(CHECK_NETWORK, RESULT_PASS, 60, 103), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0));
+    t27_arr_uint32_t_8 array = create_health_array(create_health_check(CHECK_CPU, RESULT_PASS, 50, 100), create_health_check(CHECK_MEMORY, RESULT_FAIL, 90, 101), create_health_check(CHECK_DISK, RESULT_PASS, 40, 102), create_health_check(CHECK_NETWORK, RESULT_PASS, 60, 103), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0));
     (void)array;
     t27_assert((calculate_overall_health(array) == HEALTH_CRITICAL), "critical health");
 }
 
 void test_calculate_overall_health_warning(void) {
-    uint64_t array = create_health_array(create_health_check(CHECK_CPU, RESULT_WARN, 70, 100), create_health_check(CHECK_MEMORY, RESULT_WARN, 80, 101), create_health_check(CHECK_DISK, RESULT_WARN, 75, 102), create_health_check(CHECK_NETWORK, RESULT_PASS, 60, 103), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0));
+    t27_arr_uint32_t_8 array = create_health_array(create_health_check(CHECK_CPU, RESULT_WARN, 70, 100), create_health_check(CHECK_MEMORY, RESULT_WARN, 80, 101), create_health_check(CHECK_DISK, RESULT_WARN, 75, 102), create_health_check(CHECK_NETWORK, RESULT_PASS, 60, 103), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0));
     (void)array;
     t27_assert((calculate_overall_health(array) == HEALTH_WARNING), "warning health");
 }
 
 void test_calculate_overall_health_healthy(void) {
-    uint64_t array = create_health_array(create_health_check(CHECK_CPU, RESULT_PASS, 50, 100), create_health_check(CHECK_MEMORY, RESULT_PASS, 40, 101), create_health_check(CHECK_DISK, RESULT_PASS, 45, 102), create_health_check(CHECK_NETWORK, RESULT_PASS, 35, 103), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0));
+    t27_arr_uint32_t_8 array = create_health_array(create_health_check(CHECK_CPU, RESULT_PASS, 50, 100), create_health_check(CHECK_MEMORY, RESULT_PASS, 40, 101), create_health_check(CHECK_DISK, RESULT_PASS, 45, 102), create_health_check(CHECK_NETWORK, RESULT_PASS, 35, 103), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0));
     (void)array;
     t27_assert((calculate_overall_health(array) == HEALTH_HEALTHY), "healthy");
 }
 
 void test_count_failed_checks_multiple(void) {
-    uint64_t array = create_health_array(create_health_check(CHECK_CPU, RESULT_FAIL, 95, 100), create_health_check(CHECK_MEMORY, RESULT_FAIL, 90, 101), create_health_check(CHECK_DISK, RESULT_PASS, 40, 102), create_health_check(CHECK_NETWORK, RESULT_FAIL, 85, 103), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0));
+    t27_arr_uint32_t_8 array = create_health_array(create_health_check(CHECK_CPU, RESULT_FAIL, 95, 100), create_health_check(CHECK_MEMORY, RESULT_FAIL, 90, 101), create_health_check(CHECK_DISK, RESULT_PASS, 40, 102), create_health_check(CHECK_NETWORK, RESULT_FAIL, 85, 103), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0));
     (void)array;
     t27_assert((count_failed_checks(array) == 3), "3 failed checks");
 }
 
 void test_count_warning_checks_multiple(void) {
-    uint64_t array = create_health_array(create_health_check(CHECK_CPU, RESULT_WARN, 70, 100), create_health_check(CHECK_MEMORY, RESULT_WARN, 75, 101), create_health_check(CHECK_DISK, RESULT_PASS, 40, 102), create_health_check(CHECK_NETWORK, RESULT_WARN, 72, 103), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0));
+    t27_arr_uint32_t_8 array = create_health_array(create_health_check(CHECK_CPU, RESULT_WARN, 70, 100), create_health_check(CHECK_MEMORY, RESULT_WARN, 75, 101), create_health_check(CHECK_DISK, RESULT_PASS, 40, 102), create_health_check(CHECK_NETWORK, RESULT_WARN, 72, 103), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0));
     (void)array;
     t27_assert((count_warning_checks(array) == 3), "3 warning checks");
 }
 
 void test_update_health_check_works(void) {
-    uint64_t array = create_health_array(create_health_check(CHECK_CPU, RESULT_PASS, 50, 100), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0));
+    t27_arr_uint32_t_8 array = create_health_array(create_health_check(CHECK_CPU, RESULT_PASS, 50, 100), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0));
     (void)array;
-    uint64_t new_array = update_health_check(array, 1, create_health_check(CHECK_MEMORY, RESULT_FAIL, 90, 200));
+    t27_arr_uint32_t_8 new_array = update_health_check(array, 1, create_health_check(CHECK_MEMORY, RESULT_FAIL, 90, 200));
     (void)new_array;
     t27_assert((get_check_result(get_health_check(new_array, 1)) == RESULT_FAIL), "check updated");
 }
 
 void test_get_health_percentage_all_pass(void) {
-    uint64_t array = create_health_array(create_health_check(CHECK_CPU, RESULT_PASS, 50, 100), create_health_check(CHECK_MEMORY, RESULT_PASS, 40, 101), create_health_check(CHECK_DISK, RESULT_PASS, 45, 102), create_health_check(CHECK_NETWORK, RESULT_PASS, 35, 103), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0));
+    t27_arr_uint32_t_8 array = create_health_array(create_health_check(CHECK_CPU, RESULT_PASS, 50, 100), create_health_check(CHECK_MEMORY, RESULT_PASS, 40, 101), create_health_check(CHECK_DISK, RESULT_PASS, 45, 102), create_health_check(CHECK_NETWORK, RESULT_PASS, 35, 103), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0));
     (void)array;
     t27_assert((get_health_percentage(array) == 100), "100% healthy");
 }
 
 void test_get_health_percentage_some_fail(void) {
-    uint64_t array = create_health_array(create_health_check(CHECK_CPU, RESULT_FAIL, 95, 100), create_health_check(CHECK_MEMORY, RESULT_PASS, 40, 101), create_health_check(CHECK_DISK, RESULT_FAIL, 90, 102), create_health_check(CHECK_NETWORK, RESULT_PASS, 35, 103), create_health_check(0, RESULT_SKIP, 0, 0), create_health_check(0, RESULT_SKIP, 0, 0), create_health_check(0, RESULT_SKIP, 0, 0), create_health_check(0, RESULT_SKIP, 0, 0));
+    t27_arr_uint32_t_8 array = create_health_array(create_health_check(CHECK_CPU, RESULT_FAIL, 95, 100), create_health_check(CHECK_MEMORY, RESULT_PASS, 40, 101), create_health_check(CHECK_DISK, RESULT_FAIL, 90, 102), create_health_check(CHECK_NETWORK, RESULT_PASS, 35, 103), create_health_check(0, RESULT_SKIP, 0, 0), create_health_check(0, RESULT_SKIP, 0, 0), create_health_check(0, RESULT_SKIP, 0, 0), create_health_check(0, RESULT_SKIP, 0, 0));
     (void)array;
     t27_assert((get_health_percentage(array) == 50), "50% healthy");
 }

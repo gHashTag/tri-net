@@ -28,6 +28,12 @@
 #define STATE_FAST_RETRANSMIT 3
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[8]; } t27_arr_uint32_t_8;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -44,10 +50,10 @@ uint32_t get_effective_window(uint32_t congestion, uint32_t receiver_window);
 uint32_t is_congested(uint32_t congestion);
 uint32_t calculate_sending_rate(uint32_t congestion, uint32_t rtt);
 uint32_t estimate_bandwidth(uint32_t congestion, uint32_t rtt, uint32_t packet_size);
-uint32_t find_congestion_controller(uint32_t* controllers, uint32_t flow_id);
-uint32_t is_any_flow_congested(uint32_t* controllers);
-uint32_t calculate_total_cwnd(uint32_t* controllers);
-uint32_t allocate_fair_bandwidth(uint32_t* controllers, uint32_t total_bandwidth);
+uint32_t find_congestion_controller(t27_arr_uint32_t_8 controllers, uint32_t flow_id);
+uint32_t is_any_flow_congested(t27_arr_uint32_t_8 controllers);
+uint32_t calculate_total_cwnd(t27_arr_uint32_t_8 controllers);
+uint32_t allocate_fair_bandwidth(t27_arr_uint32_t_8 controllers, uint32_t total_bandwidth);
 uint32_t probe_bandwidth(uint32_t congestion);
 uint32_t reset_after_timeout(uint32_t congestion);
 
@@ -172,7 +178,7 @@ uint32_t estimate_bandwidth(uint32_t congestion, uint32_t rtt, uint32_t packet_s
     }
 }
 
-uint32_t find_congestion_controller(uint32_t* controllers, uint32_t flow_id) {
+uint32_t find_congestion_controller(t27_arr_uint32_t_8 controllers, uint32_t flow_id) {
     uint32_t i = 0;
     while ((i < MAX_FLOWS)) {
         if ((i == flow_id)) {
@@ -183,10 +189,10 @@ uint32_t find_congestion_controller(uint32_t* controllers, uint32_t flow_id) {
     return MAX_FLOWS;
 }
 
-uint32_t is_any_flow_congested(uint32_t* controllers) {
+uint32_t is_any_flow_congested(t27_arr_uint32_t_8 controllers) {
     uint32_t i = 0;
     while ((i < MAX_FLOWS)) {
-        if ((is_congested(controllers[i]) == 1)) {
+        if ((is_congested(controllers.v[i]) == 1)) {
             return 1;
         }
         i = (i + 1);
@@ -194,21 +200,21 @@ uint32_t is_any_flow_congested(uint32_t* controllers) {
     return 0;
 }
 
-uint32_t calculate_total_cwnd(uint32_t* controllers) {
+uint32_t calculate_total_cwnd(t27_arr_uint32_t_8 controllers) {
     uint32_t total = 0;
     uint32_t i = 0;
     while ((i < MAX_FLOWS)) {
-        total = (total + get_cwnd(controllers[i]));
+        total = (total + get_cwnd(controllers.v[i]));
         i = (i + 1);
     }
     return total;
 }
 
-uint32_t allocate_fair_bandwidth(uint32_t* controllers, uint32_t total_bandwidth) {
+uint32_t allocate_fair_bandwidth(t27_arr_uint32_t_8 controllers, uint32_t total_bandwidth) {
     uint32_t active_flows = 0;
     uint32_t i = 0;
     while ((i < MAX_FLOWS)) {
-        uint32_t cwnd = get_cwnd(controllers[i]);
+        uint32_t cwnd = get_cwnd(controllers.v[i]);
         if ((cwnd > 0)) {
             active_flows = (active_flows + 1);
         }

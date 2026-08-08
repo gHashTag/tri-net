@@ -29,6 +29,13 @@
 #define STATUS_FAILED 3
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[16]; } t27_arr_uint32_t_16;
+typedef struct { uint32_t v[8]; } t27_arr_uint32_t_8;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -43,17 +50,17 @@ uint32_t get_status(uint32_t result);
 uint32_t get_result_size(uint32_t result);
 uint32_t get_result_value(uint32_t result);
 uint32_t process_task(uint32_t task);
-uint32_t aggregate_results(uint32_t* results, uint32_t count);
-uint32_t find_task_by_priority(uint32_t* tasks, uint32_t priority);
-uint32_t find_highest_priority_task(uint32_t* tasks);
-uint32_t count_pending_tasks(uint32_t* tasks);
-uint32_t calculate_processing_load(uint32_t* tasks);
-uint32_t can_accept_task(uint32_t* tasks, uint32_t new_task);
-uint32_t find_completed_result(uint32_t* results, uint32_t task_id, uint32_t count);
-uint32_t calculate_efficiency(uint32_t* tasks, uint32_t* results, uint32_t result_count);
-uint32_t aggregate_data(uint32_t* data_values, uint32_t count);
-uint32_t filter_data(uint32_t* data_values, uint32_t count, uint32_t threshold);
-uint32_t make_local_decision(uint32_t* tasks, uint32_t* results, uint32_t result_count);
+uint32_t aggregate_results(t27_arr_uint32_t_16 results, uint32_t count);
+uint32_t find_task_by_priority(t27_arr_uint32_t_8 tasks, uint32_t priority);
+uint32_t find_highest_priority_task(t27_arr_uint32_t_8 tasks);
+uint32_t count_pending_tasks(t27_arr_uint32_t_8 tasks);
+uint32_t calculate_processing_load(t27_arr_uint32_t_8 tasks);
+uint32_t can_accept_task(t27_arr_uint32_t_8 tasks, uint32_t new_task);
+uint32_t find_completed_result(t27_arr_uint32_t_16 results, uint32_t task_id, uint32_t count);
+uint32_t calculate_efficiency(t27_arr_uint32_t_8 tasks, t27_arr_uint32_t_16 results, uint32_t result_count);
+uint32_t aggregate_data(t27_arr_uint32_t_16 data_values, uint32_t count);
+uint32_t filter_data(t27_arr_uint32_t_16 data_values, uint32_t count, uint32_t threshold);
+uint32_t make_local_decision(t27_arr_uint32_t_8 tasks, t27_arr_uint32_t_16 results, uint32_t result_count);
 uint32_t create_resource_state(uint32_t cpu, uint32_t memory, uint32_t tasks, uint32_t available);
 uint32_t get_cpu_usage(uint32_t state);
 uint32_t get_memory_usage(uint32_t state);
@@ -114,21 +121,21 @@ uint32_t process_task(uint32_t task) {
     return create_result(task_id, STATUS_COMPLETED, data_size, result_value);
 }
 
-uint32_t aggregate_results(uint32_t* results, uint32_t count) {
+uint32_t aggregate_results(t27_arr_uint32_t_16 results, uint32_t count) {
     uint32_t sum = 0;
     uint32_t i = 0;
     while ((i < count)) {
-        uint32_t value = get_result_value(results[i]);
+        uint32_t value = get_result_value(results.v[i]);
         sum = (sum + value);
         i = (i + 1);
     }
     return sum;
 }
 
-uint32_t find_task_by_priority(uint32_t* tasks, uint32_t priority) {
+uint32_t find_task_by_priority(t27_arr_uint32_t_8 tasks, uint32_t priority) {
     uint32_t i = 0;
     while ((i < MAX_TASKS)) {
-        uint32_t task_priority = get_priority(tasks[i]);
+        uint32_t task_priority = get_priority(tasks.v[i]);
         if ((task_priority == priority)) {
             return i;
         }
@@ -137,13 +144,13 @@ uint32_t find_task_by_priority(uint32_t* tasks, uint32_t priority) {
     return MAX_TASKS;
 }
 
-uint32_t find_highest_priority_task(uint32_t* tasks) {
+uint32_t find_highest_priority_task(t27_arr_uint32_t_8 tasks) {
     uint32_t highest_priority = TASK_PRIORITY_LOW;
     uint32_t task_index = MAX_TASKS;
     uint32_t i = 0;
     while ((i < MAX_TASKS)) {
-        if ((tasks[i] != 0)) {
-            uint32_t task_priority = get_priority(tasks[i]);
+        if ((tasks.v[i] != 0)) {
+            uint32_t task_priority = get_priority(tasks.v[i]);
             if ((task_priority < highest_priority)) {
                 highest_priority = task_priority;
                 task_index = i;
@@ -154,11 +161,11 @@ uint32_t find_highest_priority_task(uint32_t* tasks) {
     return task_index;
 }
 
-uint32_t count_pending_tasks(uint32_t* tasks) {
+uint32_t count_pending_tasks(t27_arr_uint32_t_8 tasks) {
     uint32_t count = 0;
     uint32_t i = 0;
     while ((i < MAX_TASKS)) {
-        uint32_t task_id = get_task_id(tasks[i]);
+        uint32_t task_id = get_task_id(tasks.v[i]);
         if ((task_id != 0)) {
             count = (count + 1);
         }
@@ -167,18 +174,18 @@ uint32_t count_pending_tasks(uint32_t* tasks) {
     return count;
 }
 
-uint32_t calculate_processing_load(uint32_t* tasks) {
+uint32_t calculate_processing_load(t27_arr_uint32_t_8 tasks) {
     uint32_t total_load = 0;
     uint32_t i = 0;
     while ((i < MAX_TASKS)) {
-        uint32_t proc_time = get_processing_time(tasks[i]);
+        uint32_t proc_time = get_processing_time(tasks.v[i]);
         total_load = (total_load + proc_time);
         i = (i + 1);
     }
     return total_load;
 }
 
-uint32_t can_accept_task(uint32_t* tasks, uint32_t new_task) {
+uint32_t can_accept_task(t27_arr_uint32_t_8 tasks, uint32_t new_task) {
     uint32_t current_load = calculate_processing_load(tasks);
     uint32_t new_load = get_processing_time(new_task);
     uint32_t total_load = (current_load + new_load);
@@ -189,11 +196,11 @@ uint32_t can_accept_task(uint32_t* tasks, uint32_t new_task) {
     }
 }
 
-uint32_t find_completed_result(uint32_t* results, uint32_t task_id, uint32_t count) {
+uint32_t find_completed_result(t27_arr_uint32_t_16 results, uint32_t task_id, uint32_t count) {
     uint32_t i = 0;
     while ((i < count)) {
-        uint32_t result_task_id = get_result_task_id(results[i]);
-        uint32_t status = get_status(results[i]);
+        uint32_t result_task_id = get_result_task_id(results.v[i]);
+        uint32_t status = get_status(results.v[i]);
         if (((result_task_id == task_id) && (status == STATUS_COMPLETED))) {
             return i;
         }
@@ -202,17 +209,17 @@ uint32_t find_completed_result(uint32_t* results, uint32_t task_id, uint32_t cou
     return MAX_RESULTS;
 }
 
-uint32_t calculate_efficiency(uint32_t* tasks, uint32_t* results, uint32_t result_count) {
+uint32_t calculate_efficiency(t27_arr_uint32_t_8 tasks, t27_arr_uint32_t_16 results, uint32_t result_count) {
     uint32_t total_input = 0;
     uint32_t total_output = 0;
     uint32_t i = 0;
     while ((i < MAX_TASKS)) {
-        total_input = (total_input + get_data_size(tasks[i]));
+        total_input = (total_input + get_data_size(tasks.v[i]));
         i = (i + 1);
     }
     i = 0;
     while ((i < result_count)) {
-        total_output = (total_output + get_result_size(results[i]));
+        total_output = (total_output + get_result_size(results.v[i]));
         i = (i + 1);
     }
     if ((total_input > 0)) {
@@ -222,24 +229,24 @@ uint32_t calculate_efficiency(uint32_t* tasks, uint32_t* results, uint32_t resul
     }
 }
 
-uint32_t aggregate_data(uint32_t* data_values, uint32_t count) {
+uint32_t aggregate_data(t27_arr_uint32_t_16 data_values, uint32_t count) {
     if ((count == 0)) {
         return 0;
     }
     uint32_t sum = 0;
     uint32_t i = 0;
     while ((i < count)) {
-        sum = (sum + data_values[i]);
+        sum = (sum + data_values.v[i]);
         i = (i + 1);
     }
     return (sum / count);
 }
 
-uint32_t filter_data(uint32_t* data_values, uint32_t count, uint32_t threshold) {
+uint32_t filter_data(t27_arr_uint32_t_16 data_values, uint32_t count, uint32_t threshold) {
     uint32_t filtered_count = 0;
     uint32_t i = 0;
     while ((i < count)) {
-        if ((data_values[i] > threshold)) {
+        if ((data_values.v[i] > threshold)) {
             filtered_count = (filtered_count + 1);
         }
         i = (i + 1);
@@ -247,7 +254,7 @@ uint32_t filter_data(uint32_t* data_values, uint32_t count, uint32_t threshold) 
     return filtered_count;
 }
 
-uint32_t make_local_decision(uint32_t* tasks, uint32_t* results, uint32_t result_count) {
+uint32_t make_local_decision(t27_arr_uint32_t_8 tasks, t27_arr_uint32_t_16 results, uint32_t result_count) {
     uint32_t efficiency = calculate_efficiency(tasks, results, result_count);
     uint32_t pending = count_pending_tasks(tasks);
     if (((efficiency > 50) && (pending < (MAX_TASKS / 2)))) {
@@ -330,12 +337,12 @@ void test_process_and_aggregate(void) {
     (void)r;
     t27_assert((get_status(r) == STATUS_COMPLETED), "completed");
     t27_assert((get_result_value(r) == 50), "size times time");
-    uint32_t rs[16] = { create_result(1,STATUS_COMPLETED,0,100), create_result(2,STATUS_COMPLETED,0,250), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    t27_arr_uint32_t_16 rs = { .v = { create_result(1,STATUS_COMPLETED,0,100), create_result(2,STATUS_COMPLETED,0,250), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } };
     t27_assert((aggregate_results(rs, 2) == 350), "sum of result values");
 }
 
 void test_highest_priority_skips_empty_slots(void) {
-    uint32_t ts[8] = { create_task(1,TASK_PRIORITY_LOW,1,1), create_task(2,TASK_PRIORITY_MEDIUM,1,1), create_task(3,TASK_PRIORITY_LOW,1,1), 0, 0, 0, 0, 0 };
+    t27_arr_uint32_t_8 ts = { .v = { create_task(1,TASK_PRIORITY_LOW,1,1), create_task(2,TASK_PRIORITY_MEDIUM,1,1), create_task(3,TASK_PRIORITY_LOW,1,1), 0, 0, 0, 0, 0 } };
     t27_assert((find_highest_priority_task(ts) == 1), "medium beats low, empties skipped");
     t27_assert((count_pending_tasks(ts) == 3), "three real tasks");
 }

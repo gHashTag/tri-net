@@ -22,6 +22,12 @@
 #define ANOMALY_THRESHOLD 50
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[16]; } t27_arr_uint32_t_16;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -34,14 +40,14 @@ uint32_t create_pattern_storage(uint32_t samples, uint32_t pattern_count, uint32
 uint32_t get_pattern_samples(uint32_t storage);
 uint32_t get_pattern_count(uint32_t storage);
 uint32_t get_trend_direction(uint32_t storage);
-uint32_t* create_sample_array(uint32_t s0, uint32_t s1, uint32_t s2, uint32_t s3, uint32_t s4, uint32_t s5, uint32_t s6, uint32_t s7, uint32_t s8, uint32_t s9, uint32_t s10, uint32_t s11, uint32_t s12, uint32_t s13, uint32_t s14, uint32_t s15);
-uint32_t get_sample_at(uint32_t* array, uint32_t index);
-uint32_t calculate_moving_average(uint32_t* array, uint32_t window);
-uint32_t detect_trend(uint32_t* array, uint32_t samples);
-uint32_t predict_next_value(uint32_t* array, uint32_t samples);
-uint32_t is_anomalous(uint32_t* array, uint32_t samples, uint32_t current_value);
-uint32_t detect_repeating_pattern(uint32_t* array, uint32_t samples);
-uint32_t calculate_variance(uint32_t* array, uint32_t samples);
+t27_arr_uint32_t_16 create_sample_array(uint32_t s0, uint32_t s1, uint32_t s2, uint32_t s3, uint32_t s4, uint32_t s5, uint32_t s6, uint32_t s7, uint32_t s8, uint32_t s9, uint32_t s10, uint32_t s11, uint32_t s12, uint32_t s13, uint32_t s14, uint32_t s15);
+uint32_t get_sample_at(t27_arr_uint32_t_16 array, uint32_t index);
+uint32_t calculate_moving_average(t27_arr_uint32_t_16 array, uint32_t window);
+uint32_t detect_trend(t27_arr_uint32_t_16 array, uint32_t samples);
+uint32_t predict_next_value(t27_arr_uint32_t_16 array, uint32_t samples);
+uint32_t is_anomalous(t27_arr_uint32_t_16 array, uint32_t samples, uint32_t current_value);
+uint32_t detect_repeating_pattern(t27_arr_uint32_t_16 array, uint32_t samples);
+uint32_t calculate_variance(t27_arr_uint32_t_16 array, uint32_t samples);
 
 /* -------------------------------------------------------
    Function implementations
@@ -83,19 +89,19 @@ uint32_t get_trend_direction(uint32_t storage) {
     return (storage & 0x3);
 }
 
-uint32_t* create_sample_array(uint32_t s0, uint32_t s1, uint32_t s2, uint32_t s3, uint32_t s4, uint32_t s5, uint32_t s6, uint32_t s7, uint32_t s8, uint32_t s9, uint32_t s10, uint32_t s11, uint32_t s12, uint32_t s13, uint32_t s14, uint32_t s15) {
-    return { s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s14, s15 };
+t27_arr_uint32_t_16 create_sample_array(uint32_t s0, uint32_t s1, uint32_t s2, uint32_t s3, uint32_t s4, uint32_t s5, uint32_t s6, uint32_t s7, uint32_t s8, uint32_t s9, uint32_t s10, uint32_t s11, uint32_t s12, uint32_t s13, uint32_t s14, uint32_t s15) {
+    return (t27_arr_uint32_t_16){ .v = { s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s14, s15 } };
 }
 
-uint32_t get_sample_at(uint32_t* array, uint32_t index) {
+uint32_t get_sample_at(t27_arr_uint32_t_16 array, uint32_t index) {
     if ((index < 16)) {
-        return array[index];
+        return array.v[index];
     }
     return 0;
 }
 
-uint32_t calculate_moving_average(uint32_t* array, uint32_t window) {
-    int sum = 0;
+uint32_t calculate_moving_average(t27_arr_uint32_t_16 array, uint32_t window) {
+    uint32_t sum = 0;
     int count = window;
     if ((count > 16)) {
         count = 16;
@@ -125,7 +131,7 @@ uint32_t calculate_moving_average(uint32_t* array, uint32_t window) {
     return (sum / count);
 }
 
-uint32_t detect_trend(uint32_t* array, uint32_t samples) {
+uint32_t detect_trend(t27_arr_uint32_t_16 array, uint32_t samples) {
     if ((samples < 2)) {
         return 0;
     }
@@ -140,7 +146,7 @@ uint32_t detect_trend(uint32_t* array, uint32_t samples) {
     }
 }
 
-uint32_t predict_next_value(uint32_t* array, uint32_t samples) {
+uint32_t predict_next_value(t27_arr_uint32_t_16 array, uint32_t samples) {
     int trend = detect_trend(array, samples);
     int current = get_sample_value(get_sample_at(array, (samples - 1)));
     if ((trend == 1)) {
@@ -156,7 +162,7 @@ uint32_t predict_next_value(uint32_t* array, uint32_t samples) {
     }
 }
 
-uint32_t is_anomalous(uint32_t* array, uint32_t samples, uint32_t current_value) {
+uint32_t is_anomalous(t27_arr_uint32_t_16 array, uint32_t samples, uint32_t current_value) {
     int predicted = predict_next_value(array, samples);
     if ((predicted > current_value)) {
         return (predicted - current_value);
@@ -165,7 +171,7 @@ uint32_t is_anomalous(uint32_t* array, uint32_t samples, uint32_t current_value)
     }
 }
 
-uint32_t detect_repeating_pattern(uint32_t* array, uint32_t samples) {
+uint32_t detect_repeating_pattern(t27_arr_uint32_t_16 array, uint32_t samples) {
     if ((samples < 4)) {
         return 0;
     }
@@ -186,12 +192,12 @@ uint32_t detect_repeating_pattern(uint32_t* array, uint32_t samples) {
     return 0;
 }
 
-uint32_t calculate_variance(uint32_t* array, uint32_t samples) {
+uint32_t calculate_variance(t27_arr_uint32_t_16 array, uint32_t samples) {
     if ((samples < 2)) {
         return 0;
     }
     int avg = calculate_moving_average(array, samples);
-    int sum_sq_diff = 0;
+    uint32_t sum_sq_diff = 0;
     if ((samples >= 1)) {
         uint32_t v0 = get_sample_value(get_sample_at(array, 0));
         uint32_t diff = 0;
@@ -260,93 +266,93 @@ void test_create_pattern_storage_basic(void) {
 }
 
 void test_calculate_moving_average_4_samples(void) {
-    uint64_t array = create_sample_array(create_sample(50, 1, 1, 1), create_sample(60, 2, 2, 1), create_sample(70, 3, 3, 1), create_sample(80, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    t27_arr_uint32_t_16 array = create_sample_array(create_sample(50, 1, 1, 1), create_sample(60, 2, 2, 1), create_sample(70, 3, 3, 1), create_sample(80, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     (void)array;
     int avg = calculate_moving_average(array, 4);
     t27_assert((avg == 65), "average of 50,60,70,80");
 }
 
 void test_calculate_moving_average_all_samples(void) {
-    uint64_t array = create_sample_array(create_sample(100, 1, 1, 1), create_sample(100, 2, 2, 1), create_sample(100, 3, 3, 1), create_sample(100, 4, 4, 1), create_sample(100, 5, 5, 1), create_sample(100, 6, 6, 1), create_sample(100, 7, 7, 1), create_sample(100, 8, 8, 1), 0, 0, 0, 0, 0, 0, 0, 0);
+    t27_arr_uint32_t_16 array = create_sample_array(create_sample(100, 1, 1, 1), create_sample(100, 2, 2, 1), create_sample(100, 3, 3, 1), create_sample(100, 4, 4, 1), create_sample(100, 5, 5, 1), create_sample(100, 6, 6, 1), create_sample(100, 7, 7, 1), create_sample(100, 8, 8, 1), 0, 0, 0, 0, 0, 0, 0, 0);
     (void)array;
     int avg = calculate_moving_average(array, 8);
     t27_assert((avg == 100), "all samples = 100");
 }
 
 void test_detect_trend_increasing(void) {
-    uint64_t array = create_sample_array(create_sample(10, 1, 1, 1), create_sample(20, 2, 2, 1), create_sample(30, 3, 3, 1), create_sample(40, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    t27_arr_uint32_t_16 array = create_sample_array(create_sample(10, 1, 1, 1), create_sample(20, 2, 2, 1), create_sample(30, 3, 3, 1), create_sample(40, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     (void)array;
     t27_assert((detect_trend(array, 4) == 1), "increasing trend");
 }
 
 void test_detect_trend_decreasing(void) {
-    uint64_t array = create_sample_array(create_sample(80, 1, 1, 1), create_sample(60, 2, 2, 1), create_sample(40, 3, 3, 1), create_sample(20, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    t27_arr_uint32_t_16 array = create_sample_array(create_sample(80, 1, 1, 1), create_sample(60, 2, 2, 1), create_sample(40, 3, 3, 1), create_sample(20, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     (void)array;
     t27_assert((detect_trend(array, 4) == 2), "decreasing trend");
 }
 
 void test_detect_trend_stable(void) {
-    uint64_t array = create_sample_array(create_sample(50, 1, 1, 1), create_sample(52, 2, 2, 1), create_sample(48, 3, 3, 1), create_sample(51, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    t27_arr_uint32_t_16 array = create_sample_array(create_sample(50, 1, 1, 1), create_sample(52, 2, 2, 1), create_sample(48, 3, 3, 1), create_sample(51, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     (void)array;
     t27_assert((detect_trend(array, 4) == 0), "stable trend");
 }
 
 void test_predict_next_value_increasing(void) {
-    uint64_t array = create_sample_array(create_sample(50, 1, 1, 1), create_sample(60, 2, 2, 1), create_sample(70, 3, 3, 1), create_sample(80, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    t27_arr_uint32_t_16 array = create_sample_array(create_sample(50, 1, 1, 1), create_sample(60, 2, 2, 1), create_sample(70, 3, 3, 1), create_sample(80, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     (void)array;
     int predicted = predict_next_value(array, 4);
     t27_assert((predicted == 90), "predict 90 (80 + 10)");
 }
 
 void test_predict_next_value_decreasing(void) {
-    uint64_t array = create_sample_array(create_sample(80, 1, 1, 1), create_sample(60, 2, 2, 1), create_sample(40, 3, 3, 1), create_sample(20, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    t27_arr_uint32_t_16 array = create_sample_array(create_sample(80, 1, 1, 1), create_sample(60, 2, 2, 1), create_sample(40, 3, 3, 1), create_sample(20, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     (void)array;
     int predicted = predict_next_value(array, 4);
     t27_assert((predicted == 10), "predict 10 (20 - 10)");
 }
 
 void test_predict_next_value_stable(void) {
-    uint64_t array = create_sample_array(create_sample(50, 1, 1, 1), create_sample(52, 2, 2, 1), create_sample(48, 3, 3, 1), create_sample(51, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    t27_arr_uint32_t_16 array = create_sample_array(create_sample(50, 1, 1, 1), create_sample(52, 2, 2, 1), create_sample(48, 3, 3, 1), create_sample(51, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     (void)array;
     int predicted = predict_next_value(array, 4);
     t27_assert((predicted == 51), "predict 51 (stable)");
 }
 
 void test_is_anomalous_large_deviation(void) {
-    uint64_t array = create_sample_array(create_sample(50, 1, 1, 1), create_sample(60, 2, 2, 1), create_sample(70, 3, 3, 1), create_sample(80, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    t27_arr_uint32_t_16 array = create_sample_array(create_sample(50, 1, 1, 1), create_sample(60, 2, 2, 1), create_sample(70, 3, 3, 1), create_sample(80, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     (void)array;
     int anomaly = is_anomalous(array, 4, 120);
     t27_assert((anomaly > 20), "large deviation");
 }
 
 void test_is_anomalous_normal(void) {
-    uint64_t array = create_sample_array(create_sample(50, 1, 1, 1), create_sample(60, 2, 2, 1), create_sample(70, 3, 3, 1), create_sample(80, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    t27_arr_uint32_t_16 array = create_sample_array(create_sample(50, 1, 1, 1), create_sample(60, 2, 2, 1), create_sample(70, 3, 3, 1), create_sample(80, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     (void)array;
     int anomaly = is_anomalous(array, 4, 85);
     t27_assert((anomaly <= 5), "normal deviation");
 }
 
 void test_detect_repeating_pattern_found(void) {
-    uint64_t array = create_sample_array(create_sample(10, 1, 1, 1), create_sample(20, 2, 2, 1), create_sample(10, 3, 3, 1), create_sample(20, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    t27_arr_uint32_t_16 array = create_sample_array(create_sample(10, 1, 1, 1), create_sample(20, 2, 2, 1), create_sample(10, 3, 3, 1), create_sample(20, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     (void)array;
     t27_assert((detect_repeating_pattern(array, 4) == 1), "pattern found");
 }
 
 void test_detect_repeating_pattern_not_found(void) {
-    uint64_t array = create_sample_array(create_sample(10, 1, 1, 1), create_sample(20, 2, 2, 1), create_sample(30, 3, 3, 1), create_sample(40, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    t27_arr_uint32_t_16 array = create_sample_array(create_sample(10, 1, 1, 1), create_sample(20, 2, 2, 1), create_sample(30, 3, 3, 1), create_sample(40, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     (void)array;
     t27_assert((detect_repeating_pattern(array, 4) == 0), "no pattern");
 }
 
 void test_calculate_variance_low(void) {
-    uint64_t array = create_sample_array(create_sample(50, 1, 1, 1), create_sample(52, 2, 2, 1), create_sample(48, 3, 3, 1), create_sample(51, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    t27_arr_uint32_t_16 array = create_sample_array(create_sample(50, 1, 1, 1), create_sample(52, 2, 2, 1), create_sample(48, 3, 3, 1), create_sample(51, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     (void)array;
     int variance = calculate_variance(array, 4);
     t27_assert((variance < 10), "low variance");
 }
 
 void test_calculate_variance_high(void) {
-    uint64_t array = create_sample_array(create_sample(10, 1, 1, 1), create_sample(100, 2, 2, 1), create_sample(20, 3, 3, 1), create_sample(90, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    t27_arr_uint32_t_16 array = create_sample_array(create_sample(10, 1, 1, 1), create_sample(100, 2, 2, 1), create_sample(20, 3, 3, 1), create_sample(90, 4, 4, 1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     (void)array;
     int variance = calculate_variance(array, 4);
     t27_assert((variance > 1000), "high variance");
