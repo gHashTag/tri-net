@@ -2,39 +2,11 @@ name: gft-verilog-kat
 on:
   push:
     branches: [main]
+# No pull_request paths filter: this check is REQUIRED by the main-branch ruleset
+# (like the drift check), and a path-filtered required check never reports on PRs
+# outside its paths -- GitHub then blocks their merge forever. ~4-5 min per PR is
+# the price of requiring hardware-simulation execution.
   pull_request:
-    paths:
-      - "specs/tri_gft_add.t27"
-      - "specs/tri_gft_sub.t27"
-      - "specs/tri_gft_ladder.t27"
-      - "specs/tri_gft_arith.t27"
-      - "specs/tri_a2a.t27"
-      - "specs/tri_a2a_card.t27"
-      - "specs/tri_a2a_wire.t27"
-      - "specs/tri_challenge.t27"
-      - "specs/tri_compute_account.t27"
-      - "specs/tri_compute_bitnet.t27"
-      - "specs/tri_compute_bond.t27"
-      - "specs/tri_compute_challenge.t27"
-      - "specs/tri_compute_gfvalid.t27"
-      - "specs/tri_compute_optimistic.t27"
-      - "specs/tri_compute_payout.t27"
-      - "specs/tri_compute_pool.t27"
-      - "specs/tri_compute_receipt.t27"
-      - "specs/tri_compute_reputation.t27"
-      - "specs/tri_compute_safety.t27"
-      - "specs/tri_compute_settle.t27"
-      - "specs/tri_depin.t27"
-      - "specs/tri_fec.t27"
-      - "specs/tri_ilv.t27"
-      - "specs/tri_ledger.t27"
-      - "specs/tri_merkle.t27"
-      - "specs/tri_node_identity.t27"
-      - "specs/tri_receipt_verify.t27"
-      - "specs/tri_settle.t27"
-      - "specs/tri_sha256.t27"
-      - "specs/tri_slash.t27"
-      - ".github/workflows/gft-verilog-kat.yml"
 
 # Execute the GF-T specs' own test blocks IN SIMULATED HARDWARE: t27c
 # icarus-simulate generates a self-checking Verilog testbench from the spec
@@ -45,7 +17,10 @@ on:
 # silently. Requires t27c >= gHashTag/t27#1885 (assert lowering).
 #
 # Sweep result (2026-08-08, t27c with #1885+#1899): every icarus-lowerable ring
-# spec (30 of 32; crypto_frame and discovery are not lowerable) simulates clean
+# spec (30 of 32) simulates clean. crypto_frame and discovery are not lowerable
+# BY DESIGN: they model host-side byte-layout parsing and use `usize` (host-width)
+# in fn signatures, which the icarus classifier's primitive whitelist
+# (u8/u16/u32/u64/i8..i64/bool) rightly excludes -- hardware has no host word
 # and runs here. Unlocked by upstream t27#1885 (assert lowering), t27#1894
 # (test-block reg declarations), t27#1886 (64-bit __mul_noop) and tri-net-side
 # spec legalization (Verilog reserved words class/packed/small renamed; one
