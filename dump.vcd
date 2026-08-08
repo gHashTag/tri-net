@@ -1,0 +1,108 @@
+$date
+	Sat Aug  8 23:36:41 2026
+$end
+$version
+	Icarus Verilog
+$end
+$timescale
+	1ps
+$end
+$scope module MeshWire $end
+$var wire 1 ! clk $end
+$var wire 1 " en $end
+$var wire 1 # ready $end
+$var wire 1 $ rst_n $end
+$var parameter 32 % HEADER_LEN $end
+$var parameter 8 & KIND_DATA $end
+$var parameter 8 ' KIND_HELLO $end
+$var parameter 8 ( VERSION $end
+$scope function __mul_noop $end
+$var reg 64 ) a [63:0] $end
+$var reg 128 * acc [127:0] $end
+$var reg 64 + b [63:0] $end
+$var integer 32 , i [31:0] $end
+$upscope $end
+$scope function be_byte $end
+$var reg 32 - i [31:0] $end
+$var reg 32 . w [31:0] $end
+$scope begin be_byte_body $end
+$upscope $end
+$upscope $end
+$scope function frame_kind_valid $end
+$var reg 8 / k [7:0] $end
+$scope begin frame_kind_valid_body $end
+$upscope $end
+$upscope $end
+$scope function header_byte $end
+$var reg 32 0 dst [31:0] $end
+$var reg 32 1 idx [31:0] $end
+$var reg 8 2 kind [7:0] $end
+$var reg 32 3 src [31:0] $end
+$var reg 8 4 ttl [7:0] $end
+$scope begin header_byte_body $end
+$upscope $end
+$upscope $end
+$scope function parse_accepts $end
+$var reg 8 5 b0 [7:0] $end
+$var reg 8 6 b1 [7:0] $end
+$scope begin parse_accepts_body $end
+$upscope $end
+$upscope $end
+$scope function u32_be $end
+$var reg 8 7 b0 [7:0] $end
+$var reg 8 8 b1 [7:0] $end
+$var reg 8 9 b2 [7:0] $end
+$var reg 8 : b3 [7:0] $end
+$scope begin u32_be_body $end
+$upscope $end
+$upscope $end
+$scope begin byte0_is_version_test $end
+$upscope $end
+$scope begin byte1_is_kind_test $end
+$upscope $end
+$scope begin parse_accepts_valid_test $end
+$upscope $end
+$scope begin parse_rejects_bad_kind_test $end
+$upscope $end
+$scope begin parse_rejects_bad_version_test $end
+$upscope $end
+$scope begin src_be_first_and_last_byte_test $end
+$upscope $end
+$scope begin src_roundtrips_through_bytes_test $end
+$upscope $end
+$scope begin ttl_is_last_byte_test $end
+$upscope $end
+$upscope $end
+$enddefinitions $end
+$comment Show the parameter values. $end
+$dumpall
+b1 (
+b0 '
+b1 &
+b1011 %
+$end
+#0
+$dumpvars
+bx :
+bx 9
+bx 8
+bx 7
+bx 6
+bx 5
+bx 4
+bx 3
+bx 2
+bx 1
+bx 0
+bx /
+bx .
+bx -
+bx ,
+bx +
+bx *
+bx )
+z$
+1#
+z"
+z!
+$end
