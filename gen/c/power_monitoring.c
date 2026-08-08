@@ -108,7 +108,10 @@ uint32_t reduce_consumption(uint32_t state, uint32_t reduction) {
     int mode = get_power_mode(state);
     int current_consumption = get_consumption(state);
     int uptime = get_uptime(state);
-    int new_consumption = (current_consumption - reduction);
+    uint32_t new_consumption = 1;
+    if ((reduction < current_consumption)) {
+        new_consumption = (current_consumption - reduction);
+    }
     if ((new_consumption < 1)) {
         new_consumption = 1;
     }
@@ -120,8 +123,11 @@ uint32_t drain_battery(uint32_t state, uint32_t amount) {
     int mode = get_power_mode(state);
     int consumption = get_consumption(state);
     int uptime = get_uptime(state);
-    int new_battery = (battery - amount);
-    if ((new_battery < 0)) {
+    uint32_t new_battery = 0;
+    if ((amount < battery)) {
+        new_battery = (battery - amount);
+    }
+    if ((new_battery < 1)) {
         new_battery = 0;
     }
     return create_power_state(new_battery, mode, consumption, uptime);

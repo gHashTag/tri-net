@@ -281,7 +281,9 @@ module TriChallenge {
 
     // Saturating risk accumulator: the summed reward-at-risk of OPEN disputes.
     fn risk_after_open(risk: u32, reward: u32) -> u32 {
-        let sum: u32 = risk + reward;
+        // The probe add MUST wrap (+%): plain '+' is checked and dies on
+        // overflow before the saturation guard can run (Zig execution level).
+        let sum: u32 = risk +% reward;
         if (sum < risk) {
             return 0xFFFFFFFF;
         } else {

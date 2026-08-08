@@ -63,8 +63,11 @@ fn reduce_consumption(state: u32, reduction: u32) u32 {
     const mode = get_power_mode(state);
     const current_consumption = get_consumption(state);
     const uptime = get_uptime(state);
-    var new_consumption = current_consumption - reduction;
+    var new_consumption: u32 = 1;
     _ = &new_consumption;
+    if (reduction < current_consumption) {
+        new_consumption = current_consumption - reduction;
+    }
     if (new_consumption < 1) {
         new_consumption = 1;
     }
@@ -75,9 +78,12 @@ fn drain_battery(state: u32, amount: u32) u32 {
     const mode = get_power_mode(state);
     const consumption = get_consumption(state);
     const uptime = get_uptime(state);
-    var new_battery = battery - amount;
+    var new_battery: u32 = 0;
     _ = &new_battery;
-    if (new_battery < 0) {
+    if (amount < battery) {
+        new_battery = battery - amount;
+    }
+    if (new_battery < 1) {
         new_battery = 0;
     }
     return create_power_state(new_battery, mode, consumption, uptime);

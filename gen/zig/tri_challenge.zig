@@ -170,7 +170,7 @@ fn dispute_slots_ok(open_count: u32) bool {
     return open_count < MAX_OPEN_DISPUTES;
 }
 fn risk_after_open(risk: u32, reward: u32) u32 {
-    const sum: u32 = risk + reward;
+    const sum: u32 = risk +% reward;
     if (sum < risk) {
         return 0xFFFFFFFF;
     } else {
