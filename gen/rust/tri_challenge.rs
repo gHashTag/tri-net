@@ -94,6 +94,41 @@ pub fn witness_verdict(defender_seal: u32, s0: u32, s1: u32, s2: u32) -> u32 {
     return resolve(defender_seal, truth);
 }
 
+pub fn witness_is_majority(seal: u32, majority: u32) -> bool {
+    return ((majority != 0) && (seal == majority));
+}
+
+pub fn majority_count_3(s0: u32, s1: u32, s2: u32, majority: u32) -> u32 {
+    let c0: u32 = if_seal(s0, majority);
+    let c1: u32 = if_seal(s1, majority);
+    let c2: u32 = if_seal(s2, majority);
+    return ((c0 + c1) + c2);
+}
+
+pub fn if_seal(seal: u32, majority: u32) -> u32 {
+    if witness_is_majority(seal, majority) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+pub fn minority_pot_3(s0: u32, s1: u32, s2: u32, majority: u32, stake: u32) -> u32 {
+    return ((3 - majority_count_3(s0, s1, s2, majority)) * stake);
+}
+
+pub fn witness_payout(voted: u32, s0: u32, s1: u32, s2: u32, stake: u32) -> u32 {
+    let majority: u32 = witness_majority(s0, s1, s2);
+    if (majority == 0) {
+        return stake;
+    }
+    if witness_is_majority(voted, majority) {
+        let pot: u32 = minority_pot_3(s0, s1, s2, majority, stake);
+        return (stake + (pot / majority_count_3(s0, s1, s2, majority)));
+    }
+    return 0;
+}
+
 pub const MAX_OPEN_DISPUTES: u32 = 3;
 
 pub const CH_BPS_UNIT: u32 = 10000;

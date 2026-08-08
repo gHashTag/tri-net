@@ -124,6 +124,47 @@ test "witness_quorum" {
     if (!(v_caught == DEFENDER_LIED)) @compileError("assertion failed");
     if (!(v_none == VERDICT_NONE)) @compileError("assertion failed");
 }
+fn witness_is_majority(seal: u32, majority: u32) bool {
+    return (majority != 0) and (seal == majority);
+}
+fn majority_count_3(s0: u32, s1: u32, s2: u32, majority: u32) u32 {
+    const c0: u32 = if_seal(s0, majority);
+    const c1: u32 = if_seal(s1, majority);
+    const c2: u32 = if_seal(s2, majority);
+    return (c0 + c1) + c2;
+}
+fn if_seal(seal: u32, majority: u32) u32 {
+    if (witness_is_majority(seal, majority)) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+fn minority_pot_3(s0: u32, s1: u32, s2: u32, majority: u32, stake: u32) u32 {
+    return (3 - majority_count_3(s0, s1, s2, majority)) * stake;
+}
+fn witness_payout(voted: u32, s0: u32, s1: u32, s2: u32, stake: u32) u32 {
+    const majority: u32 = witness_majority(s0, s1, s2);
+    if (majority == 0) {
+        return stake;
+    }
+    if (witness_is_majority(voted, majority)) {
+        const pot: u32 = minority_pot_3(s0, s1, s2, majority, stake);
+        return stake + (pot / majority_count_3(s0, s1, s2, majority));
+    }
+    return 0;
+}
+test "witness_economics" {
+    const u = witness_payout(0xAAAA, 0xAAAA, 0xAAAA, 0xAAAA, 100);
+    const m = witness_payout(0xAAAA, 0xAAAA, 0xAAAA, 0xDEAD, 100);
+    const l = witness_payout(0xDEAD, 0xAAAA, 0xAAAA, 0xDEAD, 100);
+    const n = witness_payout(0x1111, 0x1111, 0x2222, 0x3333, 100);
+    if (!(u == 100)) @compileError("assertion failed");
+    if (!(m == 150)) @compileError("assertion failed");
+    if (!(l == 0)) @compileError("assertion failed");
+    if (!(n == 100)) @compileError("assertion failed");
+    if (!(((m + m) + l) == 300)) @compileError("assertion failed");
+}
 const MAX_OPEN_DISPUTES: u32 = 3;
 const CH_BPS_UNIT: u32 = 10000;
 fn dispute_slots_ok(open_count: u32) bool {

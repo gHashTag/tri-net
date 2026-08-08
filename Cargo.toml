@@ -350,3 +350,7 @@ path = "tests/dispute_swarm_e2e.rs"
 [[test]]
 name = "dispute_witness"
 path = "tests/dispute_witness.rs"
+
+[[test]]
+name = "witness_economics"
+path = "tests/witness_economics.rs"

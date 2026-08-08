@@ -198,6 +198,70 @@ module TriChallenge {
         assert(v_none == VERDICT_NONE, "no quorum -> no verdict, dispute stays open");
     }
 
+    // ---- Witness economics: quorum incentives ----
+    // A witness posts a stake to vote. After a quorum verdict, minority voters
+    // forfeit their stakes into a pot split equally among the majority (floor
+    // division; the dust smaller than the majority count is burnt, never
+    // minted). With NO quorum every stake is refunded -- punishing a 1-1-1
+    // split would let an attacker grief honest witnesses into losses by merely
+    // disagreeing. Rewards come ONLY from minority forfeits: an all-honest
+    // unanimous round pays nothing extra, so echoing the majority for profit
+    // is not a strategy -- but voting AGAINST a majority strictly loses.
+
+    fn witness_is_majority(seal: u32, majority: u32) -> bool {
+        return (majority != 0) && (seal == majority);
+    }
+
+    fn majority_count_3(s0: u32, s1: u32, s2: u32, majority: u32) -> u32 {
+        let c0: u32 = if_seal(s0, majority);
+        let c1: u32 = if_seal(s1, majority);
+        let c2: u32 = if_seal(s2, majority);
+        return c0 + c1 + c2;
+    }
+
+    fn if_seal(seal: u32, majority: u32) -> u32 {
+        if (witness_is_majority(seal, majority)) {
+            return 1;
+        } else {
+            return 0;
+        }
+    }
+
+    // Total forfeited by the minority (stake per minority voter).
+    fn minority_pot_3(s0: u32, s1: u32, s2: u32, majority: u32, stake: u32) -> u32 {
+        return (3 - majority_count_3(s0, s1, s2, majority)) * stake;
+    }
+
+    // One witness's balance after settlement: majority voters take their stake
+    // back plus an equal floor-share of the pot; minority voters forfeit; with
+    // no quorum (majority == 0) everyone is refunded.
+    fn witness_payout(voted: u32, s0: u32, s1: u32, s2: u32, stake: u32) -> u32 {
+        let majority: u32 = witness_majority(s0, s1, s2);
+        if (majority == 0) {
+            return stake;
+        }
+        if (witness_is_majority(voted, majority)) {
+            let pot: u32 = minority_pot_3(s0, s1, s2, majority, stake);
+            return stake + (pot / majority_count_3(s0, s1, s2, majority));
+        }
+        return 0;
+    }
+
+    // Unanimity pays nothing extra; a 2-1 split pays the majority from the
+    // minority's forfeit only; no quorum refunds everyone; the lone dissenter
+    // strictly loses.
+    test witness_economics {
+        u = witness_payout(0xAAAA, 0xAAAA, 0xAAAA, 0xAAAA, 100);
+        m = witness_payout(0xAAAA, 0xAAAA, 0xAAAA, 0xDEAD, 100);
+        l = witness_payout(0xDEAD, 0xAAAA, 0xAAAA, 0xDEAD, 100);
+        n = witness_payout(0x1111, 0x1111, 0x2222, 0x3333, 100);
+        assert(u == 100, "unanimous round: stake back, no free reward");
+        assert(m == 150, "majority of two splits the one forfeited stake");
+        assert(l == 0, "the dissenter forfeits");
+        assert(n == 100, "no quorum refunds everyone");
+        assert((m + m + l) == 300, "2-1 round conserves the three stakes");
+    }
+
     // ---- Concurrent disputes: one defender, many challengers ----
     // Without a cap and a risk ledger, a challenger swarm could (a) pile
     // unbounded simultaneous disputes on one defender (grief: every dispute
