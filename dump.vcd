@@ -1,5 +1,5 @@
 $date
-	Sun Aug  9 00:12:59 2026
+	Sun Aug  9 00:45:37 2026
 $end
 $version
 	Icarus Verilog
@@ -7,396 +7,468 @@ $end
 $timescale
 	1ps
 $end
-$scope module AccessControl $end
+$scope module trust_manager $end
 $var wire 1 ! clk $end
 $var wire 1 " en $end
 $var wire 1 # ready $end
 $var wire 1 $ rst_n $end
-$var parameter 32 % DENY $end
-$var parameter 32 & MAX_NODES $end
-$var parameter 32 ' PERMIT $end
-$var parameter 32 ( ROLE_ADMIN $end
-$var parameter 32 ) ROLE_GUEST $end
-$var parameter 32 * ROLE_NONE $end
-$var parameter 32 + ROLE_USER $end
+$var parameter 32 % MAX_NODES $end
+$var parameter 32 & MAX_TRUST_SCORE $end
+$var parameter 32 ' TRUST_HIGH $end
+$var parameter 32 ( TRUST_LOW $end
+$var parameter 32 ) TRUST_THRESHOLD $end
 $scope function __mul_noop $end
-$var reg 64 , a [63:0] $end
-$var reg 128 - acc [127:0] $end
-$var reg 64 . b [63:0] $end
-$var integer 32 / i [31:0] $end
+$var reg 64 * a [63:0] $end
+$var reg 128 + acc [127:0] $end
+$var reg 64 , b [63:0] $end
+$var integer 32 - i [31:0] $end
 $upscope $end
-$scope function authorize_node $end
-$var reg 32 0 creds [31:0] $end
-$scope begin authorize_node_body $end
-$var reg 1 1 __t27_ret $end
-$var reg 32 2 node_id [31:0] $end
-$var reg 32 3 role [31:0] $end
-$var reg 32 4 token [31:0] $end
-$upscope $end
-$upscope $end
-$scope function change_role $end
-$var reg 32 5 creds [31:0] $end
-$var reg 32 6 new_role [31:0] $end
-$scope begin change_role_body $end
-$var reg 1 7 __t27_ret $end
-$var reg 32 8 auth [31:0] $end
-$var reg 32 9 node_id [31:0] $end
-$var reg 32 : token [31:0] $end
+$scope function calculate_trust_score $end
+$var reg 32 . negative [31:0] $end
+$var reg 32 / positive [31:0] $end
+$scope begin calculate_trust_score_body $end
+$var reg 1 0 __t27_ret $end
+$var reg 32 1 score [31:0] $end
+$var reg 32 2 total [31:0] $end
 $upscope $end
 $upscope $end
-$scope function check_access $end
-$var reg 32 ; policy [31:0] $end
-$var reg 32 < role [31:0] $end
-$scope begin check_access_body $end
-$var reg 1 = __t27_ret $end
-$var reg 32 > min_role [31:0] $end
+$scope function create_trust_array $end
+$var reg 32 3 t0 [31:0] $end
+$var reg 32 4 t1 [31:0] $end
+$var reg 32 5 t2 [31:0] $end
+$var reg 32 6 t3 [31:0] $end
+$var reg 32 7 t4 [31:0] $end
+$var reg 32 8 t5 [31:0] $end
+$var reg 32 9 t6 [31:0] $end
+$var reg 32 : t7 [31:0] $end
+$scope begin create_trust_array_body $end
+$var reg 1 ; __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function check_resource_access $end
-$var reg 32 ? creds [31:0] $end
-$var reg 32 @ policy [31:0] $end
-$var reg 32 A provided_token [31:0] $end
-$scope begin check_resource_access_body $end
-$var reg 1 B __t27_ret $end
-$var reg 32 C role [31:0] $end
+$scope function create_trust_relationship $end
+$var reg 32 < destination [31:0] $end
+$var reg 32 = level [31:0] $end
+$var reg 32 > source [31:0] $end
+$var reg 32 ? verified [31:0] $end
+$scope begin create_trust_relationship_body $end
+$var reg 1 @ __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function create_node_creds $end
-$var reg 32 D auth_token [31:0] $end
-$var reg 32 E authorized [31:0] $end
-$var reg 32 F node_id [31:0] $end
-$var reg 32 G role [31:0] $end
-$scope begin create_node_creds_body $end
-$var reg 1 H __t27_ret $end
+$scope function create_trust_score $end
+$var reg 32 A negative [31:0] $end
+$var reg 32 B node_id [31:0] $end
+$var reg 32 C positive [31:0] $end
+$var reg 32 D score [31:0] $end
+$scope begin create_trust_score_body $end
+$var reg 1 E __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function create_policy $end
-$var reg 32 I admin_perm [31:0] $end
-$var reg 32 J guest_perm [31:0] $end
-$var reg 32 K min_role [31:0] $end
-$var reg 32 L resource [31:0] $end
-$var reg 32 M user_perm [31:0] $end
-$scope begin create_policy_body $end
-$var reg 1 N __t27_ret $end
+$scope function find_most_trusted $end
+$var reg 256 F trust_array [255:0] $end
+$scope begin find_most_trusted_body $end
+$var reg 1 G __t27_ret $end
+$var reg 32 H highest_score [31:0] $end
+$var reg 32 I most_trusted [31:0] $end
 $upscope $end
 $upscope $end
-$scope function get_admin_perm $end
-$var reg 32 O policy [31:0] $end
-$scope begin get_admin_perm_body $end
-$var reg 1 P __t27_ret $end
+$scope function get_negative_interactions $end
+$var reg 32 J score [31:0] $end
+$scope begin get_negative_interactions_body $end
+$var reg 1 K __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function get_auth_token $end
-$var reg 32 Q creds [31:0] $end
-$scope begin get_auth_token_body $end
-$var reg 1 R __t27_ret $end
+$scope function get_positive_interactions $end
+$var reg 32 L score [31:0] $end
+$scope begin get_positive_interactions_body $end
+$var reg 1 M __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function get_guest_perm $end
-$var reg 32 S policy [31:0] $end
-$scope begin get_guest_perm_body $end
-$var reg 1 T __t27_ret $end
+$scope function get_trust_destination $end
+$var reg 32 N rel [31:0] $end
+$scope begin get_trust_destination_body $end
+$var reg 1 O __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function get_min_role $end
-$var reg 32 U policy [31:0] $end
-$scope begin get_min_role_body $end
+$scope function get_trust_level $end
+$var reg 32 P rel [31:0] $end
+$scope begin get_trust_level_body $end
+$var reg 1 Q __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_trust_node_id $end
+$var reg 32 R score [31:0] $end
+$scope begin get_trust_node_id_body $end
+$var reg 1 S __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_trust_score $end
+$var reg 256 T array [255:0] $end
+$var reg 32 U index [31:0] $end
+$scope begin get_trust_score_body $end
 $var reg 1 V __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function get_node_id $end
-$var reg 32 W creds [31:0] $end
-$scope begin get_node_id_body $end
+$scope function get_trust_score_value $end
+$var reg 32 W score [31:0] $end
+$scope begin get_trust_score_value_body $end
 $var reg 1 X __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function get_resource $end
-$var reg 32 Y policy [31:0] $end
-$scope begin get_resource_body $end
+$scope function get_trust_source $end
+$var reg 32 Y rel [31:0] $end
+$scope begin get_trust_source_body $end
 $var reg 1 Z __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function get_role $end
-$var reg 32 [ creds [31:0] $end
-$scope begin get_role_body $end
+$scope function get_trust_verified $end
+$var reg 32 [ rel [31:0] $end
+$scope begin get_trust_verified_body $end
 $var reg 1 \ __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function get_user_perm $end
-$var reg 32 ] policy [31:0] $end
-$scope begin get_user_perm_body $end
+$scope function is_node_highly_trusted $end
+$var reg 32 ] score [31:0] $end
+$scope begin is_node_highly_trusted_body $end
 $var reg 1 ^ __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function is_authorized $end
-$var reg 32 _ creds [31:0] $end
-$scope begin is_authorized_body $end
+$scope function is_node_low_trusted $end
+$var reg 32 _ score [31:0] $end
+$scope begin is_node_low_trusted_body $end
 $var reg 1 ` __t27_ret $end
 $upscope $end
 $upscope $end
-$scope function revoke_node $end
-$var reg 32 a creds [31:0] $end
-$scope begin revoke_node_body $end
+$scope function is_node_trusted $end
+$var reg 32 a score [31:0] $end
+$scope begin is_node_trusted_body $end
 $var reg 1 b __t27_ret $end
-$var reg 32 c node_id [31:0] $end
-$var reg 32 d role [31:0] $end
-$var reg 32 e token [31:0] $end
 $upscope $end
 $upscope $end
-$scope function role_meets_minimum $end
-$var reg 32 f min_role [31:0] $end
-$var reg 32 g role [31:0] $end
-$scope begin role_meets_minimum_body $end
-$var reg 1 h __t27_ret $end
+$scope function penalize_node $end
+$var reg 32 c current_score [31:0] $end
+$var reg 32 d penalty [31:0] $end
+$scope begin penalize_node_body $end
+$var reg 1 e __t27_ret $end
+$var reg 32 f negative [31:0] $end
+$var reg 32 g new_negative [31:0] $end
+$var reg 32 h new_score [31:0] $end
+$var reg 32 i node_id [31:0] $end
+$var reg 32 j positive [31:0] $end
 $upscope $end
 $upscope $end
-$scope function verify_creds $end
-$var reg 32 i creds [31:0] $end
-$var reg 32 j provided_token [31:0] $end
-$scope begin verify_creds_body $end
-$var reg 1 k __t27_ret $end
+$scope function reward_node $end
+$var reg 32 k current_score [31:0] $end
+$var reg 32 l reward [31:0] $end
+$scope begin reward_node_body $end
+$var reg 1 m __t27_ret $end
+$var reg 32 n negative [31:0] $end
+$var reg 32 o new_positive [31:0] $end
+$var reg 32 p new_score [31:0] $end
+$var reg 32 q node_id [31:0] $end
+$var reg 32 r positive [31:0] $end
 $upscope $end
 $upscope $end
-$scope begin authorize_node_works_test $end
-$var reg 32 l _t27_call_tmp_authorize_node_works_0 [31:0] $end
-$var reg 32 m _t27_call_tmp_authorize_node_works_1 [31:0] $end
-$var reg 32 n _t27_call_tmp_authorize_node_works_2 [31:0] $end
-$var reg 32 o creds [31:0] $end
-$var reg 32 p new_creds [31:0] $end
+$scope function should_route_via_node $end
+$var reg 32 s min_trust [31:0] $end
+$var reg 32 t node_index [31:0] $end
+$var reg 256 u trust_array [255:0] $end
+$scope begin should_route_via_node_body $end
+$var reg 1 v __t27_ret $end
+$var reg 32 w score [31:0] $end
 $upscope $end
-$scope begin change_role_works_test $end
-$var reg 32 q _t27_call_tmp_change_role_works_0 [31:0] $end
-$var reg 32 r _t27_call_tmp_change_role_works_1 [31:0] $end
-$var reg 32 s _t27_call_tmp_change_role_works_2 [31:0] $end
-$var reg 32 t _t27_call_tmp_change_role_works_3 [31:0] $end
-$var reg 32 u creds [31:0] $end
-$var reg 32 v new_creds [31:0] $end
 $upscope $end
-$scope begin check_access_admin_test $end
-$var reg 32 w _t27_call_tmp_check_access_admin_0 [31:0] $end
-$var reg 32 x _t27_call_tmp_check_access_admin_1 [31:0] $end
-$var reg 32 y policy [31:0] $end
+$scope function update_trust_score $end
+$var reg 32 x current_score [31:0] $end
+$var reg 32 y negative [31:0] $end
+$var reg 32 z positive [31:0] $end
+$scope begin update_trust_score_body $end
+$var reg 1 { __t27_ret $end
+$var reg 32 | current_negative [31:0] $end
+$var reg 32 } current_positive [31:0] $end
+$var reg 32 ~ new_negative [31:0] $end
+$var reg 32 !" new_positive [31:0] $end
+$var reg 32 "" new_score [31:0] $end
+$var reg 32 #" node_id [31:0] $end
 $upscope $end
-$scope begin check_access_guest_denied_test $end
-$var reg 32 z _t27_call_tmp_check_access_guest_denied_0 [31:0] $end
-$var reg 32 { _t27_call_tmp_check_access_guest_denied_1 [31:0] $end
-$var reg 32 | policy [31:0] $end
 $upscope $end
-$scope begin check_access_user_test $end
-$var reg 32 } _t27_call_tmp_check_access_user_0 [31:0] $end
-$var reg 32 ~ _t27_call_tmp_check_access_user_1 [31:0] $end
-$var reg 32 !" policy [31:0] $end
+$scope begin calculate_trust_score_balanced_test $end
+$var reg 32 $" _t27_call_tmp_calculate_trust_score_balanced_0 [31:0] $end
+$var reg 32 %" score [31:0] $end
 $upscope $end
-$scope begin check_resource_access_full_grant_test $end
-$var reg 32 "" _t27_call_tmp_check_resource_access_full_grant_0 [31:0] $end
-$var reg 32 #" _t27_call_tmp_check_resource_access_full_grant_1 [31:0] $end
-$var reg 32 $" _t27_call_tmp_check_resource_access_full_grant_2 [31:0] $end
-$var reg 32 %" creds [31:0] $end
-$var reg 32 &" policy [31:0] $end
+$scope begin calculate_trust_score_mostly_negative_test $end
+$var reg 32 &" _t27_call_tmp_calculate_trust_score_mostly_negative_0 [31:0] $end
+$var reg 32 '" score [31:0] $end
 $upscope $end
-$scope begin check_resource_access_invalid_creds_test $end
-$var reg 32 '" _t27_call_tmp_check_resource_access_invalid_creds_0 [31:0] $end
-$var reg 32 (" _t27_call_tmp_check_resource_access_invalid_creds_1 [31:0] $end
-$var reg 32 )" _t27_call_tmp_check_resource_access_invalid_creds_2 [31:0] $end
-$var reg 32 *" creds [31:0] $end
-$var reg 32 +" policy [31:0] $end
+$scope begin calculate_trust_score_mostly_positive_test $end
+$var reg 32 (" _t27_call_tmp_calculate_trust_score_mostly_positive_0 [31:0] $end
+$var reg 32 )" score [31:0] $end
 $upscope $end
-$scope begin check_resource_access_role_too_low_test $end
-$var reg 32 ," _t27_call_tmp_check_resource_access_role_too_low_0 [31:0] $end
-$var reg 32 -" _t27_call_tmp_check_resource_access_role_too_low_1 [31:0] $end
-$var reg 32 ." _t27_call_tmp_check_resource_access_role_too_low_2 [31:0] $end
-$var reg 32 /" creds [31:0] $end
-$var reg 32 0" policy [31:0] $end
+$scope begin calculate_trust_score_no_interactions_test $end
+$var reg 32 *" _t27_call_tmp_calculate_trust_score_no_interactions_0 [31:0] $end
 $upscope $end
-$scope begin create_node_creds_basic_test $end
-$var reg 32 1" _t27_call_tmp_create_node_creds_basic_0 [31:0] $end
-$var reg 32 2" _t27_call_tmp_create_node_creds_basic_1 [31:0] $end
-$var reg 32 3" _t27_call_tmp_create_node_creds_basic_2 [31:0] $end
-$var reg 32 4" _t27_call_tmp_create_node_creds_basic_3 [31:0] $end
-$var reg 32 5" _t27_call_tmp_create_node_creds_basic_4 [31:0] $end
-$var reg 32 6" creds [31:0] $end
+$scope begin create_trust_relationship_basic_test $end
+$var reg 32 +" _t27_call_tmp_create_trust_relationship_basic_0 [31:0] $end
+$var reg 32 ," _t27_call_tmp_create_trust_relationship_basic_1 [31:0] $end
+$var reg 32 -" _t27_call_tmp_create_trust_relationship_basic_2 [31:0] $end
+$var reg 32 ." _t27_call_tmp_create_trust_relationship_basic_3 [31:0] $end
+$var reg 32 /" _t27_call_tmp_create_trust_relationship_basic_4 [31:0] $end
+$var reg 32 0" rel [31:0] $end
 $upscope $end
-$scope begin create_policy_basic_test $end
-$var reg 32 7" _t27_call_tmp_create_policy_basic_0 [31:0] $end
-$var reg 32 8" _t27_call_tmp_create_policy_basic_1 [31:0] $end
-$var reg 32 9" _t27_call_tmp_create_policy_basic_2 [31:0] $end
-$var reg 32 :" _t27_call_tmp_create_policy_basic_3 [31:0] $end
-$var reg 32 ;" _t27_call_tmp_create_policy_basic_4 [31:0] $end
-$var reg 32 <" policy [31:0] $end
+$scope begin create_trust_score_basic_test $end
+$var reg 32 1" _t27_call_tmp_create_trust_score_basic_0 [31:0] $end
+$var reg 32 2" _t27_call_tmp_create_trust_score_basic_1 [31:0] $end
+$var reg 32 3" _t27_call_tmp_create_trust_score_basic_2 [31:0] $end
+$var reg 32 4" _t27_call_tmp_create_trust_score_basic_3 [31:0] $end
+$var reg 32 5" _t27_call_tmp_create_trust_score_basic_4 [31:0] $end
+$var reg 32 6" score [31:0] $end
 $upscope $end
-$scope begin revoke_node_works_test $end
-$var reg 32 =" _t27_call_tmp_revoke_node_works_0 [31:0] $end
-$var reg 32 >" _t27_call_tmp_revoke_node_works_1 [31:0] $end
-$var reg 32 ?" _t27_call_tmp_revoke_node_works_2 [31:0] $end
-$var reg 32 @" creds [31:0] $end
-$var reg 32 A" new_creds [31:0] $end
+$scope begin find_most_trusted_middle_test $end
+$var reg 256 7" _t27_call_tmp_find_most_trusted_middle_0 [255:0] $end
+$var reg 32 8" _t27_call_tmp_find_most_trusted_middle_1 [31:0] $end
+$var reg 32 9" _t27_call_tmp_find_most_trusted_middle_2 [31:0] $end
+$var reg 32 :" _t27_call_tmp_find_most_trusted_middle_3 [31:0] $end
+$var reg 32 ;" _t27_call_tmp_find_most_trusted_middle_4 [31:0] $end
+$var reg 32 <" _t27_call_tmp_find_most_trusted_middle_5 [31:0] $end
+$var reg 256 =" array [255:0] $end
 $upscope $end
-$scope begin role_meets_minimum_false_test $end
-$var reg 1 B" _t27_call_tmp_role_meets_minimum_false_0 $end
-$var reg 1 C" _t27_call_tmp_role_meets_minimum_false_1 $end
+$scope begin is_node_highly_trusted_test $end
+$var reg 32 >" _t27_call_tmp_is_node_highly_trusted_0 [31:0] $end
+$var reg 1 ?" _t27_call_tmp_is_node_highly_trusted_1 $end
+$var reg 32 @" score [31:0] $end
 $upscope $end
-$scope begin role_meets_minimum_true_test $end
-$var reg 1 D" _t27_call_tmp_role_meets_minimum_true_0 $end
-$var reg 1 E" _t27_call_tmp_role_meets_minimum_true_1 $end
+$scope begin is_node_low_trusted_test $end
+$var reg 32 A" _t27_call_tmp_is_node_low_trusted_0 [31:0] $end
+$var reg 1 B" _t27_call_tmp_is_node_low_trusted_1 $end
+$var reg 32 C" score [31:0] $end
 $upscope $end
-$scope begin verify_creds_invalid_token_test $end
-$var reg 32 F" _t27_call_tmp_verify_creds_invalid_token_0 [31:0] $end
-$var reg 1 G" _t27_call_tmp_verify_creds_invalid_token_1 $end
-$var reg 32 H" creds [31:0] $end
+$scope begin is_node_trusted_false_test $end
+$var reg 32 D" _t27_call_tmp_is_node_trusted_false_0 [31:0] $end
+$var reg 1 E" _t27_call_tmp_is_node_trusted_false_1 $end
+$var reg 32 F" score [31:0] $end
 $upscope $end
-$scope begin verify_creds_unauthorized_test $end
-$var reg 32 I" _t27_call_tmp_verify_creds_unauthorized_0 [31:0] $end
-$var reg 1 J" _t27_call_tmp_verify_creds_unauthorized_1 $end
-$var reg 32 K" creds [31:0] $end
+$scope begin is_node_trusted_true_test $end
+$var reg 32 G" _t27_call_tmp_is_node_trusted_true_0 [31:0] $end
+$var reg 1 H" _t27_call_tmp_is_node_trusted_true_1 $end
+$var reg 32 I" score [31:0] $end
 $upscope $end
-$scope begin verify_creds_valid_test $end
-$var reg 32 L" _t27_call_tmp_verify_creds_valid_0 [31:0] $end
-$var reg 1 M" _t27_call_tmp_verify_creds_valid_1 $end
-$var reg 32 N" creds [31:0] $end
+$scope begin penalize_node_reduces_trust_test $end
+$var reg 32 J" _t27_call_tmp_penalize_node_reduces_trust_0 [31:0] $end
+$var reg 32 K" _t27_call_tmp_penalize_node_reduces_trust_1 [31:0] $end
+$var reg 32 L" _t27_call_tmp_penalize_node_reduces_trust_2 [31:0] $end
+$var reg 32 M" current [31:0] $end
+$var reg 32 N" penalized [31:0] $end
+$upscope $end
+$scope begin reward_node_increases_trust_test $end
+$var reg 32 O" _t27_call_tmp_reward_node_increases_trust_0 [31:0] $end
+$var reg 32 P" _t27_call_tmp_reward_node_increases_trust_1 [31:0] $end
+$var reg 32 Q" _t27_call_tmp_reward_node_increases_trust_2 [31:0] $end
+$var reg 32 R" current [31:0] $end
+$var reg 32 S" rewarded [31:0] $end
+$upscope $end
+$scope begin should_route_via_node_false_test $end
+$var reg 256 T" _t27_call_tmp_should_route_via_node_false_0 [255:0] $end
+$var reg 32 U" _t27_call_tmp_should_route_via_node_false_1 [31:0] $end
+$var reg 32 V" _t27_call_tmp_should_route_via_node_false_2 [31:0] $end
+$var reg 32 W" _t27_call_tmp_should_route_via_node_false_3 [31:0] $end
+$var reg 32 X" _t27_call_tmp_should_route_via_node_false_4 [31:0] $end
+$var reg 1 Y" _t27_call_tmp_should_route_via_node_false_5 $end
+$var reg 256 Z" array [255:0] $end
+$upscope $end
+$scope begin should_route_via_node_true_test $end
+$var reg 256 [" _t27_call_tmp_should_route_via_node_true_0 [255:0] $end
+$var reg 32 \" _t27_call_tmp_should_route_via_node_true_1 [31:0] $end
+$var reg 32 ]" _t27_call_tmp_should_route_via_node_true_2 [31:0] $end
+$var reg 32 ^" _t27_call_tmp_should_route_via_node_true_3 [31:0] $end
+$var reg 32 _" _t27_call_tmp_should_route_via_node_true_4 [31:0] $end
+$var reg 1 `" _t27_call_tmp_should_route_via_node_true_5 $end
+$var reg 256 a" array [255:0] $end
+$upscope $end
+$scope begin update_trust_score_decreases_test $end
+$var reg 32 b" _t27_call_tmp_update_trust_score_decreases_0 [31:0] $end
+$var reg 32 c" _t27_call_tmp_update_trust_score_decreases_1 [31:0] $end
+$var reg 32 d" _t27_call_tmp_update_trust_score_decreases_2 [31:0] $end
+$var reg 32 e" current [31:0] $end
+$var reg 32 f" updated [31:0] $end
+$upscope $end
+$scope begin update_trust_score_increases_test $end
+$var reg 32 g" _t27_call_tmp_update_trust_score_increases_0 [31:0] $end
+$var reg 32 h" _t27_call_tmp_update_trust_score_increases_1 [31:0] $end
+$var reg 32 i" _t27_call_tmp_update_trust_score_increases_2 [31:0] $end
+$var reg 32 j" current [31:0] $end
+$var reg 32 k" updated [31:0] $end
 $upscope $end
 $upscope $end
 $enddefinitions $end
 $comment Show the parameter values. $end
 $dumpall
-b10 +
-b0 *
-b1 )
-b11 (
-b1 '
-b1000 &
-b0 %
+b110010 )
+b10100 (
+b1010000 '
+b1100100 &
+b1000 %
 $end
 #0
 $dumpvars
-b101100100100011100000000000 N"
-1M"
-b101100100100011100000000000 L"
-b101100100100011000000000000 K"
-0J"
-b101100100100011000000000000 I"
-b101100100100011100000000000 H"
-0G"
-b101100100100011100000000000 F"
-1E"
-1D"
-0C"
-0B"
-b101100100100011000000000000 A"
-b101100100100011100000000000 @"
-b0 ?"
-b101100100100011000000000000 >"
-b101100100100011100000000000 ="
-b11001100000000000000000000000 <"
-b1 ;"
-b0 :"
-b10 9"
-b1 8"
-b11001100000000000000000000000 7"
-b101100100100011100000000000 6"
-b1 5"
-b100100011 4"
-b10 3"
+b101001110010000100000000110 k"
+b101001100100000010100000101 j"
+b111001 i"
+b101001110010000100000000110 h"
+b101001100100000010100000101 g"
+b101001010100000011000001000 f"
+b101001100100000010100000101 e"
+b101010 d"
+b101001010100000011000001000 c"
+b101001100100000010100000101 b"
+b100010001100000011100000011000000110100101100000111000000110000001000111100000001100000010000000001010100000000100000000010 a"
+1`"
+b100010001100000011100000011 _"
+b11010010110000011100000011 ^"
+b10001111000000011000000100 ]"
+b1010100000000100000000010 \"
+b100010001100000011100000011000000110100101100000111000000110000001000111100000001100000010000000001010100000000100000000010 ["
+b100010001100000011100000011000000110100101100000111000000110000001000111100000001100000010000000001010100000000100000000010 Z"
+0Y"
+b100010001100000011100000011 X"
+b11010010110000011100000011 W"
+b10001111000000011000000100 V"
+b1010100000000100000000010 U"
+b100010001100000011100000011000000110100101100000111000000110000001000111100000001100000010000000001010100000000100000000010 T"
+b101010100000000110000000011 S"
+b101010001100000011100000011 R"
+b1010000 Q"
+b101010100000000110000000011 P"
+b101010001100000011100000011 O"
+b101001011100000011100001000 N"
+b101010001100000011100000011 M"
+b101110 L"
+b101001011100000011100001000 K"
+b101010001100000011100000011 J"
+b101010010110000111100000101 I"
+1H"
+b101010010110000111100000101 G"
+b101000111100000001100000111 F"
+0E"
+b101000111100000001100000111 D"
+b101000011110000001000001000 C"
+1B"
+b101000011110000001000001000 A"
+b101010101010001000100000011 @"
+1?"
+b101010101010001000100000011 >"
+b100010010110000100000000010000000110010110100000101000001010000001001011010000010010000000100000001001111000000011000000100 ="
+b1 <"
+b100010010110000100000000010 ;"
+b11001011010000010100000101 :"
+b10010110100000100100000001 9"
+b1001111000000011000000100 8"
+b100010010110000100000000010000000110010110100000101000001010000001001011010000010010000000100000001001111000000011000000100 7"
+b101010010110000100000000010 6"
+b10 5"
+b1000 4"
+b1001011 3"
 b101 2"
-b101100100100011100000000000 1"
-b11001100000000000000000000000 0"
-b101010100100011100000000000 /"
-b0 ."
-b11001100000000000000000000000 -"
-b101010100100011100000000000 ,"
-b10101100000000000000000000000 +"
-b101100100100011100000000000 *"
-b0 )"
-b10101100000000000000000000000 ("
-b101100100100011100000000000 '"
-b10101100000000000000000000000 &"
-b101100100100011100000000000 %"
-b1 $"
-b10101100000000000000000000000 #"
-b101100100100011100000000000 ""
-b11001100000000000000000000000 !"
-b1 ~
-b11001100000000000000000000000 }
-b11001100000000000000000000000 |
-b0 {
-b11001100000000000000000000000 z
-b10100100000000000000000000000 y
-b1 x
-b10100100000000000000000000000 w
-b101110100100011100000000000 v
-b101100100100011100000000000 u
-b1 t
-b11 s
-b101110100100011100000000000 r
-b101100100100011100000000000 q
-b101100100100011100000000000 p
-b101100100100011000000000000 o
-b1 n
-b101100100100011100000000000 m
-b101100100100011000000000000 l
-1k
-b100100011 j
-b101010100100011100000000000 i
-1h
-b1 g
-b10 f
-b100100011 e
-b10 d
-b101 c
+b101010010110000100000000010 1"
+b100001001010000001111101000 0"
+b1111101000 /"
+b1010000 ."
+b10 -"
+b1 ,"
+b100001001010000001111101000 +"
+b110010 *"
+b1011010 )"
+b1011010 ("
+b1010 '"
+b1010 &"
+b110010 %"
+b110010 $"
+b101 #"
+b101010 ""
+b110 !"
+b1000 ~
+b101 }
+b101 |
+1{
+b1 z
+b11 y
+b101001100100000010100000101 x
+b11010010110000011100000011 w
+1v
+b100010001100000011100000011000000110100101100000111000000110000001000111100000001100000010000000001010100000000100000000010 u
+b10 t
+b1011010 s
+b111 r
+b101 q
+b1010000 p
+b1100 o
+b11 n
+1m
+b101 l
+b101010001100000011100000011 k
+b111 j
+b101 i
+b101110 h
+b1000 g
+b11 f
+1e
+b101 d
+b101010001100000011100000011 c
 1b
-b101100100100011100000000000 a
+b101000111100000001100000111 a
 1`
-b101010100100011100000000000 _
+b101000011110000001000001000 _
 1^
-b10101100000000000000000000000 ]
+b101010101010001000100000011 ]
 1\
-b101010100100011100000000000 [
+b100001001010000001111101000 [
 1Z
-b11001100000000000000000000000 Y
+b100001001010000001111101000 Y
 1X
-b101100100100011100000000000 W
+b101010100000000110000000011 W
 1V
-b11001100000000000000000000000 U
-1T
-b11001100000000000000000000000 S
-1R
-b101010100100011100000000000 Q
-1P
-b10100100000000000000000000000 O
-1N
-b1 M
-b1 L
-b10 K
-b0 J
+b10 U
+b100010001100000011100000011000000110100101100000111000000110000001000111100000001100000010000000001010100000000100000000010 T
+1S
+b101010001100000011100000011 R
+1Q
+b100001001010000001111101000 P
+1O
+b100001001010000001111101000 N
+1M
+b101010001100000011100000011 L
+1K
+b101010001100000011100000011 J
 b1 I
-1H
-b1 G
-b101 F
-b1 E
-b100100011 D
-b1 C
-1B
-b100100011 A
-b11001100000000000000000000000 @
-b101010100100011100000000000 ?
-b10 >
-1=
-b1 <
-b11001100000000000000000000000 ;
-b100100011 :
-b101 9
-b1 8
-17
-b11 6
-b101100100100011100000000000 5
-b100100011 4
-b10 3
-b101 2
-11
-b101100100100011000000000000 0
-bx /
-bx .
-bx -
-bx ,
+b1011010 H
+1G
+b100010010110000100000000010000000110010110100000101000001010000001001011010000010010000000100000001001111000000011000000100 F
+1E
+b1010000 D
+b1100 C
+b101 B
+b11 A
+1@
+b1111101000 ?
+b1 >
+b1010000 =
+b10 <
+1;
+b0 :
+b0 9
+b0 8
+b0 7
+b100010001100000011100000011 6
+b11010010110000011100000011 5
+b10001111000000011000000100 4
+b1010100000000100000000010 3
+b1111 2
+b1010000 1
+10
+b1100 /
+b11 .
+b1000000 -
+b1100100 ,
+b10010110000 +
+b1100 *
 z$
 1#
 z"
