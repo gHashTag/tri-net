@@ -32,9 +32,9 @@ fn nonce_byte(dir: u8, epoch: u32, ctr: u64, i: u32) u32 {
         return @as(u32, @intCast(dir));
     }
     if (i < 5) {
-        return (epoch >> ((4 - i) * 8)) & 255;
+        return (epoch >> @intCast((4 - i) * 8)) & 255;
     }
-    return @as(u32, @intCast((ctr >> ((11 - i) * 8)) & 255));
+    return @as(u32, @intCast((ctr >> @intCast((11 - i) * 8)) & 255));
 }
 fn rx_dir(tx_dir: u8) u8 {
     return 1 - tx_dir;
@@ -52,9 +52,9 @@ fn replay_accept(seen_any: bool, top: u64, blo: u32, bhi: u32, ctr: u64) bool {
         return false;
     }
     if (d < 32) {
-        return (blo & (1 << d)) == 0;
+        return (blo & (@as(u32, 1) << @intCast(d))) == 0;
     }
-    return (bhi & (1 << (d - 32))) == 0;
+    return (bhi & (@as(u32, 1) << @intCast(d - 32))) == 0;
 }
 fn replay_next_top(seen_any: bool, top: u64, ctr: u64) u64 {
     if (seen_any == false) {
@@ -75,11 +75,11 @@ fn replay_next_blo(seen_any: bool, top: u64, blo: u32, bhi: u32, ctr: u64) u32 {
         if (s >= 32) {
             return 1;
         }
-        return (blo << s) | 1;
+        return (blo << @intCast(s)) | 1;
     }
     const d: u64 = top - ctr;
     if (d < 32) {
-        return blo | (1 << d);
+        return blo | (@as(u32, 1) << @intCast(d));
     }
     return blo;
 }
@@ -93,13 +93,13 @@ fn replay_next_bhi(seen_any: bool, top: u64, blo: u32, bhi: u32, ctr: u64) u32 {
             return 0;
         }
         if (s >= 32) {
-            return blo << (s - 32);
+            return blo << @intCast(s - 32);
         }
-        return (bhi << s) | (blo >> (32 - s));
+        return (bhi << @intCast(s)) | (blo >> @intCast(32 - s));
     }
     const d: u64 = top - ctr;
     if (d >= 32) {
-        return bhi | (1 << (d - 32));
+        return bhi | (@as(u32, 1) << @intCast(d - 32));
     }
     return bhi;
 }

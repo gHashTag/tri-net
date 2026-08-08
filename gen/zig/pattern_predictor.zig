@@ -56,10 +56,10 @@ fn get_sample_array_lower(array: u64) u32 {
 fn get_sample_at(array: u64, index: u32) u32 {
     if (index < 8) {
         const lower = get_sample_array_lower(array);
-        return @as(u32, @intCast((lower >> ((7 - index) * 8)) & 0xFF));
+        return @as(u32, @intCast((lower >> @intCast((7 - index) * 8)) & 0xFF));
     } else {
         const upper = get_sample_array_upper(array);
-        return @as(u32, @intCast((upper >> ((15 - index) * 8)) & 0xFF));
+        return @as(u32, @intCast((upper >> @intCast((15 - index) * 8)) & 0xFF));
     }
 }
 fn calculate_moving_average(array: u64, window: u32) u32 {

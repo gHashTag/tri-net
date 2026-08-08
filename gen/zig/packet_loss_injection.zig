@@ -13,7 +13,7 @@ const ERROR_OUT_OF_ORDER: u8 = 4;
 const ERROR_REPLAY: u8 = 5;
 fn inject_bit_flip(packet: u32, bit_pos: u8) u32 {
     if (bit_pos < 32) {
-        return packet ^ (1 << bit_pos);
+        return packet ^ (@as(u32, 1) << @intCast(bit_pos));
     } else {
         return packet;
     }

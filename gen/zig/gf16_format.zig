@@ -12,16 +12,16 @@ const M_MAX: u32 = 511;
 const E_MAX: u32 = 63;
 const SIGN_SHIFT: u32 = 15;
 fn sign_field(bits: u32) u32 {
-    return (bits >> SIGN_SHIFT) & 1;
+    return (bits >> @intCast(SIGN_SHIFT)) & 1;
 }
 fn exponent_field(bits: u32) u32 {
-    return (bits >> M_BITS) & E_MAX;
+    return (bits >> @intCast(M_BITS)) & E_MAX;
 }
 fn mantissa_field(bits: u32) u32 {
     return bits & M_MAX;
 }
 fn compose(sign: u32, exponent: u32, mantissa: u32) u32 {
-    return (((sign & 1) << SIGN_SHIFT) | ((exponent & E_MAX) << M_BITS)) | (mantissa & M_MAX);
+    return (((sign & 1) << @intCast(SIGN_SHIFT)) | ((exponent & E_MAX) << @intCast(M_BITS))) | (mantissa & M_MAX);
 }
 fn is_nan(bits: u32) bool {
     if (exponent_field(bits) == E_MAX) {
