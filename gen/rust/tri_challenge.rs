@@ -71,6 +71,29 @@ pub fn challenge_admissible_rung(now_epoch: u32, receipt_epoch: u32, gf_et: u32)
     return challenge_admissible(now_epoch, receipt_epoch, challenge_window_for_rung(gf_et));
 }
 
+pub const VERDICT_NONE: u32 = 0;
+
+pub fn witness_majority(s0: u32, s1: u32, s2: u32) -> u32 {
+    if (s0 == s1) {
+        return s0;
+    }
+    if (s0 == s2) {
+        return s0;
+    }
+    if (s1 == s2) {
+        return s1;
+    }
+    return 0;
+}
+
+pub fn witness_verdict(defender_seal: u32, s0: u32, s1: u32, s2: u32) -> u32 {
+    let truth: u32 = witness_majority(s0, s1, s2);
+    if (truth == 0) {
+        return VERDICT_NONE;
+    }
+    return resolve(defender_seal, truth);
+}
+
 pub const MAX_OPEN_DISPUTES: u32 = 3;
 
 pub const CH_BPS_UNIT: u32 = 10000;
