@@ -43,6 +43,11 @@ uint32_t challenge_window_for_rung(uint32_t gf_et);
 bool challenge_admissible_rung(uint32_t now_epoch, uint32_t receipt_epoch, uint32_t gf_et);
 uint32_t witness_majority(uint32_t s0, uint32_t s1, uint32_t s2);
 uint32_t witness_verdict(uint32_t defender_seal, uint32_t s0, uint32_t s1, uint32_t s2);
+bool witness_is_majority(uint32_t seal, uint32_t majority);
+uint32_t majority_count_3(uint32_t s0, uint32_t s1, uint32_t s2, uint32_t majority);
+uint32_t if_seal(uint32_t seal, uint32_t majority);
+uint32_t minority_pot_3(uint32_t s0, uint32_t s1, uint32_t s2, uint32_t majority, uint32_t stake);
+uint32_t witness_payout(uint32_t voted, uint32_t s0, uint32_t s1, uint32_t s2, uint32_t stake);
 bool dispute_slots_ok(uint32_t open_count);
 uint32_t risk_after_open(uint32_t risk, uint32_t reward);
 uint32_t risk_after_close(uint32_t risk, uint32_t reward);
@@ -132,6 +137,41 @@ uint32_t witness_verdict(uint32_t defender_seal, uint32_t s0, uint32_t s1, uint3
         return VERDICT_NONE;
     }
     return resolve(defender_seal, truth);
+}
+
+bool witness_is_majority(uint32_t seal, uint32_t majority) {
+    return ((majority != 0) && (seal == majority));
+}
+
+uint32_t majority_count_3(uint32_t s0, uint32_t s1, uint32_t s2, uint32_t majority) {
+    uint32_t c0 = if_seal(s0, majority);
+    uint32_t c1 = if_seal(s1, majority);
+    uint32_t c2 = if_seal(s2, majority);
+    return ((c0 + c1) + c2);
+}
+
+uint32_t if_seal(uint32_t seal, uint32_t majority) {
+    if (witness_is_majority(seal, majority)) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+uint32_t minority_pot_3(uint32_t s0, uint32_t s1, uint32_t s2, uint32_t majority, uint32_t stake) {
+    return ((3 - majority_count_3(s0, s1, s2, majority)) * stake);
+}
+
+uint32_t witness_payout(uint32_t voted, uint32_t s0, uint32_t s1, uint32_t s2, uint32_t stake) {
+    uint32_t majority = witness_majority(s0, s1, s2);
+    if ((majority == 0)) {
+        return stake;
+    }
+    if (witness_is_majority(voted, majority)) {
+        uint32_t pot = minority_pot_3(s0, s1, s2, majority, stake);
+        return (stake + (pot / majority_count_3(s0, s1, s2, majority)));
+    }
+    return 0;
 }
 
 bool dispute_slots_ok(uint32_t open_count) {
@@ -244,6 +284,22 @@ void test_witness_quorum(void) {
     t27_assert((v_frame == DEFENDER_HONEST), "one framing witness cannot slash an honest defender");
     t27_assert((v_caught == DEFENDER_LIED), "a real lie is caught by the majority");
     t27_assert((v_none == VERDICT_NONE), "no quorum -> no verdict, dispute stays open");
+}
+
+void test_witness_economics(void) {
+    uint64_t u = witness_payout(0xAAAA, 0xAAAA, 0xAAAA, 0xAAAA, 100);
+    (void)u;
+    uint64_t m = witness_payout(0xAAAA, 0xAAAA, 0xAAAA, 0xDEAD, 100);
+    (void)m;
+    uint64_t l = witness_payout(0xDEAD, 0xAAAA, 0xAAAA, 0xDEAD, 100);
+    (void)l;
+    uint64_t n = witness_payout(0x1111, 0x1111, 0x2222, 0x3333, 100);
+    (void)n;
+    t27_assert((u == 100), "unanimous round: stake back, no free reward");
+    t27_assert((m == 150), "majority of two splits the one forfeited stake");
+    t27_assert((l == 0), "the dissenter forfeits");
+    t27_assert((n == 100), "no quorum refunds everyone");
+    t27_assert((((m + m) + l) == 300), "2-1 round conserves the three stakes");
 }
 
 void test_rung_aware_admission(void) {
