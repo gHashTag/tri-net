@@ -217,4 +217,22 @@ void test_n_exceeds_max_rejected(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_hello_roundtrips();
+    test_empty_heard_list_ok();
+    test_max_heard_neighbors();
+    test_not_in_heard_list();
+    test_in_heard_list_first_position();
+    test_n_exceeds_max_rejected();
+    printf("All %d tests passed.\n", 6);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* MESHHELLO_H */

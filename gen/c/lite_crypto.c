@@ -188,4 +188,29 @@ void test_generate_psk_different_seeds(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_md5_process_block_compresses();
+    test_md5_digest_returns_hash();
+    test_quarter_round_changes_state();
+    test_quarter_round_deterministic();
+    test_generate_psk_returns_key();
+    test_hmac_md5_creates_mac();
+    test_verify_hmac_valid();
+    test_verify_hmac_invalid();
+    test_quarter_round_different_inputs();
+    test_md5_different_blocks_produce_different_hashes();
+    test_hmac_md5_same_key_different_messages();
+    test_generate_psk_deterministic();
+    test_generate_psk_different_seeds();
+    printf("All %d tests passed.\n", 13);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* LITECRYPTO_H */

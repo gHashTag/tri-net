@@ -367,4 +367,18 @@ void test_hotspot_roundtrip(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_perf_sample_roundtrip();
+    test_hotspot_roundtrip();
+    printf("All %d tests passed.\n", 2);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* PERFORMANCE_PROFILER_H */

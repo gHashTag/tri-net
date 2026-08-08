@@ -331,4 +331,29 @@ void test_estimate_path_lifetime_zero_drain(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_create_energy_cost_basic();
+    test_create_path_energy_basic();
+    test_calculate_total_energy_cost();
+    test_calculate_energy_score_high_battery();
+    test_calculate_energy_score_low_cost();
+    test_is_path_viable_true();
+    test_is_path_viable_critical_battery();
+    test_is_path_viable_invalid_path();
+    test_find_energy_optimal_path_highest_score();
+    test_find_min_cost_path();
+    test_select_balanced_path_highest_battery();
+    test_estimate_path_lifetime_normal();
+    test_estimate_path_lifetime_zero_drain();
+    printf("All %d tests passed.\n", 13);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* ENERGYAWAREROUTING_H */

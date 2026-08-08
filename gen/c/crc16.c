@@ -104,4 +104,22 @@ void test_crc16_sensitivity(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_crc_update_byte_changes();
+    test_crc16_4bytes_reproducible();
+    test_crc16_4bytes_different();
+    test_verify_crc16_valid();
+    test_verify_crc16_invalid();
+    test_crc16_sensitivity();
+    printf("All %d tests passed.\n", 6);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* CRC16CCITT_H */

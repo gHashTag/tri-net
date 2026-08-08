@@ -209,4 +209,28 @@ void test_link_quality_threshold_check(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_create_link_quality_correct();
+    test_is_link_good_threshold();
+    test_create_2node_mesh();
+    test_create_3node_mesh();
+    test_create_4node_line();
+    test_calculate_hops_same_node();
+    test_calculate_hops_2node();
+    test_calculate_hops_3node_direct();
+    test_calculate_hops_4node_adjacent();
+    test_calculate_hops_4node_2hops();
+    test_calculate_hops_4node_3hops();
+    test_link_quality_threshold_check();
+    printf("All %d tests passed.\n", 12);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* MESHNODESIM_H */

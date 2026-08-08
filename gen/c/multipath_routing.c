@@ -351,4 +351,32 @@ void test_calculate_multipath_gain(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_create_multipath_basic();
+    test_create_multipath_state_basic();
+    test_count_valid_paths_all();
+    test_count_valid_paths_some();
+    test_is_multipath_viable_true();
+    test_is_multipath_viable_false();
+    test_select_primary_path_first();
+    test_select_primary_path_skip_invalid();
+    test_calculate_path_diversity_high();
+    test_calculate_path_diversity_low();
+    test_distribute_load_round_robin();
+    test_distribute_load_wraps();
+    test_needs_failover_true();
+    test_needs_failover_false();
+    test_perform_failover_updates_state();
+    test_calculate_multipath_gain();
+    printf("All %d tests passed.\n", 16);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* MULTIPATH_ROUTING_H */

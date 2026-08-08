@@ -295,4 +295,36 @@ void test_should_sleep_healthy_battery(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_create_power_state_basic();
+    test_is_battery_critical_true();
+    test_is_battery_critical_false();
+    test_is_battery_low();
+    test_is_battery_healthy();
+    test_estimate_remaining_time_calculates();
+    test_estimate_remaining_time_zero_consumption();
+    test_update_power_mode_emergency();
+    test_update_power_mode_eco();
+    test_update_power_mode_normal();
+    test_reduce_consumption_works();
+    test_reduce_consumption_minimum();
+    test_drain_battery_works();
+    test_drain_battery_empty();
+    test_get_power_priority_critical();
+    test_get_power_priority_low();
+    test_get_power_priority_normal();
+    test_should_sleep_critical_in_window();
+    test_should_sleep_critical_outside_window();
+    test_should_sleep_healthy_battery();
+    printf("All %d tests passed.\n", 20);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* POWERMONITORING_H */

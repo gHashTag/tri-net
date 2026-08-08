@@ -284,4 +284,31 @@ void test_multi_hop_routing(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_build_packet_correct_layout();
+    test_tx_path_produces_valid_packet();
+    test_rx_path_extracts_payload();
+    test_decrement_ttl_reduces();
+    test_decrement_ttl_zero_expires();
+    test_decrement_ttl_already_expired();
+    test_route_packet_direct_a_to_b();
+    test_route_packet_via_b_a_to_c();
+    test_route_packet_direct_b_to_c();
+    test_forward_packet_decrements_ttl();
+    test_forward_packet_preserves_payload();
+    test_forward_packet_ttl_expired();
+    test_forward_packet_no_route();
+    test_end_to_end_tx_rx();
+    test_multi_hop_routing();
+    printf("All %d tests passed.\n", 15);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* MESHPROTOCOLSTACK_H */

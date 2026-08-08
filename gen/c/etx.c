@@ -164,4 +164,22 @@ void test_test_ewma_convergence(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_test_perfect_link();
+    test_test_half_forward();
+    test_test_dead_direction();
+    test_test_force_dead();
+    test_test_etx_buckets();
+    test_test_ewma_convergence();
+    printf("All %d tests passed.\n", 6);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* MESHETX_H */

@@ -126,4 +126,24 @@ void test_parse_rejects_bad_kind(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_byte0_is_version();
+    test_byte1_is_kind();
+    test_src_be_first_and_last_byte();
+    test_ttl_is_last_byte();
+    test_src_roundtrips_through_bytes();
+    test_parse_accepts_valid();
+    test_parse_rejects_bad_version();
+    test_parse_rejects_bad_kind();
+    printf("All %d tests passed.\n", 8);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* MESHWIRE_H */

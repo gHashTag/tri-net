@@ -389,4 +389,38 @@ void test_full_routing_flow(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_mesh_ip_converts_correctly();
+    test_mesh_ip_max_node_id();
+    test_is_mesh_subnet_valid();
+    test_is_mesh_subnet_invalid_network();
+    test_node_of_ip_valid();
+    test_node_of_ip_invalid_subnet();
+    test_node_of_ip_invalid_range();
+    test_node_of_ip_min_boundary();
+    test_decrement_ttl_normal();
+    test_decrement_ttl_at_one();
+    test_decrement_ttl_at_zero();
+    test_is_ttl_expired_check();
+    test_choose_next_hop_all_finite();
+    test_choose_next_hop_two_finite();
+    test_choose_next_hop_one_finite();
+    test_choose_next_hop_none_finite();
+    test_choose_next_hop_tie_breaker();
+    test_delivery_decision_local();
+    test_delivery_decision_ttl_expired();
+    test_delivery_decision_no_route();
+    test_delivery_decision_forward();
+    test_full_routing_flow();
+    printf("All %d tests passed.\n", 22);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* MESHROUTING_H */

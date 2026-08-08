@@ -396,4 +396,18 @@ void test_markdown_header_levels(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_output_format_roundtrip();
+    test_markdown_header_levels();
+    printf("All %d tests passed.\n", 2);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* DOCS_GENERATOR_H */

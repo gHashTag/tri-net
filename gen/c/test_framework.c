@@ -419,4 +419,18 @@ void test_test_case_roundtrip(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_test_result_roundtrip();
+    test_test_case_roundtrip();
+    printf("All %d tests passed.\n", 2);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* TEST_FRAMEWORK_H */

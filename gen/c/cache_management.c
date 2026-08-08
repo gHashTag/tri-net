@@ -350,4 +350,20 @@ void test_hit_rate_calculation(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_cache_entry_roundtrip();
+    test_access_count_saturates();
+    test_eviction_prefers_cold_then_old();
+    test_hit_rate_calculation();
+    printf("All %d tests passed.\n", 4);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* CACHE_MANAGEMENT_H */

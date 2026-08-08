@@ -264,4 +264,32 @@ void test_queue_enqueue_dequeue_balance(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_create_queue_correct_layout();
+    test_queue_enqueue_increases_count();
+    test_queue_enqueue_full();
+    test_queue_dequeue_decreases_count();
+    test_queue_dequeue_empty();
+    test_queue_is_full_detects_full();
+    test_queue_is_empty_detects_empty();
+    test_queue_max_capacity();
+    test_inc_counter_increments();
+    test_inc_counter_overflows_at_max();
+    test_counter_will_overflow_detects_max();
+    test_ticks_to_microseconds_converts();
+    test_microseconds_to_ticks_converts();
+    test_ticks_to_milliseconds_converts();
+    test_timer_conversion_roundtrip();
+    test_queue_enqueue_dequeue_balance();
+    printf("All %d tests passed.\n", 16);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* PERFORMANCEBENCHMARKS_H */

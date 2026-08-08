@@ -104,4 +104,22 @@ void test_swap_nibbles_test(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_get_bit_lsb();
+    test_get_bit_msb();
+    test_low_nibble_test();
+    test_high_nibble_test();
+    test_combine_nibbles_test();
+    test_swap_nibbles_test();
+    printf("All %d tests passed.\n", 6);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* BYTEUTILS_H */

@@ -262,4 +262,38 @@ void test_analyze_bit_width_32bit(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_estimate_complexity_simple();
+    test_estimate_complexity_high();
+    test_calculate_sharing_savings_half();
+    test_calculate_sharing_savings_quarter();
+    test_calculate_sharing_savings_zero_factor();
+    test_calculate_bitwidth_savings_reduces();
+    test_calculate_bitwidth_savings_no_reduction();
+    test_const_folding_applicable_high_ratio();
+    test_const_folding_applicable_low_ratio();
+    test_fifo_to_ram_applicable_yes();
+    test_fifo_to_ram_applicable_shallow();
+    test_fifo_to_ram_applicable_narrow();
+    test_create_resource_type_correct();
+    test_create_optimization_result_correct();
+    test_calculate_savings_percentage_30();
+    test_calculate_savings_percentage_zero();
+    test_calculate_savings_percentage_negative();
+    test_optimization_worthwhile_yes();
+    test_optimization_worthwhile_no();
+    test_analyze_bit_width_8bit();
+    test_analyze_bit_width_16bit();
+    test_analyze_bit_width_32bit();
+    printf("All %d tests passed.\n", 22);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* AREAOPTIMIZATION_H */

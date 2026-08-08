@@ -421,4 +421,31 @@ void test_expired_dispute_settles_for_defender(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_challenge_needs_disagreement();
+    test_honest_defender_wins();
+    test_lying_defender_slashed();
+    test_bonds_honest_defender();
+    test_bonds_lying_defender();
+    test_griefing_unprofitable();
+    test_witness_quorum();
+    test_witness_economics();
+    test_rung_aware_admission();
+    test_dispute_slots_and_risk_ledger();
+    test_dispute_admission_gate();
+    test_rung_window_edges();
+    test_window_edges();
+    test_expiry_edges();
+    test_expired_dispute_settles_for_defender();
+    printf("All %d tests passed.\n", 15);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* TRICHALLENGE_H */

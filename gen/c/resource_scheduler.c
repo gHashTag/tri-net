@@ -415,4 +415,34 @@ void test_count_tasks_by_priority_mixed(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_create_task_resource_basic();
+    test_create_system_state_basic();
+    test_can_admit_task_true();
+    test_can_admit_task_false_cpu();
+    test_can_admit_task_false_memory();
+    test_has_cpu_capacity_true();
+    test_has_cpu_capacity_false();
+    test_allocate_resources_works();
+    test_release_resources_works();
+    test_find_admittable_task_high_priority();
+    test_calculate_cpu_utilization();
+    test_calculate_memory_utilization();
+    test_is_overloaded_true();
+    test_is_overloaded_false();
+    test_increment_tick_works();
+    test_increment_tick_wraps();
+    test_count_tasks_by_priority_high();
+    test_count_tasks_by_priority_mixed();
+    printf("All %d tests passed.\n", 18);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* RESOURCESCHEDULER_H */

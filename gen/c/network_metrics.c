@@ -107,4 +107,24 @@ void test_success_rate_zero_success(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_initial_zero();
+    test_inc_sent_works();
+    test_inc_recv_works();
+    test_inc_success_works();
+    test_success_rate_perfect();
+    test_success_rate_zero_sent();
+    test_success_rate_half();
+    test_success_rate_zero_success();
+    printf("All %d tests passed.\n", 8);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* NETWORKMETRICS_H */

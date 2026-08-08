@@ -395,4 +395,21 @@ void test_severity_bands(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_metric_reading_roundtrip();
+    test_anomaly_report_roundtrip();
+    test_baseline_and_variance();
+    test_spike_and_drop_detection();
+    test_severity_bands();
+    printf("All %d tests passed.\n", 5);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* ANOMALY_DETECTOR_H */

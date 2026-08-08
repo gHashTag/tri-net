@@ -119,6 +119,25 @@ jobs:
           done
           exit $STATUS
 
+      - name: C test — compile and run committed gens (passing set)
+        working-directory: tri-net
+        run: |
+          # C EXECUTION level (mirror of the zig-test step): compile each
+          # committed C gen with its guarded runner and RUN it. Gated to the
+          # passing set; the 15 [T; N]-return specs emit invalid C until
+          # t27#1944 (struct lowering) and join as they clear -- ratchet, do
+          # not regress.
+          STATUS=0
+          for spec in access_control adaptive_retry anomaly_detector api_documenter area_optimization auto_config byte_utils cache_management compression_engine congestion_control crc16 docs_generator etx flow_control fpga_synthesis_report frame_buffer hardware_validation health_dashboard hello integration_framework integration_tests link_quality_monitor link_statistics lite_crypto load_predictor local_processing m3_multihop mesh_node_sim mesh_protocol_stack mesh_routing multipath_router network_analytics network_metrics network_orchestrator network_simulator olsr_routing packet_loss_injection packet_queue performance_benchmarks performance_profiler power_monitoring production_deployment production_scenarios quarantine_manager self_healing test_framework test_validator timer timing_closure topology_visualizer traffic_animator transport_tx_fsm tri_challenge wire; do
+            if ! gcc -DT27_TEST_MAIN -o /tmp/ct_bin gen/c/${spec}.c > /tmp/ct.log 2>&1; then
+              echo "::error::C test COMPILE failed for ${spec}"; tail -20 /tmp/ct.log; STATUS=1; continue
+            fi
+            if ! /tmp/ct_bin > /tmp/ct_run.log 2>&1; then
+              echo "::error::C test RUN failed for ${spec}"; tail -20 /tmp/ct_run.log; STATUS=1
+            fi
+          done
+          exit $STATUS
+
       # The Zig leg RETURNED 2026-08-08: the gen-zig validity campaign (t27#1910,
       # closed) took the backend from 66/68-invalid to 0/68, and gen/zig/ is
       # committed again -- all 68 files zig-ast-check clean. Byte-exact diff

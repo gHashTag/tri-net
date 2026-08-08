@@ -291,4 +291,31 @@ void test_find_least_congested_all_equal(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_create_path_metrics_basic();
+    test_create_selection_state_basic();
+    test_calculate_score_latency();
+    test_calculate_score_hops();
+    test_calculate_score_bandwidth();
+    test_find_best_path_latency();
+    test_find_best_path_hops();
+    test_needs_update_true();
+    test_needs_update_false();
+    test_update_selection_works();
+    test_change_metric_type_works();
+    test_is_path_congested_true();
+    test_is_path_congested_false();
+    test_find_least_congested();
+    test_find_least_congested_all_equal();
+    printf("All %d tests passed.\n", 15);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* ADAPTIVEROUTING_H */

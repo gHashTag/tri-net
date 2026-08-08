@@ -235,4 +235,31 @@ void test_check_replay_same(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_inject_bit_flip_flips_bit();
+    test_inject_bit_flip_multiple();
+    test_inject_bit_flip_invalid_pos();
+    test_calculate_crc_reproducible();
+    test_calculate_crc_different();
+    test_verify_crc_valid();
+    test_verify_crc_invalid();
+    test_duplicate_packet_creates_copy();
+    test_is_duplicate_detects_same();
+    test_is_duplicate_different();
+    test_inject_out_of_order_swaps();
+    test_extract_sequence_low_bits();
+    test_check_replay_newer();
+    test_check_replay_older();
+    test_check_replay_same();
+    printf("All %d tests passed.\n", 15);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* PACKETLOSSINJECTION_H */

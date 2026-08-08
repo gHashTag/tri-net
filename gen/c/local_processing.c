@@ -341,4 +341,19 @@ void test_highest_priority_skips_empty_slots(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_task_and_result_roundtrip();
+    test_process_and_aggregate();
+    test_highest_priority_skips_empty_slots();
+    printf("All %d tests passed.\n", 3);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* LOCAL_PROCESSING_H */

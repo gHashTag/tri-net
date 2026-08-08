@@ -330,4 +330,33 @@ void test_find_most_at_risk_all_healthy(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_create_health_metrics_basic();
+    test_create_risk_score_basic();
+    test_calculate_health_score_healthy();
+    test_calculate_health_score_degraded();
+    test_predict_failure_probability_healthy();
+    test_predict_failure_probability_critical();
+    test_is_trending_failure_degrading();
+    test_is_trending_failure_significant();
+    test_predict_time_to_failure_healthy();
+    test_predict_time_to_failure_critical();
+    test_predict_time_to_failure_medium();
+    test_calculate_failure_risk_low();
+    test_calculate_failure_risk_high_with_degradation();
+    test_needs_immediate_action_true();
+    test_needs_immediate_action_false();
+    test_find_most_at_risk_middle();
+    test_find_most_at_risk_all_healthy();
+    printf("All %d tests passed.\n", 17);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* FAILURE_PREDICTOR_H */

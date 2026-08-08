@@ -397,4 +397,32 @@ void test_switch_mode_works(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_create_layer_params_basic();
+    test_create_cross_layer_state_basic();
+    test_create_layer_array_basic();
+    test_update_layer_params_phy();
+    test_calculate_joint_metric_balanced();
+    test_coordinate_power_conservative();
+    test_coordinate_power_aggressive();
+    test_coordinate_power_moderate();
+    test_optimize_for_target_latency();
+    test_optimize_for_target_throughput();
+    test_optimize_for_target_reliability();
+    test_needs_synchronization_true();
+    test_needs_synchronization_false();
+    test_increment_updates_works();
+    test_increment_updates_wraps();
+    test_switch_mode_works();
+    printf("All %d tests passed.\n", 16);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* CROSSLAYEROPTIMIZER_H */
