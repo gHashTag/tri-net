@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const PSK_SIZE: u32 = 16;
 const MD5_BLOCK_SIZE: u32 = 64;
 const CHACHA20_STATE_SIZE: u32 = 16;
@@ -51,64 +50,64 @@ test "md5_process_block_compresses" {
     const block = 0x1234567890ABCDEF;
     const state = 0xABCDEF1234567890;
     const h1, const h2 = md5_process_block(block, state);
-    if (!((h1 != 0) or (h2 != 0))) @compileError("assertion failed");
+    if (!((h1 != 0) or (h2 != 0))) @panic("compressed");
 }
 test "md5_digest_returns_hash" {
     const h1, const h2 = md5_process_block(0x1234567890ABCDEF, 0);
     const hash = md5_digest(h1, h2);
-    if (!(hash == ((@as(u64, @intCast(h1)) << 32) | @as(u64, @intCast(h2))))) @compileError("assertion failed");
+    if (!(hash == ((@as(u64, @intCast(h1)) << 32) | @as(u64, @intCast(h2))))) @panic("hash created");
 }
 test "quarter_round_changes_state" {
     const state = 0x01234567;
     const new_state = quarter_round(state, 0x89ABCDEF);
-    if (!(new_state != state)) @compileError("assertion failed");
+    if (!(new_state != state)) @panic("state changed");
 }
 test "quarter_round_deterministic" {
     const state = 0x01234567;
     const result1 = quarter_round(state, 0x89ABCDEF);
     const result2 = quarter_round(state, 0x89ABCDEF);
-    if (!(result1 == result2)) @compileError("assertion failed");
+    if (!(result1 == result2)) @panic("deterministic");
 }
 test "generate_psk_returns_key" {
     const key = generate_psk(0x12345678);
-    if (!(key == 0x12345678)) @compileError("assertion failed");
+    if (!(key == 0x12345678)) @panic("psk from seed");
 }
 test "hmac_md5_creates_mac" {
     const mac = hmac_md5(0xABCD, 0x1234);
-    if (!(mac == (0xABCD ^ 0x1234))) @compileError("assertion failed");
+    if (!(mac == (0xABCD ^ 0x1234))) @panic("XOR MAC created");
 }
 test "verify_hmac_valid" {
     const mac = hmac_md5(0xABCD, 0x1234);
-    if (!(verify_hmac(0xABCD, 0x1234, mac) == true)) @compileError("assertion failed");
+    if (!(verify_hmac(0xABCD, 0x1234, mac) == true)) @panic("valid MAC");
 }
 test "verify_hmac_invalid" {
     const mac = hmac_md5(0xABCD, 0x1234);
     _ = mac; // dead after const-inlining
-    if (!(verify_hmac(0xABCD, 0x1234, 0x5678) == false)) @compileError("assertion failed");
+    if (!(verify_hmac(0xABCD, 0x1234, 0x5678) == false)) @panic("invalid MAC");
 }
 test "quarter_round_different_inputs" {
     const state = 0x01234567;
     const result1 = quarter_round(state, 0x89ABCDEF);
     const result2 = quarter_round(state, 0x11111111);
-    if (!(result1 != result2)) @compileError("assertion failed");
+    if (!(result1 != result2)) @panic("different inputs produce different outputs");
 }
 test "md5_different_blocks_produce_different_hashes" {
     const h1_a, const h2_a = md5_process_block(0x1234567890ABCDEF, 0);
     const h1_b, const h2_b = md5_process_block(0xFEDCBA0987654321, 0);
-    if (!((h1_a != h1_b) or (h2_a != h2_b))) @compileError("assertion failed");
+    if (!((h1_a != h1_b) or (h2_a != h2_b))) @panic("different blocks produce different hashes");
 }
 test "hmac_md5_same_key_different_messages" {
     const mac1 = hmac_md5(0xABCD, 0x1234);
     const mac2 = hmac_md5(0xABCD, 0x5678);
-    if (!(mac1 != mac2)) @compileError("assertion failed");
+    if (!(mac1 != mac2)) @panic("different messages produce different MACs");
 }
 test "generate_psk_deterministic" {
     const key1 = generate_psk(0xDEADBEEF);
     const key2 = generate_psk(0xDEADBEEF);
-    if (!(key1 == key2)) @compileError("assertion failed");
+    if (!(key1 == key2)) @panic("same seed produces same key");
 }
 test "generate_psk_different_seeds" {
     const key1 = generate_psk(0x11111111);
     const key2 = generate_psk(0x22222222);
-    if (!(key1 != key2)) @compileError("assertion failed");
+    if (!(key1 != key2)) @panic("different seeds produce different keys");
 }

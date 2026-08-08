@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const VERSION: u8 = 1;
 const KIND_DATA: u8 = 1;
 fn header_byte(kind: u8, src: u32, dst: u32, ttl: u8, idx: usize) u8 {
@@ -51,19 +50,19 @@ test "wire_header_with_routing_dst" {
     const b9 = header_byte(kind, src, dst, ttl, 9);
     const b10 = header_byte(kind, src, dst, ttl, 10);
     _ = b10; // dead after const-inlining
-    if (!(b0 == VERSION)) @compileError("assertion failed");
-    if (!(b1 == kind)) @compileError("assertion failed");
+    if (!(b0 == VERSION)) @panic("version byte");
+    if (!(b1 == kind)) @panic("kind byte");
     const dst_extracted = (((@as(u32, @intCast(b6)) << 24) | (@as(u32, @intCast(b7)) << 16)) | (@as(u32, @intCast(b8)) << 8)) | @as(u32, @intCast(b9));
-    if (!(dst_extracted == dst)) @compileError("assertion failed");
+    if (!(dst_extracted == dst)) @panic("dst matches");
 }
 test "ip_mapping_roundtrip" {
     const a, const b, const c, const d = mesh_ip(50);
     const node_back = (((@as(u32, @intCast(a)) << 0) | (@as(u32, @intCast(b)) << 0)) | (@as(u32, @intCast(c)) << 0)) | (@as(u32, @intCast(d)) << 0);
     _ = node_back; // dead after const-inlining
-    if (!(a == MESH_NET_A)) @compileError("assertion failed");
-    if (!(b == MESH_NET_B)) @compileError("assertion failed");
-    if (!(c == MESH_NET_C)) @compileError("assertion failed");
-    if (!(d == 50)) @compileError("assertion failed");
+    if (!(a == MESH_NET_A)) @panic("network A");
+    if (!(b == MESH_NET_B)) @panic("network B");
+    if (!(c == MESH_NET_C)) @panic("network C");
+    if (!(d == 50)) @panic("node ID preserved");
 }
 test "transport_builds_wire_header" {
     const kind = KIND_DATA;
@@ -73,15 +72,15 @@ test "transport_builds_wire_header" {
     const b0 = header_byte(kind, src, dst, ttl, 0);
     const b1 = header_byte(kind, src, dst, ttl, 1);
     const b10 = header_byte(kind, src, dst, ttl, 10);
-    if (!(b0 == VERSION)) @compileError("assertion failed");
-    if (!(b1 == kind)) @compileError("assertion failed");
-    if (!(b10 == ttl)) @compileError("assertion failed");
+    if (!(b0 == VERSION)) @panic("header version");
+    if (!(b1 == kind)) @panic("header kind");
+    if (!(b10 == ttl)) @panic("header ttl");
 }
 test "queue_with_timer_timeout" {
     const queue_state = 0;
     _ = queue_state; // dead after const-inlining
     const timeout_base = 10;
-    if (!(timeout_base == 10)) @compileError("assertion failed");
+    if (!(timeout_base == 10)) @panic("base timeout 10ms");
 }
 test "frame_metadata_queue_slot" {
     const src = 1;
@@ -92,10 +91,10 @@ test "frame_metadata_queue_slot" {
     const src_extracted = @as(u8, @intCast((meta >> 1) & 15));
     const dst_extracted = @as(u8, @intCast((meta >> 5) & 15));
     const ttl_extracted = @as(u8, @intCast((meta >> 9) & 15));
-    if (!(valid)) @compileError("assertion failed");
-    if (!(src_extracted == src)) @compileError("assertion failed");
-    if (!(dst_extracted == dst)) @compileError("assertion failed");
-    if (!(ttl_extracted == ttl)) @compileError("assertion failed");
+    if (!(valid)) @panic("metadata valid");
+    if (!(src_extracted == src)) @panic("src roundtrip");
+    if (!(dst_extracted == dst)) @panic("dst roundtrip");
+    if (!(ttl_extracted == ttl)) @panic("ttl roundtrip");
 }
 test "full_packet_flow" {
     const kind = KIND_DATA;
@@ -107,16 +106,16 @@ test "full_packet_flow" {
     _ = b1; // dead after const-inlining
     const a, const b, const c, const d = mesh_ip(dst);
     _ = d; // dead after const-inlining
-    if (!(((a == MESH_NET_A) and (b == MESH_NET_B)) and (c == MESH_NET_C))) @compileError("assertion failed");
-    if (!(b0 == VERSION)) @compileError("assertion failed");
-    if (!(true)) @compileError("assertion failed");
+    if (!(((a == MESH_NET_A) and (b == MESH_NET_B)) and (c == MESH_NET_C))) @panic("dst in mesh subnet");
+    if (!(b0 == VERSION)) @panic("header version valid");
+    if (!(true)) @panic("full flow validated");
 }
 test "routing_with_multiple_neighbors" {
     const etx_n1 = 256;
     const etx_n2 = 512;
     const etx_n3 = 1024;
     if ((etx_n1 <= etx_n2) and (etx_n1 <= etx_n3)) {
-        if (!(true)) @compileError("assertion failed");
+        if (!(true)) @panic("choose n1 (lowest ETX)");
     }
 }
 test "hello_beacon_with_mesh_ip" {
@@ -128,22 +127,22 @@ test "hello_beacon_with_mesh_ip" {
     const a, const b, const c, const d = mesh_ip(src);
     _ = b; // dead after const-inlining
     _ = c; // dead after const-inlining
-    if (!(a == MESH_NET_A)) @compileError("assertion failed");
-    if (!(d == src)) @compileError("assertion failed");
+    if (!(a == MESH_NET_A)) @panic("HELLO src in mesh subnet");
+    if (!(d == src)) @panic("node ID preserved");
 }
 test "timeout_with_backoff" {
     const timeout_0 = 10;
     const timeout_1 = 20;
     const timeout_2 = 40;
-    if (!(timeout_1 == (timeout_0 * 2))) @compileError("assertion failed");
-    if (!(timeout_2 == (timeout_1 * 2))) @compileError("assertion failed");
+    if (!(timeout_1 == (timeout_0 * 2))) @panic("doubles");
+    if (!(timeout_2 == (timeout_1 * 2))) @panic("doubles again");
 }
 test "frame_metadata_fields" {
     const meta_data = ((1 | (@as(u32, @intCast(1 & 15)) << 1)) | (@as(u32, @intCast(2 & 15)) << 5)) | (@as(u32, @intCast(8 & 15)) << 9);
     const src = @as(u8, @intCast((meta_data >> 1) & 15));
     const dst = @as(u8, @intCast((meta_data >> 5) & 15));
     const ttl = @as(u8, @intCast((meta_data >> 9) & 15));
-    if (!(src == 1)) @compileError("assertion failed");
-    if (!(dst == 2)) @compileError("assertion failed");
-    if (!(ttl == 8)) @compileError("assertion failed");
+    if (!(src == 1)) @panic("src field");
+    if (!(dst == 2)) @panic("dst field");
+    if (!(ttl == 8)) @panic("ttl field");
 }

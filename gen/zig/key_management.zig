@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const MAX_KEYS: u32 = 4;
 const KEY_SIZE: u32 = 4;
 const KEY_VALID: u32 = 1;
@@ -162,59 +161,59 @@ fn count_valid_keys(store: u64) u32 {
 }
 test "create_key_entry_basic" {
     const entry = create_key_entry(1, 5, 0xABCD, 100);
-    if (!(get_key_valid(entry) == 1)) @compileError("assertion failed");
-    if (!(get_key_id(entry) == 5)) @compileError("assertion failed");
-    if (!(get_key_value(entry) == 0xABCD)) @compileError("assertion failed");
-    if (!(get_key_timestamp(entry) == 100)) @compileError("assertion failed");
+    if (!(get_key_valid(entry) == 1)) @panic("valid");
+    if (!(get_key_id(entry) == 5)) @panic("id");
+    if (!(get_key_value(entry) == 0xABCD)) @panic("value");
+    if (!(get_key_timestamp(entry) == 100)) @panic("timestamp");
 }
 test "find_key_by_id_found" {
     const store = create_key_store(create_key_entry(1, 1, 0x1111, 10), create_key_entry(1, 2, 0x2222, 20), create_key_entry(0, 3, 0x3333, 30), create_key_entry(1, 4, 0x4444, 40));
-    if (!(find_key_by_id(store, 2) == 1)) @compileError("assertion failed");
+    if (!(find_key_by_id(store, 2) == 1)) @panic("found at index 1");
 }
 test "find_key_by_id_not_found" {
     const store = create_key_store(create_key_entry(1, 1, 0x1111, 10), create_key_entry(1, 2, 0x2222, 20), create_key_entry(0, 3, 0x3333, 30), create_key_entry(1, 4, 0x4444, 40));
-    if (!(find_key_by_id(store, 99) == 0xFF)) @compileError("assertion failed");
+    if (!(find_key_by_id(store, 99) == 0xFF)) @panic("not found");
 }
 test "find_key_by_id_invalid_ignored" {
     const store = create_key_store(create_key_entry(1, 1, 0x1111, 10), create_key_entry(0, 2, 0x2222, 20), create_key_entry(1, 3, 0x3333, 30), create_key_entry(1, 4, 0x4444, 40));
-    if (!(find_key_by_id(store, 2) == 0xFF)) @compileError("assertion failed");
+    if (!(find_key_by_id(store, 2) == 0xFF)) @panic("invalid key ignored");
 }
 test "add_key_empty_slot" {
     const store = create_key_store(create_key_entry(0, 0, 0, 0), create_key_entry(0, 0, 0, 0), create_key_entry(0, 0, 0, 0), create_key_entry(0, 0, 0, 0));
     const new_store = add_key(store, 5, 0xABCD, 100);
-    if (!(get_key_id(get_key_entry(new_store, 0)) == 5)) @compileError("assertion failed");
+    if (!(get_key_id(get_key_entry(new_store, 0)) == 5)) @panic("key added");
 }
 test "invalidate_key_works" {
     const store = create_key_store(create_key_entry(1, 1, 0x1111, 10), create_key_entry(1, 2, 0x2222, 20), create_key_entry(1, 3, 0x3333, 30), create_key_entry(0, 0, 0, 0));
     const new_store = invalidate_key(store, 2);
-    if (!(get_key_valid(get_key_entry(new_store, 1)) == 0)) @compileError("assertion failed");
+    if (!(get_key_valid(get_key_entry(new_store, 1)) == 0)) @panic("key invalidated");
 }
 test "needs_rotation_true" {
     const entry = create_key_entry(1, 1, 0x1111, 1000);
-    if (!(needs_rotation(entry, 35000) == true)) @compileError("assertion failed");
+    if (!(needs_rotation(entry, 35000) == true)) @panic("needs rotation");
 }
 test "needs_rotation_false" {
     const entry = create_key_entry(1, 1, 0x1111, 25000);
-    if (!(needs_rotation(entry, 30000) == false)) @compileError("assertion failed");
+    if (!(needs_rotation(entry, 30000) == false)) @panic("no rotation needed");
 }
 test "needs_rotation_invalid" {
     const entry = create_key_entry(0, 1, 0x1111, 1000);
-    if (!(needs_rotation(entry, 35000) == false)) @compileError("assertion failed");
+    if (!(needs_rotation(entry, 35000) == false)) @panic("invalid key");
 }
 test "rotate_key_works" {
     const store = create_key_store(create_key_entry(1, 1, 0x1111, 10000), create_key_entry(0, 0, 0, 0), create_key_entry(0, 0, 0, 0), create_key_entry(0, 0, 0, 0));
     const new_store = rotate_key(store, 1, 0x9999, 50000);
-    if (!(get_key_value(get_key_entry(new_store, 0)) == 0x9999)) @compileError("assertion failed");
+    if (!(get_key_value(get_key_entry(new_store, 0)) == 0x9999)) @panic("value updated");
 }
 test "get_active_key_returns_latest" {
     const store = create_key_store(create_key_entry(1, 1, 0x1111, 10), create_key_entry(1, 2, 0x2222, 30), create_key_entry(1, 3, 0x3333, 20), create_key_entry(0, 0, 0, 0));
-    if (!(get_active_key(store) == 0x2222)) @compileError("assertion failed");
+    if (!(get_active_key(store) == 0x2222)) @panic("latest key");
 }
 test "count_valid_keys_all" {
     const store = create_key_store(create_key_entry(1, 1, 0x1111, 10), create_key_entry(1, 2, 0x2222, 20), create_key_entry(1, 3, 0x3333, 30), create_key_entry(1, 4, 0x4444, 40));
-    if (!(count_valid_keys(store) == 4)) @compileError("assertion failed");
+    if (!(count_valid_keys(store) == 4)) @panic("4 valid keys");
 }
 test "count_valid_keys_some" {
     const store = create_key_store(create_key_entry(1, 1, 0x1111, 10), create_key_entry(0, 2, 0x2222, 20), create_key_entry(1, 3, 0x3333, 30), create_key_entry(0, 4, 0x4444, 40));
-    if (!(count_valid_keys(store) == 2)) @compileError("assertion failed");
+    if (!(count_valid_keys(store) == 2)) @panic("2 valid keys");
 }

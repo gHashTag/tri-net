@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const MAX_PATHS: u32 = 4;
 const METRIC_LATENCY: u32 = 0;
 const METRIC_HOPS: u32 = 1;
@@ -136,72 +135,72 @@ fn find_least_congested(metrics_array: u64) u32 {
 }
 test "create_path_metrics_basic" {
     const metrics = create_path_metrics(50, 3, 100, 40);
-    if (!(get_latency(metrics) == 50)) @compileError("assertion failed");
-    if (!(get_hops(metrics) == 3)) @compileError("assertion failed");
-    if (!(get_bandwidth(metrics) == 100)) @compileError("assertion failed");
-    if (!(get_load(metrics) == 40)) @compileError("assertion failed");
+    if (!(get_latency(metrics) == 50)) @panic("latency");
+    if (!(get_hops(metrics) == 3)) @panic("hops");
+    if (!(get_bandwidth(metrics) == 100)) @panic("bandwidth");
+    if (!(get_load(metrics) == 40)) @panic("load");
 }
 test "create_selection_state_basic" {
     const state = create_selection_state(0, 1, METRIC_LATENCY, 1000);
-    if (!(get_primary_path(state) == 0)) @compileError("assertion failed");
-    if (!(get_backup_path(state) == 1)) @compileError("assertion failed");
-    if (!(get_metric_type(state) == METRIC_LATENCY)) @compileError("assertion failed");
+    if (!(get_primary_path(state) == 0)) @panic("primary");
+    if (!(get_backup_path(state) == 1)) @panic("backup");
+    if (!(get_metric_type(state) == METRIC_LATENCY)) @panic("metric type");
 }
 test "calculate_score_latency" {
     const metrics = create_path_metrics(10, 3, 100, 40);
     const score = calculate_score(metrics, METRIC_LATENCY);
-    if (!((score >= 25) and (score <= 26))) @compileError("assertion failed");
+    if (!((score >= 25) and (score <= 26))) @panic("latency score");
 }
 test "calculate_score_hops" {
     const metrics = create_path_metrics(50, 2, 100, 40);
     const score = calculate_score(metrics, METRIC_HOPS);
-    if (!((score >= 127) and (score <= 128))) @compileError("assertion failed");
+    if (!((score >= 127) and (score <= 128))) @panic("hops score");
 }
 test "calculate_score_bandwidth" {
     const metrics = create_path_metrics(50, 3, 150, 40);
-    if (!(calculate_score(metrics, METRIC_BANDWIDTH) == 150)) @compileError("assertion failed");
+    if (!(calculate_score(metrics, METRIC_BANDWIDTH) == 150)) @panic("bandwidth score");
 }
 test "find_best_path_latency" {
     const array = create_path_metrics_array(create_path_metrics(100, 3, 100, 40), create_path_metrics(10, 3, 100, 40), create_path_metrics(50, 3, 100, 40), create_path_metrics(30, 3, 100, 40));
-    if (!(find_best_path(array, METRIC_LATENCY) == 1)) @compileError("assertion failed");
+    if (!(find_best_path(array, METRIC_LATENCY) == 1)) @panic("path 1 has best latency");
 }
 test "find_best_path_hops" {
     const array = create_path_metrics_array(create_path_metrics(50, 5, 100, 40), create_path_metrics(50, 3, 100, 40), create_path_metrics(50, 1, 100, 40), create_path_metrics(50, 4, 100, 40));
-    if (!(find_best_path(array, METRIC_HOPS) == 2)) @compileError("assertion failed");
+    if (!(find_best_path(array, METRIC_HOPS) == 2)) @panic("path 2 has fewest hops");
 }
 test "needs_update_true" {
     const state = create_selection_state(0, 1, METRIC_LATENCY, 1000);
-    if (!(needs_update(state, 7000) == true)) @compileError("assertion failed");
+    if (!(needs_update(state, 7000) == true)) @panic("needs update");
 }
 test "needs_update_false" {
     const state = create_selection_state(0, 1, METRIC_LATENCY, 5000);
-    if (!(needs_update(state, 7000) == false)) @compileError("assertion failed");
+    if (!(needs_update(state, 7000) == false)) @panic("no update needed");
 }
 test "update_selection_works" {
     const state = create_selection_state(0, 1, METRIC_LATENCY, 1000);
     const new_state = update_selection(state, 2, 3, 8000);
-    if (!(get_primary_path(new_state) == 2)) @compileError("assertion failed");
-    if (!(get_backup_path(new_state) == 3)) @compileError("assertion failed");
-    if (!(get_last_update(new_state) == 8000)) @compileError("assertion failed");
+    if (!(get_primary_path(new_state) == 2)) @panic("primary updated");
+    if (!(get_backup_path(new_state) == 3)) @panic("backup updated");
+    if (!(get_last_update(new_state) == 8000)) @panic("time updated");
 }
 test "change_metric_type_works" {
     const state = create_selection_state(0, 1, METRIC_LATENCY, 1000);
     const new_state = change_metric_type(state, METRIC_BANDWIDTH);
-    if (!(get_metric_type(new_state) == METRIC_BANDWIDTH)) @compileError("assertion failed");
+    if (!(get_metric_type(new_state) == METRIC_BANDWIDTH)) @panic("metric changed");
 }
 test "is_path_congested_true" {
     const metrics = create_path_metrics(50, 3, 100, 90);
-    if (!(is_path_congested(metrics) == true)) @compileError("assertion failed");
+    if (!(is_path_congested(metrics) == true)) @panic("path congested");
 }
 test "is_path_congested_false" {
     const metrics = create_path_metrics(50, 3, 100, 40);
-    if (!(is_path_congested(metrics) == false)) @compileError("assertion failed");
+    if (!(is_path_congested(metrics) == false)) @panic("path not congested");
 }
 test "find_least_congested" {
     const array = create_path_metrics_array(create_path_metrics(50, 3, 100, 80), create_path_metrics(50, 3, 100, 30), create_path_metrics(50, 3, 100, 60), create_path_metrics(50, 3, 100, 90));
-    if (!(find_least_congested(array) == 1)) @compileError("assertion failed");
+    if (!(find_least_congested(array) == 1)) @panic("path 1 least congested");
 }
 test "find_least_congested_all_equal" {
     const array = create_path_metrics_array(create_path_metrics(50, 3, 100, 50), create_path_metrics(50, 3, 100, 50), create_path_metrics(50, 3, 100, 50), create_path_metrics(50, 3, 100, 50));
-    if (!(find_least_congested(array) == 0)) @compileError("assertion failed");
+    if (!(find_least_congested(array) == 0)) @panic("first path when equal");
 }

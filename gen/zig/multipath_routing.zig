@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const MAX_PATHS: u32 = 4;
 const MAX_HOPS: u32 = 3;
 const MIN_PATHS: u32 = 2;
@@ -189,82 +188,82 @@ fn calculate_multipath_gain(path_array: u64) u32 {
 }
 test "create_multipath_basic" {
     const path = create_multipath(PATH_VALID, 10, 20, 30);
-    if (!(get_path_valid(path) == PATH_VALID)) @compileError("assertion failed");
-    if (!(get_multipath_hop1(path) == 10)) @compileError("assertion failed");
-    if (!(get_multipath_hop2(path) == 20)) @compileError("assertion failed");
-    if (!(get_multipath_hop3(path) == 30)) @compileError("assertion failed");
+    if (!(get_path_valid(path) == PATH_VALID)) @panic("valid");
+    if (!(get_multipath_hop1(path) == 10)) @panic("hop1");
+    if (!(get_multipath_hop2(path) == 20)) @panic("hop2");
+    if (!(get_multipath_hop3(path) == 30)) @panic("hop3");
 }
 test "create_multipath_state_basic" {
     const state = create_multipath_state(3, 1, 100, 50);
-    if (!(get_active_paths(state) == 3)) @compileError("assertion failed");
-    if (!(get_current_path(state) == 1)) @compileError("assertion failed");
-    if (!(get_flow_id(state) == 100)) @compileError("assertion failed");
-    if (!(get_multipath_last_update(state) == 50)) @compileError("assertion failed");
+    if (!(get_active_paths(state) == 3)) @panic("active paths");
+    if (!(get_current_path(state) == 1)) @panic("current path");
+    if (!(get_flow_id(state) == 100)) @panic("flow ID");
+    if (!(get_multipath_last_update(state) == 50)) @panic("last update");
 }
 test "count_valid_paths_all" {
     const array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
-    if (!(count_valid_paths(array) == 3)) @compileError("assertion failed");
+    if (!(count_valid_paths(array) == 3)) @panic("3 valid paths");
 }
 test "count_valid_paths_some" {
     const array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
-    if (!(count_valid_paths(array) == 2)) @compileError("assertion failed");
+    if (!(count_valid_paths(array) == 2)) @panic("2 valid paths");
 }
 test "is_multipath_viable_true" {
     const array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_INVALID, 0, 0, 0));
-    if (!(is_multipath_viable(array) == 1)) @compileError("assertion failed");
+    if (!(is_multipath_viable(array) == 1)) @panic("viable");
 }
 test "is_multipath_viable_false" {
     const array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_INVALID, 0, 0, 0));
-    if (!(is_multipath_viable(array) == 0)) @compileError("assertion failed");
+    if (!(is_multipath_viable(array) == 0)) @panic("not viable");
 }
 test "select_primary_path_first" {
     const array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
-    if (!(select_primary_path(array, 0) == 0)) @compileError("assertion failed");
+    if (!(select_primary_path(array, 0) == 0)) @panic("first path selected");
 }
 test "select_primary_path_skip_invalid" {
     const array = create_path_array(create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
-    if (!(select_primary_path(array, 0) == 1)) @compileError("assertion failed");
+    if (!(select_primary_path(array, 0) == 1)) @panic("second path selected");
 }
 test "calculate_path_diversity_high" {
     const array = create_path_array(create_multipath(PATH_VALID, 1, 20, 30), create_multipath(PATH_VALID, 2, 21, 31), create_multipath(PATH_VALID, 3, 22, 32), create_multipath(PATH_VALID, 4, 23, 33));
     const diversity = calculate_path_diversity(array);
-    if (!(diversity == 4)) @compileError("assertion failed");
+    if (!(diversity == 4)) @panic("4 different first hops");
 }
 test "calculate_path_diversity_low" {
     const array = create_path_array(create_multipath(PATH_VALID, 1, 20, 30), create_multipath(PATH_VALID, 1, 21, 31), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_INVALID, 0, 0, 0));
     const diversity = calculate_path_diversity(array);
-    if (!(diversity == 1)) @compileError("assertion failed");
+    if (!(diversity == 1)) @panic("1 unique first hop");
 }
 test "distribute_load_round_robin" {
     const array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
     const next = distribute_load(array, 0, 0);
-    if (!(next == 1)) @compileError("assertion failed");
+    if (!(next == 1)) @panic("distribute to path 1");
 }
 test "distribute_load_wraps" {
     const array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
     const next1 = distribute_load(array, 1, 0);
-    if (!(next1 == 2)) @compileError("assertion failed");
+    if (!(next1 == 2)) @panic("distribute to path 2");
     const next2 = distribute_load(array, 2, 0);
-    if (!(next2 == 3)) @compileError("assertion failed");
+    if (!(next2 == 3)) @panic("distribute to path 3");
     const next3 = distribute_load(array, 3, 0);
-    if (!(next3 == 0)) @compileError("assertion failed");
+    if (!(next3 == 0)) @panic("wrap around to path 0");
 }
 test "needs_failover_true" {
     const array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_VALID, 40, 50, 60));
-    if (!(needs_failover(array, 1) == true)) @compileError("assertion failed");
+    if (!(needs_failover(array, 1) == true)) @panic("needs failover");
 }
 test "needs_failover_false" {
     const array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_VALID, 15, 25, 35));
-    if (!(needs_failover(array, 1) == false)) @compileError("assertion failed");
+    if (!(needs_failover(array, 1) == false)) @panic("no failover needed");
 }
 test "perform_failover_updates_state" {
     const state = create_multipath_state(3, 1, 100, 50);
     const array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_VALID, 40, 50, 60));
     const new_state = perform_failover(state, array, 1);
-    if (!(get_current_path(new_state) != 1)) @compileError("assertion failed");
+    if (!(get_current_path(new_state) != 1)) @panic("path changed");
 }
 test "calculate_multipath_gain" {
     const array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
     const gain = calculate_multipath_gain(array);
-    if (!(gain > 0)) @compileError("assertion failed");
+    if (!(gain > 0)) @panic("multipath provides gain");
 }

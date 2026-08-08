@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const DEFAULT_TTL: u8 = 8;
 const MESH_NET_A: u8 = 10;
 const MESH_NET_B: u8 = 42;
@@ -102,125 +101,125 @@ fn delivery_decision(is_local: bool, ttl_expired: bool, route_exists: bool, dest
 }
 test "mesh_ip_converts_correctly" {
     const a, const b, const c, const d = mesh_ip(1);
-    if (!(a == 10)) @compileError("assertion failed");
-    if (!(b == 42)) @compileError("assertion failed");
-    if (!(c == 0)) @compileError("assertion failed");
-    if (!(d == 1)) @compileError("assertion failed");
+    if (!(a == 10)) @panic("network A should be 10");
+    if (!(b == 42)) @panic("network B should be 42");
+    if (!(c == 0)) @panic("network C should be 0");
+    if (!(d == 1)) @panic("node D should be 1");
 }
 test "mesh_ip_max_node_id" {
     const a, const b, const c, const d = mesh_ip(254);
     _ = a; // dead after const-inlining
     _ = b; // dead after const-inlining
     _ = c; // dead after const-inlining
-    if (!(d == 254)) @compileError("assertion failed");
+    if (!(d == 254)) @panic("max node ID should be 254");
 }
 test "is_mesh_subnet_valid" {
     const valid = is_mesh_subnet(10, 42, 0);
-    if (!(valid)) @compileError("assertion failed");
+    if (!(valid)) @panic("10.42.0.0 should be mesh subnet");
 }
 test "is_mesh_subnet_invalid_network" {
     const valid = is_mesh_subnet(192, 168, 1);
-    if (!(valid == false)) @compileError("assertion failed");
+    if (!(valid == false)) @panic("192.168.1.0 should not be mesh subnet");
 }
 test "node_of_ip_valid" {
     const node_id, const valid = node_of_ip(10, 42, 0, 100);
-    if (!(node_id == 100)) @compileError("assertion failed");
-    if (!(valid)) @compileError("assertion failed");
+    if (!(node_id == 100)) @panic("node ID should be 100");
+    if (!(valid)) @panic("should be valid");
 }
 test "node_of_ip_invalid_subnet" {
     const node_id, const valid = node_of_ip(192, 168, 1, 100);
     _ = node_id; // dead after const-inlining
-    if (!(valid == false)) @compileError("assertion failed");
+    if (!(valid == false)) @panic("wrong subnet should be invalid");
 }
 test "node_of_ip_invalid_range" {
     const node_id, const valid = node_of_ip(10, 42, 0, 255);
     _ = node_id; // dead after const-inlining
-    if (!(valid == false)) @compileError("assertion failed");
+    if (!(valid == false)) @panic("node ID 255 should be invalid");
 }
 test "node_of_ip_min_boundary" {
     const node_id, const valid = node_of_ip(10, 42, 0, 1);
-    if (!(node_id == 1)) @compileError("assertion failed");
-    if (!(valid)) @compileError("assertion failed");
+    if (!(node_id == 1)) @panic("min node ID should be 1");
+    if (!(valid)) @panic("min node ID should be valid");
 }
 test "decrement_ttl_normal" {
     const new_ttl, const expired = decrement_ttl(8);
-    if (!(new_ttl == 7)) @compileError("assertion failed");
-    if (!(expired == false)) @compileError("assertion failed");
+    if (!(new_ttl == 7)) @panic("TTL should decrement to 7");
+    if (!(expired == false)) @panic("should not be expired");
 }
 test "decrement_ttl_at_one" {
     const new_ttl, const expired = decrement_ttl(1);
-    if (!(new_ttl == 0)) @compileError("assertion failed");
-    if (!(expired == true)) @compileError("assertion failed");
+    if (!(new_ttl == 0)) @panic("TTL should go to 0");
+    if (!(expired == true)) @panic("should be expired");
 }
 test "decrement_ttl_at_zero" {
     const new_ttl, const expired = decrement_ttl(0);
-    if (!(new_ttl == 0)) @compileError("assertion failed");
-    if (!(expired == true)) @compileError("assertion failed");
+    if (!(new_ttl == 0)) @panic("TTL should stay 0");
+    if (!(expired == true)) @panic("should be expired");
 }
 test "is_ttl_expired_check" {
     const expired = is_ttl_expired(0);
-    if (!(expired)) @compileError("assertion failed");
+    if (!(expired)) @panic("TTL 0 should be expired");
     const not_expired = is_ttl_expired(5);
-    if (!(not_expired == false)) @compileError("assertion failed");
+    if (!(not_expired == false)) @panic("TTL 5 should not be expired");
 }
 test "choose_next_hop_all_finite" {
     const next_hop, const found = choose_next_hop(256, 512, 1024, true, true, true);
-    if (!(next_hop == 1)) @compileError("assertion failed");
-    if (!(found)) @compileError("assertion failed");
+    if (!(next_hop == 1)) @panic("should choose n1 (lowest ETX)");
+    if (!(found)) @panic("should find next hop");
 }
 test "choose_next_hop_two_finite" {
     const next_hop, const found = choose_next_hop(512, 256, 0xFFFF, true, true, false);
-    if (!(next_hop == 2)) @compileError("assertion failed");
-    if (!(found)) @compileError("assertion failed");
+    if (!(next_hop == 2)) @panic("should choose n2 (lowest finite)");
+    if (!(found)) @panic("should find next hop");
 }
 test "choose_next_hop_one_finite" {
     const next_hop, const found = choose_next_hop(0xFFFF, 512, 0xFFFF, false, true, false);
-    if (!(next_hop == 2)) @compileError("assertion failed");
-    if (!(found)) @compileError("assertion failed");
+    if (!(next_hop == 2)) @panic("should choose only finite n2");
+    if (!(found)) @panic("should find next hop");
 }
 test "choose_next_hop_none_finite" {
     const next_hop, const found = choose_next_hop(0xFFFF, 0xFFFF, 0xFFFF, true, true, true);
     _ = next_hop; // dead after const-inlining
-    if (!(found == false)) @compileError("assertion failed");
+    if (!(found == false)) @panic("should not find next hop");
 }
 test "choose_next_hop_tie_breaker" {
     const next_hop, const found = choose_next_hop(512, 512, 1024, true, true, false);
-    if (!(next_hop == 1)) @compileError("assertion failed");
-    if (!(found)) @compileError("assertion failed");
+    if (!(next_hop == 1)) @panic("should prefer n1 in tie");
+    if (!(found)) @panic("should find next hop");
 }
 test "delivery_decision_local" {
     const action, const next_hop = delivery_decision(true, false, true, 5);
-    if (!(action == 0)) @compileError("assertion failed");
-    if (!(next_hop == 0)) @compileError("assertion failed");
+    if (!(action == 0)) @panic("should deliver locally");
+    if (!(next_hop == 0)) @panic("next hop irrelevant for local");
 }
 test "delivery_decision_ttl_expired" {
     const action, const next_hop = delivery_decision(false, true, true, 5);
-    if (!(action == 2)) @compileError("assertion failed");
-    if (!(next_hop == 0)) @compileError("assertion failed");
+    if (!(action == 2)) @panic("should drop (TTL expired)");
+    if (!(next_hop == 0)) @panic("next hop irrelevant for drop");
 }
 test "delivery_decision_no_route" {
     const action, const next_hop = delivery_decision(false, false, false, 5);
-    if (!(action == 2)) @compileError("assertion failed");
-    if (!(next_hop == 0)) @compileError("assertion failed");
+    if (!(action == 2)) @panic("should drop (no route)");
+    if (!(next_hop == 0)) @panic("next hop irrelevant for drop");
 }
 test "delivery_decision_forward" {
     const action, const next_hop = delivery_decision(false, false, true, 7);
-    if (!(action == 1)) @compileError("assertion failed");
-    if (!(next_hop == 7)) @compileError("assertion failed");
+    if (!(action == 1)) @panic("should forward");
+    if (!(next_hop == 7)) @panic("should forward to destination");
 }
 test "full_routing_flow" {
     const dest_node, const valid_dest = node_of_ip(10, 42, 0, 100);
-    if (!(dest_node == 100)) @compileError("assertion failed");
-    if (!(valid_dest)) @compileError("assertion failed");
+    if (!(dest_node == 100)) @panic("destination should be node 100");
+    if (!(valid_dest)) @panic("destination should be valid");
     const is_local = dest_node == 2;
-    if (!(is_local == false)) @compileError("assertion failed");
+    if (!(is_local == false)) @panic("not for us, need to forward");
     const new_ttl, const ttl_expired = decrement_ttl(7);
     _ = new_ttl; // dead after const-inlining
-    if (!(ttl_expired == false)) @compileError("assertion failed");
+    if (!(ttl_expired == false)) @panic("TTL still valid");
     const next_hop, const route_exists = choose_next_hop(512, 1024, 256, true, true, true);
-    if (!(next_hop == 3)) @compileError("assertion failed");
-    if (!(route_exists)) @compileError("assertion failed");
+    if (!(next_hop == 3)) @panic("should forward via node 3");
+    if (!(route_exists)) @panic("route exists");
     const action, const final_hop = delivery_decision(is_local, ttl_expired, route_exists, next_hop);
-    if (!(action == 1)) @compileError("assertion failed");
-    if (!(final_hop == 3)) @compileError("assertion failed");
+    if (!(action == 1)) @panic("should forward");
+    if (!(final_hop == 3)) @panic("forward to node 3");
 }

@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const STATE_COLD_START: u8 = 0;
 const STATE_DISCOVERING: u8 = 1;
 const STATE_CONNECTED: u8 = 2;
@@ -78,83 +77,83 @@ fn check_max_hops(ttl: u8, max_hops: u8) bool {
 }
 test "cold_start_initial_state" {
     const node = cold_start();
-    if (!(node_state_of(node) == STATE_COLD_START)) @compileError("assertion failed");
-    if (!(node_neighbors(node) == 0)) @compileError("assertion failed");
-    if (!(node_uptime(node) == 0)) @compileError("assertion failed");
+    if (!(node_state_of(node) == STATE_COLD_START)) @panic("cold start state");
+    if (!(node_neighbors(node) == 0)) @panic("no neighbors");
+    if (!(node_uptime(node) == 0)) @panic("zero uptime");
 }
 test "discover_neighbor_transitions" {
     const node = cold_start();
     const node2 = discover_neighbor(node);
-    if (!(node_state_of(node2) == STATE_DISCOVERING)) @compileError("assertion failed");
+    if (!(node_state_of(node2) == STATE_DISCOVERING)) @panic("discovering");
     const node3 = discover_neighbor(node2);
-    if (!(node_state_of(node3) == STATE_CONNECTED)) @compileError("assertion failed");
-    if (!(node_neighbors(node3) == 1)) @compileError("assertion failed");
+    if (!(node_state_of(node3) == STATE_CONNECTED)) @panic("connected");
+    if (!(node_neighbors(node3) == 1)) @panic("1 neighbor");
 }
 test "simulate_partition_removes_neighbors" {
     const node = create_node_state(STATE_CONNECTED, 3, 1000);
     const node2 = simulate_partition(node);
-    if (!(node_state_of(node2) == STATE_PARTITIONED)) @compileError("assertion failed");
-    if (!(node_neighbors(node2) == 0)) @compileError("assertion failed");
+    if (!(node_state_of(node2) == STATE_PARTITIONED)) @panic("partitioned");
+    if (!(node_neighbors(node2) == 0)) @panic("neighbors cleared");
 }
 test "recover_from_partition_transitions" {
     const node = create_node_state(STATE_PARTITIONED, 0, 1000);
     const node2 = recover_from_partition(node);
-    if (!(node_state_of(node2) == STATE_RECOVERING)) @compileError("assertion failed");
+    if (!(node_state_of(node2) == STATE_RECOVERING)) @panic("recovering");
 }
 test "node_join_increases_neighbors" {
     const node = create_node_state(STATE_CONNECTED, 2, 1000);
     const node2 = node_join(node);
-    if (!(node_neighbors(node2) == 3)) @compileError("assertion failed");
+    if (!(node_neighbors(node2) == 3)) @panic("3 neighbors");
 }
 test "node_leave_decreases_neighbors" {
     const node = create_node_state(STATE_CONNECTED, 3, 1000);
     const node2 = node_leave(node);
-    if (!(node_neighbors(node2) == 2)) @compileError("assertion failed");
+    if (!(node_neighbors(node2) == 2)) @panic("2 neighbors");
 }
 test "node_leave_no_neighbors" {
     const node = create_node_state(STATE_CONNECTED, 0, 1000);
     const node2 = node_leave(node);
-    if (!(node_neighbors(node2) == 0)) @compileError("assertion failed");
+    if (!(node_neighbors(node2) == 0)) @panic("still 0");
 }
 test "simulate_interference_high_clears" {
     const node = create_node_state(STATE_CONNECTED, 3, 1000);
     const node2 = simulate_interference(node, 200);
-    if (!(node_neighbors(node2) == 0)) @compileError("assertion failed");
+    if (!(node_neighbors(node2) == 0)) @panic("high interference clears");
 }
 test "simulate_interference_low_ok" {
     const node = create_node_state(STATE_CONNECTED, 3, 1000);
     const node2 = simulate_interference(node, 50);
-    if (!(node_neighbors(node2) == 3)) @compileError("assertion failed");
+    if (!(node_neighbors(node2) == 3)) @panic("low interference ok");
 }
 test "battery_drain_kills_node" {
     const uptime = 5000;
     const drain = 1;
     const uptime2 = battery_drain(uptime, drain);
-    if (!(uptime2 == 0)) @compileError("assertion failed");
+    if (!(uptime2 == 0)) @panic("battery dead");
 }
 test "battery_drain_survives" {
     const uptime = 100;
     const drain = 1;
     const uptime2 = battery_drain(uptime, drain);
-    if (!(uptime2 > 0)) @compileError("assertion failed");
+    if (!(uptime2 > 0)) @panic("battery ok");
 }
 test "check_max_hops_valid" {
-    if (!(check_max_hops(3, 5) == true)) @compileError("assertion failed");
-    if (!(check_max_hops(1, 5) == true)) @compileError("assertion failed");
-    if (!(check_max_hops(5, 5) == true)) @compileError("assertion failed");
+    if (!(check_max_hops(3, 5) == true)) @panic("valid hops");
+    if (!(check_max_hops(1, 5) == true)) @panic("min hops");
+    if (!(check_max_hops(5, 5) == true)) @panic("max hops");
 }
 test "check_max_hops_invalid" {
-    if (!(check_max_hops(0, 5) == false)) @compileError("assertion failed");
-    if (!(check_max_hops(6, 5) == false)) @compileError("assertion failed");
+    if (!(check_max_hops(0, 5) == false)) @panic("zero ttl");
+    if (!(check_max_hops(6, 5) == false)) @panic("exceeds max");
 }
 test "complete_scenario_cold_to_connected" {
     const node = cold_start();
     node = discover_neighbor(node);
     node = discover_neighbor(node);
-    if (!(node_state_of(node) == STATE_CONNECTED)) @compileError("assertion failed");
-    if (!(node_neighbors(node) == 1)) @compileError("assertion failed");
+    if (!(node_state_of(node) == STATE_CONNECTED)) @panic("connected");
+    if (!(node_neighbors(node) == 1)) @panic("1 neighbor");
     node = simulate_partition(node);
-    if (!(node_state_of(node) == STATE_PARTITIONED)) @compileError("assertion failed");
+    if (!(node_state_of(node) == STATE_PARTITIONED)) @panic("partitioned");
     node = recover_from_partition(node);
-    if (!(node_state_of(node) == STATE_RECOVERING)) @compileError("assertion failed");
+    if (!(node_state_of(node) == STATE_RECOVERING)) @panic("recovering");
 }

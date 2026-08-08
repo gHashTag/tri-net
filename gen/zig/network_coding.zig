@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const MAX_PACKETS: u32 = 4;
 const CODING_WINDOW: u32 = 1000;
 const MAX_GENERATION_SIZE: u32 = 4;
@@ -127,95 +126,95 @@ fn calculate_coding_gain(original: u32, coded: u32) u32 {
 }
 test "create_packet_basic" {
     const pkt = create_packet(5, 10, 0xAB, 100);
-    if (!(get_packet_src(pkt) == 5)) @compileError("assertion failed");
-    if (!(get_packet_dst(pkt) == 10)) @compileError("assertion failed");
-    if (!(get_packet_payload(pkt) == 0xAB)) @compileError("assertion failed");
-    if (!(get_packet_seq(pkt) == 100)) @compileError("assertion failed");
+    if (!(get_packet_src(pkt) == 5)) @panic("source");
+    if (!(get_packet_dst(pkt) == 10)) @panic("destination");
+    if (!(get_packet_payload(pkt) == 0xAB)) @panic("payload");
+    if (!(get_packet_seq(pkt) == 100)) @panic("sequence");
 }
 test "create_coded_packet_basic" {
     const coded = create_coded_packet(0b1010, 0xCD, 5, 1000);
-    if (!(get_coeff_vector(coded) == 0b1010)) @compileError("assertion failed");
-    if (!(get_coded_payload(coded) == 0xCD)) @compileError("assertion failed");
-    if (!(get_generation(coded) == 5)) @compileError("assertion failed");
+    if (!(get_coeff_vector(coded) == 0b1010)) @panic("coefficient");
+    if (!(get_coded_payload(coded) == 0xCD)) @panic("coded payload");
+    if (!(get_generation(coded) == 5)) @panic("generation");
 }
 test "xor_packets_basic" {
     const pkt1 = create_packet(1, 2, 0xAA, 100);
     const pkt2 = create_packet(3, 4, 0x55, 101);
     const xored = xor_packets(pkt1, pkt2);
-    if (!(get_packet_payload(xored) == 0xFF)) @compileError("assertion failed");
+    if (!(get_packet_payload(xored) == 0xFF)) @panic("XOR payload");
 }
 test "create_xoded_native" {
     const pkt1 = create_packet(1, 2, 0xAA, 100);
     const pkt2 = create_packet(3, 4, 0x55, 100);
     const coded = create_xoded_native(pkt1, pkt2, 5, 1000);
-    if (!(get_coded_payload(coded) == 0xFF)) @compileError("assertion failed");
-    if (!(get_coeff_vector(coded) == 0b11)) @compileError("assertion failed");
+    if (!(get_coded_payload(coded) == 0xFF)) @panic("coded payload");
+    if (!(get_coeff_vector(coded) == 0b11)) @panic("both packets");
 }
 test "decode_xoded_packet" {
     const pkt1 = create_packet(1, 2, 0xAA, 100);
     const pkt2 = create_packet(3, 4, 0x55, 100);
     const coded = create_xoded_native(pkt1, pkt2, 5, 1000);
     const decoded = decode_xoded_packet(coded, pkt1);
-    if (!(get_packet_payload(decoded) == 0x55)) @compileError("assertion failed");
+    if (!(get_packet_payload(decoded) == 0x55)) @panic("decoded payload");
 }
 test "same_generation_true" {
     const pkt1 = create_packet(1, 2, 0xAA, 8);
     const pkt2 = create_packet(3, 4, 0x55, 10);
-    if (!(same_generation(pkt1, pkt2) == true)) @compileError("assertion failed");
+    if (!(same_generation(pkt1, pkt2) == true)) @panic("same generation");
 }
 test "same_generation_false" {
     const pkt1 = create_packet(1, 2, 0xAA, 3);
     const pkt2 = create_packet(3, 4, 0x55, 8);
-    if (!(same_generation(pkt1, pkt2) == false)) @compileError("assertion failed");
+    if (!(same_generation(pkt1, pkt2) == false)) @panic("different generation");
 }
 test "get_generation_id" {
     const pkt1 = create_packet(1, 2, 0xAA, 8);
     const pkt2 = create_packet(3, 4, 0x55, 10);
-    if (!(get_generation_id(pkt1) == get_generation_id(pkt2))) @compileError("assertion failed");
+    if (!(get_generation_id(pkt1) == get_generation_id(pkt2))) @panic("same generation ID");
 }
 test "is_coding_beneficial_different_hops" {
     const pkt1 = create_packet(1, 2, 0xAA, 100);
     const pkt2 = create_packet(3, 4, 0x55, 101);
-    if (!(is_coding_beneficial(pkt1, pkt2, 10, 20) == true)) @compileError("assertion failed");
+    if (!(is_coding_beneficial(pkt1, pkt2, 10, 20) == true)) @panic("beneficial");
 }
 test "is_coding_beneficial_same_hop" {
     const pkt1 = create_packet(1, 2, 0xAA, 100);
     const pkt2 = create_packet(3, 4, 0x55, 101);
-    if (!(is_coding_beneficial(pkt1, pkt2, 10, 10) == false)) @compileError("assertion failed");
+    if (!(is_coding_beneficial(pkt1, pkt2, 10, 10) == false)) @panic("not beneficial");
 }
 test "linear_code_packets_both_odd" {
     const pkt1 = create_packet(1, 2, 0xAA, 100);
     const pkt2 = create_packet(3, 4, 0x55, 101);
     const coded = linear_code_packets(pkt1, pkt2, 3, 5);
-    if (!(get_packet_payload(coded) == 0xFF)) @compileError("assertion failed");
+    if (!(get_packet_payload(coded) == 0xFF)) @panic("linear coded payload");
 }
 test "linear_code_packets_one_even" {
     const pkt1 = create_packet(1, 2, 0xAA, 100);
     const pkt2 = create_packet(3, 4, 0x55, 101);
     const coded = linear_code_packets(pkt1, pkt2, 2, 5);
-    if (!(get_packet_payload(coded) == 0x55)) @compileError("assertion failed");
+    if (!(get_packet_payload(coded) == 0x55)) @panic("only pkt2 coded");
 }
 test "create_coded_generation" {
     const gen = create_coded_generation(create_packet(1, 2, 0xAA, 100), create_packet(3, 4, 0x55, 101), 0, 0);
-    if (!(count_generation_packets(gen) == 2)) @compileError("assertion failed");
+    if (!(count_generation_packets(gen) == 2)) @panic("2 packets");
 }
 test "count_generation_packets_full" {
     const gen = create_coded_generation(create_packet(1, 2, 0xAA, 100), create_packet(3, 4, 0x55, 101), create_packet(5, 6, 0x33, 102), create_packet(7, 8, 0x11, 103));
-    if (!(count_generation_packets(gen) == 4)) @compileError("assertion failed");
+    if (!(count_generation_packets(gen) == 4)) @panic("4 packets");
 }
 test "is_generation_decodable_true" {
     const gen = create_coded_generation(create_packet(1, 2, 0xAA, 100), create_packet(3, 4, 0x55, 101), 0, 0);
-    if (!(is_generation_decodable(gen, 2) == 1)) @compileError("assertion failed");
+    if (!(is_generation_decodable(gen, 2) == 1)) @panic("decodable");
 }
 test "is_generation_decodable_false" {
     const gen = create_coded_generation(create_packet(1, 2, 0xAA, 100), 0, 0, 0);
-    if (!(is_generation_decodable(gen, 2) == 0)) @compileError("assertion failed");
+    if (!(is_generation_decodable(gen, 2) == 0)) @panic("not decodable");
 }
 test "calculate_coding_gain" {
     const gain = calculate_coding_gain(4, 2);
-    if (!(gain == 2)) @compileError("assertion failed");
+    if (!(gain == 2)) @panic("2 packets saved");
 }
 test "calculate_coding_gain_zero" {
     const gain = calculate_coding_gain(4, 4);
-    if (!(gain == 0)) @compileError("assertion failed");
+    if (!(gain == 0)) @panic("no gain");
 }

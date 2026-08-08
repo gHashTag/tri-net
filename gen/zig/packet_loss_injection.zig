@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const ERROR_NONE: u8 = 0;
 const ERROR_BIT_FLIP: u8 = 1;
 const ERROR_CRC_FAIL: u8 = 2;
@@ -46,84 +45,84 @@ fn extract_sequence(packet: u32) u32 {
 test "inject_bit_flip_flips_bit" {
     const pkt = 0x00000000;
     const corrupted = inject_bit_flip(pkt, 5);
-    if (!(corrupted == 0x00000020)) @compileError("assertion failed");
+    if (!(corrupted == 0x00000020)) @panic("bit 5 flipped");
 }
 test "inject_bit_flip_multiple" {
     const pkt = 0xFFFFFFFF;
     const corrupted = inject_bit_flip(pkt, 10);
-    if (!(corrupted == 0xFFFFFBFF)) @compileError("assertion failed");
+    if (!(corrupted == 0xFFFFFBFF)) @panic("bit 10 flipped");
 }
 test "inject_bit_flip_invalid_pos" {
     const pkt = 0x12345678;
     const result = inject_bit_flip(pkt, 35);
-    if (!(result == pkt)) @compileError("assertion failed");
+    if (!(result == pkt)) @panic("no change for invalid pos");
 }
 test "calculate_crc_reproducible" {
     const pkt = 0x12345678;
     const crc1 = calculate_crc(pkt);
     const crc2 = calculate_crc(pkt);
-    if (!(crc1 == crc2)) @compileError("assertion failed");
+    if (!(crc1 == crc2)) @panic("reproducible");
 }
 test "calculate_crc_different" {
     const pkt1 = 0x12345678;
     const pkt2 = 0x12345679;
     const crc1 = calculate_crc(pkt1);
     const crc2 = calculate_crc(pkt2);
-    if (!(crc1 != crc2)) @compileError("assertion failed");
+    if (!(crc1 != crc2)) @panic("different for different data");
 }
 test "verify_crc_valid" {
     const pkt = 0x01020304;
     const crc = calculate_crc(pkt);
     const valid = verify_crc(pkt, crc);
-    if (!(valid)) @compileError("assertion failed");
+    if (!(valid)) @panic("valid CRC");
 }
 test "verify_crc_invalid" {
     const pkt = 0x01020304;
     const crc = calculate_crc(pkt);
     const corrupted = inject_crc_error(pkt);
     const valid = verify_crc(corrupted, crc);
-    if (!(valid == false)) @compileError("assertion failed");
+    if (!(valid == false)) @panic("invalid CRC");
 }
 test "duplicate_packet_creates_copy" {
     const pkt = 0xABCDEF00;
     const dup1, const dup2 = duplicate_packet(pkt);
-    if (!(dup1 == pkt)) @compileError("assertion failed");
-    if (!(dup2 == pkt)) @compileError("assertion failed");
+    if (!(dup1 == pkt)) @panic("first copy");
+    if (!(dup2 == pkt)) @panic("second copy");
 }
 test "is_duplicate_detects_same" {
     const pkt1 = 0x12345678;
     const pkt2 = 0x12345678;
-    if (!(is_duplicate(pkt1, pkt2) == true)) @compileError("assertion failed");
+    if (!(is_duplicate(pkt1, pkt2) == true)) @panic("same packet");
 }
 test "is_duplicate_different" {
     const pkt1 = 0x12345678;
     const pkt2 = 0x12345679;
-    if (!(is_duplicate(pkt1, pkt2) == false)) @compileError("assertion failed");
+    if (!(is_duplicate(pkt1, pkt2) == false)) @panic("different packet");
 }
 test "inject_out_of_order_swaps" {
     const pkt1 = 0x11111111;
     const pkt2 = 0x22222222;
     const out1, const out2 = inject_out_of_order(pkt1, pkt2);
-    if (!(out1 == pkt2)) @compileError("assertion failed");
-    if (!(out2 == pkt1)) @compileError("assertion failed");
+    if (!(out1 == pkt2)) @panic("swapped to pkt2");
+    if (!(out2 == pkt1)) @panic("swapped to pkt1");
 }
 test "extract_sequence_low_bits" {
     const pkt = 0x1234ABCD;
     const seq = extract_sequence(pkt);
-    if (!(seq == 0xABCD)) @compileError("assertion failed");
+    if (!(seq == 0xABCD)) @panic("extracted low 16 bits");
 }
 test "check_replay_newer" {
     const pkt = 0x00000005;
     const last = 0x00000003;
-    if (!(check_replay(pkt, last) == true)) @compileError("assertion failed");
+    if (!(check_replay(pkt, last) == true)) @panic("newer packet");
 }
 test "check_replay_older" {
     const pkt = 0x00000002;
     const last = 0x00000005;
-    if (!(check_replay(pkt, last) == false)) @compileError("assertion failed");
+    if (!(check_replay(pkt, last) == false)) @panic("replay detected");
 }
 test "check_replay_same" {
     const pkt = 0x00000005;
     const last = 0x00000005;
-    if (!(check_replay(pkt, last) == false)) @compileError("assertion failed");
+    if (!(check_replay(pkt, last) == false)) @panic("same seq = replay");
 }

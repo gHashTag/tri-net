@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const MAX_LAYERS: u32 = 4;
 const LAYER_PHY: u32 = 0;
 const LAYER_MAC: u32 = 1;
@@ -171,104 +170,104 @@ fn switch_mode(state: u32, new_mode: u32) u32 {
 }
 test "create_layer_params_basic" {
     const params = create_layer_params(50, 100, 3, 64);
-    if (!(get_power(params) == 50)) @compileError("assertion failed");
-    if (!(get_rate(params) == 100)) @compileError("assertion failed");
-    if (!(get_retries(params) == 3)) @compileError("assertion failed");
-    if (!(get_window(params) == 64)) @compileError("assertion failed");
+    if (!(get_power(params) == 50)) @panic("power");
+    if (!(get_rate(params) == 100)) @panic("rate");
+    if (!(get_retries(params) == 3)) @panic("retries");
+    if (!(get_window(params) == 64)) @panic("window");
 }
 test "create_cross_layer_state_basic" {
     const state = create_cross_layer_state(MODE_MODERATE, 10, 1000, 1);
-    if (!(get_mode(state) == MODE_MODERATE)) @compileError("assertion failed");
-    if (!(get_update_counter(state) == 10)) @compileError("assertion failed");
-    if (!(get_last_sync(state) == 1000)) @compileError("assertion failed");
-    if (!(get_optimization_target(state) == 1)) @compileError("assertion failed");
+    if (!(get_mode(state) == MODE_MODERATE)) @panic("mode");
+    if (!(get_update_counter(state) == 10)) @panic("counter");
+    if (!(get_last_sync(state) == 1000)) @panic("last sync");
+    if (!(get_optimization_target(state) == 1)) @panic("target");
 }
 test "create_layer_array_basic" {
     const array = create_layer_array(create_layer_params(50, 100, 3, 64), create_layer_params(60, 120, 2, 128), create_layer_params(40, 80, 5, 32), create_layer_params(70, 150, 1, 256));
-    if (!(get_power(get_layer_params(array, LAYER_PHY)) == 50)) @compileError("assertion failed");
-    if (!(get_rate(get_layer_params(array, LAYER_MAC)) == 120)) @compileError("assertion failed");
-    if (!(get_retries(get_layer_params(array, LAYER_NETWORK)) == 5)) @compileError("assertion failed");
+    if (!(get_power(get_layer_params(array, LAYER_PHY)) == 50)) @panic("PHY power");
+    if (!(get_rate(get_layer_params(array, LAYER_MAC)) == 120)) @panic("MAC rate");
+    if (!(get_retries(get_layer_params(array, LAYER_NETWORK)) == 5)) @panic("Network retries");
 }
 test "update_layer_params_phy" {
     const array = create_layer_array(create_layer_params(50, 100, 3, 64), create_layer_params(60, 120, 2, 128), create_layer_params(40, 80, 5, 32), create_layer_params(70, 150, 1, 256));
     const new_array = update_layer_params(array, LAYER_PHY, create_layer_params(80, 150, 1, 128));
-    if (!(get_power(get_layer_params(new_array, LAYER_PHY)) == 80)) @compileError("assertion failed");
+    if (!(get_power(get_layer_params(new_array, LAYER_PHY)) == 80)) @panic("PHY power updated");
 }
 test "calculate_joint_metric_balanced" {
     const phy = create_layer_params(50, 100, 3, 64);
     const mac = create_layer_params(60, 120, 2, 128);
     const net = create_layer_params(40, 80, 5, 32);
     const metric = calculate_joint_metric(phy, mac, net);
-    if (!((metric > 0) and (metric < 255))) @compileError("assertion failed");
+    if (!((metric > 0) and (metric < 255))) @panic("valid metric");
 }
 test "coordinate_power_conservative" {
     const state = create_cross_layer_state(MODE_CONSERVATIVE, 0, 0, 0);
     const phy = create_layer_params(100, 100, 3, 64);
     const mac = create_layer_params(80, 120, 2, 128);
     const new_phy, const new_mac = coordinate_power(state, phy, mac);
-    if (!(new_phy == 90)) @compileError("assertion failed");
-    if (!(new_mac == 75)) @compileError("assertion failed");
+    if (!(new_phy == 90)) @panic("PHY power reduced");
+    if (!(new_mac == 75)) @panic("MAC power reduced");
 }
 test "coordinate_power_aggressive" {
     const state = create_cross_layer_state(MODE_AGGRESSIVE, 0, 0, 0);
     const phy = create_layer_params(50, 100, 3, 64);
     const mac = create_layer_params(40, 120, 2, 128);
     const new_phy, const new_mac = coordinate_power(state, phy, mac);
-    if (!(new_phy == 60)) @compileError("assertion failed");
-    if (!(new_mac == 45)) @compileError("assertion failed");
+    if (!(new_phy == 60)) @panic("PHY power increased");
+    if (!(new_mac == 45)) @panic("MAC power increased");
 }
 test "coordinate_power_moderate" {
     const state = create_cross_layer_state(MODE_MODERATE, 0, 0, 0);
     const phy = create_layer_params(50, 100, 3, 64);
     const mac = create_layer_params(40, 120, 2, 128);
     const new_phy, const new_mac = coordinate_power(state, phy, mac);
-    if (!(new_phy == 50)) @compileError("assertion failed");
-    if (!(new_mac == 40)) @compileError("assertion failed");
+    if (!(new_phy == 50)) @panic("PHY power unchanged");
+    if (!(new_mac == 40)) @panic("MAC power unchanged");
 }
 test "optimize_for_target_latency" {
     const state = create_cross_layer_state(MODE_MODERATE, 0, 0, 0);
     const phy = create_layer_params(50, 100, 5, 64);
     const mac = create_layer_params(60, 100, 2, 128);
     const val1, const val2 = optimize_for_target(state, phy, mac);
-    if (!(val1 == 120)) @compileError("assertion failed");
-    if (!(val2 == 4)) @compileError("assertion failed");
+    if (!(val1 == 120)) @panic("rate increased for latency");
+    if (!(val2 == 4)) @panic("retries decreased for latency");
 }
 test "optimize_for_target_throughput" {
     const state = create_cross_layer_state(MODE_MODERATE, 0, 0, 1);
     const phy = create_layer_params(50, 100, 5, 64);
     const mac = create_layer_params(60, 100, 2, 128);
     const val1, const val2 = optimize_for_target(state, phy, mac);
-    if (!(val1 == 255)) @compileError("assertion failed");
-    if (!(val2 == 138)) @compileError("assertion failed");
+    if (!(val1 == 255)) @panic("rate maximized for throughput");
+    if (!(val2 == 138)) @panic("window increased for throughput");
 }
 test "optimize_for_target_reliability" {
     const state = create_cross_layer_state(MODE_MODERATE, 0, 0, 2);
     const phy = create_layer_params(50, 100, 5, 64);
     const mac = create_layer_params(60, 100, 2, 128);
     const val1, const val2 = optimize_for_target(state, phy, mac);
-    if (!(val1 == 8)) @compileError("assertion failed");
-    if (!(val2 == 65)) @compileError("assertion failed");
+    if (!(val1 == 8)) @panic("retries increased for reliability");
+    if (!(val2 == 65)) @panic("power increased for reliability");
 }
 test "needs_synchronization_true" {
     const state = create_cross_layer_state(MODE_MODERATE, 0, 1000, 0);
-    if (!(needs_synchronization(state, 1150) == true)) @compileError("assertion failed");
+    if (!(needs_synchronization(state, 1150) == true)) @panic("needs sync");
 }
 test "needs_synchronization_false" {
     const state = create_cross_layer_state(MODE_MODERATE, 0, 1000, 0);
-    if (!(needs_synchronization(state, 1050) == false)) @compileError("assertion failed");
+    if (!(needs_synchronization(state, 1050) == false)) @panic("no sync needed");
 }
 test "increment_updates_works" {
     const state = create_cross_layer_state(MODE_MODERATE, 10, 1000, 0);
     const new_state = increment_updates(state);
-    if (!(get_update_counter(new_state) == 11)) @compileError("assertion failed");
+    if (!(get_update_counter(new_state) == 11)) @panic("counter incremented");
 }
 test "increment_updates_wraps" {
     const state = create_cross_layer_state(MODE_MODERATE, 255, 1000, 0);
     const new_state = increment_updates(state);
-    if (!(get_update_counter(new_state) == 0)) @compileError("assertion failed");
+    if (!(get_update_counter(new_state) == 0)) @panic("counter wrapped");
 }
 test "switch_mode_works" {
     const state = create_cross_layer_state(MODE_MODERATE, 10, 1000, 0);
     const new_state = switch_mode(state, MODE_AGGRESSIVE);
-    if (!(get_mode(new_state) == MODE_AGGRESSIVE)) @compileError("assertion failed");
+    if (!(get_mode(new_state) == MODE_AGGRESSIVE)) @panic("mode switched");
 }

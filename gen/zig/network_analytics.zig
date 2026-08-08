@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const MAX_NODES: u32 = 8;
 const ANALYSIS_WINDOW: u32 = 1000;
 const TRAFFIC_LOW: u32 = 100;
@@ -109,84 +108,84 @@ fn is_congested(stats: u32, max_capacity: u32) bool {
 }
 test "create_traffic_stats_basic" {
     const stats = create_traffic_stats(100, 200, 50, 5);
-    if (!(get_bytes_sent(stats) == 100)) @compileError("assertion failed");
-    if (!(get_bytes_recv(stats) == 200)) @compileError("assertion failed");
-    if (!(get_packet_count(stats) == 50)) @compileError("assertion failed");
-    if (!(get_error_count(stats) == 5)) @compileError("assertion failed");
+    if (!(get_bytes_sent(stats) == 100)) @panic("sent");
+    if (!(get_bytes_recv(stats) == 200)) @panic("received");
+    if (!(get_packet_count(stats) == 50)) @panic("packets");
+    if (!(get_error_count(stats) == 5)) @panic("errors");
 }
 test "calculate_total_traffic" {
     const stats = create_traffic_stats(100, 200, 50, 5);
-    if (!(calculate_total_traffic(stats) == 300)) @compileError("assertion failed");
+    if (!(calculate_total_traffic(stats) == 300)) @panic("total traffic");
 }
 test "is_traffic_low_true" {
     const stats = create_traffic_stats(30, 40, 10, 0);
-    if (!(is_traffic_low(stats) == true)) @compileError("assertion failed");
+    if (!(is_traffic_low(stats) == true)) @panic("low traffic");
 }
 test "is_traffic_high_true" {
     const stats = create_traffic_stats(600, 500, 100, 5);
-    if (!(is_traffic_high(stats) == true)) @compileError("assertion failed");
+    if (!(is_traffic_high(stats) == true)) @panic("high traffic");
 }
 test "is_traffic_normal" {
     const stats = create_traffic_stats(200, 300, 50, 2);
-    if (!(is_traffic_normal(stats) == true)) @compileError("assertion failed");
+    if (!(is_traffic_normal(stats) == true)) @panic("normal traffic");
 }
 test "calculate_error_rate" {
     const stats = create_traffic_stats(100, 200, 50, 5);
-    if (!(calculate_error_rate(stats) == 10)) @compileError("assertion failed");
+    if (!(calculate_error_rate(stats) == 10)) @panic("10% error rate");
 }
 test "calculate_error_rate_no_traffic" {
     const stats = create_traffic_stats(0, 0, 0, 0);
-    if (!(calculate_error_rate(stats) == 0)) @compileError("assertion failed");
+    if (!(calculate_error_rate(stats) == 0)) @panic("no error rate");
 }
 test "is_high_error_rate_true" {
     const stats = create_traffic_stats(100, 200, 40, 5);
-    if (!(is_high_error_rate(stats) == true)) @compileError("assertion failed");
+    if (!(is_high_error_rate(stats) == true)) @panic("high error rate");
 }
 test "is_high_error_rate_false" {
     const stats = create_traffic_stats(100, 200, 60, 3);
-    if (!(is_high_error_rate(stats) == false)) @compileError("assertion failed");
+    if (!(is_high_error_rate(stats) == false)) @panic("normal error rate");
 }
 test "detect_pattern_spike" {
     const current = create_traffic_stats(400, 500, 100, 2);
     const previous = create_traffic_stats(100, 100, 20, 0);
-    if (!(detect_pattern(current, previous) == PATTERN_SPIKE)) @compileError("assertion failed");
+    if (!(detect_pattern(current, previous) == PATTERN_SPIKE)) @panic("spike detected");
 }
 test "detect_pattern_dropout" {
     const current = create_traffic_stats(50, 50, 10, 0);
     const previous = create_traffic_stats(400, 400, 80, 2);
-    if (!(detect_pattern(current, previous) == PATTERN_DROPOUT)) @compileError("assertion failed");
+    if (!(detect_pattern(current, previous) == PATTERN_DROPOUT)) @panic("dropout detected");
 }
 test "detect_pattern_congestion" {
     const current = create_traffic_stats(200, 200, 40, 5);
     const previous = create_traffic_stats(200, 200, 40, 2);
-    if (!(detect_pattern(current, previous) == PATTERN_CONGESTION)) @compileError("assertion failed");
+    if (!(detect_pattern(current, previous) == PATTERN_CONGESTION)) @panic("congestion detected");
 }
 test "detect_pattern_normal" {
     const current = create_traffic_stats(200, 250, 50, 2);
     const previous = create_traffic_stats(180, 230, 45, 1);
-    if (!(detect_pattern(current, previous) == PATTERN_NORMAL)) @compileError("assertion failed");
+    if (!(detect_pattern(current, previous) == PATTERN_NORMAL)) @panic("normal pattern");
 }
 test "update_traffic_works" {
     const stats = create_traffic_stats(100, 200, 50, 5);
     const new_stats = update_traffic(stats, 50, 30, 10, 1);
-    if (!(get_bytes_sent(new_stats) == 150)) @compileError("assertion failed");
-    if (!(get_bytes_recv(new_stats) == 230)) @compileError("assertion failed");
-    if (!(get_packet_count(new_stats) == 60)) @compileError("assertion failed");
-    if (!(get_error_count(new_stats) == 6)) @compileError("assertion failed");
+    if (!(get_bytes_sent(new_stats) == 150)) @panic("sent updated");
+    if (!(get_bytes_recv(new_stats) == 230)) @panic("received updated");
+    if (!(get_packet_count(new_stats) == 60)) @panic("packets updated");
+    if (!(get_error_count(new_stats) == 6)) @panic("errors updated");
 }
 test "calculate_utilization" {
     const stats = create_traffic_stats(400, 600, 100, 5);
-    if (!(calculate_utilization(stats, 2000) == 50)) @compileError("assertion failed");
+    if (!(calculate_utilization(stats, 2000) == 50)) @panic("50% utilization");
 }
 test "calculate_utilization_zero_capacity" {
     const stats = create_traffic_stats(400, 600, 100, 5);
-    if (!(calculate_utilization(stats, 0) == 0)) @compileError("assertion failed");
+    if (!(calculate_utilization(stats, 0) == 0)) @panic("no capacity");
 }
 test "is_congested_true" {
     const stats = create_traffic_stats(900, 900, 200, 10);
-    if (!(is_congested(stats, 2000) == true)) @compileError("assertion failed");
+    if (!(is_congested(stats, 2000) == true)) @panic("network congested");
 }
 test "is_congested_false" {
     const stats = create_traffic_stats(400, 500, 100, 5);
-    if (!(is_congested(stats, 2000) == false)) @compileError("assertion failed");
+    if (!(is_congested(stats, 2000) == false)) @panic("network not congested");
 }

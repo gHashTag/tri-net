@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const VAL_PENDING: u32 = 0;
 const VAL_RUNNING: u32 = 1;
 const VAL_PASSED: u32 = 2;
@@ -73,74 +72,74 @@ fn extract_metric_unit(metric: u32) u32 {
 }
 test "create_test_result_correct" {
     const result = create_test_result(VAL_PASSED, TEST_SIMULATION, 0, 1000);
-    if (!(extract_state(result) == VAL_PASSED)) @compileError("assertion failed");
-    if (!(extract_test_type(result) == TEST_SIMULATION)) @compileError("assertion failed");
-    if (!(extract_errors(result) == 0)) @compileError("assertion failed");
-    if (!(extract_iterations(result) == 1000)) @compileError("assertion failed");
+    if (!(extract_state(result) == VAL_PASSED)) @panic("state");
+    if (!(extract_test_type(result) == TEST_SIMULATION)) @panic("type");
+    if (!(extract_errors(result) == 0)) @panic("errors");
+    if (!(extract_iterations(result) == 1000)) @panic("iterations");
 }
 test "calculate_pass_rate_perfect" {
     const rate = calculate_pass_rate(100, 100);
-    if (!(rate == 100)) @compileError("assertion failed");
+    if (!(rate == 100)) @panic("100% pass rate");
 }
 test "calculate_pass_rate_half" {
     const rate = calculate_pass_rate(50, 100);
-    if (!(rate == 50)) @compileError("assertion failed");
+    if (!(rate == 50)) @panic("50% pass rate");
 }
 test "calculate_pass_rate_zero" {
     const rate = calculate_pass_rate(0, 100);
-    if (!(rate == 0)) @compileError("assertion failed");
+    if (!(rate == 0)) @panic("0% pass rate");
 }
 test "calculate_pass_rate_zero_total" {
     const rate = calculate_pass_rate(50, 0);
-    if (!(rate == 0)) @compileError("assertion failed");
+    if (!(rate == 0)) @panic("zero total = 0%");
 }
 test "test_passed_yes" {
     const result = create_test_result(VAL_PASSED, TEST_SIMULATION, 0, 100);
-    if (!(test_passed(result) == true)) @compileError("assertion failed");
+    if (!(test_passed(result) == true)) @panic("no errors + passed state");
 }
 test "test_passed_no_errors_but_pending" {
     const result = create_test_result(VAL_PENDING, TEST_SIMULATION, 0, 100);
-    if (!(test_passed(result) == false)) @compileError("assertion failed");
+    if (!(test_passed(result) == false)) @panic("pending state");
 }
 test "test_passed_errors" {
     const result = create_test_result(VAL_PASSED, TEST_SIMULATION, 5, 100);
-    if (!(test_passed(result) == false)) @compileError("assertion failed");
+    if (!(test_passed(result) == false)) @panic("has errors");
 }
 test "bit_accurate_exact_match" {
-    if (!(bit_accurate(0x12345678, 0x12345678, 0xFFFFFFFF) == true)) @compileError("assertion failed");
+    if (!(bit_accurate(0x12345678, 0x12345678, 0xFFFFFFFF) == true)) @panic("exact match");
 }
 test "bit_accurate_tolerance" {
-    if (!(bit_accurate(0x12345678, 0x12345670, 0x000000FF) == true)) @compileError("assertion failed");
+    if (!(bit_accurate(0x12345678, 0x12345670, 0x000000FF) == true)) @panic("tolerance OK");
 }
 test "bit_accurate_fail" {
-    if (!(bit_accurate(0x12345678, 0x1234FF78, 0x00FF0000) == false)) @compileError("assertion failed");
+    if (!(bit_accurate(0x12345678, 0x1234FF78, 0x00FF0000) == false)) @panic("diff in tolerated bits");
 }
 test "fpga_board_ready_yes" {
     const result = create_test_result(VAL_PASSED, TEST_FPGA_BOARD, 0, 100);
-    if (!(fpga_board_ready(result) == true)) @compileError("assertion failed");
+    if (!(fpga_board_ready(result) == true)) @panic("FPGA board ready");
 }
 test "fpga_board_ready_no" {
     const result = create_test_result(VAL_PASSED, TEST_SIMULATION, 0, 100);
-    if (!(fpga_board_ready(result) == false)) @compileError("assertion failed");
+    if (!(fpga_board_ready(result) == false)) @panic("not FPGA test");
 }
 test "create_packet_capture_correct" {
     const capture = create_packet_capture(1, 2, 0xAB, 100);
-    if (!(extract_capture_src(capture) == 1)) @compileError("assertion failed");
-    if (!(extract_capture_dst(capture) == 2)) @compileError("assertion failed");
-    if (!(extract_capture_payload(capture) == 0xAB)) @compileError("assertion failed");
-    if (!(extract_capture_timestamp(capture) == 100)) @compileError("assertion failed");
+    if (!(extract_capture_src(capture) == 1)) @panic("src");
+    if (!(extract_capture_dst(capture) == 2)) @panic("dst");
+    if (!(extract_capture_payload(capture) == 0xAB)) @panic("payload");
+    if (!(extract_capture_timestamp(capture) == 100)) @panic("timestamp");
 }
 test "create_performance_metric_correct" {
     const metric = create_performance_metric(5, 1000, 1);
-    if (!(extract_metric_type(metric) == 5)) @compileError("assertion failed");
-    if (!(extract_metric_value(metric) == 1000)) @compileError("assertion failed");
-    if (!(extract_metric_unit(metric) == 1)) @compileError("assertion failed");
+    if (!(extract_metric_type(metric) == 5)) @panic("type");
+    if (!(extract_metric_value(metric) == 1000)) @panic("value");
+    if (!(extract_metric_unit(metric) == 1)) @panic("unit");
 }
 test "extract_metric_value_large" {
     const metric = create_performance_metric(3, 0xFFFFFF, 2);
-    if (!(extract_metric_value(metric) == 0xFFFFFF)) @compileError("assertion failed");
+    if (!(extract_metric_value(metric) == 0xFFFFFF)) @panic("max value");
 }
 test "extract_metric_type_boundary" {
     const metric = create_performance_metric(0xF, 1000, 0);
-    if (!(extract_metric_type(metric) == 0xF)) @compileError("assertion failed");
+    if (!(extract_metric_type(metric) == 0xF)) @panic("max type");
 }

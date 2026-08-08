@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const QUEUE_SIZE: u8 = 8;
 fn get_count(state: u32) u8 {
     return @as(u8, @intCast((state >> 6) & 255));
@@ -41,26 +40,26 @@ fn clear() u32 {
     return 0;
 }
 test "queue_initially_empty" {
-    if (!(is_empty(clear()))) @compileError("assertion failed");
+    if (!(is_empty(clear()))) @panic("initially empty");
 }
 test "enqueue_increases_count" {
     const new_state = enqueue(clear(), 0xABCD);
-    if (!(get_count(new_state) == 1)) @compileError("assertion failed");
+    if (!(get_count(new_state) == 1)) @panic("count should be 1");
 }
 test "dequeue_from_empty" {
     const new_state = dequeue(clear());
-    if (!(get_count(new_state) == 0)) @compileError("assertion failed");
+    if (!(get_count(new_state) == 0)) @panic("should stay empty");
 }
 test "enqueue_dequeue_roundtrip" {
     const state2 = enqueue(clear(), 0x1234);
     const state3 = dequeue(state2);
-    if (!(get_count(state3) == 0)) @compileError("assertion failed");
+    if (!(get_count(state3) == 0)) @panic("back to empty");
 }
 test "multiple_enqueues" {
     const s1 = enqueue(clear(), 1);
     const s2 = enqueue(s1, 2);
     const s3 = enqueue(s2, 3);
-    if (!(get_count(s3) == 3)) @compileError("assertion failed");
+    if (!(get_count(s3) == 3)) @panic("count is 3");
 }
 test "queue_fills_up" {
     const s1 = enqueue(clear(), 1);
@@ -71,7 +70,7 @@ test "queue_fills_up" {
     const s6 = enqueue(s5, 6);
     const s7 = enqueue(s6, 7);
     const s8 = enqueue(s7, 8);
-    if (!(get_count(s8) == 8)) @compileError("assertion failed");
+    if (!(get_count(s8) == 8)) @panic("full queue");
 }
 test "enqueue_full_idempotent" {
     const s1 = enqueue(clear(), 1);
@@ -83,13 +82,13 @@ test "enqueue_full_idempotent" {
     const s7 = enqueue(s6, 7);
     const s8 = enqueue(s7, 8);
     const s9 = enqueue(s8, 9);
-    if (!(get_count(s8) == get_count(s9))) @compileError("assertion failed");
+    if (!(get_count(s8) == get_count(s9))) @panic("full queue no-op");
 }
 test "increment_wrap" {
-    if (!(increment_index(0) == 1)) @compileError("assertion failed");
-    if (!(increment_index(7) == 0)) @compileError("assertion failed");
+    if (!(increment_index(0) == 1)) @panic("0â1");
+    if (!(increment_index(7) == 0)) @panic("7â0");
 }
 test "size_check" {
-    if (!(size(clear()) == 0)) @compileError("assertion failed");
-    if (!(size(enqueue(clear(), 1)) == 1)) @compileError("assertion failed");
+    if (!(size(clear()) == 0)) @panic("initial size");
+    if (!(size(enqueue(clear(), 1)) == 1)) @panic("size after enqueue");
 }

@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const MAX_NODES: u32 = 8;
 const QUORUM_THRESHOLD: u32 = 5;
 const PROPOSAL_TIMEOUT: u32 = 10000;
@@ -208,81 +207,81 @@ fn cooperative_decision(neighbor_values: u32, my_value: u32, weight_neighbors: u
 }
 test "create_proposal_basic" {
     const proposal = create_proposal(5, 10, 100, 1000);
-    if (!(get_proposal_id(proposal) == 5)) @compileError("assertion failed");
-    if (!(get_proposal_node(proposal) == 10)) @compileError("assertion failed");
-    if (!(get_proposal_value(proposal) == 100)) @compileError("assertion failed");
-    if (!(get_proposal_timestamp(proposal) == 1000)) @compileError("assertion failed");
+    if (!(get_proposal_id(proposal) == 5)) @panic("proposal id");
+    if (!(get_proposal_node(proposal) == 10)) @panic("node id");
+    if (!(get_proposal_value(proposal) == 100)) @panic("value");
+    if (!(get_proposal_timestamp(proposal) == 1000)) @panic("timestamp");
 }
 test "create_vote_yes" {
     const vote = create_vote(5, VOTE_YES, 10, 1000);
-    if (!(get_vote_node(vote) == 5)) @compileError("assertion failed");
-    if (!(get_vote_value(vote) == VOTE_YES)) @compileError("assertion failed");
-    if (!(get_vote_proposal_id(vote) == 10)) @compileError("assertion failed");
+    if (!(get_vote_node(vote) == 5)) @panic("node");
+    if (!(get_vote_value(vote) == VOTE_YES)) @panic("yes vote");
+    if (!(get_vote_proposal_id(vote) == 10)) @panic("proposal id");
 }
 test "create_vote_no" {
     const vote = create_vote(5, VOTE_NO, 10, 1000);
-    if (!(get_vote_value(vote) == VOTE_NO)) @compileError("assertion failed");
+    if (!(get_vote_value(vote) == VOTE_NO)) @panic("no vote");
 }
 test "create_vote_abstain" {
     const vote = create_vote(5, VOTE_ABSTAIN, 10, 1000);
-    if (!(get_vote_value(vote) == VOTE_ABSTAIN)) @compileError("assertion failed");
+    if (!(get_vote_value(vote) == VOTE_ABSTAIN)) @panic("abstain vote");
 }
 test "count_votes_unanimous_yes" {
     const vote_array = create_vote_array(create_vote(1, VOTE_YES, 10, 1000), create_vote(2, VOTE_YES, 10, 1000), create_vote(3, VOTE_YES, 10, 1000), create_vote(4, VOTE_YES, 10, 1000), create_vote(5, VOTE_YES, 10, 1000), create_vote(6, VOTE_YES, 10, 1000), create_vote(7, VOTE_YES, 10, 1000), create_vote(8, VOTE_YES, 10, 1000));
     const yes, const no, const abstain = count_votes(vote_array, 10);
-    if (!(yes == 8)) @compileError("assertion failed");
-    if (!(no == 0)) @compileError("assertion failed");
-    if (!(abstain == 0)) @compileError("assertion failed");
+    if (!(yes == 8)) @panic("8 yes votes");
+    if (!(no == 0)) @panic("0 no votes");
+    if (!(abstain == 0)) @panic("0 abstain");
 }
 test "count_votes_mixed" {
     const vote_array = create_vote_array(create_vote(1, VOTE_YES, 10, 1000), create_vote(2, VOTE_NO, 10, 1000), create_vote(3, VOTE_YES, 10, 1000), create_vote(4, VOTE_ABSTAIN, 10, 1000), create_vote(5, VOTE_YES, 10, 1000), create_vote(6, VOTE_NO, 10, 1000), create_vote(7, VOTE_YES, 10, 1000), create_vote(8, VOTE_ABSTAIN, 10, 1000));
     const yes, const no, const abstain = count_votes(vote_array, 10);
-    if (!(yes == 4)) @compileError("assertion failed");
-    if (!(no == 2)) @compileError("assertion failed");
-    if (!(abstain == 2)) @compileError("assertion failed");
+    if (!(yes == 4)) @panic("4 yes votes");
+    if (!(no == 2)) @panic("2 no votes");
+    if (!(abstain == 2)) @panic("2 abstain");
 }
 test "has_quorum_true" {
     const yes, const no, const abstain = .{ 4, 3, 1 };
-    if (!(has_quorum(yes, no, abstain) == true)) @compileError("assertion failed");
+    if (!(has_quorum(yes, no, abstain) == true)) @panic("quorum reached");
 }
 test "has_quorum_false" {
     const yes, const no, const abstain = .{ 2, 2, 0 };
-    if (!(has_quorum(yes, no, abstain) == false)) @compileError("assertion failed");
+    if (!(has_quorum(yes, no, abstain) == false)) @panic("no quorum");
 }
 test "proposal_passes_yes" {
     const yes, const no, const abstain = .{ 5, 3, 1 };
     _ = abstain; // dead after const-inlining
-    if (!(proposal_passes(yes, no) == true)) @compileError("assertion failed");
+    if (!(proposal_passes(yes, no) == true)) @panic("proposal passes");
 }
 test "proposal_passes_no" {
     const yes, const no, const abstain = .{ 3, 5, 1 };
     _ = abstain; // dead after const-inlining
-    if (!(proposal_passes(yes, no) == false)) @compileError("assertion failed");
+    if (!(proposal_passes(yes, no) == false)) @panic("proposal fails");
 }
 test "proposal_passes_tie" {
     const yes, const no, const abstain = .{ 4, 4, 1 };
     _ = abstain; // dead after const-inlining
-    if (!(proposal_passes(yes, no) == false)) @compileError("assertion failed");
+    if (!(proposal_passes(yes, no) == false)) @panic("proposal fails on tie");
 }
 test "calculate_consensus_value_average" {
     const vote_array = create_vote_array(create_proposal(1, 10, 100, 1000), create_proposal(2, 10, 200, 1000), create_proposal(3, 10, 150, 1000), create_proposal(4, 10, 250, 1000), create_proposal(5, 10, 0, 0), create_proposal(6, 10, 0, 0), create_proposal(7, 10, 0, 0), create_proposal(8, 10, 0, 0));
     const consensus = calculate_consensus_value(vote_array, 10);
-    if (!(consensus == 175)) @compileError("assertion failed");
+    if (!(consensus == 175)) @panic("average of 100,200,150,250 = 175");
 }
 test "calculate_consensus_value_empty" {
     const vote_array = create_vote_array(create_proposal(1, 99, 100, 1000), create_proposal(2, 99, 200, 1000), create_proposal(3, 10, 0, 0), create_proposal(4, 10, 0, 0), create_proposal(5, 10, 0, 0), create_proposal(6, 10, 0, 0), create_proposal(7, 10, 0, 0), create_proposal(8, 10, 0, 0));
     const consensus = calculate_consensus_value(vote_array, 10);
-    if (!(consensus == 0)) @compileError("assertion failed");
+    if (!(consensus == 0)) @panic("no votes for proposal");
 }
 test "cooperative_decision_equal_weight" {
     const result = cooperative_decision(80, 60, 50);
-    if (!(result == 70)) @compileError("assertion failed");
+    if (!(result == 70)) @panic("equal weighted average");
 }
 test "cooperative_decision_neighbor_heavy" {
     const result = cooperative_decision(100, 50, 80);
-    if (!(result == 90)) @compileError("assertion failed");
+    if (!(result == 90)) @panic("neighbor-weighted");
 }
 test "cooperative_decision_self_heavy" {
     const result = cooperative_decision(50, 100, 20);
-    if (!(result == 90)) @compileError("assertion failed");
+    if (!(result == 90)) @panic("self-weighted");
 }

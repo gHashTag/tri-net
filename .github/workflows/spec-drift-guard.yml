@@ -39,6 +39,15 @@ jobs:
           ref: master
           path: t27
 
+      - name: Install Zig
+        run: |
+          # setup-zig actions 404 on this release; fetch the official tarball.
+          curl -fsSL -o /tmp/zig.tar.xz https://ziglang.org/download/0.15.2/zig-x86_64-linux-0.15.2.tar.xz \
+            || curl -fsSL -o /tmp/zig.tar.xz https://ziglang.org/download/0.15.2/zig-linux-x86_64-0.15.2.tar.xz
+          mkdir -p "$HOME/zig" && tar -xJf /tmp/zig.tar.xz -C "$HOME/zig" --strip-components=1
+          echo "$HOME/zig" >> "$GITHUB_PATH"
+          "$HOME/zig/zig" version
+
       - name: Install stable Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
@@ -59,6 +68,24 @@ jobs:
             if ! $T27C typecheck "$spec" 2>&1 | grep -q "Typecheck OK"; then
               echo "::error file=${spec}::typecheck failed"
               $T27C typecheck "$spec" 2>&1 | grep '^  - ' | head -5
+              STATUS=1
+            fi
+          done
+          exit $STATUS
+
+      - name: Zig test — execute committed gens (passing set)
+        working-directory: tri-net
+        run: |
+          # EXECUTION level (above ast-check): compile and RUN each committed
+          # gen's test blocks. Gated to the passing set; the rest are tracked in
+          # t27#1928 (the t27 saturation idiom needs +%, genuine runtime test
+          # failures, two emission tails) and join as they clear -- ratchet, do
+          # not regress.
+          STATUS=0
+          for spec in access_control adaptive_retry anomaly_detector api_documenter auto_config byte_utils cache_management compression_engine congestion_control crc16 docs_generator flow_control fpga_synthesis_report frame_buffer health_dashboard integration_framework link_quality_monitor link_statistics load_predictor local_processing m3_multihop mesh_node_sim mesh_routing multipath_router network_metrics network_orchestrator network_simulator olsr_routing performance_profiler quarantine_manager test_framework test_validator timer topology_visualizer traffic_animator transport_tx_fsm trust_manager; do
+            if ! zig test gen/zig/${spec}.zig -femit-bin=/tmp/zt_bin > /tmp/zt.log 2>&1; then
+              echo "::error file=gen/zig/${spec}.zig::zig test failed"
+              tail -5 /tmp/zt.log
               STATUS=1
             fi
           done

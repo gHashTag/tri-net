@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const MAX_PATHS: u32 = 4;
 const MAX_HOPS: u32 = 3;
 const PATH_VALID: u32 = 1;
@@ -168,73 +167,73 @@ fn failover(path_set: u64, failed_path: u32) u64 {
 }
 test "create_path_basic" {
     const path = create_path(1, 10, 20, 30);
-    if (!(get_path_valid(path) == 1)) @compileError("assertion failed");
-    if (!(get_hop1(path) == 10)) @compileError("assertion failed");
-    if (!(get_hop2(path) == 20)) @compileError("assertion failed");
-    if (!(get_hop3(path) == 30)) @compileError("assertion failed");
+    if (!(get_path_valid(path) == 1)) @panic("valid");
+    if (!(get_hop1(path) == 10)) @panic("hop1");
+    if (!(get_hop2(path) == 20)) @panic("hop2");
+    if (!(get_hop3(path) == 30)) @panic("hop3");
 }
 test "create_path_set" {
     const path_set = create_path_set(create_path(1, 10, 20, 30), create_path(0, 40, 50, 60), create_path(1, 70, 80, 90), create_path(1, 15, 25, 35));
-    if (!(get_path_valid(get_path(path_set, 0)) == 1)) @compileError("assertion failed");
-    if (!(get_path_valid(get_path(path_set, 1)) == 0)) @compileError("assertion failed");
+    if (!(get_path_valid(get_path(path_set, 0)) == 1)) @panic("path 0 valid");
+    if (!(get_path_valid(get_path(path_set, 1)) == 0)) @panic("path 1 invalid");
 }
 test "find_primary_path_first" {
     const path_set = create_path_set(create_path(1, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(1, 15, 25, 35));
-    if (!(find_primary_path(path_set) == 0)) @compileError("assertion failed");
+    if (!(find_primary_path(path_set) == 0)) @panic("first path is primary");
 }
 test "find_primary_path_skip_invalid" {
     const path_set = create_path_set(create_path(0, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(1, 15, 25, 35));
-    if (!(find_primary_path(path_set) == 1)) @compileError("assertion failed");
+    if (!(find_primary_path(path_set) == 1)) @panic("second path is primary");
 }
 test "find_backup_path" {
     const path_set = create_path_set(create_path(1, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(0, 15, 25, 35));
-    if (!(find_backup_path(path_set, 0) == 1)) @compileError("assertion failed");
+    if (!(find_backup_path(path_set, 0) == 1)) @panic("backup is path 1");
 }
 test "invalidate_path_works" {
     const path_set = create_path_set(create_path(1, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(0, 15, 25, 35));
     const new_set = invalidate_path(path_set, 0);
-    if (!(get_path_valid(get_path(new_set, 0)) == 0)) @compileError("assertion failed");
+    if (!(get_path_valid(get_path(new_set, 0)) == 0)) @panic("path invalidated");
 }
 test "validate_path_works" {
     const path_set = create_path_set(create_path(0, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(1, 15, 25, 35));
     const new_set = validate_path(path_set, 0);
-    if (!(get_path_valid(get_path(new_set, 0)) == 1)) @compileError("assertion failed");
+    if (!(get_path_valid(get_path(new_set, 0)) == 1)) @panic("path validated");
 }
 test "count_valid_paths_all" {
     const path_set = create_path_set(create_path(1, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(1, 15, 25, 35));
-    if (!(count_valid_paths(path_set) == 4)) @compileError("assertion failed");
+    if (!(count_valid_paths(path_set) == 4)) @panic("4 valid paths");
 }
 test "count_valid_paths_some" {
     const path_set = create_path_set(create_path(1, 10, 20, 30), create_path(0, 40, 50, 60), create_path(1, 70, 80, 90), create_path(0, 15, 25, 35));
-    if (!(count_valid_paths(path_set) == 2)) @compileError("assertion failed");
+    if (!(count_valid_paths(path_set) == 2)) @panic("2 valid paths");
 }
 test "has_redundancy_true" {
     const path_set = create_path_set(create_path(1, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(0, 15, 25, 35));
-    if (!(has_redundancy(path_set) == true)) @compileError("assertion failed");
+    if (!(has_redundancy(path_set) == true)) @panic("has redundancy");
 }
 test "has_redundancy_false" {
     const path_set = create_path_set(create_path(1, 10, 20, 30), create_path(0, 40, 50, 60), create_path(0, 70, 80, 90), create_path(0, 15, 25, 35));
-    if (!(has_redundancy(path_set) == false)) @compileError("assertion failed");
+    if (!(has_redundancy(path_set) == false)) @panic("no redundancy");
 }
 test "get_hop_count_three" {
     const path = create_path(1, 10, 20, 30);
-    if (!(get_hop_count(path) == 3)) @compileError("assertion failed");
+    if (!(get_hop_count(path) == 3)) @panic("3 hops");
 }
 test "get_hop_count_one" {
     const path = create_path(1, 10, 0, 0);
-    if (!(get_hop_count(path) == 1)) @compileError("assertion failed");
+    if (!(get_hop_count(path) == 1)) @panic("1 hop");
 }
 test "find_shortest_path" {
     const path_set = create_path_set(create_path(1, 10, 0, 0), create_path(1, 40, 50, 0), create_path(1, 70, 80, 90), create_path(0, 15, 25, 35));
-    if (!(find_shortest_path(path_set) == 0)) @compileError("assertion failed");
+    if (!(find_shortest_path(path_set) == 0)) @panic("shortest is path 0");
 }
 test "failover_invalidates_failed" {
     const path_set = create_path_set(create_path(1, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(0, 15, 25, 35));
     const new_set = failover(path_set, 0);
-    if (!(get_path_valid(get_path(new_set, 0)) == 0)) @compileError("assertion failed");
+    if (!(get_path_valid(get_path(new_set, 0)) == 0)) @panic("failed path invalidated");
 }
 test "failover_no_backup" {
     const path_set = create_path_set(create_path(1, 10, 20, 30), create_path(0, 40, 50, 60), create_path(0, 70, 80, 90), create_path(0, 15, 25, 35));
     const new_set = failover(path_set, 0);
-    if (!(get_path_valid(get_path(new_set, 0)) == 1)) @compileError("assertion failed");
+    if (!(get_path_valid(get_path(new_set, 0)) == 1)) @panic("no change when no backup");
 }

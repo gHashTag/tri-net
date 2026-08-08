@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const MAX_NODES: u32 = 8;
 const WARNING_THRESHOLD: u32 = 70;
 const CRITICAL_THRESHOLD: u32 = 85;
@@ -171,83 +170,83 @@ fn find_most_at_risk(health_array: u64) u32 {
 }
 test "create_health_metrics_basic" {
     const metrics = create_health_metrics(60, 70, 5, 45);
-    if (!(get_cpu_usage(metrics) == 60)) @compileError("assertion failed");
-    if (!(get_memory_usage(metrics) == 70)) @compileError("assertion failed");
-    if (!(get_error_rate(metrics) == 5)) @compileError("assertion failed");
-    if (!(get_temperature(metrics) == 45)) @compileError("assertion failed");
+    if (!(get_cpu_usage(metrics) == 60)) @panic("CPU usage");
+    if (!(get_memory_usage(metrics) == 70)) @panic("memory usage");
+    if (!(get_error_rate(metrics) == 5)) @panic("error rate");
+    if (!(get_temperature(metrics) == 45)) @panic("temperature");
 }
 test "create_risk_score_basic" {
     const score = create_risk_score(75, 80, 1, 1000);
-    if (!(get_risk_level(score) == 75)) @compileError("assertion failed");
-    if (!(get_confidence(score) == 80)) @compileError("assertion failed");
-    if (!(get_risk_trend(score) == 1)) @compileError("assertion failed");
-    if (!(get_prediction_time(score) == 1000)) @compileError("assertion failed");
+    if (!(get_risk_level(score) == 75)) @panic("risk level");
+    if (!(get_confidence(score) == 80)) @panic("confidence");
+    if (!(get_risk_trend(score) == 1)) @panic("trend");
+    if (!(get_prediction_time(score) == 1000)) @panic("prediction time");
 }
 test "calculate_health_score_healthy" {
     const metrics = create_health_metrics(20, 30, 2, 40);
     const score = calculate_health_score(metrics);
-    if (!(score >= 80)) @compileError("assertion failed");
+    if (!(score >= 80)) @panic("healthy score");
 }
 test "calculate_health_score_degraded" {
     const metrics = create_health_metrics(80, 70, 15, 75);
     const score = calculate_health_score(metrics);
-    if (!(score < 40)) @compileError("assertion failed");
+    if (!(score < 40)) @panic("degraded score");
 }
 test "predict_failure_probability_healthy" {
     const metrics = create_health_metrics(20, 30, 2, 40);
-    if (!(predict_failure_probability(metrics) == 0)) @compileError("assertion failed");
+    if (!(predict_failure_probability(metrics) == 0)) @panic("no failure");
 }
 test "predict_failure_probability_critical" {
     const metrics = create_health_metrics(90, 95, 40, 85);
-    if (!(predict_failure_probability(metrics) >= 80)) @compileError("assertion failed");
+    if (!(predict_failure_probability(metrics) >= 80)) @panic("high failure prob");
 }
 test "is_trending_failure_degrading" {
     const current = create_health_metrics(60, 70, 10, 50);
     const previous = create_health_metrics(40, 50, 5, 45);
-    if (!(is_trending_failure(current, previous) == 0)) @compileError("assertion failed");
+    if (!(is_trending_failure(current, previous) == 0)) @panic("not trending to failure");
 }
 test "is_trending_failure_significant" {
     const current = create_health_metrics(80, 85, 20, 60);
     const previous = create_health_metrics(30, 35, 5, 40);
-    if (!(is_trending_failure(current, previous) == 1)) @compileError("assertion failed");
+    if (!(is_trending_failure(current, previous) == 1)) @panic("trending to failure");
 }
 test "predict_time_to_failure_healthy" {
     const metrics = create_health_metrics(20, 30, 2, 40);
-    if (!(predict_time_to_failure(metrics) == 0xFF)) @compileError("assertion failed");
+    if (!(predict_time_to_failure(metrics) == 0xFF)) @panic("no failure predicted");
 }
 test "predict_time_to_failure_critical" {
     const metrics = create_health_metrics(95, 95, 60, 90);
-    if (!(predict_time_to_failure(metrics) == 5)) @compileError("assertion failed");
+    if (!(predict_time_to_failure(metrics) == 5)) @panic("immediate failure");
 }
 test "predict_time_to_failure_medium" {
     const metrics = create_health_metrics(70, 75, 30, 65);
-    if (!(predict_time_to_failure(metrics) == 50)) @compileError("assertion failed");
+    if (!(predict_time_to_failure(metrics) == 50)) @panic("medium-term failure");
 }
 test "calculate_failure_risk_low" {
     const metrics = create_health_metrics(30, 40, 5, 45);
     const risk = calculate_failure_risk(metrics, 0);
-    if (!(risk < 30)) @compileError("assertion failed");
+    if (!(risk < 30)) @panic("low risk");
 }
 test "calculate_failure_risk_high_with_degradation" {
     const metrics = create_health_metrics(80, 85, 25, 70);
     const risk = calculate_failure_risk(metrics, 30);
-    if (!(risk >= 80)) @compileError("assertion failed");
+    if (!(risk >= 80)) @panic("high risk with degradation");
 }
 test "needs_immediate_action_true" {
     const metrics = create_health_metrics(97, 80, 10, 96);
-    if (!(needs_immediate_action(metrics) == true)) @compileError("assertion failed");
+    if (!(needs_immediate_action(metrics) == true)) @panic("immediate action needed");
 }
 test "needs_immediate_action_false" {
     const metrics = create_health_metrics(60, 70, 5, 45);
-    if (!(needs_immediate_action(metrics) == false)) @compileError("assertion failed");
+    if (!(needs_immediate_action(metrics) == false)) @panic("no immediate action");
 }
 test "find_most_at_risk_middle" {
     const array = create_health_array(create_health_metrics(30, 40, 5, 45), create_health_metrics(90, 95, 60, 90), create_health_metrics(50, 60, 10, 55), create_health_metrics(40, 50, 8, 50), 0, 0, 0, 0);
-    if (!(find_most_at_risk(array) == 1)) @compileError("assertion failed");
+    if (!(find_most_at_risk(array) == 1)) @panic("node 1 most at-risk");
 }
 test "find_most_at_risk_all_healthy" {
     const array = create_health_array(create_health_metrics(30, 40, 5, 45), create_health_metrics(20, 30, 2, 40), create_health_metrics(25, 35, 3, 42), create_health_metrics(35, 45, 4, 48), 0, 0, 0, 0);
     const riskiest = find_most_at_risk(array);
     const risk = calculate_failure_risk(get_health_metrics(array, riskiest), 0);
-    if (!(risk < 30)) @compileError("assertion failed");
+    if (!(risk < 30)) @panic("all nodes healthy");
 }

@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const DEPLOY_PENDING: u32 = 0;
 const DEPLOY_PROGRAMMING: u32 = 1;
 const DEPLOY_VERIFIED: u32 = 2;
@@ -81,64 +80,64 @@ fn checklist_complete(checklist: u32) bool {
 }
 test "create_deployment_correct" {
     const deploy = create_deployment(DEPLOY_PROGRAMMING, STEP_FLASH, 15, 12345);
-    if (!(extract_deploy_state(deploy) == DEPLOY_PROGRAMMING)) @compileError("assertion failed");
-    if (!(extract_deploy_step(deploy) == STEP_FLASH)) @compileError("assertion failed");
-    if (!(extract_deploy_progress(deploy) == 15)) @compileError("assertion failed");
-    if (!(extract_device_id(deploy) == 12345)) @compileError("assertion failed");
+    if (!(extract_deploy_state(deploy) == DEPLOY_PROGRAMMING)) @panic("state");
+    if (!(extract_deploy_step(deploy) == STEP_FLASH)) @panic("step");
+    if (!(extract_deploy_progress(deploy) == 15)) @panic("progress");
+    if (!(extract_device_id(deploy) == 12345)) @panic("device");
 }
 test "deployment_complete_yes" {
     const deploy = create_deployment(DEPLOY_ACTIVE, STEP_MONITOR, 31, 12345);
-    if (!(deployment_complete(deploy) == true)) @compileError("assertion failed");
+    if (!(deployment_complete(deploy) == true)) @panic("complete");
 }
 test "deployment_complete_no_state" {
     const deploy = create_deployment(DEPLOY_VERIFIED, STEP_MONITOR, 31, 12345);
-    if (!(deployment_complete(deploy) == false)) @compileError("assertion failed");
+    if (!(deployment_complete(deploy) == false)) @panic("not active");
 }
 test "deployment_complete_no_progress" {
     const deploy = create_deployment(DEPLOY_ACTIVE, STEP_MONITOR, 15, 12345);
-    if (!(deployment_complete(deploy) == false)) @compileError("assertion failed");
+    if (!(deployment_complete(deploy) == false)) @panic("not 100%");
 }
 test "create_bitstream_info_correct" {
     const info = create_bitstream_info(0x1234, 0xAB, 5);
-    if (!(extract_bitstream_size(info) == 0x1234)) @compileError("assertion failed");
-    if (!(extract_bitstream_checksum(info) == 0xAB)) @compileError("assertion failed");
-    if (!(extract_bitstream_version(info) == 5)) @compileError("assertion failed");
+    if (!(extract_bitstream_size(info) == 0x1234)) @panic("size");
+    if (!(extract_bitstream_checksum(info) == 0xAB)) @panic("checksum");
+    if (!(extract_bitstream_version(info) == 5)) @panic("version");
 }
 test "flash_programming_success_yes" {
-    if (!(flash_programming_success(1000, 1000) == true)) @compileError("assertion failed");
+    if (!(flash_programming_success(1000, 1000) == true)) @panic("exact match");
 }
 test "flash_programming_success_no" {
-    if (!(flash_programming_success(999, 1000) == false)) @compileError("assertion failed");
+    if (!(flash_programming_success(999, 1000) == false)) @panic("mismatch");
 }
 test "flash_programming_success_zero" {
-    if (!(flash_programming_success(0, 0) == false)) @compileError("assertion failed");
+    if (!(flash_programming_success(0, 0) == false)) @panic("zero bytes");
 }
 test "create_monitor_config_correct" {
     const config = create_monitor_config(1000, 0xFF);
-    if (!(extract_sample_rate(config) == 1000)) @compileError("assertion failed");
-    if (!(extract_metrics_enabled(config) == 0xFF)) @compileError("assertion failed");
+    if (!(extract_sample_rate(config) == 1000)) @panic("sample rate");
+    if (!(extract_metrics_enabled(config) == 0xFF)) @panic("metrics");
 }
 test "create_checklist_all_true" {
     const checklist = create_checklist(true, true, true, true);
-    if (!(checklist_complete(checklist) == true)) @compileError("assertion failed");
+    if (!(checklist_complete(checklist) == true)) @panic("all items");
 }
 test "checklist_power_true" {
     const checklist = create_checklist(true, false, false, false);
-    if (!(checklist_power(checklist) == true)) @compileError("assertion failed");
+    if (!(checklist_power(checklist) == true)) @panic("power OK");
 }
 test "checklist_cooling_false" {
     const checklist = create_checklist(true, false, true, true);
-    if (!(checklist_cooling(checklist) == false)) @compileError("assertion failed");
+    if (!(checklist_cooling(checklist) == false)) @panic("cooling missing");
 }
 test "checklist_network_true" {
     const checklist = create_checklist(false, true, true, false);
-    if (!(checklist_network(checklist) == true)) @compileError("assertion failed");
+    if (!(checklist_network(checklist) == true)) @panic("network OK");
 }
 test "checklist_monitoring_false" {
     const checklist = create_checklist(true, true, true, false);
-    if (!(checklist_monitoring(checklist) == false)) @compileError("assertion failed");
+    if (!(checklist_monitoring(checklist) == false)) @panic("monitoring missing");
 }
 test "checklist_complete_incomplete" {
     const checklist = create_checklist(true, true, false, true);
-    if (!(checklist_complete(checklist) == false)) @compileError("assertion failed");
+    if (!(checklist_complete(checklist) == false)) @panic("missing network");
 }

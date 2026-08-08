@@ -4,8 +4,7 @@
 
 const std = @import("std");
 
-const types = @import("types.zig");
-
+// use types: no references in this module
 const RESOURCE_LUT: u32 = 1;
 const RESOURCE_FF: u32 = 2;
 const RESOURCE_DSP: u32 = 3;
@@ -62,75 +61,75 @@ fn extract_bram(summary: u32) u32 {
 }
 test "create_synthesis_result_correct" {
     const result = create_synthesis_result(500, 100, 75);
-    if (!(extract_utilization(result) == 500)) @compileError("assertion failed");
-    if (!(extract_timing_slack(result) == 100)) @compileError("assertion failed");
-    if (!(extract_achieved_freq(result) == 75)) @compileError("assertion failed");
+    if (!(extract_utilization(result) == 500)) @panic("utilization");
+    if (!(extract_timing_slack(result) == 100)) @panic("slack");
+    if (!(extract_achieved_freq(result) == 75)) @panic("frequency");
 }
 test "timing_met_positive_slack" {
     const result = create_synthesis_result(500, 50, 100);
-    if (!(timing_met(result) == true)) @compileError("assertion failed");
+    if (!(timing_met(result) == true)) @panic("positive slack = met");
 }
 test "timing_met_zero_slack" {
     const result = create_synthesis_result(500, 0, 100);
-    if (!(timing_met(result) == false)) @compileError("assertion failed");
+    if (!(timing_met(result) == false)) @panic("zero slack = not met");
 }
 test "timing_met_negative_slack" {
     const result = create_synthesis_result(500, 0, 100);
-    if (!(timing_met(result) == false)) @compileError("assertion failed");
+    if (!(timing_met(result) == false)) @panic("zero or less = not met");
 }
 test "utilization_acceptable_under_80" {
     const result = create_synthesis_result(750, 50, 100);
-    if (!(utilization_acceptable(result) == true)) @compileError("assertion failed");
+    if (!(utilization_acceptable(result) == true)) @panic("75% acceptable");
 }
 test "utilization_acceptable_over_80" {
     const result = create_synthesis_result(850, 50, 100);
-    if (!(utilization_acceptable(result) == false)) @compileError("assertion failed");
+    if (!(utilization_acceptable(result) == false)) @panic("85% not acceptable");
 }
 test "calculate_resource_percentage_half" {
     const pct = calculate_resource_percentage(50, 100);
-    if (!(pct == 50)) @compileError("assertion failed");
+    if (!(pct == 50)) @panic("50% utilization");
 }
 test "calculate_resource_percentage_full" {
     const pct = calculate_resource_percentage(100, 100);
-    if (!(pct == 100)) @compileError("assertion failed");
+    if (!(pct == 100)) @panic("100% utilization");
 }
 test "calculate_resource_percentage_zero_max" {
     const pct = calculate_resource_percentage(50, 0);
-    if (!(pct == 0)) @compileError("assertion failed");
+    if (!(pct == 0)) @panic("zero max = 0%");
 }
 test "estimate_total_resources_calculates" {
     const lut, const ff = estimate_total_resources(19, 500, 300);
-    if (!(lut == 9500)) @compileError("assertion failed");
-    if (!(ff == 5700)) @compileError("assertion failed");
+    if (!(lut == 9500)) @panic("total LUT");
+    if (!(ff == 5700)) @panic("total FF");
 }
 test "frequency_achievable_met" {
     const result = create_synthesis_result(500, 50, 100);
-    if (!(frequency_achievable(result, 75) == true)) @compileError("assertion failed");
+    if (!(frequency_achievable(result, 75) == true)) @panic("100MHz >= 75MHz");
 }
 test "frequency_achievable_not_met" {
     const result = create_synthesis_result(500, 50, 60);
-    if (!(frequency_achievable(result, 75) == false)) @compileError("assertion failed");
+    if (!(frequency_achievable(result, 75) == false)) @panic("60MHz < 75MHz");
 }
 test "create_resource_summary_correct" {
     const summary = create_resource_summary(1000, 800, 10, 5);
-    if (!(extract_lut(summary) == 1000)) @compileError("assertion failed");
-    if (!(extract_ff(summary) == 800)) @compileError("assertion failed");
-    if (!(extract_dsp(summary) == 10)) @compileError("assertion failed");
-    if (!(extract_bram(summary) == 5)) @compileError("assertion failed");
+    if (!(extract_lut(summary) == 1000)) @panic("LUT count");
+    if (!(extract_ff(summary) == 800)) @panic("FF count");
+    if (!(extract_dsp(summary) == 10)) @panic("DSP count");
+    if (!(extract_bram(summary) == 5)) @panic("BRAM count");
 }
 test "extract_lut_correct" {
     const summary = create_resource_summary(1500, 1200, 8, 4);
-    if (!(extract_lut(summary) == 1500)) @compileError("assertion failed");
+    if (!(extract_lut(summary) == 1500)) @panic("LUT extraction");
 }
 test "extract_ff_correct" {
     const summary = create_resource_summary(1500, 1200, 8, 4);
-    if (!(extract_ff(summary) == 1200)) @compileError("assertion failed");
+    if (!(extract_ff(summary) == 1200)) @panic("FF extraction");
 }
 test "extract_dsp_correct" {
     const summary = create_resource_summary(1500, 1200, 8, 4);
-    if (!(extract_dsp(summary) == 8)) @compileError("assertion failed");
+    if (!(extract_dsp(summary) == 8)) @panic("DSP extraction");
 }
 test "extract_bram_correct" {
     const summary = create_resource_summary(1500, 1200, 8, 4);
-    if (!(extract_bram(summary) == 4)) @compileError("assertion failed");
+    if (!(extract_bram(summary) == 4)) @panic("BRAM extraction");
 }
