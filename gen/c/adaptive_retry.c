@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <assert.h>
+#define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
 
 #ifndef ADAPTIVERETRY_H
 #define ADAPTIVERETRY_H
@@ -63,7 +65,7 @@ uint8_t max_retries_for_quality(uint8_t quality_q8) {
 
 bool should_retry(uint8_t current_attempt, uint8_t link_quality_q8) {
     uint8_t max_retries = max_retries_for_quality(link_quality_q8);
-    (current_attempt < max_retries);
+    return (current_attempt < max_retries);
 }
 
 uint8_t base_probability(uint8_t quality_q8) {
@@ -91,5 +93,48 @@ uint16_t total_retry_time(uint8_t max_retries) {
     }
     return (backoff_delay_ms((max_retries - 1)) + total_retry_time((max_retries - 1)));
 }
+
+/* -------------------------------------------------------
+   Tests
+   ------------------------------------------------------- */
+
+void test_exponential_backoff_calculation(void) {
+    uint16_t delay0 = backoff_delay_ms(0);
+    t27_assert((delay0 == 10), "delay0 == 10");
+    uint16_t delay1 = backoff_delay_ms(1);
+    t27_assert((delay1 == 20), "delay1 == 20");
+    uint16_t delay2 = backoff_delay_ms(2);
+    t27_assert((delay2 == 40), "delay2 == 40");
+    uint16_t delay3 = backoff_delay_ms(3);
+    t27_assert((delay3 == 80), "delay3 == 80");
+}
+
+void test_quality_based_retry_limits(void) {
+    t27_assert((max_retries_for_quality(0xCC) == 5), "max_retries_for_quality 0xCC == 5");
+    t27_assert((max_retries_for_quality(0x80) == 3), "max_retries_for_quality 0x80 == 3");
+    t27_assert((max_retries_for_quality(0x40) == 1), "max_retries_for_quality 0x40 == 1");
+}
+
+void test_retry_permission_check(void) {
+    t27_assert((should_retry(0, 0xCC) == true), "should_retry 0 0xCC == true");
+    t27_assert((should_retry(5, 0xCC) == false), "should_retry 5 0xCC == false");
+    t27_assert((should_retry(0, 0x40) == true), "should_retry 0 0x40 == true");
+    t27_assert((should_retry(1, 0x40) == false), "should_retry 1 0x40 == false");
+}
+
+void test_success_probability_calculation(void) {
+    uint8_t prob1 = retry_success_probability(0, 0xCC);
+    t27_assert((prob1 > 180), "prob1 > 180");
+    uint8_t prob2 = retry_success_probability(3, 0xCC);
+    t27_assert((prob2 < prob1), "prob2 < prob1");
+    uint8_t prob3 = retry_success_probability(0, 0x40);
+    t27_assert((prob3 < prob1), "prob3 < prob1");
+}
+
+void test_total_time_estimation(void) {
+    uint16_t total = total_retry_time(5);
+    t27_assert((total == 310), "total == 310");
+}
+
 
 #endif /* ADAPTIVERETRY_H */
