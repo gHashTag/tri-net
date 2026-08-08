@@ -53,3 +53,21 @@ pub fn expired_verdict() -> u32 {
     return DEFENDER_HONEST;
 }
 
+pub const CH_GFT16_ET: u32 = 4;
+
+pub const CH_BASE_WINDOW: u32 = 64;
+
+pub const CH_WINDOW_PER_TRIT: u32 = 16;
+
+pub fn challenge_window_for_rung(gf_et: u32) -> u32 {
+    if (gf_et <= CH_GFT16_ET) {
+        return CH_BASE_WINDOW;
+    } else {
+        return (CH_BASE_WINDOW + ((gf_et - CH_GFT16_ET) * CH_WINDOW_PER_TRIT));
+    }
+}
+
+pub fn challenge_admissible_rung(now_epoch: u32, receipt_epoch: u32, gf_et: u32) -> bool {
+    return challenge_admissible(now_epoch, receipt_epoch, challenge_window_for_rung(gf_et));
+}
+

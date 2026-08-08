@@ -134,6 +134,44 @@ module TriChallenge {
         return DEFENDER_HONEST;
     }
 
+    // ---- Rung-aware admissibility ----
+    // The window is not one-size-fits-all: a wide-rung result is more expensive to
+    // RECOMPUTE (the datapath widens with the mantissa) and worth more, so it gets
+    // more scrutiny epochs. These constants MIRROR tri_compute_optimistic's window
+    // ladder (GFT16_ET / BASE_WINDOW / WINDOW_PER_TRIT); the cross-spec constant
+    // parity and the edge identity are pinned by the challenge_rung_window guard,
+    // so the two specs cannot drift apart silently.
+    const CH_GFT16_ET: u32 = 4;
+    const CH_BASE_WINDOW: u32 = 64;
+    const CH_WINDOW_PER_TRIT: u32 = 16;
+
+    fn challenge_window_for_rung(gf_et: u32) -> u32 {
+        if (gf_et <= CH_GFT16_ET) {
+            return CH_BASE_WINDOW;
+        } else {
+            return CH_BASE_WINDOW + (gf_et - CH_GFT16_ET) * CH_WINDOW_PER_TRIT;
+        }
+    }
+
+    fn challenge_admissible_rung(now_epoch: u32, receipt_epoch: u32, gf_et: u32) -> bool {
+        return challenge_admissible(now_epoch, receipt_epoch, challenge_window_for_rung(gf_et));
+    }
+
+    // A wide rung stays challengeable at an epoch where the flagship rung has
+    // already finalized; both edges stay strict.
+    test rung_window_edges {
+        f0 = challenge_admissible_rung(1063, 1000, 4);
+        f1 = challenge_admissible_rung(1064, 1000, 4);
+        w0 = challenge_admissible_rung(1064, 1000, 9);
+        w1 = challenge_admissible_rung(1143, 1000, 9);
+        w2 = challenge_admissible_rung(1144, 1000, 9);
+        assert(f0 == true, "flagship: epoch 63 of 64 is challengeable");
+        assert(f1 == false, "flagship: the finalization epoch admits nothing");
+        assert(w0 == true, "GF-T64 (Et9) is still challengeable where GF-T16 finalized");
+        assert(w1 == true, "GF-T64: epoch 143 of 144 is challengeable");
+        assert(w2 == false, "GF-T64: its own finalization epoch admits nothing");
+    }
+
     // The window gate is exact at both edges: admissible at the last in-window
     // epoch, inadmissible one epoch later, and fail-closed on a clock that runs
     // backwards.
