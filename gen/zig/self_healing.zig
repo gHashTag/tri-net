@@ -10,13 +10,13 @@ const MAX_RECOVERY_ATTEMPTS: u32 = 3;
 const RECOVERY_SUCCESS: u32 = 1;
 const RECOVERY_FAILED: u32 = 0;
 fn create_recovery_state(attempts: u32, last_attempt: u32, in_progress: u32, success_count: u32) u32 {
-    return ((((attempts & 0xFF) << 24) | ((last_attempt & 0xFF) << 16)) | ((in_progress & 0x1) << 8)) | (success_count & 0xFF);
+    return ((((attempts & 0xF) << 28) | ((last_attempt & 0xFFFF) << 12)) | ((in_progress & 0x1) << 8)) | (success_count & 0xFF);
 }
 fn get_attempts(state: u32) u32 {
-    return (state >> 24) & 0xFF;
+    return (state >> 28) & 0xF;
 }
 fn get_last_attempt(state: u32) u32 {
-    return (state >> 16) & 0xFF;
+    return (state >> 12) & 0xFFFF;
 }
 fn get_in_progress(state: u32) u32 {
     return (state >> 8) & 0x1;

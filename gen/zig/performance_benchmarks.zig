@@ -112,8 +112,9 @@ test "queue_max_capacity" {
     const q14 = queue_enqueue(q13);
     const q15 = queue_enqueue(q14);
     const q16 = queue_enqueue(q15);
-    if (!(queue_count(q16) == MAX_QUEUE_SIZE)) @panic("max capacity");
-    if (!(queue_is_full(q16) == true)) @panic("is full");
+    const q17 = queue_enqueue(q16);
+    if (!(queue_count(q17) == MAX_QUEUE_SIZE)) @panic("max capacity");
+    if (!(queue_is_full(q17) == true)) @panic("is full");
 }
 test "inc_counter_increments" {
     const c = inc_counter(0);

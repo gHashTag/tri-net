@@ -115,7 +115,7 @@ void test_test_half_forward(void) {
 void test_test_dead_direction(void) {
     uint64_t fwd = ewma_update(ewma_update(OPTIMISTIC, 255, ALPHA_HALF), 255, ALPHA_HALF);
     (void)fwd;
-    uint64_t rev = ewma_update(ewma_update(OPTIMISTIC, 0, ALPHA_HALF), 0, ALPHA_HALF);
+    uint64_t rev = ewma_update(ewma_update(ewma_update(OPTIMISTIC, 0, ALPHA_HALF), 0, ALPHA_HALF), 0, ALPHA_HALF);
     (void)rev;
     uint64_t etx = calc_etx(fwd, rev);
     (void)etx;

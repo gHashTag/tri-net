@@ -54,15 +54,15 @@ uint32_t update_network_after_recovery(uint32_t network_state, uint32_t nodes_re
    ------------------------------------------------------- */
 
 uint32_t create_recovery_state(uint32_t attempts, uint32_t last_attempt, uint32_t in_progress, uint32_t success_count) {
-    return (((((attempts & 0xFF) << 24) | ((last_attempt & 0xFF) << 16)) | ((in_progress & 0x1) << 8)) | (success_count & 0xFF));
+    return (((((attempts & 0xF) << 28) | ((last_attempt & 0xFFFF) << 12)) | ((in_progress & 0x1) << 8)) | (success_count & 0xFF));
 }
 
 uint32_t get_attempts(uint32_t state) {
-    return ((state >> 24) & 0xFF);
+    return ((state >> 28) & 0xF);
 }
 
 uint32_t get_last_attempt(uint32_t state) {
-    return ((state >> 16) & 0xFF);
+    return ((state >> 12) & 0xFFFF);
 }
 
 uint32_t get_in_progress(uint32_t state) {

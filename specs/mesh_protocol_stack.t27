@@ -13,9 +13,10 @@ module MeshProtocolStack {
 
     // Packet structure (simplified, all inline)
     fn build_packet(src: u32, dst: u32, ttl: u8, payload: u8) -> u32 {
-        // Layout: [src:8][dst:8][ttl:4][payload:4][reserved:8]
-        return (((src & 0xFF) << 24) | ((dst & 0xFF) << 16) | 
-                (((ttl as u32) & 0xF) << 12) | ((payload as u32) & 0xF));
+        // Layout: [src:8][dst:8][ttl:4][reserved:4][payload:8]
+        // payload is a u8 and gets the full 8 bits (was 4, which truncated values > 15).
+        return (((src & 0xFF) << 24) | ((dst & 0xFF) << 16) |
+                (((ttl as u32) & 0xF) << 12) | ((payload as u32) & 0xFF));
     }
 
     fn extract_src(packet: u32) -> u32 {
@@ -31,15 +32,16 @@ module MeshProtocolStack {
     }
 
     fn extract_payload(packet: u32) -> u8 {
-        return ((packet & 0xF) as u8);
+        return ((packet & 0xFF) as u8);
     }
 
     // Decrement TTL (returns tuple: (packet, expired))
     fn decrement_ttl(packet: u32) -> (u32, bool) {
         if (extract_ttl(packet) > 0) {
-            return ((((packet & 0xFFFF0FFF) | 
+            // Expired the moment TTL reaches 0: a packet decremented to 0 must not be forwarded.
+            return ((((packet & 0xFFFF0FFF) |
                     ((((extract_ttl(packet) - 1) as u32) & 0xF) << 12))),
-                    false);
+                    extract_ttl(packet) == 1);
         } else {
             return (packet, true);
         }

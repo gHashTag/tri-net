@@ -84,11 +84,11 @@ fn analyze_bit_width(min_val: u32, max_val: u32) u8 {
 }
 test "estimate_complexity_simple" {
     const complexity = estimate_complexity(10, 5, 16);
-    if (!(complexity == 250)) @panic("simple complexity");
+    if (!(complexity == 280)) @panic("simple complexity");
 }
 test "estimate_complexity_high" {
     const complexity = estimate_complexity(50, 20, 32);
-    if (!(complexity == 1110)) @panic("high complexity");
+    if (!(complexity == 1060)) @panic("high complexity");
 }
 test "calculate_sharing_savings_half" {
     const savings = calculate_sharing_savings(1000, 2);

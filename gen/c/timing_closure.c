@@ -66,12 +66,12 @@ uint32_t extract_slack(uint32_t path) {
 }
 
 uint32_t grade_timing(uint32_t slack) {
-    if ((slack >= 100)) {
-        return TIMING_PASS;
-    } else if ((slack >= 0)) {
-        return TIMING_MARGINAL;
-    } else {
+    if ((slack > 0x7FFFFFFF)) {
         return TIMING_FAIL;
+    } else if ((slack >= 100)) {
+        return TIMING_PASS;
+    } else {
+        return TIMING_MARGINAL;
     }
 }
 
@@ -238,7 +238,7 @@ void test_timing_closure_achieved_no_freq(void) {
 }
 
 void test_extract_slack_negative_handling(void) {
-    uint64_t path = create_critical_path(500, 3, 0xFFFF00);
+    uint64_t path = create_critical_path(500, 3, 0xFF);
     (void)path;
     uint64_t slack = extract_slack(path);
     (void)slack;

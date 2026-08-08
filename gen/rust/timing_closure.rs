@@ -34,13 +34,13 @@ pub fn extract_slack(path: u32) -> u32 {
 }
 
 pub fn grade_timing(slack: u32) -> u32 {
-    if (slack >= 100) {
-        return TIMING_PASS;
+    if (slack > 0x7FFFFFFF) {
+        return TIMING_FAIL;
     } else {
-        if (slack >= 0) {
-            return TIMING_MARGINAL;
+        if (slack >= 100) {
+            return TIMING_PASS;
         } else {
-            return TIMING_FAIL;
+            return TIMING_MARGINAL;
         }
     }
 }

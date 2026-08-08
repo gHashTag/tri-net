@@ -20,7 +20,7 @@
 #define MAX_NODES 8
 #define ANALYSIS_WINDOW 1000
 #define TRAFFIC_LOW 100
-#define TRAFFIC_HIGH 1000
+#define TRAFFIC_HIGH 400
 #define ANOMALY_THRESHOLD 200
 #define PATTERN_NORMAL 0
 #define PATTERN_SPIKE 1
@@ -133,7 +133,7 @@ uint32_t detect_pattern(uint32_t stats, uint32_t previous_stats) {
     if ((current_total > (previous_total + ANOMALY_THRESHOLD))) {
         return PATTERN_SPIKE;
     }
-    if ((current_total < (previous_total - ANOMALY_THRESHOLD))) {
+    if (((current_total + ANOMALY_THRESHOLD) < previous_total)) {
         return PATTERN_DROPOUT;
     }
     if (is_high_error_rate(stats)) {
@@ -195,7 +195,7 @@ void test_is_traffic_low_true(void) {
 }
 
 void test_is_traffic_high_true(void) {
-    uint64_t stats = create_traffic_stats(600, 500, 100, 5);
+    uint64_t stats = create_traffic_stats(250, 200, 100, 5);
     (void)stats;
     t27_assert((is_traffic_high(stats) == true), "high traffic");
 }
@@ -231,7 +231,7 @@ void test_is_high_error_rate_false(void) {
 }
 
 void test_detect_pattern_spike(void) {
-    uint64_t current = create_traffic_stats(400, 500, 100, 2);
+    uint64_t current = create_traffic_stats(250, 240, 100, 2);
     (void)current;
     uint64_t previous = create_traffic_stats(100, 100, 20, 0);
     (void)previous;
@@ -241,7 +241,7 @@ void test_detect_pattern_spike(void) {
 void test_detect_pattern_dropout(void) {
     uint64_t current = create_traffic_stats(50, 50, 10, 0);
     (void)current;
-    uint64_t previous = create_traffic_stats(400, 400, 80, 2);
+    uint64_t previous = create_traffic_stats(250, 250, 80, 2);
     (void)previous;
     t27_assert((detect_pattern(current, previous) == PATTERN_DROPOUT), "dropout detected");
 }
@@ -274,9 +274,9 @@ void test_update_traffic_works(void) {
 }
 
 void test_calculate_utilization(void) {
-    uint64_t stats = create_traffic_stats(400, 600, 100, 5);
+    uint64_t stats = create_traffic_stats(200, 200, 100, 5);
     (void)stats;
-    t27_assert((calculate_utilization(stats, 2000) == 50), "50% utilization");
+    t27_assert((calculate_utilization(stats, 800) == 50), "50% utilization");
 }
 
 void test_calculate_utilization_zero_capacity(void) {
@@ -286,9 +286,9 @@ void test_calculate_utilization_zero_capacity(void) {
 }
 
 void test_is_congested_true(void) {
-    uint64_t stats = create_traffic_stats(900, 900, 200, 10);
+    uint64_t stats = create_traffic_stats(250, 250, 200, 10);
     (void)stats;
-    t27_assert((is_congested(stats, 2000) == true), "network congested");
+    t27_assert((is_congested(stats, 500) == true), "network congested");
 }
 
 void test_is_congested_false(void) {

@@ -117,13 +117,15 @@ module AreaOptimization {
     // ---- Tests ----
 
     test estimate_complexity_simple {
+        // (10*10) + (5*20) + (16*5) = 100 + 100 + 80 = 280
         complexity = estimate_complexity(10, 5, 16);
-        assert(complexity == 250, "simple complexity");
+        assert(complexity == 280, "simple complexity");
     }
 
     test estimate_complexity_high {
+        // (50*10) + (20*20) + (32*5) = 500 + 400 + 160 = 1060
         complexity = estimate_complexity(50, 20, 32);
-        assert(complexity == 1110, "high complexity");
+        assert(complexity == 1060, "high complexity");
     }
 
     test calculate_sharing_savings_half {
