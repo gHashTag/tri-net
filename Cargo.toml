@@ -346,3 +346,7 @@ path = "tests/dispute_concurrency.rs"
 [[test]]
 name = "dispute_swarm_e2e"
 path = "tests/dispute_swarm_e2e.rs"
+
+[[test]]
+name = "dispute_witness"
+path = "tests/dispute_witness.rs"

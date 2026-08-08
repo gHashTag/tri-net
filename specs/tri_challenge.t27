@@ -157,6 +157,47 @@ module TriChallenge {
         return challenge_admissible(now_epoch, receipt_epoch, challenge_window_for_rung(gf_et));
     }
 
+    // ---- Witness quorum: WHO establishes the truth seal ----
+    // resolve() compares the defender's seal to "the" recomputed truth -- but in
+    // a distributed setting a SINGLE recomputer is a trust point: one malicious
+    // witness could submit a fabricated truth seal and slash an honest defender
+    // (or save a fraudster). The truth is therefore the MAJORITY seal of three
+    // independent witnesses; with no majority there is NO verdict -- the dispute
+    // simply stays open (and, if nobody ever agrees, settles by expiry FOR the
+    // defender, consistent with the no-proof-no-slash rule).
+
+    const VERDICT_NONE: u32 = 0; // no quorum -> dispute stays open
+
+    fn witness_majority(s0: u32, s1: u32, s2: u32) -> u32 {
+        if (s0 == s1) { return s0; }
+        if (s0 == s2) { return s0; }
+        if (s1 == s2) { return s1; }
+        return 0;
+    }
+
+    fn witness_verdict(defender_seal: u32, s0: u32, s1: u32, s2: u32) -> u32 {
+        let truth: u32 = witness_majority(s0, s1, s2);
+        if (truth == 0) {
+            return VERDICT_NONE;
+        }
+        return resolve(defender_seal, truth);
+    }
+
+    // A 2-of-3 majority survives one corrupt witness in either direction, and
+    // three disagreeing witnesses produce NO verdict rather than a wrong one.
+    test witness_quorum {
+        v_unanimous = witness_verdict(0xAAAA, 0xAAAA, 0xAAAA, 0xAAAA);
+        v_one_liar = witness_verdict(0xAAAA, 0xAAAA, 0xDEAD, 0xAAAA);
+        v_frame = witness_verdict(0xAAAA, 0xBBBB, 0xAAAA, 0xAAAA);
+        v_caught = witness_verdict(0xBAD0, 0xAAAA, 0xAAAA, 0xDEAD);
+        v_none = witness_verdict(0xAAAA, 0x1111, 0x2222, 0x3333);
+        assert(v_unanimous == DEFENDER_HONEST, "unanimous truth clears the defender");
+        assert(v_one_liar == DEFENDER_HONEST, "one lying witness cannot flip an honest majority");
+        assert(v_frame == DEFENDER_HONEST, "one framing witness cannot slash an honest defender");
+        assert(v_caught == DEFENDER_LIED, "a real lie is caught by the majority");
+        assert(v_none == VERDICT_NONE, "no quorum -> no verdict, dispute stays open");
+    }
+
     // ---- Concurrent disputes: one defender, many challengers ----
     // Without a cap and a risk ledger, a challenger swarm could (a) pile
     // unbounded simultaneous disputes on one defender (grief: every dispute
