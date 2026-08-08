@@ -117,7 +117,7 @@ pub fn set_config_value(config: [u32; MAX_PARAMS as usize], param_id: u32, new_v
 }
 
 pub fn discover_network_params(node_count: u32, interference_level: u32) -> u32 {
-    let config: [u32; MAX_PARAMS as usize] = vec![];
+    let config: [u32; MAX_PARAMS as usize] = [default_config_at(0),default_config_at(1),default_config_at(2),default_config_at(3),default_config_at(4),default_config_at(5),default_config_at(6),default_config_at(7),0,0,0,0,0,0,0,0];
     let mut tx_power: u32 = 50;
     if (node_count < 4) {
         tx_power = 30;

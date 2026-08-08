@@ -190,9 +190,8 @@ fn is_communication_allowed(state: u32, trust_score: u32) u32 {
 fn calculate_health_impact(states: [MAX_NODES]u32) u32 {
     const quarantined_count: u32 = count_quarantined_nodes(states);
     const total_nodes: u32 = MAX_NODES;
-    _ = total_nodes; // dead after const-inlining
-    if (MAX_NODES > 0) {
-        return (quarantined_count * 100) / MAX_NODES;
+    if (total_nodes > 0) {
+        return (quarantined_count * 100) / total_nodes;
     } else {
         return 0;
     }

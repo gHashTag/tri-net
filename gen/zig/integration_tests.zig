@@ -104,8 +104,7 @@ test "full_packet_flow" {
     const b0 = header_byte(kind, src, dst, ttl, 0);
     const b1 = header_byte(kind, src, dst, ttl, 1);
     _ = b1; // dead after const-inlining
-    const a, const b, const c, const d = mesh_ip(dst);
-    _ = d; // dead after const-inlining
+    const a, const b, const c, _ = mesh_ip(dst);
     if (!(((a == MESH_NET_A) and (b == MESH_NET_B)) and (c == MESH_NET_C))) @panic("dst in mesh subnet");
     if (!(b0 == VERSION)) @panic("header version valid");
     if (!(true)) @panic("full flow validated");
@@ -124,9 +123,7 @@ test "hello_beacon_with_mesh_ip" {
     _ = seq; // dead after const-inlining
     const n_heard = 3;
     _ = n_heard; // dead after const-inlining
-    const a, const b, const c, const d = mesh_ip(src);
-    _ = b; // dead after const-inlining
-    _ = c; // dead after const-inlining
+    const a, _, _, const d = mesh_ip(src);
     if (!(a == MESH_NET_A)) @panic("HELLO src in mesh subnet");
     if (!(d == src)) @panic("node ID preserved");
 }

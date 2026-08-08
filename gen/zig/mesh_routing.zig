@@ -107,10 +107,7 @@ test "mesh_ip_converts_correctly" {
     if (!(d == 1)) @panic("node D should be 1");
 }
 test "mesh_ip_max_node_id" {
-    const a, const b, const c, const d = mesh_ip(254);
-    _ = a; // dead after const-inlining
-    _ = b; // dead after const-inlining
-    _ = c; // dead after const-inlining
+    _, _, _, const d = mesh_ip(254);
     if (!(d == 254)) @panic("max node ID should be 254");
 }
 test "is_mesh_subnet_valid" {
@@ -127,13 +124,11 @@ test "node_of_ip_valid" {
     if (!(valid)) @panic("should be valid");
 }
 test "node_of_ip_invalid_subnet" {
-    const node_id, const valid = node_of_ip(192, 168, 1, 100);
-    _ = node_id; // dead after const-inlining
+    _, const valid = node_of_ip(192, 168, 1, 100);
     if (!(valid == false)) @panic("wrong subnet should be invalid");
 }
 test "node_of_ip_invalid_range" {
-    const node_id, const valid = node_of_ip(10, 42, 0, 255);
-    _ = node_id; // dead after const-inlining
+    _, const valid = node_of_ip(10, 42, 0, 255);
     if (!(valid == false)) @panic("node ID 255 should be invalid");
 }
 test "node_of_ip_min_boundary" {
@@ -178,8 +173,7 @@ test "choose_next_hop_one_finite" {
     if (!(found)) @panic("should find next hop");
 }
 test "choose_next_hop_none_finite" {
-    const next_hop, const found = choose_next_hop(0xFFFF, 0xFFFF, 0xFFFF, true, true, true);
-    _ = next_hop; // dead after const-inlining
+    _, const found = choose_next_hop(0xFFFF, 0xFFFF, 0xFFFF, true, true, true);
     if (!(found == false)) @panic("should not find next hop");
 }
 test "choose_next_hop_tie_breaker" {
@@ -213,8 +207,7 @@ test "full_routing_flow" {
     if (!(valid_dest)) @panic("destination should be valid");
     const is_local = dest_node == 2;
     if (!(is_local == false)) @panic("not for us, need to forward");
-    const new_ttl, const ttl_expired = decrement_ttl(7);
-    _ = new_ttl; // dead after const-inlining
+    _, const ttl_expired = decrement_ttl(7);
     if (!(ttl_expired == false)) @panic("TTL still valid");
     const next_hop, const route_exists = choose_next_hop(512, 1024, 256, true, true, true);
     if (!(next_hop == 3)) @panic("should forward via node 3");

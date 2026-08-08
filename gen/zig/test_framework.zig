@@ -116,8 +116,7 @@ fn run_test_case(test_case: u32, function_ptr: u32) u32 {
     const input: u32 = get_test_input(test_case);
     const expected: u32 = get_expected_output(test_case);
     const actual: u32 = input;
-    _ = actual; // dead after const-inlining
-    const assertion: u32 = create_assertion(ASSERT_EQUAL, input, expected, 0);
+    const assertion: u32 = create_assertion(ASSERT_EQUAL, actual, expected, 0);
     const passed: u32 = check_assertion(assertion);
     if (passed == 1) {
         return create_test_result(test_id, STATUS_PASS, 1, 0);

@@ -208,12 +208,12 @@ fn may_open_dispute_rung(open_count: u32, risk: u32, reward: u32, bond: u32, min
 test "rung_aware_admission" {
     const p4 = dispute_rung_min_bps(2000, 4);
     const p9 = dispute_rung_min_bps(2000, 9);
-    const f0 = may_open_dispute_rung(0, 400, 100, 100, 2000, 4);
+    const @"f0" = may_open_dispute_rung(0, 400, 100, 100, 2000, 4);
     const w0 = may_open_dispute_rung(0, 400, 100, 100, 2000, 9);
     const w1 = may_open_dispute_rung(0, 400, 100, 225, 2000, 9);
     if (!(p4 == 2000)) @panic("at the flagship the base premium applies");
     if (!(p9 == 4500)) @panic("Et9 adds 2500 bps");
-    if (!(f0 == true)) @panic("bond 100 covers 500 at 20% on the flagship");
+    if (!(@"f0" == true)) @panic("bond 100 covers 500 at 20% on the flagship");
     if (!(w0 == false)) @panic("the SAME bond fails the SAME dispute at Et9 (needs 45%)");
     if (!(w1 == true)) @panic("225 covers 500 at 45% on the wide rung");
 }
@@ -246,13 +246,13 @@ test "dispute_admission_gate" {
     if (!(a4 == false)) @panic("risk 450 + 100 = 550 requires 110 > bond 100 -- rejected");
 }
 test "rung_window_edges" {
-    const f0 = challenge_admissible_rung(1063, 1000, 4);
-    const f1 = challenge_admissible_rung(1064, 1000, 4);
+    const @"f0" = challenge_admissible_rung(1063, 1000, 4);
+    const @"f1" = challenge_admissible_rung(1064, 1000, 4);
     const w0 = challenge_admissible_rung(1064, 1000, 9);
     const w1 = challenge_admissible_rung(1143, 1000, 9);
     const w2 = challenge_admissible_rung(1144, 1000, 9);
-    if (!(f0 == true)) @panic("flagship: epoch 63 of 64 is challengeable");
-    if (!(f1 == false)) @panic("flagship: the finalization epoch admits nothing");
+    if (!(@"f0" == true)) @panic("flagship: epoch 63 of 64 is challengeable");
+    if (!(@"f1" == false)) @panic("flagship: the finalization epoch admits nothing");
     if (!(w0 == true)) @panic("GF-T64 (Et9) is still challengeable where GF-T16 finalized");
     if (!(w1 == true)) @panic("GF-T64: epoch 143 of 144 is challengeable");
     if (!(w2 == false)) @panic("GF-T64: its own finalization epoch admits nothing");
