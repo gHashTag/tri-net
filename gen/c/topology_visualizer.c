@@ -40,6 +40,13 @@
 #define ALGORITHM_GRID 3
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[32]; } t27_arr_uint32_t_32;
+typedef struct { uint32_t v[64]; } t27_arr_uint32_t_64;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -64,16 +71,16 @@ uint32_t get_layout_algorithm(uint32_t params);
 uint32_t get_layout_iterations(uint32_t params);
 uint32_t get_layout_temperature(uint32_t params);
 uint32_t get_layout_cooling_rate(uint32_t params);
-uint32_t calculate_force_layout(uint32_t* nodes, uint32_t* edges, uint32_t node_count, uint32_t edge_count, uint32_t params);
-uint32_t calculate_circular_layout(uint32_t* nodes, uint32_t node_count);
-uint32_t calculate_hierarchical_layout(uint32_t* nodes, uint32_t* edges, uint32_t node_count, uint32_t edge_count);
-uint32_t apply_layout(uint32_t* nodes, uint32_t* edges, uint32_t node_count, uint32_t edge_count, uint32_t params);
+uint32_t calculate_force_layout(t27_arr_uint32_t_32 nodes, t27_arr_uint32_t_64 edges, uint32_t node_count, uint32_t edge_count, uint32_t params);
+uint32_t calculate_circular_layout(t27_arr_uint32_t_32 nodes, uint32_t node_count);
+uint32_t calculate_hierarchical_layout(t27_arr_uint32_t_32 nodes, t27_arr_uint32_t_64 edges, uint32_t node_count, uint32_t edge_count);
+uint32_t apply_layout(t27_arr_uint32_t_32 nodes, t27_arr_uint32_t_64 edges, uint32_t node_count, uint32_t edge_count, uint32_t params);
 uint32_t render_node(uint32_t node, uint32_t size, uint32_t color);
-uint32_t render_edge(uint32_t edge, uint32_t* nodes, uint32_t thickness);
-uint32_t create_visualization_frame(uint32_t* nodes, uint32_t* edges, uint32_t node_count, uint32_t edge_count);
+uint32_t render_edge(uint32_t edge, t27_arr_uint32_t_32 nodes, uint32_t thickness);
+uint32_t create_visualization_frame(t27_arr_uint32_t_32 nodes, t27_arr_uint32_t_64 edges, uint32_t node_count, uint32_t edge_count);
 uint32_t calculate_viz_complexity(uint32_t node_count, uint32_t edge_count);
 uint32_t optimize_rendering(uint32_t node_count, uint32_t edge_count, uint32_t target_fps);
-uint32_t generate_topology_visualization(uint32_t* nodes, uint32_t* edges, uint32_t node_count, uint32_t edge_count, uint32_t layout_params);
+uint32_t generate_topology_visualization(t27_arr_uint32_t_32 nodes, t27_arr_uint32_t_64 edges, uint32_t node_count, uint32_t edge_count, uint32_t layout_params);
 
 /* -------------------------------------------------------
    Function implementations
@@ -171,7 +178,7 @@ uint32_t get_layout_cooling_rate(uint32_t params) {
     return (params & 0xFF);
 }
 
-uint32_t calculate_force_layout(uint32_t* nodes, uint32_t* edges, uint32_t node_count, uint32_t edge_count, uint32_t params) {
+uint32_t calculate_force_layout(t27_arr_uint32_t_32 nodes, t27_arr_uint32_t_64 edges, uint32_t node_count, uint32_t edge_count, uint32_t params) {
     uint32_t iterations = get_layout_iterations(params);
     uint32_t temperature = get_layout_temperature(params);
     uint32_t placed_nodes = 0;
@@ -179,14 +186,14 @@ uint32_t calculate_force_layout(uint32_t* nodes, uint32_t* edges, uint32_t node_
     while (((i < iterations) && (placed_nodes < node_count))) {
         uint32_t j = 0;
         while ((j < node_count)) {
-            uint32_t node_id = get_viz_node_id(nodes[j]);
-            uint32_t x = get_node_x_position(nodes[j]);
-            uint32_t y = get_node_y_position(nodes[j]);
+            uint32_t node_id = get_viz_node_id(nodes.v[j]);
+            uint32_t x = get_node_x_position(nodes.v[j]);
+            uint32_t y = get_node_y_position(nodes.v[j]);
             uint32_t k = 0;
             while ((k < node_count)) {
                 if ((k != j)) {
-                    uint32_t other_x = get_node_x_position(nodes[k]);
-                    uint32_t other_y = get_node_y_position(nodes[k]);
+                    uint32_t other_x = get_node_x_position(nodes.v[k]);
+                    uint32_t other_y = get_node_y_position(nodes.v[k]);
                     uint32_t dx = 0;
                     if ((x > other_x)) {
                         dx = (x - other_x);
@@ -208,8 +215,8 @@ uint32_t calculate_force_layout(uint32_t* nodes, uint32_t* edges, uint32_t node_
             }
             uint32_t l = 0;
             while ((l < edge_count)) {
-                uint32_t source = get_viz_edge_source(edges[l]);
-                uint32_t dest = get_viz_edge_dest(edges[l]);
+                uint32_t source = get_viz_edge_source(edges.v[l]);
+                uint32_t dest = get_viz_edge_dest(edges.v[l]);
                 if (((source == node_id) || (dest == node_id))) {
                 }
                 l = (l + 1);
@@ -225,7 +232,7 @@ uint32_t calculate_force_layout(uint32_t* nodes, uint32_t* edges, uint32_t node_
     return placed_nodes;
 }
 
-uint32_t calculate_circular_layout(uint32_t* nodes, uint32_t node_count) {
+uint32_t calculate_circular_layout(t27_arr_uint32_t_32 nodes, uint32_t node_count) {
     uint32_t center_x = (CANVAS_SIZE / 2);
     uint32_t center_y = (CANVAS_SIZE / 2);
     uint32_t radius = (CANVAS_SIZE / 3);
@@ -234,15 +241,15 @@ uint32_t calculate_circular_layout(uint32_t* nodes, uint32_t node_count) {
         uint32_t angle = ((i * 360) / node_count);
         uint32_t x = (center_x + ((radius * angle) / 360));
         uint32_t y = (center_y + ((radius * angle) / 360));
-        uint32_t node_id = get_viz_node_id(nodes[i]);
-        uint32_t status = get_node_visual_status(nodes[i]);
-        nodes[i] = create_visual_node(node_id, x, y, status);
+        uint32_t node_id = get_viz_node_id(nodes.v[i]);
+        uint32_t status = get_node_visual_status(nodes.v[i]);
+        nodes.v[i] = create_visual_node(node_id, x, y, status);
         i = (i + 1);
     }
     return node_count;
 }
 
-uint32_t calculate_hierarchical_layout(uint32_t* nodes, uint32_t* edges, uint32_t node_count, uint32_t edge_count) {
+uint32_t calculate_hierarchical_layout(t27_arr_uint32_t_32 nodes, t27_arr_uint32_t_64 edges, uint32_t node_count, uint32_t edge_count) {
     uint32_t level_count = 4;
     uint32_t nodes_per_level = (node_count / level_count);
     uint32_t i = 0;
@@ -251,9 +258,9 @@ uint32_t calculate_hierarchical_layout(uint32_t* nodes, uint32_t* edges, uint32_
     while ((i < node_count)) {
         uint32_t y = ((current_level * CANVAS_SIZE) / level_count);
         uint32_t x = ((nodes_in_level * CANVAS_SIZE) / nodes_per_level);
-        uint32_t node_id = get_viz_node_id(nodes[i]);
-        uint32_t status = get_node_visual_status(nodes[i]);
-        nodes[i] = create_visual_node(node_id, x, y, status);
+        uint32_t node_id = get_viz_node_id(nodes.v[i]);
+        uint32_t status = get_node_visual_status(nodes.v[i]);
+        nodes.v[i] = create_visual_node(node_id, x, y, status);
         nodes_in_level = (nodes_in_level + 1);
         if ((nodes_in_level >= nodes_per_level)) {
             nodes_in_level = 0;
@@ -264,7 +271,7 @@ uint32_t calculate_hierarchical_layout(uint32_t* nodes, uint32_t* edges, uint32_
     return node_count;
 }
 
-uint32_t apply_layout(uint32_t* nodes, uint32_t* edges, uint32_t node_count, uint32_t edge_count, uint32_t params) {
+uint32_t apply_layout(t27_arr_uint32_t_32 nodes, t27_arr_uint32_t_64 edges, uint32_t node_count, uint32_t edge_count, uint32_t params) {
     uint32_t algorithm = get_layout_algorithm(params);
     if ((algorithm == ALGORITHM_FORCE_DIRECTED)) {
         return calculate_force_layout(nodes, edges, node_count, edge_count, params);
@@ -285,7 +292,7 @@ uint32_t render_node(uint32_t node, uint32_t size, uint32_t color) {
     return (((((x & 0xFF) << 24) | ((y & 0xFF) << 16)) | ((size & 0xFF) << 8)) | (node_color & 0xFF));
 }
 
-uint32_t render_edge(uint32_t edge, uint32_t* nodes, uint32_t thickness) {
+uint32_t render_edge(uint32_t edge, t27_arr_uint32_t_32 nodes, uint32_t thickness) {
     uint32_t source = get_viz_edge_source(edge);
     uint32_t dest = get_viz_edge_dest(edge);
     uint32_t quality = get_viz_edge_quality(edge);
@@ -295,14 +302,14 @@ uint32_t render_edge(uint32_t edge, uint32_t* nodes, uint32_t thickness) {
     uint32_t dest_y = 0;
     uint32_t i = 0;
     while ((i < MAX_NODES)) {
-        uint32_t node_id = get_viz_node_id(nodes[i]);
+        uint32_t node_id = get_viz_node_id(nodes.v[i]);
         if ((node_id == source)) {
-            source_x = get_node_x_position(nodes[i]);
-            source_y = get_node_y_position(nodes[i]);
+            source_x = get_node_x_position(nodes.v[i]);
+            source_y = get_node_y_position(nodes.v[i]);
         }
         if ((node_id == dest)) {
-            dest_x = get_node_x_position(nodes[i]);
-            dest_y = get_node_y_position(nodes[i]);
+            dest_x = get_node_x_position(nodes.v[i]);
+            dest_y = get_node_y_position(nodes.v[i]);
         }
         i = (i + 1);
     }
@@ -317,17 +324,17 @@ uint32_t render_edge(uint32_t edge, uint32_t* nodes, uint32_t thickness) {
     return (((((source_x & 0xFF) << 24) | ((source_y & 0xFF) << 16)) | ((dest_x & 0xFF) << 8)) | (dest_y & 0xFF));
 }
 
-uint32_t create_visualization_frame(uint32_t* nodes, uint32_t* edges, uint32_t node_count, uint32_t edge_count) {
+uint32_t create_visualization_frame(t27_arr_uint32_t_32 nodes, t27_arr_uint32_t_64 edges, uint32_t node_count, uint32_t edge_count) {
     uint32_t frame_size = 0;
     uint32_t i = 0;
     while ((i < node_count)) {
-        uint32_t rendered = render_node(nodes[i], 20, COLOR_GREEN);
+        uint32_t rendered = render_node(nodes.v[i], 20, COLOR_GREEN);
         frame_size = (frame_size + 1);
         i = (i + 1);
     }
     uint32_t j = 0;
     while ((j < edge_count)) {
-        uint32_t rendered = render_edge(edges[j], nodes, 2);
+        uint32_t rendered = render_edge(edges.v[j], nodes, 2);
         frame_size = (frame_size + 1);
         j = (j + 1);
     }
@@ -351,7 +358,7 @@ uint32_t optimize_rendering(uint32_t node_count, uint32_t edge_count, uint32_t t
     }
 }
 
-uint32_t generate_topology_visualization(uint32_t* nodes, uint32_t* edges, uint32_t node_count, uint32_t edge_count, uint32_t layout_params) {
+uint32_t generate_topology_visualization(t27_arr_uint32_t_32 nodes, t27_arr_uint32_t_64 edges, uint32_t node_count, uint32_t edge_count, uint32_t layout_params) {
     uint32_t layout_result = apply_layout(nodes, edges, node_count, edge_count, layout_params);
     uint32_t frame = create_visualization_frame(nodes, edges, node_count, edge_count);
     uint32_t fps = 30;

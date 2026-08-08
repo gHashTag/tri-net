@@ -249,7 +249,8 @@ fn validate_documentation(func_docs: [MAX_FUNCTIONS]u32, func_count: u32) u32 {
     return ((((missing_descriptions & 0xFF) << 24) | 0) | ((missing_params & 0xFF) << 8)) | (quality_score & 0xFF);
 }
 fn generate_documentation_report(func_docs: [MAX_FUNCTIONS]u32, func_count: u32, xrefs: [MAX_FUNCTIONS]u32, xref_count: u32) u32 {
-    const doc_summary: u32 = generate_api_documentation(func_docs, func_count, func_docs, 0);
+    const empty_params: [MAX_PARAMETERS]u32 = .{ 0 } ** MAX_PARAMETERS;
+    const doc_summary: u32 = generate_api_documentation(func_docs, func_count, empty_params, 0);
     const documented_funcs: u32 = (doc_summary >> 24) & 0xFF;
     const coverage: u32 = calculate_documentation_coverage(documented_funcs, func_count);
     const validation: u32 = validate_documentation(func_docs, func_count);

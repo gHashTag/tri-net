@@ -24,6 +24,12 @@
 #define PATH_INVALID 0
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[4]; } t27_arr_uint32_t_4;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -37,16 +43,16 @@ uint32_t get_active_paths(uint32_t state);
 uint32_t get_current_path(uint32_t state);
 uint32_t get_flow_id(uint32_t state);
 uint32_t get_multipath_last_update(uint32_t state);
-uint32_t* create_path_array(uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3);
-uint32_t get_multipath(uint32_t* array, uint32_t index);
-uint32_t count_valid_paths(uint32_t* path_array);
-bool is_multipath_viable(uint32_t* path_array);
-uint32_t select_primary_path(uint32_t* path_array, uint32_t* quality_array);
-uint32_t calculate_path_diversity(uint32_t* path_array);
-uint32_t distribute_load(uint32_t* path_array, uint32_t current_path, uint32_t load_ratio);
-bool needs_failover(uint32_t* path_array, uint32_t current_path);
-uint32_t perform_failover(uint32_t state, uint32_t* path_array, uint32_t failed_path);
-uint32_t calculate_multipath_gain(uint32_t* path_array);
+t27_arr_uint32_t_4 create_path_array(uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3);
+uint32_t get_multipath(t27_arr_uint32_t_4 array, uint32_t index);
+uint32_t count_valid_paths(t27_arr_uint32_t_4 path_array);
+bool is_multipath_viable(t27_arr_uint32_t_4 path_array);
+uint32_t select_primary_path(t27_arr_uint32_t_4 path_array, t27_arr_uint32_t_4 quality_array);
+uint32_t calculate_path_diversity(t27_arr_uint32_t_4 path_array);
+uint32_t distribute_load(t27_arr_uint32_t_4 path_array, uint32_t current_path, uint32_t load_ratio);
+bool needs_failover(t27_arr_uint32_t_4 path_array, uint32_t current_path);
+uint32_t perform_failover(uint32_t state, t27_arr_uint32_t_4 path_array, uint32_t failed_path);
+uint32_t calculate_multipath_gain(t27_arr_uint32_t_4 path_array);
 
 /* -------------------------------------------------------
    Function implementations
@@ -92,19 +98,19 @@ uint32_t get_multipath_last_update(uint32_t state) {
     return (state & 0xFF);
 }
 
-uint32_t* create_path_array(uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3) {
-    return { p0, p1, p2, p3 };
+t27_arr_uint32_t_4 create_path_array(uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3) {
+    return (t27_arr_uint32_t_4){ .v = { p0, p1, p2, p3 } };
 }
 
-uint32_t get_multipath(uint32_t* array, uint32_t index) {
+uint32_t get_multipath(t27_arr_uint32_t_4 array, uint32_t index) {
     if ((index < 4)) {
-        return array[index];
+        return array.v[index];
     }
     return 0;
 }
 
-uint32_t count_valid_paths(uint32_t* path_array) {
-    int count = 0;
+uint32_t count_valid_paths(t27_arr_uint32_t_4 path_array) {
+    uint32_t count = 0;
     if ((get_path_valid(get_multipath(path_array, 0)) == PATH_VALID)) {
         count = (count + 1);
     }
@@ -120,11 +126,11 @@ uint32_t count_valid_paths(uint32_t* path_array) {
     return count;
 }
 
-bool is_multipath_viable(uint32_t* path_array) {
+bool is_multipath_viable(t27_arr_uint32_t_4 path_array) {
     return (count_valid_paths(path_array) >= MIN_PATHS);
 }
 
-uint32_t select_primary_path(uint32_t* path_array, uint32_t* quality_array) {
+uint32_t select_primary_path(t27_arr_uint32_t_4 path_array, t27_arr_uint32_t_4 quality_array) {
     if (!is_multipath_viable(path_array)) {
         return 0xFF;
     }
@@ -139,9 +145,9 @@ uint32_t select_primary_path(uint32_t* path_array, uint32_t* quality_array) {
     }
 }
 
-uint32_t calculate_path_diversity(uint32_t* path_array) {
-    int diversity_score = 0;
-    int hop1_set = 0;
+uint32_t calculate_path_diversity(t27_arr_uint32_t_4 path_array) {
+    uint32_t diversity_score = 0;
+    uint32_t hop1_set = 0;
     if ((get_path_valid(get_multipath(path_array, 0)) == PATH_VALID)) {
         hop1_set = (hop1_set | (1 << get_multipath_hop1(get_multipath(path_array, 0))));
     }
@@ -154,7 +160,7 @@ uint32_t calculate_path_diversity(uint32_t* path_array) {
     if ((get_path_valid(get_multipath(path_array, 3)) == PATH_VALID)) {
         hop1_set = (hop1_set | (1 << get_multipath_hop1(get_multipath(path_array, 3))));
     }
-    int count = 0;
+    uint32_t count = 0;
     if (((hop1_set & 0x01) == 0x01)) {
         count = (count + 1);
     }
@@ -182,14 +188,14 @@ uint32_t calculate_path_diversity(uint32_t* path_array) {
     return count;
 }
 
-uint32_t distribute_load(uint32_t* path_array, uint32_t current_path, uint32_t load_ratio) {
+uint32_t distribute_load(t27_arr_uint32_t_4 path_array, uint32_t current_path, uint32_t load_ratio) {
     int total_paths = count_valid_paths(path_array);
     if ((total_paths < 2)) {
         return current_path;
     }
     int next_path = ((current_path + 1) % total_paths);
-    int found = 0;
-    int attempts = 0;
+    uint32_t found = 0;
+    uint32_t attempts = 0;
     while (((found == 0) && (attempts < 4))) {
         if ((get_path_valid(get_multipath(path_array, next_path)) == PATH_VALID)) {
             found = 1;
@@ -204,14 +210,14 @@ uint32_t distribute_load(uint32_t* path_array, uint32_t current_path, uint32_t l
     return current_path;
 }
 
-bool needs_failover(uint32_t* path_array, uint32_t current_path) {
+bool needs_failover(t27_arr_uint32_t_4 path_array, uint32_t current_path) {
     if ((current_path >= 4)) {
         return false;
     }
     return (get_path_valid(get_multipath(path_array, current_path)) == PATH_INVALID);
 }
 
-uint32_t perform_failover(uint32_t state, uint32_t* path_array, uint32_t failed_path) {
+uint32_t perform_failover(uint32_t state, t27_arr_uint32_t_4 path_array, uint32_t failed_path) {
     int active = get_active_paths(state);
     int current = get_current_path(state);
     int flow = get_flow_id(state);
@@ -224,7 +230,7 @@ uint32_t perform_failover(uint32_t state, uint32_t* path_array, uint32_t failed_
     return state;
 }
 
-uint32_t calculate_multipath_gain(uint32_t* path_array) {
+uint32_t calculate_multipath_gain(t27_arr_uint32_t_4 path_array) {
     int valid_paths = count_valid_paths(path_array);
     if ((valid_paths >= 2)) {
         return (valid_paths * 30);
@@ -255,64 +261,64 @@ void test_create_multipath_state_basic(void) {
 }
 
 void test_count_valid_paths_all(void) {
-    uint64_t array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
+    t27_arr_uint32_t_4 array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
     (void)array;
     t27_assert((count_valid_paths(array) == 3), "3 valid paths");
 }
 
 void test_count_valid_paths_some(void) {
-    uint64_t array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
+    t27_arr_uint32_t_4 array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
     (void)array;
     t27_assert((count_valid_paths(array) == 2), "2 valid paths");
 }
 
 void test_is_multipath_viable_true(void) {
-    uint64_t array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_INVALID, 0, 0, 0));
+    t27_arr_uint32_t_4 array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_INVALID, 0, 0, 0));
     (void)array;
     t27_assert((is_multipath_viable(array) == true), "viable");
 }
 
 void test_is_multipath_viable_false(void) {
-    uint64_t array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_INVALID, 0, 0, 0));
+    t27_arr_uint32_t_4 array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_INVALID, 0, 0, 0));
     (void)array;
     t27_assert((is_multipath_viable(array) == false), "not viable");
 }
 
 void test_select_primary_path_first(void) {
-    uint64_t array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
+    t27_arr_uint32_t_4 array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
     (void)array;
     t27_assert((select_primary_path(array, create_path_array(0, 0, 0, 0)) == 0), "first path selected");
 }
 
 void test_select_primary_path_skip_invalid(void) {
-    uint64_t array = create_path_array(create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
+    t27_arr_uint32_t_4 array = create_path_array(create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
     (void)array;
     t27_assert((select_primary_path(array, create_path_array(0, 0, 0, 0)) == 1), "second path selected");
 }
 
 void test_calculate_path_diversity_high(void) {
-    uint64_t array = create_path_array(create_multipath(PATH_VALID, 1, 20, 30), create_multipath(PATH_VALID, 2, 21, 31), create_multipath(PATH_VALID, 3, 22, 32), create_multipath(PATH_VALID, 4, 23, 33));
+    t27_arr_uint32_t_4 array = create_path_array(create_multipath(PATH_VALID, 1, 20, 30), create_multipath(PATH_VALID, 2, 21, 31), create_multipath(PATH_VALID, 3, 22, 32), create_multipath(PATH_VALID, 4, 23, 33));
     (void)array;
     int diversity = calculate_path_diversity(array);
     t27_assert((diversity == 4), "4 different first hops");
 }
 
 void test_calculate_path_diversity_low(void) {
-    uint64_t array = create_path_array(create_multipath(PATH_VALID, 1, 20, 30), create_multipath(PATH_VALID, 1, 21, 31), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_INVALID, 0, 0, 0));
+    t27_arr_uint32_t_4 array = create_path_array(create_multipath(PATH_VALID, 1, 20, 30), create_multipath(PATH_VALID, 1, 21, 31), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_INVALID, 0, 0, 0));
     (void)array;
     int diversity = calculate_path_diversity(array);
     t27_assert((diversity == 1), "1 unique first hop");
 }
 
 void test_distribute_load_round_robin(void) {
-    uint64_t array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
+    t27_arr_uint32_t_4 array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
     (void)array;
     int next = distribute_load(array, 0, 0);
     t27_assert((next == 1), "distribute to path 1");
 }
 
 void test_distribute_load_wraps(void) {
-    uint64_t array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
+    t27_arr_uint32_t_4 array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
     (void)array;
     int next1 = distribute_load(array, 1, 0);
     t27_assert((next1 == 2), "distribute to path 2");
@@ -323,13 +329,13 @@ void test_distribute_load_wraps(void) {
 }
 
 void test_needs_failover_true(void) {
-    uint64_t array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_VALID, 40, 50, 60));
+    t27_arr_uint32_t_4 array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_VALID, 40, 50, 60));
     (void)array;
     t27_assert((needs_failover(array, 1) == true), "needs failover");
 }
 
 void test_needs_failover_false(void) {
-    uint64_t array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_VALID, 15, 25, 35));
+    t27_arr_uint32_t_4 array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_VALID, 15, 25, 35));
     (void)array;
     t27_assert((needs_failover(array, 1) == false), "no failover needed");
 }
@@ -337,14 +343,14 @@ void test_needs_failover_false(void) {
 void test_perform_failover_updates_state(void) {
     uint64_t state = create_multipath_state(3, 1, 100, 50);
     (void)state;
-    uint64_t array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_VALID, 40, 50, 60));
+    t27_arr_uint32_t_4 array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_VALID, 40, 50, 60));
     (void)array;
     int new_state = perform_failover(state, array, 1);
     t27_assert((get_current_path(new_state) != 1), "path changed");
 }
 
 void test_calculate_multipath_gain(void) {
-    uint64_t array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
+    t27_arr_uint32_t_4 array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
     (void)array;
     int gain = calculate_multipath_gain(array);
     t27_assert((gain > 0), "multipath provides gain");

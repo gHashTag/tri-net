@@ -28,6 +28,12 @@
 #define TYPE_TREND 3
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[16]; } t27_arr_uint32_t_16;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -41,18 +47,18 @@ uint32_t get_anomaly_metric_id(uint32_t report);
 uint32_t get_severity(uint32_t report);
 uint32_t get_anomaly_type(uint32_t report);
 uint32_t get_anomaly_confidence(uint32_t report);
-uint32_t calculate_baseline(uint32_t* history, uint32_t count);
-uint32_t calculate_variance(uint32_t* history, uint32_t count, uint32_t baseline);
+uint32_t calculate_baseline(t27_arr_uint32_t_16 history, uint32_t count);
+uint32_t calculate_variance(t27_arr_uint32_t_16 history, uint32_t count, uint32_t baseline);
 uint32_t detect_spike(uint32_t current, uint32_t baseline, uint32_t variance);
 uint32_t detect_drop(uint32_t current, uint32_t baseline, uint32_t variance);
-uint32_t detect_pattern(uint32_t* history, uint32_t count);
-uint32_t detect_trend(uint32_t* history, uint32_t count);
+uint32_t detect_pattern(t27_arr_uint32_t_16 history, uint32_t count);
+uint32_t detect_trend(t27_arr_uint32_t_16 history, uint32_t count);
 uint32_t calculate_severity(uint32_t current, uint32_t baseline);
-uint32_t detect_anomaly(uint32_t* history, uint32_t count, uint32_t current_reading);
+uint32_t detect_anomaly(t27_arr_uint32_t_16 history, uint32_t count, uint32_t current_reading);
 uint32_t is_critical_anomaly(uint32_t report);
 uint32_t get_anomaly_description(uint32_t report);
-uint32_t correlate_metrics(uint32_t metric1_id, uint32_t metric2_id, uint32_t* history1, uint32_t* history2, uint32_t count);
-uint32_t detect_coordinated_attack(uint32_t* anomalies, uint32_t count);
+uint32_t correlate_metrics(uint32_t metric1_id, uint32_t metric2_id, t27_arr_uint32_t_16 history1, t27_arr_uint32_t_16 history2, uint32_t count);
+uint32_t detect_coordinated_attack(t27_arr_uint32_t_16 anomalies, uint32_t count);
 uint32_t calculate_anomaly_confidence(uint32_t report, uint32_t historical_confidence);
 
 /* -------------------------------------------------------
@@ -99,12 +105,12 @@ uint32_t get_anomaly_confidence(uint32_t report) {
     return (report & 0x3FFF);
 }
 
-uint32_t calculate_baseline(uint32_t* history, uint32_t count) {
+uint32_t calculate_baseline(t27_arr_uint32_t_16 history, uint32_t count) {
     uint32_t sum = 0;
     uint32_t valid_count = 0;
     uint32_t i = 0;
     while ((i < count)) {
-        uint32_t value = get_metric_value(history[i]);
+        uint32_t value = get_metric_value(history.v[i]);
         sum = (sum + value);
         valid_count = (valid_count + 1);
         i = (i + 1);
@@ -116,11 +122,11 @@ uint32_t calculate_baseline(uint32_t* history, uint32_t count) {
     }
 }
 
-uint32_t calculate_variance(uint32_t* history, uint32_t count, uint32_t baseline) {
+uint32_t calculate_variance(t27_arr_uint32_t_16 history, uint32_t count, uint32_t baseline) {
     uint32_t sum_diff = 0;
     uint32_t i = 0;
     while ((i < count)) {
-        uint32_t value = get_metric_value(history[i]);
+        uint32_t value = get_metric_value(history.v[i]);
         uint32_t diff = 0;
         if ((value > baseline)) {
             diff = (value - baseline);
@@ -167,16 +173,16 @@ uint32_t detect_drop(uint32_t current, uint32_t baseline, uint32_t variance) {
     return 0;
 }
 
-uint32_t detect_pattern(uint32_t* history, uint32_t count) {
+uint32_t detect_pattern(t27_arr_uint32_t_16 history, uint32_t count) {
     if ((count < 4)) {
         return 0;
     }
     uint32_t pattern_count = 0;
     uint32_t i = 0;
     while ((i < (count - 2))) {
-        uint32_t val1 = get_metric_value(history[i]);
-        uint32_t val2 = get_metric_value(history[(i + 1)]);
-        uint32_t val3 = get_metric_value(history[(i + 2)]);
+        uint32_t val1 = get_metric_value(history.v[i]);
+        uint32_t val2 = get_metric_value(history.v[(i + 1)]);
+        uint32_t val3 = get_metric_value(history.v[(i + 2)]);
         if ((((val1 > val2) && (val2 < val3)) || ((val1 < val2) && (val2 > val3)))) {
             pattern_count = (pattern_count + 1);
         }
@@ -189,7 +195,7 @@ uint32_t detect_pattern(uint32_t* history, uint32_t count) {
     }
 }
 
-uint32_t detect_trend(uint32_t* history, uint32_t count) {
+uint32_t detect_trend(t27_arr_uint32_t_16 history, uint32_t count) {
     if ((count < 4)) {
         return 0;
     }
@@ -197,8 +203,8 @@ uint32_t detect_trend(uint32_t* history, uint32_t count) {
     uint32_t decreases = 0;
     uint32_t i = 0;
     while ((i < (count - 1))) {
-        uint32_t current = get_metric_value(history[i]);
-        uint32_t next = get_metric_value(history[(i + 1)]);
+        uint32_t current = get_metric_value(history.v[i]);
+        uint32_t next = get_metric_value(history.v[(i + 1)]);
         if ((next > current)) {
             increases = (increases + 1);
         } else if ((next < current)) {
@@ -233,7 +239,7 @@ uint32_t calculate_severity(uint32_t current, uint32_t baseline) {
     }
 }
 
-uint32_t detect_anomaly(uint32_t* history, uint32_t count, uint32_t current_reading) {
+uint32_t detect_anomaly(t27_arr_uint32_t_16 history, uint32_t count, uint32_t current_reading) {
     if ((count < BASELINE_WINDOW)) {
         return 0;
     }
@@ -287,17 +293,17 @@ uint32_t get_anomaly_description(uint32_t report) {
     }
 }
 
-uint32_t correlate_metrics(uint32_t metric1_id, uint32_t metric2_id, uint32_t* history1, uint32_t* history2, uint32_t count) {
+uint32_t correlate_metrics(uint32_t metric1_id, uint32_t metric2_id, t27_arr_uint32_t_16 history1, t27_arr_uint32_t_16 history2, uint32_t count) {
     if ((count < 4)) {
         return 0;
     }
     uint32_t same_direction = 0;
     uint32_t i = 0;
     while ((i < (count - 1))) {
-        uint32_t val1_current = get_metric_value(history1[i]);
-        uint32_t val1_next = get_metric_value(history1[(i + 1)]);
-        uint32_t val2_current = get_metric_value(history2[i]);
-        uint32_t val2_next = get_metric_value(history2[(i + 1)]);
+        uint32_t val1_current = get_metric_value(history1.v[i]);
+        uint32_t val1_next = get_metric_value(history1.v[(i + 1)]);
+        uint32_t val2_current = get_metric_value(history2.v[i]);
+        uint32_t val2_next = get_metric_value(history2.v[(i + 1)]);
         uint32_t direction1 = 0;
         if ((val1_next > val1_current)) {
             direction1 = 1;
@@ -322,11 +328,11 @@ uint32_t correlate_metrics(uint32_t metric1_id, uint32_t metric2_id, uint32_t* h
     }
 }
 
-uint32_t detect_coordinated_attack(uint32_t* anomalies, uint32_t count) {
+uint32_t detect_coordinated_attack(t27_arr_uint32_t_16 anomalies, uint32_t count) {
     uint32_t critical_count = 0;
     uint32_t i = 0;
     while ((i < count)) {
-        if ((is_critical_anomaly(anomalies[i]) == 1)) {
+        if ((is_critical_anomaly(anomalies.v[i]) == 1)) {
             critical_count = (critical_count + 1);
         }
         i = (i + 1);
@@ -372,7 +378,7 @@ void test_anomaly_report_roundtrip(void) {
 }
 
 void test_baseline_and_variance(void) {
-    uint32_t h[16] = { create_metric_reading(1,100,0,50), create_metric_reading(1,120,1,50), create_metric_reading(1,100,2,50), create_metric_reading(1,120,3,50), create_metric_reading(1,100,4,50), create_metric_reading(1,120,5,50), create_metric_reading(1,100,6,50), create_metric_reading(1,120,7,50), 0, 0, 0, 0, 0, 0, 0, 0 };
+    t27_arr_uint32_t_16 h = { .v = { create_metric_reading(1,100,0,50), create_metric_reading(1,120,1,50), create_metric_reading(1,100,2,50), create_metric_reading(1,120,3,50), create_metric_reading(1,100,4,50), create_metric_reading(1,120,5,50), create_metric_reading(1,100,6,50), create_metric_reading(1,120,7,50), 0, 0, 0, 0, 0, 0, 0, 0 } };
     uint64_t b = calculate_baseline(h, 8);
     (void)b;
     t27_assert((b == 110), "baseline is the mean");

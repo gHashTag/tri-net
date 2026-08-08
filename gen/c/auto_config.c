@@ -39,6 +39,12 @@
 #define PARAM_SECURITY_LEVEL 7
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[16]; } t27_arr_uint32_t_16;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -48,17 +54,17 @@ uint32_t get_param_value(uint32_t param);
 uint32_t get_param_scope(uint32_t param);
 uint32_t get_param_status(uint32_t param);
 uint32_t default_config_at(uint32_t index);
-uint32_t get_config_value(uint32_t* config, uint32_t param_id);
-uint32_t set_config_value(uint32_t* config, uint32_t param_id, uint32_t new_value);
+uint32_t get_config_value(t27_arr_uint32_t_16 config, uint32_t param_id);
+uint32_t set_config_value(t27_arr_uint32_t_16 config, uint32_t param_id, uint32_t new_value);
 uint32_t discover_network_params(uint32_t node_count, uint32_t interference_level);
-uint32_t apply_config(uint32_t* config, uint32_t param_id);
-uint32_t apply_all_pending(uint32_t* config);
-uint32_t validate_config(uint32_t* config, uint32_t param_id);
-uint32_t optimize_config(uint32_t* config, uint32_t network_load, uint32_t error_rate);
-uint32_t sync_config(uint32_t* local_config, uint32_t* remote_config);
-uint32_t rollback_config(uint32_t* config, uint32_t* backup_config);
-uint32_t backup_element(uint32_t* config, uint32_t index);
-uint32_t calculate_config_drift(uint32_t* config1, uint32_t* config2);
+uint32_t apply_config(t27_arr_uint32_t_16 config, uint32_t param_id);
+uint32_t apply_all_pending(t27_arr_uint32_t_16 config);
+uint32_t validate_config(t27_arr_uint32_t_16 config, uint32_t param_id);
+uint32_t optimize_config(t27_arr_uint32_t_16 config, uint32_t network_load, uint32_t error_rate);
+uint32_t sync_config(t27_arr_uint32_t_16 local_config, t27_arr_uint32_t_16 remote_config);
+uint32_t rollback_config(t27_arr_uint32_t_16 config, t27_arr_uint32_t_16 backup_config);
+uint32_t backup_element(t27_arr_uint32_t_16 config, uint32_t index);
+uint32_t calculate_config_drift(t27_arr_uint32_t_16 config1, t27_arr_uint32_t_16 config2);
 uint32_t discover_neighbors(uint32_t node_id, uint32_t scan_count);
 uint32_t assign_node_role(uint32_t node_id, uint32_t capabilities);
 
@@ -114,26 +120,26 @@ uint32_t default_config_at(uint32_t index) {
     return 0;
 }
 
-uint32_t get_config_value(uint32_t* config, uint32_t param_id) {
+uint32_t get_config_value(t27_arr_uint32_t_16 config, uint32_t param_id) {
     uint32_t i = 0;
     while ((i < MAX_PARAMS)) {
-        uint32_t current_param_id = get_param_id(config[i]);
+        uint32_t current_param_id = get_param_id(config.v[i]);
         if ((current_param_id == param_id)) {
-            return get_param_value(config[i]);
+            return get_param_value(config.v[i]);
         }
         i = (i + 1);
     }
     return 0;
 }
 
-uint32_t set_config_value(uint32_t* config, uint32_t param_id, uint32_t new_value) {
+uint32_t set_config_value(t27_arr_uint32_t_16 config, uint32_t param_id, uint32_t new_value) {
     uint32_t i = 0;
     while ((i < MAX_PARAMS)) {
-        uint32_t current_param_id = get_param_id(config[i]);
+        uint32_t current_param_id = get_param_id(config.v[i]);
         if ((current_param_id == param_id)) {
-            uint32_t scope = get_param_scope(config[i]);
+            uint32_t scope = get_param_scope(config.v[i]);
             uint32_t status = STATUS_PENDING;
-            config[i] = create_config_param(param_id, new_value, scope, status);
+            config.v[i] = create_config_param(param_id, new_value, scope, status);
             return 1;
         }
         i = (i + 1);
@@ -142,7 +148,7 @@ uint32_t set_config_value(uint32_t* config, uint32_t param_id, uint32_t new_valu
 }
 
 uint32_t discover_network_params(uint32_t node_count, uint32_t interference_level) {
-    uint32_t config[MAX_PARAMS] = { default_config_at(0), default_config_at(1), default_config_at(2), default_config_at(3), default_config_at(4), default_config_at(5), default_config_at(6), default_config_at(7), 0, 0, 0, 0, 0, 0, 0, 0 };
+    t27_arr_uint32_t_16 config = { .v = { default_config_at(0), default_config_at(1), default_config_at(2), default_config_at(3), default_config_at(4), default_config_at(5), default_config_at(6), default_config_at(7), 0, 0, 0, 0, 0, 0, 0, 0 } };
     uint32_t tx_power = 50;
     if ((node_count < 4)) {
         tx_power = 30;
@@ -167,15 +173,15 @@ uint32_t discover_network_params(uint32_t node_count, uint32_t interference_leve
     return 1;
 }
 
-uint32_t apply_config(uint32_t* config, uint32_t param_id) {
+uint32_t apply_config(t27_arr_uint32_t_16 config, uint32_t param_id) {
     uint32_t i = 0;
     while ((i < MAX_PARAMS)) {
-        uint32_t current_param_id = get_param_id(config[i]);
+        uint32_t current_param_id = get_param_id(config.v[i]);
         if ((current_param_id == param_id)) {
-            uint32_t value = get_param_value(config[i]);
-            uint32_t scope = get_param_scope(config[i]);
+            uint32_t value = get_param_value(config.v[i]);
+            uint32_t scope = get_param_scope(config.v[i]);
             uint32_t success = 1;
-            config[i] = create_config_param(param_id, value, scope, STATUS_APPLIED);
+            config.v[i] = create_config_param(param_id, value, scope, STATUS_APPLIED);
             return success;
         }
         i = (i + 1);
@@ -183,13 +189,13 @@ uint32_t apply_config(uint32_t* config, uint32_t param_id) {
     return 0;
 }
 
-uint32_t apply_all_pending(uint32_t* config) {
+uint32_t apply_all_pending(t27_arr_uint32_t_16 config) {
     uint32_t applied_count = 0;
     uint32_t i = 0;
     while ((i < MAX_PARAMS)) {
-        uint32_t status = get_param_status(config[i]);
+        uint32_t status = get_param_status(config.v[i]);
         if ((status == STATUS_PENDING)) {
-            uint32_t param_id = get_param_id(config[i]);
+            uint32_t param_id = get_param_id(config.v[i]);
             if ((apply_config(config, param_id) == 1)) {
                 applied_count = (applied_count + 1);
             }
@@ -199,7 +205,7 @@ uint32_t apply_all_pending(uint32_t* config) {
     return applied_count;
 }
 
-uint32_t validate_config(uint32_t* config, uint32_t param_id) {
+uint32_t validate_config(t27_arr_uint32_t_16 config, uint32_t param_id) {
     uint32_t value = get_config_value(config, param_id);
     if ((param_id == PARAM_TX_POWER)) {
         if (((value >= 0) && (value <= 100))) {
@@ -237,7 +243,7 @@ uint32_t validate_config(uint32_t* config, uint32_t param_id) {
     return 0;
 }
 
-uint32_t optimize_config(uint32_t* config, uint32_t network_load, uint32_t error_rate) {
+uint32_t optimize_config(t27_arr_uint32_t_16 config, uint32_t network_load, uint32_t error_rate) {
     uint32_t optimizations = 0;
     if ((network_load > 80)) {
         uint32_t current_retries = get_config_value(config, PARAM_RETRY_LIMIT);
@@ -263,19 +269,19 @@ uint32_t optimize_config(uint32_t* config, uint32_t network_load, uint32_t error
     return optimizations;
 }
 
-uint32_t sync_config(uint32_t* local_config, uint32_t* remote_config) {
+uint32_t sync_config(t27_arr_uint32_t_16 local_config, t27_arr_uint32_t_16 remote_config) {
     uint32_t synced_count = 0;
     uint32_t i = 0;
     while ((i < MAX_PARAMS)) {
-        uint32_t local_param_id = get_param_id(local_config[i]);
-        uint32_t local_value = get_param_value(local_config[i]);
-        uint32_t local_scope = get_param_scope(local_config[i]);
+        uint32_t local_param_id = get_param_id(local_config.v[i]);
+        uint32_t local_value = get_param_value(local_config.v[i]);
+        uint32_t local_scope = get_param_scope(local_config.v[i]);
         uint32_t j = 0;
         while ((j < MAX_PARAMS)) {
-            uint32_t remote_param_id = get_param_id(remote_config[j]);
+            uint32_t remote_param_id = get_param_id(remote_config.v[j]);
             if ((remote_param_id == local_param_id)) {
-                uint32_t remote_value = get_param_value(remote_config[j]);
-                uint32_t remote_scope = get_param_scope(remote_config[j]);
+                uint32_t remote_value = get_param_value(remote_config.v[j]);
+                uint32_t remote_scope = get_param_scope(remote_config.v[j]);
                 if (((remote_scope == SCOPE_NETWORK) || (remote_scope == SCOPE_GLOBAL))) {
                     if ((remote_value != local_value)) {
                         set_config_value(local_config, local_param_id, remote_value);
@@ -291,18 +297,18 @@ break;
     return synced_count;
 }
 
-uint32_t rollback_config(uint32_t* config, uint32_t* backup_config) {
+uint32_t rollback_config(t27_arr_uint32_t_16 config, t27_arr_uint32_t_16 backup_config) {
     uint32_t rolled_back = 0;
     uint32_t i = 0;
     while ((i < MAX_PARAMS)) {
-        uint32_t backup_param_id = get_param_id(backup_config[i]);
-        uint32_t backup_value = get_param_value(backup_config[i]);
-        uint32_t backup_scope = get_param_scope(backup_config[i]);
+        uint32_t backup_param_id = get_param_id(backup_config.v[i]);
+        uint32_t backup_value = get_param_value(backup_config.v[i]);
+        uint32_t backup_scope = get_param_scope(backup_config.v[i]);
         uint32_t j = 0;
         while ((j < MAX_PARAMS)) {
-            uint32_t local_param_id = get_param_id(config[j]);
+            uint32_t local_param_id = get_param_id(config.v[j]);
             if ((local_param_id == backup_param_id)) {
-                config[j] = create_config_param(backup_param_id, backup_value, backup_scope, STATUS_PENDING);
+                config.v[j] = create_config_param(backup_param_id, backup_value, backup_scope, STATUS_PENDING);
                 rolled_back = (rolled_back + 1);
 break;
             }
@@ -313,22 +319,22 @@ break;
     return rolled_back;
 }
 
-uint32_t backup_element(uint32_t* config, uint32_t index) {
-    return config[((size_t)(index))];
+uint32_t backup_element(t27_arr_uint32_t_16 config, uint32_t index) {
+    return config.v[((size_t)(index))];
 }
 
-uint32_t calculate_config_drift(uint32_t* config1, uint32_t* config2) {
+uint32_t calculate_config_drift(t27_arr_uint32_t_16 config1, t27_arr_uint32_t_16 config2) {
     uint32_t drift_count = 0;
     uint32_t total_params = 0;
     uint32_t i = 0;
     while ((i < MAX_PARAMS)) {
-        uint32_t param1_id = get_param_id(config1[i]);
-        uint32_t param1_value = get_param_value(config1[i]);
+        uint32_t param1_id = get_param_id(config1.v[i]);
+        uint32_t param1_value = get_param_value(config1.v[i]);
         uint32_t j = 0;
         while ((j < MAX_PARAMS)) {
-            uint32_t param2_id = get_param_id(config2[j]);
+            uint32_t param2_id = get_param_id(config2.v[j]);
             if ((param1_id == param2_id)) {
-                uint32_t param2_value = get_param_value(config2[j]);
+                uint32_t param2_value = get_param_value(config2.v[j]);
                 if ((param1_value != param2_value)) {
                     drift_count = (drift_count + 1);
                 }
@@ -388,7 +394,7 @@ void test_default_table_values_survive(void) {
 }
 
 void test_config_lookup_finds_param(void) {
-    uint32_t cfg[16] = { default_config_at(0), default_config_at(1), default_config_at(2), default_config_at(3), default_config_at(4), default_config_at(5), default_config_at(6), default_config_at(7), 0, 0, 0, 0, 0, 0, 0, 0 };
+    t27_arr_uint32_t_16 cfg = { .v = { default_config_at(0), default_config_at(1), default_config_at(2), default_config_at(3), default_config_at(4), default_config_at(5), default_config_at(6), default_config_at(7), 0, 0, 0, 0, 0, 0, 0, 0 } };
     t27_assert((get_config_value(cfg, PARAM_RETRY_LIMIT) == 3), "retry limit found");
     t27_assert((get_config_value(cfg, 99) == 0), "unknown param yields 0");
 }

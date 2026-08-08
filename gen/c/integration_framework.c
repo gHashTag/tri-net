@@ -52,6 +52,14 @@
 #define RESOURCE_STORAGE 3
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[16]; } t27_arr_uint32_t_16;
+typedef struct { uint32_t v[32]; } t27_arr_uint32_t_32;
+typedef struct { uint32_t v[64]; } t27_arr_uint32_t_64;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -65,44 +73,44 @@ uint32_t get_integration_message_id(uint32_t message);
 uint32_t get_integration_message_source(uint32_t message);
 uint32_t get_integration_message_dest(uint32_t message);
 uint32_t get_integration_message_type(uint32_t message);
-uint32_t send_message(uint32_t* modules, uint32_t message);
-uint32_t receive_message(uint32_t* messages, uint32_t message_count, uint32_t module_id);
+uint32_t send_message(t27_arr_uint32_t_16 modules, uint32_t message);
+uint32_t receive_message(t27_arr_uint32_t_32 messages, uint32_t message_count, uint32_t module_id);
 uint32_t create_event(uint32_t event_id, uint32_t event_type, uint32_t source, uint32_t data);
 uint32_t get_event_id(uint32_t event);
 uint32_t get_event_type(uint32_t event);
 uint32_t get_event_source(uint32_t event);
 uint32_t get_event_data(uint32_t event);
-uint32_t subscribe_to_event(uint32_t module_id, uint32_t event_type, uint32_t* subscriptions);
-uint32_t publish_event(uint32_t event, uint32_t* subscriptions, uint32_t* modules);
+uint32_t subscribe_to_event(uint32_t module_id, uint32_t event_type, t27_arr_uint32_t_64 subscriptions);
+uint32_t publish_event(uint32_t event, t27_arr_uint32_t_64 subscriptions, t27_arr_uint32_t_16 modules);
 uint32_t create_state_sync(uint32_t module_id, uint32_t state_version, uint32_t state_data, uint32_t checksum);
 uint32_t get_sync_module_id(uint32_t sync);
 uint32_t get_sync_state_version(uint32_t sync);
 uint32_t get_sync_state_data(uint32_t sync);
 uint32_t get_sync_checksum(uint32_t sync);
-uint32_t synchronize_states(uint32_t* modules, uint32_t module_count, uint32_t sync_requests);
+uint32_t synchronize_states(t27_arr_uint32_t_16 modules, uint32_t module_count, uint32_t sync_requests);
 uint32_t create_error_propagation(uint32_t source_id, uint32_t error_code, uint32_t severity, uint32_t timestamp);
 uint32_t get_error_source(uint32_t err_word);
 uint32_t get_error_code(uint32_t err_word);
 uint32_t get_error_severity(uint32_t err_word);
 uint32_t get_error_timestamp(uint32_t err_word);
-uint32_t propagate_error(uint32_t err_word, uint32_t* modules, uint32_t module_count);
-uint32_t load_module(uint32_t module_id, uint32_t module_type, uint32_t priority, uint32_t* modules);
-uint32_t unload_module(uint32_t module_id, uint32_t* modules);
+uint32_t propagate_error(uint32_t err_word, t27_arr_uint32_t_16 modules, uint32_t module_count);
+uint32_t load_module(uint32_t module_id, uint32_t module_type, uint32_t priority, t27_arr_uint32_t_16 modules);
+uint32_t unload_module(uint32_t module_id, t27_arr_uint32_t_16 modules);
 uint32_t create_dependency(uint32_t module_id, uint32_t depends_on, uint32_t dependency_type, uint32_t required);
 uint32_t get_dependency_module_id(uint32_t dep);
 uint32_t get_dependency_depends_on(uint32_t dep);
 uint32_t get_dependency_type(uint32_t dep);
 uint32_t get_dependency_required(uint32_t dep);
-uint32_t check_dependencies(uint32_t module_id, uint32_t* dependencies, uint32_t* loaded_modules, uint32_t module_count);
+uint32_t check_dependencies(uint32_t module_id, t27_arr_uint32_t_16 dependencies, t27_arr_uint32_t_16 loaded_modules, uint32_t module_count);
 uint32_t create_resource_request(uint32_t module_id, uint32_t resource_type, uint32_t amount, uint32_t priority);
 uint32_t get_resource_request_module(uint32_t req);
 uint32_t get_resource_request_type(uint32_t req);
 uint32_t get_resource_request_amount(uint32_t req);
 uint32_t get_resource_request_priority(uint32_t req);
-uint32_t allocate_resources(uint32_t* requests, uint32_t request_count, uint32_t available_resources);
+uint32_t allocate_resources(t27_arr_uint32_t_32 requests, uint32_t request_count, uint32_t available_resources);
 uint32_t create_integration_report(uint32_t loaded_modules, uint32_t active_messages, uint32_t events_processed, uint32_t errors_handled);
-uint32_t generate_integration_stats(uint32_t* modules, uint32_t module_count, uint32_t* messages, uint32_t message_count, uint32_t* events, uint32_t event_count);
-uint32_t validate_integration_health(uint32_t* modules, uint32_t module_count);
+uint32_t generate_integration_stats(t27_arr_uint32_t_16 modules, uint32_t module_count, t27_arr_uint32_t_32 messages, uint32_t message_count, t27_arr_uint32_t_64 events, uint32_t event_count);
+uint32_t validate_integration_health(t27_arr_uint32_t_16 modules, uint32_t module_count);
 
 /* -------------------------------------------------------
    Function implementations
@@ -148,14 +156,14 @@ uint32_t get_integration_message_type(uint32_t message) {
     return (message & 0xFF);
 }
 
-uint32_t send_message(uint32_t* modules, uint32_t message) {
+uint32_t send_message(t27_arr_uint32_t_16 modules, uint32_t message) {
     uint32_t dest = get_integration_message_dest(message);
     uint32_t msg_type = get_integration_message_type(message);
     uint32_t i = 0;
     while ((i < MAX_MODULES)) {
-        uint32_t module_id = get_registered_module_id(modules[i]);
+        uint32_t module_id = get_registered_module_id(modules.v[i]);
         if ((module_id == dest)) {
-            uint32_t status = get_registered_module_status(modules[i]);
+            uint32_t status = get_registered_module_status(modules.v[i]);
             if (((status == STATUS_ACTIVE) || (status == STATUS_BUSY))) {
                 return 1;
             } else {
@@ -167,10 +175,10 @@ uint32_t send_message(uint32_t* modules, uint32_t message) {
     return 0;
 }
 
-uint32_t receive_message(uint32_t* messages, uint32_t message_count, uint32_t module_id) {
+uint32_t receive_message(t27_arr_uint32_t_32 messages, uint32_t message_count, uint32_t module_id) {
     uint32_t i = 0;
     while ((i < message_count)) {
-        uint32_t dest = get_integration_message_dest(messages[i]);
+        uint32_t dest = get_integration_message_dest(messages.v[i]);
         if ((dest == module_id)) {
             return i;
         }
@@ -199,12 +207,12 @@ uint32_t get_event_data(uint32_t event) {
     return (event & 0xFFF);
 }
 
-uint32_t subscribe_to_event(uint32_t module_id, uint32_t event_type, uint32_t* subscriptions) {
+uint32_t subscribe_to_event(uint32_t module_id, uint32_t event_type, t27_arr_uint32_t_64 subscriptions) {
     uint32_t subscription_id = ((module_id * 10) + event_type);
     uint32_t i = 0;
     while ((i < MAX_EVENTS)) {
-        if ((subscriptions[i] == 0)) {
-            subscriptions[i] = create_event(subscription_id, event_type, module_id, 0);
+        if ((subscriptions.v[i] == 0)) {
+            subscriptions.v[i] = create_event(subscription_id, event_type, module_id, 0);
             return 1;
         }
         i = (i + 1);
@@ -212,14 +220,14 @@ uint32_t subscribe_to_event(uint32_t module_id, uint32_t event_type, uint32_t* s
     return 0;
 }
 
-uint32_t publish_event(uint32_t event, uint32_t* subscriptions, uint32_t* modules) {
+uint32_t publish_event(uint32_t event, t27_arr_uint32_t_64 subscriptions, t27_arr_uint32_t_16 modules) {
     uint32_t event_type = get_event_type(event);
     uint32_t notified_count = 0;
     uint32_t i = 0;
     while ((i < MAX_EVENTS)) {
-        uint32_t sub_event_type = get_event_type(subscriptions[i]);
+        uint32_t sub_event_type = get_event_type(subscriptions.v[i]);
         if ((sub_event_type == event_type)) {
-            uint32_t source = get_event_source(subscriptions[i]);
+            uint32_t source = get_event_source(subscriptions.v[i]);
             uint32_t module_id = source;
             uint32_t msg = create_integration_message(i, 0, module_id, MSG_EVENT);
             if ((send_message(modules, msg) == 1)) {
@@ -251,12 +259,12 @@ uint32_t get_sync_checksum(uint32_t sync) {
     return (sync & 0xFF);
 }
 
-uint32_t synchronize_states(uint32_t* modules, uint32_t module_count, uint32_t sync_requests) {
+uint32_t synchronize_states(t27_arr_uint32_t_16 modules, uint32_t module_count, uint32_t sync_requests) {
     uint32_t synced_count = 0;
     uint32_t i = 0;
     while ((i < module_count)) {
-        uint32_t module_id = get_registered_module_id(modules[i]);
-        uint32_t status = get_registered_module_status(modules[i]);
+        uint32_t module_id = get_registered_module_id(modules.v[i]);
+        uint32_t status = get_registered_module_status(modules.v[i]);
         if (((status == STATUS_ACTIVE) && (sync_requests > 0))) {
             uint32_t state_version = 1;
             uint32_t state_data = (i * 10);
@@ -289,12 +297,12 @@ uint32_t get_error_timestamp(uint32_t err_word) {
     return (err_word & 0xFFF);
 }
 
-uint32_t propagate_error(uint32_t err_word, uint32_t* modules, uint32_t module_count) {
+uint32_t propagate_error(uint32_t err_word, t27_arr_uint32_t_16 modules, uint32_t module_count) {
     uint32_t severity = get_error_severity(err_word);
     uint32_t notified_count = 0;
     uint32_t i = 0;
     while ((i < module_count)) {
-        uint32_t module_type = get_registered_module_type(modules[i]);
+        uint32_t module_type = get_registered_module_type(modules.v[i]);
         if ((severity == SEVERITY_CRITICAL)) {
             uint32_t msg = create_integration_message(0, 0, i, MSG_ERROR);
             if ((send_message(modules, msg) == 1)) {
@@ -313,11 +321,11 @@ uint32_t propagate_error(uint32_t err_word, uint32_t* modules, uint32_t module_c
     return notified_count;
 }
 
-uint32_t load_module(uint32_t module_id, uint32_t module_type, uint32_t priority, uint32_t* modules) {
+uint32_t load_module(uint32_t module_id, uint32_t module_type, uint32_t priority, t27_arr_uint32_t_16 modules) {
     uint32_t i = 0;
     while ((i < MAX_MODULES)) {
-        if ((get_registered_module_id(modules[i]) == 0)) {
-            modules[i] = create_module_registration(module_id, module_type, priority, STATUS_IDLE);
+        if ((get_registered_module_id(modules.v[i]) == 0)) {
+            modules.v[i] = create_module_registration(module_id, module_type, priority, STATUS_IDLE);
             return 1;
         }
         i = (i + 1);
@@ -325,12 +333,12 @@ uint32_t load_module(uint32_t module_id, uint32_t module_type, uint32_t priority
     return 0;
 }
 
-uint32_t unload_module(uint32_t module_id, uint32_t* modules) {
+uint32_t unload_module(uint32_t module_id, t27_arr_uint32_t_16 modules) {
     uint32_t i = 0;
     while ((i < MAX_MODULES)) {
-        uint32_t registered_id = get_registered_module_id(modules[i]);
+        uint32_t registered_id = get_registered_module_id(modules.v[i]);
         if ((registered_id == module_id)) {
-            modules[i] = 0;
+            modules.v[i] = 0;
             return 1;
         }
         i = (i + 1);
@@ -358,19 +366,19 @@ uint32_t get_dependency_required(uint32_t dep) {
     return (dep & 0xFFF);
 }
 
-uint32_t check_dependencies(uint32_t module_id, uint32_t* dependencies, uint32_t* loaded_modules, uint32_t module_count) {
+uint32_t check_dependencies(uint32_t module_id, t27_arr_uint32_t_16 dependencies, t27_arr_uint32_t_16 loaded_modules, uint32_t module_count) {
     uint32_t satisfied = 1;
     uint32_t i = 0;
     while ((i < MAX_MODULES)) {
-        uint32_t dep_module_id = get_dependency_module_id(dependencies[i]);
+        uint32_t dep_module_id = get_dependency_module_id(dependencies.v[i]);
         if ((dep_module_id == module_id)) {
-            uint32_t depends_on = get_dependency_depends_on(dependencies[i]);
-            uint32_t required = get_dependency_required(dependencies[i]);
+            uint32_t depends_on = get_dependency_depends_on(dependencies.v[i]);
+            uint32_t required = get_dependency_required(dependencies.v[i]);
             if ((required == 1)) {
                 uint32_t j = 0;
                 uint32_t found = 0;
                 while ((j < module_count)) {
-                    uint32_t loaded_id = get_registered_module_id(loaded_modules[j]);
+                    uint32_t loaded_id = get_registered_module_id(loaded_modules.v[j]);
                     if ((loaded_id == depends_on)) {
                         found = 1;
 break;
@@ -407,12 +415,12 @@ uint32_t get_resource_request_priority(uint32_t req) {
     return (req & 0xFFF);
 }
 
-uint32_t allocate_resources(uint32_t* requests, uint32_t request_count, uint32_t available_resources) {
+uint32_t allocate_resources(t27_arr_uint32_t_32 requests, uint32_t request_count, uint32_t available_resources) {
     uint32_t total_requested = 0;
     uint32_t allocated_count = 0;
     uint32_t i = 0;
     while ((i < request_count)) {
-        uint32_t amount = get_resource_request_amount(requests[i]);
+        uint32_t amount = get_resource_request_amount(requests.v[i]);
         total_requested = (total_requested + amount);
         i = (i + 1);
     }
@@ -422,8 +430,8 @@ uint32_t allocate_resources(uint32_t* requests, uint32_t request_count, uint32_t
         uint32_t allocated = 0;
         uint32_t j = 0;
         while (((j < request_count) && (allocated < available_resources))) {
-            uint32_t amount = get_resource_request_amount(requests[j]);
-            uint32_t priority = get_resource_request_priority(requests[j]);
+            uint32_t amount = get_resource_request_amount(requests.v[j]);
+            uint32_t priority = get_resource_request_priority(requests.v[j]);
             if (((priority > 7) && ((allocated + amount) <= available_resources))) {
                 allocated = (allocated + amount);
                 allocated_count = (allocated_count + 1);
@@ -438,14 +446,14 @@ uint32_t create_integration_report(uint32_t loaded_modules, uint32_t active_mess
     return (((((loaded_modules & 0xFF) << 24) | ((active_messages & 0xFF) << 16)) | ((events_processed & 0xFF) << 8)) | (errors_handled & 0xFF));
 }
 
-uint32_t generate_integration_stats(uint32_t* modules, uint32_t module_count, uint32_t* messages, uint32_t message_count, uint32_t* events, uint32_t event_count) {
+uint32_t generate_integration_stats(t27_arr_uint32_t_16 modules, uint32_t module_count, t27_arr_uint32_t_32 messages, uint32_t message_count, t27_arr_uint32_t_64 events, uint32_t event_count) {
     uint32_t active_modules = 0;
     uint32_t active_messages = 0;
     uint32_t events_processed = 0;
     uint32_t errors_handled = 0;
     uint32_t i = 0;
     while ((i < module_count)) {
-        uint32_t status = get_registered_module_status(modules[i]);
+        uint32_t status = get_registered_module_status(modules.v[i]);
         if (((status == STATUS_ACTIVE) || (status == STATUS_BUSY))) {
             active_modules = (active_modules + 1);
         }
@@ -464,12 +472,12 @@ uint32_t generate_integration_stats(uint32_t* modules, uint32_t module_count, ui
     return create_integration_report(active_modules, active_messages, events_processed, errors_handled);
 }
 
-uint32_t validate_integration_health(uint32_t* modules, uint32_t module_count) {
+uint32_t validate_integration_health(t27_arr_uint32_t_16 modules, uint32_t module_count) {
     uint32_t active_count = 0;
     uint32_t error_count = 0;
     uint32_t i = 0;
     while ((i < module_count)) {
-        uint32_t status = get_registered_module_status(modules[i]);
+        uint32_t status = get_registered_module_status(modules.v[i]);
         if ((status == STATUS_ACTIVE)) {
             active_count = (active_count + 1);
         } else if ((status == STATUS_ERROR)) {
@@ -498,7 +506,7 @@ void test_module_registration_roundtrip(void) {
 }
 
 void test_send_message_requires_active_destination(void) {
-    uint32_t mods[16] = { create_module_registration(1,0,1,STATUS_ACTIVE), create_module_registration(2,0,1,0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    t27_arr_uint32_t_16 mods = { .v = { create_module_registration(1,0,1,STATUS_ACTIVE), create_module_registration(2,0,1,0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } };
     uint64_t msg_ok = create_integration_message(1, 5, 1, 0);
     (void)msg_ok;
     t27_assert((send_message(mods, msg_ok) == 1), "active destination accepts");

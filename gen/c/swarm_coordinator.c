@@ -31,6 +31,12 @@ typedef struct { uint32_t f0; uint32_t f1; uint32_t f2; } t27_tuple_uint32_t_uin
 #define VOTE_ABSTAIN 2
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[8]; } t27_arr_uint32_t_8;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -44,12 +50,12 @@ uint32_t get_vote_node(uint32_t vote);
 uint32_t get_vote_value(uint32_t vote);
 uint32_t get_vote_proposal_id(uint32_t vote);
 uint32_t get_vote_timestamp(uint32_t vote);
-uint32_t* create_vote_array(uint32_t v0, uint32_t v1, uint32_t v2, uint32_t v3, uint32_t v4, uint32_t v5, uint32_t v6, uint32_t v7);
-uint32_t get_vote(uint32_t* array, uint32_t index);
-t27_tuple_uint32_t_uint32_t_uint32_t count_votes(uint32_t* vote_array, uint32_t proposal_id);
+t27_arr_uint32_t_8 create_vote_array(uint32_t v0, uint32_t v1, uint32_t v2, uint32_t v3, uint32_t v4, uint32_t v5, uint32_t v6, uint32_t v7);
+uint32_t get_vote(t27_arr_uint32_t_8 array, uint32_t index);
+t27_tuple_uint32_t_uint32_t_uint32_t count_votes(t27_arr_uint32_t_8 vote_array, uint32_t proposal_id);
 bool has_quorum(uint32_t yes_count, uint32_t no_count, uint32_t abstain_count);
 bool proposal_passes(uint32_t yes_count, uint32_t no_count);
-uint32_t calculate_consensus_value(uint32_t* vote_array, uint32_t proposal_id);
+uint32_t calculate_consensus_value(t27_arr_uint32_t_8 vote_array, uint32_t proposal_id);
 uint32_t cooperative_decision(uint32_t neighbor_values, uint32_t my_value, uint32_t weight_neighbors);
 
 /* -------------------------------------------------------
@@ -96,21 +102,21 @@ uint32_t get_vote_timestamp(uint32_t vote) {
     return (vote & 0x3FFF);
 }
 
-uint32_t* create_vote_array(uint32_t v0, uint32_t v1, uint32_t v2, uint32_t v3, uint32_t v4, uint32_t v5, uint32_t v6, uint32_t v7) {
-    return { v0, v1, v2, v3, v4, v5, v6, v7 };
+t27_arr_uint32_t_8 create_vote_array(uint32_t v0, uint32_t v1, uint32_t v2, uint32_t v3, uint32_t v4, uint32_t v5, uint32_t v6, uint32_t v7) {
+    return (t27_arr_uint32_t_8){ .v = { v0, v1, v2, v3, v4, v5, v6, v7 } };
 }
 
-uint32_t get_vote(uint32_t* array, uint32_t index) {
+uint32_t get_vote(t27_arr_uint32_t_8 array, uint32_t index) {
     if ((index < 8)) {
-        return array[index];
+        return array.v[index];
     }
     return 0;
 }
 
-t27_tuple_uint32_t_uint32_t_uint32_t count_votes(uint32_t* vote_array, uint32_t proposal_id) {
-    int yes_count = 0;
-    int no_count = 0;
-    int abstain_count = 0;
+t27_tuple_uint32_t_uint32_t_uint32_t count_votes(t27_arr_uint32_t_8 vote_array, uint32_t proposal_id) {
+    uint32_t yes_count = 0;
+    uint32_t no_count = 0;
+    uint32_t abstain_count = 0;
     if ((get_vote_proposal_id(get_vote(vote_array, 0)) == proposal_id)) {
         if ((get_vote_value(get_vote(vote_array, 0)) == VOTE_YES)) {
             yes_count = (yes_count + 1);
@@ -195,9 +201,9 @@ bool proposal_passes(uint32_t yes_count, uint32_t no_count) {
     return (yes_count > no_count);
 }
 
-uint32_t calculate_consensus_value(uint32_t* vote_array, uint32_t proposal_id) {
-    int sum = 0;
-    int count = 0;
+uint32_t calculate_consensus_value(t27_arr_uint32_t_8 vote_array, uint32_t proposal_id) {
+    uint32_t sum = 0;
+    uint32_t count = 0;
     if (((get_proposal_node(get_vote(vote_array, 0)) == proposal_id) && (get_proposal_timestamp(get_vote(vote_array, 0)) != 0))) {
         sum = (sum + get_proposal_value(get_vote(vote_array, 0)));
         count = (count + 1);
@@ -277,7 +283,7 @@ void test_create_vote_abstain(void) {
 }
 
 void test_count_votes_unanimous_yes(void) {
-    uint64_t vote_array = create_vote_array(create_vote(1, VOTE_YES, 10, 1000), create_vote(2, VOTE_YES, 10, 1000), create_vote(3, VOTE_YES, 10, 1000), create_vote(4, VOTE_YES, 10, 1000), create_vote(5, VOTE_YES, 10, 1000), create_vote(6, VOTE_YES, 10, 1000), create_vote(7, VOTE_YES, 10, 1000), create_vote(8, VOTE_YES, 10, 1000));
+    t27_arr_uint32_t_8 vote_array = create_vote_array(create_vote(1, VOTE_YES, 10, 1000), create_vote(2, VOTE_YES, 10, 1000), create_vote(3, VOTE_YES, 10, 1000), create_vote(4, VOTE_YES, 10, 1000), create_vote(5, VOTE_YES, 10, 1000), create_vote(6, VOTE_YES, 10, 1000), create_vote(7, VOTE_YES, 10, 1000), create_vote(8, VOTE_YES, 10, 1000));
     (void)vote_array;
     t27_tuple_uint32_t_uint32_t_uint32_t __t_c247 = count_votes(vote_array, 10);
     uint32_t yes = __t_c247.f0;
@@ -289,7 +295,7 @@ void test_count_votes_unanimous_yes(void) {
 }
 
 void test_count_votes_mixed(void) {
-    uint64_t vote_array = create_vote_array(create_vote(1, VOTE_YES, 10, 1000), create_vote(2, VOTE_NO, 10, 1000), create_vote(3, VOTE_YES, 10, 1000), create_vote(4, VOTE_ABSTAIN, 10, 1000), create_vote(5, VOTE_YES, 10, 1000), create_vote(6, VOTE_NO, 10, 1000), create_vote(7, VOTE_YES, 10, 1000), create_vote(8, VOTE_ABSTAIN, 10, 1000));
+    t27_arr_uint32_t_8 vote_array = create_vote_array(create_vote(1, VOTE_YES, 10, 1000), create_vote(2, VOTE_NO, 10, 1000), create_vote(3, VOTE_YES, 10, 1000), create_vote(4, VOTE_ABSTAIN, 10, 1000), create_vote(5, VOTE_YES, 10, 1000), create_vote(6, VOTE_NO, 10, 1000), create_vote(7, VOTE_YES, 10, 1000), create_vote(8, VOTE_ABSTAIN, 10, 1000));
     (void)vote_array;
     t27_tuple_uint32_t_uint32_t_uint32_t __t_c264 = count_votes(vote_array, 10);
     uint32_t yes = __t_c264.f0;
@@ -351,14 +357,14 @@ void test_proposal_passes_tie(void) {
 }
 
 void test_calculate_consensus_value_average(void) {
-    uint64_t vote_array = create_vote_array(create_proposal(1, 10, 100, 1000), create_proposal(2, 10, 200, 1000), create_proposal(3, 10, 150, 1000), create_proposal(4, 10, 250, 1000), create_proposal(5, 10, 0, 0), create_proposal(6, 10, 0, 0), create_proposal(7, 10, 0, 0), create_proposal(8, 10, 0, 0));
+    t27_arr_uint32_t_8 vote_array = create_vote_array(create_proposal(1, 10, 100, 1000), create_proposal(2, 10, 200, 1000), create_proposal(3, 10, 150, 1000), create_proposal(4, 10, 250, 1000), create_proposal(5, 10, 0, 0), create_proposal(6, 10, 0, 0), create_proposal(7, 10, 0, 0), create_proposal(8, 10, 0, 0));
     (void)vote_array;
     int consensus = calculate_consensus_value(vote_array, 10);
     t27_assert((consensus == 175), "average of 100,200,150,250 = 175");
 }
 
 void test_calculate_consensus_value_empty(void) {
-    uint64_t vote_array = create_vote_array(create_proposal(1, 99, 100, 1000), create_proposal(2, 99, 200, 1000), create_proposal(3, 10, 0, 0), create_proposal(4, 10, 0, 0), create_proposal(5, 10, 0, 0), create_proposal(6, 10, 0, 0), create_proposal(7, 10, 0, 0), create_proposal(8, 10, 0, 0));
+    t27_arr_uint32_t_8 vote_array = create_vote_array(create_proposal(1, 99, 100, 1000), create_proposal(2, 99, 200, 1000), create_proposal(3, 10, 0, 0), create_proposal(4, 10, 0, 0), create_proposal(5, 10, 0, 0), create_proposal(6, 10, 0, 0), create_proposal(7, 10, 0, 0), create_proposal(8, 10, 0, 0));
     (void)vote_array;
     int consensus = calculate_consensus_value(vote_array, 10);
     t27_assert((consensus == 0), "no votes for proposal");

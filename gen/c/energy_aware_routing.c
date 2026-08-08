@@ -23,6 +23,12 @@
 #define CRITICAL_BATTERY 20
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[4]; } t27_arr_uint32_t_4;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -36,14 +42,14 @@ uint32_t get_battery_levels(uint32_t energy);
 uint32_t get_total_cost(uint32_t energy);
 uint32_t get_path_valid(uint32_t energy);
 uint32_t get_energy_score(uint32_t energy);
-uint32_t* create_energy_array(uint32_t e0, uint32_t e1, uint32_t e2, uint32_t e3);
-uint32_t get_path_energy(uint32_t* array, uint32_t index);
+t27_arr_uint32_t_4 create_energy_array(uint32_t e0, uint32_t e1, uint32_t e2, uint32_t e3);
+uint32_t get_path_energy(t27_arr_uint32_t_4 array, uint32_t index);
 uint32_t calculate_total_energy_cost(uint32_t cost);
 uint32_t calculate_energy_score(uint32_t battery, uint32_t cost);
 bool is_path_viable(uint32_t energy);
-uint32_t find_energy_optimal_path(uint32_t* energy_array);
-uint32_t find_min_cost_path(uint32_t* energy_array);
-uint32_t select_balanced_path(uint32_t* energy_array, uint32_t current_path);
+uint32_t find_energy_optimal_path(t27_arr_uint32_t_4 energy_array);
+uint32_t find_min_cost_path(t27_arr_uint32_t_4 energy_array);
+uint32_t select_balanced_path(t27_arr_uint32_t_4 energy_array, uint32_t current_path);
 uint32_t estimate_path_lifetime(uint32_t energy, uint32_t drain_rate);
 
 /* -------------------------------------------------------
@@ -90,13 +96,13 @@ uint32_t get_energy_score(uint32_t energy) {
     return (energy & 0x7FFF);
 }
 
-uint32_t* create_energy_array(uint32_t e0, uint32_t e1, uint32_t e2, uint32_t e3) {
-    return { e0, e1, e2, e3 };
+t27_arr_uint32_t_4 create_energy_array(uint32_t e0, uint32_t e1, uint32_t e2, uint32_t e3) {
+    return (t27_arr_uint32_t_4){ .v = { e0, e1, e2, e3 } };
 }
 
-uint32_t get_path_energy(uint32_t* array, uint32_t index) {
+uint32_t get_path_energy(t27_arr_uint32_t_4 array, uint32_t index) {
     if ((index < 4)) {
-        return array[index];
+        return array.v[index];
     }
     return 0;
 }
@@ -128,9 +134,9 @@ bool is_path_viable(uint32_t energy) {
     return ((valid == 1) && (battery > CRITICAL_BATTERY));
 }
 
-uint32_t find_energy_optimal_path(uint32_t* energy_array) {
-    int best_path = 0xFF;
-    int best_score = 0;
+uint32_t find_energy_optimal_path(t27_arr_uint32_t_4 energy_array) {
+    uint32_t best_path = 0xFF;
+    uint32_t best_score = 0;
     if (is_path_viable(get_path_energy(energy_array, 0))) {
         int score = get_energy_score(get_path_energy(energy_array, 0));
         if ((score > best_score)) {
@@ -162,9 +168,9 @@ uint32_t find_energy_optimal_path(uint32_t* energy_array) {
     return best_path;
 }
 
-uint32_t find_min_cost_path(uint32_t* energy_array) {
-    int best_path = 0xFF;
-    int best_cost = 0xFFFFFFFF;
+uint32_t find_min_cost_path(t27_arr_uint32_t_4 energy_array) {
+    uint32_t best_path = 0xFF;
+    uint32_t best_cost = 0xFFFFFFFF;
     if (is_path_viable(get_path_energy(energy_array, 0))) {
         int cost = get_total_cost(get_path_energy(energy_array, 0));
         if ((cost < best_cost)) {
@@ -196,7 +202,7 @@ uint32_t find_min_cost_path(uint32_t* energy_array) {
     return best_path;
 }
 
-uint32_t select_balanced_path(uint32_t* energy_array, uint32_t current_path) {
+uint32_t select_balanced_path(t27_arr_uint32_t_4 energy_array, uint32_t current_path) {
     int best_path = current_path;
     int best_battery = get_battery_levels(get_path_energy(energy_array, current_path));
     if (is_path_viable(get_path_energy(energy_array, 0))) {
@@ -300,19 +306,19 @@ void test_is_path_viable_invalid_path(void) {
 }
 
 void test_find_energy_optimal_path_highest_score(void) {
-    uint64_t array = create_energy_array(create_path_energy(60, 100, 1, 200), create_path_energy(80, 100, 1, 400), create_path_energy(70, 100, 1, 300), create_path_energy(50, 100, 1, 100));
+    t27_arr_uint32_t_4 array = create_energy_array(create_path_energy(60, 100, 1, 200), create_path_energy(80, 100, 1, 400), create_path_energy(70, 100, 1, 300), create_path_energy(50, 100, 1, 100));
     (void)array;
     t27_assert((find_energy_optimal_path(array) == 1), "path 1 optimal");
 }
 
 void test_find_min_cost_path(void) {
-    uint64_t array = create_energy_array(create_path_energy(80, 150, 1, 200), create_path_energy(70, 80, 1, 300), create_path_energy(60, 120, 1, 250), create_path_energy(90, 200, 1, 400));
+    t27_arr_uint32_t_4 array = create_energy_array(create_path_energy(80, 150, 1, 200), create_path_energy(70, 80, 1, 300), create_path_energy(60, 120, 1, 250), create_path_energy(90, 200, 1, 400));
     (void)array;
     t27_assert((find_min_cost_path(array) == 1), "path 1 minimum cost");
 }
 
 void test_select_balanced_path_highest_battery(void) {
-    uint64_t array = create_energy_array(create_path_energy(50, 100, 1, 200), create_path_energy(90, 100, 1, 300), create_path_energy(70, 100, 1, 250), create_path_energy(60, 100, 1, 150));
+    t27_arr_uint32_t_4 array = create_energy_array(create_path_energy(50, 100, 1, 200), create_path_energy(90, 100, 1, 300), create_path_energy(70, 100, 1, 250), create_path_energy(60, 100, 1, 150));
     (void)array;
     t27_assert((select_balanced_path(array, 0) == 1), "path 1 selected");
 }

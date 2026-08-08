@@ -27,6 +27,12 @@
 #define MSG_BACKPRESSURE 3
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[8]; } t27_arr_uint32_t_8;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -49,13 +55,13 @@ uint32_t get_sequence(uint32_t msg);
 uint32_t process_message(uint32_t flow, uint32_t msg);
 uint32_t send_data(uint32_t flow, uint32_t seq);
 uint32_t send_ack(uint32_t flow, uint32_t flow_id, uint32_t seq);
-uint32_t find_flow_by_sender(uint32_t* flows, uint32_t sender);
-uint32_t find_flow_by_receiver(uint32_t* flows, uint32_t receiver);
-uint32_t is_any_flow_blocked(uint32_t* flows);
-uint32_t count_active_flows(uint32_t* flows);
-uint32_t calculate_total_credits(uint32_t* flows);
-uint32_t apply_backpressure(uint32_t* flows, uint32_t flow_index);
-uint32_t release_backpressure(uint32_t* flows, uint32_t flow_index);
+uint32_t find_flow_by_sender(t27_arr_uint32_t_8 flows, uint32_t sender);
+uint32_t find_flow_by_receiver(t27_arr_uint32_t_8 flows, uint32_t receiver);
+uint32_t is_any_flow_blocked(t27_arr_uint32_t_8 flows);
+uint32_t count_active_flows(t27_arr_uint32_t_8 flows);
+uint32_t calculate_total_credits(t27_arr_uint32_t_8 flows);
+uint32_t apply_backpressure(t27_arr_uint32_t_8 flows, uint32_t flow_index);
+uint32_t release_backpressure(t27_arr_uint32_t_8 flows, uint32_t flow_index);
 
 /* -------------------------------------------------------
    Function implementations
@@ -191,10 +197,10 @@ uint32_t send_ack(uint32_t flow, uint32_t flow_id, uint32_t seq) {
     return msg;
 }
 
-uint32_t find_flow_by_sender(uint32_t* flows, uint32_t sender) {
+uint32_t find_flow_by_sender(t27_arr_uint32_t_8 flows, uint32_t sender) {
     uint32_t i = 0;
     while ((i < MAX_FLOWS)) {
-        uint32_t flow_sender = get_sender_id(flows[i]);
+        uint32_t flow_sender = get_sender_id(flows.v[i]);
         if ((flow_sender == sender)) {
             return i;
         }
@@ -203,10 +209,10 @@ uint32_t find_flow_by_sender(uint32_t* flows, uint32_t sender) {
     return MAX_FLOWS;
 }
 
-uint32_t find_flow_by_receiver(uint32_t* flows, uint32_t receiver) {
+uint32_t find_flow_by_receiver(t27_arr_uint32_t_8 flows, uint32_t receiver) {
     uint32_t i = 0;
     while ((i < MAX_FLOWS)) {
-        uint32_t flow_receiver = get_receiver_id(flows[i]);
+        uint32_t flow_receiver = get_receiver_id(flows.v[i]);
         if ((flow_receiver == receiver)) {
             return i;
         }
@@ -215,10 +221,10 @@ uint32_t find_flow_by_receiver(uint32_t* flows, uint32_t receiver) {
     return MAX_FLOWS;
 }
 
-uint32_t is_any_flow_blocked(uint32_t* flows) {
+uint32_t is_any_flow_blocked(t27_arr_uint32_t_8 flows) {
     uint32_t i = 0;
     while ((i < MAX_FLOWS)) {
-        if ((has_credits(flows[i]) == 0)) {
+        if ((has_credits(flows.v[i]) == 0)) {
             return 1;
         }
         i = (i + 1);
@@ -226,11 +232,11 @@ uint32_t is_any_flow_blocked(uint32_t* flows) {
     return 0;
 }
 
-uint32_t count_active_flows(uint32_t* flows) {
+uint32_t count_active_flows(t27_arr_uint32_t_8 flows) {
     uint32_t count = 0;
     uint32_t i = 0;
     while ((i < MAX_FLOWS)) {
-        uint32_t sender = get_sender_id(flows[i]);
+        uint32_t sender = get_sender_id(flows.v[i]);
         if ((sender != 0)) {
             count = (count + 1);
         }
@@ -239,18 +245,18 @@ uint32_t count_active_flows(uint32_t* flows) {
     return count;
 }
 
-uint32_t calculate_total_credits(uint32_t* flows) {
+uint32_t calculate_total_credits(t27_arr_uint32_t_8 flows) {
     uint32_t total = 0;
     uint32_t i = 0;
     while ((i < MAX_FLOWS)) {
-        total = (total + get_credits(flows[i]));
+        total = (total + get_credits(flows.v[i]));
         i = (i + 1);
     }
     return total;
 }
 
-uint32_t apply_backpressure(uint32_t* flows, uint32_t flow_index) {
-    uint32_t flow = flows[flow_index];
+uint32_t apply_backpressure(t27_arr_uint32_t_8 flows, uint32_t flow_index) {
+    uint32_t flow = flows.v[flow_index];
     uint32_t window = get_window_size(flow);
     uint32_t credits = get_credits(flow);
     uint32_t reduction = (credits / 2);
@@ -258,8 +264,8 @@ uint32_t apply_backpressure(uint32_t* flows, uint32_t flow_index) {
     return update_credits(flow, new_credits);
 }
 
-uint32_t release_backpressure(uint32_t* flows, uint32_t flow_index) {
-    uint32_t flow = flows[flow_index];
+uint32_t release_backpressure(t27_arr_uint32_t_8 flows, uint32_t flow_index) {
+    uint32_t flow = flows.v[flow_index];
     uint32_t window = get_window_size(flow);
     return update_credits(flow, window);
 }

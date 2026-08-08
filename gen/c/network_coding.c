@@ -22,6 +22,12 @@
 #define MAX_GENERATION_SIZE 4
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[4]; } t27_arr_uint32_t_4;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -42,10 +48,10 @@ bool same_generation(uint32_t pkt1, uint32_t pkt2);
 uint32_t get_generation_id(uint32_t packet);
 bool is_coding_beneficial(uint32_t pkt1, uint32_t pkt2, uint32_t next_hop1, uint32_t next_hop2);
 uint32_t linear_code_packets(uint32_t pkt1, uint32_t pkt2, uint32_t coeff1, uint32_t coeff2);
-uint32_t* create_coded_generation(uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3);
-uint32_t get_coded_packet_gen(uint32_t* gen, uint32_t index);
-uint32_t count_generation_packets(uint32_t* gen);
-uint32_t is_generation_decodable(uint32_t* gen, uint32_t original_count);
+t27_arr_uint32_t_4 create_coded_generation(uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3);
+uint32_t get_coded_packet_gen(t27_arr_uint32_t_4 gen, uint32_t index);
+uint32_t count_generation_packets(t27_arr_uint32_t_4 gen);
+uint32_t is_generation_decodable(t27_arr_uint32_t_4 gen, uint32_t original_count);
 uint32_t calculate_coding_gain(uint32_t original, uint32_t coded);
 
 /* -------------------------------------------------------
@@ -98,7 +104,7 @@ uint32_t xor_packets(uint32_t pkt1, uint32_t pkt2) {
 
 uint32_t create_xoded_native(uint32_t pkt1, uint32_t pkt2, uint32_t generation, uint32_t seq) {
     int coded_payload = xor_packets(get_packet_payload(pkt1), get_packet_payload(pkt2));
-    int coeff = 0b11;
+    uint32_t coeff = 0b11;
     return create_coded_packet(coeff, coded_payload, generation, seq);
 }
 
@@ -127,7 +133,7 @@ bool is_coding_beneficial(uint32_t pkt1, uint32_t pkt2, uint32_t next_hop1, uint
 }
 
 uint32_t linear_code_packets(uint32_t pkt1, uint32_t pkt2, uint32_t coeff1, uint32_t coeff2) {
-    int result = 0;
+    uint32_t result = 0;
     if (((coeff1 & 1) == 1)) {
         result = (result ^ pkt1);
     }
@@ -137,19 +143,19 @@ uint32_t linear_code_packets(uint32_t pkt1, uint32_t pkt2, uint32_t coeff1, uint
     return result;
 }
 
-uint32_t* create_coded_generation(uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3) {
-    return { p0, p1, p2, p3 };
+t27_arr_uint32_t_4 create_coded_generation(uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3) {
+    return (t27_arr_uint32_t_4){ .v = { p0, p1, p2, p3 } };
 }
 
-uint32_t get_coded_packet_gen(uint32_t* gen, uint32_t index) {
+uint32_t get_coded_packet_gen(t27_arr_uint32_t_4 gen, uint32_t index) {
     if ((index < 4)) {
-        return gen[index];
+        return gen.v[index];
     }
     return 0;
 }
 
-uint32_t count_generation_packets(uint32_t* gen) {
-    int count = 0;
+uint32_t count_generation_packets(t27_arr_uint32_t_4 gen) {
+    uint32_t count = 0;
     if ((get_coded_packet_gen(gen, 0) != 0)) {
         count = (count + 1);
     }
@@ -165,7 +171,7 @@ uint32_t count_generation_packets(uint32_t* gen) {
     return count;
 }
 
-uint32_t is_generation_decodable(uint32_t* gen, uint32_t original_count) {
+uint32_t is_generation_decodable(t27_arr_uint32_t_4 gen, uint32_t original_count) {
     int coded_count = count_generation_packets(gen);
     if ((coded_count >= original_count)) {
         return 1;
@@ -269,22 +275,22 @@ void test_linear_code_packets_one_even(void) {
 }
 
 void test_create_coded_generation(void) {
-    int gen = create_coded_generation(create_packet(1, 2, 0xAA, 100), create_packet(3, 4, 0x55, 101), 0, 0);
+    t27_arr_uint32_t_4 gen = create_coded_generation(create_packet(1, 2, 0xAA, 100), create_packet(3, 4, 0x55, 101), 0, 0);
     t27_assert((count_generation_packets(gen) == 2), "2 packets");
 }
 
 void test_count_generation_packets_full(void) {
-    int gen = create_coded_generation(create_packet(1, 2, 0xAA, 100), create_packet(3, 4, 0x55, 101), create_packet(5, 6, 0x33, 102), create_packet(7, 8, 0x11, 103));
+    t27_arr_uint32_t_4 gen = create_coded_generation(create_packet(1, 2, 0xAA, 100), create_packet(3, 4, 0x55, 101), create_packet(5, 6, 0x33, 102), create_packet(7, 8, 0x11, 103));
     t27_assert((count_generation_packets(gen) == 4), "4 packets");
 }
 
 void test_is_generation_decodable_true(void) {
-    int gen = create_coded_generation(create_packet(1, 2, 0xAA, 100), create_packet(3, 4, 0x55, 101), 0, 0);
+    t27_arr_uint32_t_4 gen = create_coded_generation(create_packet(1, 2, 0xAA, 100), create_packet(3, 4, 0x55, 101), 0, 0);
     t27_assert((is_generation_decodable(gen, 2) == 1), "decodable");
 }
 
 void test_is_generation_decodable_false(void) {
-    int gen = create_coded_generation(create_packet(1, 2, 0xAA, 100), 0, 0, 0);
+    t27_arr_uint32_t_4 gen = create_coded_generation(create_packet(1, 2, 0xAA, 100), 0, 0, 0);
     t27_assert((is_generation_decodable(gen, 2) == 0), "not decodable");
 }
 

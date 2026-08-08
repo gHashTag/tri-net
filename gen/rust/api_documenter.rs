@@ -273,7 +273,8 @@ pub fn validate_documentation(func_docs: [u32; MAX_FUNCTIONS as usize], func_cou
 }
 
 pub fn generate_documentation_report(func_docs: [u32; MAX_FUNCTIONS as usize], func_count: u32, xrefs: [u32; MAX_FUNCTIONS as usize], xref_count: u32) -> u32 {
-    let doc_summary: u32 = generate_api_documentation(func_docs, func_count, func_docs, 0);
+    let empty_params: [u32; MAX_PARAMETERS as usize] = [0; MAX_PARAMETERS];
+    let doc_summary: u32 = generate_api_documentation(func_docs, func_count, empty_params, 0);
     let documented_funcs: u32 = ((doc_summary >> 24) & 0xFF);
     let coverage: u32 = calculate_documentation_coverage(documented_funcs, func_count);
     let validation: u32 = validate_documentation(func_docs, func_count);

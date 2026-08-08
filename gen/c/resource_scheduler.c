@@ -25,6 +25,12 @@
 #define PRIORITY_LOW 2
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[8]; } t27_arr_uint32_t_8;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -38,19 +44,19 @@ uint32_t get_used_cpu(uint32_t state);
 uint32_t get_used_mem(uint32_t state);
 uint32_t get_active_tasks(uint32_t state);
 uint32_t get_sched_tick(uint32_t state);
-uint32_t* create_task_array(uint32_t t0, uint32_t t1, uint32_t t2, uint32_t t3, uint32_t t4, uint32_t t5, uint32_t t6, uint32_t t7);
-uint32_t get_task_resource(uint32_t* array, uint32_t index);
+t27_arr_uint32_t_8 create_task_array(uint32_t t0, uint32_t t1, uint32_t t2, uint32_t t3, uint32_t t4, uint32_t t5, uint32_t t6, uint32_t t7);
+uint32_t get_task_resource(t27_arr_uint32_t_8 array, uint32_t index);
 bool can_admit_task(uint32_t state, uint32_t task);
 bool has_cpu_capacity(uint32_t state, uint32_t cpu_req);
 bool has_memory_capacity(uint32_t state, uint32_t mem_req);
 uint32_t allocate_resources(uint32_t state, uint32_t task);
 uint32_t release_resources(uint32_t state, uint32_t task);
-uint32_t find_admittable_task(uint32_t state, uint32_t* task_array);
+uint32_t find_admittable_task(uint32_t state, t27_arr_uint32_t_8 task_array);
 uint32_t calculate_cpu_utilization(uint32_t state);
 uint32_t calculate_memory_utilization(uint32_t state);
 bool is_overloaded(uint32_t state);
 uint32_t increment_tick(uint32_t state);
-uint32_t count_tasks_by_priority(uint32_t* task_array, uint32_t priority);
+uint32_t count_tasks_by_priority(t27_arr_uint32_t_8 task_array, uint32_t priority);
 
 /* -------------------------------------------------------
    Function implementations
@@ -96,13 +102,13 @@ uint32_t get_sched_tick(uint32_t state) {
     return (state & 0xFF);
 }
 
-uint32_t* create_task_array(uint32_t t0, uint32_t t1, uint32_t t2, uint32_t t3, uint32_t t4, uint32_t t5, uint32_t t6, uint32_t t7) {
-    return { t0, t1, t2, t3, t4, t5, t6, t7 };
+t27_arr_uint32_t_8 create_task_array(uint32_t t0, uint32_t t1, uint32_t t2, uint32_t t3, uint32_t t4, uint32_t t5, uint32_t t6, uint32_t t7) {
+    return (t27_arr_uint32_t_8){ .v = { t0, t1, t2, t3, t4, t5, t6, t7 } };
 }
 
-uint32_t get_task_resource(uint32_t* array, uint32_t index) {
+uint32_t get_task_resource(t27_arr_uint32_t_8 array, uint32_t index) {
     if ((index < 8)) {
-        return array[index];
+        return array.v[index];
     }
     return 0;
 }
@@ -155,9 +161,9 @@ uint32_t release_resources(uint32_t state, uint32_t task) {
     return create_system_state(new_cpu, new_mem, new_tasks, tick);
 }
 
-uint32_t find_admittable_task(uint32_t state, uint32_t* task_array) {
-    int best_task = 0xFF;
-    int best_priority = 0xFF;
+uint32_t find_admittable_task(uint32_t state, t27_arr_uint32_t_8 task_array) {
+    uint32_t best_task = 0xFF;
+    uint32_t best_priority = 0xFF;
     if (can_admit_task(state, get_task_resource(task_array, 0))) {
         int priority = get_priority(get_task_resource(task_array, 0));
         if ((priority < best_priority)) {
@@ -243,8 +249,8 @@ uint32_t increment_tick(uint32_t state) {
     return create_system_state(used_cpu, used_mem, active_tasks, new_tick);
 }
 
-uint32_t count_tasks_by_priority(uint32_t* task_array, uint32_t priority) {
-    int count = 0;
+uint32_t count_tasks_by_priority(t27_arr_uint32_t_8 task_array, uint32_t priority) {
+    uint32_t count = 0;
     if (((get_task_resource(task_array, 0) != 0) && (get_priority(get_task_resource(task_array, 0)) == priority))) {
         count = (count + 1);
     }
@@ -357,7 +363,7 @@ void test_release_resources_works(void) {
 void test_find_admittable_task_high_priority(void) {
     uint64_t state = create_system_state(30, 100, 2, 0);
     (void)state;
-    uint64_t task_array = create_task_array(create_task_resource(20, 30, PRIORITY_LOW, 1), create_task_resource(15, 40, PRIORITY_HIGH, 2), create_task_resource(25, 35, PRIORITY_MEDIUM, 3), 0, 0, 0, 0, 0);
+    t27_arr_uint32_t_8 task_array = create_task_array(create_task_resource(20, 30, PRIORITY_LOW, 1), create_task_resource(15, 40, PRIORITY_HIGH, 2), create_task_resource(25, 35, PRIORITY_MEDIUM, 3), 0, 0, 0, 0, 0);
     (void)task_array;
     t27_assert((find_admittable_task(state, task_array) == 1), "high priority task");
 }
@@ -403,13 +409,13 @@ void test_increment_tick_wraps(void) {
 }
 
 void test_count_tasks_by_priority_high(void) {
-    uint64_t task_array = create_task_array(create_task_resource(20, 30, PRIORITY_HIGH, 1), create_task_resource(15, 40, PRIORITY_HIGH, 2), create_task_resource(25, 35, PRIORITY_LOW, 3), create_task_resource(10, 20, PRIORITY_HIGH, 4), 0, 0, 0, 0);
+    t27_arr_uint32_t_8 task_array = create_task_array(create_task_resource(20, 30, PRIORITY_HIGH, 1), create_task_resource(15, 40, PRIORITY_HIGH, 2), create_task_resource(25, 35, PRIORITY_LOW, 3), create_task_resource(10, 20, PRIORITY_HIGH, 4), 0, 0, 0, 0);
     (void)task_array;
     t27_assert((count_tasks_by_priority(task_array, PRIORITY_HIGH) == 3), "3 high priority tasks");
 }
 
 void test_count_tasks_by_priority_mixed(void) {
-    uint64_t task_array = create_task_array(create_task_resource(20, 30, PRIORITY_HIGH, 1), create_task_resource(15, 40, PRIORITY_MEDIUM, 2), create_task_resource(25, 35, PRIORITY_LOW, 3), create_task_resource(10, 20, PRIORITY_MEDIUM, 4), 0, 0, 0, 0);
+    t27_arr_uint32_t_8 task_array = create_task_array(create_task_resource(20, 30, PRIORITY_HIGH, 1), create_task_resource(15, 40, PRIORITY_MEDIUM, 2), create_task_resource(25, 35, PRIORITY_LOW, 3), create_task_resource(10, 20, PRIORITY_MEDIUM, 4), 0, 0, 0, 0);
     (void)task_array;
     t27_assert((count_tasks_by_priority(task_array, PRIORITY_MEDIUM) == 2), "2 medium priority tasks");
 }

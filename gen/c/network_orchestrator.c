@@ -40,6 +40,13 @@
 #define ACTION_QOS_SET 3
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[4]; } t27_arr_uint32_t_4;
+typedef struct { uint32_t v[8]; } t27_arr_uint32_t_8;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -57,25 +64,25 @@ uint32_t initiate_coordination(uint32_t current_state, uint32_t coordinator_id, 
 uint32_t advance_phase(uint32_t state);
 uint32_t is_coordination_complete(uint32_t state);
 uint32_t is_coordination_timeout(uint32_t state, uint32_t current_time);
-uint32_t apply_policy(uint32_t* policies, uint32_t policy_id, uint32_t node_id);
-uint32_t find_highest_priority_policy(uint32_t* policies, uint32_t scope);
+uint32_t apply_policy(t27_arr_uint32_t_4 policies, uint32_t policy_id, uint32_t node_id);
+uint32_t find_highest_priority_policy(t27_arr_uint32_t_4 policies, uint32_t scope);
 uint32_t create_optimization_request(uint32_t request_id, uint32_t opt_type, uint32_t target, uint32_t priority);
 uint32_t get_optimization_request_id(uint32_t request);
 uint32_t get_optimization_type(uint32_t request);
 uint32_t get_optimization_target(uint32_t request);
 uint32_t get_optimization_priority(uint32_t request);
-uint32_t process_optimization(uint32_t request, uint32_t* policies);
+uint32_t process_optimization(uint32_t request, t27_arr_uint32_t_4 policies);
 uint32_t create_network_action(uint32_t action_id, uint32_t action_type, uint32_t target, uint32_t parameter);
 uint32_t get_action_id(uint32_t action);
 uint32_t get_action_type(uint32_t action);
 uint32_t get_action_target(uint32_t action);
 uint32_t get_action_parameter(uint32_t action);
 uint32_t execute_action(uint32_t action, uint32_t current_time);
-uint32_t coordinate_nodes(uint32_t* node_states, uint32_t node_count, uint32_t coordinator_id, uint32_t current_time);
-uint32_t calculate_optimization_score(uint32_t* metrics, uint32_t metric_count);
-uint32_t detect_optimization_opportunity(uint32_t* load_metrics, uint32_t* energy_metrics, uint32_t node_count);
+uint32_t coordinate_nodes(t27_arr_uint32_t_8 node_states, uint32_t node_count, uint32_t coordinator_id, uint32_t current_time);
+uint32_t calculate_optimization_score(t27_arr_uint32_t_8 metrics, uint32_t metric_count);
+uint32_t detect_optimization_opportunity(t27_arr_uint32_t_8 load_metrics, t27_arr_uint32_t_8 energy_metrics, uint32_t node_count);
 uint32_t generate_optimization_plan(uint32_t opportunity_type, uint32_t affected_nodes);
-uint32_t monitor_network_health(uint32_t* node_states, uint32_t node_count);
+uint32_t monitor_network_health(t27_arr_uint32_t_8 node_states, uint32_t node_count);
 
 /* -------------------------------------------------------
    Function implementations
@@ -166,14 +173,14 @@ uint32_t is_coordination_timeout(uint32_t state, uint32_t current_time) {
     return 0;
 }
 
-uint32_t apply_policy(uint32_t* policies, uint32_t policy_id, uint32_t node_id) {
+uint32_t apply_policy(t27_arr_uint32_t_4 policies, uint32_t policy_id, uint32_t node_id) {
     uint32_t i = 0;
     while ((i < MAX_POLICIES)) {
-        uint32_t current_policy_id = get_policy_id(policies[i]);
-        uint32_t scope = get_policy_scope(policies[i]);
+        uint32_t current_policy_id = get_policy_id(policies.v[i]);
+        uint32_t scope = get_policy_scope(policies.v[i]);
         if ((current_policy_id == policy_id)) {
             if (((scope == SCOPE_NODE) || (scope == SCOPE_GLOBAL))) {
-                return get_policy_parameter(policies[i]);
+                return get_policy_parameter(policies.v[i]);
             }
         }
         i = (i + 1);
@@ -181,13 +188,13 @@ uint32_t apply_policy(uint32_t* policies, uint32_t policy_id, uint32_t node_id) 
     return 0;
 }
 
-uint32_t find_highest_priority_policy(uint32_t* policies, uint32_t scope) {
+uint32_t find_highest_priority_policy(t27_arr_uint32_t_4 policies, uint32_t scope) {
     uint32_t highest_priority = 0;
     uint32_t policy_index = MAX_POLICIES;
     uint32_t i = 0;
     while ((i < MAX_POLICIES)) {
-        uint32_t policy_scope = get_policy_scope(policies[i]);
-        uint32_t priority = get_policy_priority(policies[i]);
+        uint32_t policy_scope = get_policy_scope(policies.v[i]);
+        uint32_t priority = get_policy_priority(policies.v[i]);
         if (((policy_scope == scope) || (policy_scope == SCOPE_GLOBAL))) {
             if ((priority > highest_priority)) {
                 highest_priority = priority;
@@ -219,7 +226,7 @@ uint32_t get_optimization_priority(uint32_t request) {
     return (request & 0xFFF);
 }
 
-uint32_t process_optimization(uint32_t request, uint32_t* policies) {
+uint32_t process_optimization(uint32_t request, t27_arr_uint32_t_4 policies) {
     uint32_t opt_type = get_optimization_type(request);
     uint32_t target = get_optimization_target(request);
     if ((opt_type == OPT_LOAD_BALANCE)) {
@@ -272,12 +279,12 @@ uint32_t execute_action(uint32_t action, uint32_t current_time) {
     }
 }
 
-uint32_t coordinate_nodes(uint32_t* node_states, uint32_t node_count, uint32_t coordinator_id, uint32_t current_time) {
+uint32_t coordinate_nodes(t27_arr_uint32_t_8 node_states, uint32_t node_count, uint32_t coordinator_id, uint32_t current_time) {
     uint32_t coord_state = initiate_coordination(0, coordinator_id, current_time);
     uint32_t participating_nodes = 0;
     uint32_t i = 0;
     while ((i < node_count)) {
-        if ((node_states[i] != 0)) {
+        if ((node_states.v[i] != 0)) {
             participating_nodes = (participating_nodes + 1);
         }
         i = (i + 1);
@@ -290,11 +297,11 @@ uint32_t coordinate_nodes(uint32_t* node_states, uint32_t node_count, uint32_t c
     }
 }
 
-uint32_t calculate_optimization_score(uint32_t* metrics, uint32_t metric_count) {
+uint32_t calculate_optimization_score(t27_arr_uint32_t_8 metrics, uint32_t metric_count) {
     uint32_t total_score = 0;
     uint32_t i = 0;
     while ((i < metric_count)) {
-        total_score = (total_score + metrics[i]);
+        total_score = (total_score + metrics.v[i]);
         i = (i + 1);
     }
     if ((metric_count > 0)) {
@@ -304,7 +311,7 @@ uint32_t calculate_optimization_score(uint32_t* metrics, uint32_t metric_count) 
     }
 }
 
-uint32_t detect_optimization_opportunity(uint32_t* load_metrics, uint32_t* energy_metrics, uint32_t node_count) {
+uint32_t detect_optimization_opportunity(t27_arr_uint32_t_8 load_metrics, t27_arr_uint32_t_8 energy_metrics, uint32_t node_count) {
     uint32_t load_score = calculate_optimization_score(load_metrics, node_count);
     uint32_t energy_score = calculate_optimization_score(energy_metrics, node_count);
     if (((load_score > 70) || (energy_score < 30))) {
@@ -318,11 +325,11 @@ uint32_t generate_optimization_plan(uint32_t opportunity_type, uint32_t affected
     return create_optimization_request(0, opportunity_type, affected_nodes, 50);
 }
 
-uint32_t monitor_network_health(uint32_t* node_states, uint32_t node_count) {
+uint32_t monitor_network_health(t27_arr_uint32_t_8 node_states, uint32_t node_count) {
     uint32_t healthy_nodes = 0;
     uint32_t i = 0;
     while ((i < node_count)) {
-        if ((node_states[i] != 0)) {
+        if ((node_states.v[i] != 0)) {
             healthy_nodes = (healthy_nodes + 1);
         }
         i = (i + 1);
@@ -357,7 +364,7 @@ void test_coordination_roundtrip(void) {
 }
 
 void test_highest_priority_policy_selection(void) {
-    uint32_t ps[4] = { create_network_policy(1,10,1,0), create_network_policy(2,90,1,0), create_network_policy(3,200,2,0), create_network_policy(4,50,1,0) };
+    t27_arr_uint32_t_4 ps = { .v = { create_network_policy(1,10,1,0), create_network_policy(2,90,1,0), create_network_policy(3,200,2,0), create_network_policy(4,50,1,0) } };
     t27_assert((find_highest_priority_policy(ps, 1) == 1), "highest in scope wins");
 }
 

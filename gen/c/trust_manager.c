@@ -24,6 +24,12 @@
 #define MAX_TRUST_SCORE 100
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[8]; } t27_arr_uint32_t_8;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -37,15 +43,15 @@ uint32_t get_trust_source(uint32_t rel);
 uint32_t get_trust_destination(uint32_t rel);
 uint32_t get_trust_level(uint32_t rel);
 uint32_t get_trust_verified(uint32_t rel);
-uint32_t* create_trust_array(uint32_t t0, uint32_t t1, uint32_t t2, uint32_t t3, uint32_t t4, uint32_t t5, uint32_t t6, uint32_t t7);
-uint32_t get_trust_score(uint32_t* array, uint32_t index);
+t27_arr_uint32_t_8 create_trust_array(uint32_t t0, uint32_t t1, uint32_t t2, uint32_t t3, uint32_t t4, uint32_t t5, uint32_t t6, uint32_t t7);
+uint32_t get_trust_score(t27_arr_uint32_t_8 array, uint32_t index);
 uint32_t calculate_trust_score(uint32_t positive, uint32_t negative);
 uint32_t update_trust_score(uint32_t current_score, uint32_t positive, uint32_t negative);
 bool is_node_trusted(uint32_t score);
 bool is_node_highly_trusted(uint32_t score);
 bool is_node_low_trusted(uint32_t score);
-uint32_t find_most_trusted(uint32_t* trust_array);
-bool should_route_via_node(uint32_t* trust_array, uint32_t node_index, uint32_t min_trust);
+uint32_t find_most_trusted(t27_arr_uint32_t_8 trust_array);
+bool should_route_via_node(t27_arr_uint32_t_8 trust_array, uint32_t node_index, uint32_t min_trust);
 uint32_t penalize_node(uint32_t current_score, uint32_t penalty);
 uint32_t reward_node(uint32_t current_score, uint32_t reward);
 
@@ -93,13 +99,13 @@ uint32_t get_trust_verified(uint32_t rel) {
     return (rel & 0xFFF);
 }
 
-uint32_t* create_trust_array(uint32_t t0, uint32_t t1, uint32_t t2, uint32_t t3, uint32_t t4, uint32_t t5, uint32_t t6, uint32_t t7) {
-    return { t0, t1, t2, t3, t4, t5, t6, t7 };
+t27_arr_uint32_t_8 create_trust_array(uint32_t t0, uint32_t t1, uint32_t t2, uint32_t t3, uint32_t t4, uint32_t t5, uint32_t t6, uint32_t t7) {
+    return (t27_arr_uint32_t_8){ .v = { t0, t1, t2, t3, t4, t5, t6, t7 } };
 }
 
-uint32_t get_trust_score(uint32_t* array, uint32_t index) {
+uint32_t get_trust_score(t27_arr_uint32_t_8 array, uint32_t index) {
     if ((index < 8)) {
-        return array[index];
+        return array.v[index];
     }
     return 0;
 }
@@ -138,9 +144,9 @@ bool is_node_low_trusted(uint32_t score) {
     return (get_trust_score_value(score) <= TRUST_LOW);
 }
 
-uint32_t find_most_trusted(uint32_t* trust_array) {
-    int highest_score = 0;
-    int most_trusted = 0xFF;
+uint32_t find_most_trusted(t27_arr_uint32_t_8 trust_array) {
+    uint32_t highest_score = 0;
+    uint32_t most_trusted = 0xFF;
     if ((get_trust_score_value(get_trust_score(trust_array, 0)) > highest_score)) {
         highest_score = get_trust_score_value(get_trust_score(trust_array, 0));
         most_trusted = 0;
@@ -176,7 +182,7 @@ uint32_t find_most_trusted(uint32_t* trust_array) {
     return most_trusted;
 }
 
-bool should_route_via_node(uint32_t* trust_array, uint32_t node_index, uint32_t min_trust) {
+bool should_route_via_node(t27_arr_uint32_t_8 trust_array, uint32_t node_index, uint32_t min_trust) {
     if ((node_index >= MAX_NODES)) {
         return false;
     }
@@ -284,19 +290,19 @@ void test_is_node_low_trusted(void) {
 }
 
 void test_find_most_trusted_middle(void) {
-    uint64_t array = create_trust_array(create_trust_score(1, 60, 6, 4), create_trust_score(2, 90, 9, 1), create_trust_score(3, 45, 5, 5), create_trust_score(4, 75, 8, 2), 0, 0, 0, 0);
+    t27_arr_uint32_t_8 array = create_trust_array(create_trust_score(1, 60, 6, 4), create_trust_score(2, 90, 9, 1), create_trust_score(3, 45, 5, 5), create_trust_score(4, 75, 8, 2), 0, 0, 0, 0);
     (void)array;
     t27_assert((find_most_trusted(array) == 1), "node 1 most trusted");
 }
 
 void test_should_route_via_node_true(void) {
-    uint64_t array = create_trust_array(create_trust_score(1, 80, 8, 2), create_trust_score(2, 60, 6, 4), create_trust_score(3, 75, 7, 3), create_trust_score(4, 70, 7, 3), 0, 0, 0, 0);
+    t27_arr_uint32_t_8 array = create_trust_array(create_trust_score(1, 80, 8, 2), create_trust_score(2, 60, 6, 4), create_trust_score(3, 75, 7, 3), create_trust_score(4, 70, 7, 3), 0, 0, 0, 0);
     (void)array;
     t27_assert((should_route_via_node(array, 0, 70) == true), "can route via node 0");
 }
 
 void test_should_route_via_node_false(void) {
-    uint64_t array = create_trust_array(create_trust_score(1, 80, 8, 2), create_trust_score(2, 60, 6, 4), create_trust_score(3, 75, 7, 3), create_trust_score(4, 70, 7, 3), 0, 0, 0, 0);
+    t27_arr_uint32_t_8 array = create_trust_array(create_trust_score(1, 80, 8, 2), create_trust_score(2, 60, 6, 4), create_trust_score(3, 75, 7, 3), create_trust_score(4, 70, 7, 3), 0, 0, 0, 0);
     (void)array;
     t27_assert((should_route_via_node(array, 2, 90) == false), "cannot route via node 2");
 }

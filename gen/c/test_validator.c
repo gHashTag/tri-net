@@ -42,6 +42,13 @@
 #define VALIDATION_WARNING 2
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[16]; } t27_arr_uint32_t_16;
+typedef struct { uint32_t v[32]; } t27_arr_uint32_t_32;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -81,7 +88,7 @@ uint32_t get_error_count(uint32_t summary);
 uint32_t get_warning_count(uint32_t summary);
 uint32_t get_info_count(uint32_t summary);
 uint32_t get_validation_status(uint32_t summary);
-uint32_t run_validation(uint32_t* errors, uint32_t error_count, uint32_t* warnings, uint32_t warning_count);
+uint32_t run_validation(t27_arr_uint32_t_16 errors, uint32_t error_count, t27_arr_uint32_t_32 warnings, uint32_t warning_count);
 uint32_t create_quality_metrics(uint32_t complexity, uint32_t readability, uint32_t maintainability, uint32_t tech_debt);
 uint32_t get_complexity(uint32_t metrics);
 uint32_t get_readability(uint32_t metrics);
@@ -272,14 +279,14 @@ uint32_t get_validation_status(uint32_t summary) {
     return (summary & 0xFF);
 }
 
-uint32_t run_validation(uint32_t* errors, uint32_t error_count, uint32_t* warnings, uint32_t warning_count) {
+uint32_t run_validation(t27_arr_uint32_t_16 errors, uint32_t error_count, t27_arr_uint32_t_32 warnings, uint32_t warning_count) {
     uint32_t total_errors = 0;
     uint32_t total_warnings = 0;
     uint32_t total_info = 0;
     uint32_t status = VALIDATION_PASS;
     uint32_t i = 0;
     while ((i < error_count)) {
-        uint32_t severity = get_error_severity(errors[i]);
+        uint32_t severity = get_error_severity(errors.v[i]);
         if ((severity == SEVERITY_ERROR)) {
             total_errors = (total_errors + 1);
         } else if ((severity == SEVERITY_WARNING)) {

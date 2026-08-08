@@ -31,6 +31,15 @@
 #define PACKET_ACK 3
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[64]; } t27_arr_uint32_t_64;
+typedef struct { uint32_t v[16]; } t27_arr_uint32_t_16;
+typedef struct { uint32_t v[32]; } t27_arr_uint32_t_32;
+typedef struct { uint32_t v[1200]; } t27_arr_uint32_t_1200;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -74,15 +83,15 @@ uint32_t get_pattern_interval(uint32_t pattern);
 uint32_t get_pattern_duration(uint32_t pattern);
 uint32_t generate_traffic_burst(uint32_t pattern, uint32_t source, uint32_t dest);
 uint32_t calculate_packet_position(uint32_t source_x, uint32_t source_y, uint32_t dest_x, uint32_t dest_y, uint32_t progress);
-uint32_t update_animation_packets(uint32_t* packets, uint32_t packet_count, uint32_t speed);
-uint32_t render_animation_frame(uint32_t* packets, uint32_t packet_count, uint32_t* paths, uint32_t path_count, uint32_t frame_id);
+uint32_t update_animation_packets(t27_arr_uint32_t_64 packets, uint32_t packet_count, uint32_t speed);
+uint32_t render_animation_frame(t27_arr_uint32_t_64 packets, uint32_t packet_count, t27_arr_uint32_t_16 paths, uint32_t path_count, uint32_t frame_id);
 uint32_t calculate_animation_complexity(uint32_t packet_count, uint32_t path_count, uint32_t node_count);
 uint32_t optimize_animation_performance(uint32_t packet_count, uint32_t target_fps);
-uint32_t generate_traffic_heat_map(uint32_t* packets, uint32_t packet_count, uint32_t node_count);
-uint32_t generate_traffic_animation(uint32_t* packets, uint32_t packet_count, uint32_t* paths, uint32_t path_count, uint32_t node_count, uint32_t duration_frames);
+uint32_t generate_traffic_heat_map(t27_arr_uint32_t_64 packets, uint32_t packet_count, uint32_t node_count);
+uint32_t generate_traffic_animation(t27_arr_uint32_t_64 packets, uint32_t packet_count, t27_arr_uint32_t_16 paths, uint32_t path_count, uint32_t node_count, uint32_t duration_frames);
 uint32_t create_animation_controls(uint32_t play_pause, uint32_t step_forward, uint32_t step_backward, uint32_t reset);
 uint32_t process_animation_control(uint32_t control, uint32_t timeline);
-uint32_t calculate_animation_stats(uint32_t* frames, uint32_t frame_count);
+uint32_t calculate_animation_stats(t27_arr_uint32_t_1200 frames, uint32_t frame_count);
 
 /* -------------------------------------------------------
    Function implementations
@@ -298,21 +307,21 @@ uint32_t calculate_packet_position(uint32_t source_x, uint32_t source_y, uint32_
     return (((current_x & 0xFF) << 24) | ((current_y & 0xFF) << 16));
 }
 
-uint32_t update_animation_packets(uint32_t* packets, uint32_t packet_count, uint32_t speed) {
+uint32_t update_animation_packets(t27_arr_uint32_t_64 packets, uint32_t packet_count, uint32_t speed) {
     uint32_t updated_count = 0;
     uint32_t completed_count = 0;
     uint32_t i = 0;
     while ((i < packet_count)) {
-        uint32_t progress = get_anim_packet_progress(packets[i]);
+        uint32_t progress = get_anim_packet_progress(packets.v[i]);
         if ((progress < 100)) {
             uint32_t new_progress = (progress + speed);
             if ((new_progress > 100)) {
                 new_progress = 100;
             }
-            uint32_t packet_id = get_anim_packet_id(packets[i]);
-            uint32_t source = get_anim_packet_source(packets[i]);
-            uint32_t dest = get_anim_packet_dest(packets[i]);
-            packets[i] = create_anim_packet(packet_id, source, dest, new_progress);
+            uint32_t packet_id = get_anim_packet_id(packets.v[i]);
+            uint32_t source = get_anim_packet_source(packets.v[i]);
+            uint32_t dest = get_anim_packet_dest(packets.v[i]);
+            packets.v[i] = create_anim_packet(packet_id, source, dest, new_progress);
             updated_count = (updated_count + 1);
         } else {
             completed_count = (completed_count + 1);
@@ -322,7 +331,7 @@ uint32_t update_animation_packets(uint32_t* packets, uint32_t packet_count, uint
     return ((((updated_count & 0xFF) << 24) | ((completed_count & 0xFF) << 16)) | ((packet_count & 0xFF) << 8));
 }
 
-uint32_t render_animation_frame(uint32_t* packets, uint32_t packet_count, uint32_t* paths, uint32_t path_count, uint32_t frame_id) {
+uint32_t render_animation_frame(t27_arr_uint32_t_64 packets, uint32_t packet_count, t27_arr_uint32_t_16 paths, uint32_t path_count, uint32_t frame_id) {
     uint32_t timestamp = (frame_id * (1000 / ANIMATION_FPS));
     uint32_t duration = (1000 / ANIMATION_FPS);
     return create_animation_frame(frame_id, timestamp, packet_count, duration);
@@ -344,23 +353,23 @@ uint32_t optimize_animation_performance(uint32_t packet_count, uint32_t target_f
     }
 }
 
-uint32_t generate_traffic_heat_map(uint32_t* packets, uint32_t packet_count, uint32_t node_count) {
-    uint32_t traffic_counts[32] = { [0 ... (32) - 1] = 0 };
+uint32_t generate_traffic_heat_map(t27_arr_uint32_t_64 packets, uint32_t packet_count, uint32_t node_count) {
+    t27_arr_uint32_t_32 traffic_counts = { .v = { [0 ... (32) - 1] = 0 } };
     uint32_t max_traffic = 0;
     uint32_t i = 0;
     while ((i < packet_count)) {
-        uint32_t source = get_anim_packet_source(packets[i]);
-        uint32_t dest = get_anim_packet_dest(packets[i]);
+        uint32_t source = get_anim_packet_source(packets.v[i]);
+        uint32_t dest = get_anim_packet_dest(packets.v[i]);
         if ((source < 32)) {
-            traffic_counts[source] = (traffic_counts[source] + 1);
-            if ((traffic_counts[source] > max_traffic)) {
-                max_traffic = traffic_counts[source];
+            traffic_counts.v[source] = (traffic_counts.v[source] + 1);
+            if ((traffic_counts.v[source] > max_traffic)) {
+                max_traffic = traffic_counts.v[source];
             }
         }
         if ((dest < 32)) {
-            traffic_counts[dest] = (traffic_counts[dest] + 1);
-            if ((traffic_counts[dest] > max_traffic)) {
-                max_traffic = traffic_counts[dest];
+            traffic_counts.v[dest] = (traffic_counts.v[dest] + 1);
+            if ((traffic_counts.v[dest] > max_traffic)) {
+                max_traffic = traffic_counts.v[dest];
             }
         }
         i = (i + 1);
@@ -369,9 +378,9 @@ uint32_t generate_traffic_heat_map(uint32_t* packets, uint32_t packet_count, uin
     uint32_t total_traffic = 0;
     uint32_t j = 0;
     while (((j < node_count) && (j < 32))) {
-        if ((traffic_counts[j] > 0)) {
+        if ((traffic_counts.v[j] > 0)) {
             total_active = (total_active + 1);
-            total_traffic = (total_traffic + traffic_counts[j]);
+            total_traffic = (total_traffic + traffic_counts.v[j]);
         }
         j = (j + 1);
     }
@@ -382,7 +391,7 @@ uint32_t generate_traffic_heat_map(uint32_t* packets, uint32_t packet_count, uin
     return ((((max_traffic & 0xFF) << 24) | ((total_active & 0xFF) << 16)) | ((avg_traffic & 0xFF) << 8));
 }
 
-uint32_t generate_traffic_animation(uint32_t* packets, uint32_t packet_count, uint32_t* paths, uint32_t path_count, uint32_t node_count, uint32_t duration_frames) {
+uint32_t generate_traffic_animation(t27_arr_uint32_t_64 packets, uint32_t packet_count, t27_arr_uint32_t_16 paths, uint32_t path_count, uint32_t node_count, uint32_t duration_frames) {
     uint32_t total_frames = duration_frames;
     uint32_t current_frame = 0;
     uint32_t complexity = calculate_animation_complexity(packet_count, path_count, node_count);
@@ -412,13 +421,13 @@ uint32_t process_animation_control(uint32_t control, uint32_t timeline) {
     }
 }
 
-uint32_t calculate_animation_stats(uint32_t* frames, uint32_t frame_count) {
+uint32_t calculate_animation_stats(t27_arr_uint32_t_1200 frames, uint32_t frame_count) {
     uint32_t total_packets = 0;
     uint32_t total_bytes = 0;
     uint32_t avg_latency = 0;
     uint32_t i = 0;
     while ((i < frame_count)) {
-        uint32_t packet_count = get_anim_frame_packet_count(frames[i]);
+        uint32_t packet_count = get_anim_frame_packet_count(frames.v[i]);
         total_packets = (total_packets + packet_count);
         total_bytes = (total_bytes + (packet_count * 256));
         i = (i + 1);

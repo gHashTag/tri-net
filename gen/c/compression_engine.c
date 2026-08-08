@@ -27,6 +27,13 @@
 #define METHOD_DELTA 3
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[8]; } t27_arr_uint32_t_8;
+typedef struct { uint32_t v[16]; } t27_arr_uint32_t_16;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -38,15 +45,15 @@ uint32_t get_compression_quality(uint32_t info);
 uint32_t calculate_compression_ratio(uint32_t original, uint32_t compressed);
 uint32_t compress_rle(uint32_t data, uint32_t length);
 uint32_t decompress_rle(uint32_t compressed);
-uint32_t compress_dictionary(uint32_t data, uint32_t* dictionary);
-uint32_t decompress_dictionary(uint32_t index, uint32_t* dictionary);
+uint32_t compress_dictionary(uint32_t data, t27_arr_uint32_t_8 dictionary);
+uint32_t decompress_dictionary(uint32_t index, t27_arr_uint32_t_8 dictionary);
 uint32_t compress_delta(uint32_t data, uint32_t previous);
 uint32_t decompress_delta(uint32_t encoded, uint32_t previous);
-uint32_t choose_compression_method(uint32_t data, uint32_t previous, uint32_t* dictionary);
-uint32_t compress_block(uint32_t data, uint32_t previous, uint32_t* dictionary);
-uint32_t decompress_block(uint32_t compressed_data, uint32_t method, uint32_t previous, uint32_t* dictionary);
-uint32_t calculate_total_savings(uint32_t* blocks, uint32_t count);
-uint32_t update_dictionary(uint32_t* dictionary, uint32_t new_entry, uint32_t index);
+uint32_t choose_compression_method(uint32_t data, uint32_t previous, t27_arr_uint32_t_8 dictionary);
+uint32_t compress_block(uint32_t data, uint32_t previous, t27_arr_uint32_t_8 dictionary);
+uint32_t decompress_block(uint32_t compressed_data, uint32_t method, uint32_t previous, t27_arr_uint32_t_8 dictionary);
+uint32_t calculate_total_savings(t27_arr_uint32_t_16 blocks, uint32_t count);
+uint32_t update_dictionary(t27_arr_uint32_t_8 dictionary, uint32_t new_entry, uint32_t index);
 uint32_t find_pattern(uint32_t data, uint32_t pattern);
 uint32_t calculate_compression_speed(uint32_t original_size, uint32_t compressed_size, uint32_t time_ms);
 
@@ -120,12 +127,12 @@ uint32_t decompress_rle(uint32_t compressed) {
     return decompressed;
 }
 
-uint32_t compress_dictionary(uint32_t data, uint32_t* dictionary) {
+uint32_t compress_dictionary(uint32_t data, t27_arr_uint32_t_8 dictionary) {
     uint32_t best_match = 0;
     uint32_t best_score = 0;
     uint32_t i = 0;
     while ((i < DICTIONARY_SIZE)) {
-        uint32_t dict_value = dictionary[i];
+        uint32_t dict_value = dictionary.v[i];
         uint32_t score = 0;
         uint32_t j = 0;
         while ((j < 8)) {
@@ -145,9 +152,9 @@ uint32_t compress_dictionary(uint32_t data, uint32_t* dictionary) {
     return best_match;
 }
 
-uint32_t decompress_dictionary(uint32_t index, uint32_t* dictionary) {
+uint32_t decompress_dictionary(uint32_t index, t27_arr_uint32_t_8 dictionary) {
     if ((index < DICTIONARY_SIZE)) {
-        return dictionary[index];
+        return dictionary.v[index];
     } else {
         return 0;
     }
@@ -195,7 +202,7 @@ uint32_t decompress_delta(uint32_t encoded, uint32_t previous) {
     }
 }
 
-uint32_t choose_compression_method(uint32_t data, uint32_t previous, uint32_t* dictionary) {
+uint32_t choose_compression_method(uint32_t data, uint32_t previous, t27_arr_uint32_t_8 dictionary) {
     uint32_t data_nibbles = 8;
     uint32_t rle_compressed = compress_rle(data, data_nibbles);
     uint32_t rle_ratio = calculate_compression_ratio(data_nibbles, rle_compressed);
@@ -218,7 +225,7 @@ uint32_t choose_compression_method(uint32_t data, uint32_t previous, uint32_t* d
     }
 }
 
-uint32_t compress_block(uint32_t data, uint32_t previous, uint32_t* dictionary) {
+uint32_t compress_block(uint32_t data, uint32_t previous, t27_arr_uint32_t_8 dictionary) {
     uint32_t method = choose_compression_method(data, previous, dictionary);
     uint32_t compressed = 0;
     uint32_t compressed_size = 8;
@@ -241,7 +248,7 @@ uint32_t compress_block(uint32_t data, uint32_t previous, uint32_t* dictionary) 
     return create_block_info(8, compressed_size, method, compressed_size);
 }
 
-uint32_t decompress_block(uint32_t compressed_data, uint32_t method, uint32_t previous, uint32_t* dictionary) {
+uint32_t decompress_block(uint32_t compressed_data, uint32_t method, uint32_t previous, t27_arr_uint32_t_8 dictionary) {
     if ((method == METHOD_RLE)) {
         return decompress_rle(compressed_data);
     } else if ((method == METHOD_DELTA)) {
@@ -253,13 +260,13 @@ uint32_t decompress_block(uint32_t compressed_data, uint32_t method, uint32_t pr
     }
 }
 
-uint32_t calculate_total_savings(uint32_t* blocks, uint32_t count) {
+uint32_t calculate_total_savings(t27_arr_uint32_t_16 blocks, uint32_t count) {
     uint32_t total_original = 0;
     uint32_t total_compressed = 0;
     uint32_t i = 0;
     while ((i < count)) {
-        total_original = (total_original + get_original_size(blocks[i]));
-        total_compressed = (total_compressed + get_compressed_size(blocks[i]));
+        total_original = (total_original + get_original_size(blocks.v[i]));
+        total_compressed = (total_compressed + get_compressed_size(blocks.v[i]));
         i = (i + 1);
     }
     if ((total_compressed > 0)) {
@@ -269,9 +276,9 @@ uint32_t calculate_total_savings(uint32_t* blocks, uint32_t count) {
     }
 }
 
-uint32_t update_dictionary(uint32_t* dictionary, uint32_t new_entry, uint32_t index) {
+uint32_t update_dictionary(t27_arr_uint32_t_8 dictionary, uint32_t new_entry, uint32_t index) {
     if ((index < DICTIONARY_SIZE)) {
-        dictionary[index] = new_entry;
+        dictionary.v[index] = new_entry;
         return 1;
     } else {
         return 0;

@@ -24,6 +24,12 @@
 #define UPDATE_INTERVAL 5000
 
 /* -------------------------------------------------------
+   Array value types ([T; N] lowers to a by-value struct)
+   ------------------------------------------------------- */
+
+typedef struct { uint32_t v[4]; } t27_arr_uint32_t_4;
+
+/* -------------------------------------------------------
    Function prototypes
    ------------------------------------------------------- */
 
@@ -37,15 +43,15 @@ uint32_t get_primary_path(uint32_t state);
 uint32_t get_backup_path(uint32_t state);
 uint32_t get_metric_type(uint32_t state);
 uint32_t get_last_update(uint32_t state);
-uint32_t* create_path_metrics_array(uint32_t m0, uint32_t m1, uint32_t m2, uint32_t m3);
-uint32_t get_path_metrics(uint32_t* array, uint32_t index);
+t27_arr_uint32_t_4 create_path_metrics_array(uint32_t m0, uint32_t m1, uint32_t m2, uint32_t m3);
+uint32_t get_path_metrics(t27_arr_uint32_t_4 array, uint32_t index);
 uint32_t calculate_score(uint32_t metrics, uint32_t metric_type);
-uint32_t find_best_path(uint32_t* metrics_array, uint32_t metric_type);
+uint32_t find_best_path(t27_arr_uint32_t_4 metrics_array, uint32_t metric_type);
 bool needs_update(uint32_t state, uint32_t current_time);
 uint32_t update_selection(uint32_t state, uint32_t primary, uint32_t backup, uint32_t current_time);
 uint32_t change_metric_type(uint32_t state, uint32_t new_metric);
 bool is_path_congested(uint32_t metrics);
-uint32_t find_least_congested(uint32_t* metrics_array);
+uint32_t find_least_congested(t27_arr_uint32_t_4 metrics_array);
 
 /* -------------------------------------------------------
    Function implementations
@@ -91,13 +97,13 @@ uint32_t get_last_update(uint32_t state) {
     return (state & 0xFFFFFF);
 }
 
-uint32_t* create_path_metrics_array(uint32_t m0, uint32_t m1, uint32_t m2, uint32_t m3) {
-    return { m0, m1, m2, m3 };
+t27_arr_uint32_t_4 create_path_metrics_array(uint32_t m0, uint32_t m1, uint32_t m2, uint32_t m3) {
+    return (t27_arr_uint32_t_4){ .v = { m0, m1, m2, m3 } };
 }
 
-uint32_t get_path_metrics(uint32_t* array, uint32_t index) {
+uint32_t get_path_metrics(t27_arr_uint32_t_4 array, uint32_t index) {
     if ((index < 4)) {
-        return array[index];
+        return array.v[index];
     }
     return 0;
 }
@@ -121,9 +127,9 @@ uint32_t calculate_score(uint32_t metrics, uint32_t metric_type) {
     return 0;
 }
 
-uint32_t find_best_path(uint32_t* metrics_array, uint32_t metric_type) {
-    int best_path = 0xFF;
-    int best_score = 0;
+uint32_t find_best_path(t27_arr_uint32_t_4 metrics_array, uint32_t metric_type) {
+    uint32_t best_path = 0xFF;
+    uint32_t best_score = 0;
     if ((calculate_score(get_path_metrics(metrics_array, 0), metric_type) > best_score)) {
         best_score = calculate_score(get_path_metrics(metrics_array, 0), metric_type);
         best_path = 0;
@@ -165,8 +171,8 @@ bool is_path_congested(uint32_t metrics) {
     return (get_load(metrics) > 80);
 }
 
-uint32_t find_least_congested(uint32_t* metrics_array) {
-    int best_path = 0;
+uint32_t find_least_congested(t27_arr_uint32_t_4 metrics_array) {
+    uint32_t best_path = 0;
     int best_load = get_load(get_path_metrics(metrics_array, 0));
     if ((get_load(get_path_metrics(metrics_array, 1)) < best_load)) {
         best_load = get_load(get_path_metrics(metrics_array, 1));
@@ -225,13 +231,13 @@ void test_calculate_score_bandwidth(void) {
 }
 
 void test_find_best_path_latency(void) {
-    uint64_t array = create_path_metrics_array(create_path_metrics(100, 3, 100, 40), create_path_metrics(10, 3, 100, 40), create_path_metrics(50, 3, 100, 40), create_path_metrics(30, 3, 100, 40));
+    t27_arr_uint32_t_4 array = create_path_metrics_array(create_path_metrics(100, 3, 100, 40), create_path_metrics(10, 3, 100, 40), create_path_metrics(50, 3, 100, 40), create_path_metrics(30, 3, 100, 40));
     (void)array;
     t27_assert((find_best_path(array, METRIC_LATENCY) == 1), "path 1 has best latency");
 }
 
 void test_find_best_path_hops(void) {
-    uint64_t array = create_path_metrics_array(create_path_metrics(50, 5, 100, 40), create_path_metrics(50, 3, 100, 40), create_path_metrics(50, 1, 100, 40), create_path_metrics(50, 4, 100, 40));
+    t27_arr_uint32_t_4 array = create_path_metrics_array(create_path_metrics(50, 5, 100, 40), create_path_metrics(50, 3, 100, 40), create_path_metrics(50, 1, 100, 40), create_path_metrics(50, 4, 100, 40));
     (void)array;
     t27_assert((find_best_path(array, METRIC_HOPS) == 2), "path 2 has fewest hops");
 }
@@ -279,13 +285,13 @@ void test_is_path_congested_false(void) {
 }
 
 void test_find_least_congested(void) {
-    uint64_t array = create_path_metrics_array(create_path_metrics(50, 3, 100, 80), create_path_metrics(50, 3, 100, 30), create_path_metrics(50, 3, 100, 60), create_path_metrics(50, 3, 100, 90));
+    t27_arr_uint32_t_4 array = create_path_metrics_array(create_path_metrics(50, 3, 100, 80), create_path_metrics(50, 3, 100, 30), create_path_metrics(50, 3, 100, 60), create_path_metrics(50, 3, 100, 90));
     (void)array;
     t27_assert((find_least_congested(array) == 1), "path 1 least congested");
 }
 
 void test_find_least_congested_all_equal(void) {
-    uint64_t array = create_path_metrics_array(create_path_metrics(50, 3, 100, 50), create_path_metrics(50, 3, 100, 50), create_path_metrics(50, 3, 100, 50), create_path_metrics(50, 3, 100, 50));
+    t27_arr_uint32_t_4 array = create_path_metrics_array(create_path_metrics(50, 3, 100, 50), create_path_metrics(50, 3, 100, 50), create_path_metrics(50, 3, 100, 50), create_path_metrics(50, 3, 100, 50));
     (void)array;
     t27_assert((find_least_congested(array) == 0), "first path when equal");
 }
