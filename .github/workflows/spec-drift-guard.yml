@@ -82,7 +82,7 @@ jobs:
           # failures, two emission tails) and join as they clear -- ratchet, do
           # not regress.
           STATUS=0
-          for spec in access_control adaptive_retry anomaly_detector api_documenter auto_config byte_utils cache_management compression_engine congestion_control crc16 docs_generator flow_control fpga_synthesis_report frame_buffer health_dashboard integration_framework link_quality_monitor link_statistics load_predictor local_processing m3_multihop mesh_node_sim mesh_routing multipath_router network_metrics network_orchestrator network_simulator olsr_routing performance_profiler quarantine_manager test_framework test_validator timer topology_visualizer traffic_animator transport_tx_fsm trust_manager power_monitoring tri_challenge; do
+          for spec in access_control adaptive_retry anomaly_detector api_documenter auto_config byte_utils cache_management compression_engine congestion_control crc16 docs_generator flow_control fpga_synthesis_report frame_buffer health_dashboard integration_framework link_quality_monitor link_statistics load_predictor local_processing m3_multihop mesh_node_sim mesh_routing multipath_router network_metrics network_orchestrator network_simulator olsr_routing performance_profiler quarantine_manager test_framework test_validator timer topology_visualizer traffic_animator transport_tx_fsm trust_manager power_monitoring tri_challenge area_optimization etx mesh_protocol_stack network_analytics performance_benchmarks self_healing timing_closure; do
             if ! zig test gen/zig/${spec}.zig -femit-bin=/tmp/zt_bin > /tmp/zt.log 2>&1; then
               echo "::error file=gen/zig/${spec}.zig::zig test failed"
               tail -5 /tmp/zt.log

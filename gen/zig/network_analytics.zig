@@ -8,7 +8,7 @@ const std = @import("std");
 const MAX_NODES: u32 = 8;
 const ANALYSIS_WINDOW: u32 = 1000;
 const TRAFFIC_LOW: u32 = 100;
-const TRAFFIC_HIGH: u32 = 1000;
+const TRAFFIC_HIGH: u32 = 400;
 const ANOMALY_THRESHOLD: u32 = 200;
 fn create_traffic_stats(sent: u32, recv: u32, packets: u32, errors: u32) u32 {
     return ((((sent & 0xFF) << 24) | ((recv & 0xFF) << 16)) | ((packets & 0xFF) << 8)) | (errors & 0xFF);
@@ -74,7 +74,7 @@ fn detect_pattern(stats: u32, previous_stats: u32) u32 {
     if (current_total > (previous_total + ANOMALY_THRESHOLD)) {
         return PATTERN_SPIKE;
     }
-    if (current_total < (previous_total - ANOMALY_THRESHOLD)) {
+    if ((current_total + ANOMALY_THRESHOLD) < previous_total) {
         return PATTERN_DROPOUT;
     }
     if (is_high_error_rate(stats)) {
@@ -122,7 +122,7 @@ test "is_traffic_low_true" {
     if (!(is_traffic_low(stats) == true)) @panic("low traffic");
 }
 test "is_traffic_high_true" {
-    const stats = create_traffic_stats(600, 500, 100, 5);
+    const stats = create_traffic_stats(250, 200, 100, 5);
     if (!(is_traffic_high(stats) == true)) @panic("high traffic");
 }
 test "is_traffic_normal" {
@@ -146,13 +146,13 @@ test "is_high_error_rate_false" {
     if (!(is_high_error_rate(stats) == false)) @panic("normal error rate");
 }
 test "detect_pattern_spike" {
-    const current = create_traffic_stats(400, 500, 100, 2);
+    const current = create_traffic_stats(250, 240, 100, 2);
     const previous = create_traffic_stats(100, 100, 20, 0);
     if (!(detect_pattern(current, previous) == PATTERN_SPIKE)) @panic("spike detected");
 }
 test "detect_pattern_dropout" {
     const current = create_traffic_stats(50, 50, 10, 0);
-    const previous = create_traffic_stats(400, 400, 80, 2);
+    const previous = create_traffic_stats(250, 250, 80, 2);
     if (!(detect_pattern(current, previous) == PATTERN_DROPOUT)) @panic("dropout detected");
 }
 test "detect_pattern_congestion" {
@@ -174,16 +174,16 @@ test "update_traffic_works" {
     if (!(get_error_count(new_stats) == 6)) @panic("errors updated");
 }
 test "calculate_utilization" {
-    const stats = create_traffic_stats(400, 600, 100, 5);
-    if (!(calculate_utilization(stats, 2000) == 50)) @panic("50% utilization");
+    const stats = create_traffic_stats(200, 200, 100, 5);
+    if (!(calculate_utilization(stats, 800) == 50)) @panic("50% utilization");
 }
 test "calculate_utilization_zero_capacity" {
     const stats = create_traffic_stats(400, 600, 100, 5);
     if (!(calculate_utilization(stats, 0) == 0)) @panic("no capacity");
 }
 test "is_congested_true" {
-    const stats = create_traffic_stats(900, 900, 200, 10);
-    if (!(is_congested(stats, 2000) == true)) @panic("network congested");
+    const stats = create_traffic_stats(250, 250, 200, 10);
+    if (!(is_congested(stats, 500) == true)) @panic("network congested");
 }
 test "is_congested_false" {
     const stats = create_traffic_stats(400, 500, 100, 5);

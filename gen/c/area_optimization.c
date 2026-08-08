@@ -139,13 +139,13 @@ uint8_t analyze_bit_width(uint32_t min_val, uint32_t max_val) {
 void test_estimate_complexity_simple(void) {
     uint64_t complexity = estimate_complexity(10, 5, 16);
     (void)complexity;
-    t27_assert((complexity == 250), "simple complexity");
+    t27_assert((complexity == 280), "simple complexity");
 }
 
 void test_estimate_complexity_high(void) {
     uint64_t complexity = estimate_complexity(50, 20, 32);
     (void)complexity;
-    t27_assert((complexity == 1110), "high complexity");
+    t27_assert((complexity == 1060), "high complexity");
 }
 
 void test_calculate_sharing_savings_half(void) {

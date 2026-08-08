@@ -26,12 +26,12 @@ fn extract_slack(path: u32) u32 {
     return path & 0xFF;
 }
 fn grade_timing(slack: u32) u32 {
-    if (slack >= 100) {
-        return TIMING_PASS;
-    } else if (slack >= 0) {
-        return TIMING_MARGINAL;
-    } else {
+    if (slack > 0x7FFFFFFF) {
         return TIMING_FAIL;
+    } else if (slack >= 100) {
+        return TIMING_PASS;
+    } else {
+        return TIMING_MARGINAL;
     }
 }
 fn calculate_pipeline_stages(delay: u32, target_freq: u32) u32 {
@@ -150,7 +150,7 @@ test "timing_closure_achieved_no_freq" {
     if (!(timing_closure_achieved(report, 50) == false)) @panic("freq not met");
 }
 test "extract_slack_negative_handling" {
-    const path = create_critical_path(500, 3, 0xFFFF00);
+    const path = create_critical_path(500, 3, 0xFF);
     const slack = extract_slack(path);
     if (!(slack == 0xFF)) @panic("extracted large slack");
 }

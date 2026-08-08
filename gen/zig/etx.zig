@@ -68,7 +68,7 @@ test "test_half_forward" {
 }
 test "test_dead_direction" {
     const fwd = ewma_update(ewma_update(OPTIMISTIC, 255, ALPHA_HALF), 255, ALPHA_HALF);
-    const rev = ewma_update(ewma_update(OPTIMISTIC, 0, ALPHA_HALF), 0, ALPHA_HALF);
+    const rev = ewma_update(ewma_update(ewma_update(OPTIMISTIC, 0, ALPHA_HALF), 0, ALPHA_HALF), 0, ALPHA_HALF);
     const etx = calc_etx(fwd, rev);
     if (!(etx == 0xFFFF)) @panic("dead link should be infinite");
 }

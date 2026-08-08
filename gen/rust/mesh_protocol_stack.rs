@@ -12,7 +12,7 @@ pub const NODE_B: u32 = 2;
 pub const NODE_C: u32 = 3;
 
 pub fn build_packet(src: u32, dst: u32, ttl: u8, payload: u8) -> u32 {
-    return (((((src & 0xFF) << 24) | ((dst & 0xFF) << 16)) | (((ttl as u32) & 0xF) << 12)) | ((payload as u32) & 0xF));
+    return (((((src & 0xFF) << 24) | ((dst & 0xFF) << 16)) | (((ttl as u32) & 0xF) << 12)) | ((payload as u32) & 0xFF));
 }
 
 pub fn extract_src(packet: u32) -> u32 {
@@ -28,12 +28,12 @@ pub fn extract_ttl(packet: u32) -> u8 {
 }
 
 pub fn extract_payload(packet: u32) -> u8 {
-    return ((packet & 0xF) as u8);
+    return ((packet & 0xFF) as u8);
 }
 
 pub fn decrement_ttl(packet: u32) -> (u32, bool) {
     if (extract_ttl(packet) > 0) {
-        return (((packet & 0xFFFF0FFF) | ((((extract_ttl(packet) - 1) as u32) & 0xF) << 12)), false);
+        return (((packet & 0xFFFF0FFF) | ((((extract_ttl(packet) - 1) as u32) & 0xF) << 12)), (extract_ttl(packet) == 1));
     } else {
         return (packet, true);
     }

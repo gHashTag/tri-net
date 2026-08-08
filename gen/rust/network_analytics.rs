@@ -7,7 +7,7 @@ pub const ANALYSIS_WINDOW: u32 = 1000;
 
 pub const TRAFFIC_LOW: u32 = 100;
 
-pub const TRAFFIC_HIGH: u32 = 1000;
+pub const TRAFFIC_HIGH: u32 = 400;
 
 pub const ANOMALY_THRESHOLD: u32 = 200;
 
@@ -95,7 +95,7 @@ pub fn detect_pattern(stats: u32, previous_stats: u32) -> u32 {
     if (current_total > (previous_total + ANOMALY_THRESHOLD)) {
         return PATTERN_SPIKE;
     }
-    if (current_total < (previous_total - ANOMALY_THRESHOLD)) {
+    if ((current_total + ANOMALY_THRESHOLD) < previous_total) {
         return PATTERN_DROPOUT;
     }
     if is_high_error_rate(stats) {

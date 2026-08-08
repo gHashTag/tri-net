@@ -198,8 +198,10 @@ void test_queue_max_capacity(void) {
     (void)q15;
     uint64_t q16 = queue_enqueue(q15);
     (void)q16;
-    t27_assert((queue_count(q16) == MAX_QUEUE_SIZE), "max capacity");
-    t27_assert((queue_is_full(q16) == true), "is full");
+    uint64_t q17 = queue_enqueue(q16);
+    (void)q17;
+    t27_assert((queue_count(q17) == MAX_QUEUE_SIZE), "max capacity");
+    t27_assert((queue_is_full(q17) == true), "is full");
 }
 
 void test_inc_counter_increments(void) {

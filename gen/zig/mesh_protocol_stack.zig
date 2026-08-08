@@ -11,7 +11,7 @@ const NODE_A: u32 = 1;
 const NODE_B: u32 = 2;
 const NODE_C: u32 = 3;
 fn build_packet(src: u32, dst: u32, ttl: u8, payload: u8) u32 {
-    return ((((src & 0xFF) << 24) | ((dst & 0xFF) << 16)) | ((@as(u32, @intCast(ttl)) & 0xF) << 12)) | (@as(u32, @intCast(payload)) & 0xF);
+    return ((((src & 0xFF) << 24) | ((dst & 0xFF) << 16)) | ((@as(u32, @intCast(ttl)) & 0xF) << 12)) | (@as(u32, @intCast(payload)) & 0xFF);
 }
 fn extract_src(packet: u32) u32 {
     return (packet >> 24) & 0xFF;
@@ -23,11 +23,11 @@ fn extract_ttl(packet: u32) u8 {
     return @as(u8, @intCast((packet >> 12) & 0xF));
 }
 fn extract_payload(packet: u32) u8 {
-    return @as(u8, @intCast(packet & 0xF));
+    return @as(u8, @intCast(packet & 0xFF));
 }
 fn decrement_ttl(packet: u32) struct { u32, bool } {
     if (extract_ttl(packet) > 0) {
-        return .{ (packet & 0xFFFF0FFF) | ((@as(u32, @intCast(extract_ttl(packet) - 1)) & 0xF) << 12), false };
+        return .{ (packet & 0xFFFF0FFF) | ((@as(u32, @intCast(extract_ttl(packet) - 1)) & 0xF) << 12), extract_ttl(packet) == 1 };
     } else {
         return .{ packet, true };
     }

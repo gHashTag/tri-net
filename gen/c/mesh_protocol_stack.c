@@ -50,7 +50,7 @@ t27_tuple_uint32_t_bool_uint32_t forward_packet(uint32_t packet, uint32_t curren
    ------------------------------------------------------- */
 
 uint32_t build_packet(uint32_t src, uint32_t dst, uint8_t ttl, uint8_t payload) {
-    return (((((src & 0xFF) << 24) | ((dst & 0xFF) << 16)) | ((((uint32_t)(ttl)) & 0xF) << 12)) | (((uint32_t)(payload)) & 0xF));
+    return (((((src & 0xFF) << 24) | ((dst & 0xFF) << 16)) | ((((uint32_t)(ttl)) & 0xF) << 12)) | (((uint32_t)(payload)) & 0xFF));
 }
 
 uint32_t extract_src(uint32_t packet) {
@@ -66,12 +66,12 @@ uint8_t extract_ttl(uint32_t packet) {
 }
 
 uint8_t extract_payload(uint32_t packet) {
-    return ((uint8_t)((packet & 0xF)));
+    return ((uint8_t)((packet & 0xFF)));
 }
 
 t27_tuple_uint32_t_bool decrement_ttl(uint32_t packet) {
     if ((extract_ttl(packet) > 0)) {
-        return (t27_tuple_uint32_t_bool){ ((packet & 0xFFFF0FFF) | ((((uint32_t)((extract_ttl(packet) - 1))) & 0xF) << 12)), false };
+        return (t27_tuple_uint32_t_bool){ ((packet & 0xFFFF0FFF) | ((((uint32_t)((extract_ttl(packet) - 1))) & 0xF) << 12)), (extract_ttl(packet) == 1) };
     } else {
         return (t27_tuple_uint32_t_bool){ packet, true };
     }
