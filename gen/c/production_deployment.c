@@ -244,4 +244,31 @@ void test_checklist_complete_incomplete(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_create_deployment_correct();
+    test_deployment_complete_yes();
+    test_deployment_complete_no_state();
+    test_deployment_complete_no_progress();
+    test_create_bitstream_info_correct();
+    test_flash_programming_success_yes();
+    test_flash_programming_success_no();
+    test_flash_programming_success_zero();
+    test_create_monitor_config_correct();
+    test_create_checklist_all_true();
+    test_checklist_power_true();
+    test_checklist_cooling_false();
+    test_checklist_network_true();
+    test_checklist_monitoring_false();
+    test_checklist_complete_incomplete();
+    printf("All %d tests passed.\n", 15);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* PRODUCTIONDEPLOYMENT_H */

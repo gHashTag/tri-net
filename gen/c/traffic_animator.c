@@ -454,4 +454,18 @@ void test_packet_position_interpolates_both_directions(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_anim_packet_roundtrip_and_progress();
+    test_packet_position_interpolates_both_directions();
+    printf("All %d tests passed.\n", 2);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* TRAFFIC_ANIMATOR_H */

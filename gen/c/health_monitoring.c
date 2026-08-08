@@ -369,4 +369,25 @@ void test_get_health_percentage_some_fail(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_create_health_check_basic();
+    test_calculate_overall_health_critical();
+    test_calculate_overall_health_warning();
+    test_calculate_overall_health_healthy();
+    test_count_failed_checks_multiple();
+    test_count_warning_checks_multiple();
+    test_update_health_check_works();
+    test_get_health_percentage_all_pass();
+    test_get_health_percentage_some_fail();
+    printf("All %d tests passed.\n", 9);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* HEALTHMONITORING_H */

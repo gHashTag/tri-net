@@ -292,4 +292,33 @@ void test_count_failed_nodes_zero(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_create_node_state_basic();
+    test_is_heartbeat_timeout_detects();
+    test_is_heartbeat_timeout_not_timeout();
+    test_detect_node_failure_returns_1_when_timeout();
+    test_detect_node_failure_returns_0_when_ok();
+    test_increment_failure_count_increments();
+    test_reset_failure_count_clears();
+    test_is_node_failed_threshold();
+    test_is_node_failed_below_threshold();
+    test_is_node_warning();
+    test_is_poor_link_detects();
+    test_is_poor_link_good();
+    test_update_link_quality_changes();
+    test_mark_node_dead();
+    test_mark_node_alive();
+    test_count_failed_nodes_multiple();
+    test_count_failed_nodes_zero();
+    printf("All %d tests passed.\n", 17);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* FAULTDETECTION_H */

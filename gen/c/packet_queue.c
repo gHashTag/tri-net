@@ -175,4 +175,25 @@ void test_size_check(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_queue_initially_empty();
+    test_enqueue_increases_count();
+    test_dequeue_from_empty();
+    test_enqueue_dequeue_roundtrip();
+    test_multiple_enqueues();
+    test_queue_fills_up();
+    test_enqueue_full_idempotent();
+    test_increment_wrap();
+    test_size_check();
+    printf("All %d tests passed.\n", 9);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* PACKETQUEUE_H */

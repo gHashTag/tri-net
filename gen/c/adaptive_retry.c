@@ -137,4 +137,21 @@ void test_total_time_estimation(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_exponential_backoff_calculation();
+    test_quality_based_retry_limits();
+    test_retry_permission_check();
+    test_success_probability_calculation();
+    test_total_time_estimation();
+    printf("All %d tests passed.\n", 5);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* ADAPTIVERETRY_H */

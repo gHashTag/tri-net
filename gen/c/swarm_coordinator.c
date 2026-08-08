@@ -380,4 +380,32 @@ void test_cooperative_decision_self_heavy(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_create_proposal_basic();
+    test_create_vote_yes();
+    test_create_vote_no();
+    test_create_vote_abstain();
+    test_count_votes_unanimous_yes();
+    test_count_votes_mixed();
+    test_has_quorum_true();
+    test_has_quorum_false();
+    test_proposal_passes_yes();
+    test_proposal_passes_no();
+    test_proposal_passes_tie();
+    test_calculate_consensus_value_average();
+    test_calculate_consensus_value_empty();
+    test_cooperative_decision_equal_weight();
+    test_cooperative_decision_neighbor_heavy();
+    test_cooperative_decision_self_heavy();
+    printf("All %d tests passed.\n", 16);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* SWARMCOORDINATOR_H */

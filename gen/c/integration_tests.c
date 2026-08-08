@@ -257,4 +257,26 @@ void test_frame_metadata_fields(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_wire_header_with_routing_dst();
+    test_ip_mapping_roundtrip();
+    test_transport_builds_wire_header();
+    test_queue_with_timer_timeout();
+    test_frame_metadata_queue_slot();
+    test_full_packet_flow();
+    test_routing_with_multiple_neighbors();
+    test_hello_beacon_with_mesh_ip();
+    test_timeout_with_backoff();
+    test_frame_metadata_fields();
+    printf("All %d tests passed.\n", 10);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* MESHINTEGRATIONTESTS_H */

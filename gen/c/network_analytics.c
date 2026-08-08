@@ -298,4 +298,34 @@ void test_is_congested_false(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_create_traffic_stats_basic();
+    test_calculate_total_traffic();
+    test_is_traffic_low_true();
+    test_is_traffic_high_true();
+    test_is_traffic_normal();
+    test_calculate_error_rate();
+    test_calculate_error_rate_no_traffic();
+    test_is_high_error_rate_true();
+    test_is_high_error_rate_false();
+    test_detect_pattern_spike();
+    test_detect_pattern_dropout();
+    test_detect_pattern_congestion();
+    test_detect_pattern_normal();
+    test_update_traffic_works();
+    test_calculate_utilization();
+    test_calculate_utilization_zero_capacity();
+    test_is_congested_true();
+    test_is_congested_false();
+    printf("All %d tests passed.\n", 18);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* NETWORKANALYTICS_H */

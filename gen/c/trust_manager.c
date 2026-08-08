@@ -318,4 +318,33 @@ void test_reward_node_increases_trust(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_create_trust_score_basic();
+    test_create_trust_relationship_basic();
+    test_calculate_trust_score_balanced();
+    test_calculate_trust_score_mostly_positive();
+    test_calculate_trust_score_mostly_negative();
+    test_calculate_trust_score_no_interactions();
+    test_update_trust_score_increases();
+    test_update_trust_score_decreases();
+    test_is_node_trusted_true();
+    test_is_node_trusted_false();
+    test_is_node_highly_trusted();
+    test_is_node_low_trusted();
+    test_find_most_trusted_middle();
+    test_should_route_via_node_true();
+    test_should_route_via_node_false();
+    test_penalize_node_reduces_trust();
+    test_reward_node_increases_trust();
+    printf("All %d tests passed.\n", 17);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* TRUST_MANAGER_H */

@@ -249,4 +249,30 @@ void test_complete_scenario_cold_to_connected(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_cold_start_initial_state();
+    test_discover_neighbor_transitions();
+    test_simulate_partition_removes_neighbors();
+    test_recover_from_partition_transitions();
+    test_node_join_increases_neighbors();
+    test_node_leave_decreases_neighbors();
+    test_node_leave_no_neighbors();
+    test_simulate_interference_high_clears();
+    test_simulate_interference_low_ok();
+    test_battery_drain_kills_node();
+    test_battery_drain_survives();
+    test_check_max_hops_valid();
+    test_check_max_hops_invalid();
+    test_complete_scenario_cold_to_connected();
+    printf("All %d tests passed.\n", 14);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* PRODUCTIONSCENARIOS_H */

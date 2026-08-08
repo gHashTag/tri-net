@@ -401,4 +401,20 @@ void test_node_role_assignment(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_config_param_roundtrip_wide_value();
+    test_default_table_values_survive();
+    test_config_lookup_finds_param();
+    test_node_role_assignment();
+    printf("All %d tests passed.\n", 4);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* AUTO_CONFIG_H */

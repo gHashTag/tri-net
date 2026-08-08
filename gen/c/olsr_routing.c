@@ -196,4 +196,22 @@ void test_mpr_selection(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_create_neighbor_basic();
+    test_is_valid_within_timeout();
+    test_is_valid_timeout();
+    test_table_reads_and_find();
+    test_slot_decisions();
+    test_mpr_selection();
+    printf("All %d tests passed.\n", 6);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* OLSRROUTING_H */

@@ -231,4 +231,33 @@ void test_extract_bram_correct(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_create_synthesis_result_correct();
+    test_timing_met_positive_slack();
+    test_timing_met_zero_slack();
+    test_timing_met_negative_slack();
+    test_utilization_acceptable_under_80();
+    test_utilization_acceptable_over_80();
+    test_calculate_resource_percentage_half();
+    test_calculate_resource_percentage_full();
+    test_calculate_resource_percentage_zero_max();
+    test_estimate_total_resources_calculates();
+    test_frequency_achievable_met();
+    test_frequency_achievable_not_met();
+    test_create_resource_summary_correct();
+    test_extract_lut_correct();
+    test_extract_ff_correct();
+    test_extract_dsp_correct();
+    test_extract_bram_correct();
+    printf("All %d tests passed.\n", 17);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* FPGASYNTHESISREPORT_H */

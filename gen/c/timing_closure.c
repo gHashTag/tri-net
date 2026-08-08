@@ -246,4 +246,34 @@ void test_extract_slack_negative_handling(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_create_critical_path_correct();
+    test_grade_timing_pass();
+    test_grade_timing_marginal();
+    test_grade_timing_fail();
+    test_calculate_pipeline_stages_needed();
+    test_calculate_pipeline_stages_few();
+    test_calculate_pipeline_stages_zero_freq();
+    test_retiming_needed_yes();
+    test_retiming_needed_no();
+    test_balance_registers_yes();
+    test_balance_registers_no();
+    test_compare_critical_paths_first();
+    test_compare_critical_paths_second();
+    test_create_timing_report_correct();
+    test_timing_closure_achieved_yes();
+    test_timing_closure_achieved_no_grade();
+    test_timing_closure_achieved_no_freq();
+    test_extract_slack_negative_handling();
+    printf("All %d tests passed.\n", 18);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* TIMINGCLOSURE_H */

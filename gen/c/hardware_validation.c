@@ -237,4 +237,33 @@ void test_extract_metric_type_boundary(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_create_test_result_correct();
+    test_calculate_pass_rate_perfect();
+    test_calculate_pass_rate_half();
+    test_calculate_pass_rate_zero();
+    test_calculate_pass_rate_zero_total();
+    test_test_passed_yes();
+    test_test_passed_no_errors_but_pending();
+    test_test_passed_errors();
+    test_bit_accurate_exact_match();
+    test_bit_accurate_tolerance();
+    test_bit_accurate_fail();
+    test_fpga_board_ready_yes();
+    test_fpga_board_ready_no();
+    test_create_packet_capture_correct();
+    test_create_performance_metric_correct();
+    test_extract_metric_value_large();
+    test_extract_metric_type_boundary();
+    printf("All %d tests passed.\n", 17);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* HARDWAREVALIDATION_H */

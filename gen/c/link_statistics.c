@@ -89,4 +89,20 @@ void test_reset_clears(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_inc_sent_increments();
+    test_inc_recv_increments();
+    test_both_counters();
+    test_reset_clears();
+    printf("All %d tests passed.\n", 4);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* LINKSTATISTICS_H */

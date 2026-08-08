@@ -299,4 +299,34 @@ void test_calculate_coding_gain_zero(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_create_packet_basic();
+    test_create_coded_packet_basic();
+    test_xor_packets_basic();
+    test_create_xoded_native();
+    test_decode_xoded_packet();
+    test_same_generation_true();
+    test_same_generation_false();
+    test_get_generation_id();
+    test_is_coding_beneficial_different_hops();
+    test_is_coding_beneficial_same_hop();
+    test_linear_code_packets_both_odd();
+    test_linear_code_packets_one_even();
+    test_create_coded_generation();
+    test_count_generation_packets_full();
+    test_is_generation_decodable_true();
+    test_is_generation_decodable_false();
+    test_calculate_coding_gain();
+    test_calculate_coding_gain_zero();
+    printf("All %d tests passed.\n", 18);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* NETWORKCODING_H */

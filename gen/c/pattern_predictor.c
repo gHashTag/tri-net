@@ -353,4 +353,32 @@ void test_calculate_variance_high(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_create_sample_basic();
+    test_create_pattern_storage_basic();
+    test_calculate_moving_average_4_samples();
+    test_calculate_moving_average_all_samples();
+    test_detect_trend_increasing();
+    test_detect_trend_decreasing();
+    test_detect_trend_stable();
+    test_predict_next_value_increasing();
+    test_predict_next_value_decreasing();
+    test_predict_next_value_stable();
+    test_is_anomalous_large_deviation();
+    test_is_anomalous_normal();
+    test_detect_repeating_pattern_found();
+    test_detect_repeating_pattern_not_found();
+    test_calculate_variance_low();
+    test_calculate_variance_high();
+    printf("All %d tests passed.\n", 16);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* PATTERN_PREDICTOR_H */

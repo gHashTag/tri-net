@@ -368,4 +368,20 @@ void test_network_health_average(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_health_metric_roundtrip();
+    test_node_health_mixes_metric_polarity();
+    test_node_health_saturates_out_of_range();
+    test_network_health_average();
+    printf("All %d tests passed.\n", 4);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* HEALTH_DASHBOARD_H */

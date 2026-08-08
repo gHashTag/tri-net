@@ -242,4 +242,25 @@ void test_two_hop_forwarding(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_expected_loss_rate_calculation();
+    test_signal_quality_classification();
+    test_throughput_factor_calculation();
+    test_total_attenuation_calculation();
+    test_delivery_rate_calculation();
+    test_tcp_packet_generation();
+    test_udp_packet_generation();
+    test_hop_simulation();
+    test_two_hop_forwarding();
+    printf("All %d tests passed.\n", 9);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* M3MULTIHOP_H */

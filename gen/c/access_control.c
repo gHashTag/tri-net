@@ -269,4 +269,32 @@ void test_check_resource_access_role_too_low(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_create_node_creds_basic();
+    test_create_policy_basic();
+    test_role_meets_minimum_true();
+    test_role_meets_minimum_false();
+    test_check_access_admin();
+    test_check_access_user();
+    test_check_access_guest_denied();
+    test_verify_creds_valid();
+    test_verify_creds_invalid_token();
+    test_verify_creds_unauthorized();
+    test_authorize_node_works();
+    test_revoke_node_works();
+    test_change_role_works();
+    test_check_resource_access_full_grant();
+    test_check_resource_access_invalid_creds();
+    test_check_resource_access_role_too_low();
+    printf("All %d tests passed.\n", 16);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* ACCESSCONTROL_H */

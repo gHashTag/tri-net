@@ -294,4 +294,29 @@ void test_count_valid_keys_some(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_create_key_entry_basic();
+    test_find_key_by_id_found();
+    test_find_key_by_id_not_found();
+    test_find_key_by_id_invalid_ignored();
+    test_add_key_empty_slot();
+    test_invalidate_key_works();
+    test_needs_rotation_true();
+    test_needs_rotation_false();
+    test_needs_rotation_invalid();
+    test_rotate_key_works();
+    test_get_active_key_returns_latest();
+    test_count_valid_keys_all();
+    test_count_valid_keys_some();
+    printf("All %d tests passed.\n", 13);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* KEYMANAGEMENT_H */

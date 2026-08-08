@@ -113,4 +113,26 @@ void test_max_values(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_empty_meta_invalid();
+    test_create_meta_valid();
+    test_get_src_field();
+    test_get_dst_field();
+    test_get_ttl_field();
+    test_roundtrip();
+    test_invalid_flag();
+    test_field_independence();
+    test_zero_ttl();
+    test_max_values();
+    printf("All %d tests passed.\n", 10);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* FRAMEBUFFER_H */

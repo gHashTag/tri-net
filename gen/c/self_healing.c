@@ -339,4 +339,38 @@ void test_update_network_after_recovery_improves(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_create_recovery_state_basic();
+    test_can_recover_true();
+    test_can_recover_max_attempts();
+    test_can_recover_in_progress();
+    test_can_recover_cooldown();
+    test_start_recovery_sets_flag();
+    test_complete_recovery_success();
+    test_complete_recovery_failure();
+    test_reset_recovery_clears();
+    test_is_recovery_failed_max();
+    test_is_recovery_failed_below_max();
+    test_create_network_state_basic();
+    test_network_health_percent_calculates();
+    test_network_health_percent_zero_nodes();
+    test_is_network_healthy_true();
+    test_is_network_healthy_false();
+    test_is_network_degraded();
+    test_is_network_critical();
+    test_should_initiate_healing_needed();
+    test_should_initiate_healing_not_needed();
+    test_should_initiate_healing_wait();
+    test_update_network_after_recovery_improves();
+    printf("All %d tests passed.\n", 22);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* SELFHEALING_H */

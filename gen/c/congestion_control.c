@@ -285,4 +285,19 @@ void test_loss_threshold_resets_window(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_congestion_state_roundtrip();
+    test_slow_start_doubles_until_threshold();
+    test_loss_threshold_resets_window();
+    printf("All %d tests passed.\n", 3);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* CONGESTION_CONTROL_H */

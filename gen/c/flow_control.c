@@ -301,4 +301,19 @@ void test_backpressure_levels(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_flow_state_roundtrip();
+    test_credit_lifecycle();
+    test_backpressure_levels();
+    printf("All %d tests passed.\n", 3);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* FLOW_CONTROL_H */

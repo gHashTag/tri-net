@@ -511,4 +511,18 @@ void test_send_message_requires_active_destination(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_module_registration_roundtrip();
+    test_send_message_requires_active_destination();
+    printf("All %d tests passed.\n", 2);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* INTEGRATION_FRAMEWORK_H */

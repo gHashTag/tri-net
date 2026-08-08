@@ -362,4 +362,19 @@ void test_highest_priority_policy_selection(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_policy_roundtrip();
+    test_coordination_roundtrip();
+    test_highest_priority_policy_selection();
+    printf("All %d tests passed.\n", 3);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* NETWORK_ORCHESTRATOR_H */

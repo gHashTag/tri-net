@@ -334,4 +334,20 @@ void test_predict_load_no_underflow_when_average_leads(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_load_metrics_roundtrip();
+    test_prediction_roundtrip();
+    test_trend_detection_bands();
+    test_predict_load_no_underflow_when_average_leads();
+    printf("All %d tests passed.\n", 4);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* LOAD_PREDICTOR_H */

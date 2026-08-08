@@ -361,4 +361,32 @@ void test_prioritize_bandwidth_distributes(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_create_flow_requirement_basic();
+    test_create_allocation_state_basic();
+    test_calculate_fair_share_normal();
+    test_calculate_fair_share_zero_flows();
+    test_allocate_bandwidth_high_priority();
+    test_allocate_bandwidth_medium_priority();
+    test_allocate_bandwidth_low_priority();
+    test_needs_more_bandwidth_true();
+    test_needs_more_bandwidth_false();
+    test_update_flow_bandwidth_increase();
+    test_update_flow_bandwidth_respects_min();
+    test_update_flow_bandwidth_respects_max();
+    test_count_active_flows_full();
+    test_count_active_flows_partial();
+    test_find_reclaimable_bandwidth();
+    test_prioritize_bandwidth_distributes();
+    printf("All %d tests passed.\n", 16);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* BANDWIDTHALLOCATOR_H */

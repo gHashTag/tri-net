@@ -133,4 +133,24 @@ void test_full_backoff_sequence(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_calc_timeout_zero();
+    test_calc_timeout_doubles();
+    test_calc_timeout_capped();
+    test_tick_counter_decrements();
+    test_tick_counter_stops_at_zero();
+    test_tick_counter_reaches_zero();
+    test_is_expired_check();
+    test_full_backoff_sequence();
+    printf("All %d tests passed.\n", 8);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* MESHTIMER_H */

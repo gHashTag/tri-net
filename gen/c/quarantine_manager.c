@@ -344,4 +344,19 @@ void test_ban_pins_violation_ceiling(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_quarantine_state_roundtrip();
+    test_quarantine_lifecycle();
+    test_ban_pins_violation_ceiling();
+    printf("All %d tests passed.\n", 3);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* QUARANTINE_MANAGER_H */

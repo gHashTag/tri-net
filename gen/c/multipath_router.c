@@ -119,4 +119,21 @@ void test_reliability_estimation(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_path_selection_logic();
+    test_quality_score_calculation();
+    test_failover_decision();
+    test_path_index_progression();
+    test_reliability_estimation();
+    printf("All %d tests passed.\n", 5);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* MULTIPATHROUTER_H */

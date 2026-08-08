@@ -324,4 +324,32 @@ void test_failover_no_backup(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_create_path_basic();
+    test_create_path_set();
+    test_find_primary_path_first();
+    test_find_primary_path_skip_invalid();
+    test_find_backup_path();
+    test_invalidate_path_works();
+    test_validate_path_works();
+    test_count_valid_paths_all();
+    test_count_valid_paths_some();
+    test_has_redundancy_true();
+    test_has_redundancy_false();
+    test_get_hop_count_three();
+    test_get_hop_count_one();
+    test_find_shortest_path();
+    test_failover_invalidates_failed();
+    test_failover_no_backup();
+    printf("All %d tests passed.\n", 16);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* REDUNDANCYMANAGEMENT_H */

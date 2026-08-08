@@ -263,4 +263,33 @@ void test_header_byte_correctness_ttl(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_idle_to_enqueue_on_frame();
+    test_idle_stays_idle_when_no_frame();
+    test_enqueue_to_build_hdr();
+    test_build_hdr_to_tx_wait();
+    test_tx_wait_to_acked_on_success();
+    test_tx_wait_stays_waiting_when_no_ack();
+    test_tx_wait_to_failed_on_retry_exceeded();
+    test_acked_returns_to_idle();
+    test_failed_returns_to_idle();
+    test_retry_exponential_backoff();
+    test_is_retries_exceeded_check();
+    test_increment_retry_saturates();
+    test_header_byte_correctness_version();
+    test_header_byte_correctness_kind();
+    test_header_byte_correctness_src();
+    test_header_byte_correctness_dst();
+    test_header_byte_correctness_ttl();
+    printf("All %d tests passed.\n", 17);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* TRANSPORTTXFSM_H */

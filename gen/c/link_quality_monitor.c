@@ -152,4 +152,22 @@ void test_quality_classification(void) {
 }
 
 
+/* -------------------------------------------------------
+   Test runner (compile with -DT27_TEST_MAIN to execute)
+   ------------------------------------------------------- */
+
+#ifdef T27_TEST_MAIN
+#include <stdio.h>
+int main(void) {
+    test_ewma_calculation();
+    test_trend_detection();
+    test_etx_prediction();
+    test_degradation_detection();
+    test_quality_score_calculation();
+    test_quality_classification();
+    printf("All %d tests passed.\n", 6);
+    return 0;
+}
+#endif /* T27_TEST_MAIN */
+
 #endif /* LINKQUALITYMONITOR_H */
