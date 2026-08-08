@@ -46,6 +46,24 @@ jobs:
         working-directory: t27
         run: cargo build --release --manifest-path bootstrap/Cargo.toml --bin t27c
 
+      - name: Typecheck — all specs
+        working-directory: tri-net
+        run: |
+          # Full-corpus typecheck (not just staged files like the local hook):
+          # arity mismatches are hard errors since t27#1922, literal inference
+          # is context-polymorphic since t27#1924, and W456 is scoped to const
+          # ROM since t27#1926 -- the whole corpus is expected clean.
+          T27C=../t27/target/release/t27c
+          STATUS=0
+          for spec in specs/*.t27; do
+            if ! $T27C typecheck "$spec" 2>&1 | grep -q "Typecheck OK"; then
+              echo "::error file=${spec}::typecheck failed"
+              $T27C typecheck "$spec" 2>&1 | grep '^  - ' | head -5
+              STATUS=1
+            fi
+          done
+          exit $STATUS
+
       - name: Drift check — Rust (all specs)
         working-directory: tri-net
         run: |
