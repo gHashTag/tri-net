@@ -130,9 +130,9 @@ fn needs_immediate_action(metrics: u32) bool {
     return ((cpu > 95) or (temp > 95)) or (errors > 50);
 }
 fn find_most_at_risk(health_array: u64) u32 {
-    var highest_risk = 0xFF;
+    var highest_risk: u32 = 0xFF;
     _ = &highest_risk;
-    var highest_risk_node = 0xFF;
+    var highest_risk_node: u32 = 0xFF;
     _ = &highest_risk_node;
     if (calculate_failure_risk(get_health_metrics(health_array, 0), 0) > highest_risk) {
         highest_risk = calculate_failure_risk(get_health_metrics(health_array, 0), 0);

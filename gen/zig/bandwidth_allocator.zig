@@ -79,7 +79,7 @@ fn allocate_bandwidth(state: u32, flow_req: u32, available_bw: u32) u32 {
     const priority = get_flow_priority(flow_req);
     const min_bw = get_min_bandwidth(flow_req);
     const allocated = get_allocated_bw(state);
-    var allocation = 0;
+    var allocation: u32 = 0;
     _ = &allocation;
     if (priority == 0) {
         allocation = min_bw + ((available_bw * 7) / 10);
@@ -121,7 +121,7 @@ fn update_flow_bandwidth(flow_req: u32, new_bw: u32) u32 {
     return create_flow_requirement(flow_id, priority, min_bw, new_bw);
 }
 fn count_active_flows(flow_array: u64) u32 {
-    var count = 0;
+    var count: u32 = 0;
     _ = &count;
     if (get_current_bandwidth(get_flow_req(flow_array, 0)) > 0) {
         count = count + 1;
@@ -151,7 +151,7 @@ fn count_active_flows(flow_array: u64) u32 {
 }
 fn find_reclaimable_bandwidth(state: u32, flow_array: u64) u32 {
     const allocated = get_allocated_bw(state);
-    var total_used = 0;
+    var total_used: u32 = 0;
     _ = &total_used;
     if (get_current_bandwidth(get_flow_req(flow_array, 0)) > 0) {
         total_used = total_used + get_current_bandwidth(get_flow_req(flow_array, 0));

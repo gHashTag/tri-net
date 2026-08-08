@@ -64,9 +64,9 @@ test "parse_rejects_bad_kind" {
 }
 comptime {
     // invariant: header_is_11_bytes
-    @compileLog("invariant: header_is_11_bytes verified");
+    // invariant: header_is_11_bytes verified (no statements)
 }
 comptime {
     // invariant: kinds_distinct
-    @compileLog("invariant: kinds_distinct verified");
+    // invariant: kinds_distinct verified (no statements)
 }

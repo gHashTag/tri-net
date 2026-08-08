@@ -84,9 +84,9 @@ fn update_health_check(array: u64, index: u32, new_check: u32) u64 {
     }
 }
 fn calculate_overall_health(array: u64) u32 {
-    var failed = 0;
+    var failed: u32 = 0;
     _ = &failed;
-    var warnings = 0;
+    var warnings: u32 = 0;
     _ = &warnings;
     if (get_check_result(get_health_check(array, 0)) == RESULT_FAIL) {
         failed = failed + 1;
@@ -145,7 +145,7 @@ fn calculate_overall_health(array: u64) u32 {
     }
 }
 fn count_failed_checks(array: u64) u32 {
-    var count = 0;
+    var count: u32 = 0;
     _ = &count;
     if (get_check_result(get_health_check(array, 0)) == RESULT_FAIL) {
         count = count + 1;
@@ -174,7 +174,7 @@ fn count_failed_checks(array: u64) u32 {
     return count;
 }
 fn count_warning_checks(array: u64) u32 {
-    var count = 0;
+    var count: u32 = 0;
     _ = &count;
     if (get_check_result(get_health_check(array, 0)) == RESULT_WARN) {
         count = count + 1;
@@ -211,9 +211,9 @@ fn is_check_failing(array: u64, check_type: u32) bool {
     return false;
 }
 fn get_health_percentage(array: u64) u32 {
-    var total = 0;
+    var total: u32 = 0;
     _ = &total;
-    var passing = 0;
+    var passing: u32 = 0;
     _ = &passing;
     if (get_check_result(get_health_check(array, 0)) != RESULT_FAIL) {
         passing = passing + 1;

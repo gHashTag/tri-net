@@ -103,7 +103,7 @@ fn mark_node_alive(state: u32, current_time: u32) u32 {
     return create_node_state(1, 0, current_time, quality);
 }
 fn count_failed_nodes(table: u64) u32 {
-    var count = 0;
+    var count: u32 = 0;
     _ = &count;
     if (is_node_failed(get_node_state(table, 0))) {
         count = count + 1;

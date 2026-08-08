@@ -69,7 +69,7 @@ fn is_coding_beneficial(pkt1: u32, pkt2: u32, next_hop1: u32, next_hop2: u32) bo
     return next_hop1 != next_hop2;
 }
 fn linear_code_packets(pkt1: u32, pkt2: u32, coeff1: u32, coeff2: u32) u32 {
-    var result = 0;
+    var result: u32 = 0;
     _ = &result;
     if ((coeff1 & 1) == 1) {
         result = result ^ pkt1;
@@ -95,7 +95,7 @@ fn get_coded_packet_gen(gen: u64, index: u32) u32 {
     return @as(u32, @intCast(gen & 0xFFFFFFFF));
 }
 fn count_generation_packets(gen: u64) u32 {
-    var count = 0;
+    var count: u32 = 0;
     _ = &count;
     if (get_coded_packet_gen(gen, 0) != 0) {
         count = count + 1;
