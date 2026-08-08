@@ -216,20 +216,20 @@ pub fn create_error_propagation(source_id: u32, error_code: u32, severity: u32, 
     return (((((source_id & 0xFF) << 24) | ((error_code & 0xFF) << 16)) | ((severity & 0xF) << 12)) | (timestamp & 0xFFF));
 }
 
-pub fn get_error_source(error: u32) -> u32 {
-    return ((error >> 24) & 0xFF);
+pub fn get_error_source(err_word: u32) -> u32 {
+    return ((err_word >> 24) & 0xFF);
 }
 
-pub fn get_error_code(error: u32) -> u32 {
-    return ((error >> 16) & 0xFF);
+pub fn get_error_code(err_word: u32) -> u32 {
+    return ((err_word >> 16) & 0xFF);
 }
 
-pub fn get_error_severity(error: u32) -> u32 {
-    return ((error >> 12) & 0xF);
+pub fn get_error_severity(err_word: u32) -> u32 {
+    return ((err_word >> 12) & 0xF);
 }
 
-pub fn get_error_timestamp(error: u32) -> u32 {
-    return (error & 0xFFF);
+pub fn get_error_timestamp(err_word: u32) -> u32 {
+    return (err_word & 0xFFF);
 }
 
 pub const SEVERITY_INFO: u32 = 0;
@@ -240,8 +240,8 @@ pub const SEVERITY_ERROR: u32 = 2;
 
 pub const SEVERITY_CRITICAL: u32 = 3;
 
-pub fn propagate_error(error: u32, modules: [u32; MAX_MODULES as usize], module_count: u32) -> u32 {
-    let severity: u32 = get_error_severity(error);
+pub fn propagate_error(err_word: u32, modules: [u32; MAX_MODULES as usize], module_count: u32) -> u32 {
+    let severity: u32 = get_error_severity(err_word);
     let mut notified_count: u32 = 0;
     let mut i: u32 = 0;
     while (i < module_count) {

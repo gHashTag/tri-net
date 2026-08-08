@@ -17,20 +17,20 @@ module test_validator {
                 (severity & 0xFFF));
     }
 
-    fn get_error_id(error: u32) -> u32 {
-        return ((error >> 24) & 0xFF);
+    fn get_error_id(err_word: u32) -> u32 {
+        return ((err_word >> 24) & 0xFF);
     }
 
-    fn get_error_type(error: u32) -> u32 {
-        return ((error >> 20) & 0xF);
+    fn get_error_type(err_word: u32) -> u32 {
+        return ((err_word >> 20) & 0xF);
     }
 
-    fn get_error_line(error: u32) -> u32 {
-        return ((error >> 12) & 0xFF);
+    fn get_error_line(err_word: u32) -> u32 {
+        return ((err_word >> 12) & 0xFF);
     }
 
-    fn get_error_severity(error: u32) -> u32 {
-        return (error & 0xFFF);
+    fn get_error_severity(err_word: u32) -> u32 {
+        return (err_word & 0xFFF);
     }
 
     // Error types

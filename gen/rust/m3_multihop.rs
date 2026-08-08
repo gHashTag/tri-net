@@ -33,7 +33,7 @@ pub fn expected_loss_rate_p10(attenuation_db: u8) -> u8 {
 pub fn throughput_factor_p8(attenuation_db: u8) -> u8 {
     let loss_p10: u8 = expected_loss_rate_p10(attenuation_db);
     let loss_p8: u8 = (((loss_p10 as u16) / 10) as u8);
-    wrapping_sub(loss_p8);
+    return (((256 - (loss_p8 as u32)) & 0xFF) as u8);
 }
 
 pub fn signal_quality(attenuation_db: u8) -> u8 { unimplemented!() }
@@ -52,7 +52,7 @@ pub fn delivery_rate_p8(hop1_db: u8, hop2_db: u8) -> u8 {
 pub fn simulate_hop(attenuation_db: u8, packet_seq: u8) -> bool {
     let success_p8: u8 = throughput_factor_p8(attenuation_db);
     let random_factor: u8 = (packet_seq % 100);
-    let random_threshold: u8 = ((((random_factor as u16) * 0x100_) / 100) as u8);
+    let random_threshold: u8 = ((((random_factor as u16) * 256) / 100) as u8);
     (random_threshold < success_p8);
 }
 

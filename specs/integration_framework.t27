@@ -255,20 +255,20 @@ module integration_framework {
                 (timestamp & 0xFFF));
     }
 
-    fn get_error_source(error: u32) -> u32 {
-        return ((error >> 24) & 0xFF);
+    fn get_error_source(err_word: u32) -> u32 {
+        return ((err_word >> 24) & 0xFF);
     }
 
-    fn get_error_code(error: u32) -> u32 {
-        return ((error >> 16) & 0xFF);
+    fn get_error_code(err_word: u32) -> u32 {
+        return ((err_word >> 16) & 0xFF);
     }
 
-    fn get_error_severity(error: u32) -> u32 {
-        return ((error >> 12) & 0xF);
+    fn get_error_severity(err_word: u32) -> u32 {
+        return ((err_word >> 12) & 0xF);
     }
 
-    fn get_error_timestamp(error: u32) -> u32 {
-        return (error & 0xFFF);
+    fn get_error_timestamp(err_word: u32) -> u32 {
+        return (err_word & 0xFFF);
     }
 
     // Error severity levels
@@ -278,8 +278,8 @@ module integration_framework {
     const SEVERITY_CRITICAL: u32 = 3;
 
     // Propagate error through system
-    fn propagate_error(error: u32, modules: [u32; MAX_MODULES], module_count: u32) -> u32 {
-        let severity: u32 = get_error_severity(error);
+    fn propagate_error(err_word: u32, modules: [u32; MAX_MODULES], module_count: u32) -> u32 {
+        let severity: u32 = get_error_severity(err_word);
         let notified_count: u32 = 0;
         
         // Notify modules based on severity

@@ -55,7 +55,7 @@ module M3MultiHop {
         let loss_p8: u8 = (loss_p10 as u16 / 10) as u8;  // Convert Q1.7 to Q0.8
         
         // 1.0 - loss_rate in Q0.8
-        0x100_u8.wrapping_sub(loss_p8)
+        return ((256 - (loss_p8 as u32)) & 0xFF) as u8;
     }
     
     // Get signal quality category
@@ -101,7 +101,7 @@ module M3MultiHop {
         
         // Use packet sequence as pseudo-random factor
         let random_factor: u8 = packet_seq % 100;
-        let random_threshold: u8 = ((random_factor as u16) * 0x100_u16 / 100) as u8;
+        let random_threshold: u8 = ((random_factor as u16) * 256 / 100) as u8;
         
         // Success if random factor is below success probability
         random_threshold < success_p8

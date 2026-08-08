@@ -16,7 +16,7 @@ module ProductionScenarios {
         return (((state as u32) & 0xFF) << 24) | ((neighbors & 0xFF) << 16) | (uptime & 0xFFFF);
     }
 
-    fn node_state(state: u32) -> u8 {
+    fn node_state_of(state: u32) -> u8 {
         return ((state >> 24) & 0xFF) as u8;
     }
 
@@ -33,21 +33,21 @@ module ProductionScenarios {
         return create_node_state(STATE_COLD_START, 0, 0);
     }
 
-    fn discover_neighbor(node_state: u32) -> u32 {
-        if (node_state(node_state) == STATE_COLD_START) {
-            return create_node_state(STATE_DISCOVERING, 0, node_uptime(node_state));
-        } else if (node_state(node_state) == STATE_DISCOVERING) {
+    fn discover_neighbor(state_word: u32) -> u32 {
+        if (node_state_of(state_word) == STATE_COLD_START) {
+            return create_node_state(STATE_DISCOVERING, 0, node_uptime(state_word));
+        } else if (node_state_of(state_word) == STATE_DISCOVERING) {
             return create_node_state(STATE_CONNECTED,
-                                      (node_neighbors(node_state) + 1),
-                                      node_uptime(node_state));
+                                      (node_neighbors(state_word) + 1),
+                                      node_uptime(state_word));
         } else {
-            return node_state;
+            return state_word;
         }
     }
 
     // Network partition simulation
     fn simulate_partition(node_state: u32) -> u32 {
-        if (node_state(node_state) == STATE_CONNECTED) {
+        if (node_state_of(node_state) == STATE_CONNECTED) {
             return create_node_state(STATE_PARTITIONED, 0, node_uptime(node_state));
         } else {
             return node_state;
@@ -55,7 +55,7 @@ module ProductionScenarios {
     }
 
     fn recover_from_partition(node_state: u32) -> u32 {
-        if (node_state(node_state) == STATE_PARTITIONED) {
+        if (node_state_of(node_state) == STATE_PARTITIONED) {
             return create_node_state(STATE_RECOVERING, 0, node_uptime(node_state));
         } else {
             return node_state;
@@ -64,14 +64,14 @@ module ProductionScenarios {
 
     // Node join/leave simulation
     fn node_join(existing_node: u32) -> u32 {
-        return create_node_state(node_state(existing_node),
+        return create_node_state(node_state_of(existing_node),
                                   (node_neighbors(existing_node) + 1),
                                   node_uptime(existing_node));
     }
 
     fn node_leave(existing_node: u32) -> u32 {
         if (node_neighbors(existing_node) > 0) {
-            return create_node_state(node_state(existing_node),
+            return create_node_state(node_state_of(existing_node),
                                       (node_neighbors(existing_node) - 1),
                                       node_uptime(existing_node));
         } else {
@@ -83,7 +83,7 @@ module ProductionScenarios {
     fn simulate_interference(node_state: u32, interference_level: u8) -> u32 {
         if (interference_level > 128) {
             // High interference - lose neighbors
-            return create_node_state(node_state(node_state), 0, node_uptime(node_state));
+            return create_node_state(node_state_of(node_state), 0, node_uptime(node_state));
         } else {
             return node_state;
         }
@@ -107,7 +107,7 @@ module ProductionScenarios {
 
     test cold_start_initial_state {
         node = cold_start();
-        assert(node_state(node) == STATE_COLD_START, "cold start state");
+        assert(node_state_of(node) == STATE_COLD_START, "cold start state");
         assert(node_neighbors(node) == 0, "no neighbors");
         assert(node_uptime(node) == 0, "zero uptime");
     }
@@ -115,24 +115,24 @@ module ProductionScenarios {
     test discover_neighbor_transitions {
         node = cold_start();
         node2 = discover_neighbor(node);
-        assert(node_state(node2) == STATE_DISCOVERING, "discovering");
+        assert(node_state_of(node2) == STATE_DISCOVERING, "discovering");
         
         node3 = discover_neighbor(node2);
-        assert(node_state(node3) == STATE_CONNECTED, "connected");
+        assert(node_state_of(node3) == STATE_CONNECTED, "connected");
         assert(node_neighbors(node3) == 1, "1 neighbor");
     }
 
     test simulate_partition_removes_neighbors {
         node = create_node_state(STATE_CONNECTED, 3, 1000);
         node2 = simulate_partition(node);
-        assert(node_state(node2) == STATE_PARTITIONED, "partitioned");
+        assert(node_state_of(node2) == STATE_PARTITIONED, "partitioned");
         assert(node_neighbors(node2) == 0, "neighbors cleared");
     }
 
     test recover_from_partition_transitions {
         node = create_node_state(STATE_PARTITIONED, 0, 1000);
         node2 = recover_from_partition(node);
-        assert(node_state(node2) == STATE_RECOVERING, "recovering");
+        assert(node_state_of(node2) == STATE_RECOVERING, "recovering");
     }
 
     test node_join_increases_neighbors {
@@ -196,13 +196,13 @@ module ProductionScenarios {
         node = discover_neighbor(node);
         node = discover_neighbor(node);
         
-        assert(node_state(node) == STATE_CONNECTED, "connected");
+        assert(node_state_of(node) == STATE_CONNECTED, "connected");
         assert(node_neighbors(node) == 1, "1 neighbor");
         
         node = simulate_partition(node);
-        assert(node_state(node) == STATE_PARTITIONED, "partitioned");
+        assert(node_state_of(node) == STATE_PARTITIONED, "partitioned");
         
         node = recover_from_partition(node);
-        assert(node_state(node) == STATE_RECOVERING, "recovering");
+        assert(node_state_of(node) == STATE_RECOVERING, "recovering");
     }
 }
