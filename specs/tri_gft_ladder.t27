@@ -112,7 +112,11 @@ module TriGftLadder {
     // point, (3^Et - 1) / 2 = offset_max / 2. This is the `bias` that the multiply /
     // add recompute (tri_gft_arith / tri_gft_add) take as a parameter, so a receipt
     // of ANY GF-T width can be verified with its rung's geometry (not GF-T16's).
-    // GF-T4 -> 4, GF-T8 -> 13, GF-T16 -> 40, GF-T32 -> 121.
+    // GF-T4 -> 4, GF-T8 -> 13, GF-T16 -> 40, GF-T32 -> 364.
+    // (GF-T32 is Et6, so bias = (3^6-1)/2 = 364. The 121 this line used to claim
+    // was the pre-ratification Et5 geometry -- the same fossil tri_compute_settle
+    // warns about for offset_max, "NOT the old log2-rule 242". The assertion at
+    // gft_bias(GFT32_ET) == 364 below is authoritative.)
     fn gft_bias(exp_trits: u32) -> u32 {
         return (gft_pow3(exp_trits) - 1) / 2;
     }
