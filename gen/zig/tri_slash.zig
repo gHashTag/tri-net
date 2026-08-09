@@ -13,7 +13,7 @@ fn receipt_matches(claimed_seal: u32, recomputed_seal: u32) bool {
     return claimed_seal == recomputed_seal;
 }
 fn balance_add(bal: u32, reward: u32) u32 {
-    const sum: u32 = bal + reward;
+    const sum: u32 = bal +% reward;
     if (sum < bal) {
         return 0xFFFFFFFF;
     } else {

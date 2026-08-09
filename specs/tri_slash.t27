@@ -24,7 +24,7 @@ module TriSlash {
 
     // Saturating balance add (a node's balance never wraps down).
     fn balance_add(bal: u32, reward: u32) -> u32 {
-        let sum: u32 = bal + reward;
+        let sum: u32 = bal +% reward;
         if (sum < bal) {
             return 0xFFFFFFFF;
         } else {
