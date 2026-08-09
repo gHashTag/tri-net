@@ -243,6 +243,36 @@ jobs:
           n_decl=$(printf '%s\n' "$declared" | sed '/^$/d' | wc -l | tr -d ' ')
           n_file=$(printf '%s\n' "$present" | sed '/^$/d' | wc -l | tr -d ' ')
           echo "cargo test targets: ${n_file} files, ${n_decl} declared"
+
+          # Same trap on the binary side: Cargo.toml sets `autobins = false`, so a
+          # file in src/bin/ is compiled ONLY with an explicit [[bin]] block. 28 of
+          # 29 were undeclared -- never built, never type-checked, free to rot.
+          # Every src/bin/*.rs must now be declared, or listed here. Triage of the
+          # 28 (cargo check, one target at a time):
+          #   24 compile once the gen/rust modules they include by #[path] are
+          #      generated (7+2+1 were simply never committed; every spec exists).
+          #      They are NOT revived yet: those #[path] mods lack
+          #      #[allow(clippy::all, unused)], so `clippy --all-targets -D
+          #      warnings` reports 349 errors from the GENERATED code and would
+          #      redden the required build+test gate. Reviving them is attribute
+          #      surgery across 24 files -- its own change.
+          #    3 are genuinely rotted: tri_rti (unresolved import trios_mesh::rti),
+          #      trinet_a2a_node (needs gen/rust/router_ttl.rs -- no such spec),
+          #      trios_meshd (method `send` is not a member of trait `Transport`).
+          # Shrink this list; never grow it.
+          KNOWN_DEAD="tri_rti trinet_a2a_node trios_meshd gft16_vs_binary16 trinet_batch_over_mesh trinet_challenge trinet_challenge_over_mesh trinet_compute_lifecycle trinet_compute_over_mesh trinet_compute_verify trinet_discovery_over_mesh trinet_gft32_over_mesh trinet_heartbeat_over_mesh trinet_input_digest trinet_ledger_chain trinet_ledger_head trinet_ledger_over_mesh trinet_lifecycle_over_mesh trinet_merkle_batch trinet_node_identity trinet_optimistic_settle trinet_ratchet_over_mesh trinet_receipt_digest trinet_receipt_verify trinet_requester_verify trinet_rung_verify trinet_settle_signed trios_meshd_video"
+          # space-separated: the `case` glob below matches on " name " boundaries
+          bin_decl=$(grep -oE 'src/bin/[a-z0-9_]+\.rs' Cargo.toml | sed 's#src/bin/##; s#\.rs$##' | sort -u | tr '\n' ' ')
+          bin_pres=$(ls src/bin/*.rs | sed 's#src/bin/##; s#\.rs$##' | sort)
+          for b in $bin_pres; do
+            case " $bin_decl " in *" $b "*) continue;; esac
+            case " $KNOWN_DEAD " in *" $b "*) echo "known-dead bin (tracked): $b"; continue;; esac
+            echo "::error::src/bin/${b}.rs is neither declared as a [[bin]] nor listed in KNOWN_DEAD; with autobins = false it is never compiled"
+            STATUS=1
+          done
+          n_bin_pres=$(printf '%s\n' "$bin_pres" | sed '/^$/d' | wc -l | tr -d ' ')
+          n_bin_decl=$(printf '%s' "$bin_decl" | wc -w | tr -d ' ')
+          echo "cargo bin targets: ${n_bin_pres} files, ${n_bin_decl} declared, $(printf '%s' "$KNOWN_DEAD" | wc -w | tr -d ' ') known-dead"
           exit $STATUS
 
       - name: Zig test — execute committed gens (passing set)
