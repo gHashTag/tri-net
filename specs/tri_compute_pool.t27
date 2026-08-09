@@ -54,7 +54,7 @@ module TriComputePool {
 
     // A requester funds the pool (saturating, like a ledger balance).
     fn pool_after_deposit(pool: u32, amount: u32) -> u32 {
-        let sum: u32 = pool + amount;
+        let sum: u32 = pool +% amount;
         if (sum < pool) {
             return 0xFFFFFFFF;
         } else {
@@ -98,7 +98,7 @@ module TriComputePool {
     // at the representable ceiling does it degrade gracefully (cap) rather than wrap.
     fn balance_after_pool_settle(prev_balance: u32, pool: u32, reward: u32) -> u32 {
         let credit: u32 = payout_capped(pool, reward);
-        let sum: u32 = prev_balance + credit;
+        let sum: u32 = prev_balance +% credit;
         if (sum < prev_balance) {
             return 0xFFFFFFFF;
         } else {

@@ -72,7 +72,7 @@ module TriComputeBond {
     // Non-terminal / slash outcomes never add, so they cannot overflow.
     fn balance_after_resolve(balance: u32, bond: u32, outcome: u32) -> u32 {
         if (outcome == 0) {
-            let sum: u32 = balance + bond;
+            let sum: u32 = balance +% bond;
             if (sum < balance) {
                 return 0xFFFFFFFF;
             } else {
