@@ -14,7 +14,7 @@ fn rep_after_honest(rep: u32, gain: u32) u32 {
     if (r > @as(u64, @intCast(REP_MAX))) {
         return REP_MAX;
     } else {
-        return @as(u32, @intCast(r));
+        return @as(u32, @truncate(r));
     }
 }
 fn rep_after_slash(rep: u32) u32 {
@@ -57,7 +57,7 @@ fn weighted_work(raw_work: u32, rep: u32) u32 {
     if (prod > 4294967295) {
         return 4294967295;
     } else {
-        return @as(u32, @intCast(prod));
+        return @as(u32, @truncate(prod));
     }
 }
 fn can_admit(rep: u32, min_rep: u32) bool {

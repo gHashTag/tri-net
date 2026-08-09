@@ -329,7 +329,7 @@ fn admit_result(assign_task_id: u32, result_task_id: u32, receipt_task: u32, ass
 const A2A_BOND_BPS_UNIT: u32 = 10000;
 fn admit_result_bonded(assign_task_id: u32, result_task_id: u32, receipt_task: u32, assigned_skill: u32, receipt_family: u32, receipt_op: u32, last_settled: u32, exec_rep: u32, min_rep: u32, bond: u32, outstanding: u32, min_bps: u32) bool {
     const need: u64 = @as(u64, @intCast(outstanding)) * @as(u64, @intCast(min_bps));
-    const required: u32 = @as(u32, @intCast(need / @as(u64, @intCast(A2A_BOND_BPS_UNIT))));
+    const required: u32 = @as(u32, @truncate(need / @as(u64, @intCast(A2A_BOND_BPS_UNIT))));
     if (bond >= required) {
         return admit_result(assign_task_id, result_task_id, receipt_task, assigned_skill, receipt_family, receipt_op, last_settled, exec_rep, min_rep);
     } else {

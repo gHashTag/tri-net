@@ -27,7 +27,7 @@ fn path_quality_score(etx: u8, latency: u16, loss_p8: u8) u8 {
     if (total > 255) {
         return 255;
     } else {
-        return @as(u8, @intCast(total));
+        return @as(u8, @truncate(total));
     }
 }
 fn needs_failover(current_etx: u8, current_idx: u8, max_paths: u8) bool {

@@ -37,7 +37,7 @@ fn compute_reward(gf_width: u32, fresh: u32) u32 {
 fn compute_reward_fmt(gf_width: u32, fresh: u32, work_bps: u32) u32 {
     if (fresh == 1) {
         const scaled: u64 = @as(u64, @intCast(gf_width)) * @as(u64, @intCast(work_bps));
-        return @as(u32, @intCast(scaled / @as(u64, @intCast(WORK_BPS_UNIT))));
+        return @as(u32, @truncate(scaled / @as(u64, @intCast(WORK_BPS_UNIT))));
     } else {
         return 0;
     }

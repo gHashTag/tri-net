@@ -278,7 +278,7 @@ fn verifier_reward(burned_total: u32, honest_count: u32) u32 {
         return 0;
     } else {
         const share: u64 = @as(u64, @intCast(burned_total)) / @as(u64, @intCast(honest_count));
-        return @as(u32, @intCast(share));
+        return @as(u32, @truncate(share));
     }
 }
 fn quorum_threshold(n: u32) u32 {
@@ -364,7 +364,7 @@ fn burned_total5(v0: u32, v1: u32, v2: u32, v3: u32, v4: u32, stake: u32) u32 {
     if (prod > 4294967295) {
         return 4294967295;
     } else {
-        return @as(u32, @intCast(prod));
+        return @as(u32, @truncate(prod));
     }
 }
 fn honest_share5(v0: u32, v1: u32, v2: u32, v3: u32, v4: u32, stake: u32) u32 {

@@ -50,7 +50,7 @@ fn balance_after_resolve(balance: u32, bond: u32, outcome: u32) u32 {
 const BOND_BPS_UNIT: u32 = 10000;
 fn required_bond(outstanding: u32, min_bps: u32) u32 {
     const need: u64 = @as(u64, @intCast(outstanding)) * @as(u64, @intCast(min_bps));
-    return @as(u32, @intCast(need / @as(u64, @intCast(BOND_BPS_UNIT))));
+    return @as(u32, @truncate(need / @as(u64, @intCast(BOND_BPS_UNIT))));
 }
 fn bond_covers(bond: u32, outstanding: u32, min_bps: u32) bool {
     return bond >= required_bond(outstanding, min_bps);

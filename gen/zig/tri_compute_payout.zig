@@ -10,7 +10,7 @@ fn weighted(raw_work: u32, rep: u32) u32 {
     if (prod > 4294967295) {
         return 4294967295;
     } else {
-        return @as(u32, @intCast(prod));
+        return @as(u32, @truncate(prod));
     }
 }
 fn total_weighted3(w0: u32, w1: u32, w2: u32) u32 {
@@ -18,7 +18,7 @@ fn total_weighted3(w0: u32, w1: u32, w2: u32) u32 {
     if (sum > 4294967295) {
         return 4294967295;
     } else {
-        return @as(u32, @intCast(sum));
+        return @as(u32, @truncate(sum));
     }
 }
 fn payout(total_pool: u32, my_weighted: u32, total_weighted: u32) u32 {
@@ -27,7 +27,7 @@ fn payout(total_pool: u32, my_weighted: u32, total_weighted: u32) u32 {
     } else {
         const num: u64 = @as(u64, @intCast(total_pool)) * @as(u64, @intCast(my_weighted));
         const den: u64 = @as(u64, @intCast(total_weighted));
-        return @as(u32, @intCast(num / den));
+        return @as(u32, @truncate(num / den));
     }
 }
 test "reputation_weighted_split" {

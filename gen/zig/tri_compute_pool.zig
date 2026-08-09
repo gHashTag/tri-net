@@ -10,7 +10,7 @@ fn total_work3(w0: u32, w1: u32, w2: u32) u32 {
     if (sum > 4294967295) {
         return 4294967295;
     } else {
-        return @as(u32, @intCast(sum));
+        return @as(u32, @truncate(sum));
     }
 }
 fn pool_share(total_pool: u32, my_work: u32, total: u32) u32 {
@@ -19,7 +19,7 @@ fn pool_share(total_pool: u32, my_work: u32, total: u32) u32 {
     } else {
         const num: u64 = @as(u64, @intCast(total_pool)) * @as(u64, @intCast(my_work));
         const den: u64 = @as(u64, @intCast(total));
-        return @as(u32, @intCast(num / den));
+        return @as(u32, @truncate(num / den));
     }
 }
 fn pool_after_deposit(pool: u32, amount: u32) u32 {
