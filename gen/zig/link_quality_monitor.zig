@@ -18,11 +18,11 @@ fn update_ewma(current: u8, sample: u8) u8 {
     if (new_estimate > 0xFF) {
         return 0xFF;
     }
-    return @as(u8, @intCast(new_estimate));
+    return @as(u8, @truncate(new_estimate));
 }
 fn calculate_trend(history: [8]u8) i8 {
-    const recent_avg: u8 = @as(u8, @intCast((((@as(u16, @intCast(history[7])) + @as(u16, @intCast(history[6]))) + @as(u16, @intCast(history[5]))) + @as(u16, @intCast(history[4]))) >> 2));
-    const older_avg: u8 = @as(u8, @intCast((((@as(u16, @intCast(history[3])) + @as(u16, @intCast(history[2]))) + @as(u16, @intCast(history[1]))) + @as(u16, @intCast(history[0]))) >> 2));
+    const recent_avg: u8 = @as(u8, @truncate((((@as(u16, @intCast(history[7])) + @as(u16, @intCast(history[6]))) + @as(u16, @intCast(history[5]))) + @as(u16, @intCast(history[4]))) >> 2));
+    const older_avg: u8 = @as(u8, @truncate((((@as(u16, @intCast(history[3])) + @as(u16, @intCast(history[2]))) + @as(u16, @intCast(history[1]))) + @as(u16, @intCast(history[0]))) >> 2));
     if (recent_avg > older_avg) {
         return @as(i8, @intCast(recent_avg - older_avg));
     }
@@ -48,7 +48,7 @@ fn quality_score(etx: u8, latency_ms: u16) u8 {
     if (combined > 255) {
         return 255;
     }
-    return @as(u8, @intCast(combined));
+    return @as(u8, @truncate(combined));
 }
 fn classify_quality(score: u8) u8 {
     if (score <= 50) {

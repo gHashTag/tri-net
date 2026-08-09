@@ -37,7 +37,7 @@ fn fb_util_pct(spent: u16, rate: u16) u8 {
     if (pct > 100) {
         return 100;
     }
-    return @as(u8, @intCast(pct));
+    return @as(u8, @truncate(pct));
 }
 fn fb_drop_pct(dropped: u16, offered: u16) u8 {
     if (offered == 0) {
@@ -46,7 +46,7 @@ fn fb_drop_pct(dropped: u16, offered: u16) u8 {
     const scaled: u32 = dropped;
     const total: u32 = offered;
     const pct: u32 = (scaled * 100) / total;
-    return @as(u8, @intCast(pct));
+    return @as(u8, @truncate(pct));
 }
 const CLIMB_BELOW_PCT: u8 = 85;
 const BACK_OFF_AT_PCT: u8 = 85;
@@ -146,11 +146,11 @@ fn frag_seq(s_lo: u8, s_hi: u8) u16 {
 }
 fn seq_lo(seq: u16) u8 {
     const low: u16 = seq % 256;
-    return @as(u8, @intCast(low));
+    return @as(u8, @truncate(low));
 }
 fn seq_hi(seq: u16) u8 {
     const high: u16 = seq / 256;
-    return @as(u8, @intCast(high));
+    return @as(u8, @truncate(high));
 }
 fn fragment_count(nal_size: u16) u8 {
     if (nal_size == 0) {
@@ -161,7 +161,7 @@ fn fragment_count(nal_size: u16) u8 {
     if (remainder > 0) {
         return @as(u8, @intCast(full_frags + 1));
     }
-    return @as(u8, @intCast(full_frags));
+    return @as(u8, @truncate(full_frags));
 }
 fn packet_size(data_len: u8) u8 {
     return FRAG_HEADER_LEN + data_len;

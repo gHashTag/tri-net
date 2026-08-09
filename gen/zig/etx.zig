@@ -27,7 +27,7 @@ fn fp_mul(a: u8, b: u8) u8 {
     if ((a == 0) or (b == 0)) {
         return 0;
     }
-    return @as(u8, @intCast((@as(u16, @intCast(a)) * @as(u16, @intCast(b))) >> 8));
+    return @as(u8, @truncate((@as(u16, @intCast(a)) * @as(u16, @intCast(b))) >> 8));
 }
 fn ewma_update(est: u8, sample: u8, alpha: u8) u8 {
     if ((est == 255) and (sample == 255)) {

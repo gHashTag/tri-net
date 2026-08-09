@@ -186,7 +186,7 @@ fn risk_after_close(risk: u32, reward: u32) u32 {
 }
 fn dispute_required_bond(outstanding: u32, min_bps: u32) u32 {
     const need: u64 = @as(u64, @intCast(outstanding)) * @as(u64, @intCast(min_bps));
-    return @as(u32, @intCast(need / @as(u64, @intCast(CH_BPS_UNIT))));
+    return @as(u32, @truncate(need / @as(u64, @intCast(CH_BPS_UNIT))));
 }
 fn may_open_dispute(open_count: u32, risk: u32, reward: u32, bond: u32, min_bps: u32) bool {
     if (dispute_slots_ok(open_count) == false) {

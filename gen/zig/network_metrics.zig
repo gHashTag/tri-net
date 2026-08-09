@@ -28,7 +28,7 @@ fn success_rate(sent: u32, success: u32) u8 {
         return 100;
     }
     if (sent >= success) {
-        return @as(u8, @intCast((@as(u16, @intCast(success)) * 100) / @as(u16, @intCast(sent))));
+        return @as(u8, @intCast((@as(u16, @truncate(success)) * 100) / @as(u16, @truncate(sent))));
     } else {
         return 0;
     }

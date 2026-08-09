@@ -25,7 +25,7 @@ fn expected_loss_rate_p10(attenuation_db: u8) u8 {
     if (total > 0xC0) {
         return 0xC0;
     }
-    return @as(u8, @intCast(total));
+    return @as(u8, @truncate(total));
 }
 fn throughput_factor_p8(attenuation_db: u8) u8 {
     const loss_p10: u8 = expected_loss_rate_p10(attenuation_db);
@@ -55,13 +55,13 @@ fn total_attenuation(hop1_db: u8, hop2_db: u8) u8 {
     if (sum > @as(u16, @intCast(ATTEN_MAX))) {
         return ATTEN_MAX;
     }
-    return @as(u8, @intCast(sum));
+    return @as(u8, @truncate(sum));
 }
 fn delivery_rate_p8(hop1_db: u8, hop2_db: u8) u8 {
     const factor1: u8 = throughput_factor_p8(hop1_db);
     const factor2: u8 = throughput_factor_p8(hop2_db);
     const product: u16 = @as(u16, @intCast(factor1)) * @as(u16, @intCast(factor2));
-    return @as(u8, @intCast(product >> 8));
+    return @as(u8, @truncate(product >> 8));
 }
 fn simulate_hop(attenuation_db: u8, packet_seq: u8) bool {
     const success_p8: u8 = throughput_factor_p8(attenuation_db);

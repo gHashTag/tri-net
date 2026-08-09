@@ -77,7 +77,7 @@ fn gft_mul_mant_u64(ma: u64, mb: u64, mant_one: u64) u32 {
     if (prod >= ((2 * mant_one) * mant_one)) {
         return @as(u32, @intCast((prod / (2 * mant_one)) - mant_one));
     } else {
-        return @as(u32, @intCast((prod / mant_one) - mant_one));
+        return @as(u32, @truncate((prod / mant_one) - mant_one));
     }
 }
 fn gft_mul_offset_full_u64(offset_a: u32, ma: u64, offset_b: u32, mb: u64, bias: u32, offset_max: u32, mant_one: u64) u32 {

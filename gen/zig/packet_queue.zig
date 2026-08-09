@@ -30,7 +30,7 @@ fn enqueue(state: u32, data: u32) u32 {
     const head: u32 = state & 7;
     const tail: u32 = (state >> 3) & 7;
     const count: u32 = @as(u32, @intCast(get_count(state)));
-    return (head | (@as(u32, @intCast(increment_index(@as(u8, @intCast(tail))))) << 3)) | ((count + 1) << 6);
+    return (head | (@as(u32, @intCast(increment_index(@as(u8, @truncate(tail))))) << 3)) | ((count + 1) << 6);
 }
 fn dequeue(state: u32) u32 {
     if (is_empty(state)) {
@@ -39,7 +39,7 @@ fn dequeue(state: u32) u32 {
     const head: u32 = state & 7;
     const tail: u32 = (state >> 3) & 7;
     const count: u32 = @as(u32, @intCast(get_count(state)));
-    return (@as(u32, @intCast(increment_index(@as(u8, @intCast(head))))) | (tail << 3)) | ((count - 1) << 6);
+    return (@as(u32, @intCast(increment_index(@as(u8, @truncate(head))))) | (tail << 3)) | ((count - 1) << 6);
 }
 fn size(state: u32) u8 {
     return get_count(state);
