@@ -8,7 +8,7 @@ pub const SNR_FLOOR: u32 = 3;
 pub const SNR_CEIL: u32 = 40;
 
 pub fn round_add(round_total: u32, epoch_bytes: u32) -> u32 {
-    let sum: u32 = (round_total + epoch_bytes);
+    let sum: u32 = (round_total).wrapping_add(epoch_bytes);
     if (sum < round_total) {
         return 0xFFFFFFFF;
     } else {
@@ -65,4 +65,3 @@ pub fn snr_to_quality(snr_db: u32) -> u32 {
         }
     }
 }
-

@@ -14,7 +14,7 @@ module TriSettle {
     // Fold one epoch's verified byte count into the running round total.
     // Saturating so an overflow can never wrap the round total DOWNWARD.
     fn round_add(round_total: u32, epoch_bytes: u32) -> u32 {
-        let sum: u32 = round_total + epoch_bytes;
+        let sum: u32 = round_total +% epoch_bytes;
         if (sum < round_total) {
             return 0xFFFFFFFF; // saturate
         } else {
