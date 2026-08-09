@@ -223,7 +223,7 @@ module RTISecurity {
     }
 
     test threat_score_critical {
-        assert(threat_score(ALERT_CRITICAL, 10, 200) == 700, "3*100 + 10*10 + 200");
+        assert(threat_score(ALERT_CRITICAL, 10, 200) == 600, "3*100 + 10*10 + 200");
     }
 
     test should_escalate_yes {
