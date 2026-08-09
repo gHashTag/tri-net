@@ -354,3 +354,7 @@ path = "tests/dispute_witness.rs"
 [[test]]
 name = "witness_economics"
 path = "tests/witness_economics.rs"
+
+[[test]]
+name = "compute_ring_invariants"
+path = "tests/compute_ring_invariants.rs"
