@@ -77,18 +77,31 @@ jobs:
         working-directory: tri-net
         run: |
           # EXECUTION level (above ast-check): compile and RUN each committed
-          # gen's test blocks. Gated to the passing set; the rest are tracked in
-          # t27#1928 (the t27 saturation idiom needs +%, genuine runtime test
-          # failures, two emission tails) and join as they clear -- ratchet, do
-          # not regress.
+          # gen's test blocks. The whole committed set passes now (the t27
+          # saturation idiom that t27#1928 tracked is fixed in-spec via '+%'), so
+          # this is no longer a curated subset -- ratchet, do not regress.
           STATUS=0
-          for spec in access_control adaptive_retry anomaly_detector api_documenter auto_config byte_utils cache_management compression_engine congestion_control crc16 docs_generator flow_control fpga_synthesis_report frame_buffer health_dashboard integration_framework link_quality_monitor link_statistics load_predictor local_processing m3_multihop mesh_node_sim mesh_routing multipath_router network_metrics network_orchestrator network_simulator olsr_routing performance_profiler quarantine_manager test_framework test_validator timer topology_visualizer traffic_animator transport_tx_fsm trust_manager power_monitoring tri_challenge area_optimization etx mesh_protocol_stack network_analytics performance_benchmarks self_healing timing_closure wire crypto_frame discovery gf16_format modem_frame routing_etx rti_alert tri_a2a tri_a2a_wire tri_compute_optimistic tri_compute_payout tri_compute_reputation tri_compute_safety tri_fec tri_gft_arith tri_ilv tri_node_identity tri_receipt_verify tri_slash packet_loss_injection tri_a2a_card tri_compute_gfvalid tri_gft_ladder tri_gft_add tri_gft_sub integration_tests tri_compute_settle tri_compute_bitnet tri_compute_receipt tri_depin tri_ledger tri_merkle bandwidth_allocator production_scenarios tri_compute_challenge hello multipath_routing tri_sha256 video_bridge lite_crypto pattern_predictor production_deployment adaptive_routing cross_layer_optimizer energy_aware_routing failure_predictor fault_detection health_monitoring key_management network_coding redundancy_management resource_scheduler swarm_coordinator hardware_validation packet_queue; do
+          # gen/zig is the SSOT for EXECUTION too, not just drift: iterate the
+          # committed gens directly so a newly committed gen auto-joins this gate.
+          # The old hand-maintained list had drifted -- rti_security,
+          # tri_compute_account/bond/pool, tri_settle and twr_timestamp had
+          # committed, drift-checked gens that were never EXECUTED here.
+          ZT_N=0
+          for spec in $(ls gen/zig/*.zig | sed 's#^gen/zig/##; s#\.zig$##' | sort); do
+            ZT_N=$((ZT_N + 1))
             if ! zig test gen/zig/${spec}.zig -femit-bin=/tmp/zt_bin > /tmp/zt.log 2>&1; then
               echo "::error file=gen/zig/${spec}.zig::zig test failed"
               tail -5 /tmp/zt.log
               STATUS=1
             fi
           done
+          # Ratchet + false-green guard: a loop that silently matched zero files
+          # would otherwise report green having executed nothing.
+          echo "zig test: executed ${ZT_N} gens (floor 107)"
+          if [ "$ZT_N" -lt 107 ]; then
+            echo "::error::zig execution coverage dropped to ${ZT_N}, below the 107 floor"
+            STATUS=1
+          fi
           exit $STATUS
 
       - name: Drift check — all backends (gen/ is SSOT)
@@ -153,7 +166,9 @@ jobs:
           # so every committed gen is executed/checked and none can be silently
           # dropped from a hand-maintained list (the orphan gap that hid a broken
           # rti_security until wave 51). A new gen/c/*.c auto-joins here.
+          CT_N=0
           for spec in $(ls gen/c/*.c | sed 's#^gen/c/##; s#\.c$##' | sort); do
+            CT_N=$((CT_N + 1))
             if ! gcc -DT27_TEST_MAIN -o /tmp/ct_bin gen/c/${spec}.c > /tmp/ct.log 2>&1; then
               echo "::error::C test COMPILE failed for ${spec}"; tail -20 /tmp/ct.log; STATUS=1; continue
             fi
@@ -161,6 +176,11 @@ jobs:
               echo "::error::C test RUN failed for ${spec}"; tail -20 /tmp/ct_run.log; STATUS=1
             fi
           done
+          echo "C test: executed ${CT_N} gens (floor 75)"
+          if [ "$CT_N" -lt 75 ]; then
+            echo "::error::C execution coverage dropped to ${CT_N}, below the 75 floor"
+            STATUS=1
+          fi
           exit $STATUS
 
       # The Zig leg RETURNED 2026-08-08: the gen-zig validity campaign (t27#1910,
