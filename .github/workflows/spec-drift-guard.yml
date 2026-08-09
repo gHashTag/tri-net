@@ -221,6 +221,30 @@ jobs:
           fi
           exit $STATUS
 
+      - name: Cargo test targets — every tests/*.rs must be declared
+        working-directory: tri-net
+        run: |
+          # Cargo.toml sets `autotests = false`, so a test file is compiled ONLY
+          # if it has an explicit [[test]] block. A file dropped into tests/ is
+          # therefore silently never run -- it LOOKS like coverage and is not.
+          # That is how tests/compute_ring_invariants.rs (18 load-bearing
+          # invariants, written precisely because spec test blocks are not
+          # executed) sat dead in the repo. Fail loudly on any undeclared file.
+          STATUS=0
+          declared=$(grep -oE 'tests/[a-z0-9_]+\.rs' Cargo.toml | sort -u)
+          present=$(ls tests/*.rs | sort)
+          missing=$(comm -13 <(printf '%s\n' "$declared") <(printf '%s\n' "$present"))
+          if [ -n "$missing" ]; then
+            echo "::error::these test files are NOT declared in Cargo.toml and never run:"
+            echo "$missing" | sed 's/^/  - /'
+            echo "Add a [[test]] block (name + path) for each, or delete the file."
+            STATUS=1
+          fi
+          n_decl=$(printf '%s\n' "$declared" | sed '/^$/d' | wc -l | tr -d ' ')
+          n_file=$(printf '%s\n' "$present" | sed '/^$/d' | wc -l | tr -d ' ')
+          echo "cargo test targets: ${n_file} files, ${n_decl} declared"
+          exit $STATUS
+
       - name: Zig test — execute committed gens (passing set)
         working-directory: tri-net
         run: |
@@ -297,7 +321,7 @@ jobs:
               STATUS=1
             fi
           done <<'BACKENDS'
-          rust rs gen-rust 86
+          rust rs gen-rust 96
           zig zig gen 107
           c c gen-c 75
           BACKENDS
