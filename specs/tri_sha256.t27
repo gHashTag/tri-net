@@ -827,9 +827,36 @@ module TriSha256 {
         assert(h == 0x7852B855, "empty h7");
     }
 
+    // sha256(64 x "a") -- a TWO-BLOCK known-answer vector, digest
+    // ffe054fe...154668eb from the OS SHA-256. The 64-byte message fills block 1
+    // exactly, so all padding lands in block 2 (0x80 marker in w0, the 512-bit
+    // length in w15) -- the sha256_pad2_word layout. Block 1 compresses from the
+    // standard IV via sha256_word; block 2 compresses from THAT state via
+    // sha256_compress. This puts the multi-block chaining bit-exactness inside
+    // the gates (it was previously only proven by an out-of-CI binary).
+    test sha256_two_block_64a {
+        i0 = sha256_word(0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0);
+        i1 = sha256_word(0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 1);
+        i2 = sha256_word(0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 2);
+        i3 = sha256_word(0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 3);
+        i4 = sha256_word(0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 4);
+        i5 = sha256_word(0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 5);
+        i6 = sha256_word(0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 6);
+        i7 = sha256_word(0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 0x61616161, 7);
+
+        assert(sha256_compress(i0, i1, i2, i3, i4, i5, i6, i7, 0x80000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 512, 0) == 0xFFE054FE, "64a h0");
+        assert(sha256_compress(i0, i1, i2, i3, i4, i5, i6, i7, 0x80000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 512, 1) == 0x7AE0CB6D, "64a h1");
+        assert(sha256_compress(i0, i1, i2, i3, i4, i5, i6, i7, 0x80000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 512, 2) == 0xC65C3AF9, "64a h2");
+        assert(sha256_compress(i0, i1, i2, i3, i4, i5, i6, i7, 0x80000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 512, 3) == 0xB61D5209, "64a h3");
+        assert(sha256_compress(i0, i1, i2, i3, i4, i5, i6, i7, 0x80000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 512, 4) == 0xF439851D, "64a h4");
+        assert(sha256_compress(i0, i1, i2, i3, i4, i5, i6, i7, 0x80000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 512, 5) == 0xB43D0BA5, "64a h5");
+        assert(sha256_compress(i0, i1, i2, i3, i4, i5, i6, i7, 0x80000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 512, 6) == 0x997337DF, "64a h6");
+        assert(sha256_compress(i0, i1, i2, i3, i4, i5, i6, i7, 0x80000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 512, 7) == 0x154668EB, "64a h7");
+    }
+
     // The trailing padding block for a 64-byte (512-bit) message: 0x80 marker in
     // word 0, the length in word 15, zero elsewhere. (Full two-block bit-exactness
-    // vs hashlib is proven by the trinet_ledger_head binary.)
+    // is now asserted in-spec by sha256_two_block_64a, so the gates prove it.)
     test pad2_layout_512 {
         assert(sha256_pad2_word(0, 512) == 0x80000000, "word 0 is the 0x80 marker");
         assert(sha256_pad2_word(15, 512) == 512, "word 15 is the 512-bit length");
