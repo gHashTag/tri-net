@@ -64,17 +64,161 @@ jobs:
           # ROM since t27#1926 -- the whole corpus is expected clean.
           T27C=../t27/target/release/t27c
           STATUS=0
+          WARN_BASE_N=0
           # Same pipe-swallowing class as the icarus gate: without pipefail the
           # status of `t27c ... | grep` is grep's alone. Verified over all specs:
           # exit code and the grep verdict never diverge, so this is safe.
           set -o pipefail
-          for spec in specs/*.t27; do
-            if ! $T27C typecheck "$spec" 2>&1 | grep -q "Typecheck OK"; then
+          # WARNING RATCHET. 'Typecheck OK' is printed even when the spec has
+          # warnings, and t27c downgrades a call to an UNDEFINED function to a
+          # warning -- so grepping for OK alone let that through silently
+          # (demonstrated: an injected `undefined_function_xyz(...)` still gave
+          # "Typecheck OK (0 errors, 1 warnings)" and a green gate).
+          # 47 of 107 specs carry pre-existing warnings, so failing on any
+          # warning is not yet possible; instead pin each spec's CURRENT count
+          # and fail when it GROWS. A newly introduced undefined call, anywhere,
+          # now reddens this gate. Counts are deterministic (verified across
+          # repeated runs). Lower a number whenever a spec's warnings are fixed;
+          # never raise one.
+          while read -r spec_name want; do
+            [ -z "$spec_name" ] && continue
+            WARN_BASE_N=$((WARN_BASE_N + 1))
+            spec="specs/${spec_name}.t27"
+            if [ ! -f "$spec" ]; then
+              echo "::error::warning-ratchet baseline lists ${spec_name}, but ${spec} does not exist"
+              STATUS=1
+              continue
+            fi
+            out=$($T27C typecheck "$spec" 2>&1)
+            if ! printf '%s' "$out" | grep -q "Typecheck OK"; then
               echo "::error file=${spec}::typecheck failed"
-              $T27C typecheck "$spec" 2>&1 | grep '^  - ' | head -5
+              printf '%s' "$out" | grep '^  - ' | head -5
+              STATUS=1
+              continue
+            fi
+            got=$(printf '%s' "$out" | grep -oE '[0-9]+ warnings' | grep -oE '^[0-9]+')
+            got=${got:-0}
+            if [ "$got" -gt "$want" ]; then
+              echo "::error file=${spec}::warning ratchet: ${got} warnings > pinned ${want}. A new warning (e.g. a call to an undefined function) was introduced."
               STATUS=1
             fi
-          done
+          done <<'WARNBASE'
+          access_control 0
+          adaptive_retry 0
+          adaptive_routing 14
+          anomaly_detector 30
+          api_documenter 18
+          area_optimization 0
+          auto_config 29
+          bandwidth_allocator 22
+          byte_utils 0
+          cache_management 18
+          compression_engine 33
+          congestion_control 27
+          crc16 0
+          cross_layer_optimizer 14
+          crypto_frame 0
+          discovery 0
+          docs_generator 15
+          energy_aware_routing 25
+          etx 0
+          failure_predictor 17
+          fault_detection 8
+          flow_control 9
+          fpga_synthesis_report 0
+          frame_buffer 0
+          gf16_format 0
+          hardware_validation 0
+          health_dashboard 30
+          health_monitoring 56
+          hello 0
+          integration_framework 32
+          integration_tests 0
+          key_management 16
+          link_quality_monitor 0
+          link_statistics 0
+          lite_crypto 0
+          load_predictor 25
+          local_processing 26
+          m3_multihop 0
+          mesh_node_sim 0
+          mesh_protocol_stack 0
+          mesh_routing 0
+          modem_frame 0
+          multipath_router 2
+          multipath_routing 20
+          network_analytics 0
+          network_coding 6
+          network_metrics 0
+          network_orchestrator 12
+          network_simulator 6
+          olsr_routing 0
+          packet_loss_injection 0
+          packet_queue 0
+          pattern_predictor 31
+          performance_benchmarks 0
+          performance_profiler 21
+          power_monitoring 6
+          production_deployment 4
+          production_scenarios 0
+          quarantine_manager 3
+          redundancy_management 19
+          resource_scheduler 25
+          routing_etx 0
+          rti_alert 0
+          rti_security 0
+          self_healing 0
+          swarm_coordinator 40
+          test_framework 14
+          test_validator 11
+          timer 0
+          timing_closure 0
+          topology_visualizer 27
+          traffic_animator 28
+          transport_tx_fsm 0
+          tri_a2a 5
+          tri_a2a_card 0
+          tri_a2a_wire 0
+          tri_challenge 0
+          tri_compute_account 0
+          tri_compute_bitnet 0
+          tri_compute_bond 0
+          tri_compute_challenge 8
+          tri_compute_gfvalid 0
+          tri_compute_optimistic 0
+          tri_compute_payout 0
+          tri_compute_pool 0
+          tri_compute_receipt 6
+          tri_compute_reputation 0
+          tri_compute_safety 0
+          tri_compute_settle 2
+          tri_depin 0
+          tri_fec 0
+          tri_gft_add 5
+          tri_gft_arith 2
+          tri_gft_ladder 0
+          tri_gft_sub 1
+          tri_ilv 0
+          tri_ledger 0
+          tri_merkle 0
+          tri_node_identity 1
+          tri_receipt_verify 0
+          tri_settle 0
+          tri_sha256 2
+          tri_slash 0
+          trust_manager 17
+          twr_timestamp 0
+          video_bridge 0
+          wire 0
+          WARNBASE
+          # Every spec must be pinned: a new spec that skipped the baseline would
+          # otherwise be unratcheted.
+          CORPUS_N=$(ls specs/*.t27 | wc -l | tr -d ' ')
+          echo "warning ratchet: ${WARN_BASE_N} specs pinned, corpus has ${CORPUS_N}"
+          if [ "$WARN_BASE_N" -ne "$CORPUS_N" ]; then
+            echo "::error::warning-ratchet baseline covers ${WARN_BASE_N} specs but the corpus has ${CORPUS_N}; add the new spec(s) to the WARNBASE table"
+            STATUS=1
+          fi
           exit $STATUS
 
       - name: Zig test — execute committed gens (passing set)
