@@ -10,10 +10,9 @@ pub fn capture(counter: u32) -> u32 {
 }
 
 pub fn elapsed(t_start: u32, t_end: u32) -> u32 {
-    return (t_end - t_start);
+    return (t_end).wrapping_sub(t_start);
 }
 
 pub fn twr_tof(t1: u32, t2: u32, t3: u32, t4: u32) -> u32 {
     return (((t4 - t1) - (t3 - t2)) >> 1);
 }
-
