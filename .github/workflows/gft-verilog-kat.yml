@@ -74,6 +74,13 @@ jobs:
       - name: Simulate GF-T spec testbenches
         working-directory: tri-net
         run: |
+          # CRITICAL: the simulate call below is PIPED to tee. Without pipefail a
+          # pipeline's status is tee's (always 0), so `if ! ... | tee` could NEVER
+          # fire -- t27c exited 1 on a failing assertion and the gate still went
+          # green. This required check was blind to every test failure until the
+          # pipe was fixed; it effectively only ran the bench budgets and the
+          # coverage guard. Do not remove this line.
+          set -o pipefail
           T27C=../t27/target/release/t27c
           STATUS=0
           # Single source of truth for the icarus KAT corpus. The coverage
