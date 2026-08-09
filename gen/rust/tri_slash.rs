@@ -12,7 +12,7 @@ pub fn receipt_matches(claimed_seal: u32, recomputed_seal: u32) -> bool {
 }
 
 pub fn balance_add(bal: u32, reward: u32) -> u32 {
-    let sum: u32 = (bal + reward);
+    let sum: u32 = (bal).wrapping_add(reward);
     if (sum < bal) {
         return 0xFFFFFFFF;
     } else {
@@ -31,4 +31,3 @@ pub fn settle_or_slash(balance: u32, reward: u32, bond: u32, matched: bool) -> u
         }
     }
 }
-
