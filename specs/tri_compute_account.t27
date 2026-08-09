@@ -48,7 +48,7 @@ module TriComputeAccount {
     // reward would wrap a near-max balance to a small number, silently destroying
     // value. Every balance-mint below (settle / finalize) routes through this.
     fn bal_add_sat(balance: u32, amount: u32) -> u32 {
-        let sum: u32 = balance + amount;
+        let sum: u32 = balance +% amount;
         if (sum < balance) {
             return 0xFFFFFFFF;
         } else {
@@ -89,7 +89,7 @@ module TriComputeAccount {
     // the collateralization gate (reads outstanding) from conservation (reads
     // pending). Saturate here too so they stay equal at every value.
     fn pending_after_settle(pending: u32, reward: u32) -> u32 {
-        let sum: u32 = pending + reward;
+        let sum: u32 = pending +% reward;
         if (sum < pending) {
             return 0xFFFFFFFF;
         } else {
@@ -124,7 +124,7 @@ module TriComputeAccount {
 
     // A new escrow raises the at-risk total (saturating, like a ledger balance).
     fn outstanding_after_escrow(outstanding: u32, reward: u32) -> u32 {
-        let sum: u32 = outstanding + reward;
+        let sum: u32 = outstanding +% reward;
         if (sum < outstanding) {
             return 0xFFFFFFFF;
         } else {

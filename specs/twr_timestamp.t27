@@ -21,7 +21,7 @@ module TwrTimestamp {
 
     // elapsed ticks between two timestamps on the SAME clock; u32 wraps correctly (mod 2^32)
     fn elapsed(t_start: u32, t_end: u32) -> u32 {
-        return (t_end - t_start);
+        return (t_end -% t_start);
     }
 
     // Two-way ranging. A pings at t1, B receives at t2 and replies at t3 (B's clock), A receives at t4.
