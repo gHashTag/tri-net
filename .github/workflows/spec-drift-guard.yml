@@ -64,6 +64,10 @@ jobs:
           # ROM since t27#1926 -- the whole corpus is expected clean.
           T27C=../t27/target/release/t27c
           STATUS=0
+          # Same pipe-swallowing class as the icarus gate: without pipefail the
+          # status of `t27c ... | grep` is grep's alone. Verified over all specs:
+          # exit code and the grep verdict never diverge, so this is safe.
+          set -o pipefail
           for spec in specs/*.t27; do
             if ! $T27C typecheck "$spec" 2>&1 | grep -q "Typecheck OK"; then
               echo "::error file=${spec}::typecheck failed"
