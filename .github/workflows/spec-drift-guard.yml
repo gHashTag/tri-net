@@ -91,37 +91,56 @@ jobs:
           done
           exit $STATUS
 
-      - name: Drift check — Rust (all specs)
+      - name: Drift check — all backends (gen/ is SSOT)
         working-directory: tri-net
         run: |
-          # Both sides are normalized with rustfmt before diffing: some gen/rust files are
-          # #[path]-included into the src module tree, so the `build + test` gate's
-          # `cargo fmt --all --check` REQUIRES them rustfmt-formatted, while raw t27c output
-          # is not. A byte-exact diff against raw t27c output made the two gates mutually
-          # contradictory for those files (the historic permanent red of this leg).
-          # (2026-08-07) mesh_routing / multipath_router / traffic_animator were briefly
-          # excluded here; their SPECS used illegal t27 (untyped bool locals, `let mut` +
-          # tail expressions the parser silently dropped, a `type` parameter name). The
-          # specs are fixed and all 68 are checked again. rustfmt failing loudly on either
-          # side means an unparseable gen can never false-pass.
+          # One table-driven loop replaces three copy-pasted per-backend steps.
+          # gen/<dir> is the single source of truth (see #365/#366): every
+          # committed gen is regenerated from its spec and diffed, so a new gen
+          # auto-joins and none can be dropped from a list.
+          #
+          # Rust is normalized with rustfmt on BOTH sides: some gen/rust files are
+          # #[path]-included into src/, so the `build + test` gate's
+          # `cargo fmt --all --check` REQUIRES them rustfmt-formatted, while raw
+          # t27c output is not. A byte-exact diff against raw t27c output made the
+          # two gates mutually contradictory (the historic permanent red of this
+          # leg). C and Zig have no formatter, so they diff byte-exact.
           T27C=../t27/target/release/t27c
           STATUS=0
-          # Iterate the committed gen/rust directory directly: gen/ is the SSOT,
-          # so every committed gen/rust is drift-checked and none can be dropped
-          # from a hand-maintained list. A new gen/rust/*.rs auto-joins here.
-          for spec in $(ls gen/rust/*.rs | sed 's#^gen/rust/##; s#\.rs$##' | sort); do
-            $T27C gen-rust specs/${spec}.t27 | rustfmt --edition 2021 > /tmp/${spec}_regen.rs
-            rustfmt --edition 2021 < gen/rust/${spec}.rs > /tmp/${spec}_committed.rs
-            if ! diff -u /tmp/${spec}_committed.rs /tmp/${spec}_regen.rs; then
-              echo "::error file=gen/rust/${spec}.rs::DRIFT: gen/rust/${spec}.rs != t27c gen-rust specs/${spec}.t27 (modulo rustfmt)"
-              echo "Fix: t27c gen-rust specs/${spec}.t27 > gen/rust/${spec}.rs && cargo fmt --all"
+          # dir ext t27c-subcommand expected-minimum-count
+          while read -r dir ext sub floor; do
+            [ -z "$dir" ] && continue
+            n=0
+            for spec in $(ls gen/${dir}/*.${ext} | sed "s#^gen/${dir}/##; s#\.${ext}\$##" | sort); do
+              n=$((n + 1))
+              if [ "$dir" = "rust" ]; then
+                $T27C $sub specs/${spec}.t27 | rustfmt --edition 2021 > /tmp/drift_regen.${ext}
+                rustfmt --edition 2021 < gen/${dir}/${spec}.${ext} > /tmp/drift_committed.${ext}
+              else
+                $T27C $sub specs/${spec}.t27 > /tmp/drift_regen.${ext}
+                cp gen/${dir}/${spec}.${ext} /tmp/drift_committed.${ext}
+              fi
+              if ! diff -u /tmp/drift_committed.${ext} /tmp/drift_regen.${ext}; then
+                echo "::error file=gen/${dir}/${spec}.${ext}::DRIFT: gen/${dir}/${spec}.${ext} != t27c ${sub} specs/${spec}.t27"
+                echo "Fix: t27c ${sub} specs/${spec}.t27 > gen/${dir}/${spec}.${ext}"
+                STATUS=1
+              else
+                echo "gen/${dir}/${spec}.${ext} matches specs/${spec}.t27"
+              fi
+            done
+            # Ratchet: a refactor that made a backend silently match zero files
+            # would otherwise report a FALSE GREEN. Fail if coverage drops.
+            echo "${dir}: checked ${n} gens (floor ${floor})"
+            if [ "$n" -lt "$floor" ]; then
+              echo "::error::drift coverage for ${dir} dropped to ${n}, below the ${floor} floor"
               STATUS=1
-            else
-              echo "gen/rust/${spec}.rs matches specs/${spec}.t27"
             fi
-          done
+          done <<'BACKENDS'
+          rust rs gen-rust 86
+          zig zig gen 107
+          c c gen-c 75
+          BACKENDS
           exit $STATUS
-
       - name: C test — compile and run committed gens (passing set)
         working-directory: tri-net
         run: |
@@ -148,49 +167,3 @@ jobs:
       # closed) took the backend from 66/68-invalid to 0/68, and gen/zig/ is
       # committed again -- all 68 files zig-ast-check clean. Byte-exact diff
       # against `t27c gen` (no formatter in the Zig path).
-      - name: Drift check — Zig (all specs)
-        working-directory: tri-net
-        run: |
-          T27C=../t27/target/release/t27c
-          STATUS=0
-          # Iterate the committed gen/zig directory directly: gen/ is the SSOT,
-          # so every committed gen is executed/checked and none can be silently
-          # dropped from a hand-maintained list (the orphan gap that hid a broken
-          # rti_security until wave 51). A new gen/zig/*.zig auto-joins here.
-          for spec in $(ls gen/zig/*.zig | sed 's#^gen/zig/##; s#\.zig$##' | sort); do
-            $T27C gen specs/${spec}.t27 > /tmp/${spec}_regen.zig
-            if ! diff -u gen/zig/${spec}.zig /tmp/${spec}_regen.zig; then
-              echo "::error file=gen/zig/${spec}.zig::DRIFT: gen/zig/${spec}.zig != t27c gen specs/${spec}.t27"
-              echo "Fix: t27c gen specs/${spec}.t27 > gen/zig/${spec}.zig"
-              STATUS=1
-            else
-              echo "gen/zig/${spec}.zig matches specs/${spec}.t27"
-            fi
-          done
-          exit $STATUS
-
-
-      # The C leg RETURNED 2026-08-08: the gen-c validity campaign (t27#1919,
-      # t27#1920/#1927 + spec redesigns) took the backend from 64/68-invalid to
-      # 0/68, and gen/c/ is committed again -- all 68 files gcc-syntax-clean.
-      # Byte-exact diff against `t27c gen-c` (no formatter in the C path).
-      - name: Drift check — C (all specs)
-        working-directory: tri-net
-        run: |
-          T27C=../t27/target/release/t27c
-          STATUS=0
-          # Iterate the committed gen/c directory directly: gen/ is the SSOT,
-          # so every committed gen is executed/checked and none can be silently
-          # dropped from a hand-maintained list (the orphan gap that hid a broken
-          # rti_security until wave 51). A new gen/c/*.c auto-joins here.
-          for spec in $(ls gen/c/*.c | sed 's#^gen/c/##; s#\.c$##' | sort); do
-            $T27C gen-c specs/${spec}.t27 > /tmp/${spec}_regen.c
-            if ! diff -u gen/c/${spec}.c /tmp/${spec}_regen.c; then
-              echo "::error file=gen/c/${spec}.c::DRIFT: gen/c/${spec}.c != t27c gen-c specs/${spec}.t27"
-              echo "Fix: t27c gen-c specs/${spec}.t27 > gen/c/${spec}.c"
-              STATUS=1
-            else
-              echo "gen/c/${spec}.c matches specs/${spec}.t27"
-            fi
-          done
-          exit $STATUS
