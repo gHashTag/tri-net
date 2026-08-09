@@ -791,6 +791,42 @@ module TriSha256 {
         assert(h == 0xF20015AD, "abc h7");
     }
 
+    // sha256("") -- the empty-string NIST KAT (second independent reference vector,
+    // and the only one that exercises the 0-length padding path: w0 = 0x80 marker,
+    // w15 = 0-bit length). Expected digest e3b0c442...7852b855 from the OS SHA-256.
+    test sha256_empty_h0 {
+        h = sha256_word(0x80000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00000000, 0);
+        assert(h == 0xE3B0C442, "empty h0");
+    }
+    test sha256_empty_h1 {
+        h = sha256_word(0x80000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00000000, 1);
+        assert(h == 0x98FC1C14, "empty h1");
+    }
+    test sha256_empty_h2 {
+        h = sha256_word(0x80000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00000000, 2);
+        assert(h == 0x9AFBF4C8, "empty h2");
+    }
+    test sha256_empty_h3 {
+        h = sha256_word(0x80000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00000000, 3);
+        assert(h == 0x996FB924, "empty h3");
+    }
+    test sha256_empty_h4 {
+        h = sha256_word(0x80000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00000000, 4);
+        assert(h == 0x27AE41E4, "empty h4");
+    }
+    test sha256_empty_h5 {
+        h = sha256_word(0x80000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00000000, 5);
+        assert(h == 0x649B934C, "empty h5");
+    }
+    test sha256_empty_h6 {
+        h = sha256_word(0x80000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00000000, 6);
+        assert(h == 0xA495991B, "empty h6");
+    }
+    test sha256_empty_h7 {
+        h = sha256_word(0x80000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00000000, 7);
+        assert(h == 0x7852B855, "empty h7");
+    }
+
     // The trailing padding block for a 64-byte (512-bit) message: 0x80 marker in
     // word 0, the length in word 15, zero elsewhere. (Full two-block bit-exactness
     // vs hashlib is proven by the trinet_ledger_head binary.)

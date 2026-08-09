@@ -797,6 +797,38 @@ test "sha256_abc_h7" {
     const h = sha256_word(0x61626380, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00000018, 7);
     if (!(h == 0xF20015AD)) @panic("abc h7");
 }
+test "sha256_empty_h0" {
+    const h = sha256_word(0x80000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00000000, 0);
+    if (!(h == 0xE3B0C442)) @panic("empty h0");
+}
+test "sha256_empty_h1" {
+    const h = sha256_word(0x80000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00000000, 1);
+    if (!(h == 0x98FC1C14)) @panic("empty h1");
+}
+test "sha256_empty_h2" {
+    const h = sha256_word(0x80000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00000000, 2);
+    if (!(h == 0x9AFBF4C8)) @panic("empty h2");
+}
+test "sha256_empty_h3" {
+    const h = sha256_word(0x80000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00000000, 3);
+    if (!(h == 0x996FB924)) @panic("empty h3");
+}
+test "sha256_empty_h4" {
+    const h = sha256_word(0x80000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00000000, 4);
+    if (!(h == 0x27AE41E4)) @panic("empty h4");
+}
+test "sha256_empty_h5" {
+    const h = sha256_word(0x80000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00000000, 5);
+    if (!(h == 0x649B934C)) @panic("empty h5");
+}
+test "sha256_empty_h6" {
+    const h = sha256_word(0x80000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00000000, 6);
+    if (!(h == 0xA495991B)) @panic("empty h6");
+}
+test "sha256_empty_h7" {
+    const h = sha256_word(0x80000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00000000, 7);
+    if (!(h == 0x7852B855)) @panic("empty h7");
+}
 test "pad2_layout_512" {
     if (!(sha256_pad2_word(0, 512) == 0x80000000)) @panic("word 0 is the 0x80 marker");
     if (!(sha256_pad2_word(15, 512) == 512)) @panic("word 15 is the 512-bit length");
