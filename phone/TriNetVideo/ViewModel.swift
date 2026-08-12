@@ -275,6 +275,8 @@ class StreamViewModel: ObservableObject {
     let transport = BSDTransport()
     /// Conversations live here, on the device, whether or not a call is up.
     let chatStore = ChatStore()
+    /// Your name and face. Nothing else identifies you to another person.
+    let profile = Profile()
     let decoder = H264Decoder()
     let audio = AudioController()
 

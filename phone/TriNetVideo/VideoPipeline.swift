@@ -2193,6 +2193,38 @@ final class LogBus: ObservableObject {
 }
 
 
+
+// ===== Profile: a name and a photo. Nothing else identifies you to a person. =====
+// Addresses are plumbing. They belong in logs, not on a screen: a person picks another
+// person by face and name, and the machine works out how to reach them.
+final class Profile: ObservableObject {
+    @Published var displayName: String {
+        didSet { UserDefaults.standard.set(displayName, forKey: "trinetProfileName") }
+    }
+    /// JPEG bytes, small. Stored on the device and advertised to nobody automatically --
+    /// a peer receives it only inside a conversation the two of you already have.
+    @Published var photo: Data? {
+        didSet { UserDefaults.standard.set(photo, forKey: "trinetProfilePhoto") }
+    }
+
+    init() {
+        displayName = UserDefaults.standard.string(forKey: "trinetProfileName")
+            ?? UIDevice.current.name
+        photo = UserDefaults.standard.data(forKey: "trinetProfilePhoto")
+    }
+
+    /// Photos of the people you talk to, keyed by handle, as they send them.
+    private static let peerKey = "trinetPeerPhotos"
+    static func peerPhoto(_ nick: String) -> Data? {
+        (UserDefaults.standard.dictionary(forKey: peerKey) as? [String: Data])?[nick]
+    }
+    static func setPeerPhoto(_ d: Data, for nick: String) {
+        var m = (UserDefaults.standard.dictionary(forKey: peerKey) as? [String: Data]) ?? [:]
+        m[nick] = d
+        UserDefaults.standard.set(m, forKey: peerKey)
+    }
+}
+
 // ===== Off-call text: a message you can send without ringing anyone =====
 // Chat used to exist only inside a call -- ChatLine lived in memory and vanished when the
 // call ended. A messenger has to work the other way round: you write first, and calling is
@@ -2336,6 +2368,7 @@ final class PeerDiscovery: ObservableObject {
 
     static var myName: String {
         get {
+            if let n = UserDefaults.standard.string(forKey: "trinetProfileName"), !n.isEmpty { return n }
             if let n = UserDefaults.standard.string(forKey: "trinetDisplayName"), !n.isEmpty { return n }
             return UIDevice.current.name
         }

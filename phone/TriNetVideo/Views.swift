@@ -1,5 +1,6 @@
 // Views.swift — FaceTime-style video call UI for iOS
 import SwiftUI
+import PhotosUI
 import AVFoundation
 import AudioToolbox
 
@@ -16,6 +17,7 @@ struct HomeView: View {
     @StateObject var vm = StreamViewModel()
     @State private var showSettings = false
     @State private var dialNick = ""
+    @State private var showProfile = false
 
     private var query: String { PeerDiscovery.normalizeNick(dialNick) }
 
@@ -71,7 +73,7 @@ struct HomeView: View {
     @ViewBuilder
     private func threadRow(title: String, subtitle: String, stamp: Date?, live: Bool) -> some View {
         HStack(spacing: 11) {
-            Monogram(text: title, size: 38)
+            Monogram(text: title, size: 38, photo: Profile.peerPhoto(title))
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.headline).foregroundColor(DS.text).lineLimit(1)
                 HStack(spacing: 5) {
@@ -93,13 +95,7 @@ struct HomeView: View {
             HStack(spacing: 8) {
                 Image(systemName: "antenna.radiowaves.left.and.right")
                     .font(.system(size: 11)).foregroundColor(DS.live)
-                Text("listening on :7000").font(DS.mono(11)).foregroundColor(DS.dim)
-            }
-            HStack(spacing: 8) {
-                Image(systemName: "wifi").font(.system(size: 11))
-                    .foregroundColor(vm.myIP.isEmpty ? DS.faint : DS.live)
-                Text(vm.myIP.isEmpty ? "no address on this network" : vm.myIP)
-                    .font(DS.mono(11)).foregroundColor(DS.dim)
+                Text("ready to receive").font(DS.mono(11)).foregroundColor(DS.dim)
             }
             HStack(spacing: 8) {
                 ProgressView().scaleEffect(0.5).tint(DS.faint)
@@ -176,11 +172,25 @@ struct HomeView: View {
                     }
                   }
                   .listStyle(.plain)
-                  .onAppear { UITableView.appearance().backgroundColor = .clear }
-                  .searchable(text: $dialNick, prompt: "handle")
                   .background(DS.ink.ignoresSafeArea())
-                  .navigationBarHidden(true)
-                  .safeAreaInset(edge: .top) { listHeader }
+                  // .searchable lives IN the navigation bar. Hiding that bar and drawing our
+                  // own header with safeAreaInset left the search with nowhere to be, and on
+                  // the device that took the whole screen with it. Use the real bar.
+                  .navigationTitle("TRI-NET")
+                  .navigationBarTitleDisplayMode(.inline)
+                  .searchable(text: $dialNick, prompt: "handle")
+                  .toolbar {
+                      ToolbarItem(placement: .navigationBarLeading) {
+                          Button(action: { showProfile = true }) {
+                              Monogram(text: vm.profile.displayName, size: 30, photo: vm.profile.photo)
+                          }.buttonStyle(.plain)
+                      }
+                      ToolbarItem(placement: .navigationBarTrailing) {
+                          Button(action: { showSettings = true }) {
+                              Image(systemName: "gearshape").foregroundColor(DS.dim)
+                          }
+                      }
+                  }
                 }
                 .navigationViewStyle(.stack)
             }
@@ -197,6 +207,9 @@ struct HomeView: View {
         .onAppear { vm.checkPermission(); if vm.cameraAuthorized { vm.camera.startPreview() } }
         .sheet(isPresented: $showSettings) {
             SettingsView(vm: vm)
+        }
+        .sheet(isPresented: $showProfile) {
+            ProfileView(vm: vm, profile: vm.profile)
         }
         .sheet(item: $vm.shareFile) { f in
             ShareSheet(items: [f.url])
@@ -866,12 +879,12 @@ struct SettingsView: View {
     var body: some View {
         NavigationView {
             Form {
-                Section("Connection") {
-                    TextField("Remote Mac IP", text: $vm.remoteIP)
-                        .keyboardType(.decimalPad)
-                }
-                Section("Your IP") {
-                    Text(vm.myIP).font(.system(.body, design: .monospaced))
+                // Addresses used to live here. A person picks another person, and the
+                // machine works out how to reach them; an address on a settings screen is
+                // an invitation to type one, which is the old console habit in a new place.
+                Section("You") {
+                    HRow("Name", vm.profile.displayName)
+                    HRow("Handle", "@" + PeerDiscovery.myNick)
                 }
                 Section("Video") {
                     HRow("Resolution", "480×272")
@@ -971,6 +984,97 @@ enum DS {
 
 
 
+
+// MARK: - Profile
+// Two things make you findable to a person: a name and a face. The handle is how the
+// machine addresses you and is shown small, because nobody should have to type it twice.
+struct ProfileView: View {
+    @ObservedObject var vm: StreamViewModel
+    @ObservedObject var profile: Profile
+    @Environment(\.dismiss) private var dismiss
+    @State private var name = ""
+    @State private var picking = false
+    @State private var picked: PhotosPickerItem?
+
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 22) {
+                    PhotosPicker(selection: $picked, matching: .images) {
+                        ZStack(alignment: .bottomTrailing) {
+                            Monogram(text: name.isEmpty ? "?" : name, size: 116, photo: profile.photo)
+                            Image(systemName: "camera.fill")
+                                .font(.system(size: 13)).foregroundColor(DS.onFill)
+                                .frame(width: 34, height: 34)
+                                .background(DS.fill, in: Circle())
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 18)
+
+                    VStack(spacing: 6) {
+                        TextField("your name", text: $name)
+                            .font(DS.display(21, .semibold)).foregroundColor(DS.text)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 18).padding(.vertical, 13)
+                            .background(DS.surfaceHi, in: RoundedRectangle(cornerRadius: 20))
+                        Text("@" + PeerDiscovery.myNick)
+                            .font(DS.mono(12)).foregroundColor(DS.faint)
+                        Text("people find you by name; the handle is how their phone reaches yours")
+                            .font(DS.ui(12)).foregroundColor(DS.faint)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 30).padding(.top, 4)
+                    }
+
+                    if profile.photo != nil {
+                        Button("remove photo") { profile.photo = nil }
+                            .font(DS.ui(13)).foregroundColor(DS.danger)
+                    }
+                    Spacer(minLength: 20)
+                }
+                .padding(.horizontal, 22)
+            }
+            .background(DS.ink.ignoresSafeArea())
+            .navigationTitle("profile")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("done") { save(); dismiss() }.foregroundColor(DS.text)
+                }
+            }
+        }
+        .navigationViewStyle(.stack)
+        .onAppear { name = profile.displayName }
+        .onChange(of: picked) { _ in loadPhoto() }
+    }
+
+    private func save() {
+        let n = name.trimmingCharacters(in: .whitespaces)
+        guard !n.isEmpty else { return }
+        profile.displayName = n
+        vm.discovery.setName(n)
+    }
+
+    /// Downscale before storing: a full-resolution camera roll image in UserDefaults is
+    /// megabytes of plist reloaded on every launch.
+    private func loadPhoto() {
+        guard let item = picked else { return }
+        Task {
+            guard let data = try? await item.loadTransferable(type: Data.self),
+                  let img = UIImage(data: data) else { return }
+            let side: CGFloat = 256
+            let scale = max(side / img.size.width, side / img.size.height)
+            let target = CGSize(width: img.size.width * scale, height: img.size.height * scale)
+            let out = UIGraphicsImageRenderer(size: target).image { _ in
+                img.draw(in: CGRect(origin: .zero, size: target))
+            }
+            if let jpeg = out.jpegData(compressionQuality: 0.8) {
+                await MainActor.run { profile.photo = jpeg }
+            }
+        }
+    }
+}
+
 // MARK: - Conversation
 // You write first and call from inside the thread, which is the order a messenger works in.
 // The header carries the two actions that belong to a conversation and nowhere else: place a
@@ -1017,7 +1121,7 @@ struct ConversationView: View {
                     .foregroundColor(DS.dim).frame(width: 32, height: 32)
             }.buttonStyle(.plain)
 
-            Monogram(text: name, size: 36)
+            Monogram(text: name, size: 36, photo: Profile.peerPhoto(nick))
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(name).font(DS.ui(15, .semibold)).foregroundColor(DS.text).lineLimit(1)
@@ -1030,17 +1134,26 @@ struct ConversationView: View {
             Spacer()
 
             // Our assistant, per conversation. Off by default and it says what it does when on.
+            // Three things you can do with a person, in the order you reach for them:
+            // let the assistant listen, talk, or see each other.
             Button(action: { store.setAi(!store.isAiOn(nick), for: nick) }) {
                 Image(systemName: store.isAiOn(nick) ? "waveform.circle.fill" : "waveform.circle")
-                    .font(.system(size: 22))
+                    .font(.system(size: 21))
                     .foregroundColor(store.isAiOn(nick) ? DS.live : DS.faint)
-                    .frame(width: 38, height: 38)
+                    .frame(width: 36, height: 36)
             }.buttonStyle(.plain)
 
-            Button(action: { if let p = vm.discovery.peer(byNick: nick) { vm.callPeer(p) } else { vm.callByNick(nick) } }) {
-                Image(systemName: "video.fill").font(.system(size: 17))
+            Button(action: { place(video: false) }) {
+                Image(systemName: "phone.fill").font(.system(size: 15))
+                    .foregroundColor(DS.text)
+                    .frame(width: 36, height: 36)
+                    .overlay(Circle().stroke(DS.hairlineStrong, lineWidth: 1))
+            }.buttonStyle(.plain)
+
+            Button(action: { place(video: true) }) {
+                Image(systemName: "video.fill").font(.system(size: 16))
                     .foregroundColor(DS.onFill)
-                    .frame(width: 38, height: 38)
+                    .frame(width: 36, height: 36)
                     .background(DS.fill, in: Circle())
             }.buttonStyle(.plain)
         }
@@ -1102,6 +1215,13 @@ struct ConversationView: View {
         }
         .background(RoundedRectangle(cornerRadius: 24).fill(DS.surfaceHi))
         .padding(.horizontal, 12).padding(.vertical, 8)
+    }
+
+    /// Audio-only is a video call with the camera off, which is what the far end sees too:
+    /// black frames, no bandwidth spent on a picture nobody asked for.
+    private func place(video: Bool) {
+        vm.cameraOff = !video
+        if let p = vm.discovery.peer(byNick: nick) { vm.callPeer(p) } else { vm.callByNick(nick) }
     }
 
     private func send() {
@@ -1208,8 +1328,19 @@ struct Bubble: View {
 struct Monogram: View {
     let text: String
     var size: CGFloat = 40
+    var photo: Data? = nil
     private var letter: String { String(text.trimmingCharacters(in: .whitespaces).prefix(1)).uppercased() }
     var body: some View {
+        if let d = photo, let img = UIImage(data: d) {
+            Image(uiImage: img).resizable().scaledToFill()
+                .frame(width: size, height: size)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(DS.hairline, lineWidth: 1))
+        } else {
+            monogram
+        }
+    }
+    private var monogram: some View {
         ZStack {
             Circle().fill(DS.surfaceHi)
             Circle().stroke(DS.hairlineStrong, lineWidth: 1)
@@ -1331,10 +1462,7 @@ struct PeopleSection: View {
                 // for being empty. Three facts, each one a yes/no a person can act on.
                 VStack(spacing: 0) {
                     aliveRow(icon: "antenna.radiowaves.left.and.right",
-                             label: "listening", value: ":7000", ok: true)
-                    Hairline().padding(.leading, 46)
-                    aliveRow(icon: "wifi", label: "this network",
-                             value: vm.myIP.isEmpty ? "no address" : vm.myIP, ok: !vm.myIP.isEmpty)
+                             label: "ready to receive", value: "", ok: true)
                     Hairline().padding(.leading, 46)
                     aliveRow(icon: "person.2", label: "people found", value: "none yet", ok: false,
                              spinning: true)
@@ -1408,7 +1536,6 @@ struct AdvancedSection: View {
                     Image(systemName: open ? "chevron.up" : "chevron.down")
                         .font(.system(size: 9, weight: .semibold)).foregroundColor(DS.faint)
                     Spacer()
-                    Text(vm.myIP).font(DS.mono(10)).foregroundColor(DS.faint)
                 }
                 .padding(.horizontal, 4).contentShape(Rectangle())
             }
@@ -1416,29 +1543,13 @@ struct AdvancedSection: View {
 
             if open {
                 VStack(spacing: 12) {
-                    HStack {
-                        Text("PEER").font(DS.mono(9, .medium)).tracking(1).foregroundColor(DS.faint)
-                        TextField("address", text: $vm.remoteIP)
-                            .keyboardType(.decimalPad).font(DS.mono(15)).foregroundColor(DS.text)
-                            .multilineTextAlignment(.trailing)
-                    }
-                    if !vm.recentIPs.isEmpty {
-                        HStack(spacing: 8) {
-                            ForEach(vm.recentIPs.prefix(3), id: \.self) { ip in
-                                Button(action: { vm.remoteIP = ip }) {
-                                    Text(ip).font(DS.mono(10)).foregroundColor(DS.dim)
-                                        .padding(.horizontal, 10).padding(.vertical, 6)
-                                        .overlay(Capsule().stroke(DS.hairline, lineWidth: 1))
-                                }.buttonStyle(.plain)
-                            }
-                            Spacer()
-                        }
-                    }
+                    // Addresses are deliberately absent. A person never needs one, and putting
+                    // one on a screen invites typing it. What belongs here is how the link
+                    // behaved, nothing about where it went.
                     if !vm.recentCalls.isEmpty {
-                        Hairline()
-                        let s = vm.callStats
+                        let st = vm.callStats
                         HStack {
-                            Text("\(s.count) calls · avg \(s.avgDurationSec/60)m\(String(format: "%02d", s.avgDurationSec%60))s · \(s.avgKbps)k")
+                            Text("\(st.count) calls · avg \(st.avgDurationSec/60)m\(String(format: "%02d", st.avgDurationSec%60))s · \(st.avgKbps)k")
                                 .font(DS.mono(9)).foregroundColor(DS.faint)
                             Spacer()
                             if #available(iOS 16.0, *) {
@@ -1447,6 +1558,8 @@ struct AdvancedSection: View {
                                 }
                             }
                         }
+                    } else {
+                        Text("no calls yet").font(DS.mono(10)).foregroundColor(DS.faint)
                     }
                 }
                 .padding(.horizontal, 14).padding(.vertical, 13)
