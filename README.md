@@ -1,11 +1,11 @@
 # tri-net
 
-**TRI-NET drone-mesh + DePIN node** — encrypted, self-routing IP-over-radio on the
+**TRI-NET mesh + DePIN node** — encrypted, self-routing IP-over-radio on the
 P201/P203 **Zynq-7020 Mini**, doubling as a Helium-style DePIN-node with four
 supply-side arms (transport / compute / coverage / sensor).
 Part of the Trinity Project. Anchor: **φ² + φ⁻² = 3**.
 
-> Naming: this is the **drone-mesh internet-delivery** track plus the DePIN economic
+> Naming: this is the **mesh internet-delivery** track plus the DePIN economic
 > layer on top. Distinct from the ternary-computing "TRI-NET" silicon-node work in
 > `gHashTag/trinity`, `gHashTag/tt-trinity-*`.
 
@@ -37,7 +37,7 @@ BitNet-ternary benchmark on returned silicon, publish the raw log.
 Одна коробка (`P203 Mini` = Zynq-7020 + AD9361 SDR + GPS/PPS) выполняет две
 роли одновременно:
 
-1. **Drone-mesh internet-delivery** — "Starlink без спутников": сеть реле-дронов
+1. **Mesh internet-delivery** — "Starlink без спутников": сеть мобильных реле
    и наземных узлов, разделяющих один uplink через самомаршрутизируемый mesh.
 2. **DePIN-узел** (Helium-style + edge compute) — оператор получает TRI-токены
    за реальный вклад в четыре arm'а сети, каждый защищён криптографической
@@ -85,7 +85,13 @@ BitNet-ternary benchmark on returned silicon, publish the raw log.
 | M1 static binary size (armv7l musleabihf) | 534 604 B | `smoke/M1_RESULTS.md` |
 | M1 binary sha256 | `e5abc335…7290a` | `smoke/M1_RESULTS.md` |
 | M1 host tests | 20 unit + 2 integration, RC=0 | `cargo test` |
-| Rust `#[test]` blocks in repo | 110 | `grep -rE '^\s*#\[test\]' src tests` |
+| Rust `#[test]` blocks in repo | 228 | `grep -rE '^\s*#\[test\]' src tests` |
+| E2E loopback mesh test (3-node, real UDP) | 2 tests, both PASS | `cargo test --test e2e_loopback` |
+| **Hardware demo: smoke-m1 on ARM** | **PASS** — X25519+ChaCha20-Poly1305 on P201Mini | 2026-07-16 |
+| **Hardware demo: mesh convergence** | **ETX=1.00** between boards .12 ↔ .13 | 2026-07-16 |
+| **Hardware demo: packet delivery** | **DELIVERED** via mesh on real ARM | 2026-07-16 |
+| **Hardware demo: video NAL relay** | **TX → fragment → REASSEMBLE** on ARM | 2026-07-16 |
+| **Hardware demo: AD9361 IQ samples** | **Real RF data read** via iio_readdev | 2026-07-16 |
 | Rust source lines | 4 463 | `find src -name '*.rs' \| xargs wc -l` |
 | AD9361 tune target | LO 5.8 GHz | `radio/README.md` |
 | AD9361 FFT peak (1 MHz tone, digital loopback) | +0.999 MHz | `radio/README.md` |
@@ -94,7 +100,13 @@ BitNet-ternary benchmark on returned silicon, publish the raw log.
 | Sample rate | 30.72 MHz | `radio/README.md` |
 | Capture length | 65 536 samples | `radio/README.md` |
 | Connected P203 Mini boards | 3 | User confirmation 2026-07-04 |
-| T27 spec files ported | 1 (`specs/wire.t27`) | `find specs -name '*.t27'` |
+| T27 spec files | 84 | `find specs -name '*.t27' \| wc -l` |
+| Generated Rust modules | 84 (0 errors, 0 unimplemented) | `gen/rust/*.rs` |
+| Binaries | 5 (smoke-m1, trios_meshd, trios_meshd_video, rti_collector, trios_atak_forwarder) | `ls src/bin/*.rs` |
+| Crypto | X25519 + HKDF + ChaCha20-Poly1305, Ed25519 TOFU | `phone/TriNetVideo/VideoPipeline.swift` |
+| PQ hybrid | **specified, NOT implemented** — no lattice arithmetic, no PQ dependency | `specs/pq_hybrid.t27` |
+| QoS | 4-level priority classifier (EXPEDITED→LOW) | `specs/qos_classifier.t27` |
+| RLNC | GF(256) encoder + decoder (Gaussian elimination) | `specs/rlnc_coding.t27`, `specs/rlnc_decode.t27` |
 
 ### DePIN tokenomics (contract source, `gHashTag/trinity-contracts`, not yet deployed to mainnet)
 
@@ -134,7 +146,7 @@ BitNet-ternary benchmark on returned silicon, publish the raw log.
 ## Build & test (host)
 
 ```bash
-cargo test              # 20+ unit + 2 integration tests (см. Metrics — 110 test blocks в проекте)
+cargo test              # 228 tests (lib + integration + e2e loopback mesh)
 cargo run --bin smoke-m1
 ```
 
@@ -158,11 +170,11 @@ cargo build --release --target armv7-unknown-linux-musleabihf
 - **P0 — bring-up** — toolchain, first flash, Mini boots ARM-Linux + AD9361/GPS/PPS; AX7203 sanity.
   «Первая проводка и первое дыхание платы.»
 - **P1 — radio + M1 → M3** — AD9361 5.8 GHz + OFDM PHY; `trios-mesh` M1 crypto-on-ARM (уже `hw`) → M2 TUN/ETX → M3 iperf3 over 2 hops (bench attenuators).
-  «Два дрона слышат друг друга и делятся одним каналом.»
+  «Два узла слышат друг друга и делятся одним каналом.»
 - **P2 — DEMO GATE (3-node triangle)** — M4 shared uplink over 3-node mesh + M5 self-healing convergence measured. Deliverable: video + metrics + Apache-2.0 + Zenodo DOI. **Одновременно — первый двойной demo**: mesh-transport + DePIN-node (transport-proof + coverage-proof живые).
   «Треугольник, который сам себя чинит.»
-- **P3 — video-radio + drone C2 (MAVLink)** — один радиоканал несёт mesh + телеметрию + видео.
-- **P4 — tethered drone (Flying-COW analog)** — постоянно висящий узел над точкой интереса.
+- **P3 — video-radio + remote telemetry** — один радиоканал несёт mesh + телеметрию + видео.
+- **P4 — tethered aerial node (elevated relay)** — стационарный поднятый узел над точкой интереса (вышка/аэростат).
 - **P5 — свободный swarm** — self-organizing swarm без tether'а, каждый узел это operator, каждый operator получает TRI.
 - **P6 — Trinity silicon back** — tape-out 2026-12-16 → returned silicon → BitNet benchmark на кристалле → `[Open conjecture]` компонентов compute-anchor'а закрывается.
 - **P7 — Genesis Day** — mainnet deployment `trinity-contracts` на Base L2, `EmissionController.renounceOwnership()`, первый public proof-of-inference за TRI.

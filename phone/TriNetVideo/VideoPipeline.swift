@@ -1195,6 +1195,7 @@ class BSDTransport {
         handshakeTimer?.cancel(); handshakeTimer = nil
         if fd >= 0 { close(fd); fd = -1 }
         isReady = false
+        crypto.resetSession()   // never carry a session key or an ephemeral key into the next call
         groupMode = false; peers = []; groupFrag.removeAll(); groupFec.removeAll()
         nackLock.lock(); sentNALs = [:]; sentOrder = []; nackLock.unlock()
         highestVideoSeq = -1; nackedAt = [:]; fragNackedAt = [:]; deliveredSeqs = []; deliveredOrder = []   // fresh per call (rx-queue-only)
@@ -1611,7 +1612,23 @@ final class MeshCrypto {
     private static let hkdfInfo = Data("aead-key".utf8)
     static let handshakeMagic: [UInt8] = [0x54, 0x48]
 
-    private let ephPriv = Curve25519.KeyAgreement.PrivateKey()
+    // One ephemeral key PER CALL, not per launch. It used to be a `let` on a singleton that
+    // lives for the whole process, so every call in a session shared one private key and the
+    // "forward-secret" label meant per-launch. resetSession() rolls it and drops the session,
+    // and disconnect() calls that, so a new call cannot start under the old peer's key.
+    private var ephPriv = Curve25519.KeyAgreement.PrivateKey()
+
+    /// Roll the ephemeral key and forget the session. Called when a call ends.
+    func resetSession() {
+        ephPriv = Curve25519.KeyAgreement.PrivateKey()
+        sessionKey = nil
+        handshakePeer = nil
+        NSLog("TRINET: crypto reset — new ephemeral key, session dropped")
+    }
+
+    /// The address we already completed a handshake with, if any. A second handshake is only
+    /// honoured from that same address; anyone else is ignored.
+    private var handshakePeer: String?
     private var sessionKey: SymmetricKey?
     private var dropCount = 0
     private var replayCount = 0
@@ -1773,7 +1790,17 @@ final class MeshCrypto {
                                                  salt: MeshCrypto.hkdfSalt,
                                                  sharedInfo: MeshCrypto.hkdfInfo,
                                                  outputByteCount: 32)
-        if sessionKey == nil { NSLog("TRINET: session established (forward-secret)") }
+        // A handshake used to be honoured from ANY source at ANY time, and this assignment was
+        // unconditional. Combined with an invite key derived from a public constant that let
+        // anyone reach :7000, one packet mid-call rebound the victim onto the attacker's key.
+        // Accept a handshake only when we have no session yet, or when it comes from the peer
+        // we already completed one with (a genuine retransmit or a re-key).
+        if let established = handshakePeer, !peerIP.isEmpty, established != peerIP {
+            NSLog("TRINET: REFUSED handshake from \(peerIP) -- session already established with \(established)")
+            return false
+        }
+        if sessionKey == nil { NSLog("TRINET: session established with \(peerIP)") }
+        handshakePeer = peerIP.isEmpty ? handshakePeer : peerIP
         sessionKey = key
         return true
     }

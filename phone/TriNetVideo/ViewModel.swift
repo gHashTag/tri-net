@@ -782,14 +782,14 @@ class StreamViewModel: ObservableObject {
                     guard self.seenInviteMACs[macKey] == nil else { return }
                     self.seenInviteMACs[macKey] = Date()
                     self.incomingCall = IncomingCall(name: name, ip: ip, participants: participants)
-                    // AUTO-ACCEPT a GROUP call (>2 participants = caller + me + others) or a same-room caller,
-                    // so "call from the Mac -> both iPhones just join" works with no manual Accept. A plain
-                    // 1-1 (participants == {caller, me}) still rings so you can pick up the handset.
-                    if participants.count > 2 || (!room.isEmpty && room == PeerDiscovery.myRoom) {
-                        NSLog("TRINET: auto-joining group from \(name) — \(participants.count) participants, room '\(room)'")
-                        self.acceptIncoming()
-                        return
-                    }
+                    // It used to auto-accept a group invite, or any invite whose room matched ours,
+                    // so that "call from the Mac -> both iPhones just join" needed no tap. That turned
+                    // the INVITE into a remote camera and microphone switch: the invite is authenticated
+                    // with a key derived from a compiled-in constant that is public in this repository,
+                    // so anyone able to send a UDP packet to :7000 could forge one and the phone would
+                    // open its camera without ringing. Convenience is not worth that, and there is no
+                    // version of it that is: the whole point of a ring is that a person decides.
+                    // Every invite rings now, group or not, room or not.
                     NSLog("TRINET: INCOMING call from \(name) (\(ip))")
                     self.incomingTimer?.invalidate()
                     self.incomingTimer = Timer.scheduledTimer(withTimeInterval: 40, repeats: false) { [weak self] _ in
