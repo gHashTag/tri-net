@@ -15,6 +15,7 @@ func groupDigits(_ s: String) -> String {
 struct HomeView: View {
     @StateObject var vm = StreamViewModel()
     @State private var showSettings = false
+    @State private var dialNick = ""
 
     var body: some View {
         ZStack {
@@ -24,127 +25,84 @@ struct HomeView: View {
                 CallScreen(vm: vm)
                     .transition(.opacity)
             } else {
-                VStack(spacing: 22) {
-                    HStack {
-                        Text("TRI-NET").font(DS.display(22, .bold)).tracking(1).foregroundColor(DS.text)
-                        Spacer()
-                        Button(action: { showSettings = true }) {
-                            Image(systemName: "gearshape").font(.system(size: 18)).foregroundColor(DS.dim)
-                                .frame(width: 42, height: 42).overlay(Circle().stroke(DS.hairlineStrong, lineWidth: 1))
+ScrollView {
+                    VStack(spacing: 18) {
+
+                        // ---- Identity. Who you are on this network, and the one CTA. ----
+                        HStack(alignment: .center, spacing: 14) {
+                            Monogram(text: PeerDiscovery.myNick, size: 46)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("TRI-NET").font(DS.display(19, .bold)).tracking(1.2).foregroundColor(DS.text)
+                                Text("@\(PeerDiscovery.myNick)").font(DS.mono(12)).foregroundColor(DS.dim)
+                            }
+                            Spacer()
+                            Button(action: { showSettings = true }) {
+                                Image(systemName: "gearshape").font(.system(size: 17)).foregroundColor(DS.dim)
+                                    .frame(width: 40, height: 40)
+                                    .overlay(Circle().stroke(DS.hairlineStrong, lineWidth: 1))
+                            }
                         }
-                    }
-                    .padding(.horizontal, 24)
+                        .padding(.top, 6)
 
-                    Text("Encrypted mesh · forward-secret")
-                        .font(DS.ui(13)).foregroundColor(DS.dim)
-
-                    Spacer()
-
-                    // Primary call button — the one white CTA
-                    Button(action: { vm.startCall() }) {
-                        ZStack {
-                            Circle().fill(vm.cameraAuthorized ? DS.fill : DS.surface)
-                                .overlay(Circle().stroke(vm.cameraAuthorized ? Color.clear : DS.hairlineStrong, lineWidth: 1))
-                                .frame(width: 128, height: 128)
-                            Image(systemName: "video.fill").font(.system(size: 46))
-                                .foregroundColor(vm.cameraAuthorized ? DS.onFill : DS.faint)
+                        // ---- Dial. One field: a handle is the whole address. ----
+                        HStack(spacing: 10) {
+                            Text("@").font(DS.mono(17)).foregroundColor(DS.faint)
+                            TextField("handle", text: $dialNick)
+                                .font(DS.mono(16)).foregroundColor(DS.text)
+                                .autocapitalization(.none).disableAutocorrection(true)
+                                .submitLabel(.go)
+                                .onSubmit { vm.callByNick(dialNick); dialNick = "" }
+                            if !PeerDiscovery.normalizeNick(dialNick).isEmpty {
+                                Button(action: { vm.callByNick(dialNick); dialNick = "" }) {
+                                    Image(systemName: "arrow.up.circle.fill")
+                                        .font(.system(size: 26)).foregroundColor(DS.fill)
+                                }.buttonStyle(.plain)
+                            }
                         }
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!vm.cameraAuthorized)
-
-                    // Peer field
-                    VStack(spacing: 14) {
-                        HStack {
-                            SectionLabel(text: "Peer")
-                            TextField("Mac IP", text: $vm.remoteIP)
-                                .keyboardType(.decimalPad).font(DS.mono(16)).foregroundColor(DS.text)
-                                .multilineTextAlignment(.center)
-                        }
-                        .padding(.horizontal, 18).padding(.vertical, 14)
+                        .padding(.horizontal, 18).padding(.vertical, 15)
                         .background(DS.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(DS.hairline, lineWidth: 1))
 
-                        Text("SELF · \(vm.myIP)").font(DS.mono(12)).foregroundColor(DS.faint)
+                        // ---- People. The screen IS the roster; a row is the call button. ----
+                        PeopleSection(vm: vm, discovery: vm.discovery)
 
-                        if !vm.recentIPs.isEmpty {
+                        // ---- History. Missed and completed in one chronological list. ----
+                        HistorySection(vm: vm)
+
+                        // ---- Everything an operator needs and nobody else. Collapsed. ----
+                        AdvancedSection(vm: vm)
+
+                        Color.clear.frame(height: 8)
+                    }
+                    .padding(.horizontal, 20)
+                }
+                .safeAreaInset(edge: .bottom) {
+                    // The one white CTA, docked so it never scrolls away.
+                    VStack(spacing: 6) {
+                        Button(action: { vm.startCall() }) {
                             HStack(spacing: 10) {
-                                ForEach(vm.recentIPs.prefix(3), id: \.self) { ip in
-                                    Button(action: { vm.remoteIP = ip }) {
-                                        Text(ip).font(DS.mono(11)).foregroundColor(DS.dim)
-                                            .padding(.horizontal, 12).padding(.vertical, 7)
-                                            .overlay(Capsule().stroke(DS.hairline, lineWidth: 1))
-                                    }
-                                }
+                                Image(systemName: "video.fill").font(.system(size: 17))
+                                // Name the person, never the address. The address is in NETWORK,
+                                // where an operator can see it and nobody else has to.
+                                Text(vm.discovery.peers.first(where: { $0.name == vm.remoteIP })?.name
+                                     ?? vm.recentCalls.first(where: { $0.peer == vm.remoteIP })?.peer
+                                     ?? "Call")
+                                    .font(DS.ui(16, .semibold)).lineLimit(1)
                             }
+                            .foregroundColor(vm.cameraAuthorized ? DS.onFill : DS.faint)
+                            .frame(maxWidth: .infinity).padding(.vertical, 16)
+                            .background(vm.cameraAuthorized ? DS.fill : DS.surface,
+                                        in: Capsule())
+                            .overlay(Capsule().stroke(vm.cameraAuthorized ? Color.clear : DS.hairlineStrong, lineWidth: 1))
                         }
-
-                        iPeerRoster(vm: vm, discovery: vm.discovery)
-
-                        // Missed calls — one-tap call back (newest first, capped at 5).
-                        if !vm.missedCalls.isEmpty {
-                            VStack(spacing: 6) {
-                                ForEach(vm.missedCalls) { m in
-                                    HStack(spacing: 8) {
-                                        Image(systemName: "phone.arrow.down.left").font(.system(size: 12)).foregroundColor(DS.danger)
-                                        Text("Missed · \(m.name)").font(DS.ui(13)).foregroundColor(DS.text).lineLimit(1)
-                                        Text(m.at, style: .time).font(DS.mono(10)).foregroundColor(DS.faint)
-                                        Spacer()
-                                        Button("Call back") { vm.remoteIP = m.ip; vm.startCall() }
-                                            .font(DS.mono(12)).foregroundColor(.green)
-                                    }
-                                }
-                            }
-                            .padding(.horizontal, 14).padding(.vertical, 10)
-                            .background(DS.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(DS.hairline, lineWidth: 1))
-                        }
-
-                        // Recent-call journal: duration + average link quality of past completed calls.
-                        if !vm.recentCalls.isEmpty {
-                            VStack(spacing: 6) {
-                                HStack {
-                                    Text("RECENT").font(DS.mono(9)).foregroundColor(DS.faint).tracking(1)
-                                    Spacer()
-                                    if #available(iOS 16.0, *) {
-                                        ShareLink(item: vm.callJournalText) {
-                                            Text("Share log").font(DS.mono(9)).foregroundColor(DS.dim)
-                                        }
-                                    }
-                                }
-                                ForEach(vm.recentCalls.prefix(4)) { r in
-                                    HStack(spacing: 8) {
-                                        Image(systemName: "phone.connection").font(.system(size: 12)).foregroundColor(DS.dim)
-                                        Text(r.peer).font(DS.mono(12)).foregroundColor(DS.text).lineLimit(1)
-                                        Spacer()
-                                        Text("\(r.durationSec/60)m\(String(format: "%02d", r.durationSec%60))s · \(r.avgKbps)k\(r.stalls > 0 ? " · ⚠︎\(r.stalls)" : "")")
-                                            .font(DS.mono(10)).foregroundColor(r.avgJitterMs > 40 || r.stalls > 0 ? DS.danger : DS.faint)
-                                        Button("Call") { vm.remoteIP = r.peer; vm.startCall() }
-                                            .font(DS.mono(11)).foregroundColor(.green)
-                                    }
-                                }
-                                // Aggregate stability across the whole journal.
-                                let s = vm.callStats
-                                Divider().overlay(DS.hairline)
-                                HStack(spacing: 8) {
-                                    Text("\(s.count) calls").font(DS.mono(9)).foregroundColor(DS.dim)
-                                    Spacer()
-                                    Text("avg \(s.avgDurationSec/60)m\(String(format: "%02d", s.avgDurationSec%60))s · \(s.avgKbps)k · \(s.totalStalls) stalls")
-                                        .font(DS.mono(9)).foregroundColor(s.totalStalls > 0 ? DS.danger : DS.faint)
-                                }
-                            }
-                            .padding(.horizontal, 14).padding(.vertical, 10)
-                            .background(DS.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(DS.hairline, lineWidth: 1))
+                        .buttonStyle(.plain)
+                        .disabled(!vm.cameraAuthorized)
+                        if !vm.cameraAuthorized {
+                            Text("Camera access needed").font(DS.ui(12)).foregroundColor(DS.dim)
                         }
                     }
-                    .padding(.horizontal, 24)
-
-                    Spacer()
-
-                    Text(vm.cameraAuthorized ? "Tap to call" : "Camera access needed")
-                        .font(DS.ui(13, .medium)).foregroundColor(vm.cameraAuthorized ? DS.dim : DS.text)
-                        .padding(.bottom, 40)
+                    .padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 8)
+                    .background(.ultraThinMaterial)
                 }
             }
         }
@@ -931,6 +889,211 @@ enum DS {
     static func display(_ s: CGFloat, _ w: Font.Weight = .semibold) -> Font { .system(size: s, weight: w) }
     static let radius: CGFloat = 12
 }
+
+
+// MARK: - Home components
+// The home screen is a roster, not a console. A person is a row and a row is the call
+// button; the addresses, counters and logs that used to sit in the middle of the screen
+// live behind one disclosure at the bottom, where an operator can still reach them.
+
+/// Telegram-style identity disc: first letter of a handle on a hairline ring. No images,
+/// no avatars to fetch — the handle is the identity, so the handle is the picture.
+struct Monogram: View {
+    let text: String
+    var size: CGFloat = 40
+    private var letter: String { String(text.trimmingCharacters(in: .whitespaces).prefix(1)).uppercased() }
+    var body: some View {
+        ZStack {
+            Circle().fill(DS.surfaceHi)
+            Circle().stroke(DS.hairlineStrong, lineWidth: 1)
+            Text(letter.isEmpty ? "?" : letter)
+                .font(DS.display(size * 0.42, .semibold)).foregroundColor(DS.text)
+        }
+        .frame(width: size, height: size)
+    }
+}
+
+/// One tappable person. The whole row calls — a small "Call" button beside a name is a
+/// smaller target for the same intent.
+struct PersonRow: View {
+    let title: String
+    let subtitle: String
+    var live: Bool = false
+    var busy: Bool = false
+    var trailing: String? = nil
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 13) {
+                Monogram(text: title, size: 42)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(title).font(DS.ui(15, .medium)).foregroundColor(DS.text).lineLimit(1)
+                        if busy {
+                            Text("in call").font(DS.mono(9)).foregroundColor(DS.danger)
+                                .padding(.horizontal, 6).padding(.vertical, 2)
+                                .overlay(Capsule().stroke(DS.danger.opacity(0.4), lineWidth: 1))
+                        }
+                    }
+                    HStack(spacing: 5) {
+                        if live { Circle().fill(DS.live).frame(width: 6, height: 6) }
+                        Text(subtitle).font(DS.mono(11)).foregroundColor(DS.faint).lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 8)
+                if let t = trailing {
+                    Text(t).font(DS.mono(10)).foregroundColor(DS.faint)
+                }
+                Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(DS.faint)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 11)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// A grouped card with a mono uppercase label, the shape every section on this screen uses.
+struct SectionCard<Content: View>: View {
+    let label: String
+    var trailing: AnyView? = nil
+    @ViewBuilder var content: () -> Content
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(label).font(DS.mono(9, .medium)).tracking(1.2).foregroundColor(DS.faint)
+                Spacer()
+                if let t = trailing { t }
+            }
+            .padding(.horizontal, 4)
+            VStack(spacing: 0) { content() }
+                .background(DS.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(DS.hairline, lineWidth: 1))
+        }
+    }
+}
+
+struct PeopleSection: View {
+    @ObservedObject var vm: StreamViewModel
+    @ObservedObject var discovery: PeerDiscovery
+    var body: some View {
+        SectionCard(label: discovery.peers.isEmpty ? "NEARBY" : "NEARBY · \(discovery.peers.count)",
+                    trailing: discovery.peers.count > 1
+                        ? AnyView(Button("Call all") { vm.callEveryone() }
+                            .font(DS.mono(10)).foregroundColor(DS.dim))
+                        : nil) {
+            if discovery.peers.isEmpty {
+                HStack(spacing: 10) {
+                    ProgressView().scaleEffect(0.7).tint(DS.faint)
+                    Text("looking for people on this network")
+                        .font(DS.ui(13)).foregroundColor(DS.faint)
+                    Spacer()
+                }
+                .padding(.horizontal, 14).padding(.vertical, 16)
+            } else {
+                ForEach(Array(discovery.peers.enumerated()), id: \.element.id) { i, peer in
+                    if i > 0 { Hairline().padding(.leading, 69) }
+                    PersonRow(title: peer.name,
+                              subtitle: peer.nick.isEmpty ? "no handle" : "@\(peer.nick)",
+                              live: peer.status != "call",
+                              busy: peer.status == "call") { vm.callPeer(peer) }
+                }
+            }
+        }
+    }
+}
+
+struct HistorySection: View {
+    @ObservedObject var vm: StreamViewModel
+    var body: some View {
+        if vm.missedCalls.isEmpty && vm.recentCalls.isEmpty {
+            EmptyView()
+        } else {
+            SectionCard(label: "RECENT") {
+                ForEach(Array(vm.missedCalls.enumerated()), id: \.element.id) { i, m in
+                    if i > 0 { Hairline().padding(.leading, 69) }
+                    PersonRow(title: m.name, subtitle: "missed", live: false,
+                              trailing: DateFormatter.localizedString(from: m.at, dateStyle: .none, timeStyle: .short)) {
+                        vm.remoteIP = m.ip; vm.startCall()
+                    }
+                }
+                ForEach(Array(vm.recentCalls.prefix(4).enumerated()), id: \.offset) { i, r in
+                    if i > 0 || !vm.missedCalls.isEmpty { Hairline().padding(.leading, 69) }
+                    PersonRow(title: r.peer, subtitle: "\(r.durationSec/60)m\(String(format: "%02d", r.durationSec%60))s",
+                              live: false,
+                              trailing: r.stalls > 0 ? "\(r.avgKbps)k ⚠︎" : "\(r.avgKbps)k") {
+                        vm.remoteIP = r.peer; vm.startCall()
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Addresses, candidates, link statistics and the log share. Everything here was on the
+/// front of the screen before; none of it is what a person opens the app to do.
+struct AdvancedSection: View {
+    @ObservedObject var vm: StreamViewModel
+    @State private var open = false
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button(action: { withAnimation(.easeInOut(duration: 0.2)) { open.toggle() } }) {
+                HStack {
+                    Text("NETWORK").font(DS.mono(9, .medium)).tracking(1.2).foregroundColor(DS.faint)
+                    Image(systemName: open ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 9, weight: .semibold)).foregroundColor(DS.faint)
+                    Spacer()
+                    Text(vm.myIP).font(DS.mono(10)).foregroundColor(DS.faint)
+                }
+                .padding(.horizontal, 4).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if open {
+                VStack(spacing: 12) {
+                    HStack {
+                        Text("PEER").font(DS.mono(9, .medium)).tracking(1).foregroundColor(DS.faint)
+                        TextField("address", text: $vm.remoteIP)
+                            .keyboardType(.decimalPad).font(DS.mono(15)).foregroundColor(DS.text)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    if !vm.recentIPs.isEmpty {
+                        HStack(spacing: 8) {
+                            ForEach(vm.recentIPs.prefix(3), id: \.self) { ip in
+                                Button(action: { vm.remoteIP = ip }) {
+                                    Text(ip).font(DS.mono(10)).foregroundColor(DS.dim)
+                                        .padding(.horizontal, 10).padding(.vertical, 6)
+                                        .overlay(Capsule().stroke(DS.hairline, lineWidth: 1))
+                                }.buttonStyle(.plain)
+                            }
+                            Spacer()
+                        }
+                    }
+                    if !vm.recentCalls.isEmpty {
+                        Hairline()
+                        let s = vm.callStats
+                        HStack {
+                            Text("\(s.count) calls · avg \(s.avgDurationSec/60)m\(String(format: "%02d", s.avgDurationSec%60))s · \(s.avgKbps)k")
+                                .font(DS.mono(9)).foregroundColor(DS.faint)
+                            Spacer()
+                            if #available(iOS 16.0, *) {
+                                ShareLink(item: vm.callJournalText) {
+                                    Text("Share log").font(DS.mono(9)).foregroundColor(DS.dim)
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 14).padding(.vertical, 13)
+                .background(DS.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(DS.hairline, lineWidth: 1))
+            }
+        }
+    }
+}
+
+struct Hairline2: View { var body: some View { Rectangle().fill(DS.hairline).frame(height: 1) } }
 
 struct Hairline: View {
     var body: some View { Rectangle().fill(DS.hairline).frame(height: 1) }
