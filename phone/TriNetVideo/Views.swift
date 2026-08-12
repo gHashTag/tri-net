@@ -17,6 +17,98 @@ struct HomeView: View {
     @State private var showSettings = false
     @State private var dialNick = ""
 
+    private var query: String { PeerDiscovery.normalizeNick(dialNick) }
+
+    private var filteredPeers: [PeerDiscovery.Peer] {
+        guard !query.isEmpty else { return vm.discovery.peersSorted }
+        return vm.discovery.peersSorted.filter {
+            $0.nick.contains(query) || $0.name.lowercased().contains(query)
+        }
+    }
+
+    private var filteredThreads: [String] {
+        let nearby = Set(vm.discovery.peers.map(\.nick))
+        let all = vm.chatStore.recentNicks.filter { !nearby.contains($0) }
+        guard !query.isEmpty else { return all }
+        return all.filter { $0.contains(query) }
+    }
+
+    /// A typed handle that matches nothing we know: offer to open it anyway.
+    private var unmatchedHandle: String? {
+        guard !query.isEmpty else { return nil }
+        guard filteredPeers.isEmpty, filteredThreads.isEmpty, query != PeerDiscovery.myNick else { return nil }
+        return query
+    }
+
+    /// Last thing said in a thread, or the handle when nothing has been said yet.
+    /// Split out because the inline expression made the type-checker give up.
+    private func preview(_ nick: String, fallback: String) -> String {
+        guard let m = vm.chatStore.lastMessage(nick) else { return fallback }
+        return (m.mine ? "you: " : "") + m.text
+    }
+
+    /// Identity strip above the list: who you are here, and the way into settings.
+    private var listHeader: some View {
+        HStack(spacing: 12) {
+            Monogram(text: PeerDiscovery.myNick, size: 34)
+            VStack(alignment: .leading, spacing: 0) {
+                Text("TRI-NET").font(DS.display(17, .bold)).tracking(1).foregroundColor(DS.text)
+                Text("@" + PeerDiscovery.myNick).font(DS.mono(11)).foregroundColor(DS.faint)
+            }
+            Spacer()
+            Button(action: { showSettings = true }) {
+                Image(systemName: "gearshape").font(.system(size: 16)).foregroundColor(DS.dim)
+                    .frame(width: 34, height: 34)
+                    .overlay(Circle().stroke(DS.hairlineStrong, lineWidth: 1))
+            }.buttonStyle(.plain)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 10)
+        .background(DS.ink)
+    }
+
+    /// fullmoon's list rows are headline + subheadline. Ours adds a live dot and a stamp,
+    /// because a person is either reachable now or not and that changes what you do next.
+    @ViewBuilder
+    private func threadRow(title: String, subtitle: String, stamp: Date?, live: Bool) -> some View {
+        HStack(spacing: 11) {
+            Monogram(text: title, size: 38)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.headline).foregroundColor(DS.text).lineLimit(1)
+                HStack(spacing: 5) {
+                    if live { Circle().fill(DS.live).frame(width: 6, height: 6) }
+                    Text(subtitle).font(.subheadline).foregroundColor(DS.faint).lineLimit(1)
+                }
+            }
+            Spacer(minLength: 6)
+            if let s = stamp {
+                Text(s, style: .time).font(DS.mono(10)).foregroundColor(DS.faint)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    /// Whether the thing is alive, shown where the list would otherwise be empty.
+    private var aliveFooter: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: "antenna.radiowaves.left.and.right")
+                    .font(.system(size: 11)).foregroundColor(DS.live)
+                Text("listening on :7000").font(DS.mono(11)).foregroundColor(DS.dim)
+            }
+            HStack(spacing: 8) {
+                Image(systemName: "wifi").font(.system(size: 11))
+                    .foregroundColor(vm.myIP.isEmpty ? DS.faint : DS.live)
+                Text(vm.myIP.isEmpty ? "no address on this network" : vm.myIP)
+                    .font(DS.mono(11)).foregroundColor(DS.dim)
+            }
+            HStack(spacing: 8) {
+                ProgressView().scaleEffect(0.5).tint(DS.faint)
+                Text("looking for people").font(DS.mono(11)).foregroundColor(DS.faint)
+            }
+        }
+        .padding(.top, 10)
+    }
+
     var body: some View {
         ZStack {
             DS.ink.ignoresSafeArea()
@@ -26,71 +118,69 @@ struct HomeView: View {
                     .transition(.opacity)
             } else {
                 NavigationView {
-                  ScrollView {
-                    VStack(spacing: 18) {
-
-                        // ---- Identity. Who you are on this network, and the one CTA. ----
-                        HStack(alignment: .center, spacing: 14) {
-                            Monogram(text: PeerDiscovery.myNick, size: 46)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("TRI-NET").font(DS.display(19, .bold)).tracking(1.2).foregroundColor(DS.text)
-                                Text("@\(PeerDiscovery.myNick)").font(DS.mono(12)).foregroundColor(DS.dim)
-                            }
-                            Spacer()
-                            Button(action: { showSettings = true }) {
-                                Image(systemName: "gearshape").font(.system(size: 17)).foregroundColor(DS.dim)
-                                    .frame(width: 40, height: 40)
-                                    .overlay(Circle().stroke(DS.hairlineStrong, lineWidth: 1))
+                  // fullmoon's chat list: a plain List with search, thread title and a
+                  // subtitle. No cards, no chrome -- the rows ARE the screen.
+                  List {
+                    Section {
+                        ForEach(filteredPeers) { peer in
+                            NavigationLink(destination: ConversationView(vm: vm, store: vm.chatStore,
+                                                                         nick: peer.nick, name: peer.name)) {
+                                threadRow(title: peer.name,
+                                          subtitle: preview(peer.nick, fallback: peer.nick.isEmpty ? "no handle" : "@" + peer.nick),
+                                          stamp: vm.chatStore.lastMessage(peer.nick)?.at,
+                                          live: peer.status != "call")
                             }
                         }
-                        .padding(.top, 6)
-
-                        // ---- Dial. One field: a handle is the whole address. ----
-                        // Typing a handle OPENS the conversation. Calling is one tap inside it,
-                        // so there is one rule on this screen: everything leads to a thread.
-                        HStack(spacing: 10) {
-                            Text("@").font(DS.mono(17)).foregroundColor(DS.faint)
-                            TextField("handle", text: $dialNick)
-                                .font(DS.mono(16)).foregroundColor(DS.text)
-                                .autocapitalization(.none).disableAutocorrection(true)
-                                .submitLabel(.go)
-                                .onSubmit { }   // the arrow is the affordance; submit alone must not call anyone
-                            if !PeerDiscovery.normalizeNick(dialNick).isEmpty {
-                                NavigationLink(destination: ConversationView(
-                                    vm: vm, store: vm.chatStore,
-                                    nick: PeerDiscovery.normalizeNick(dialNick),
-                                    name: PeerDiscovery.normalizeNick(dialNick))) {
-                                    Image(systemName: "arrow.right.circle.fill")
-                                        .font(.system(size: 26)).foregroundColor(DS.fill)
-                                }.buttonStyle(.plain)
-                            }
+                    } header: {
+                        Text(vm.discovery.peers.isEmpty ? "nearby" : "nearby · \(vm.discovery.peers.count)")
+                            .font(DS.mono(11)).foregroundColor(DS.faint)
+                    } footer: {
+                        if vm.discovery.peers.isEmpty {
+                            aliveFooter
                         }
-                        .padding(.horizontal, 18).padding(.vertical, 15)
-                        .background(DS.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(DS.hairline, lineWidth: 1))
-
-                        // ---- People. The screen IS the roster; a row is the call button. ----
-                        PeopleSection(vm: vm, discovery: vm.discovery)
-
-                        // ---- History. Missed and completed in one chronological list. ----
-                        HistorySection(vm: vm)
-
-                        // ---- Everything an operator needs and nobody else. Collapsed. ----
-                        AdvancedSection(vm: vm)
-
-                        if !vm.cameraAuthorized {
-                            Text("Camera access needed for calls")
-                                .font(DS.ui(12)).foregroundColor(DS.danger)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, 4)
-                        }
-
-                        Color.clear.frame(height: 8)
                     }
-                    .padding(.horizontal, 20)
+
+                    if !vm.chatStore.recentNicks.isEmpty {
+                        Section {
+                            ForEach(filteredThreads, id: \.self) { n in
+                                NavigationLink(destination: ConversationView(vm: vm, store: vm.chatStore,
+                                                                             nick: n, name: n)) {
+                                    threadRow(title: n,
+                                              subtitle: preview(n, fallback: "@" + n),
+                                              stamp: vm.chatStore.lastMessage(n)?.at,
+                                              live: false)
+                                }
+                            }
+                        } header: {
+                            Text("chats").font(DS.mono(11)).foregroundColor(DS.faint)
+                        }
+                    }
+                    // A handle nobody nearby is advertising is still a valid address: the
+                    // rendezvous path resolves it. Offer it as a row rather than leaving the
+                    // search dead-ended.
+                    if let typed = unmatchedHandle {
+                        Section {
+                            NavigationLink(destination: ConversationView(vm: vm, store: vm.chatStore,
+                                                                         nick: typed, name: typed)) {
+                                HStack(spacing: 11) {
+                                    Monogram(text: typed, size: 38)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("@" + typed).font(.headline).foregroundColor(DS.text)
+                                        Text("start a conversation").font(.subheadline).foregroundColor(DS.faint)
+                                    }
+                                    Spacer()
+                                }
+                                .padding(.vertical, 4)
+                            }
+                        }
+                    }
                   }
+                  .listStyle(.plain)
+                  .onAppear { UITableView.appearance().backgroundColor = .clear }
+                  .searchable(text: $dialNick, prompt: "handle")
                   .background(DS.ink.ignoresSafeArea())
                   .navigationBarHidden(true)
+                  .safeAreaInset(edge: .top) { listHeader }
                 }
                 .navigationViewStyle(.stack)
             }
@@ -960,7 +1050,7 @@ struct ConversationView: View {
     private var messages: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 8) {
+                LazyVStack(alignment: .leading, spacing: 0) {
                     if store.messages(nick).isEmpty {
                         VStack(spacing: 8) {
                             Text("No messages yet").font(DS.ui(14)).foregroundColor(DS.faint)
@@ -972,8 +1062,8 @@ struct ConversationView: View {
                     // this conversation, not a separate log to go and find.
                     ForEach(timeline, id: \.key) { item in
                         switch item.value {
-                        case .message(let m): Bubble(message: m).id(m.id)
-                        case .call(let r):    CallSummaryRow(record: r)
+                        case .message(let m): Bubble(message: m).padding().id(m.id)
+                        case .call(let r):    CallSummaryRow(record: r).padding(.horizontal).padding(.vertical, 6)
                         }
                     }
                     if store.isAiOn(nick) {
@@ -983,7 +1073,6 @@ struct ConversationView: View {
                     }
                     Color.clear.frame(height: 6).id("bottom")
                 }
-                .padding(.horizontal, 14).padding(.vertical, 12)
             }
             .onChange(of: store.messages(nick).count) { _ in
                 withAnimation { proxy.scrollTo("bottom", anchor: .bottom) }
@@ -992,20 +1081,32 @@ struct ConversationView: View {
     }
 
     private var composer: some View {
-        HStack(spacing: 10) {
-            TextField("Message", text: $draft)
-                .font(DS.ui(15)).foregroundColor(DS.text)
-                .padding(.horizontal, 14).padding(.vertical, 10)
-                .background(DS.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(DS.hairline, lineWidth: 1))
-            Button(action: { vm.sendText(draft, to: nick); draft = "" }) {
-                Image(systemName: "arrow.up.circle.fill").font(.system(size: 32))
-                    .foregroundColor(draft.trimmingCharacters(in: .whitespaces).isEmpty ? DS.faint : DS.fill)
+        // One container, radius 24, minimum height 48 -- field and send button live inside it
+        // together, as in fullmoon. A separate circular button beside the field reads as two
+        // controls; this reads as one place to write.
+        HStack(alignment: .bottom, spacing: 0) {
+            TextField("message", text: $draft)
+                .textFieldStyle(.plain)
+                .font(DS.ui(16)).foregroundColor(DS.text)
+                .padding(.horizontal, 16).padding(.vertical, 8)
+                .frame(minHeight: 48)
+                .onSubmit { send() }
+            Button(action: send) {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.system(size: 28))
+                    .foregroundColor(draft.trimmingCharacters(in: .whitespaces).isEmpty ? DS.faint : DS.text)
+                    .padding(.trailing, 10).padding(.bottom, 10)
             }
             .buttonStyle(.plain)
             .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
         }
-        .padding(.horizontal, 14).padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 24).fill(DS.surfaceHi))
+        .padding(.horizontal, 12).padding(.vertical, 8)
+    }
+
+    private func send() {
+        vm.sendText(draft, to: nick)
+        draft = ""
     }
 }
 
@@ -1070,21 +1171,30 @@ struct CallSummaryRow: View {
 
 struct Bubble: View {
     let message: TextFrame.Message
+
+    // fullmoon's signature asymmetry: YOUR message sits in a filled rounded container, the
+    // other side is plain text with no chrome at all. It reads as a transcript rather than a
+    // ladder of opposing boxes, and the 48pt inset on the far side does the work a Spacer
+    // would have done, without a second bubble to balance against.
     var body: some View {
         HStack {
-            if message.mine { Spacer(minLength: 50) }
-            VStack(alignment: message.mine ? .trailing : .leading, spacing: 3) {
-                Text(message.text).font(DS.ui(15)).foregroundColor(message.mine ? DS.onFill : DS.text)
-                Text(message.at, style: .time).font(DS.mono(9))
-                    .foregroundColor(message.mine ? DS.onFill.opacity(0.5) : DS.faint)
+            if message.mine { Spacer(minLength: 0) }
+            if message.mine {
+                Text(message.text)
+                    .textSelection(.enabled)
+                    .padding(.horizontal, 16).padding(.vertical, 12)
+                    .background(DS.surfaceHi)
+                    .mask(RoundedRectangle(cornerRadius: 24))
+                    .padding(.leading, 48)
+            } else {
+                Text(message.text)
+                    .textSelection(.enabled)
+                    .padding(.trailing, 48)
             }
-            .padding(.horizontal, 13).padding(.vertical, 9)
-            .background(message.mine ? DS.fill : DS.surface,
-                        in: RoundedRectangle(cornerRadius: 17, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 17, style: .continuous)
-                .stroke(message.mine ? Color.clear : DS.hairline, lineWidth: 1))
-            if !message.mine { Spacer(minLength: 50) }
+            if !message.mine { Spacer(minLength: 0) }
         }
+        .font(DS.ui(16))
+        .foregroundColor(DS.text)
     }
 }
 

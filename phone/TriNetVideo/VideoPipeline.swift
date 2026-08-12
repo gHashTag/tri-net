@@ -2392,6 +2392,11 @@ final class PeerDiscovery: ObservableObject {
     func setNick(_ nick: String) { PeerDiscovery.myNick = nick; republish() }
 
     /// Find a LAN peer by handle. Case and a leading '@' are ignored.
+    /// Peers in a stable order for a List: live first, then by name.
+    var peersSorted: [Peer] {
+        peers.sorted { ($0.status != "call" ? 0 : 1, $0.name.lowercased()) < ($1.status != "call" ? 0 : 1, $1.name.lowercased()) }
+    }
+
     func peer(byNick nick: String) -> Peer? {
         let want = PeerDiscovery.normalizeNick(nick)
         guard !want.isEmpty else { return nil }
