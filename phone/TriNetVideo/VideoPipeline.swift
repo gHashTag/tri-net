@@ -907,6 +907,14 @@ class BSDTransport {
     // per-connection ephemeral session key; the static PSK only authenticates
     // the handshake, so a later PSK leak can't decrypt recorded traffic.
     private let crypto = MeshCrypto()
+
+    /// The device's long-term signing key, so off-call text can be signed by the same identity
+    /// the call handshake pins. Exposed read-only: nothing outside may replace it.
+    var identityPublicSigner: Curve25519.Signing.PrivateKey { crypto.identityPriv }
+
+    /// Send bytes on the live call socket without the chat framing. Used by off-call text when
+    /// a call happens to be up, so one code path serves both cases.
+    func sendRaw(_ d: Data) { rawSendWire(d) }
     // Security surface for the UI (1-1): safety number pairs our identity with the peer's.
     var peerSafetyNumber: String? {
         guard let peer = crypto.peerIdentity else { return nil }
@@ -2181,6 +2189,119 @@ final class LogBus: ObservableObject {
             self.lines.append(s)
             if self.lines.count > self.cap { self.lines.removeFirst(self.lines.count - self.cap) }
         }
+    }
+}
+
+
+// ===== Off-call text: a message you can send without ringing anyone =====
+// Chat used to exist only inside a call -- ChatLine lived in memory and vanished when the
+// call ended. A messenger has to work the other way round: you write first, and calling is
+// something you do FROM a conversation. These frames travel on the same idle :7000 socket
+// the invite listener already owns.
+//
+// Authenticated with the device's Ed25519 identity, NOT with the shared PSK. The PSK is
+// derived from a compiled-in constant that is public in this repository, so it proves only
+// "someone has the app"; a signature over the sender's own long-term key proves who wrote
+// the message, and pairs with the trust-on-first-use pinning already in MeshCrypto.
+//
+// Wire: [FD 12][senderPub:32][ts:8 BE][nickLen:1][nick][text][sig:64]
+//       sig = Ed25519(senderPriv, everything before the signature)
+enum TextFrame {
+    static let magic: [UInt8] = [0xFD, 0x12]
+    static let maxText = 1200          // one datagram, no fragmentation
+
+    struct Message: Codable, Identifiable, Equatable {
+        var id: String                 // sender nick + timestamp: idempotent, dedups a resend
+        var nick: String               // who wrote it
+        var text: String
+        var atMs: Int64
+        var mine: Bool
+        var at: Date { Date(timeIntervalSince1970: Double(atMs) / 1000) }
+    }
+
+    static func encode(text: String, myNick: String, identity: Curve25519.Signing.PrivateKey) -> Data? {
+        let t = String(text.prefix(maxText))
+        guard let textData = t.data(using: .utf8), let nickData = myNick.data(using: .utf8),
+              nickData.count < 256 else { return nil }
+        var body = Data(magic)
+        body.append(identity.publicKey.rawRepresentation)
+        let ts = Int64(Date().timeIntervalSince1970 * 1000)
+        body.append(contentsOf: (0..<8).map { UInt8((ts >> (56 - 8 * $0)) & 0xFF) })
+        body.append(UInt8(nickData.count))
+        body.append(nickData)
+        body.append(textData)
+        guard let sig = try? identity.signature(for: body) else { return nil }
+        body.append(sig)
+        return body
+    }
+
+    /// nil on: wrong magic, truncation, bad signature, or a stale timestamp. Every rejection is
+    /// silent-safe -- no input can crash this.
+    static func decode(_ d: Data, now: Date = Date()) -> (msg: Message, senderPub: Data)? {
+        let b = [UInt8](d)
+        guard b.count > 2 + 32 + 8 + 1 + 64, b[0] == magic[0], b[1] == magic[1] else { return nil }
+        let sigStart = b.count - 64
+        let signed = Data(b[0..<sigStart])
+        let sig = Data(b[sigStart...])
+        let senderPub = Data(b[2..<34])
+        guard let key = try? Curve25519.Signing.PublicKey(rawRepresentation: senderPub),
+              key.isValidSignature(sig, for: signed) else { return nil }
+        var ts: Int64 = 0
+        for i in 34..<42 { ts = (ts << 8) | Int64(b[i]) }
+        let nowMs = Int64(now.timeIntervalSince1970 * 1000)
+        guard abs(nowMs - ts) <= 7 * 24 * 3600 * 1000 else { return nil }   // a week, not 15s: text is not a ring
+        let nickLen = Int(b[42])
+        guard 43 + nickLen <= sigStart else { return nil }
+        guard let nick = String(data: Data(b[43..<(43 + nickLen)]), encoding: .utf8),
+              let text = String(data: Data(b[(43 + nickLen)..<sigStart]), encoding: .utf8) else { return nil }
+        return (Message(id: "\(nick)-\(ts)", nick: nick, text: text, atMs: ts, mine: false), senderPub)
+    }
+}
+
+/// Conversations, kept on the device. One thread per handle; nothing leaves the phone.
+final class ChatStore: ObservableObject {
+    @Published private(set) var threads: [String: [TextFrame.Message]] = [:]
+    /// Handles whose conversation has the assistant switched on.
+    @Published private(set) var aiOn: Set<String> = []
+
+    private static let msgKey = "trinetThreadsV1"
+    private static let aiKey  = "trinetAiOnV1"
+
+    init() {
+        if let d = UserDefaults.standard.data(forKey: Self.msgKey),
+           let t = try? JSONDecoder().decode([String: [TextFrame.Message]].self, from: d) { threads = t }
+        aiOn = Set(UserDefaults.standard.stringArray(forKey: Self.aiKey) ?? [])
+    }
+
+    private func persist() {
+        if let d = try? JSONEncoder().encode(threads) { UserDefaults.standard.set(d, forKey: Self.msgKey) }
+        UserDefaults.standard.set(Array(aiOn), forKey: Self.aiKey)
+    }
+
+    func messages(_ nick: String) -> [TextFrame.Message] { threads[nick] ?? [] }
+    func lastMessage(_ nick: String) -> TextFrame.Message? { threads[nick]?.last }
+
+    /// Idempotent by message id, so a resend of the same message never doubles in the thread.
+    func append(_ m: TextFrame.Message, to nick: String) {
+        var t = threads[nick] ?? []
+        guard !t.contains(where: { $0.id == m.id }) else { return }
+        t.append(m)
+        t.sort { $0.atMs < $1.atMs }
+        threads[nick] = t
+        persist()
+    }
+
+    func isAiOn(_ nick: String) -> Bool { aiOn.contains(nick) }
+    func setAi(_ on: Bool, for nick: String) {
+        if on { aiOn.insert(nick) } else { aiOn.remove(nick) }
+        persist()
+    }
+
+    /// Handles with any history, newest conversation first.
+    var recentNicks: [String] {
+        threads.filter { !$0.value.isEmpty }
+            .sorted { ($0.value.last?.atMs ?? 0) > ($1.value.last?.atMs ?? 0) }
+            .map { $0.key }
     }
 }
 

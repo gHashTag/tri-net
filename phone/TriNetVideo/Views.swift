@@ -25,7 +25,8 @@ struct HomeView: View {
                 CallScreen(vm: vm)
                     .transition(.opacity)
             } else {
-ScrollView {
+                NavigationView {
+                  ScrollView {
                     VStack(spacing: 18) {
 
                         // ---- Identity. Who you are on this network, and the one CTA. ----
@@ -75,8 +76,13 @@ ScrollView {
                         Color.clear.frame(height: 8)
                     }
                     .padding(.horizontal, 20)
-                }
-                .safeAreaInset(edge: .bottom) {
+                  }
+                  .background(DS.ink.ignoresSafeArea())
+                  .navigationBarHidden(true)
+                  // The docked CTA belongs to the HOME screen only. It was attached to the
+                  // NavigationView, so it rode along into every pushed screen and sat on top
+                  // of the conversation's composer -- you could open a thread but not type in it.
+                  .safeAreaInset(edge: .bottom) {
                     // The one white CTA, docked so it never scrolls away.
                     VStack(spacing: 6) {
                         Button(action: { vm.startCall() }) {
@@ -103,7 +109,9 @@ ScrollView {
                     }
                     .padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 8)
                     .background(.ultraThinMaterial)
+                  }
                 }
+                .navigationViewStyle(.stack)
             }
         }
         // Incoming call: full-screen ringing takeover (iOS convention) with Accept/Decline.
@@ -891,6 +899,214 @@ enum DS {
 }
 
 
+
+// MARK: - Conversation
+// You write first and call from inside the thread, which is the order a messenger works in.
+// The header carries the two actions that belong to a conversation and nowhere else: place a
+// call to this person, and switch our own assistant on for this conversation only.
+struct ConversationView: View {
+    @ObservedObject var vm: StreamViewModel
+    @ObservedObject var store: ChatStore
+    let nick: String
+    let name: String
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft = ""
+
+    private var online: Bool { vm.discovery.peer(byNick: nick) != nil }
+
+    private enum Item { case message(TextFrame.Message), call(StreamViewModel.CallRecord) }
+
+    /// Messages and this peer's calls, merged and sorted by time.
+    private var timeline: [(key: String, value: Item)] {
+        var out: [(Double, String, Item)] = store.messages(nick).map {
+            (Double($0.atMs) / 1000, $0.id, .message($0))
+        }
+        for r in vm.recentCalls where r.peer == nick || r.peer == name {
+            out.append((r.at.timeIntervalSince1970, "call-\(r.id)", .call(r)))
+        }
+        return out.sorted { $0.0 < $1.0 }.map { (key: $0.1, value: $0.2) }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            Hairline()
+            messages
+            Hairline()
+            composer
+        }
+        .background(DS.ink.ignoresSafeArea())
+        .navigationBarHidden(true)
+    }
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            Button(action: { dismiss() }) {
+                Image(systemName: "chevron.left").font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(DS.dim).frame(width: 32, height: 32)
+            }.buttonStyle(.plain)
+
+            Monogram(text: name, size: 36)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(name).font(DS.ui(15, .semibold)).foregroundColor(DS.text).lineLimit(1)
+                HStack(spacing: 5) {
+                    Circle().fill(online ? DS.live : DS.faint).frame(width: 6, height: 6)
+                    Text(online ? "on this network" : "not reachable")
+                        .font(DS.mono(10)).foregroundColor(DS.faint)
+                }
+            }
+            Spacer()
+
+            // Our assistant, per conversation. Off by default and it says what it does when on.
+            Button(action: { store.setAi(!store.isAiOn(nick), for: nick) }) {
+                Image(systemName: store.isAiOn(nick) ? "waveform.circle.fill" : "waveform.circle")
+                    .font(.system(size: 22))
+                    .foregroundColor(store.isAiOn(nick) ? DS.live : DS.faint)
+                    .frame(width: 38, height: 38)
+            }.buttonStyle(.plain)
+
+            Button(action: { if let p = vm.discovery.peer(byNick: nick) { vm.callPeer(p) } else { vm.callByNick(nick) } }) {
+                Image(systemName: "video.fill").font(.system(size: 17))
+                    .foregroundColor(DS.onFill)
+                    .frame(width: 38, height: 38)
+                    .background(DS.fill, in: Circle())
+            }.buttonStyle(.plain)
+        }
+        .padding(.horizontal, 14).padding(.vertical, 10)
+    }
+
+    private var messages: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 8) {
+                    if store.messages(nick).isEmpty {
+                        VStack(spacing: 8) {
+                            Text("No messages yet").font(DS.ui(14)).foregroundColor(DS.faint)
+                            Text("Write first, call when you want to")
+                                .font(DS.mono(11)).foregroundColor(DS.faint)
+                        }.padding(.top, 60)
+                    }
+                    // Messages and calls in one timeline: a call is a thing that happened in
+                    // this conversation, not a separate log to go and find.
+                    ForEach(timeline, id: \.key) { item in
+                        switch item.value {
+                        case .message(let m): Bubble(message: m).id(m.id)
+                        case .call(let r):    CallSummaryRow(record: r)
+                        }
+                    }
+                    if store.isAiOn(nick) {
+                        Text("assistant on — it will transcribe your calls on this device")
+                            .font(DS.mono(10)).foregroundColor(DS.live.opacity(0.8))
+                            .frame(maxWidth: .infinity).padding(.top, 6)
+                    }
+                    Color.clear.frame(height: 6).id("bottom")
+                }
+                .padding(.horizontal, 14).padding(.vertical, 12)
+            }
+            .onChange(of: store.messages(nick).count) { _ in
+                withAnimation { proxy.scrollTo("bottom", anchor: .bottom) }
+            }
+        }
+    }
+
+    private var composer: some View {
+        HStack(spacing: 10) {
+            TextField("Message", text: $draft)
+                .font(DS.ui(15)).foregroundColor(DS.text)
+                .padding(.horizontal, 14).padding(.vertical, 10)
+                .background(DS.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(DS.hairline, lineWidth: 1))
+            Button(action: { vm.sendText(draft, to: nick); draft = "" }) {
+                Image(systemName: "arrow.up.circle.fill").font(.system(size: 32))
+                    .foregroundColor(draft.trimmingCharacters(in: .whitespaces).isEmpty ? DS.faint : DS.fill)
+            }
+            .buttonStyle(.plain)
+            .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
+        }
+        .padding(.horizontal, 14).padding(.vertical, 10)
+    }
+}
+
+
+/// A finished call, shown in the thread where it happened rather than in a separate log.
+/// Compact by default; a tap opens the rest. Metrics the link did not report are omitted
+/// entirely -- a zero would read as a measurement, and it is not one.
+struct CallSummaryRow: View {
+    let record: StreamViewModel.CallRecord
+    @State private var open = false
+
+    private var duration: String {
+        record.durationSec >= 60
+            ? "\(record.durationSec / 60)m\(String(format: "%02d", record.durationSec % 60))s"
+            : "\(record.durationSec)s"
+    }
+
+    var body: some View {
+        Button(action: { withAnimation(.easeInOut(duration: 0.18)) { open.toggle() } }) {
+            VStack(alignment: .leading, spacing: open ? 8 : 0) {
+                HStack(spacing: 8) {
+                    Image(systemName: "video.fill").font(.system(size: 11)).foregroundColor(DS.faint)
+                    Text("Call").font(DS.ui(13, .medium)).foregroundColor(DS.dim)
+                    Text(duration).font(DS.mono(11)).foregroundColor(DS.faint)
+                    if record.avgKbps > 0 {
+                        Text("\(record.avgKbps)k").font(DS.mono(11)).foregroundColor(DS.faint)
+                    }
+                    if record.stalls > 0 {
+                        Text("\(record.stalls) stalls").font(DS.mono(11)).foregroundColor(DS.danger)
+                    }
+                    Spacer()
+                    Text(record.at, style: .time).font(DS.mono(10)).foregroundColor(DS.faint)
+                }
+                if open {
+                    Hairline()
+                    // One row per metric the link actually reported.
+                    VStack(spacing: 5) {
+                        metric("duration", duration)
+                        if record.avgKbps > 0 { metric("throughput", "\(record.avgKbps) kbit/s") }
+                        if record.avgJitterMs > 0 { metric("jitter", "\(record.avgJitterMs) ms",
+                                                           warn: record.avgJitterMs > 40) }
+                        metric("stalls", "\(record.stalls)", warn: record.stalls > 0)
+                    }
+                }
+            }
+            .padding(.horizontal, 13).padding(.vertical, 9)
+            .background(DS.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(DS.hairline, lineWidth: 1))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func metric(_ label: String, _ value: String, warn: Bool = false) -> some View {
+        HStack {
+            Text(label).font(DS.mono(10)).foregroundColor(DS.faint)
+            Spacer()
+            Text(value).font(DS.mono(11)).foregroundColor(warn ? DS.danger : DS.dim)
+        }
+    }
+}
+
+struct Bubble: View {
+    let message: TextFrame.Message
+    var body: some View {
+        HStack {
+            if message.mine { Spacer(minLength: 50) }
+            VStack(alignment: message.mine ? .trailing : .leading, spacing: 3) {
+                Text(message.text).font(DS.ui(15)).foregroundColor(message.mine ? DS.onFill : DS.text)
+                Text(message.at, style: .time).font(DS.mono(9))
+                    .foregroundColor(message.mine ? DS.onFill.opacity(0.5) : DS.faint)
+            }
+            .padding(.horizontal, 13).padding(.vertical, 9)
+            .background(message.mine ? DS.fill : DS.surface,
+                        in: RoundedRectangle(cornerRadius: 17, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 17, style: .continuous)
+                .stroke(message.mine ? Color.clear : DS.hairline, lineWidth: 1))
+            if !message.mine { Spacer(minLength: 50) }
+        }
+    }
+}
+
 // MARK: - Home components
 // The home screen is a roster, not a console. A person is a row and a row is the call
 // button; the addresses, counters and logs that used to sit in the middle of the screen
@@ -924,6 +1140,21 @@ struct PersonRow: View {
     let action: () -> Void
     var body: some View {
         Button(action: action) {
+            PersonRowBody(title: title, subtitle: subtitle, live: live, busy: busy, trailing: trailing)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// The row's contents, split out so the same row can be a Button or a NavigationLink.
+struct PersonRowBody: View {
+    let title: String
+    let subtitle: String
+    var live: Bool = false
+    var busy: Bool = false
+    var trailing: String? = nil
+    var body: some View {
+        Group {
             HStack(spacing: 13) {
                 Monogram(text: title, size: 42)
                 VStack(alignment: .leading, spacing: 2) {
@@ -950,7 +1181,6 @@ struct PersonRow: View {
             .padding(.horizontal, 14).padding(.vertical, 11)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
     }
 }
 
@@ -977,6 +1207,14 @@ struct SectionCard<Content: View>: View {
 struct PeopleSection: View {
     @ObservedObject var vm: StreamViewModel
     @ObservedObject var discovery: PeerDiscovery
+
+    /// Show the last thing said, like a messenger, and fall back to the handle.
+    func subtitleFor(_ peer: PeerDiscovery.Peer) -> String {
+        if let last = vm.chatStore.lastMessage(peer.nick) {
+            return (last.mine ? "you: " : "") + last.text
+        }
+        return peer.nick.isEmpty ? "no handle" : "@\(peer.nick)"
+    }
     var body: some View {
         SectionCard(label: discovery.peers.isEmpty ? "NEARBY" : "NEARBY · \(discovery.peers.count)",
                     trailing: discovery.peers.count > 1
@@ -994,10 +1232,16 @@ struct PeopleSection: View {
             } else {
                 ForEach(Array(discovery.peers.enumerated()), id: \.element.id) { i, peer in
                     if i > 0 { Hairline().padding(.leading, 69) }
-                    PersonRow(title: peer.name,
-                              subtitle: peer.nick.isEmpty ? "no handle" : "@\(peer.nick)",
-                              live: peer.status != "call",
-                              busy: peer.status == "call") { vm.callPeer(peer) }
+                    // A tap opens the CONVERSATION, not a call. You write first; calling is an
+                    // action inside the thread, where it belongs.
+                    NavigationLink(destination: ConversationView(vm: vm, store: vm.chatStore,
+                                                                 nick: peer.nick, name: peer.name)) {
+                        PersonRowBody(title: peer.name,
+                                      subtitle: subtitleFor(peer),
+                                      live: peer.status != "call",
+                                      busy: peer.status == "call",
+                                      trailing: nil)
+                    }.buttonStyle(.plain)
                 }
             }
         }
@@ -1006,25 +1250,34 @@ struct PeopleSection: View {
 
 struct HistorySection: View {
     @ObservedObject var vm: StreamViewModel
+
+    /// One rule for every row on this screen: a tap opens the conversation. Calling back is
+    /// then one tap inside it, next to the assistant switch, where both belong.
     var body: some View {
-        if vm.missedCalls.isEmpty && vm.recentCalls.isEmpty {
+        let nicks = vm.chatStore.recentNicks
+        if vm.missedCalls.isEmpty && vm.recentCalls.isEmpty && nicks.isEmpty {
             EmptyView()
         } else {
             SectionCard(label: "RECENT") {
-                ForEach(Array(vm.missedCalls.enumerated()), id: \.element.id) { i, m in
+                ForEach(Array(nicks.enumerated()), id: \.element) { i, nick in
                     if i > 0 { Hairline().padding(.leading, 69) }
-                    PersonRow(title: m.name, subtitle: "missed", live: false,
-                              trailing: DateFormatter.localizedString(from: m.at, dateStyle: .none, timeStyle: .short)) {
-                        vm.remoteIP = m.ip; vm.startCall()
-                    }
+                    NavigationLink(destination: ConversationView(vm: vm, store: vm.chatStore,
+                                                                 nick: nick, name: nick)) {
+                        PersonRowBody(title: nick,
+                                      subtitle: vm.chatStore.lastMessage(nick).map { ($0.mine ? "you: " : "") + $0.text } ?? "@\(nick)",
+                                      live: vm.discovery.peer(byNick: nick) != nil,
+                                      busy: false,
+                                      trailing: vm.chatStore.lastMessage(nick).map {
+                                          DateFormatter.localizedString(from: $0.at, dateStyle: .none, timeStyle: .short) })
+                    }.buttonStyle(.plain)
                 }
-                ForEach(Array(vm.recentCalls.prefix(4).enumerated()), id: \.offset) { i, r in
-                    if i > 0 || !vm.missedCalls.isEmpty { Hairline().padding(.leading, 69) }
-                    PersonRow(title: r.peer, subtitle: "\(r.durationSec/60)m\(String(format: "%02d", r.durationSec%60))s",
-                              live: false,
-                              trailing: r.stalls > 0 ? "\(r.avgKbps)k ⚠︎" : "\(r.avgKbps)k") {
-                        vm.remoteIP = r.peer; vm.startCall()
-                    }
+                ForEach(Array(vm.missedCalls.enumerated()), id: \.element.id) { i, m in
+                    if i > 0 || !nicks.isEmpty { Hairline().padding(.leading, 69) }
+                    NavigationLink(destination: ConversationView(vm: vm, store: vm.chatStore,
+                                                                 nick: m.name, name: m.name)) {
+                        PersonRowBody(title: m.name, subtitle: "missed call", live: false, busy: false,
+                                      trailing: DateFormatter.localizedString(from: m.at, dateStyle: .none, timeStyle: .short))
+                    }.buttonStyle(.plain)
                 }
             }
         }

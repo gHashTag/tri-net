@@ -199,6 +199,59 @@ class StreamViewModel: ObservableObject {
         chat.append(ChatLine(who: .me, text: t))
     }
 
+    /// Send a message to a handle WITHOUT a call. Resolves the peer on the LAN and delivers a
+    /// signed datagram to its idle listener. The message is stored locally either way, so the
+    /// thread is never a lie about what you wrote -- but delivery is reported honestly:
+    /// if the peer is not reachable we say so rather than showing a tick.
+    func sendText(_ text: String, to nick: String) {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return }
+        let myNick = PeerDiscovery.myNick
+        let mine = TextFrame.Message(id: "\(myNick)-\(Int64(Date().timeIntervalSince1970 * 1000))",
+                                     nick: myNick, text: t,
+                                     atMs: Int64(Date().timeIntervalSince1970 * 1000), mine: true)
+        chatStore.append(mine, to: nick)
+
+        guard let frame = TextFrame.encode(text: t, myNick: myNick, identity: transport.identityPublicSigner) else {
+            NSLog("TRINET TEXT: could not sign the message"); return
+        }
+        // In a call the media transport is already up and pointed at the peer; outside one we
+        // resolve the handle through Bonjour and send a single datagram to :7000.
+        if phase != .idle {
+            transport.sendRaw(frame)
+            NSLog("TRINET TEXT: sent to @\(nick) over the live call")
+            return
+        }
+        guard let peer = discovery.peer(byNick: nick) else {
+            NSLog("TRINET TEXT: @\(nick) is not on this network -- message stored, not delivered"); return
+        }
+        discovery.resolveIP(peer) { ip in
+            guard let ip = ip, !ip.isEmpty else {
+                NSLog("TRINET TEXT: could not resolve @\(nick) -- message stored, not delivered"); return
+            }
+            StreamViewModel.sendDatagram(frame, to: ip, port: StreamViewModel.invitePort)
+            NSLog("TRINET TEXT: sent to @\(nick) at \(ip)")
+        }
+    }
+
+    /// One-shot UDP datagram. Used for text outside a call, where no session exists yet.
+    static func sendDatagram(_ d: Data, to ip: String, port: UInt16) {
+        let fd = socket(AF_INET, SOCK_DGRAM, 0)
+        guard fd >= 0 else { return }
+        defer { close(fd) }
+        var a = sockaddr_in()
+        a.sin_family = sa_family_t(AF_INET)
+        a.sin_port = port.bigEndian
+        a.sin_addr.s_addr = inet_addr(ip)
+        _ = d.withUnsafeBytes { raw in
+            withUnsafePointer(to: &a) { ap in
+                ap.withMemoryRebound(to: sockaddr.self, capacity: 1) { sa in
+                    sendto(fd, raw.baseAddress, d.count, 0, sa, socklen_t(MemoryLayout<sockaddr_in>.size))
+                }
+            }
+        }
+    }
+
     func sendReaction(_ emoji: String) {
         var d = Data([0xFE, 0xAC]); d.append(Data(emoji.utf8))
         transport.send(d)
@@ -220,6 +273,8 @@ class StreamViewModel: ObservableObject {
 
     let camera = CameraController()
     let transport = BSDTransport()
+    /// Conversations live here, on the device, whether or not a call is up.
+    let chatStore = ChatStore()
     let decoder = H264Decoder()
     let audio = AudioController()
 
@@ -750,6 +805,21 @@ class StreamViewModel: ObservableObject {
                 if n <= 0 {
                     if errno == EAGAIN || errno == EWOULDBLOCK { continue }  // recv timeout — re-check idleFd
                     break
+                }
+                // Off-call TEXT arrives on this same socket. Signature-checked inside decode(),
+                // so an unsigned or stale datagram never reaches the store.
+                if n > 2, buf[0] == TextFrame.magic[0], buf[1] == TextFrame.magic[1] {
+                    if let (msg, senderPub) = TextFrame.decode(Data(buf[0..<Int(n)])) {
+                        DispatchQueue.main.async { [weak self] in
+                            guard let self = self else { return }
+                            self.chatStore.append(msg, to: msg.nick)
+                            self.unreadChat += 1
+                            NSLog("TRINET TEXT: from @\(msg.nick) (\(senderPub.prefix(4).map { String(format: "%02x", $0) }.joined())) \(msg.text.count) chars")
+                        }
+                    } else {
+                        NSLog("TRINET TEXT: rejected a datagram (bad signature, truncated, or stale)")
+                    }
+                    continue
                 }
                 guard n >= 2, buf[0] == StreamViewModel.inviteMagic[0], buf[1] == StreamViewModel.inviteMagic[1] else { continue }
                 // AUTH FIRST: [FD 11][mac:8][payload]. Reject anything without a valid PSK-keyed HMAC so an
