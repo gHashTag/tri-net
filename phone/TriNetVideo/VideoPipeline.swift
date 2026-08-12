@@ -2164,7 +2164,7 @@ final class PeerDiscovery: ObservableObject {
     struct Peer: Identifiable, Equatable {
         let uid: String
         var name: String
-        var nick: String            // короткий адрес, по которому можно позвонить
+        var nick: String            // short handle; dialling it is enough to reach this peer
         var room: String
         var status: String          // "idle" | "call"
         let endpoint: NWEndpoint
@@ -2193,9 +2193,9 @@ final class PeerDiscovery: ObservableObject {
         }
         set { UserDefaults.standard.set(newValue, forKey: "trinetDisplayName") }
     }
-    /// Никнейм — короткий адрес телефона. Звонить можно, зная только его.
-    /// Нормализуем жёстко: строчные, только a-z 0-9 и _, не длиннее 20. Так ник,
-    /// набранный на другом телефоне, всегда совпадает с объявленным, и «Вася» == «вася».
+    /// A phone's short handle. Dialling it is enough to reach its owner.
+    /// Normalised hard -- lowercase, [a-z0-9_], 20 max -- so a handle typed on another
+    /// phone always matches the advertised one and "Vasya" == "vasya" == "@vasya".
     static func normalizeNick(_ raw: String) -> String {
         let allowed = Set("abcdefghijklmnopqrstuvwxyz0123456789_")
         let s = raw.lowercased()
@@ -2208,8 +2208,9 @@ final class PeerDiscovery: ObservableObject {
     static var myNick: String {
         get {
             if let n = UserDefaults.standard.string(forKey: "trinetNick"), !n.isEmpty { return n }
-            // Запасной ник из имени устройства + хвост uid, чтобы два одинаковых телефона
-            // не оказались одним адресом до того, как владелец задаст свой.
+            // Fallback handle: device name plus a tail of the persistent uid. iOS returns the
+            // same UIDevice name for many phones, so without the tail two of them would
+            // advertise ONE address until their owners set their own.
             let base = normalizeNick(UIDevice.current.name)
             let tail = myUID.replacingOccurrences(of: "-", with: "").lowercased().suffix(4)
             let n = (base.isEmpty ? "trinet" : base) + "_" + tail
@@ -2242,7 +2243,7 @@ final class PeerDiscovery: ObservableObject {
     func setRoom(_ room: String) { PeerDiscovery.myRoom = room; republish() }
     func setNick(_ nick: String) { PeerDiscovery.myNick = nick; republish() }
 
-    /// Найти соседа в локальной сети по нику. Регистр и «@» не важны.
+    /// Find a LAN peer by handle. Case and a leading '@' are ignored.
     func peer(byNick nick: String) -> Peer? {
         let want = PeerDiscovery.normalizeNick(nick)
         guard !want.isEmpty else { return nil }

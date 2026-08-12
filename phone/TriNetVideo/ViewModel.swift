@@ -51,18 +51,18 @@ struct RecFile: Identifiable {
 class StreamViewModel: ObservableObject {
     @Published var phase: CallPhase = .idle
 
-    // --- звонок по нику ---
-    /// Точка рандеву по умолчанию. Переопределяется переменной TRINET_RENDEZVOUS.
-    /// nil => звонок по нику работает только в локальной сети (Bonjour), и об этом
-    /// пишется в лог, а не молча ничего не происходит.
+    // --- dial by handle ---
+    /// Default rendezvous endpoint; TRINET_RENDEZVOUS overrides it.
+    /// nil => dialling by handle works on the LAN only (Bonjour), and that is written
+    /// to the log rather than silently doing nothing.
     static let defaultRendezvous: String? = nil
-    /// Порт медиа-транспорта — тот же, на котором слушает приёмник звонков.
+    /// Media transport port -- the same one the idle call listener binds.
     static let nickMediaPort: UInt16 = UInt16(PeerDiscovery.transportPort)
     private var nickListenerTimer: Timer?
-    /// Идёт ли разговор прямо сейчас — по единственному источнику правды, фазе звонка.
+    /// Whether a call is up, read from the single source of truth: the call phase.
     var inCall: Bool { phase != .idle }
 
-    /// Адреса этого телефона как кандидаты для рандеву.
+    /// This phone's addresses, as rendezvous candidates.
     func localCandidates() -> [Ice.Candidate] {
         var c = [Ice.Candidate]()
         for ip in Stun.hostCandidates() { c.append(Ice.Candidate(ip: ip, port: Self.nickMediaPort, kind: .host)) }
@@ -247,33 +247,33 @@ class StreamViewModel: ObservableObject {
             self.remoteIP = ips.sorted().joined(separator: ", ")
         }
     }
-    /// Позвонить, зная ТОЛЬКО ник. Два пути, в порядке дешевизны:
-    ///   1) сосед в локальной сети — он уже объявил свой ник по Bonjour, берём напрямую;
-    ///   2) за пределами сети — ник САМ служит ключом рандеву. Мы публикуем своё
-    ///      предложение под hash("@ник") и забираем встречное. Никакой адресной книги
-    ///      и никакого сервера имён: тот, кто слушает свой ник, и есть адресат.
+    /// Dial knowing ONLY a handle. Two paths, cheaper first:
+    ///   1) a LAN peer already advertises its handle over Bonjour -- resolve directly;
+    ///   2) off the LAN the handle IS the rendezvous key. We publish our offer under
+    ///      hash("@handle") and fetch theirs. No address book and no name server:
+    ///      whoever listens on a handle is its owner.
     func callByNick(_ raw: String) {
         let nick = PeerDiscovery.normalizeNick(raw)
-        guard !nick.isEmpty else { NSLog("TRINET NICK: пустой ник"); return }
+        guard !nick.isEmpty else { NSLog("TRINET NICK: empty handle"); return }
         if nick == PeerDiscovery.myNick {
-            NSLog("TRINET NICK: это свой собственный ник — звонок себе отклонён"); return
+            NSLog("TRINET NICK: that is our own handle -- self-call refused"); return
         }
         if let p = discovery.peer(byNick: nick) {
-            NSLog("TRINET NICK: '@\(nick)' найден в локальной сети как '\(p.name)'")
+            NSLog("TRINET NICK: '@\(nick)' found on the LAN as '\(p.name)'")
             callPeer(p); return
         }
-        NSLog("TRINET NICK: '@\(nick)' нет в локальной сети — иду через рандеву")
+        NSLog("TRINET NICK: '@\(nick)' not on the LAN -- going through rendezvous")
         dialThroughRendezvous(nick: nick)
     }
 
-    /// Рандеву по нику: ключ комнаты выводится из ника адресата, поэтому обе стороны
-    /// приходят в одну точку, ничего не согласовывая заранее.
+    /// Rendezvous by handle: the room key is derived from the callee's handle, so both
+    /// sides arrive at the same point without agreeing on anything in advance.
     private func dialThroughRendezvous(nick: String) {
         guard let rz = ProcessInfo.processInfo.environment["TRINET_RENDEZVOUS"] ?? Self.defaultRendezvous else {
-            NSLog("TRINET NICK: рандеву не задано (TRINET_RENDEZVOUS) — звонок по нику вне сети невозможен"); return
+            NSLog("TRINET NICK: no rendezvous set (TRINET_RENDEZVOUS) -- off-LAN dialling unavailable"); return
         }
         let parts = rz.split(separator: ":")
-        guard parts.count == 2, let rzPort = UInt16(parts[1]) else { NSLog("TRINET NICK: плохой адрес рандеву"); return }
+        guard parts.count == 2, let rzPort = UInt16(parts[1]) else { NSLog("TRINET NICK: malformed rendezvous address"); return }
         let rzHost = String(parts[0])
         DispatchQueue.global().async { [weak self] in
             guard let self = self else { return }
@@ -286,22 +286,22 @@ class StreamViewModel: ObservableObject {
             guard let peerOffer = Rendezvous.fetch(roomHash: rh, selfTag: tiebreak, host: rzHost, port: rzPort, timeoutMs: 8000),
                   let opened = CandidateOffer.open(peerOffer, room: key),
                   let cand = opened.candidates.first(where: { $0.kind == .srflx }) ?? opened.candidates.first else {
-                NSLog("TRINET NICK: '@\(nick)' не отозвался за 8 с — он офлайн или не слушает свой ник"); return
+                NSLog("TRINET NICK: '@\(nick)' silent for 8s -- offline, or not listening on its handle"); return
             }
-            NSLog("TRINET NICK: '@\(nick)' отозвался с \(cand.ip):\(cand.port) (\(cand.kind))")
+            NSLog("TRINET NICK: '@\(nick)' answered from \(cand.ip):\(cand.port) (\(cand.kind))")
             DispatchQueue.main.async { self.remoteIP = cand.ip; self.startCall() }
         }
     }
 
-    /// Слушать СВОЙ ник: пока телефон свободен, он периодически публикует себя под
-    /// hash("@свой_ник"), чтобы звонящий по нику нашёл его без адресной книги.
+    /// Listen on OUR handle: while idle the phone republishes itself under
+    /// hash("@own") so a caller dialling that handle finds it without an address book.
     func startNickListener() {
         guard let rz = ProcessInfo.processInfo.environment["TRINET_RENDEZVOUS"] ?? Self.defaultRendezvous else { return }
         let parts = rz.split(separator: ":")
         guard parts.count == 2, let rzPort = UInt16(parts[1]) else { return }
         let rzHost = String(parts[0])
         let key = "@" + PeerDiscovery.myNick
-        NSLog("TRINET NICK: слушаю свой ник '\(key)' на \(rzHost):\(rzPort)")
+        NSLog("TRINET NICK: listening on our handle '\(key)' at \(rzHost):\(rzPort)")
         nickListenerTimer?.invalidate()
         nickListenerTimer = Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { [weak self] _ in
             guard let self = self, !self.inCall else { return }

@@ -389,10 +389,10 @@ struct iPeerRoster: View {
             .padding(.horizontal, 14).padding(.vertical, 10)
             .background(DS.surface, in: RoundedRectangle(cornerRadius: 14))
 
-            // Свой ник — короткий адрес этого телефона. Его достаточно, чтобы дозвониться.
+            // Our handle -- this phone's short address. Dialling it is enough to reach us.
             HStack(spacing: 8) {
                 Text("@").font(DS.mono(15)).foregroundColor(.green)
-                TextField("ваш ник", text: $myNick)
+                TextField("your handle", text: $myNick)
                     .font(DS.mono(14)).foregroundColor(DS.text)
                     .autocapitalization(.none).disableAutocorrection(true)
                     .onSubmit {
@@ -400,20 +400,20 @@ struct iPeerRoster: View {
                         discovery.setNick(myNick); vm.startNickListener()
                     }
                 Spacer()
-                Text("ВАШ АДРЕС").font(DS.mono(9)).foregroundColor(DS.faint)
+                Text("YOUR ADDRESS").font(DS.mono(9)).foregroundColor(DS.faint)
             }
             .padding(.horizontal, 14).padding(.vertical, 10)
             .background(DS.surface, in: RoundedRectangle(cornerRadius: 14))
 
-            // Позвонить, зная только ник.
+            // Dial knowing only a handle.
             HStack(spacing: 8) {
                 Text("@").font(DS.mono(15)).foregroundColor(DS.dim)
-                TextField("ник собеседника", text: $dialNick)
+                TextField("their handle", text: $dialNick)
                     .font(DS.mono(14)).foregroundColor(DS.text)
                     .autocapitalization(.none).disableAutocorrection(true)
                     .onSubmit { vm.callByNick(dialNick) }
                 if !PeerDiscovery.normalizeNick(dialNick).isEmpty {
-                    Button("Позвонить") { vm.callByNick(dialNick) }
+                    Button("Call") { vm.callByNick(dialNick) }
                         .font(DS.mono(12)).foregroundColor(.green)
                         .padding(.horizontal, 14).padding(.vertical, 6)
                         .overlay(Capsule().stroke(Color.green.opacity(0.5), lineWidth: 1))
