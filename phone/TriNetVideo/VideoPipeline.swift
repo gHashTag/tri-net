@@ -2363,6 +2363,30 @@ final class ChatStore: ObservableObject {
         persist()
     }
 
+    // ---- Contacts: people you added by handle. Nothing appears here on its own. ----
+    private static let contactsKey = "trinetContactsV1"
+    @Published private(set) var contacts: [String] =
+        UserDefaults.standard.stringArray(forKey: "trinetContactsV1") ?? []
+
+    /// A handle identifies exactly one person, so adding is idempotent and the list can
+    /// never hold the same handle twice.
+    func addContact(_ raw: String) {
+        let n = PeerDiscovery.normalizeNick(raw)
+        guard !n.isEmpty, n != PeerDiscovery.myNick, !contacts.contains(n) else { return }
+        contacts.append(n)
+        UserDefaults.standard.set(contacts, forKey: Self.contactsKey)
+    }
+
+    func removeContact(_ nick: String) {
+        contacts.removeAll { $0 == nick }
+        threads[nick] = nil
+        aiOn.remove(nick)
+        UserDefaults.standard.set(contacts, forKey: Self.contactsKey)
+        persist()
+    }
+
+    func isContact(_ nick: String) -> Bool { contacts.contains(nick) }
+
     /// Handles with any history, newest conversation first.
     var recentNicks: [String] {
         threads.filter { !$0.value.isEmpty }

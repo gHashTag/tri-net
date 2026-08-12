@@ -343,7 +343,14 @@ class StreamViewModel: ObservableObject {
     /// sides arrive at the same point without agreeing on anything in advance.
     private func dialThroughRendezvous(nick: String) {
         guard let rz = ProcessInfo.processInfo.environment["TRINET_RENDEZVOUS"] ?? Self.defaultRendezvous else {
-            NSLog("TRINET NICK: no rendezvous set (TRINET_RENDEZVOUS) -- off-LAN dialling unavailable"); return
+            // This was a silent return, and it is exactly why pressing call did nothing when
+            // the peer was not on the same network: no rendezvous is configured, so there is
+            // no path, and nobody was told.
+            NSLog("TRINET NICK: no rendezvous configured -- off-LAN dialling unavailable")
+            DispatchQueue.main.async {
+                self.callProblem = "@\(nick) is not on this network. Calling someone elsewhere needs a rendezvous, which is not set up yet."
+            }
+            return
         }
         let parts = rz.split(separator: ":")
         guard parts.count == 2, let rzPort = UInt16(parts[1]) else { NSLog("TRINET NICK: malformed rendezvous address"); return }
@@ -395,7 +402,8 @@ class StreamViewModel: ObservableObject {
             // A roster entry can be another app on THIS device/host (e.g. a Simulator) — it resolves to our
             // own IP and "calling" it is a self-call that floods undecryptable noise. Refuse loudly.
             if ip == self.myIP {
-                NSLog("TRINET: refusing self-call — '\(peer.name)' resolved to our own IP \(ip)")
+                NSLog("TRINET: refusing self-call — '\(peer.name)' resolved to our own address")
+                DispatchQueue.main.async { self.callProblem = "That is this phone." }
                 return
             }
             self.remoteIP = ip; self.startCall()
@@ -557,7 +565,11 @@ class StreamViewModel: ObservableObject {
                             kbps: recentCalls.map(\.avgKbps))
     }
     private var callStartedAt: Date?
-    @Published var noAnswer = false          // caller-side: 30s with no frames
+    @Published var noAnswer = false
+    /// Why a call could not be placed, shown to the person. A call that silently does
+    /// nothing is the worst outcome: the button looks broken and there is no way to know
+    /// it was refused, let alone why.
+    @Published var callProblem: String?          // caller-side: 30s with no frames
     private var noAnswerTimer: Timer?
 
     // MARK: - Delay-based BWE (receiver report) — mirrors the Mac CallManager.

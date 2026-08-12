@@ -21,26 +21,27 @@ struct HomeView: View {
 
     private var query: String { PeerDiscovery.normalizeNick(dialNick) }
 
-    private var filteredPeers: [PeerDiscovery.Peer] {
-        guard !query.isEmpty else { return vm.discovery.peersSorted }
-        return vm.discovery.peersSorted.filter {
-            $0.nick.contains(query) || $0.name.lowercased().contains(query)
-        }
+    private func matchesQuery(_ nick: String) -> Bool {
+        guard !query.isEmpty else { return true }
+        return nick.contains(query) || displayName(nick).lowercased().contains(query)
     }
 
-    private var filteredThreads: [String] {
-        let nearby = Set(vm.discovery.peers.map(\.nick))
-        let all = vm.chatStore.recentNicks.filter { !nearby.contains($0) }
-        guard !query.isEmpty else { return all }
-        return all.filter { $0.contains(query) }
+    /// A contact's name comes from whoever is advertising that handle right now; before we
+    /// have ever seen them, the handle is the only name we have.
+    private func displayName(_ nick: String) -> String {
+        vm.discovery.peer(byNick: nick)?.name ?? nick
     }
 
-    /// A typed handle that matches nothing we know: offer to open it anyway.
-    private var unmatchedHandle: String? {
-        guard !query.isEmpty else { return nil }
-        guard filteredPeers.isEmpty, filteredThreads.isEmpty, query != PeerDiscovery.myNick else { return nil }
+    /// A typed handle worth offering to add: not empty, not us, not already a contact.
+    private var addableHandle: String? {
+        guard !query.isEmpty, query != PeerDiscovery.myNick,
+              !vm.chatStore.contacts.contains(query) else { return nil }
         return query
     }
+
+
+
+    /// A typed handle that matches nothing we know: offer to open it anyway.
 
     /// Last thing said in a thread, or the handle when nothing has been said yet.
     /// Split out because the inline expression made the type-checker give up.
@@ -117,58 +118,50 @@ struct HomeView: View {
                   // fullmoon's chat list: a plain List with search, thread title and a
                   // subtitle. No cards, no chrome -- the rows ARE the screen.
                   List {
-                    Section {
-                        ForEach(filteredPeers) { peer in
-                            NavigationLink(destination: ConversationView(vm: vm, store: vm.chatStore,
-                                                                         nick: peer.nick, name: peer.name)) {
-                                threadRow(title: peer.name,
-                                          subtitle: preview(peer.nick, fallback: peer.nick.isEmpty ? "no handle" : "@" + peer.nick),
-                                          stamp: vm.chatStore.lastMessage(peer.nick)?.at,
-                                          live: peer.status != "call")
-                            }
+                    // One list: the people YOU added by handle. Nothing arrives here on its
+                    // own -- a device advertising itself nearby is not a contact, and the
+                    // list used to fill with strangers and with duplicates of the same
+                    // person under two sections.
+                    ForEach(vm.chatStore.contacts.filter(matchesQuery), id: \.self) { nick in
+                        NavigationLink(destination: ConversationView(vm: vm, store: vm.chatStore,
+                                                                     nick: nick, name: displayName(nick))) {
+                            threadRow(title: displayName(nick),
+                                      subtitle: preview(nick, fallback: "@" + nick),
+                                      stamp: vm.chatStore.lastMessage(nick)?.at,
+                                      live: vm.discovery.peer(byNick: nick) != nil)
                         }
-                    } header: {
-                        Text(vm.discovery.peers.isEmpty ? "nearby" : "nearby · \(vm.discovery.peers.count)")
-                            .font(DS.mono(11)).foregroundColor(DS.faint)
-                    } footer: {
-                        if vm.discovery.peers.isEmpty {
-                            aliveFooter
+                        .swipeActions {
+                            Button("delete", role: .destructive) { vm.chatStore.removeContact(nick) }
                         }
                     }
 
-                    if !vm.chatStore.recentNicks.isEmpty {
-                        Section {
-                            ForEach(filteredThreads, id: \.self) { n in
-                                NavigationLink(destination: ConversationView(vm: vm, store: vm.chatStore,
-                                                                             nick: n, name: n)) {
-                                    threadRow(title: n,
-                                              subtitle: preview(n, fallback: "@" + n),
-                                              stamp: vm.chatStore.lastMessage(n)?.at,
-                                              live: false)
+                    // A typed handle that is not yet a contact: adding is the only way in.
+                    if let typed = addableHandle {
+                        Button(action: { vm.chatStore.addContact(typed); dialNick = "" }) {
+                            HStack(spacing: 11) {
+                                Monogram(text: typed, size: 38)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("@" + typed).font(.headline).foregroundColor(DS.text)
+                                    Text(vm.discovery.peer(byNick: typed) != nil
+                                         ? "on this network — add" : "add by handle")
+                                        .font(.subheadline).foregroundColor(DS.faint)
                                 }
+                                Spacer()
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.system(size: 22)).foregroundColor(DS.live)
                             }
-                        } header: {
-                            Text("chats").font(DS.mono(11)).foregroundColor(DS.faint)
+                            .padding(.vertical, 4)
                         }
+                        .buttonStyle(.plain)
                     }
-                    // A handle nobody nearby is advertising is still a valid address: the
-                    // rendezvous path resolves it. Offer it as a row rather than leaving the
-                    // search dead-ended.
-                    if let typed = unmatchedHandle {
-                        Section {
-                            NavigationLink(destination: ConversationView(vm: vm, store: vm.chatStore,
-                                                                         nick: typed, name: typed)) {
-                                HStack(spacing: 11) {
-                                    Monogram(text: typed, size: 38)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("@" + typed).font(.headline).foregroundColor(DS.text)
-                                        Text("start a conversation").font(.subheadline).foregroundColor(DS.faint)
-                                    }
-                                    Spacer()
-                                }
-                                .padding(.vertical, 4)
-                            }
+
+                    if vm.chatStore.contacts.isEmpty && addableHandle == nil {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("no one yet").font(.headline).foregroundColor(DS.dim)
+                            Text("type a handle below to add someone")
+                                .font(.subheadline).foregroundColor(DS.faint)
                         }
+                        .padding(.vertical, 10)
                     }
                   }
                   .listStyle(.plain)
@@ -1179,6 +1172,13 @@ struct ConversationView: View {
         }
         .background(DS.ink.ignoresSafeArea())
         .navigationBarHidden(true)
+        .alert("Call not placed", isPresented: Binding(
+            get: { vm.callProblem != nil },
+            set: { if !$0 { vm.callProblem = nil } })) {
+            Button("OK", role: .cancel) { vm.callProblem = nil }
+        } message: {
+            Text(vm.callProblem ?? "")
+        }
     }
 
     private var header: some View {
