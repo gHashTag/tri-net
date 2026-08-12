@@ -46,16 +46,21 @@ struct HomeView: View {
                         .padding(.top, 6)
 
                         // ---- Dial. One field: a handle is the whole address. ----
+                        // Typing a handle OPENS the conversation. Calling is one tap inside it,
+                        // so there is one rule on this screen: everything leads to a thread.
                         HStack(spacing: 10) {
                             Text("@").font(DS.mono(17)).foregroundColor(DS.faint)
                             TextField("handle", text: $dialNick)
                                 .font(DS.mono(16)).foregroundColor(DS.text)
                                 .autocapitalization(.none).disableAutocorrection(true)
                                 .submitLabel(.go)
-                                .onSubmit { vm.callByNick(dialNick); dialNick = "" }
+                                .onSubmit { }   // the arrow is the affordance; submit alone must not call anyone
                             if !PeerDiscovery.normalizeNick(dialNick).isEmpty {
-                                Button(action: { vm.callByNick(dialNick); dialNick = "" }) {
-                                    Image(systemName: "arrow.up.circle.fill")
+                                NavigationLink(destination: ConversationView(
+                                    vm: vm, store: vm.chatStore,
+                                    nick: PeerDiscovery.normalizeNick(dialNick),
+                                    name: PeerDiscovery.normalizeNick(dialNick))) {
+                                    Image(systemName: "arrow.right.circle.fill")
                                         .font(.system(size: 26)).foregroundColor(DS.fill)
                                 }.buttonStyle(.plain)
                             }
@@ -73,43 +78,19 @@ struct HomeView: View {
                         // ---- Everything an operator needs and nobody else. Collapsed. ----
                         AdvancedSection(vm: vm)
 
+                        if !vm.cameraAuthorized {
+                            Text("Camera access needed for calls")
+                                .font(DS.ui(12)).foregroundColor(DS.danger)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 4)
+                        }
+
                         Color.clear.frame(height: 8)
                     }
                     .padding(.horizontal, 20)
                   }
                   .background(DS.ink.ignoresSafeArea())
                   .navigationBarHidden(true)
-                  // The docked CTA belongs to the HOME screen only. It was attached to the
-                  // NavigationView, so it rode along into every pushed screen and sat on top
-                  // of the conversation's composer -- you could open a thread but not type in it.
-                  .safeAreaInset(edge: .bottom) {
-                    // The one white CTA, docked so it never scrolls away.
-                    VStack(spacing: 6) {
-                        Button(action: { vm.startCall() }) {
-                            HStack(spacing: 10) {
-                                Image(systemName: "video.fill").font(.system(size: 17))
-                                // Name the person, never the address. The address is in NETWORK,
-                                // where an operator can see it and nobody else has to.
-                                Text(vm.discovery.peers.first(where: { $0.name == vm.remoteIP })?.name
-                                     ?? vm.recentCalls.first(where: { $0.peer == vm.remoteIP })?.peer
-                                     ?? "Call")
-                                    .font(DS.ui(16, .semibold)).lineLimit(1)
-                            }
-                            .foregroundColor(vm.cameraAuthorized ? DS.onFill : DS.faint)
-                            .frame(maxWidth: .infinity).padding(.vertical, 16)
-                            .background(vm.cameraAuthorized ? DS.fill : DS.surface,
-                                        in: Capsule())
-                            .overlay(Capsule().stroke(vm.cameraAuthorized ? Color.clear : DS.hairlineStrong, lineWidth: 1))
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(!vm.cameraAuthorized)
-                        if !vm.cameraAuthorized {
-                            Text("Camera access needed").font(DS.ui(12)).foregroundColor(DS.dim)
-                        }
-                    }
-                    .padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 8)
-                    .background(.ultraThinMaterial)
-                  }
                 }
                 .navigationViewStyle(.stack)
             }
@@ -1208,6 +1189,20 @@ struct PeopleSection: View {
     @ObservedObject var vm: StreamViewModel
     @ObservedObject var discovery: PeerDiscovery
 
+    /// One line of the alive-check. Mono for the value, because it is data.
+    @ViewBuilder
+    func aliveRow(icon: String, label: String, value: String, ok: Bool, spinning: Bool = false) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon).font(.system(size: 13))
+                .foregroundColor(ok ? DS.live : DS.faint).frame(width: 22)
+            Text(label).font(DS.ui(13)).foregroundColor(DS.dim)
+            Spacer()
+            if spinning { ProgressView().scaleEffect(0.55).tint(DS.faint) }
+            Text(value).font(DS.mono(11)).foregroundColor(ok ? DS.dim : DS.faint)
+        }
+        .padding(.horizontal, 14).padding(.vertical, 11)
+    }
+
     /// Show the last thing said, like a messenger, and fall back to the handle.
     func subtitleFor(_ peer: PeerDiscovery.Peer) -> String {
         if let last = vm.chatStore.lastMessage(peer.nick) {
@@ -1222,13 +1217,19 @@ struct PeopleSection: View {
                             .font(DS.mono(10)).foregroundColor(DS.dim))
                         : nil) {
             if discovery.peers.isEmpty {
-                HStack(spacing: 10) {
-                    ProgressView().scaleEffect(0.7).tint(DS.faint)
-                    Text("looking for people on this network")
-                        .font(DS.ui(13)).foregroundColor(DS.faint)
-                    Spacer()
+                // The empty state's job is to say whether the thing is alive, not to apologise
+                // for being empty. Three facts, each one a yes/no a person can act on.
+                VStack(spacing: 0) {
+                    aliveRow(icon: "antenna.radiowaves.left.and.right",
+                             label: "listening", value: ":7000", ok: true)
+                    Hairline().padding(.leading, 46)
+                    aliveRow(icon: "wifi", label: "this network",
+                             value: vm.myIP.isEmpty ? "no address" : vm.myIP, ok: !vm.myIP.isEmpty)
+                    Hairline().padding(.leading, 46)
+                    aliveRow(icon: "person.2", label: "people found", value: "none yet", ok: false,
+                             spinning: true)
                 }
-                .padding(.horizontal, 14).padding(.vertical, 16)
+                .padding(.vertical, 4)
             } else {
                 ForEach(Array(discovery.peers.enumerated()), id: \.element.id) { i, peer in
                     if i > 0 { Hairline().padding(.leading, 69) }
