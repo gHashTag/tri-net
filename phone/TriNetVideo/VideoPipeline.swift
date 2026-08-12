@@ -2208,9 +2208,43 @@ final class Profile: ObservableObject {
     }
 
     init() {
-        displayName = UserDefaults.standard.string(forKey: "trinetProfileName")
-            ?? UIDevice.current.name
+        let stored = UserDefaults.standard.string(forKey: "trinetProfileName")
+        displayName = stored ?? Profile.defaultName()
+        if stored == nil { UserDefaults.standard.set(displayName, forKey: "trinetProfileName") }
         photo = UserDefaults.standard.data(forKey: "trinetProfilePhoto")
+    }
+
+    /// iOS 16+ returns a generic "iPhone" from UIDevice.current.name unless the app holds
+    /// an entitlement for the user-assigned name. Two phones then advertise the SAME name
+    /// and a person cannot tell them apart in a list -- which is exactly what happened on
+    /// the two test devices. Fall back to the hardware model, and disambiguate with the
+    /// handle's tail when even that collides.
+    static func defaultName() -> String {
+        var sys = utsname(); uname(&sys)
+        let model = withUnsafePointer(to: &sys.machine) {
+            $0.withMemoryRebound(to: CChar.self, capacity: 1) { String(cString: $0) }
+        }
+        let pretty = Profile.marketingName(model)
+        let tail = PeerDiscovery.myUID.replacingOccurrences(of: "-", with: "").lowercased().suffix(4)
+        return pretty.isEmpty ? "iPhone " + tail : pretty + " " + tail
+    }
+
+    /// Enough of the map to name the phones this project actually runs on; anything else
+    /// falls back to the raw identifier, which is still more distinguishing than "iPhone".
+    private static func marketingName(_ id: String) -> String {
+        switch id {
+        case "iPhone14,2": return "iPhone 13 Pro"
+        case "iPhone14,3": return "iPhone 13 Pro Max"
+        case "iPhone15,2": return "iPhone 14 Pro"
+        case "iPhone15,3": return "iPhone 14 Pro Max"
+        case "iPhone16,1": return "iPhone 15 Pro"
+        case "iPhone16,2": return "iPhone 15 Pro Max"
+        case "iPhone17,1": return "iPhone 16 Pro"
+        case "iPhone17,2": return "iPhone 16 Pro Max"
+        case "iPhone18,1": return "iPhone 17 Pro"
+        case "iPhone18,2": return "iPhone 17 Pro Max"
+        default: return id.hasPrefix("iPhone") ? id : ""
+        }
     }
 
     /// Photos of the people you talk to, keyed by handle, as they send them.
@@ -2370,7 +2404,11 @@ final class PeerDiscovery: ObservableObject {
         get {
             if let n = UserDefaults.standard.string(forKey: "trinetProfileName"), !n.isEmpty { return n }
             if let n = UserDefaults.standard.string(forKey: "trinetDisplayName"), !n.isEmpty { return n }
-            return UIDevice.current.name
+            // Same fallback the profile uses. Reading UIDevice.current.name here instead is
+            // how both test phones ended up advertising the identical name "iPhone": the
+            // profile's default is only persisted once the owner edits it, and until then
+            // this path never saw it.
+            return Profile.defaultName()
         }
         set { UserDefaults.standard.set(newValue, forKey: "trinetDisplayName") }
     }
