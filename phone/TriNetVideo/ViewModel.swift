@@ -49,7 +49,23 @@ struct RecFile: Identifiable {
 }
 
 class StreamViewModel: ObservableObject {
-    @Published var phase: CallPhase = .idle
+    @Published var phase: CallPhase = .idle { didSet { updateRingback() } }
+
+    /// Ringback belongs to the call's STATE, not to a view. Hanging it off a screen means
+    /// the one path that forgets to stop it leaves a phone beeping into a live call.
+    private let ringback = RingbackSynth()
+    /// True only for the side that placed the call. The person who answered must not hear
+    /// a ringback -- they are not waiting for anyone.
+    private var weArePlacingTheCall = false
+
+    private func updateRingback() {
+        if phase == .connecting && weArePlacingTheCall {
+            ringback.start()
+        } else {
+            ringback.stop()
+            if phase != .connecting { weArePlacingTheCall = false }
+        }
+    }
 
     // --- dial by handle ---
     /// Default rendezvous endpoint; TRINET_RENDEZVOUS overrides it.
@@ -926,6 +942,7 @@ class StreamViewModel: ObservableObject {
         var mesh = Set(inc.participants); mesh.insert(inc.ip); mesh.remove(myIP)
         let hosts = mesh.filter { !$0.isEmpty }.sorted()
         remoteIP = hosts.isEmpty ? inc.ip : hosts.joined(separator: ",")
+        weArePlacingTheCall = false   // we answered; nobody is ringing for us
         NSLog("TRINET: accepting call -> mesh back to \(remoteIP)")
         startCall()
     }
@@ -949,6 +966,7 @@ class StreamViewModel: ObservableObject {
             UserDefaults.standard.set(recentIPs, forKey: "recentCallIPs")
         }
 
+        weArePlacingTheCall = true
         phase = .connecting
         callStartedAt = Date()    // for the recent-call journal duration
         callStalls = 0

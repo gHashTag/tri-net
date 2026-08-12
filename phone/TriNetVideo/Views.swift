@@ -270,6 +270,73 @@ final class RingSynth {
     func stop() { player.stop(); engine.stop() }
 }
 
+
+/// Ringback: what the CALLER hears while the far end is ringing. Without it a call is a
+/// silent guess -- you press call and nothing happens, so you press it again. It is a
+/// different sound from the incoming ring on purpose: the two must never be confused,
+/// because one means "answer me" and the other means "wait".
+///
+/// Cadence follows the telephone convention rather than the tri-tone: a low double beat,
+/// then a long silence, repeating. A person recognises it as "it is ringing over there".
+final class RingbackSynth {
+    private let engine = AVAudioEngine()
+    private let player = AVAudioPlayerNode()
+    private var buffer: AVAudioPCMBuffer?
+    private var running = false
+
+    init() {
+        engine.attach(player)
+        let fmt = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)!
+        engine.connect(player, to: engine.mainMixerNode, format: fmt)
+        buffer = makeRingback(fmt)
+    }
+
+    private func makeRingback(_ fmt: AVAudioFormat) -> AVAudioPCMBuffer? {
+        let sr = 44100.0
+        let tone = 0.9, gap = 0.3, silence = 2.6      // beat, short gap, beat, long silence
+        let total = tone + gap + tone + silence
+        let frames = AVAudioFrameCount(total * sr)
+        guard let buf = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: frames) else { return nil }
+        buf.frameLength = frames
+        let p = buf.floatChannelData![0]
+        var i = 0
+        func beat(_ dur: Double) {
+            let cnt = Int(dur * sr)
+            for k in 0..<cnt {
+                let t = Double(k) / sr
+                // Short fades at both ends so the beat does not click.
+                let fade = 0.02
+                let env: Double = t < fade ? t / fade
+                    : (t > dur - fade ? (dur - t) / fade : 1)
+                // 440 + 480 Hz, the classic ringback pair.
+                let v = sin(2 * Double.pi * 440 * t) + sin(2 * Double.pi * 480 * t)
+                p[i] = Float(0.16 * env * v); i += 1
+            }
+        }
+        func quiet(_ dur: Double) { for _ in 0..<Int(dur * sr) { p[i] = 0; i += 1 } }
+        beat(tone); quiet(gap); beat(tone); quiet(silence)
+        while i < Int(frames) { p[i] = 0; i += 1 }
+        return buf
+    }
+
+    func start() {
+        guard !running, let buffer = buffer else { return }
+        running = true
+        // .mixWithOthers so the ringback does not seize the session the call itself needs.
+        try? AVAudioSession.sharedInstance().setCategory(.playback, options: [.mixWithOthers])
+        try? AVAudioSession.sharedInstance().setActive(true)
+        try? engine.start()
+        player.scheduleBuffer(buffer, at: nil, options: .loops, completionHandler: nil)
+        player.play()
+    }
+
+    func stop() {
+        guard running else { return }
+        running = false
+        player.stop(); engine.stop()
+    }
+}
+
 // MARK: - Incoming call (full-screen ring + Accept/Decline)
 // iOS convention: a full-screen takeover, caller identity top, two circular action buttons at the
 // bottom — Decline (red, LEFT), Accept (green, RIGHT). Ring vibrates + plays the tri-tone until answered.
