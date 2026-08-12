@@ -50,6 +50,27 @@ struct RecFile: Identifiable {
 
 class StreamViewModel: ObservableObject {
     @Published var phase: CallPhase = .idle
+
+    // --- звонок по нику ---
+    /// Точка рандеву по умолчанию. Переопределяется переменной TRINET_RENDEZVOUS.
+    /// nil => звонок по нику работает только в локальной сети (Bonjour), и об этом
+    /// пишется в лог, а не молча ничего не происходит.
+    static let defaultRendezvous: String? = nil
+    /// Порт медиа-транспорта — тот же, на котором слушает приёмник звонков.
+    static let nickMediaPort: UInt16 = UInt16(PeerDiscovery.transportPort)
+    private var nickListenerTimer: Timer?
+    /// Идёт ли разговор прямо сейчас — по единственному источнику правды, фазе звонка.
+    var inCall: Bool { phase != .idle }
+
+    /// Адреса этого телефона как кандидаты для рандеву.
+    func localCandidates() -> [Ice.Candidate] {
+        var c = [Ice.Candidate]()
+        for ip in Stun.hostCandidates() { c.append(Ice.Candidate(ip: ip, port: Self.nickMediaPort, kind: .host)) }
+        if let srflx = Stun.gatherServerReflexive(host: "stun.l.google.com", port: 19302) {
+            c.append(Ice.Candidate(ip: srflx.ip, port: srflx.port, kind: .srflx))
+        }
+        return c
+    }
     @Published var remoteIP: String = UserDefaults.standard.string(forKey: "remoteIP") ?? "192.168.1.105"
     @Published var myIP: String = ""
     @Published var framesSent: Int = 0
@@ -226,6 +247,75 @@ class StreamViewModel: ObservableObject {
             self.remoteIP = ips.sorted().joined(separator: ", ")
         }
     }
+    /// Позвонить, зная ТОЛЬКО ник. Два пути, в порядке дешевизны:
+    ///   1) сосед в локальной сети — он уже объявил свой ник по Bonjour, берём напрямую;
+    ///   2) за пределами сети — ник САМ служит ключом рандеву. Мы публикуем своё
+    ///      предложение под hash("@ник") и забираем встречное. Никакой адресной книги
+    ///      и никакого сервера имён: тот, кто слушает свой ник, и есть адресат.
+    func callByNick(_ raw: String) {
+        let nick = PeerDiscovery.normalizeNick(raw)
+        guard !nick.isEmpty else { NSLog("TRINET NICK: пустой ник"); return }
+        if nick == PeerDiscovery.myNick {
+            NSLog("TRINET NICK: это свой собственный ник — звонок себе отклонён"); return
+        }
+        if let p = discovery.peer(byNick: nick) {
+            NSLog("TRINET NICK: '@\(nick)' найден в локальной сети как '\(p.name)'")
+            callPeer(p); return
+        }
+        NSLog("TRINET NICK: '@\(nick)' нет в локальной сети — иду через рандеву")
+        dialThroughRendezvous(nick: nick)
+    }
+
+    /// Рандеву по нику: ключ комнаты выводится из ника адресата, поэтому обе стороны
+    /// приходят в одну точку, ничего не согласовывая заранее.
+    private func dialThroughRendezvous(nick: String) {
+        guard let rz = ProcessInfo.processInfo.environment["TRINET_RENDEZVOUS"] ?? Self.defaultRendezvous else {
+            NSLog("TRINET NICK: рандеву не задано (TRINET_RENDEZVOUS) — звонок по нику вне сети невозможен"); return
+        }
+        let parts = rz.split(separator: ":")
+        guard parts.count == 2, let rzPort = UInt16(parts[1]) else { NSLog("TRINET NICK: плохой адрес рандеву"); return }
+        let rzHost = String(parts[0])
+        DispatchQueue.global().async { [weak self] in
+            guard let self = self else { return }
+            let key = "@" + nick
+            let rh = Rendezvous.roomHash(key)
+            let tiebreak = UInt64.random(in: 1...UInt64.max)
+            let cands = self.localCandidates()
+            let offer = CandidateOffer.make(candidates: cands, tiebreaker: tiebreak, room: key, ttlMs: 60_000)
+            for _ in 0..<3 { Rendezvous.publish(roomHash: rh, selfTag: tiebreak, offer: offer, host: rzHost, port: rzPort) }
+            guard let peerOffer = Rendezvous.fetch(roomHash: rh, selfTag: tiebreak, host: rzHost, port: rzPort, timeoutMs: 8000),
+                  let opened = CandidateOffer.open(peerOffer, room: key),
+                  let cand = opened.candidates.first(where: { $0.kind == .srflx }) ?? opened.candidates.first else {
+                NSLog("TRINET NICK: '@\(nick)' не отозвался за 8 с — он офлайн или не слушает свой ник"); return
+            }
+            NSLog("TRINET NICK: '@\(nick)' отозвался с \(cand.ip):\(cand.port) (\(cand.kind))")
+            DispatchQueue.main.async { self.remoteIP = cand.ip; self.startCall() }
+        }
+    }
+
+    /// Слушать СВОЙ ник: пока телефон свободен, он периодически публикует себя под
+    /// hash("@свой_ник"), чтобы звонящий по нику нашёл его без адресной книги.
+    func startNickListener() {
+        guard let rz = ProcessInfo.processInfo.environment["TRINET_RENDEZVOUS"] ?? Self.defaultRendezvous else { return }
+        let parts = rz.split(separator: ":")
+        guard parts.count == 2, let rzPort = UInt16(parts[1]) else { return }
+        let rzHost = String(parts[0])
+        let key = "@" + PeerDiscovery.myNick
+        NSLog("TRINET NICK: слушаю свой ник '\(key)' на \(rzHost):\(rzPort)")
+        nickListenerTimer?.invalidate()
+        nickListenerTimer = Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { [weak self] _ in
+            guard let self = self, !self.inCall else { return }
+            DispatchQueue.global().async {
+                let rh = Rendezvous.roomHash(key)
+                let tag = UInt64.random(in: 1...UInt64.max)
+                let offer = CandidateOffer.make(candidates: self.localCandidates(), tiebreaker: tag,
+                                                room: key, ttlMs: 60_000)
+                Rendezvous.publish(roomHash: rh, selfTag: tag, offer: offer, host: rzHost, port: rzPort)
+            }
+        }
+        nickListenerTimer?.fire()
+    }
+
     func callPeer(_ peer: PeerDiscovery.Peer) {
         discovery.resolveIP(peer) { [weak self] ip in
             guard let self = self, let ip = ip, !ip.isEmpty else { return }

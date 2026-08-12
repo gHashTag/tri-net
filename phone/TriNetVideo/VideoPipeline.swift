@@ -2164,12 +2164,13 @@ final class PeerDiscovery: ObservableObject {
     struct Peer: Identifiable, Equatable {
         let uid: String
         var name: String
+        var nick: String            // короткий адрес, по которому можно позвонить
         var room: String
         var status: String          // "idle" | "call"
         let endpoint: NWEndpoint
         var id: String { uid }
         static func == (a: Peer, b: Peer) -> Bool {
-            a.uid == b.uid && a.name == b.name && a.status == b.status && a.room == b.room
+            a.uid == b.uid && a.name == b.name && a.nick == b.nick && a.status == b.status && a.room == b.room
         }
     }
 
@@ -2192,6 +2193,32 @@ final class PeerDiscovery: ObservableObject {
         }
         set { UserDefaults.standard.set(newValue, forKey: "trinetDisplayName") }
     }
+    /// Никнейм — короткий адрес телефона. Звонить можно, зная только его.
+    /// Нормализуем жёстко: строчные, только a-z 0-9 и _, не длиннее 20. Так ник,
+    /// набранный на другом телефоне, всегда совпадает с объявленным, и «Вася» == «вася».
+    static func normalizeNick(_ raw: String) -> String {
+        let allowed = Set("abcdefghijklmnopqrstuvwxyz0123456789_")
+        let s = raw.lowercased()
+            .replacingOccurrences(of: "@", with: "")
+            .replacingOccurrences(of: " ", with: "_")
+            .filter { allowed.contains($0) }
+        return String(s.prefix(20))
+    }
+
+    static var myNick: String {
+        get {
+            if let n = UserDefaults.standard.string(forKey: "trinetNick"), !n.isEmpty { return n }
+            // Запасной ник из имени устройства + хвост uid, чтобы два одинаковых телефона
+            // не оказались одним адресом до того, как владелец задаст свой.
+            let base = normalizeNick(UIDevice.current.name)
+            let tail = myUID.replacingOccurrences(of: "-", with: "").lowercased().suffix(4)
+            let n = (base.isEmpty ? "trinet" : base) + "_" + tail
+            UserDefaults.standard.set(n, forKey: "trinetNick")
+            return n
+        }
+        set { UserDefaults.standard.set(normalizeNick(newValue), forKey: "trinetNick") }
+    }
+
     static var myRoom: String {
         get { UserDefaults.standard.string(forKey: "trinetRoom") ?? "" }
         set { UserDefaults.standard.set(newValue.uppercased(), forKey: "trinetRoom") }
@@ -2213,6 +2240,14 @@ final class PeerDiscovery: ObservableObject {
 
     func setName(_ name: String) { PeerDiscovery.myName = name; republish() }
     func setRoom(_ room: String) { PeerDiscovery.myRoom = room; republish() }
+    func setNick(_ nick: String) { PeerDiscovery.myNick = nick; republish() }
+
+    /// Найти соседа в локальной сети по нику. Регистр и «@» не важны.
+    func peer(byNick nick: String) -> Peer? {
+        let want = PeerDiscovery.normalizeNick(nick)
+        guard !want.isEmpty else { return nil }
+        return peers.first { $0.nick == want }
+    }
 
     private func republish() {
         guard started else { return }
@@ -2226,6 +2261,7 @@ final class PeerDiscovery: ObservableObject {
         txt["name"] = PeerDiscovery.myName
         txt["uid"] = PeerDiscovery.myUID
         txt["port"] = "\(PeerDiscovery.transportPort)"
+        txt["nick"] = PeerDiscovery.myNick
         txt["room"] = PeerDiscovery.myRoom
         txt["status"] = inCall ? "call" : "idle"
         do {
@@ -2236,7 +2272,7 @@ final class PeerDiscovery: ObservableObject {
             l.stateUpdateHandler = { st in if case .failed(let e) = st { NSLog("TRINET: discovery publish failed: \(e)") } }
             l.start(queue: .main)
             listener = l
-            NSLog("TRINET: discovery advertising '\(PeerDiscovery.myName)' room='\(PeerDiscovery.myRoom)' status=\(inCall ? "call" : "idle")")
+            NSLog("TRINET: discovery advertising '\(PeerDiscovery.myName)' nick='@\(PeerDiscovery.myNick)' room='\(PeerDiscovery.myRoom)' status=\(inCall ? "call" : "idle")")
         } catch { NSLog("TRINET: discovery NWListener failed: \(error)") }
     }
 
@@ -2253,13 +2289,13 @@ final class PeerDiscovery: ObservableObject {
                 let peerRoom = txt["room"] ?? ""
                 if !room.isEmpty && peerRoom != room { continue }
                 if list.contains(where: { $0.uid == uid }) { continue }
-                list.append(Peer(uid: uid, name: txt["name"] ?? "TRI-NET", room: peerRoom,
+                list.append(Peer(uid: uid, name: txt["name"] ?? "TRI-NET", nick: txt["nick"] ?? "", room: peerRoom,
                                  status: txt["status"] ?? "idle", endpoint: r.endpoint))
             }
             let sorted = list.sorted { $0.name.lowercased() < $1.name.lowercased() }
             DispatchQueue.main.async {
                 self.peers = sorted
-                NSLog("TRINET: roster \(sorted.count) peer(s): \(sorted.map { $0.name }.joined(separator: ", "))")
+                NSLog("TRINET: roster \(sorted.count) peer(s): \(sorted.map { "\($0.name)@\($0.nick)" }.joined(separator: ", "))")
             }
         }
         b.stateUpdateHandler = { st in if case .failed(let e) = st { NSLog("TRINET: discovery browse failed: \(e)") } }

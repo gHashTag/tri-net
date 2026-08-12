@@ -372,6 +372,8 @@ struct iPeerRoster: View {
     @ObservedObject var vm: StreamViewModel
     @ObservedObject var discovery: PeerDiscovery
     @State private var myName = PeerDiscovery.myName
+    @State private var myNick = PeerDiscovery.myNick
+    @State private var dialNick = ""
     @State private var room = PeerDiscovery.myRoom
 
     var body: some View {
@@ -386,6 +388,40 @@ struct iPeerRoster: View {
             }
             .padding(.horizontal, 14).padding(.vertical, 10)
             .background(DS.surface, in: RoundedRectangle(cornerRadius: 14))
+
+            // Свой ник — короткий адрес этого телефона. Его достаточно, чтобы дозвониться.
+            HStack(spacing: 8) {
+                Text("@").font(DS.mono(15)).foregroundColor(.green)
+                TextField("ваш ник", text: $myNick)
+                    .font(DS.mono(14)).foregroundColor(DS.text)
+                    .autocapitalization(.none).disableAutocorrection(true)
+                    .onSubmit {
+                        myNick = PeerDiscovery.normalizeNick(myNick)
+                        discovery.setNick(myNick); vm.startNickListener()
+                    }
+                Spacer()
+                Text("ВАШ АДРЕС").font(DS.mono(9)).foregroundColor(DS.faint)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .background(DS.surface, in: RoundedRectangle(cornerRadius: 14))
+
+            // Позвонить, зная только ник.
+            HStack(spacing: 8) {
+                Text("@").font(DS.mono(15)).foregroundColor(DS.dim)
+                TextField("ник собеседника", text: $dialNick)
+                    .font(DS.mono(14)).foregroundColor(DS.text)
+                    .autocapitalization(.none).disableAutocorrection(true)
+                    .onSubmit { vm.callByNick(dialNick) }
+                if !PeerDiscovery.normalizeNick(dialNick).isEmpty {
+                    Button("Позвонить") { vm.callByNick(dialNick) }
+                        .font(DS.mono(12)).foregroundColor(.green)
+                        .padding(.horizontal, 14).padding(.vertical, 6)
+                        .overlay(Capsule().stroke(Color.green.opacity(0.5), lineWidth: 1))
+                }
+            }
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .background(DS.surface, in: RoundedRectangle(cornerRadius: 14))
+
             HStack {
                 Text(room.isEmpty ? "ON THIS NETWORK" : "ROOM \(room.uppercased())").font(DS.mono(10)).foregroundColor(DS.faint)
                 Spacer()
@@ -405,7 +441,12 @@ struct iPeerRoster: View {
                             .foregroundColor(vm.selectedUIDs.contains(peer.uid) ? .green : DS.faint)
                             .onTapGesture { vm.toggleSelect(peer.uid) }
                         Circle().fill(peer.status == "call" ? Color.orange : Color.green).frame(width: 7, height: 7)
-                        Text(peer.name).font(DS.ui(14)).foregroundColor(DS.text).lineLimit(1)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(peer.name).font(DS.ui(14)).foregroundColor(DS.text).lineLimit(1)
+                            if !peer.nick.isEmpty {
+                                Text("@\(peer.nick)").font(DS.mono(10)).foregroundColor(.green).lineLimit(1)
+                            }
+                        }
                         if peer.status == "call" { Text("in call").font(DS.mono(9)).foregroundColor(.orange) }
                         Spacer()
                         Button("Call") { vm.callPeer(peer) }.font(DS.mono(12)).foregroundColor(DS.text)
