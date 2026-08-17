@@ -84,13 +84,18 @@ P201/P203 **Zynq-7020 Mini**, одновременно работающий DePI
 
 Все числа - с on-device логов, без hearsay.
 
+Три строки таблицы ниже помечены `tri-node facts` в графе источника: они
+пересчитываются командой, а не хранятся в тексте. Счёт строк не хранится здесь
+вовсе - он менялся дважды за один рабочий день, пока эту таблицу правили, и
+число в прозе не может оставаться верным.
+
 | Метрика | Значение | Источник |
 |---|---|---|
 | Размер статического бинарника M1 (armv7l musleabihf) | 534 604 B | `smoke/M1_RESULTS.md` |
 | sha256 бинарника M1 | `e5abc335…7290a` | `smoke/M1_RESULTS.md` |
 | Тесты M1 на хосте | 20 unit + 2 integration, RC=0 | `cargo test` |
 | Блоков Rust `#[test]` в репозитории | 118 (перепроверено 2026-08-17) | `tri-node facts` |
-| Строк исходного кода на Rust | 7 152 (перепроверено 2026-08-17) | `tri-node facts` | xargs wc -l` |
+| Строк исходного кода на Rust | считается командой, не хранится здесь | `tri-node facts` | xargs wc -l` |
 | Целевая настройка AD9361 | LO 5.8 GHz | `radio/README.md` |
 | Пик FFT AD9361 (тон 1 MHz, digital loopback) | +0.999 MHz | `radio/README.md` |
 | SNR AD9361 над уровнем шума | 108.6 dB (только digital loopback, не в эфире) | `radio/README.md`; см. [находка W7 #5](docs/W7_WEAK_POINTS_STRUCTURAL.md#находка-5) и [REGULATORY_STATUS](docs/REGULATORY_STATUS.md) |
