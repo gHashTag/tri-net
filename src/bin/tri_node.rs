@@ -50,9 +50,11 @@ fn facts() -> Vec<Fact> {
             claim: "Rust #[test] blocks in the repository",
             note: "counted over src/ and tests/; the README's own source column \
                    says grep -rE '^\\s*#\\[test\\]' src tests",
-            measure: |root| count_matching(root, &["src", "tests"], "rs", |l| {
-                l.trim_start().starts_with("#[test]")
-            }),
+            measure: |root| {
+                count_matching(root, &["src", "tests"], "rs", |l| {
+                    l.trim_start().starts_with("#[test]")
+                })
+            },
         },
         Fact {
             key: "rust_source_lines",
@@ -146,7 +148,10 @@ fn cmd_facts(root: &Path, args: &[&str]) -> i32 {
     let mut drift = 0usize;
     let mut unmeasurable = 0usize;
 
-    println!("{:<22} {:>10} {:>10}  {}", "fact", "stored", "measured", "verdict");
+    println!(
+        "{:<22} {:>10} {:>10}  verdict",
+        "fact", "stored", "measured"
+    );
     println!("{}", "-".repeat(72));
 
     for f in facts() {
@@ -157,7 +162,10 @@ fn cmd_facts(root: &Path, args: &[&str]) -> i32 {
                 println!(
                     "{:<22} {:>10} {:>10}  UNKNOWN ({e})",
                     f.key,
-                    stored.get(f.key).map(|v| v.to_string()).unwrap_or("-".into()),
+                    stored
+                        .get(f.key)
+                        .map(|v| v.to_string())
+                        .unwrap_or("-".into()),
                     "-"
                 );
                 unmeasurable += 1;
@@ -174,8 +182,8 @@ fn cmd_facts(root: &Path, args: &[&str]) -> i32 {
                     }
                     Some(&s) => {
                         println!("{:<22} {:>10} {:>10}  DISAGREES", f.key, s, m);
-                        println!("{:<22} {}", "", f.claim);
-                        println!("{:<22} {}", "", f.note);
+                        println!("{:22} {}", " ", f.claim);
+                        println!("{:22} {}", " ", f.note);
                         drift += 1;
                     }
                 }
@@ -212,12 +220,13 @@ fn cmd_facts(root: &Path, args: &[&str]) -> i32 {
         return 1;
     }
     if unmeasurable > 0 {
-        println!(
-            "FACTS INCOMPLETE - {unmeasurable} could not be measured here; the rest agree."
-        );
+        println!("FACTS INCOMPLETE - {unmeasurable} could not be measured here; the rest agree.");
         return 2;
     }
-    println!("FACTS AGREE - all {} re-derived from the repository.", facts().len());
+    println!(
+        "FACTS AGREE - all {} re-derived from the repository.",
+        facts().len()
+    );
     0
 }
 
@@ -231,7 +240,9 @@ fn load_facts(root: &Path) -> BTreeMap<String, i64> {
     // one less thing to keep in step with the schema.
     for line in text.lines() {
         let line = line.trim().trim_end_matches(',');
-        let Some((k, v)) = line.split_once(':') else { continue };
+        let Some((k, v)) = line.split_once(':') else {
+            continue;
+        };
         let k = k.trim().trim_matches('"');
         let v = v.trim();
         if let Ok(n) = v.parse::<i64>() {
@@ -246,7 +257,10 @@ fn write_facts(root: &Path, measured: &BTreeMap<String, i64>) -> Result<PathBuf,
     let mut s = String::from("{\n");
     let n = measured.len();
     for (i, (k, v)) in measured.iter().enumerate() {
-        s.push_str(&format!("  \"{k}\": {v}{}\n", if i + 1 < n { "," } else { "" }));
+        s.push_str(&format!(
+            "  \"{k}\": {v}{}\n",
+            if i + 1 < n { "," } else { "" }
+        ));
     }
     s.push_str("}\n");
     fs::write(&path, s).map_err(|e| e.to_string())?;
@@ -259,7 +273,10 @@ fn write_facts(root: &Path, measured: &BTreeMap<String, i64>) -> Result<PathBuf,
 /// whose evidence file is gone is reported, because "hw" without a log on disk
 /// is the same shape of assertion this tool exists to refuse.
 const HW_CLAIMS: &[(&str, &str)] = &[
-    ("M1 crypto on ARM (X25519 + ChaCha20-Poly1305)", "smoke/M1_RESULTS.md"),
+    (
+        "M1 crypto on ARM (X25519 + ChaCha20-Poly1305)",
+        "smoke/M1_RESULTS.md",
+    ),
     ("AD9361 5.8 GHz PHY digital loopback", "radio/README.md"),
 ];
 
@@ -303,9 +320,11 @@ fn cmd_status(root: &Path) -> i32 {
 /// The three P203 Mini nodes. Override with TRI_NODES as a comma-separated list.
 fn node_addrs() -> Vec<String> {
     match std::env::var("TRI_NODES") {
-        Ok(v) if !v.trim().is_empty() => {
-            v.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()
-        }
+        Ok(v) if !v.trim().is_empty() => v
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect(),
         _ => vec![
             "192.168.1.10".into(),
             "192.168.1.11".into(),
@@ -409,7 +428,9 @@ fn read(p: &Path) -> Result<String, String> {
 }
 
 fn walk(dir: &Path, ext: &str, out: &mut Vec<PathBuf>) {
-    let Ok(entries) = fs::read_dir(dir) else { return };
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
     for e in entries.flatten() {
         let p = e.path();
         if p.is_dir() {
