@@ -192,6 +192,17 @@ def main(argv):
         for rank, (_, pin, func) in enumerate(sorted(entries, reverse=True)):
             pins[(tile, f"IOB_Y{rank}")] = (pin, func)
 
+    # Pull configuration, reported alongside direction. ADI's own constraint
+    # file gives exactly one signal a pull-up -- `spi_csn` -- because a floating
+    # chip select invites stray transactions. If the vendor design does the
+    # same, a pull-up on an output is a strong single-pin signature for chip
+    # select, and a far cheaper way to find it than tracing routing.
+    #
+    # UNTESTED against the vendor image: that bitstream was held only in /tmp
+    # and has been lost, and the board is unreachable to re-read it. What
+    # follows is verified to run and to report correctly on our own designs;
+    # the hypothesis about spi_csn is not yet evidence.
+    pulls = {}
     classes = {"input": [], "output": [], "unresolved": [], "unused": []}
     for name, tile in sorted(grid.items()):
         ttype = tile.get("type", "")
@@ -216,6 +227,11 @@ def main(argv):
             key = f"{name}/{site}"
             hit = pins.get((name, site))
             label = key + (f"  {hit[0]:<4} {hit[1]}" if hit else "")
+            for kind in ("PULLUP", "PULLDOWN", "KEEPER", "NONE"):
+                f = f"{ttype}.{site}.PULLTYPE.{kind}"
+                if f in sb and matches(frames, base, offset, sb[f]):
+                    pulls.setdefault(kind, []).append(label)
+                    break
 
             if used and any(matches(frames, base, offset, sb[f])
                             for f in in_only):
@@ -231,6 +247,11 @@ def main(argv):
     print(f"sites classified : {sum(len(v) for v in classes.values())}")
     for k in ("input", "output", "unresolved", "unused"):
         print(f"  {k:<11}: {len(classes[k])}")
+    if pulls:
+        print("pull configuration: " +
+              ", ".join(f"{k} {len(v)}" for k, v in sorted(pulls.items())))
+        for s_ in pulls.get("PULLUP", []):
+            print(f"  PULL-UP: {s_}")
     if show_pins:
         for k in ("input", "output", "unresolved"):
             if classes[k]:

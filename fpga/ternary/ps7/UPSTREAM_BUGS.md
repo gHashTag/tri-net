@@ -1,15 +1,24 @@
-# Two defects found in openXC7, with reproductions
+# Defects found in openXC7
 
-Both were found while porting Analog Devices' AD9361 receive core to the
-vendor-free flow. Both are in the tool, not in ADI's HDL. They are written up
-here in the form a maintainer would want, so they can be filed as-is.
+These were found while porting Analog Devices' AD9361 receive core to the
+vendor-free flow. All are in the tool, not in ADI's HDL, and are written up in
+the form a maintainer would want.
+
+**One of them has not been reproduced here.** Item 1 is a source reading whose
+consequence was never built or measured; it says so where it appears, and the
+evidence table at the end gives the status of every item. Read that before
+filing anything.
 
 ---
 
-## 1. `BUFR` with a divider silently emits an undivided clock
+## 1. `BUFR` with a divider appears to emit an undivided clock
 
-**Severity: high.** This produces a *wrong bitstream that builds cleanly*. There
-is no error, no warning, and no way to notice except by measuring the hardware.
+**This one is a source reading, not an observation. Read the evidence note
+before sending it.**
+
+**Severity if confirmed: high.** It would produce a *wrong bitstream that builds
+cleanly* -- no error, no warning, and no way to notice except by measuring the
+hardware.
 
 `xilinx/fasm.cc` hardcodes `BUFR_Y*.BUFR_DIVIDE.BYPASS` and emits no divider
 setting at all. A design instantiating
@@ -18,17 +27,36 @@ setting at all. A design instantiating
 BUFR #(.BUFR_DIVIDE("2")) u (.I(clk_in), .O(clk_div2), .CE(1'b1), .CLR(1'b0));
 ```
 
-places, routes and produces a bitstream in which `clk_div2` runs at the **input
-frequency**, not half of it. Every downstream register then samples at twice the
-intended rate.
+would therefore place, route and produce a bitstream in which `clk_div2` runs at
+the **input frequency**, not half of it, with every downstream register sampling
+at twice the intended rate.
+
+**What was actually done here, and what was not.** The hardcoded `BYPASS` was
+read in the source. The consequence above is inferred from it and has **not been
+built or measured**. This project's divided clocks all came from a PS clock
+divider or a fabric divide-by-two, never from `BUFR_DIVIDE`, so the case was
+never exercised even by accident -- `MULT_MACRO_PORT.md` says of this and the
+neighbouring obstacles that "none has been tried in anger", and that is
+accurate.
+
+The distinction matters precisely because of the severity claim: a defect whose
+whole point is that *only hardware measurement reveals it* cannot be reported as
+observed by someone who did not measure it. Sending it as an observation invites
+a maintainer to check, find no run behind it, and discount the rest of this file
+-- which includes a defect that is properly evidenced.
+
+**What would settle it:** build the four-line design above, load it, and compare
+the frequency at a fabric counter against the input. That is a one-cycle
+experiment on a working board.
 
 **Why it matters here:** ADI's `ad_data_clk.v` and `ad_serdes_clk.v` use `BUFR`
 in exactly this way for the AD9361 bus clock. A user who did not know would get
 a board that appears to build and then misbehaves in a way that looks like a
 hardware fault.
 
-**Suggested minimum fix:** reject a non-`BYPASS` `BUFR_DIVIDE` with an error
-until the divider bits are implemented. Silence is the worst option available.
+**Suggested minimum fix, if confirmed:** reject a non-`BYPASS` `BUFR_DIVIDE`
+with an error until the divider bits are implemented. Silence is the worst
+option available.
 
 ---
 
@@ -86,7 +114,9 @@ hit this has wanted the characters either way.
 
 ## Three smaller things worth reporting together
 
-Not bugs exactly, but each cost time and each is cheap to fix or document:
+Not bugs exactly, but each cost time and each is cheap to fix or document.
+Unlike item 1, each of these was hit during an actual build -- the error strings
+below are quoted from runs, not predicted:
 
 - **`IBUFG` / `IBUFGDS` are unknown identifiers**, not merely unsupported: the
   strings appear nowhere in either fork. A design using them fails at placement
@@ -111,3 +141,30 @@ Three unrelated breakages on a current toolchain, all one-line:
 - `set(CMAKE_CXX_STANDARD 11)` -- Eigen 5 requires >= 14.
 - `std::random_shuffle` in `common/placer_heap.cc` -- removed in C++17. An
   explicit Fisher-Yates over the same `ctx->rng` preserves the sequence.
+
+
+---
+
+## Evidence, per item
+
+Added 2026-08-04, after an audit that asked of every claim in this file: which
+run produced it?
+
+| item | evidence | status |
+|---|---|---|
+| 1. `BUFR` divider ignored | source read of `xilinx/fasm.cc` | **inference, never built or measured** |
+| 2. `is_string` assertion on DSP48E1 | crash trace, instrumented backtrace, fix, and a completing run with numbers | observed |
+| `IBUFG`/`IBUFGDS` unknown | placement failure during a real build | observed |
+| constants to dedicated site wires | quoted error from a real build | observed |
+| buffer feeding `IDELAYE2.IDATAIN` | quoted error from a real build | observed |
+
+Item 1 is the only one resting on reading rather than running, and it is the one
+whose severity claim depends on hardware measurement. That combination is why it
+now says so on its face.
+
+The audit itself came out of a related finding the day before: `PRIOR_ART.md`
+claimed the flow had been "shown to place and route `IBUFDS`, `PLLE2`,
+`OSERDESE2` and `ISERDESE2`", when `PLLE2`, `OSERDESE2` and `ISERDESE2` appear
+nowhere else in this project's records. Claims written from memory of what a
+flow touched, rather than from what it completed, are the failure mode both
+documents shared.

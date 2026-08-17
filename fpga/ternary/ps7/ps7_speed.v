@@ -55,7 +55,21 @@ module ps7_speed;
     end
     reg go_d;
     always @(posedge clk) go_d <= go_sync[1];
-    wire go_pulse = go_sync[1] & ~go_d;
+    wire go_edge = go_sync[1] & ~go_d;
+    // A start request that arrives while the taps are still loading used to be
+    // dropped, and because `go` is a level the host never learns it was lost --
+    // it simply waits forever on a `done` that will not come. Latching the
+    // request and honouring it once the taps are in removes the window
+    // entirely. On the board the host raises `go` long after boot, so this was
+    // never seen there; it was found by starting the design in simulation the
+    // way a script would, immediately.
+    reg go_pending;
+    always @(posedge clk) begin
+        if (core_rst) go_pending <= 1'b0;
+        else if (go_edge && !taps_done) go_pending <= 1'b1;
+        else if (taps_done) go_pending <= 1'b0;
+    end
+    wire go_pulse = (go_edge & taps_done) | (go_pending & taps_done);
     wire core_rst = ~rst_n | rst_sync[1];
 
     // ---- tap load: drive the whole vector in at reset, no host involvement ----

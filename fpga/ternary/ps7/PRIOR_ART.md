@@ -41,14 +41,52 @@ for the wrong thing. Cited correctly, the argument gets *stronger*, not weaker.
 
 ## What to claim instead
 
-Not the arithmetic. The measured engineering result:
+Not the arithmetic. The measured engineering result -- stated with the same
+qualifications the source documents already carry, because a reviewer will read
+those documents next:
 
 - 8-tap and 63-tap correlators, **256 of 256 outputs bit-identical** to the
-  software reference, in programmable logic, on real over-the-air samples
-- **timing closed and reported** at the radio rate, with a committed log
+  software reference, in programmable logic. The 8-tap run used real captured
+  samples pushed one per `devmem` write through EMIO GPIO; the 63-tap
+  throughput run read from a fabric ROM. Neither ran in the live AD9361
+  datapath.
+- **83 Msample/s of correlator throughput**, one sample per clock, measured on
+  the board. That is above the 61.44 MSPS the radio would deliver -- but the
+  radio was not connected to it, and nothing here measures the datapath that
+  would connect them.
 - **byte-reproducible bitstreams** end to end, demonstrated over five runs
-- an **open build flow** that has now been shown to place and route IBUFDS,
-  PLLE2, OSERDESE2 and ISERDESE2
+  after canonicalising the timestamp the packer embeds
+- an **open build flow** shown to place and route `IBUFDS`
 
 Cite Weinreb (1963) and Cooper (1970) yourself, in the room, before anyone else
 does. A team that names its own prior art is trusted on everything after it.
+
+## Three claims this section used to make, and why they were removed
+
+Audited 2026-08-04 against the project's own records. Each was checked by
+looking for the run that produced it.
+
+**"Timing closed at the radio rate."** `ATSPEED.md` says in as many words:
+*"the radio is not connected to it, and nothing here measures the datapath that
+would connect them."* The throughput figure is real; attaching it to "the radio
+rate" implies a path that was never measured. The measured figure is quoted
+above instead, with the same caveat its source carries.
+
+**"On real over-the-air samples", unqualified.** `FIRST_LOAD.md` carries the
+qualification and this section dropped it: *"this is 8 taps at devmem speed
+through EMIO GPIO, not the AD9361 datapath at 61.44 MSPS."* The 63-tap result
+came from a ROM, not from the air at all.
+
+**"Shown to place and route IBUFDS, PLLE2, OSERDESE2 and ISERDESE2."** This is
+the one that would not have survived a reviewer. `PLLE2`, `OSERDESE2` and
+`ISERDESE2` appear nowhere else in this project's documentation -- there is no
+run behind them. What `UPSTREAM_BUGS.md` does record about the SERDES
+primitives is the opposite: constants cannot be routed to `ISERDESE2`'s
+dedicated site wires, and related buffer primitives fail at placement outright.
+The one confirmed item is `IBUFDS`, which that file describes as working and a
+drop-in.
+
+The lesson is not that the claims were dishonest -- they were written from
+memory of what the flow had touched, not from what it had completed. It is that
+a pitch document is exactly where memory should not be the source, because it is
+the document a sceptical reader checks first.

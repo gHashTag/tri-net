@@ -1071,3 +1071,78 @@ Two things, and neither is in the RTL.
    AD9361 frames an address, a read, or a burst. That must come from the
    datasheet or the Linux driver, not from a guess -- a master and a model that
    agree only with each other would give a passing test and a silent radio.
+
+---
+
+# What was lost, and what it costs
+
+Added 2026-08-03.
+
+The whole working toolchain lived in `/tmp` and `/tmp` has been cleared:
+
+| gone | replaceable |
+|---|---|
+| `/tmp/pjx` -- prjxray tools (`bitread`, `fasm2frames`, `xc7frames2bit`) | yes, rebuild from source |
+| `/tmp/npnr` -- the nextpnr-xilinx binary and chipdb | yes, rebuild; expensive |
+| `/tmp/a29/hdl` -- ADI's HDL tree | yes, re-clone |
+| **`/tmp/vendor.bin`** -- the vendor bitstream read off the board | **only from the board** |
+
+The prjxray *database* survives, because it is in the nix store rather than
+`/tmp`.
+
+The vendor bitstream is the one that matters. Every pin-direction result in this
+file came from it -- the 23 inputs, the 46 outputs, the bank-34 receive run --
+and it can only be obtained by reading the board's flash. The board is
+unreachable, so the pin work is blocked on the same power cycle as everything
+else.
+
+It should have been committed. It is 4 MB, it took a board run to obtain, and it
+is the only artifact here that cannot be regenerated from sources. `regress.py`
+says in as many words that "nothing that took a measurement to obtain" belongs
+in the intermediates list; the vendor bitstream was never added to that list,
+but it was never protected either, and `/tmp` is not storage.
+
+Four of the seven testbenches still run -- the ones that need no vendor RTL --
+and `sim.py` reports the other three as SKIP rather than PASS. That distinction
+was worth building: a suite that reported success for tests it could not run
+would have shown five green lines and no vendor sources at all.
+
+## The pull-up idea, recorded because it is cheap and untested
+
+ADI's constraint file gives exactly one signal a pull-up: `spi_csn`. A floating
+chip select invites stray transactions, which is the same risk this file records
+under "a risk worth naming".
+
+prjxray encodes pull configuration per site -- `PULLTYPE.PULLUP`,
+`PULLDOWN`, `KEEPER`, `NONE` -- so if the vendor design does the same thing,
+**a pull-up on an output is a single-pin signature for chip select**, and far
+cheaper than tracing routing from the processor to the pins.
+
+`pin_directions.py` now reports pull configuration. It has not been run against
+the vendor image, because that image is gone. The hypothesis is worth what it
+costs to test, which is one board run -- and it is not evidence yet.
+
+
+---
+
+# A published figure that had gone stale, and how it was caught
+
+Added 2026-08-04.
+
+The captures above are recorded as `65/65 bit-exact`. Re-run today against the
+committed golden vector, `verify_in_datapath.py` reports **63/63**.
+
+Nothing regressed. The per-sample lag bit added in cycle 44 means the lag can be
+2, so outputs `0..64` depend on samples taken before recording began -- not
+`0..62` as the earlier constant-lag reading assumed. The check became narrower
+and more correct, and two fewer outputs are now claimed as fully determined.
+
+What matters is that **the number in the document was never recomputed**. It sat
+there through twenty-odd cycles, quoted in reports, while the tool that produced
+it had changed underneath. It was found by requiring every stated number to be
+re-derived from a run -- see `FACTS.md` -- and not by anyone reading the
+document.
+
+The figures in the block above are left as they were recorded, because that is
+what the hardware run said at the time and rewriting history in a log is worse
+than a stale number. The current, checkable figure is in `FACTS.md`.
