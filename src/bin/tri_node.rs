@@ -1,4 +1,11 @@
-//! tri - the operator's command line for a TRI-NET node.
+//! tri-node - the operator's command line for a TRI-NET node.
+//!
+//! NOT named `tri`. gHashTag/trinity already ships a `tri` CLI with roughly
+//! forty subcommands, its own `tri status` among them; a second binary called
+//! `tri` would shadow it on PATH and give `tri status` two meanings. That was
+//! the first name used here and it was wrong -- checking the sibling repository
+//! before adding a command is the cheap half of this, and it was skipped.
+//! These commands belong under the canonical CLI as `tri node ...` eventually.
 //!
 //! Why this exists. The README opens its Metrics table with "Все числа - с
 //! on-device логов, без hearsay", and on 2026-08-17 three of those numbers had
@@ -105,7 +112,7 @@ fn main() {
             0
         }
         other => {
-            eprintln!("tri: unknown command '{other}'");
+            eprintln!("tri-node: unknown command '{other}'");
             usage();
             2
         }
@@ -115,15 +122,15 @@ fn main() {
 
 fn usage() {
     println!(
-        "tri - operator command line for a TRI-NET node
+        "tri-node - operator command line for a TRI-NET node
 
-  tri facts            recompute the repository metrics and diff them against
+  tri-node facts            recompute the repository metrics and diff them against
                        {FACTS_FILE}; exit 1 on any disagreement
-  tri facts --update   store the measured values as the new baseline
-  tri status           check that every claim marked hw still has its evidence
+  tri-node facts --update   store the measured values as the new baseline
+  tri-node status           check that every claim marked hw still has its evidence
                        file on disk
-  tri boards           probe the node addresses; answered / silent / not probed
-  tri smoke            run the M1 crypto smoke test
+  tri-node boards           probe the node addresses; answered / silent / not probed
+  tri-node smoke            run the M1 crypto smoke test
 
 A number this tool can re-derive is never trusted from prose. A probe that did
 not run is reported UNKNOWN, never as zero."
@@ -199,7 +206,7 @@ fn cmd_facts(root: &Path, args: &[&str]) -> i32 {
         println!(
             "A stored number that changed does not mean the number needs editing. It \
              means the repository moved, and the note on each row says what would have \
-             to be true for the new value to be right. Run 'tri facts --update' once \
+             to be true for the new value to be right. Run 'tri-node facts --update' once \
              the new value is the intended one."
         );
         return 1;

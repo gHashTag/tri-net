@@ -42,11 +42,13 @@ goldenfloat-ffi = []
 name = "smoke-m1"
 path = "src/bin/smoke_m1.rs"
 
-# The operator CLI. Declared here rather than relying on autobins, which is off
-# because three other binaries in src/bin/ do not compile (issue #96).
+# Node-operator tooling. NOT named `tri`: gHashTag/trinity already ships a `tri`
+# CLI with some forty subcommands, including its own `tri status`, and a binary
+# named `tri` on PATH would shadow it and redefine that subcommand. These
+# commands are candidates to fold into the canonical CLI as `tri node ...`.
 [[bin]]
-name = "tri"
-path = "src/bin/tri.rs"
+name = "tri-node"
+path = "src/bin/tri_node.rs"
 
 [profile.release]
 opt-level = "z"
