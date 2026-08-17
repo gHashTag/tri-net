@@ -1,0 +1,8 @@
+=== at-speed v7: FCLK 20 MHz, under the 58 MHz timing close ===
+FCLK before: 0x00200500
+FCLK after : 0x00A00500  -> 1000/(5*10) = 20 MHz
+state: operating
+anchor: 0x47C0
+done=1 errors=0 checked=256 cycles=258
+=== VERDICT: 256 of 256 bit-exact, one sample per clock, 258 clocks ===
+DONE

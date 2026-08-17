@@ -1,0 +1,8 @@
+set_property PACKAGE_PIN H16 [get_ports clk_p]
+set_property IOSTANDARD LVDS_25 [get_ports clk_p]
+set_property PACKAGE_PIN H17 [get_ports clk_n]
+set_property IOSTANDARD LVDS_25 [get_ports clk_n]
+set_property PACKAGE_PIN B19 [get_ports o_p]
+set_property IOSTANDARD LVDS_25 [get_ports o_p]
+set_property PACKAGE_PIN A20 [get_ports o_n]
+set_property IOSTANDARD LVDS_25 [get_ports o_n]

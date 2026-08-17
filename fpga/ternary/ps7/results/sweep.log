@@ -1,0 +1,13 @@
+=== FCLK sweep: where does the silicon actually break? ===
+nextpnr predicted Fmax 58.26 MHz for this design
+load state: operating
+--- sweeping ---
+  50.0 MHz : done=1 errors=0 checked=256 cycles=258
+  55.6 MHz : done=1 errors=0 checked=256 cycles=258
+  58.8 MHz : done=1 errors=0 checked=256 cycles=258
+  62.5 MHz : done=1 errors=0 checked=256 cycles=258
+  71.4 MHz : done=1 errors=0 checked=256 cycles=258
+  83.3 MHz : done=1 errors=0 checked=256 cycles=258
+  100.0 MHz : done=1 errors=190 checked=256 cycles=258
+  50.0-again MHz : done=1 errors=0 checked=256 cycles=258
+SWEEP_DONE

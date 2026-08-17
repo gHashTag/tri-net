@@ -1,0 +1,80 @@
+--- a/library/xilinx/common/ad_data_in.v	2026-08-03 12:28:49
++++ b/library/xilinx/common/ad_data_in.v	2026-08-03 12:31:53
+@@ -47,6 +47,17 @@
+   parameter   US_DELAY_TYPE = "VAR_LOAD",
+   // for all
+   parameter   IODELAY_ENABLE = 1,
++  // PINLESS: there is no package pin behind this input. Set only by harnesses
++  // that drive the interface from fabric. It replaces the two IOB primitives --
++  // the input buffer and the DDR capture register -- with fabric equivalents,
++  // because both are physically tied to a pad: an ILOGIC site's D input is
++  // reachable only from the IOB, so an IDDR fed from fabric is unplaceable, and
++  // that is an architectural fact rather than a tool limitation.
++  //
++  // A design built with PINLESS = 1 therefore proves NOTHING about the IOB
++  // capture stage. It proves the datapath from the capture register onward.
++  // Default 0 keeps the original behaviour, primitives and all.
++  parameter   PINLESS = 0,
+   parameter   IODELAY_CTRL = 0,
+   parameter   IODELAY_GROUP = "dev_if_delay_group",
+   parameter   REFCLK_FREQUENCY = 200
+@@ -164,7 +175,9 @@
+   // ibuf
+ 
+   generate
+-  if (SINGLE_ENDED == 1) begin
++  if (PINLESS == 1) begin
++    assign rx_data_ibuf_s = rx_data_in_p;
++  end else if (SINGLE_ENDED == 1) begin
+     IBUF i_rx_data_ibuf (
+       .I (rx_data_in_p),
+       .O (rx_data_ibuf_s));
+@@ -262,7 +275,7 @@
+           .Q2 (rx_data_n));
+       end
+ 
+-      if (FPGA_TECHNOLOGY == SEVEN_SERIES) begin
++      if (FPGA_TECHNOLOGY == SEVEN_SERIES && PINLESS == 0) begin
+         IDDR #(
+           .DDR_CLK_EDGE (IDDR_CLK_EDGE)
+         ) i_rx_data_iddr (
+@@ -274,6 +287,19 @@
+           .Q1 (rx_data_p),
+           .Q2 (rx_data_n));
+       end
++
++      // fabric stand-in for the IOB capture register, used only when PINLESS.
++      // Both edges are still sampled, so the assembled word is genuine rather
++      // than half zero; what is lost is the IOB timing, which a design with no
++      // pins could not have measured anyway.
++      if (PINLESS == 1) begin
++        reg rx_data_p_r = 1'b0;
++        reg rx_data_n_r = 1'b0;
++        always @(posedge rx_clk) rx_data_p_r <= rx_data_idelay_s;
++        always @(negedge rx_clk) rx_data_n_r <= rx_data_idelay_s;
++        assign rx_data_p = rx_data_p_r;
++        assign rx_data_n = rx_data_n_r;
++      end
+     // sdr
+     end else begin
+       assign rx_data_p = rx_data_idelay_s;
+--- a/library/axi_ad9361/xilinx/axi_ad9361_cmos_if.v	2026-08-03 12:28:49
++++ b/library/axi_ad9361/xilinx/axi_ad9361_cmos_if.v	2026-08-03 12:31:53
+@@ -439,6 +439,8 @@
+   ad_data_in #(
+     .SINGLE_ENDED (1),
+     .FPGA_TECHNOLOGY (FPGA_TECHNOLOGY),
++    .IODELAY_ENABLE (0),
++    .PINLESS (1),
+     .IODELAY_CTRL (0),
+     .IODELAY_GROUP (IO_DELAY_GROUP),
+     .REFCLK_FREQUENCY (DELAY_REFCLK_FREQUENCY)
+@@ -463,6 +465,8 @@
+   ad_data_in #(
+     .SINGLE_ENDED (1),
+     .FPGA_TECHNOLOGY (FPGA_TECHNOLOGY),
++    .IODELAY_ENABLE (0),
++    .PINLESS (1),
+     .IODELAY_CTRL (IODELAY_CTRL),
+     .IODELAY_GROUP (IO_DELAY_GROUP),
+     .REFCLK_FREQUENCY (DELAY_REFCLK_FREQUENCY)

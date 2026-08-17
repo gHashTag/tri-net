@@ -1,0 +1,12 @@
+FPGA_RST_CTRL before: 0x00000000
+SLCR lock status:     0x00000000
+after unlock, lock status: 0x00000000
+FPGA_RST_CTRL after:  0x00000000
+anchor=000047C0
+-- counter stability: 20 pushes, no reset expected --
+counter after 20 pushes: 18  (want 20)
+--- streaming 256 ---
+final counter=1 after 256 pushes
+VERDICT: 254 of 256 differ. first: index 1: fabric=65488 reference=-48
+EXIT=5
+RSTFIX_DONE

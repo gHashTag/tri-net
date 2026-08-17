@@ -1,0 +1,6 @@
+set_property PACKAGE_PIN B19 [get_ports clk_p]
+set_property PACKAGE_PIN A20 [get_ports clk_n]
+set_property IOSTANDARD LVDS_25 [get_ports clk_p]
+set_property IOSTANDARD LVDS_25 [get_ports clk_n]
+set_property PACKAGE_PIN D19 [get_ports led]
+set_property IOSTANDARD LVCMOS33 [get_ports led]

@@ -1,0 +1,17 @@
+=== corr run 4: tap double-write + pipeline offset ===
+state: operating
+[00:11:49] --- checking that our bitstream is live ---
+[00:11:49] bank2=0x000047C0  bank3=0x00000000
+[00:11:49] anchor: 18368 (expected 18368)
+[00:11:49] --- reset the delay line FIRST ---
+[00:11:49] --- loading taps: matched = 1 1 0 -1 -1 -1 0 1 ---
+[00:11:49]    tap pass 1 done
+[00:11:50]    tap pass 2 done
+[00:11:50] --- reset the delay line again, taps survive it ---
+[00:11:50] ingest counter before streaming: 0
+[00:11:50] --- streaming 256 samples ---
+[00:11:57] streamed 256 samples; ingest counter 0 -> 17 (delta 17 mod 256)
+[00:11:57] VERDICT: 249 of 256 compared values differ from the reference.
+[00:11:57]   first: index 7: fabric=0 reference=229
+EXIT_CODE=5
+RUNNER_DONE

@@ -1,0 +1,14 @@
+=== CORRELATOR, both EMIO banks ===
+state: operating
+[00:02:13] --- checking that our bitstream is live ---
+[00:02:13] bank2=0x000047C0  bank3=0x00000000
+[00:02:13] anchor: 18368 (expected 18368)
+[00:02:13] --- loading taps: matched = 1 1 0 -1 -1 -1 0 1 ---
+[00:02:13] --- reset the delay line ---
+[00:02:13] ingest counter before streaming: 0
+[00:02:13] --- streaming 256 samples ---
+[00:02:21] streamed 256 samples; ingest counter 0 -> 14 (delta 14 mod 256)
+[00:02:21] VERDICT: 256 of 256 values differ from the reference.
+[00:02:21]   first: sample 0: fabric=0 reference=6
+EXIT_CODE=5
+RUNNER_DONE

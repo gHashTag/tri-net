@@ -1,0 +1,9 @@
+=== bitstream built by the ALL-LOCAL flow: yosys 0.67 + patched nextpnr + prjxray ===
+state: operating
+EMIO : 0x000047C0   (0x47C0 in the low bits = our design)
+anchor: 0x47C0 (expected 0x47C0)
+ingest counter 0 -> 1 (delta 1)
+=== VERDICT: 256 of 256 bit-exact against the software reference ===
+The 63-tap PN despreader ran in the fabric on real over-the-air samples.
+EXIT=0
+DONE

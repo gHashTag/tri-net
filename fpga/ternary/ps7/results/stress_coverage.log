@@ -1,0 +1,9 @@
+=== 63-tap stress: ternary ZERO exercised, full-scale samples, accumulator to bit 18 ===
+FCLK set to 50 MHz (under the 58 MHz close)
+state: operating
+anchor: 0x47C0 (expected 0x47C0)
+ingest counter 0 -> 1 (delta 1)
+=== VERDICT: 256 of 256 bit-exact against the software reference ===
+The 63-tap PN despreader ran in the fabric on real over-the-air samples.
+EXIT=0
+DONE

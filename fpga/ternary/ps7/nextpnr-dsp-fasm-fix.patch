@@ -1,0 +1,105 @@
+diff --git a/xilinx/fasm.cc b/xilinx/fasm.cc
+index f4f0917..5027534 100644
+--- a/xilinx/fasm.cc
++++ b/xilinx/fasm.cc
+@@ -418,7 +418,7 @@ struct FasmBackend
+                 phys_to_log[j];
+                 if (!lut->attrs.count(ctx->id("X_ORIG_PORT_" + phys_inputs[j].str(ctx))))
+                     continue;
+-                std::string orig = lut->attrs.at(ctx->id("X_ORIG_PORT_" + phys_inputs[j].str(ctx))).as_string();
++                std::string orig = lut->attrs.at(ctx->id("X_ORIG_PORT_" + phys_inputs[j].str(ctx))).str;
+                 boost::split(phys_to_log[j], orig, boost::is_any_of(" "));
+             }
+             int lbound = 0, ubound = 64;
+@@ -4017,7 +4017,25 @@ void write_gtx_channel(CellInfo *ci)
+         auto areg = int_or_default(ci->params, ctx->id("AREG"), 1);
+         if (areg == 0 || areg == 2) write_bit("AREG_" + std::to_string(areg));
+ 
+-        auto ainput = str_or_default(ci->params, ctx->id("A_INPUT"), "DIRECT");
++        // Tolerant parameter read. yosys stores all-binary parameter values
++        // (PATTERN, MASK, USE_DPORT="0", and a "FALSE" normalised to "0") as
++        // *numeric* Properties, on which str_or_default()/as_string() assert.
++        // Property::str holds the literal for string params AND the [01xz]
++        // bit-string for numeric ones -- exactly what as_string() would have
++        // returned -- so reading it directly is bit-for-bit equivalent and
++        // never aborts. Upstream added the same lambda later; this revision
++        // predates it. Found by backtrace: as_string() <- write_dsp_cell.
++        auto dsp_str = [&](const char *pname, std::string def) -> std::string {
++            auto it = ci->params.find(ctx->id(pname));
++            if (it == ci->params.end()) return def;
++            return it->second.str;
++        };
++        auto dsp_attr = [&](const std::string &aname, std::string def) -> std::string {
++            auto it = ci->attrs.find(ctx->id(aname));
++            if (it == ci->attrs.end()) return def;
++            return it->second.str;
++        };
++        auto ainput = dsp_str("A_INPUT", "DIRECT");
+         if (ainput == "CASCADE") write_bit("A_INPUT[0]");
+ 
+         // value 1 is equivalent to 2, according to UG479
+@@ -4026,18 +4044,18 @@ void write_gtx_channel(CellInfo *ci)
+         auto breg = int_or_default(ci->params, ctx->id("BREG"), 1);
+         if (breg == 0 || breg == 2) write_bit("BREG_" + std::to_string(breg));
+ 
+-        auto binput = str_or_default(ci->params, ctx->id("B_INPUT"), "DIRECT");
++        auto binput = dsp_str("B_INPUT", "DIRECT");
+         if (binput == "CASCADE") write_bit("B_INPUT[0]");
+ 
+-        auto use_dport = str_or_default(ci->params, ctx->id("USE_DPORT"), "FALSE");
++        auto use_dport = dsp_str("USE_DPORT", "FALSE");
+         if (use_dport == "TRUE") write_bit("USE_DPORT[0]");
+ 
+-        auto use_simd = str_or_default(ci->params, ctx->id("USE_SIMD"), "ONE48");
++        auto use_simd = dsp_str("USE_SIMD", "ONE48");
+         if (use_simd == "TWO24")  write_bit("USE_SIMD_FOUR12_TWO24");
+         if (use_simd == "FOUR12") write_bit("USE_SIMD_FOUR12");
+ 
+         // PATTERN
+-        auto pattern_str = str_or_default(ci->params, ctx->id("PATTERN"), "");
++        auto pattern_str = dsp_str("PATTERN", "");
+         if (!boost::empty(pattern_str)) {
+             const size_t pattern_size = 48;
+             std::vector<bool> pattern_vector(pattern_size, true);
+@@ -4048,12 +4066,12 @@ void write_gtx_channel(CellInfo *ci)
+             write_vector("PATTERN[47:0]", pattern_vector);
+         }
+ 
+-        auto autoreset_patdet = str_or_default(ci->params, ctx->id("AUTORESET_PATDET"), "NO_RESET");
++        auto autoreset_patdet = dsp_str("AUTORESET_PATDET", "NO_RESET");
+         if (autoreset_patdet == "RESET_MATCH")     write_bit("AUTORESET_PATDET_RESET");
+         if (autoreset_patdet == "RESET_NOT_MATCH") write_bit("AUTORESET_PATDET_RESET_NOT_MATCH");
+ 
+         // MASK
+-        auto mask_str = str_or_default(ci->params, ctx->id("MASK"), "001111111111111111111111111111111111111111111111");
++        auto mask_str = dsp_str("MASK", "001111111111111111111111111111111111111111111111");
+         // Yosys gives us 48 bit, but prjxray only recognizes 46 bits
+         // The most significant two bits seem to be zero, so let us just truncate them
+         const size_t mask_size = 46;
+@@ -4064,7 +4082,7 @@ void write_gtx_channel(CellInfo *ci)
+         }
+         write_vector("MASK[45:0]", mask_vector);
+ 
+-        auto sel_mask = str_or_default(ci->params, ctx->id("SEL_MASK"), "MASK");
++        auto sel_mask = dsp_str("SEL_MASK", "MASK");
+         if (sel_mask == "C")              write_bit("SEL_MASK_C");
+         if (sel_mask == "ROUNDING_MODE1") write_bit("SEL_MASK_ROUNDING_MODE1");
+         if (sel_mask == "ROUNDING_MODE2") write_bit("SEL_MASK_ROUNDING_MODE2");
+@@ -4084,7 +4102,7 @@ void write_gtx_channel(CellInfo *ci)
+         write_bit("ZMREG[0]", !bool_or_default(ci->params, ctx->id("MREG")));
+         write_bit("ZOPMODEREG[0]", !bool_or_default(ci->params, ctx->id("OPMODEREG")));
+         write_bit("ZPREG[0]", !bool_or_default(ci->params, ctx->id("PREG")));
+-        write_bit("USE_DPORT[0]", str_or_default(ci->params, ctx->id("USE_DPORT"), "FALSE") == "TRUE");
++        write_bit("USE_DPORT[0]", dsp_str("USE_DPORT", "FALSE") == "TRUE");
+         write_bit("ZIS_CLK_INVERTED", !bool_or_default(ci->params, ctx->id("IS_CLK_INVERTED")));
+         write_bit("ZIS_CARRYIN_INVERTED", !bool_or_default(ci->params, ctx->id("IS_CARRYIN_INVERTED")));
+         pop(2);
+@@ -4092,7 +4110,7 @@ void write_gtx_channel(CellInfo *ci)
+         auto write_const_pins = [&](std::string const_net_name) {
+             std::vector<std::string> pins;
+             const auto attr_name = "DSP_" + const_net_name + "_PINS";
+-            const auto attr_value = str_or_default(ci->attrs, ctx->id(attr_name), "");
++            const auto attr_value = dsp_attr(attr_name, "");
+             boost::split(pins, attr_value, boost::is_any_of(" "));
+             for (auto pin : pins) {
+                 if (boost::empty(pin)) continue;

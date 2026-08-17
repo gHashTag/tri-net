@@ -1,0 +1,7 @@
+anchor=000047C0
+settled, counter=9
+--- streaming 256 slowed ---
+counter 0 -> 2 after 256 pushes
+VERDICT: 250 of 256 differ. first: index 6: fabric=0 reference=285
+EXIT=5
+SLOW256_DONE

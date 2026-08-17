@@ -9,10 +9,10 @@ autotests = false
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
-description = "TRI-NET drone-mesh daemon: ETX routing + X25519 + ChaCha20-Poly1305 encrypted IP-over-radio for the Zynq Mini node."
+description = "TRI-NET mesh daemon: ETX routing + X25519 + ChaCha20-Poly1305 encrypted IP-over-radio for the Zynq Mini node."
 repository = "https://github.com/gHashTag/trios-mesh"
 readme = "README.md"
-keywords = ["mesh", "drone", "sdr", "crypto", "routing"]
+keywords = ["mesh", "sdr", "crypto", "routing", "depin"]
 categories = ["network-programming", "cryptography"]
 
 [dependencies]
@@ -104,6 +104,13 @@ path = "tests/goldenfloat_ternary_ladder.rs"
 [[test]]
 name = "goldenfloat_conformance"
 path = "tests/goldenfloat_conformance.rs"
+# Node-operator tooling. NOT named `tri`: gHashTag/trinity already ships a `tri`
+# CLI with some forty subcommands, including its own `tri status`, and a binary
+# named `tri` on PATH would shadow it and redefine that subcommand. These
+# commands are candidates to fold into the canonical CLI as `tri node ...`.
+[[bin]]
+name = "tri-node"
+path = "src/bin/tri_node.rs"
 
 [profile.release]
 opt-level = "z"
