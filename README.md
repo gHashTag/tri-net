@@ -14,16 +14,17 @@ Part of the Trinity Project. Anchor: **φ² + φ⁻² = 3**.
 
 ---
 
-## Status (2026-07-04)
+## Status (обновлено 2026-08-19; свежайшее доказательство 2026-07-19)
 
 | Layer | State | Evidence |
 |---|---|---|
 | M1 crypto on ARM (X25519 + ChaCha20-Poly1305) | **hw** ✅ | `smoke/M1_RESULTS.md` — armv7l static binary 534 604 B, sha256 `e5abc335…7290a`, RC=0, 2026-07-01 |
-| AD9361 5.8 GHz PHY digital loopback | **hw** ✅ | `radio/README.md` — LO 5.8 GHz, FFT peak +0.999 MHz, SNR 108.6 dB, 2026-07-01 |
+| AD9361 5.8 GHz PHY digital loopback | **hw (архив; из текущего дерева не воспроизводится)** | измерено 2026-07-01: LO 5.8 GHz, FFT peak +0.999 MHz, 108.6 dB. Запись удалена вместе с `radio/` в `b0ef52c`; восстанавливается `git show b0ef52c^:radio/README.md`. Скрипты воспроизведения удалены раньше, в `f608dad` |
 | Three P201/P203 Mini boards physically connected | **hw** ✅ | User confirmation 2026-07-04 |
-| M2 TUN/IP routing (ETX + discovery) | `-sim` | Rust unit tests, no on-device run |
-| M3 iperf3 over 2 hops (bench attenuators) | `-sim` | Not run |
-| M4 3-node triangle, shared uplink (P2 DEMO GATE) | `-sim` | Not run |
+| OTA-передача байтов, 2.4 GHz ISM | **hw** | `smoke/DEPIN_OTA_CLOSED_2026-07-18.md` — .13 -> .12, corr_peak 1.000, BER 0/64, дважды |
+| M2 межузловой трафик с учётом байтов | **hw** (учёт), `-sim` (ETX/discovery) | `smoke/DEPIN_ABC_HW_2026-07-18.md` — метрируемый поток + квитанция Ed25519. ETX и discovery только в unit-тестах |
+| M3 многохоповый релей | **hw** (целостность), throughput **не измерен** | `smoke/DEPIN_2HOP_RELAY_2026-07-18.md` — два радиохопа, seal `0x9DBE2510` совпал в трёх точках |
+| M4 многоузловая сеть, общий uplink (P2 DEMO GATE) | **hw** (частично) | `smoke/DEPIN_STREAMING_4NODE_2026-07-18.md` — 4 узла, 3 независимых свидетеля, seal `0xCDB1F3B1`. Общий uplink не сведён |
 | M5 self-healing convergence measured | undefined | B11 not landed |
 | trinity-contracts deployment (Base L2) | Sepolia only | Mainnet Genesis Day not reached |
 | Trinity silicon (1 GOPS @ 50 MHz @ 1 W) | NO ROUTE | no die exists, none is scheduled; the earlier shuttle route is closed |
@@ -81,15 +82,17 @@ BitNet-ternary benchmark on returned silicon, publish the raw log.
 
 ## Metrics (что уже измерено)
 
-Все числа — с on-device логов, без hearsay.
+Все числа — с on-device логов, без hearsay. Расхождение таблицы с деревом
+ловится командой `cargo run --bin tri -- facts` (код возврата 1 при несовпадении):
+три строки ниже разошлись в 3.9x, 2.4x и 107x, пока её никто не запускал.
 
 | Метрика | Значение | Источник |
 |---|---|---|
 | M1 static binary size (armv7l musleabihf) | 534 604 B | `smoke/M1_RESULTS.md` |
 | M1 binary sha256 | `e5abc335…7290a` | `smoke/M1_RESULTS.md` |
 | M1 host tests | 20 unit + 2 integration, RC=0 | `cargo test` |
-| Rust `#[test]` blocks in repo | 110 | `grep -rE '^\s*#\[test\]' src tests` |
-| Rust source lines | 4 463 | `find src -name '*.rs' \| xargs wc -l` |
+| Rust `#[test]` blocks in repo | 432 | `grep -rE '^\s*#\[test\]' src tests` |
+| Rust source lines | 10 805 | `find src -name '*.rs' \| xargs wc -l` |
 | AD9361 tune target | LO 5.8 GHz | `radio/README.md` |
 | AD9361 FFT peak (1 MHz tone, digital loopback) | +0.999 MHz | `radio/README.md` |
 | AD9361 SNR over noise floor | 108.6 dB (digital loopback only, not over-the-air) | `radio/README.md`; see [W7 finding #5](docs/W7_WEAK_POINTS_STRUCTURAL.md#находка-5) and [REGULATORY_STATUS](docs/REGULATORY_STATUS.md) |
@@ -97,7 +100,7 @@ BitNet-ternary benchmark on returned silicon, publish the raw log.
 | Sample rate | 30.72 MHz | `radio/README.md` |
 | Capture length | 65 536 samples | `radio/README.md` |
 | Connected P203 Mini boards | 3 | User confirmation 2026-07-04 |
-| T27 spec files ported | 1 (`specs/wire.t27`) | `find specs -name '*.t27'` |
+| T27 spec files present | 107 | `find specs -name '*.t27'` |
 
 ### DePIN tokenomics (contract source, `gHashTag/trinity-contracts`, not yet deployed to mainnet)
 
@@ -130,7 +133,11 @@ BitNet-ternary benchmark on returned silicon, publish the raw log.
    в `radio/README.md`).
 6. Первый ternary/PoC-beacon between-neighbors локально.
 
-Всё в digital loopback, никакого излучения в эфир до внешнего PA+LNA + разрешения.
+Эта строка устарела и опровергается собственными логами: 30 файлов в `smoke/`
+описывают передачу в эфир на **2.4 GHz ISM** (см. `docs/W12_E2E_RF_TEST_RESULTS.md`).
+`docs/REGULATORY_STATUS.md` при этом написан целиком про 5.8 GHz и не содержит
+ни строки про 2.4 GHz — полоса, в которой реально работали, регуляторной записи
+не имеет. 5.8 GHz остаётся в digital loopback до внешнего PA+LNA и разрешения.
 
 ---
 
@@ -227,8 +234,8 @@ Sister-репозитории: [`gHashTag/t27`](https://github.com/gHashTag/t27)
 
 - [`docs/LOCAL_FLASH.md`](docs/LOCAL_FLASH.md) — пошаговая локальная прошивка трёх плат.
 - [`docs/WAVE_DEPIN_2026-07-04.md`](docs/WAVE_DEPIN_2026-07-04.md) — DePIN whitepaper (четыре плеча, tokenomics, positioning).
-- `docs/COMPETITOR_MATRIX_2026-07-04.md` — 10 MANET-конкурентов × 15 полей (в [PR #28](https://github.com/gHashTag/tri-net/pull/28)).
-- [`docs/_recon/DEPIN_COMPETITORS_2026-07-04.md`](docs/_recon/DEPIN_COMPETITORS_2026-07-04.md) — 12 DePIN-сетей × 12 полей.
+- [`docs/archive/WAVE_REPORT_COMPETITORS_2026-07-03.md`](docs/archive/WAVE_REPORT_COMPETITORS_2026-07-03.md) — четыре сегмента рынка и таблица сравнения.
+- [`docs/archive/BENCHMARK_VS_MANET_2026-07-04.md`](docs/archive/BENCHMARK_VS_MANET_2026-07-04.md) — восемь метрик против MPU5, Rajant, Silvus, Doodle Labs, TrellisWare, goTenna. Сырые данные: [`docs/archive/_recon/BENCHMARK_RECON.md`](docs/archive/_recon/BENCHMARK_RECON.md).
 - [`docs/WAVE_N3_AUDITABILITY_GAP_2026-07-04.md`](docs/WAVE_N3_AUDITABILITY_GAP_2026-07-04.md) — auditability δ paper.
 - [`docs/STRENGTHEN.md`](docs/STRENGTHEN.md) — science-driven backlog.
 - [`docs/AUTONOMOUS.md`](docs/AUTONOMOUS.md) — human-merge only policy для agent PR's.

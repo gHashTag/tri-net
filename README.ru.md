@@ -89,8 +89,8 @@ P201/P203 **Zynq-7020 Mini**, одновременно работающий DePI
 | Размер статического бинарника M1 (armv7l musleabihf) | 534 604 B | `smoke/M1_RESULTS.md` |
 | sha256 бинарника M1 | `e5abc335…7290a` | `smoke/M1_RESULTS.md` |
 | Тесты M1 на хосте | 20 unit + 2 integration, RC=0 | `cargo test` |
-| Блоков Rust `#[test]` в репозитории | 118 (перепроверено 2026-08-17) | `tri facts` |
-| Строк исходного кода на Rust | 7 152 (перепроверено 2026-08-17) | `tri facts` | xargs wc -l` |
+| Блоков Rust `#[test]` в репозитории | 432 (пересчитано 2026-08-19) | `tri facts` |
+| Строк исходного кода на Rust | считается командой, не хранится здесь | `tri facts` | xargs wc -l` |
 | Целевая настройка AD9361 | LO 5.8 GHz | `radio/README.md` |
 | Пик FFT AD9361 (тон 1 MHz, digital loopback) | +0.999 MHz | `radio/README.md` |
 | SNR AD9361 над уровнем шума | 108.6 dB (только digital loopback, не в эфире) | `radio/README.md`; см. [находка W7 #5](docs/W7_WEAK_POINTS_STRUCTURAL.md#находка-5) и [REGULATORY_STATUS](docs/REGULATORY_STATUS.md) |
@@ -98,7 +98,7 @@ P201/P203 **Zynq-7020 Mini**, одновременно работающий DePI
 | Частота дискретизации | 30.72 MHz | `radio/README.md` |
 | Длина захвата | 65 536 сэмплов | `radio/README.md` |
 | Подключённых плат P203 Mini | 3 | Подтверждение пользователя 2026-07-04 |
-| Портировано spec-файлов T27 | 86 (перепроверено 2026-08-17) | `tri facts` |
+| Портировано spec-файлов T27 | 107 (пересчитано 2026-08-19) | `tri facts` |
 
 ### DePIN tokenomics (исходники контрактов, `gHashTag/trinity-contracts`, в mainnet ещё не развёрнуто)
 
