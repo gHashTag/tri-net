@@ -146,7 +146,20 @@ Two verification modes:
   and `_discovery_` (a requester routes a task only to a host whose signed capability card
   advertises the skill). `trinet_lifecycle_over_mesh` then proves the layers COMPOSE:
   discovery -> compute -> batch -> ledger in one sealed flow, each stage feeding the next.
-- **Silicon**: **GF-T now runs on real silicon -- verified bit-exact (2026-08-06).** `fpga/gft/`
+- **Silicon**: **GF-T is simulated and synthesised, NOT recorded on silicon.** The on-chip runs
+    described below were reported on 2026-08-06 but no artefact of them exists in any branch --
+    no place-and-route log naming a `gft_*_ax7203` top, no `.fasm`, no `.bit`, no openocd
+    transcript and no UART capture. Three independent audit passes searched for one on
+    2026-08-19 and found nothing, and `fpga/gft/SYNTH_RESULTS.md` says in its own words that
+    place-and-route, timing closure and a loadable bitstream are not proven. The numbers quoted
+    below are therefore READ AS SIMULATION RESULTS until an artefact lands: they are the same
+    golden vectors the committed Icarus benches carry, so they cannot themselves distinguish a
+    board from a testbench. What would close it, in order: a pin-complete AX7203 XDC, a
+    nextpnr-xilinx log naming the top, the `.bit` that log produced, and an openocd `pld load`
+    transcript with the IDCODE readback. What IS on silicon today is a different and smaller
+    thing, and it has a log: the ternary sign-select MAC ran in the PL of a Puzhi P201Mini,
+    bit-exact for all three weight codes -- see
+    `fpga/ternary/ps7/results/ps7_probe_silicon_2026-08-19.log`. `fpga/gft/`
   realizes the GF-T ALU -- `gft_mul` / `gft_add` / `gft_sub` plus a 4-lane MAC
   (`gft_dot4`, narrowed to `gft_dot4_tile` = 4 DSP48E1) -- as synthesizable Verilog from the
   SAME `tri_gft_arith`/`tri_gft_add`/`tri_gft_sub` specs the over-wire verifier runs. Every
@@ -159,7 +172,7 @@ Two verification modes:
   vectors -- (41,0)^2->(42,0), (41,256)^2->(43,64), (44,0)*(45,0)->(49,0),
   (41,0)*(41,256)->(42,256), (50,0)^2->(60,0). One `.t27` provably drives the Rust A2A verifier,
   synthesizable Verilog, AND a running FPGA. The prior single "none" (no GF-T recompute on real
-  silicon) is now CLOSED. **The MAC kernel followed:** `gft_dot2_ax7203` (`gft_dot2_seq` wrapping
+    silicon) REMAINS OPEN -- see the status note at the head of this bullet. **The MAC kernel followed:** `gft_dot2_ax7203` (`gft_dot2_seq` wrapping
   `gft_dot2` = 2x `gft_mul` + `gft_add`) place-and-routed on the same flow (seed 5 -- seeds 1-4 hit
   an intermittent nextpnr `A5FF` placer bug, which is exactly why the recipe seed-searches) and
   flashed to the same AX7203. Verified over UART @160000: **3/3 GF-T16 dot products bit-exact** --

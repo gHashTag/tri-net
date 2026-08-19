@@ -42,7 +42,18 @@ upstream in the `t27` repo. `gft_mul.v` keeps the emitter's exact arithmetic wit
 legal declaration ordering, gated by the KAT sweep above so fidelity is
 machine-checked.
 
-## On silicon (DONE — bit-exact on the AX7203)
+## On silicon (CLAIMED, artefact missing)
+
+> **Status correction, 2026-08-19.** The on-silicon rows below have no artefact behind
+> them: no place-and-route log naming a `gft_*_ax7203` top, no `.fasm`, no `.bit`, no
+> openocd transcript and no UART capture exists in any branch. Three independent audit
+> passes searched and found none, and `fpga/gft/SYNTH_RESULTS.md` states that
+> place-and-route, timing closure and a loadable bitstream are not proven. A `.v` source
+> file is not a run record. Read these rows as SIMULATION until an artefact lands; the
+> vectors quoted are the same ones the committed Icarus benches carry, so they cannot
+> tell a board from a testbench. The one ternary design that does have a silicon log is
+> `fpga/ternary/ps7/results/ps7_probe_silicon_2026-08-19.log`.
+
 
 GF-T now runs on real silicon across the whole ladder. Each engine wraps a compute core
 in the silicon-proven UART skeleton (`gft_mul_ax7203`'s RX/TX, reused verbatim); the host
