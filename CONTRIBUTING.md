@@ -21,6 +21,16 @@ If the last line says `137 passed`, your environment is ready. If not, check:
 - Rust toolchain (stable, minimum 1.75; check with `rustc --version`)
 - macOS / Linux (Windows not tested)
 
+## Building the generator (t27c)
+
+Regenerating `gen/` requires `t27c` from the separate [t27](https://github.com/gHashTag/t27) repo. Build it the way CI does, from the `bootstrap` manifest:
+
+```bash
+cargo build --release --manifest-path bootstrap/Cargo.toml --bin t27c   # inside a t27 checkout
+```
+
+A plain `cargo build --release` from the t27 root produces a **different** binary whose C output drops the test runner — regenerating with it makes the tree worse while appearing to fix it (#383 A3). CI also pins the exact t27 commit it builds from (`.github/workflows/spec-drift-guard.yml`); check out that commit before reproducing a drift locally, or your generator will not match the gate's.
+
 ## Repository layout
 
 - `src/` — mesh daemon (`trios_meshd`), routing (`routing.rs`), wire codec (`wire.rs`)

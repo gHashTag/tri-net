@@ -8,7 +8,7 @@ on:
     branches: [main]
   pull_request:
 
-# Rebuild t27c from upstream master and regenerate every committed backend
+# Rebuild t27c from a PINNED t27 commit and regenerate every committed backend
 # under gen/<target>/<spec>.<ext> from specs/<spec>.t27. If any committed
 # output disagrees with the freshly generated output, the job fails with a
 # diff so drift between the SSOT and generated code cannot land silently.
@@ -36,7 +36,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: gHashTag/t27
-          ref: master
+          # Pinned, not master (#383 A1): master moves independently of this
+          # tree, and branches that change nothing under specs/ or gen/
+          # inherited 279 drifts from upstream merges. This is the commit the
+          # last green main run (2026-08-09T08:49Z) built from. Bump the pin
+          # only together with a full regeneration of gen/ in the same PR --
+          # the newer generator's Zig output does not compile yet (#383 A2).
+          ref: eb8b4208168557b36dca3a771f6901a5b10d9ef0
           path: t27
 
       - name: Install Zig

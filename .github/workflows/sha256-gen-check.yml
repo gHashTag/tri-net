@@ -10,7 +10,8 @@ on:
 
 # The crypto root of the ring: every receipt digest, input-operand binding, and
 # settle signature hashes through the tri_sha256 spec's generated code. This job
-# rebuilds t27c from upstream master and regenerates gen/rust/tri_sha256.rs from
+# rebuilds t27c from the same PINNED t27 commit as spec-drift-guard.yml (moving
+# master made the gate red for reasons no branch causes -- #383 A1) and regenerates gen/rust/tri_sha256.rs from
 # specs/tri_sha256.t27 -- if the committed gen drifts from the spec (as it once
 # did: the committed gen was missing sha256_compress while production bins
 # already called it), the job fails with a diff. Narrow on purpose: one spec,
@@ -31,7 +32,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: gHashTag/t27
-          ref: master
+          # Same pin as spec-drift-guard.yml; bump both together (#383 A1).
+          ref: eb8b4208168557b36dca3a771f6901a5b10d9ef0
           path: t27
 
       - name: Install stable Rust toolchain
