@@ -142,8 +142,8 @@ fn cmd_facts(root: &Path, args: &[&str]) -> i32 {
     let mut unmeasurable = 0usize;
 
     println!(
-        "{:<22} {:>10} {:>10}  {}",
-        "fact", "stored", "measured", "verdict"
+        "{:<22} {:>10} {:>10}  verdict",
+        "fact", "stored", "measured"
     );
     println!("{}", "-".repeat(72));
 
