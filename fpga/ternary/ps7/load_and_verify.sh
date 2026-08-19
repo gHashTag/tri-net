@@ -4,9 +4,12 @@
 #
 # READ THIS FIRST
 #   This replaces whatever is in the PL right now, which on these boards is the
-#   vendor design carrying the AD9361 datapath and PL Ethernet. The board WILL
-#   lose network the moment the load succeeds. Run it from the UART console, not
-#   over ssh. Nothing on the SD card is touched, so `reboot` restores the vendor
+#   vendor design carrying the AD9361 datapath and PL Ethernet. The script
+#   quiets the bus BEFORE loading: writing the bitstream while a PL master is
+#   mid-transaction hangs the CPU inside the write to $MGR/firmware, and only
+#   the watchdog ends it. The network dies at that teardown, before the load;
+#   the UART console does not. Run it from the UART console, not over ssh.
+#   Nothing on the SD card is touched, so `reboot` restores the vendor
 #   bitstream and the radio.
 #
 # Usage:  ./load_and_verify.sh ps7_probe.bin
@@ -61,7 +64,34 @@ say "--- preconditions ---"
 [ -e /dev/mem ] || { say "FATAL: /dev/mem missing"; exit 2; }
 say "fpga manager: $(cat $MGR/name 2>/dev/null), state=$(cat $MGR/state 2>/dev/null)"
 say "bitstream   : $BIN, $(wc -c < "$BIN") bytes"
-say "NOTE: the PL is about to be replaced. Network on this board will drop."
+
+# --------------------------- quiesce the bus --------------------------------
+# The order below is the one quiesce_and_load.sh used on the board on
+# 2026-08-19 (#383 E3): folded in here so a single copied script cannot walk
+# into the DMA unprepared.
+unbind_driver() {
+    drv="/sys/bus/platform/drivers/$1"
+    [ -d "$drv" ] || { say "$1: no such driver, skipping"; return 0; }
+    for dev in "$drv"/*; do
+        [ -e "$dev/driver" ] || continue
+        name=$(basename "$dev")
+        echo "$name" > "$drv/unbind" 2>/dev/null && say "$1: unbound $name" || say "$1: could not unbind $name"
+    done
+}
+say "--- quiescing the PL bus ---"
+say "1/4 killing the sample streams"
+killall iio_readdev iio_writedev iiod 2>/dev/null || true
+sleep 1
+say "2/4 unbinding the AD9361 cores"
+unbind_driver cf_axi_adc
+unbind_driver cf_axi_dds
+say "3/4 unbinding the DMA engines"
+unbind_driver dma-axi-dmac
+say "4/4 taking PL Ethernet down -- the network dies here, the console does not"
+ip link set eth0 down 2>/dev/null || true
+unbind_driver macb
+sleep 1
+say "bus is quiet"
 
 DMESG_MARK=$(dmesg | wc -l)
 
