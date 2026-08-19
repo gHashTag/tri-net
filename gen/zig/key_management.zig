@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_KEYS: u32 = 4;
@@ -155,59 +163,59 @@ fn count_valid_keys(store: [4]u32) u32 {
 }
 test "create_key_entry_basic" {
     const entry = create_key_entry(1, 5, 0xABCD, 100);
-    if (!(get_key_valid(entry) == 1)) @panic("valid");
-    if (!(get_key_id(entry) == 5)) @panic("id");
-    if (!(get_key_value(entry) == 0xABCD)) @panic("value");
-    if (!(get_key_timestamp(entry) == 100)) @panic("timestamp");
+    if (!(get_key_valid(entry) == 1)) __t27_assert_fail("\n  valid:\n    get_key_valid(entry) = {any}\n", .{ get_key_valid(entry) });
+    if (!(get_key_id(entry) == 5)) __t27_assert_fail("\n  id:\n    get_key_id(entry) = {any}\n", .{ get_key_id(entry) });
+    if (!(get_key_value(entry) == 0xABCD)) __t27_assert_fail("\n  value:\n    get_key_value(entry) = {any}\n", .{ get_key_value(entry) });
+    if (!(get_key_timestamp(entry) == 100)) __t27_assert_fail("\n  timestamp:\n    get_key_timestamp(entry) = {any}\n", .{ get_key_timestamp(entry) });
 }
 test "find_key_by_id_found" {
     const store = create_key_store(create_key_entry(1, 1, 0x1111, 10), create_key_entry(1, 2, 0x2222, 20), create_key_entry(0, 3, 0x3333, 30), create_key_entry(1, 4, 0x4444, 40));
-    if (!(find_key_by_id(store, 2) == 1)) @panic("found at index 1");
+    if (!(find_key_by_id(store, 2) == 1)) __t27_assert_fail("\n  found at index 1:\n    find_key_by_id(store, 2) = {any}\n", .{ find_key_by_id(store, 2) });
 }
 test "find_key_by_id_not_found" {
     const store = create_key_store(create_key_entry(1, 1, 0x1111, 10), create_key_entry(1, 2, 0x2222, 20), create_key_entry(0, 3, 0x3333, 30), create_key_entry(1, 4, 0x4444, 40));
-    if (!(find_key_by_id(store, 99) == 0xFF)) @panic("not found");
+    if (!(find_key_by_id(store, 99) == 0xFF)) __t27_assert_fail("\n  not found:\n    find_key_by_id(store, 99) = {any}\n", .{ find_key_by_id(store, 99) });
 }
 test "find_key_by_id_invalid_ignored" {
     const store = create_key_store(create_key_entry(1, 1, 0x1111, 10), create_key_entry(0, 2, 0x2222, 20), create_key_entry(1, 3, 0x3333, 30), create_key_entry(1, 4, 0x4444, 40));
-    if (!(find_key_by_id(store, 2) == 0xFF)) @panic("invalid key ignored");
+    if (!(find_key_by_id(store, 2) == 0xFF)) __t27_assert_fail("\n  invalid key ignored:\n    find_key_by_id(store, 2) = {any}\n", .{ find_key_by_id(store, 2) });
 }
 test "add_key_empty_slot" {
     const store = create_key_store(create_key_entry(0, 0, 0, 0), create_key_entry(0, 0, 0, 0), create_key_entry(0, 0, 0, 0), create_key_entry(0, 0, 0, 0));
     const new_store = add_key(store, 5, 0xABCD, 100);
-    if (!(get_key_id(get_key_entry(new_store, 0)) == 5)) @panic("key added");
+    if (!(get_key_id(get_key_entry(new_store, 0)) == 5)) __t27_assert_fail("\n  key added:\n    get_key_id(get_key_entry(new_store, 0)) = {any}\n", .{ get_key_id(get_key_entry(new_store, 0)) });
 }
 test "invalidate_key_works" {
     const store = create_key_store(create_key_entry(1, 1, 0x1111, 10), create_key_entry(1, 2, 0x2222, 20), create_key_entry(1, 3, 0x3333, 30), create_key_entry(0, 0, 0, 0));
     const new_store = invalidate_key(store, 2);
-    if (!(get_key_valid(get_key_entry(new_store, 1)) == 0)) @panic("key invalidated");
+    if (!(get_key_valid(get_key_entry(new_store, 1)) == 0)) __t27_assert_fail("\n  key invalidated:\n    get_key_valid(get_key_entry(new_store, 1)) = {any}\n", .{ get_key_valid(get_key_entry(new_store, 1)) });
 }
 test "needs_rotation_true" {
     const entry = create_key_entry(1, 1, 0x1111, 1000);
-    if (!(needs_rotation(entry, 35000) == true)) @panic("needs rotation");
+    if (!(needs_rotation(entry, 35000) == true)) __t27_assert_fail("\n  needs rotation:\n    needs_rotation(entry, 35000) = {any}\n", .{ needs_rotation(entry, 35000) });
 }
 test "needs_rotation_false" {
     const entry = create_key_entry(1, 1, 0x1111, 25000);
-    if (!(needs_rotation(entry, 30000) == false)) @panic("no rotation needed");
+    if (!(needs_rotation(entry, 30000) == false)) __t27_assert_fail("\n  no rotation needed:\n    needs_rotation(entry, 30000) = {any}\n", .{ needs_rotation(entry, 30000) });
 }
 test "needs_rotation_invalid" {
     const entry = create_key_entry(0, 1, 0x1111, 1000);
-    if (!(needs_rotation(entry, 35000) == false)) @panic("invalid key");
+    if (!(needs_rotation(entry, 35000) == false)) __t27_assert_fail("\n  invalid key:\n    needs_rotation(entry, 35000) = {any}\n", .{ needs_rotation(entry, 35000) });
 }
 test "rotate_key_works" {
     const store = create_key_store(create_key_entry(1, 1, 0x1111, 10000), create_key_entry(0, 0, 0, 0), create_key_entry(0, 0, 0, 0), create_key_entry(0, 0, 0, 0));
     const new_store = rotate_key(store, 1, 0x9999, 50000);
-    if (!(get_key_value(get_key_entry(new_store, 0)) == 0x9999)) @panic("value updated");
+    if (!(get_key_value(get_key_entry(new_store, 0)) == 0x9999)) __t27_assert_fail("\n  value updated:\n    get_key_value(get_key_entry(new_store, 0)) = {any}\n", .{ get_key_value(get_key_entry(new_store, 0)) });
 }
 test "get_active_key_returns_latest" {
     const store = create_key_store(create_key_entry(1, 1, 0x1111, 10), create_key_entry(1, 2, 0x2222, 30), create_key_entry(1, 3, 0x3333, 20), create_key_entry(0, 0, 0, 0));
-    if (!(get_active_key(store) == 0x2222)) @panic("latest key");
+    if (!(get_active_key(store) == 0x2222)) __t27_assert_fail("\n  latest key:\n    get_active_key(store) = {any}\n", .{ get_active_key(store) });
 }
 test "count_valid_keys_all" {
     const store = create_key_store(create_key_entry(1, 1, 0x1111, 10), create_key_entry(1, 2, 0x2222, 20), create_key_entry(1, 3, 0x3333, 30), create_key_entry(1, 4, 0x4444, 40));
-    if (!(count_valid_keys(store) == 4)) @panic("4 valid keys");
+    if (!(count_valid_keys(store) == 4)) __t27_assert_fail("\n  4 valid keys:\n    count_valid_keys(store) = {any}\n", .{ count_valid_keys(store) });
 }
 test "count_valid_keys_some" {
     const store = create_key_store(create_key_entry(1, 1, 0x1111, 10), create_key_entry(0, 2, 0x2222, 20), create_key_entry(1, 3, 0x3333, 30), create_key_entry(0, 4, 0x4444, 40));
-    if (!(count_valid_keys(store) == 2)) @panic("2 valid keys");
+    if (!(count_valid_keys(store) == 2)) __t27_assert_fail("\n  2 valid keys:\n    count_valid_keys(store) = {any}\n", .{ count_valid_keys(store) });
 }

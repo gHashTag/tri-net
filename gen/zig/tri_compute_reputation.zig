@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const REP_INIT: u32 = 100;
@@ -64,40 +72,40 @@ fn can_admit(rep: u32, min_rep: u32) bool {
     return rep >= min_rep;
 }
 test "honest_raises_capped" {
-    if (!(rep_after_honest(100, 20) == 120)) @panic("honest work gains reputation");
-    if (!(rep_after_honest(990, 50) == REP_MAX)) @panic("reputation is capped at REP_MAX");
+    if (!(rep_after_honest(100, 20) == 120)) __t27_assert_fail("\n  honest work gains reputation:\n    rep_after_honest(100, 20) = {any}\n", .{ rep_after_honest(100, 20) });
+    if (!(rep_after_honest(990, 50) == REP_MAX)) __t27_assert_fail("\n  reputation is capped at REP_MAX:\n    rep_after_honest(990, 50) = {any}\n    REP_MAX = {any}\n", .{ rep_after_honest(990, 50), REP_MAX });
 }
 test "rung_scales_honest_trust" {
-    if (!(rung_honest_gain(5, 4) == 5)) @panic("GF-T16 base gain");
-    if (!(rung_honest_gain(5, 6) == 11)) @panic("GF-T32 gains more (+2 trits * 3)");
-    if (!(rung_honest_gain(5, 9) == 20)) @panic("GF-T64 gains more still (+5 trits)");
-    if (!(rung_honest_gain(5, 14) == 35)) @panic("GF-T128 gains most (+10 trits)");
-    if (!(rung_honest_gain(5, 3) == 5)) @panic("sub-flagship uses the base (never shrinks)");
-    if (!(rep_after_resolution_rung(100, RESOLVE_HONEST, 5, 9) == 120)) @panic("honest GF-T64: +20 trust");
-    if (!(rep_after_resolution_rung(100, RESOLVE_HONEST, 5, 4) == 105)) @panic("honest GF-T16: +5 trust");
-    if (!(rep_after_resolution_rung(100, RESOLVE_SLASH, 5, 9) == 50)) @panic("a GF-T64 slash still halves (fraud is fraud)");
-    if (!(rep_after_resolution_rung(999, RESOLVE_HONEST, 100, 14) == REP_MAX)) @panic("cap holds even at a high rung + big gain");
+    if (!(rung_honest_gain(5, 4) == 5)) __t27_assert_fail("\n  GF-T16 base gain:\n    rung_honest_gain(5, 4) = {any}\n", .{ rung_honest_gain(5, 4) });
+    if (!(rung_honest_gain(5, 6) == 11)) __t27_assert_fail("\n  GF-T32 gains more (+2 trits * 3):\n    rung_honest_gain(5, 6) = {any}\n", .{ rung_honest_gain(5, 6) });
+    if (!(rung_honest_gain(5, 9) == 20)) __t27_assert_fail("\n  GF-T64 gains more still (+5 trits):\n    rung_honest_gain(5, 9) = {any}\n", .{ rung_honest_gain(5, 9) });
+    if (!(rung_honest_gain(5, 14) == 35)) __t27_assert_fail("\n  GF-T128 gains most (+10 trits):\n    rung_honest_gain(5, 14) = {any}\n", .{ rung_honest_gain(5, 14) });
+    if (!(rung_honest_gain(5, 3) == 5)) __t27_assert_fail("\n  sub-flagship uses the base (never shrinks):\n    rung_honest_gain(5, 3) = {any}\n", .{ rung_honest_gain(5, 3) });
+    if (!(rep_after_resolution_rung(100, RESOLVE_HONEST, 5, 9) == 120)) __t27_assert_fail("\n  honest GF-T64: +20 trust:\n    rep_after_resolution_rung(100, RESOLVE_HONEST, 5, 9) = {any}\n", .{ rep_after_resolution_rung(100, RESOLVE_HONEST, 5, 9) });
+    if (!(rep_after_resolution_rung(100, RESOLVE_HONEST, 5, 4) == 105)) __t27_assert_fail("\n  honest GF-T16: +5 trust:\n    rep_after_resolution_rung(100, RESOLVE_HONEST, 5, 4) = {any}\n", .{ rep_after_resolution_rung(100, RESOLVE_HONEST, 5, 4) });
+    if (!(rep_after_resolution_rung(100, RESOLVE_SLASH, 5, 9) == 50)) __t27_assert_fail("\n  a GF-T64 slash still halves (fraud is fraud):\n    rep_after_resolution_rung(100, RESOLVE_SLASH, 5, 9) = {any}\n", .{ rep_after_resolution_rung(100, RESOLVE_SLASH, 5, 9) });
+    if (!(rep_after_resolution_rung(999, RESOLVE_HONEST, 100, 14) == REP_MAX)) __t27_assert_fail("\n  cap holds even at a high rung + big gain:\n    rep_after_resolution_rung(999, RESOLVE_HONEST, 100, 14) = {any}\n    REP_MAX = {any}\n", .{ rep_after_resolution_rung(999, RESOLVE_HONEST, 100, 14), REP_MAX });
 }
 test "gain_overflow_cannot_defeat_the_cap" {
-    if (!(rep_after_honest(1000, 4294966296) == REP_MAX)) @panic("gain wrapping rep+gain to 0 still caps at REP_MAX, not 0");
-    if (!(rep_after_honest(0, 4294967295) == REP_MAX)) @panic("a u32-max gain caps at REP_MAX, no wrap");
-    if (!(rep_after_resolution(1000, RESOLVE_HONEST, 4294966296) == REP_MAX)) @panic("driver: overflowing honest gain caps at REP_MAX");
+    if (!(rep_after_honest(1000, 4294966296) == REP_MAX)) __t27_assert_fail("\n  gain wrapping rep+gain to 0 still caps at REP_MAX, not 0:\n    rep_after_honest(1000, 4294966296) = {any}\n    REP_MAX = {any}\n", .{ rep_after_honest(1000, 4294966296), REP_MAX });
+    if (!(rep_after_honest(0, 4294967295) == REP_MAX)) __t27_assert_fail("\n  a u32-max gain caps at REP_MAX, no wrap:\n    rep_after_honest(0, 4294967295) = {any}\n    REP_MAX = {any}\n", .{ rep_after_honest(0, 4294967295), REP_MAX });
+    if (!(rep_after_resolution(1000, RESOLVE_HONEST, 4294966296) == REP_MAX)) __t27_assert_fail("\n  driver: overflowing honest gain caps at REP_MAX:\n    rep_after_resolution(1000, RESOLVE_HONEST, 4294966296) = {any}\n    REP_MAX = {any}\n", .{ rep_after_resolution(1000, RESOLVE_HONEST, 4294966296), REP_MAX });
 }
 test "outcome_drives_reputation" {
-    if (!(rep_after_resolution(1000, RESOLVE_SLASH, 20) == 500)) @panic("proven fraud halves reputation");
-    if (!(rep_after_resolution(100, RESOLVE_HONEST, 20) == 120)) @panic("proven honest gains reputation");
-    if (!(rep_after_resolution(990, RESOLVE_HONEST, 50) == REP_MAX)) @panic("gain still respects the cap");
+    if (!(rep_after_resolution(1000, RESOLVE_SLASH, 20) == 500)) __t27_assert_fail("\n  proven fraud halves reputation:\n    rep_after_resolution(1000, RESOLVE_SLASH, 20) = {any}\n", .{ rep_after_resolution(1000, RESOLVE_SLASH, 20) });
+    if (!(rep_after_resolution(100, RESOLVE_HONEST, 20) == 120)) __t27_assert_fail("\n  proven honest gains reputation:\n    rep_after_resolution(100, RESOLVE_HONEST, 20) = {any}\n", .{ rep_after_resolution(100, RESOLVE_HONEST, 20) });
+    if (!(rep_after_resolution(990, RESOLVE_HONEST, 50) == REP_MAX)) __t27_assert_fail("\n  gain still respects the cap:\n    rep_after_resolution(990, RESOLVE_HONEST, 50) = {any}\n    REP_MAX = {any}\n", .{ rep_after_resolution(990, RESOLVE_HONEST, 50), REP_MAX });
 }
 test "non_terminal_outcomes_are_noops" {
-    if (!(rep_after_resolution(800, 2, 20) == 800)) @panic("MALFORMED does not move reputation");
-    if (!(rep_after_resolution(800, 3, 20) == 800)) @panic("STALE (replay) does not move reputation");
-    if (!(rep_after_resolution(800, 4, 20) == 800)) @panic("FAMILY_MISMATCH does not move reputation");
+    if (!(rep_after_resolution(800, 2, 20) == 800)) __t27_assert_fail("\n  MALFORMED does not move reputation:\n    rep_after_resolution(800, 2, 20) = {any}\n", .{ rep_after_resolution(800, 2, 20) });
+    if (!(rep_after_resolution(800, 3, 20) == 800)) __t27_assert_fail("\n  STALE (replay) does not move reputation:\n    rep_after_resolution(800, 3, 20) = {any}\n", .{ rep_after_resolution(800, 3, 20) });
+    if (!(rep_after_resolution(800, 4, 20) == 800)) __t27_assert_fail("\n  FAMILY_MISMATCH does not move reputation:\n    rep_after_resolution(800, 4, 20) = {any}\n", .{ rep_after_resolution(800, 4, 20) });
 }
 test "verifier_reputation_driver" {
-    if (!(rep_after_verifier(1000, 1, 1, 20) == 500)) @panic("dissenting verifier is halved");
-    if (!(rep_after_verifier(100, 1, 0, 20) == 120)) @panic("agreeing verifier gains");
-    if (!(rep_after_verifier(800, 0, 0, 20) == 800)) @panic("no quorum -> verifier reputation unchanged");
-    if (!(rep_after_verifier(800, 0, 1, 20) == 800)) @panic("no quorum: even a 'dissent' flag is ignored");
+    if (!(rep_after_verifier(1000, 1, 1, 20) == 500)) __t27_assert_fail("\n  dissenting verifier is halved:\n    rep_after_verifier(1000, 1, 1, 20) = {any}\n", .{ rep_after_verifier(1000, 1, 1, 20) });
+    if (!(rep_after_verifier(100, 1, 0, 20) == 120)) __t27_assert_fail("\n  agreeing verifier gains:\n    rep_after_verifier(100, 1, 0, 20) = {any}\n", .{ rep_after_verifier(100, 1, 0, 20) });
+    if (!(rep_after_verifier(800, 0, 0, 20) == 800)) __t27_assert_fail("\n  no quorum -> verifier reputation unchanged:\n    rep_after_verifier(800, 0, 0, 20) = {any}\n", .{ rep_after_verifier(800, 0, 0, 20) });
+    if (!(rep_after_verifier(800, 0, 1, 20) == 800)) __t27_assert_fail("\n  no quorum: even a 'dissent' flag is ignored:\n    rep_after_verifier(800, 0, 1, 20) = {any}\n", .{ rep_after_verifier(800, 0, 1, 20) });
 }
 test "bad_verifier_is_locked_out" {
     const d1 = rep_after_verifier(1000, 1, 1, 0);
@@ -105,32 +113,32 @@ test "bad_verifier_is_locked_out" {
     const d3 = rep_after_verifier(d2, 1, 1, 0);
     const d4 = rep_after_verifier(d3, 1, 1, 0);
     const d5 = rep_after_verifier(d4, 1, 1, 0);
-    if (!(can_admit(d4, 50) == true)) @panic("after 4 dissents (62) still admissible");
-    if (!(can_admit(d5, 50) == false)) @panic("the fifth dissent (31) locks the verifier out");
+    if (!(can_admit(d4, 50) == true)) __t27_assert_fail("\n  after 4 dissents (62) still admissible:\n    can_admit(d4, 50) = {any}\n", .{ can_admit(d4, 50) });
+    if (!(can_admit(d5, 50) == false)) __t27_assert_fail("\n  the fifth dissent (31) locks the verifier out:\n    can_admit(d5, 50) = {any}\n", .{ can_admit(d5, 50) });
 }
 test "slash_has_memory_through_the_driver" {
     const r = rep_after_resolution(1000, RESOLVE_SLASH, 20);
-    if (!(rep_after_resolution(r, RESOLVE_HONEST, 20) == 520)) @panic("one honest job only partly repairs a proven slash");
+    if (!(rep_after_resolution(r, RESOLVE_HONEST, 20) == 520)) __t27_assert_fail("\n  one honest job only partly repairs a proven slash:\n    rep_after_resolution(r, RESOLVE_HONEST, 20) = {any}\n", .{ rep_after_resolution(r, RESOLVE_HONEST, 20) });
 }
 test "slash_halves" {
-    if (!(rep_after_slash(1000) == 500)) @panic("a slash halves reputation");
+    if (!(rep_after_slash(1000) == 500)) __t27_assert_fail("\n  a slash halves reputation:\n    rep_after_slash(1000) = {any}\n", .{ rep_after_slash(1000) });
     const r = rep_after_slash(1000);
-    if (!(rep_after_honest(r, 20) == 520)) @panic("one honest job only partly repairs a slash");
+    if (!(rep_after_honest(r, 20) == 520)) __t27_assert_fail("\n  one honest job only partly repairs a slash:\n    rep_after_honest(r, 20) = {any}\n", .{ rep_after_honest(r, 20) });
 }
 test "reputation_weights_the_split" {
     const honest = weighted_work(16, 1000);
     const slashed = weighted_work(16, 500);
-    if (!(honest > slashed)) @panic("same work, higher reputation => bigger pool weight");
-    if (!(honest == 16000)) @panic("weight = raw_work * reputation");
+    if (!(honest > slashed)) __t27_assert_fail("\n  same work, higher reputation => bigger pool weight:\n    honest = {any}\n    slashed = {any}\n", .{ honest, slashed });
+    if (!(honest == 16000)) __t27_assert_fail("\n  weight = raw_work * reputation:\n    honest = {any}\n", .{ honest });
 }
 test "zero_reputation_zero_weight" {
-    if (!(weighted_work(48, 0) == 0)) @panic("no reputation => no share");
+    if (!(weighted_work(48, 0) == 0)) __t27_assert_fail("\n  no reputation => no share:\n    weighted_work(48, 0) = {any}\n", .{ weighted_work(48, 0) });
 }
 test "admission_floor" {
-    if (!(can_admit(REP_INIT, 50) == true)) @panic("a fresh node (REP_INIT) is admissible");
-    if (!(can_admit(50, 50) == true)) @panic("exactly at the floor is admitted");
-    if (!(can_admit(49, 50) == false)) @panic("one below the floor is excluded");
-    if (!(can_admit(0, 50) == false)) @panic("a slashed-to-zero node cannot take work");
+    if (!(can_admit(REP_INIT, 50) == true)) __t27_assert_fail("\n  a fresh node (REP_INIT) is admissible:\n    can_admit(REP_INIT, 50) = {any}\n", .{ can_admit(REP_INIT, 50) });
+    if (!(can_admit(50, 50) == true)) __t27_assert_fail("\n  exactly at the floor is admitted:\n    can_admit(50, 50) = {any}\n", .{ can_admit(50, 50) });
+    if (!(can_admit(49, 50) == false)) __t27_assert_fail("\n  one below the floor is excluded:\n    can_admit(49, 50) = {any}\n", .{ can_admit(49, 50) });
+    if (!(can_admit(0, 50) == false)) __t27_assert_fail("\n  a slashed-to-zero node cannot take work:\n    can_admit(0, 50) = {any}\n", .{ can_admit(0, 50) });
 }
 test "repeated_fraud_locks_out" {
     const r1 = rep_after_resolution(1000, RESOLVE_SLASH, 0);
@@ -138,12 +146,12 @@ test "repeated_fraud_locks_out" {
     const r3 = rep_after_resolution(r2, RESOLVE_SLASH, 0);
     const r4 = rep_after_resolution(r3, RESOLVE_SLASH, 0);
     const r5 = rep_after_resolution(r4, RESOLVE_SLASH, 0);
-    if (!(can_admit(r4, 50) == true)) @panic("after 4 frauds (rep 62) still just admissible");
-    if (!(can_admit(r5, 50) == false)) @panic("the fifth proven fraud (rep 31) locks the node out");
+    if (!(can_admit(r4, 50) == true)) __t27_assert_fail("\n  after 4 frauds (rep 62) still just admissible:\n    can_admit(r4, 50) = {any}\n", .{ can_admit(r4, 50) });
+    if (!(can_admit(r5, 50) == false)) __t27_assert_fail("\n  the fifth proven fraud (rep 31) locks the node out:\n    can_admit(r5, 50) = {any}\n", .{ can_admit(r5, 50) });
 }
 test "weighted_work_saturates" {
-    if (!(weighted_work(16, 1000) == 16000)) @panic("normal weight is exact");
-    if (!(weighted_work(48, 0) == 0)) @panic("zero reputation -> zero weight (regression)");
-    if (!(weighted_work(100000, 1000) == 100000000)) @panic("1e5 * 1e3 = 1e8 fits, exact");
-    if (!(weighted_work(5000000, 1000) == 4294967295)) @panic("overflowing weight saturates to u32 max, no wrap");
+    if (!(weighted_work(16, 1000) == 16000)) __t27_assert_fail("\n  normal weight is exact:\n    weighted_work(16, 1000) = {any}\n", .{ weighted_work(16, 1000) });
+    if (!(weighted_work(48, 0) == 0)) __t27_assert_fail("\n  zero reputation -> zero weight (regression):\n    weighted_work(48, 0) = {any}\n", .{ weighted_work(48, 0) });
+    if (!(weighted_work(100000, 1000) == 100000000)) __t27_assert_fail("\n  1e5 * 1e3 = 1e8 fits, exact:\n    weighted_work(100000, 1000) = {any}\n", .{ weighted_work(100000, 1000) });
+    if (!(weighted_work(5000000, 1000) == 4294967295)) __t27_assert_fail("\n  overflowing weight saturates to u32 max, no wrap:\n    weighted_work(5000000, 1000) = {any}\n", .{ weighted_work(5000000, 1000) });
 }

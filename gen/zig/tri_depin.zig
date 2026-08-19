@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const TRI_GENESIS: u32 = 0x54524921;
@@ -53,40 +61,40 @@ fn bytes_add_verified(total: u32, nbytes: u32, computed_digest: u32, expected_di
 test "absorb_reproducible" {
     const a1 = relay_absorb(relay_absorb(TRI_GENESIS, 0xAAAA0001, 70), 0xBBBB0002, 140);
     const a2 = relay_absorb(relay_absorb(TRI_GENESIS, 0xAAAA0001, 70), 0xBBBB0002, 140);
-    if (!(a1 == a2)) @panic("reproducible");
+    if (!(a1 == a2)) __t27_assert_fail("\n  reproducible:\n    a1 = {any}\n    a2 = {any}\n", .{ a1, a2 });
 }
 test "absorb_tamper_evident" {
     const good = relay_absorb(relay_absorb(TRI_GENESIS, 0xAAAA0001, 70), 0xBBBB0002, 140);
     const bad = relay_absorb(relay_absorb(TRI_GENESIS, 0xAAAA0009, 70), 0xBBBB0002, 140);
-    if (!(good != bad)) @panic("tamper changes acc");
+    if (!(good != bad)) __t27_assert_fail("\n  tamper changes acc:\n    good = {any}\n    bad = {any}\n", .{ good, bad });
 }
 test "absorb_order_sensitive" {
     const ab = relay_absorb(relay_absorb(TRI_GENESIS, 0xAAAA0001, 70), 0xBBBB0002, 140);
     const ba = relay_absorb(relay_absorb(TRI_GENESIS, 0xBBBB0002, 140), 0xAAAA0001, 70);
-    if (!(ab != ba)) @panic("order matters");
+    if (!(ab != ba)) __t27_assert_fail("\n  order matters:\n    ab = {any}\n    ba = {any}\n", .{ ab, ba });
 }
 test "absorb_size_bound" {
     const small_acc = relay_absorb(TRI_GENESIS, 0xAAAA0001, 70);
     const big = relay_absorb(TRI_GENESIS, 0xAAAA0001, 1200);
-    if (!(small_acc != big)) @panic("bytes bound in acc");
+    if (!(small_acc != big)) __t27_assert_fail("\n  bytes bound in acc:\n    small_acc = {any}\n    big = {any}\n", .{ small_acc, big });
 }
 test "seal_identity_bound" {
     const acc = relay_absorb(TRI_GENESIS, 0xAAAA0001, 70);
     const sealA = epoch_seal(acc, 70, 0x1111AAAA, 42);
     const sealB = epoch_seal(acc, 70, 0x2222BBBB, 42);
-    if (!(sealA != sealB)) @panic("identity bound");
+    if (!(sealA != sealB)) __t27_assert_fail("\n  identity bound:\n    sealA = {any}\n    sealB = {any}\n", .{ sealA, sealB });
 }
 test "seal_epoch_bound" {
     const acc = relay_absorb(TRI_GENESIS, 0xAAAA0001, 70);
     const s1 = epoch_seal(acc, 70, 0x1111AAAA, 42);
     const s2 = epoch_seal(acc, 70, 0x1111AAAA, 43);
-    if (!(s1 != s2)) @panic("epoch bound");
+    if (!(s1 != s2)) __t27_assert_fail("\n  epoch bound:\n    s1 = {any}\n    s2 = {any}\n", .{ s1, s2 });
 }
 test "seal_total_bytes_bound" {
     const acc = relay_absorb(TRI_GENESIS, 0xAAAA0001, 70);
     const honest = epoch_seal(acc, 70, 0xCAFEF00D, 7);
     const inflated = epoch_seal(acc, 700000, 0xCAFEF00D, 7);
-    if (!(honest != inflated)) @panic("total_bytes bound");
+    if (!(honest != inflated)) __t27_assert_fail("\n  total_bytes bound:\n    honest = {any}\n    inflated = {any}\n", .{ honest, inflated });
 }
 test "verify_accepts_honest" {
     const acc = relay_absorb(relay_absorb(TRI_GENESIS, 0x11110001, 70), 0x22220002, 90);
@@ -101,59 +109,59 @@ test "verify_rejects_history_forgery" {
     const s = epoch_seal(acc, tot, 0xCAFEF00D, 7);
     const forged = relay_absorb(acc, 0x33330003, 90);
     const ok = verify_epoch(s, forged, tot, 0xCAFEF00D, 7);
-    if (!(ok == false)) @panic("rejects history forgery");
+    if (!(ok == false)) __t27_assert_fail("\n  rejects history forgery:\n    ok = {any}\n", .{ ok });
 }
 test "verify_rejects_byte_inflation" {
     const acc = relay_absorb(relay_absorb(TRI_GENESIS, 0x11110001, 70), 0x22220002, 90);
     const tot = bytes_add(bytes_add(0, 70), 90);
     const s = epoch_seal(acc, tot, 0xCAFEF00D, 7);
     const ok = verify_epoch(s, acc, 1600000, 0xCAFEF00D, 7);
-    if (!(ok == false)) @panic("rejects byte inflation");
+    if (!(ok == false)) __t27_assert_fail("\n  rejects byte inflation:\n    ok = {any}\n", .{ ok });
 }
 test "seal_no_free_mint" {
     const empty = epoch_seal(TRI_GENESIS, 0, 0xCAFEF00D, 7);
     const one = epoch_seal(relay_absorb(TRI_GENESIS, 0xAAAA0001, 70), 70, 0xCAFEF00D, 7);
-    if (!(empty != one)) @panic("no free mint");
+    if (!(empty != one)) __t27_assert_fail("\n  no free mint:\n    empty = {any}\n    one = {any}\n", .{ empty, one });
 }
 test "bytes_monotonic" {
     const t0 = bytes_add(0, 70);
     const t1 = bytes_add(t0, 140);
-    if (!(t1 > t0)) @panic("monotonic");
-    if (!(t0 == 70)) @panic("sum ok");
-    if (!(t1 == 210)) @panic("sum ok 2");
+    if (!(t1 > t0)) __t27_assert_fail("\n  monotonic:\n    t1 = {any}\n    t0 = {any}\n", .{ t1, t0 });
+    if (!(t0 == 70)) __t27_assert_fail("\n  sum ok:\n    t0 = {any}\n", .{ t0 });
+    if (!(t1 == 210)) __t27_assert_fail("\n  sum ok 2:\n    t1 = {any}\n", .{ t1 });
 }
 test "bytes_saturate" {
     const cap = bytes_add(0xFFFFFF00, 0x0000FFFF);
-    if (!(cap == 0xFFFFFFFF)) @panic("saturates");
+    if (!(cap == 0xFFFFFFFF)) __t27_assert_fail("\n  saturates:\n    cap = {any}\n", .{ cap });
 }
 test "mix_avalanche" {
     const m0 = mix32(0x00000000);
     const m1 = mix32(0x00000001);
-    if (!(m0 != m1)) @panic("one-bit input differs");
-    if (!(mix32(0x80000000) != mix32(0x00000000))) @panic("high bit differs");
+    if (!(m0 != m1)) __t27_assert_fail("\n  one-bit input differs:\n    m0 = {any}\n    m1 = {any}\n", .{ m0, m1 });
+    if (!(mix32(0x80000000) != mix32(0x00000000))) __t27_assert_fail("\n  high bit differs:\n    mix32(0x80000000) = {any}\n    mix32(0x00000000) = {any}\n", .{ mix32(0x80000000), mix32(0x00000000) });
 }
 test "verified_accepts_intact" {
     const clean = relay_absorb_verified(TRI_GENESIS, 0xABCD1234, 0xABCD1234, 200);
     const plain = relay_absorb(TRI_GENESIS, 0xABCD1234, 200);
-    if (!(clean == plain)) @panic("intact datagram metered normally");
-    if (!(clean != TRI_GENESIS)) @panic("accumulator advanced");
+    if (!(clean == plain)) __t27_assert_fail("\n  intact datagram metered normally:\n    clean = {any}\n    plain = {any}\n", .{ clean, plain });
+    if (!(clean != TRI_GENESIS)) __t27_assert_fail("\n  accumulator advanced:\n    clean = {any}\n    TRI_GENESIS = {any}\n", .{ clean, TRI_GENESIS });
 }
 test "verified_drops_corrupt" {
     const acc = relay_absorb_verified(TRI_GENESIS, 0xDEADBEEF, 0xABCD1234, 200);
     const tot = bytes_add_verified(0, 200, 0xDEADBEEF, 0xABCD1234);
-    if (!(acc == TRI_GENESIS)) @panic("corrupt datagram dropped from acc");
-    if (!(tot == 0)) @panic("corrupt datagram not counted");
+    if (!(acc == TRI_GENESIS)) __t27_assert_fail("\n  corrupt datagram dropped from acc:\n    acc = {any}\n    TRI_GENESIS = {any}\n", .{ acc, TRI_GENESIS });
+    if (!(tot == 0)) __t27_assert_fail("\n  corrupt datagram not counted:\n    tot = {any}\n", .{ tot });
 }
 test "verified_lossy_equals_clean_subset" {
     const subset = relay_absorb(relay_absorb(TRI_GENESIS, 0x11110001, 70), 0x33330003, 90);
     const s1 = relay_absorb_verified(TRI_GENESIS, 0x11110001, 0x11110001, 70);
     const s2 = relay_absorb_verified(s1, 0x22220002, 0x2222FFFF, 80);
     const s3 = relay_absorb_verified(s2, 0x33330003, 0x33330003, 90);
-    if (!(s3 == subset)) @panic("lossy stream == clean subset");
+    if (!(s3 == subset)) __t27_assert_fail("\n  lossy stream == clean subset:\n    s3 = {any}\n    subset = {any}\n", .{ s3, subset });
 }
 test "verified_bytes_only_clean" {
     const b1 = bytes_add_verified(0, 70, 0x11110001, 0x11110001);
     const b2 = bytes_add_verified(b1, 80, 0x22220002, 0x2222FFFF);
     const b3 = bytes_add_verified(b2, 90, 0x33330003, 0x33330003);
-    if (!(b3 == 160)) @panic("only 70+90 counted, corrupted 80 excluded");
+    if (!(b3 == 160)) __t27_assert_fail("\n  only 70+90 counted, corrupted 80 excluded:\n    b3 = {any}\n", .{ b3 });
 }

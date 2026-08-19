@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MANT_ONE: u32 = 512;
@@ -117,52 +125,52 @@ fn gft_dot4_mant_p(o0: u32, m0: u32, o1: u32, m1: u32, o2: u32, m2: u32, o3: u32
     return gft_add_mant_c_p(s01o, s23o, s01m, s23m, mant_one, sig_bits);
 }
 test "add_doubles" {
-    if (!(gft_add_offset_c(40, 40, 0, 0, 80) == 41)) @panic("1.0 + 1.0 = 2.0 -> exponent 41");
-    if (!(gft_add_mant_c(40, 40, 0, 0) == 0)) @panic("2.0 mantissa 0");
-    if (!(gft_add_offset_c(40, 40, 256, 256, 80) == 41)) @panic("1.5 + 1.5 = 3.0 -> exponent 41");
-    if (!(gft_add_mant_c(40, 40, 256, 256) == 256)) @panic("3.0 = 1.5 * 2^1 -> mantissa 256");
+    if (!(gft_add_offset_c(40, 40, 0, 0, 80) == 41)) __t27_assert_fail("\n  1.0 + 1.0 = 2.0 -> exponent 41:\n    gft_add_offset_c(40, 40, 0, 0, 80) = {any}\n", .{ gft_add_offset_c(40, 40, 0, 0, 80) });
+    if (!(gft_add_mant_c(40, 40, 0, 0) == 0)) __t27_assert_fail("\n  2.0 mantissa 0:\n    gft_add_mant_c(40, 40, 0, 0) = {any}\n", .{ gft_add_mant_c(40, 40, 0, 0) });
+    if (!(gft_add_offset_c(40, 40, 256, 256, 80) == 41)) __t27_assert_fail("\n  1.5 + 1.5 = 3.0 -> exponent 41:\n    gft_add_offset_c(40, 40, 256, 256, 80) = {any}\n", .{ gft_add_offset_c(40, 40, 256, 256, 80) });
+    if (!(gft_add_mant_c(40, 40, 256, 256) == 256)) __t27_assert_fail("\n  3.0 = 1.5 * 2^1 -> mantissa 256:\n    gft_add_mant_c(40, 40, 256, 256) = {any}\n", .{ gft_add_mant_c(40, 40, 256, 256) });
 }
 test "add_aligns" {
-    if (!(gft_add_offset_c(40, 39, 0, 0, 80) == 40)) @panic("1.0 + 0.5 = 1.5 -> exponent 40");
-    if (!(gft_add_mant_c(40, 39, 0, 0) == 256)) @panic("1.5 -> mantissa 256");
-    if (!(gft_add_offset_c(39, 40, 0, 0, 80) == 40)) @panic("0.5 + 1.0 == 1.0 + 0.5 (offset)");
-    if (!(gft_add_mant_c(39, 40, 0, 0) == 256)) @panic("0.5 + 1.0 == 1.0 + 0.5 (mant)");
+    if (!(gft_add_offset_c(40, 39, 0, 0, 80) == 40)) __t27_assert_fail("\n  1.0 + 0.5 = 1.5 -> exponent 40:\n    gft_add_offset_c(40, 39, 0, 0, 80) = {any}\n", .{ gft_add_offset_c(40, 39, 0, 0, 80) });
+    if (!(gft_add_mant_c(40, 39, 0, 0) == 256)) __t27_assert_fail("\n  1.5 -> mantissa 256:\n    gft_add_mant_c(40, 39, 0, 0) = {any}\n", .{ gft_add_mant_c(40, 39, 0, 0) });
+    if (!(gft_add_offset_c(39, 40, 0, 0, 80) == 40)) __t27_assert_fail("\n  0.5 + 1.0 == 1.0 + 0.5 (offset):\n    gft_add_offset_c(39, 40, 0, 0, 80) = {any}\n", .{ gft_add_offset_c(39, 40, 0, 0, 80) });
+    if (!(gft_add_mant_c(39, 40, 0, 0) == 256)) __t27_assert_fail("\n  0.5 + 1.0 == 1.0 + 0.5 (mant):\n    gft_add_mant_c(39, 40, 0, 0) = {any}\n", .{ gft_add_mant_c(39, 40, 0, 0) });
 }
 test "add_absorbs_small" {
-    if (!(gft_add_offset_c(60, 40, 100, 200, 80) == 60)) @panic("big + tiny keeps big's exponent");
-    if (!(gft_add_mant_c(60, 40, 100, 200) == 100)) @panic("big + tiny keeps big's mantissa");
+    if (!(gft_add_offset_c(60, 40, 100, 200, 80) == 60)) __t27_assert_fail("\n  big + tiny keeps big's exponent:\n    gft_add_offset_c(60, 40, 100, 200, 80) = {any}\n", .{ gft_add_offset_c(60, 40, 100, 200, 80) });
+    if (!(gft_add_mant_c(60, 40, 100, 200) == 100)) __t27_assert_fail("\n  big + tiny keeps big's mantissa:\n    gft_add_mant_c(60, 40, 100, 200) = {any}\n", .{ gft_add_mant_c(60, 40, 100, 200) });
 }
 test "verify_catches_add_fraud" {
-    if (!(verify_gft_add(40, 40, 0, 0, 41, 0, 80) == true)) @panic("honest 1.0+1.0=2.0 accepted");
-    if (!(verify_gft_add(40, 40, 0, 0, 40, 0, 80) == false)) @panic("wrong exponent (missed carry) rejected");
-    if (!(verify_gft_add(40, 39, 0, 0, 40, 255, 80) == false)) @panic("wrong mantissa rejected");
+    if (!(verify_gft_add(40, 40, 0, 0, 41, 0, 80) == true)) __t27_assert_fail("\n  honest 1.0+1.0=2.0 accepted:\n    verify_gft_add(40, 40, 0, 0, 41, 0, 80) = {any}\n", .{ verify_gft_add(40, 40, 0, 0, 41, 0, 80) });
+    if (!(verify_gft_add(40, 40, 0, 0, 40, 0, 80) == false)) __t27_assert_fail("\n  wrong exponent (missed carry) rejected:\n    verify_gft_add(40, 40, 0, 0, 40, 0, 80) = {any}\n", .{ verify_gft_add(40, 40, 0, 0, 40, 0, 80) });
+    if (!(verify_gft_add(40, 39, 0, 0, 40, 255, 80) == false)) __t27_assert_fail("\n  wrong mantissa rejected:\n    verify_gft_add(40, 39, 0, 0, 40, 255, 80) = {any}\n", .{ verify_gft_add(40, 39, 0, 0, 40, 255, 80) });
 }
 test "per_rung_add" {
-    if (!(gft_add_offset_p(40, 40, 0, 0, 80, 512, 10) == 41)) @panic("GF-T16 1.0+1.0=2.0 -> offset 41");
-    if (!(gft_add_mant_p(40, 40, 0, 0, 512, 10) == 0)) @panic("GF-T16 2.0 mantissa 0");
-    if (!(verify_gft_add_p(13, 13, 0, 0, 14, 0, 26, 16, 5) == true)) @panic("GF-T8 1.0+1.0 = exp 14, mant 0");
-    if (!(verify_gft_add_p(13, 12, 0, 0, 13, 8, 26, 16, 5) == true)) @panic("GF-T8 1.0+0.5 = 1.5 (M 8), exp 13");
-    if (!(verify_gft_add_p(13, 13, 0, 0, 13, 0, 26, 16, 5) == false)) @panic("GF-T8 missed carry rejected");
-    if (!(verify_gft_add_p(4, 4, 0, 0, 5, 0, 8, 2, 2) == true)) @panic("GF-T4 1.0+1.0 = exp 5, mant 0");
+    if (!(gft_add_offset_p(40, 40, 0, 0, 80, 512, 10) == 41)) __t27_assert_fail("\n  GF-T16 1.0+1.0=2.0 -> offset 41:\n    gft_add_offset_p(40, 40, 0, 0, 80, 512, 10) = {any}\n", .{ gft_add_offset_p(40, 40, 0, 0, 80, 512, 10) });
+    if (!(gft_add_mant_p(40, 40, 0, 0, 512, 10) == 0)) __t27_assert_fail("\n  GF-T16 2.0 mantissa 0:\n    gft_add_mant_p(40, 40, 0, 0, 512, 10) = {any}\n", .{ gft_add_mant_p(40, 40, 0, 0, 512, 10) });
+    if (!(verify_gft_add_p(13, 13, 0, 0, 14, 0, 26, 16, 5) == true)) __t27_assert_fail("\n  GF-T8 1.0+1.0 = exp 14, mant 0:\n    verify_gft_add_p(13, 13, 0, 0, 14, 0, 26, 16, 5) = {any}\n", .{ verify_gft_add_p(13, 13, 0, 0, 14, 0, 26, 16, 5) });
+    if (!(verify_gft_add_p(13, 12, 0, 0, 13, 8, 26, 16, 5) == true)) __t27_assert_fail("\n  GF-T8 1.0+0.5 = 1.5 (M 8), exp 13:\n    verify_gft_add_p(13, 12, 0, 0, 13, 8, 26, 16, 5) = {any}\n", .{ verify_gft_add_p(13, 12, 0, 0, 13, 8, 26, 16, 5) });
+    if (!(verify_gft_add_p(13, 13, 0, 0, 13, 0, 26, 16, 5) == false)) __t27_assert_fail("\n  GF-T8 missed carry rejected:\n    verify_gft_add_p(13, 13, 0, 0, 13, 0, 26, 16, 5) = {any}\n", .{ verify_gft_add_p(13, 13, 0, 0, 13, 0, 26, 16, 5) });
+    if (!(verify_gft_add_p(4, 4, 0, 0, 5, 0, 8, 2, 2) == true)) __t27_assert_fail("\n  GF-T4 1.0+1.0 = exp 5, mant 0:\n    verify_gft_add_p(4, 4, 0, 0, 5, 0, 8, 2, 2) = {any}\n", .{ verify_gft_add_p(4, 4, 0, 0, 5, 0, 8, 2, 2) });
 }
 test "gft32_add" {
-    if (!(verify_gft_add_p(364, 364, 0, 0, 365, 0, 728, 33554432, 26) == true)) @panic("GF-T32 1.0+1.0 = 2.0 -> offset 365");
-    if (!(gft_add_mant_c_p(364, 364, 0, 0, 33554432, 26) == 0)) @panic("GF-T32 2.0 mantissa 0");
-    if (!(verify_gft_add_p(364, 364, 0, 0, 364, 0, 728, 33554432, 26) == false)) @panic("GF-T32 missed carry rejected");
+    if (!(verify_gft_add_p(364, 364, 0, 0, 365, 0, 728, 33554432, 26) == true)) __t27_assert_fail("\n  GF-T32 1.0+1.0 = 2.0 -> offset 365:\n    verify_gft_add_p(364, 364, 0, 0, 365, 0, 728, 33554432, 26) = {any}\n", .{ verify_gft_add_p(364, 364, 0, 0, 365, 0, 728, 33554432, 26) });
+    if (!(gft_add_mant_c_p(364, 364, 0, 0, 33554432, 26) == 0)) __t27_assert_fail("\n  GF-T32 2.0 mantissa 0:\n    gft_add_mant_c_p(364, 364, 0, 0, 33554432, 26) = {any}\n", .{ gft_add_mant_c_p(364, 364, 0, 0, 33554432, 26) });
+    if (!(verify_gft_add_p(364, 364, 0, 0, 364, 0, 728, 33554432, 26) == false)) __t27_assert_fail("\n  GF-T32 missed carry rejected:\n    verify_gft_add_p(364, 364, 0, 0, 364, 0, 728, 33554432, 26) = {any}\n", .{ verify_gft_add_p(364, 364, 0, 0, 364, 0, 728, 33554432, 26) });
 }
 test "dot4_uses_the_canonical_tree_order" {
-    if (!(gft_dot4_offset(40, 64, 45, 0, 46, 256, 40, 64, 80) == 47)) @panic("tree dot4 offset 47");
-    if (!(gft_dot4_mant(40, 64, 45, 0, 46, 256, 40, 64, 80) == 9)) @panic("tree dot4 mantissa 9 (the left fold's 8 is wrong)");
-    if (!(gft_dot4_offset(40, 0, 40, 0, 40, 0, 40, 0, 80) == 42)) @panic("4 x 1.0 = 4.0 -> offset 42");
-    if (!(gft_dot4_mant(40, 0, 40, 0, 40, 0, 40, 0, 80) == 0)) @panic("4.0 mantissa 0");
+    if (!(gft_dot4_offset(40, 64, 45, 0, 46, 256, 40, 64, 80) == 47)) __t27_assert_fail("\n  tree dot4 offset 47:\n    gft_dot4_offset(40, 64, 45, 0, 46, 256, 40, 64, 80) = {any}\n", .{ gft_dot4_offset(40, 64, 45, 0, 46, 256, 40, 64, 80) });
+    if (!(gft_dot4_mant(40, 64, 45, 0, 46, 256, 40, 64, 80) == 9)) __t27_assert_fail("\n  tree dot4 mantissa 9 (the left fold's 8 is wrong):\n    gft_dot4_mant(40, 64, 45, 0, 46, 256, 40, 64, 80) = {any}\n", .{ gft_dot4_mant(40, 64, 45, 0, 46, 256, 40, 64, 80) });
+    if (!(gft_dot4_offset(40, 0, 40, 0, 40, 0, 40, 0, 80) == 42)) __t27_assert_fail("\n  4 x 1.0 = 4.0 -> offset 42:\n    gft_dot4_offset(40, 0, 40, 0, 40, 0, 40, 0, 80) = {any}\n", .{ gft_dot4_offset(40, 0, 40, 0, 40, 0, 40, 0, 80) });
+    if (!(gft_dot4_mant(40, 0, 40, 0, 40, 0, 40, 0, 80) == 0)) __t27_assert_fail("\n  4.0 mantissa 0:\n    gft_dot4_mant(40, 0, 40, 0, 40, 0, 40, 0, 80) = {any}\n", .{ gft_dot4_mant(40, 0, 40, 0, 40, 0, 40, 0, 80) });
 }
 test "dot4_p_canonical_tree_per_rung" {
-    if (!(gft_dot4_offset_p(40, 64, 45, 0, 46, 256, 40, 64, 80, 512, 10) == 47)) @panic("GF-T16 _p tree offset 47");
-    if (!(gft_dot4_mant_p(40, 64, 45, 0, 46, 256, 40, 64, 80, 512, 10) == 9)) @panic("GF-T16 _p tree mantissa 9");
-    if (!(gft_dot4_offset_p(13, 0, 13, 0, 13, 0, 13, 0, 26, 16, 5) == 15)) @panic("GF-T8 4 x 1.0 = 4.0 -> offset 15");
-    if (!(gft_dot4_mant_p(13, 0, 13, 0, 13, 0, 13, 0, 26, 16, 5) == 0)) @panic("GF-T8 4.0 mantissa 0");
-    if (!(gft_dot4_offset_p(364, 0, 364, 0, 364, 0, 364, 0, 728, 33554432, 26) == 366)) @panic("GF-T32 4 x 1.0 = 4.0 -> offset 366");
-    if (!(gft_dot4_mant_p(364, 0, 364, 0, 364, 0, 364, 0, 728, 33554432, 26) == 0)) @panic("GF-T32 4.0 mantissa 0");
+    if (!(gft_dot4_offset_p(40, 64, 45, 0, 46, 256, 40, 64, 80, 512, 10) == 47)) __t27_assert_fail("\n  GF-T16 _p tree offset 47:\n    gft_dot4_offset_p(40, 64, 45, 0, 46, 256, 40, 64, 80, 512, 10) = {any}\n", .{ gft_dot4_offset_p(40, 64, 45, 0, 46, 256, 40, 64, 80, 512, 10) });
+    if (!(gft_dot4_mant_p(40, 64, 45, 0, 46, 256, 40, 64, 80, 512, 10) == 9)) __t27_assert_fail("\n  GF-T16 _p tree mantissa 9:\n    gft_dot4_mant_p(40, 64, 45, 0, 46, 256, 40, 64, 80, 512, 10) = {any}\n", .{ gft_dot4_mant_p(40, 64, 45, 0, 46, 256, 40, 64, 80, 512, 10) });
+    if (!(gft_dot4_offset_p(13, 0, 13, 0, 13, 0, 13, 0, 26, 16, 5) == 15)) __t27_assert_fail("\n  GF-T8 4 x 1.0 = 4.0 -> offset 15:\n    gft_dot4_offset_p(13, 0, 13, 0, 13, 0, 13, 0, 26, 16, 5) = {any}\n", .{ gft_dot4_offset_p(13, 0, 13, 0, 13, 0, 13, 0, 26, 16, 5) });
+    if (!(gft_dot4_mant_p(13, 0, 13, 0, 13, 0, 13, 0, 26, 16, 5) == 0)) __t27_assert_fail("\n  GF-T8 4.0 mantissa 0:\n    gft_dot4_mant_p(13, 0, 13, 0, 13, 0, 13, 0, 26, 16, 5) = {any}\n", .{ gft_dot4_mant_p(13, 0, 13, 0, 13, 0, 13, 0, 26, 16, 5) });
+    if (!(gft_dot4_offset_p(364, 0, 364, 0, 364, 0, 364, 0, 728, 33554432, 26) == 366)) __t27_assert_fail("\n  GF-T32 4 x 1.0 = 4.0 -> offset 366:\n    gft_dot4_offset_p(364, 0, 364, 0, 364, 0, 364, 0, 728, 33554432, 26) = {any}\n", .{ gft_dot4_offset_p(364, 0, 364, 0, 364, 0, 364, 0, 728, 33554432, 26) });
+    if (!(gft_dot4_mant_p(364, 0, 364, 0, 364, 0, 364, 0, 728, 33554432, 26) == 0)) __t27_assert_fail("\n  GF-T32 4.0 mantissa 0:\n    gft_dot4_mant_p(364, 0, 364, 0, 364, 0, 364, 0, 728, 33554432, 26) = {any}\n", .{ gft_dot4_mant_p(364, 0, 364, 0, 364, 0, 364, 0, 728, 33554432, 26) });
 }
 fn bench_add_mantissa_sweep() void {
     // bench: add_mantissa_sweep
@@ -183,21 +191,21 @@ fn bench_add_mantissa_sweep() void {
     const m13 = gft_add_mant(40, 40, 416, 224);
     const m14 = gft_add_mant(40, 40, 448, 320);
     const m15 = gft_add_mant(40, 40, 480, 416);
-    if (!(m0 == 0)) @panic("1.0+1.0 -> mantissa 0 with carry");
-    if (!(o0 == 41)) @panic("1.0+1.0 -> offset 41");
-    if (!(m1 == 64)) @panic("sweep step 1: (32+96)/2");
-    if (!(m2 == 128)) @panic("sweep step 2: (64+192)/2");
-    if (!(m3 == 192)) @panic("sweep step 3: (96+288)/2");
-    if (!(m4 == 256)) @panic("sweep step 4: (128+384)/2");
-    if (!(m5 == 320)) @panic("sweep step 5: (160+480)/2");
-    if (!(m6 == 128)) @panic("sweep step 6: (192+64)/2");
-    if (!(m7 == 192)) @panic("sweep step 7: (224+160)/2");
-    if (!(m8 == 256)) @panic("sweep step 8: (256+256)/2");
-    if (!(m9 == 320)) @panic("sweep step 9: (288+352)/2");
-    if (!(m10 == 384)) @panic("sweep step 10: (320+448)/2");
-    if (!(m11 == 192)) @panic("sweep step 11: (352+32)/2");
-    if (!(m12 == 256)) @panic("sweep step 12: (384+128)/2");
-    if (!(m13 == 320)) @panic("sweep step 13: (416+224)/2");
-    if (!(m14 == 384)) @panic("sweep step 14: (448+320)/2");
-    if (!(m15 == 448)) @panic("sweep step 15: (480+416)/2");
+    if (!(m0 == 0)) __t27_assert_fail("\n  1.0+1.0 -> mantissa 0 with carry:\n    m0 = {any}\n", .{ m0 });
+    if (!(o0 == 41)) __t27_assert_fail("\n  1.0+1.0 -> offset 41:\n    o0 = {any}\n", .{ o0 });
+    if (!(m1 == 64)) __t27_assert_fail("\n  sweep step 1: (32+96)/2:\n    m1 = {any}\n", .{ m1 });
+    if (!(m2 == 128)) __t27_assert_fail("\n  sweep step 2: (64+192)/2:\n    m2 = {any}\n", .{ m2 });
+    if (!(m3 == 192)) __t27_assert_fail("\n  sweep step 3: (96+288)/2:\n    m3 = {any}\n", .{ m3 });
+    if (!(m4 == 256)) __t27_assert_fail("\n  sweep step 4: (128+384)/2:\n    m4 = {any}\n", .{ m4 });
+    if (!(m5 == 320)) __t27_assert_fail("\n  sweep step 5: (160+480)/2:\n    m5 = {any}\n", .{ m5 });
+    if (!(m6 == 128)) __t27_assert_fail("\n  sweep step 6: (192+64)/2:\n    m6 = {any}\n", .{ m6 });
+    if (!(m7 == 192)) __t27_assert_fail("\n  sweep step 7: (224+160)/2:\n    m7 = {any}\n", .{ m7 });
+    if (!(m8 == 256)) __t27_assert_fail("\n  sweep step 8: (256+256)/2:\n    m8 = {any}\n", .{ m8 });
+    if (!(m9 == 320)) __t27_assert_fail("\n  sweep step 9: (288+352)/2:\n    m9 = {any}\n", .{ m9 });
+    if (!(m10 == 384)) __t27_assert_fail("\n  sweep step 10: (320+448)/2:\n    m10 = {any}\n", .{ m10 });
+    if (!(m11 == 192)) __t27_assert_fail("\n  sweep step 11: (352+32)/2:\n    m11 = {any}\n", .{ m11 });
+    if (!(m12 == 256)) __t27_assert_fail("\n  sweep step 12: (384+128)/2:\n    m12 = {any}\n", .{ m12 });
+    if (!(m13 == 320)) __t27_assert_fail("\n  sweep step 13: (416+224)/2:\n    m13 = {any}\n", .{ m13 });
+    if (!(m14 == 384)) __t27_assert_fail("\n  sweep step 14: (448+320)/2:\n    m14 = {any}\n", .{ m14 });
+    if (!(m15 == 448)) __t27_assert_fail("\n  sweep step 15: (480+416)/2:\n    m15 = {any}\n", .{ m15 });
 }

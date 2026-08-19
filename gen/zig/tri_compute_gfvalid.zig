@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 fn is_finite_gf(result: u32, exp_bits: u32, mant_bits: u32) bool {
@@ -108,87 +116,87 @@ fn is_finite_dispatch(fmt_family: u32, value: u32, exp_bits: u32, mant_bits: u32
     }
 }
 test "gf16_specials" {
-    if (!(is_finite_gf(0x4200, 6, 9) == true)) @panic("GF16 4.0 finite");
-    if (!(is_finite_gf(0x7E00, 6, 9) == false)) @panic("GF16 +inf (exp all-ones)");
-    if (!(is_finite_gf(0x7E01, 6, 9) == false)) @panic("GF16 NaN");
-    if (!(is_finite_gf(0xFE00, 6, 9) == false)) @panic("GF16 -inf");
+    if (!(is_finite_gf(0x4200, 6, 9) == true)) __t27_assert_fail("\n  GF16 4.0 finite:\n    is_finite_gf(0x4200, 6, 9) = {any}\n", .{ is_finite_gf(0x4200, 6, 9) });
+    if (!(is_finite_gf(0x7E00, 6, 9) == false)) __t27_assert_fail("\n  GF16 +inf (exp all-ones):\n    is_finite_gf(0x7E00, 6, 9) = {any}\n", .{ is_finite_gf(0x7E00, 6, 9) });
+    if (!(is_finite_gf(0x7E01, 6, 9) == false)) __t27_assert_fail("\n  GF16 NaN:\n    is_finite_gf(0x7E01, 6, 9) = {any}\n", .{ is_finite_gf(0x7E01, 6, 9) });
+    if (!(is_finite_gf(0xFE00, 6, 9) == false)) __t27_assert_fail("\n  GF16 -inf:\n    is_finite_gf(0xFE00, 6, 9) = {any}\n", .{ is_finite_gf(0xFE00, 6, 9) });
 }
 test "gf8_specials" {
-    if (!(is_finite_gf(0x20, 3, 4) == true)) @panic("GF8 finite (exp=2)");
-    if (!(is_finite_gf(0x70, 3, 4) == false)) @panic("GF8 +inf (exp=7, mant=0)");
-    if (!(is_finite_gf(0x71, 3, 4) == false)) @panic("GF8 NaN (exp=7, mant!=0)");
+    if (!(is_finite_gf(0x20, 3, 4) == true)) __t27_assert_fail("\n  GF8 finite (exp=2):\n    is_finite_gf(0x20, 3, 4) = {any}\n", .{ is_finite_gf(0x20, 3, 4) });
+    if (!(is_finite_gf(0x70, 3, 4) == false)) __t27_assert_fail("\n  GF8 +inf (exp=7, mant=0):\n    is_finite_gf(0x70, 3, 4) = {any}\n", .{ is_finite_gf(0x70, 3, 4) });
+    if (!(is_finite_gf(0x71, 3, 4) == false)) __t27_assert_fail("\n  GF8 NaN (exp=7, mant!=0):\n    is_finite_gf(0x71, 3, 4) = {any}\n", .{ is_finite_gf(0x71, 3, 4) });
 }
 test "gf4_specials" {
-    if (!(is_finite_gf(0x1, 1, 2) == true)) @panic("GF4 finite (exp=0)");
-    if (!(is_finite_gf(0x4, 1, 2) == false)) @panic("GF4 special (exp=1)");
+    if (!(is_finite_gf(0x1, 1, 2) == true)) __t27_assert_fail("\n  GF4 finite (exp=0):\n    is_finite_gf(0x1, 1, 2) = {any}\n", .{ is_finite_gf(0x1, 1, 2) });
+    if (!(is_finite_gf(0x4, 1, 2) == false)) __t27_assert_fail("\n  GF4 special (exp=1):\n    is_finite_gf(0x4, 1, 2) = {any}\n", .{ is_finite_gf(0x4, 1, 2) });
 }
 test "gf14_specials" {
-    if (!(is_finite_gf(0x0100, 5, 8) == true)) @panic("GF14 finite (exp=1)");
-    if (!(is_finite_gf(0x1F00, 5, 8) == false)) @panic("GF14 +inf (exp=31)");
+    if (!(is_finite_gf(0x0100, 5, 8) == true)) __t27_assert_fail("\n  GF14 finite (exp=1):\n    is_finite_gf(0x0100, 5, 8) = {any}\n", .{ is_finite_gf(0x0100, 5, 8) });
+    if (!(is_finite_gf(0x1F00, 5, 8) == false)) __t27_assert_fail("\n  GF14 +inf (exp=31):\n    is_finite_gf(0x1F00, 5, 8) = {any}\n", .{ is_finite_gf(0x1F00, 5, 8) });
 }
 test "gft16_specials" {
-    if (!(is_finite_gft16(40) == true)) @panic("GF-T16 unity exponent finite");
-    if (!(is_finite_gft16(79) == true)) @panic("GF-T16 near-top finite");
-    if (!(is_finite_gft16(80) == false)) @panic("GF-T16 offset 80 is special");
+    if (!(is_finite_gft16(40) == true)) __t27_assert_fail("\n  GF-T16 unity exponent finite:\n    is_finite_gft16(40) = {any}\n", .{ is_finite_gft16(40) });
+    if (!(is_finite_gft16(79) == true)) __t27_assert_fail("\n  GF-T16 near-top finite:\n    is_finite_gft16(79) = {any}\n", .{ is_finite_gft16(79) });
+    if (!(is_finite_gft16(80) == false)) __t27_assert_fail("\n  GF-T16 offset 80 is special:\n    is_finite_gft16(80) = {any}\n", .{ is_finite_gft16(80) });
 }
 test "gft_ladder_finiteness" {
-    if (!(gft_offset_max(2) == 8)) @panic("GF-T4  special row = 3^2-1 = 8");
-    if (!(gft_offset_max(3) == 26)) @panic("GF-T8  special row = 3^3-1 = 26");
-    if (!(gft_offset_max(4) == 80)) @panic("GF-T16 special row = 3^4-1 = 80");
-    if (!(gft_offset_max(6) == 728)) @panic("GF-T32 special row = 3^6-1 = 728 (Et6, golden rule)");
-    if (!(gft_offset_max(9) == 19682)) @panic("GF-T64 special row = 3^9-1 = 19682");
-    if (!(is_finite_gft_n(7, 2) == true)) @panic("GF-T4 offset 7 finite");
-    if (!(is_finite_gft_n(8, 2) == false)) @panic("GF-T4 offset 8 is special");
-    if (!(is_finite_gft_n(728, 6) == false)) @panic("GF-T32 offset 728 is special");
-    if (!(is_finite_gft_n(242, 6) == true)) @panic("GF-T32 offset 242 is a NORMAL value (Et6), not special");
-    if (!(is_finite_gft_n(80, 4) == is_finite_gft16(80))) @panic("the alias is the Et=4 case");
-    if (!(is_finite_gft_n(40, 4) == is_finite_gft16(40))) @panic("alias agrees on finite too");
+    if (!(gft_offset_max(2) == 8)) __t27_assert_fail("\n  GF-T4  special row = 3^2-1 = 8:\n    gft_offset_max(2) = {any}\n", .{ gft_offset_max(2) });
+    if (!(gft_offset_max(3) == 26)) __t27_assert_fail("\n  GF-T8  special row = 3^3-1 = 26:\n    gft_offset_max(3) = {any}\n", .{ gft_offset_max(3) });
+    if (!(gft_offset_max(4) == 80)) __t27_assert_fail("\n  GF-T16 special row = 3^4-1 = 80:\n    gft_offset_max(4) = {any}\n", .{ gft_offset_max(4) });
+    if (!(gft_offset_max(6) == 728)) __t27_assert_fail("\n  GF-T32 special row = 3^6-1 = 728 (Et6, golden rule):\n    gft_offset_max(6) = {any}\n", .{ gft_offset_max(6) });
+    if (!(gft_offset_max(9) == 19682)) __t27_assert_fail("\n  GF-T64 special row = 3^9-1 = 19682:\n    gft_offset_max(9) = {any}\n", .{ gft_offset_max(9) });
+    if (!(is_finite_gft_n(7, 2) == true)) __t27_assert_fail("\n  GF-T4 offset 7 finite:\n    is_finite_gft_n(7, 2) = {any}\n", .{ is_finite_gft_n(7, 2) });
+    if (!(is_finite_gft_n(8, 2) == false)) __t27_assert_fail("\n  GF-T4 offset 8 is special:\n    is_finite_gft_n(8, 2) = {any}\n", .{ is_finite_gft_n(8, 2) });
+    if (!(is_finite_gft_n(728, 6) == false)) __t27_assert_fail("\n  GF-T32 offset 728 is special:\n    is_finite_gft_n(728, 6) = {any}\n", .{ is_finite_gft_n(728, 6) });
+    if (!(is_finite_gft_n(242, 6) == true)) __t27_assert_fail("\n  GF-T32 offset 242 is a NORMAL value (Et6), not special:\n    is_finite_gft_n(242, 6) = {any}\n", .{ is_finite_gft_n(242, 6) });
+    if (!(is_finite_gft_n(80, 4) == is_finite_gft16(80))) __t27_assert_fail("\n  the alias is the Et=4 case:\n    is_finite_gft_n(80, 4) = {any}\n    is_finite_gft16(80) = {any}\n", .{ is_finite_gft_n(80, 4), is_finite_gft16(80) });
+    if (!(is_finite_gft_n(40, 4) == is_finite_gft16(40))) __t27_assert_fail("\n  alias agrees on finite too:\n    is_finite_gft_n(40, 4) = {any}\n    is_finite_gft16(40) = {any}\n", .{ is_finite_gft_n(40, 4), is_finite_gft16(40) });
 }
 test "offset_max_from_width_is_bound_and_fail_closed" {
-    if (!(gft_exp_trits_for_width(8) == 3)) @panic("GF-T8 uses 3 exponent trits");
-    if (!(gft_exp_trits_for_width(16) == 4)) @panic("GF-T16 uses 4 exponent trits");
-    if (!(gft_offset_max_for_width(4) == 8)) @panic("GF-T4 special row via width");
-    if (!(gft_offset_max_for_width(8) == 26)) @panic("GF-T8 special row via width");
-    if (!(gft_offset_max_for_width(16) == 80)) @panic("GF-T16 special row via width");
-    if (!(gft_offset_max_for_width(32) == 728)) @panic("GF-T32 special row via width (Et6, golden rule)");
-    if (!(gft_offset_max_for_width(64) == 19682)) @panic("GF-T64 special row via width");
-    if (!(gft_offset_max_for_width(128) == 4782968)) @panic("GF-T128 special row via width");
-    if (!(gft_offset_max_for_width(16) == gft_offset_max(4))) @panic("width 16 -> Et 4 -> 80");
-    if (!(gft_offset_max_for_width(32) == gft_offset_max(6))) @panic("width 32 -> Et 6 -> 728");
-    if (!(gft_offset_max_for_width(0) == 0)) @panic("width 0 -> fail-closed offset_max 0");
-    if (!(gft_offset_max_for_width(7) == 0)) @panic("an off-ladder width -> fail-closed 0");
-    if (!(gft_offset_max_for_width(4294967295) == 0)) @panic("a garbage width -> fail-closed 0, no underflow");
+    if (!(gft_exp_trits_for_width(8) == 3)) __t27_assert_fail("\n  GF-T8 uses 3 exponent trits:\n    gft_exp_trits_for_width(8) = {any}\n", .{ gft_exp_trits_for_width(8) });
+    if (!(gft_exp_trits_for_width(16) == 4)) __t27_assert_fail("\n  GF-T16 uses 4 exponent trits:\n    gft_exp_trits_for_width(16) = {any}\n", .{ gft_exp_trits_for_width(16) });
+    if (!(gft_offset_max_for_width(4) == 8)) __t27_assert_fail("\n  GF-T4 special row via width:\n    gft_offset_max_for_width(4) = {any}\n", .{ gft_offset_max_for_width(4) });
+    if (!(gft_offset_max_for_width(8) == 26)) __t27_assert_fail("\n  GF-T8 special row via width:\n    gft_offset_max_for_width(8) = {any}\n", .{ gft_offset_max_for_width(8) });
+    if (!(gft_offset_max_for_width(16) == 80)) __t27_assert_fail("\n  GF-T16 special row via width:\n    gft_offset_max_for_width(16) = {any}\n", .{ gft_offset_max_for_width(16) });
+    if (!(gft_offset_max_for_width(32) == 728)) __t27_assert_fail("\n  GF-T32 special row via width (Et6, golden rule):\n    gft_offset_max_for_width(32) = {any}\n", .{ gft_offset_max_for_width(32) });
+    if (!(gft_offset_max_for_width(64) == 19682)) __t27_assert_fail("\n  GF-T64 special row via width:\n    gft_offset_max_for_width(64) = {any}\n", .{ gft_offset_max_for_width(64) });
+    if (!(gft_offset_max_for_width(128) == 4782968)) __t27_assert_fail("\n  GF-T128 special row via width:\n    gft_offset_max_for_width(128) = {any}\n", .{ gft_offset_max_for_width(128) });
+    if (!(gft_offset_max_for_width(16) == gft_offset_max(4))) __t27_assert_fail("\n  width 16 -> Et 4 -> 80:\n    gft_offset_max_for_width(16) = {any}\n    gft_offset_max(4) = {any}\n", .{ gft_offset_max_for_width(16), gft_offset_max(4) });
+    if (!(gft_offset_max_for_width(32) == gft_offset_max(6))) __t27_assert_fail("\n  width 32 -> Et 6 -> 728:\n    gft_offset_max_for_width(32) = {any}\n    gft_offset_max(6) = {any}\n", .{ gft_offset_max_for_width(32), gft_offset_max(6) });
+    if (!(gft_offset_max_for_width(0) == 0)) __t27_assert_fail("\n  width 0 -> fail-closed offset_max 0:\n    gft_offset_max_for_width(0) = {any}\n", .{ gft_offset_max_for_width(0) });
+    if (!(gft_offset_max_for_width(7) == 0)) __t27_assert_fail("\n  an off-ladder width -> fail-closed 0:\n    gft_offset_max_for_width(7) = {any}\n", .{ gft_offset_max_for_width(7) });
+    if (!(gft_offset_max_for_width(4294967295) == 0)) __t27_assert_fail("\n  a garbage width -> fail-closed 0, no underflow:\n    gft_offset_max_for_width(4294967295) = {any}\n", .{ gft_offset_max_for_width(4294967295) });
 }
 test "has_inf_gate" {
-    if (!(is_finite_gf_h(0x7E00, 6, 9, 1) == false)) @panic("GF16 inf rejected (has_inf)");
-    if (!(is_finite_gf_h(0x4200, 6, 9, 1) == true)) @panic("GF16 finite accepted");
-    if (!(is_finite_gf_h(0x70, 3, 4, 0) == true)) @panic("GF8 max-exp is normal (no inf/nan)");
-    if (!(is_finite_gf_h(0x70, 3, 4, 1) == false)) @panic("with has_inf it would (wrongly) reject");
+    if (!(is_finite_gf_h(0x7E00, 6, 9, 1) == false)) __t27_assert_fail("\n  GF16 inf rejected (has_inf):\n    is_finite_gf_h(0x7E00, 6, 9, 1) = {any}\n", .{ is_finite_gf_h(0x7E00, 6, 9, 1) });
+    if (!(is_finite_gf_h(0x4200, 6, 9, 1) == true)) __t27_assert_fail("\n  GF16 finite accepted:\n    is_finite_gf_h(0x4200, 6, 9, 1) = {any}\n", .{ is_finite_gf_h(0x4200, 6, 9, 1) });
+    if (!(is_finite_gf_h(0x70, 3, 4, 0) == true)) __t27_assert_fail("\n  GF8 max-exp is normal (no inf/nan):\n    is_finite_gf_h(0x70, 3, 4, 0) = {any}\n", .{ is_finite_gf_h(0x70, 3, 4, 0) });
+    if (!(is_finite_gf_h(0x70, 3, 4, 1) == false)) __t27_assert_fail("\n  with has_inf it would (wrongly) reject:\n    is_finite_gf_h(0x70, 3, 4, 1) = {any}\n", .{ is_finite_gf_h(0x70, 3, 4, 1) });
 }
 test "dispatch_routes_by_family" {
-    if (!(is_finite_dispatch(FMT_GF_BINARY, 0x4200, 6, 9, 1, 0) == is_finite_gf_h(0x4200, 6, 9, 1))) @panic("GF16 finite via dispatch");
-    if (!(is_finite_dispatch(FMT_GF_BINARY, 0x7E00, 6, 9, 1, 0) == false)) @panic("GF16 inf via dispatch -> not finite");
-    if (!(is_finite_dispatch(FMT_GF_BINARY, 0x70, 3, 4, 0, 0) == true)) @panic("GF8 max-exp normal via dispatch");
-    if (!(is_finite_dispatch(FMT_GFT16, 40, 0, 0, 0, 4) == is_finite_gft_n(40, 4))) @panic("GF-T16 finite via dispatch");
-    if (!(is_finite_dispatch(FMT_GFT16, 80, 0, 0, 0, 4) == false)) @panic("GF-T16 reserved offset via dispatch -> not finite");
-    if (!(is_finite_dispatch(FMT_GFT16, 8, 0, 0, 0, 2) == false)) @panic("GF-T4 special row 8 via dispatch");
-    if (!(is_finite_dispatch(FMT_GFT16, 7, 0, 0, 0, 2) == true)) @panic("GF-T4 offset 7 finite via dispatch");
+    if (!(is_finite_dispatch(FMT_GF_BINARY, 0x4200, 6, 9, 1, 0) == is_finite_gf_h(0x4200, 6, 9, 1))) __t27_assert_fail("\n  GF16 finite via dispatch:\n    is_finite_dispatch(FMT_GF_BINARY, 0x4200, 6, 9, 1, 0) = {any}\n    is_finite_gf_h(0x4200, 6, 9, 1) = {any}\n", .{ is_finite_dispatch(FMT_GF_BINARY, 0x4200, 6, 9, 1, 0), is_finite_gf_h(0x4200, 6, 9, 1) });
+    if (!(is_finite_dispatch(FMT_GF_BINARY, 0x7E00, 6, 9, 1, 0) == false)) __t27_assert_fail("\n  GF16 inf via dispatch -> not finite:\n    is_finite_dispatch(FMT_GF_BINARY, 0x7E00, 6, 9, 1, 0) = {any}\n", .{ is_finite_dispatch(FMT_GF_BINARY, 0x7E00, 6, 9, 1, 0) });
+    if (!(is_finite_dispatch(FMT_GF_BINARY, 0x70, 3, 4, 0, 0) == true)) __t27_assert_fail("\n  GF8 max-exp normal via dispatch:\n    is_finite_dispatch(FMT_GF_BINARY, 0x70, 3, 4, 0, 0) = {any}\n", .{ is_finite_dispatch(FMT_GF_BINARY, 0x70, 3, 4, 0, 0) });
+    if (!(is_finite_dispatch(FMT_GFT16, 40, 0, 0, 0, 4) == is_finite_gft_n(40, 4))) __t27_assert_fail("\n  GF-T16 finite via dispatch:\n    is_finite_dispatch(FMT_GFT16, 40, 0, 0, 0, 4) = {any}\n    is_finite_gft_n(40, 4) = {any}\n", .{ is_finite_dispatch(FMT_GFT16, 40, 0, 0, 0, 4), is_finite_gft_n(40, 4) });
+    if (!(is_finite_dispatch(FMT_GFT16, 80, 0, 0, 0, 4) == false)) __t27_assert_fail("\n  GF-T16 reserved offset via dispatch -> not finite:\n    is_finite_dispatch(FMT_GFT16, 80, 0, 0, 0, 4) = {any}\n", .{ is_finite_dispatch(FMT_GFT16, 80, 0, 0, 0, 4) });
+    if (!(is_finite_dispatch(FMT_GFT16, 8, 0, 0, 0, 2) == false)) __t27_assert_fail("\n  GF-T4 special row 8 via dispatch:\n    is_finite_dispatch(FMT_GFT16, 8, 0, 0, 0, 2) = {any}\n", .{ is_finite_dispatch(FMT_GFT16, 8, 0, 0, 0, 2) });
+    if (!(is_finite_dispatch(FMT_GFT16, 7, 0, 0, 0, 2) == true)) __t27_assert_fail("\n  GF-T4 offset 7 finite via dispatch:\n    is_finite_dispatch(FMT_GFT16, 7, 0, 0, 0, 2) = {any}\n", .{ is_finite_dispatch(FMT_GFT16, 7, 0, 0, 0, 2) });
 }
 test "gft_offset_range" {
-    if (!(gft_offset_in_range(0, 4) == true)) @panic("GF-T16 offset 0 in range");
-    if (!(gft_offset_in_range(80, 4) == true)) @panic("GF-T16 offset_max 80 is a valid (special) encoding");
-    if (!(gft_offset_in_range(81, 4) == false)) @panic("GF-T16 offset 81 (== 3^4) is out of range");
-    if (!(gft_offset_in_range(8, 2) == true)) @panic("GF-T4 offset_max 8 in range");
-    if (!(gft_offset_in_range(9, 2) == false)) @panic("GF-T4 offset 9 (== 3^2) out of range");
-    if (!(is_finite_gft_n(81, 4) == true)) @panic("is_finite alone WRONGLY calls out-of-range 81 finite");
-    if (!(gft_offset_in_range(81, 4) == false)) @panic("...but the range gate rejects it");
+    if (!(gft_offset_in_range(0, 4) == true)) __t27_assert_fail("\n  GF-T16 offset 0 in range:\n    gft_offset_in_range(0, 4) = {any}\n", .{ gft_offset_in_range(0, 4) });
+    if (!(gft_offset_in_range(80, 4) == true)) __t27_assert_fail("\n  GF-T16 offset_max 80 is a valid (special) encoding:\n    gft_offset_in_range(80, 4) = {any}\n", .{ gft_offset_in_range(80, 4) });
+    if (!(gft_offset_in_range(81, 4) == false)) __t27_assert_fail("\n  GF-T16 offset 81 (== 3^4) is out of range:\n    gft_offset_in_range(81, 4) = {any}\n", .{ gft_offset_in_range(81, 4) });
+    if (!(gft_offset_in_range(8, 2) == true)) __t27_assert_fail("\n  GF-T4 offset_max 8 in range:\n    gft_offset_in_range(8, 2) = {any}\n", .{ gft_offset_in_range(8, 2) });
+    if (!(gft_offset_in_range(9, 2) == false)) __t27_assert_fail("\n  GF-T4 offset 9 (== 3^2) out of range:\n    gft_offset_in_range(9, 2) = {any}\n", .{ gft_offset_in_range(9, 2) });
+    if (!(is_finite_gft_n(81, 4) == true)) __t27_assert_fail("\n  is_finite alone WRONGLY calls out-of-range 81 finite:\n    is_finite_gft_n(81, 4) = {any}\n", .{ is_finite_gft_n(81, 4) });
+    if (!(gft_offset_in_range(81, 4) == false)) __t27_assert_fail("\n  ...but the range gate rejects it:\n    gft_offset_in_range(81, 4) = {any}\n", .{ gft_offset_in_range(81, 4) });
 }
 test "valid_gft_is_range_and_finite" {
-    if (!(is_valid_gft(0, 4) == true)) @panic("GF-T16 offset 0 is payable");
-    if (!(is_valid_gft(79, 4) == true)) @panic("GF-T16 offset 79 (just below special) is payable");
-    if (!(is_valid_gft(80, 4) == false)) @panic("GF-T16 special row 80 -> not payable (in range, not finite)");
-    if (!(is_valid_gft(81, 4) == false)) @panic("GF-T16 offset 81 -> not payable (out of range)");
-    if (!(is_valid_gft(7, 2) == true)) @panic("GF-T4 offset 7 payable");
-    if (!(is_valid_gft(8, 2) == false)) @panic("GF-T4 special row 8 -> not payable");
-    if (!(is_valid_gft(9, 2) == false)) @panic("GF-T4 offset 9 -> out of range, not payable");
+    if (!(is_valid_gft(0, 4) == true)) __t27_assert_fail("\n  GF-T16 offset 0 is payable:\n    is_valid_gft(0, 4) = {any}\n", .{ is_valid_gft(0, 4) });
+    if (!(is_valid_gft(79, 4) == true)) __t27_assert_fail("\n  GF-T16 offset 79 (just below special) is payable:\n    is_valid_gft(79, 4) = {any}\n", .{ is_valid_gft(79, 4) });
+    if (!(is_valid_gft(80, 4) == false)) __t27_assert_fail("\n  GF-T16 special row 80 -> not payable (in range, not finite):\n    is_valid_gft(80, 4) = {any}\n", .{ is_valid_gft(80, 4) });
+    if (!(is_valid_gft(81, 4) == false)) __t27_assert_fail("\n  GF-T16 offset 81 -> not payable (out of range):\n    is_valid_gft(81, 4) = {any}\n", .{ is_valid_gft(81, 4) });
+    if (!(is_valid_gft(7, 2) == true)) __t27_assert_fail("\n  GF-T4 offset 7 payable:\n    is_valid_gft(7, 2) = {any}\n", .{ is_valid_gft(7, 2) });
+    if (!(is_valid_gft(8, 2) == false)) __t27_assert_fail("\n  GF-T4 special row 8 -> not payable:\n    is_valid_gft(8, 2) = {any}\n", .{ is_valid_gft(8, 2) });
+    if (!(is_valid_gft(9, 2) == false)) __t27_assert_fail("\n  GF-T4 offset 9 -> out of range, not payable:\n    is_valid_gft(9, 2) = {any}\n", .{ is_valid_gft(9, 2) });
 }

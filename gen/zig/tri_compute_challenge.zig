@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const RESOLVE_HONEST: u32 = 0;
@@ -372,279 +380,279 @@ fn honest_share5(v0: u32, v1: u32, v2: u32, v3: u32, v4: u32, stake: u32) u32 {
 }
 test "honest_executor_survives" {
     const outcome = resolve(0x4100, 0x4100);
-    if (!(is_honest(0x4100, 0x4100) == true)) @panic("matching result is honest");
-    if (!(outcome == RESOLVE_HONEST)) @panic("honest -> no slash");
-    if (!(executor_bond_after(1000, outcome) == 1000)) @panic("bond retained");
-    if (!(challenger_reward(1000, outcome) == 0)) @panic("frivolous challenge earns nothing");
-    if (!(challenger_stake_after(50, outcome) == 0)) @panic("frivolous challenge burns stake");
+    if (!(is_honest(0x4100, 0x4100) == true)) __t27_assert_fail("\n  matching result is honest:\n    is_honest(0x4100, 0x4100) = {any}\n", .{ is_honest(0x4100, 0x4100) });
+    if (!(outcome == RESOLVE_HONEST)) __t27_assert_fail("\n  honest -> no slash:\n    outcome = {any}\n    RESOLVE_HONEST = {any}\n", .{ outcome, RESOLVE_HONEST });
+    if (!(executor_bond_after(1000, outcome) == 1000)) __t27_assert_fail("\n  bond retained:\n    executor_bond_after(1000, outcome) = {any}\n", .{ executor_bond_after(1000, outcome) });
+    if (!(challenger_reward(1000, outcome) == 0)) __t27_assert_fail("\n  frivolous challenge earns nothing:\n    challenger_reward(1000, outcome) = {any}\n", .{ challenger_reward(1000, outcome) });
+    if (!(challenger_stake_after(50, outcome) == 0)) __t27_assert_fail("\n  frivolous challenge burns stake:\n    challenger_stake_after(50, outcome) = {any}\n", .{ challenger_stake_after(50, outcome) });
 }
 test "fraud_is_slashed" {
     const outcome = resolve(0x9999, 0x4100);
-    if (!(is_honest(0x9999, 0x4100) == false)) @panic("wrong result is dishonest");
-    if (!(outcome == RESOLVE_SLASH)) @panic("wrong result -> slash");
-    if (!(executor_bond_after(1000, outcome) == 0)) @panic("bond forfeited");
-    if (!(challenger_reward(1000, outcome) == 1000)) @panic("challenger wins the bond");
-    if (!(challenger_stake_after(50, outcome) == 50)) @panic("correct challenge keeps stake");
+    if (!(is_honest(0x9999, 0x4100) == false)) __t27_assert_fail("\n  wrong result is dishonest:\n    is_honest(0x9999, 0x4100) = {any}\n", .{ is_honest(0x9999, 0x4100) });
+    if (!(outcome == RESOLVE_SLASH)) __t27_assert_fail("\n  wrong result -> slash:\n    outcome = {any}\n    RESOLVE_SLASH = {any}\n", .{ outcome, RESOLVE_SLASH });
+    if (!(executor_bond_after(1000, outcome) == 0)) __t27_assert_fail("\n  bond forfeited:\n    executor_bond_after(1000, outcome) = {any}\n", .{ executor_bond_after(1000, outcome) });
+    if (!(challenger_reward(1000, outcome) == 1000)) __t27_assert_fail("\n  challenger wins the bond:\n    challenger_reward(1000, outcome) = {any}\n", .{ challenger_reward(1000, outcome) });
+    if (!(challenger_stake_after(50, outcome) == 50)) __t27_assert_fail("\n  correct challenge keeps stake:\n    challenger_stake_after(50, outcome) = {any}\n", .{ challenger_stake_after(50, outcome) });
 }
 test "bound_dispute_on_committed_operands" {
     const outcome = resolve_bound(0x1234ABCD, 0x1234ABCD, 0x9999, 0x4100);
-    if (!(challenge_binds(0x1234ABCD, 0x1234ABCD) == true)) @panic("same leaf binds");
-    if (!(outcome == RESOLVE_SLASH)) @panic("wrong result on committed operands -> slash");
-    if (!(executor_bond_after(1000, outcome) == 0)) @panic("bond forfeited");
-    if (!(challenger_reward(1000, outcome) == 1000)) @panic("challenger wins the bond");
-    if (!(challenger_stake_after_bound(50, outcome) == 50)) @panic("correct challenge keeps stake");
+    if (!(challenge_binds(0x1234ABCD, 0x1234ABCD) == true)) __t27_assert_fail("\n  same leaf binds:\n    challenge_binds(0x1234ABCD, 0x1234ABCD) = {any}\n", .{ challenge_binds(0x1234ABCD, 0x1234ABCD) });
+    if (!(outcome == RESOLVE_SLASH)) __t27_assert_fail("\n  wrong result on committed operands -> slash:\n    outcome = {any}\n    RESOLVE_SLASH = {any}\n", .{ outcome, RESOLVE_SLASH });
+    if (!(executor_bond_after(1000, outcome) == 0)) __t27_assert_fail("\n  bond forfeited:\n    executor_bond_after(1000, outcome) = {any}\n", .{ executor_bond_after(1000, outcome) });
+    if (!(challenger_reward(1000, outcome) == 1000)) __t27_assert_fail("\n  challenger wins the bond:\n    challenger_reward(1000, outcome) = {any}\n", .{ challenger_reward(1000, outcome) });
+    if (!(challenger_stake_after_bound(50, outcome) == 50)) __t27_assert_fail("\n  correct challenge keeps stake:\n    challenger_stake_after_bound(50, outcome) = {any}\n", .{ challenger_stake_after_bound(50, outcome) });
 }
 test "fabricated_operands_rejected" {
     const outcome = resolve_bound(0x1234ABCD, 0x1234ABCE, 0x9999, 0x4100);
-    if (!(challenge_binds(0x1234ABCD, 0x1234ABCE) == false)) @panic("off-leaf operands do not bind");
-    if (!(outcome == RESOLVE_MALFORMED)) @panic("unbound dispute -> malformed");
-    if (!(executor_bond_after(1000, outcome) == 1000)) @panic("honest executor bond safe");
-    if (!(challenger_reward(1000, outcome) == 0)) @panic("griefer earns nothing");
-    if (!(challenger_stake_after_bound(50, outcome) == 0)) @panic("griefer stake burned");
+    if (!(challenge_binds(0x1234ABCD, 0x1234ABCE) == false)) __t27_assert_fail("\n  off-leaf operands do not bind:\n    challenge_binds(0x1234ABCD, 0x1234ABCE) = {any}\n", .{ challenge_binds(0x1234ABCD, 0x1234ABCE) });
+    if (!(outcome == RESOLVE_MALFORMED)) __t27_assert_fail("\n  unbound dispute -> malformed:\n    outcome = {any}\n    RESOLVE_MALFORMED = {any}\n", .{ outcome, RESOLVE_MALFORMED });
+    if (!(executor_bond_after(1000, outcome) == 1000)) __t27_assert_fail("\n  honest executor bond safe:\n    executor_bond_after(1000, outcome) = {any}\n", .{ executor_bond_after(1000, outcome) });
+    if (!(challenger_reward(1000, outcome) == 0)) __t27_assert_fail("\n  griefer earns nothing:\n    challenger_reward(1000, outcome) = {any}\n", .{ challenger_reward(1000, outcome) });
+    if (!(challenger_stake_after_bound(50, outcome) == 0)) __t27_assert_fail("\n  griefer stake burned:\n    challenger_stake_after_bound(50, outcome) = {any}\n", .{ challenger_stake_after_bound(50, outcome) });
 }
 test "replay_is_a_noop" {
     const outcome = resolve_full(5, 6, FMT_GF_BINARY, FMT_GF_BINARY, 0x1234ABCD, 0x1234ABCD, 0x9999, 0x4100);
-    if (!(dispute_is_fresh(5, 6) == true)) @panic("epoch 6 beyond watermark 5 is fresh");
-    if (!(outcome == RESOLVE_SLASH)) @panic("fresh valid fraud -> slash");
-    if (!(resolver_epoch_after(5, 6, outcome) == 6)) @panic("watermark advances to 6");
+    if (!(dispute_is_fresh(5, 6) == true)) __t27_assert_fail("\n  epoch 6 beyond watermark 5 is fresh:\n    dispute_is_fresh(5, 6) = {any}\n", .{ dispute_is_fresh(5, 6) });
+    if (!(outcome == RESOLVE_SLASH)) __t27_assert_fail("\n  fresh valid fraud -> slash:\n    outcome = {any}\n    RESOLVE_SLASH = {any}\n", .{ outcome, RESOLVE_SLASH });
+    if (!(resolver_epoch_after(5, 6, outcome) == 6)) __t27_assert_fail("\n  watermark advances to 6:\n    resolver_epoch_after(5, 6, outcome) = {any}\n", .{ resolver_epoch_after(5, 6, outcome) });
     const replay = resolve_full(6, 6, FMT_GF_BINARY, FMT_GF_BINARY, 0x1234ABCD, 0x1234ABCD, 0x9999, 0x4100);
-    if (!(dispute_is_fresh(6, 6) == false)) @panic("epoch 6 == watermark is stale");
-    if (!(replay == RESOLVE_STALE)) @panic("replay -> stale");
-    if (!(executor_bond_after(1000, replay) == 1000)) @panic("replay does not re-slash bond");
-    if (!(challenger_reward(1000, replay) == 0)) @panic("replay pays nothing");
-    if (!(challenger_stake_after_bound(50, replay) == 50)) @panic("replay does not burn stake");
-    if (!(resolver_epoch_after(6, 6, replay) == 6)) @panic("stale leaves watermark put");
+    if (!(dispute_is_fresh(6, 6) == false)) __t27_assert_fail("\n  epoch 6 == watermark is stale:\n    dispute_is_fresh(6, 6) = {any}\n", .{ dispute_is_fresh(6, 6) });
+    if (!(replay == RESOLVE_STALE)) __t27_assert_fail("\n  replay -> stale:\n    replay = {any}\n    RESOLVE_STALE = {any}\n", .{ replay, RESOLVE_STALE });
+    if (!(executor_bond_after(1000, replay) == 1000)) __t27_assert_fail("\n  replay does not re-slash bond:\n    executor_bond_after(1000, replay) = {any}\n", .{ executor_bond_after(1000, replay) });
+    if (!(challenger_reward(1000, replay) == 0)) __t27_assert_fail("\n  replay pays nothing:\n    challenger_reward(1000, replay) = {any}\n", .{ challenger_reward(1000, replay) });
+    if (!(challenger_stake_after_bound(50, replay) == 50)) __t27_assert_fail("\n  replay does not burn stake:\n    challenger_stake_after_bound(50, replay) = {any}\n", .{ challenger_stake_after_bound(50, replay) });
+    if (!(resolver_epoch_after(6, 6, replay) == 6)) __t27_assert_fail("\n  stale leaves watermark put:\n    resolver_epoch_after(6, 6, replay) = {any}\n", .{ resolver_epoch_after(6, 6, replay) });
 }
 test "watermark_advances_only_on_resolution" {
-    if (!(resolver_epoch_after(5, 9, RESOLVE_HONEST) == 9)) @panic("HONEST advances the watermark");
-    if (!(resolver_epoch_after(5, 9, RESOLVE_SLASH) == 9)) @panic("SLASH advances the watermark");
-    if (!(resolver_epoch_after(5, 9999, RESOLVE_MALFORMED) == 5)) @panic("a high-epoch MALFORMED does NOT jump the watermark");
-    if (!(resolver_epoch_after(5, 9999, RESOLVE_FAMILY_MISMATCH) == 5)) @panic("FAMILY_MISMATCH does not advance");
-    if (!(resolver_epoch_after(5, 9999, RESOLVE_INDETERMINATE) == 5)) @panic("INDETERMINATE does not advance");
-    if (!(resolver_epoch_after(5, 9999, RESOLVE_STALE) == 5)) @panic("STALE does not advance");
+    if (!(resolver_epoch_after(5, 9, RESOLVE_HONEST) == 9)) __t27_assert_fail("\n  HONEST advances the watermark:\n    resolver_epoch_after(5, 9, RESOLVE_HONEST) = {any}\n", .{ resolver_epoch_after(5, 9, RESOLVE_HONEST) });
+    if (!(resolver_epoch_after(5, 9, RESOLVE_SLASH) == 9)) __t27_assert_fail("\n  SLASH advances the watermark:\n    resolver_epoch_after(5, 9, RESOLVE_SLASH) = {any}\n", .{ resolver_epoch_after(5, 9, RESOLVE_SLASH) });
+    if (!(resolver_epoch_after(5, 9999, RESOLVE_MALFORMED) == 5)) __t27_assert_fail("\n  a high-epoch MALFORMED does NOT jump the watermark:\n    resolver_epoch_after(5, 9999, RESOLVE_MALFORMED) = {any}\n", .{ resolver_epoch_after(5, 9999, RESOLVE_MALFORMED) });
+    if (!(resolver_epoch_after(5, 9999, RESOLVE_FAMILY_MISMATCH) == 5)) __t27_assert_fail("\n  FAMILY_MISMATCH does not advance:\n    resolver_epoch_after(5, 9999, RESOLVE_FAMILY_MISMATCH) = {any}\n", .{ resolver_epoch_after(5, 9999, RESOLVE_FAMILY_MISMATCH) });
+    if (!(resolver_epoch_after(5, 9999, RESOLVE_INDETERMINATE) == 5)) __t27_assert_fail("\n  INDETERMINATE does not advance:\n    resolver_epoch_after(5, 9999, RESOLVE_INDETERMINATE) = {any}\n", .{ resolver_epoch_after(5, 9999, RESOLVE_INDETERMINATE) });
+    if (!(resolver_epoch_after(5, 9999, RESOLVE_STALE) == 5)) __t27_assert_fail("\n  STALE does not advance:\n    resolver_epoch_after(5, 9999, RESOLVE_STALE) = {any}\n", .{ resolver_epoch_after(5, 9999, RESOLVE_STALE) });
     const w = resolver_epoch_after(5, 9999, RESOLVE_MALFORMED);
-    if (!(dispute_is_fresh(w, 6) == true)) @panic("epoch 6 stays fresh -- the griefer could not block it");
+    if (!(dispute_is_fresh(w, 6) == true)) __t27_assert_fail("\n  epoch 6 stays fresh -- the griefer could not block it:\n    dispute_is_fresh(w, 6) = {any}\n", .{ dispute_is_fresh(w, 6) });
 }
 test "gft_dispute_slashes" {
     const outcome = resolve_full(0, 1, FMT_GFT, FMT_GFT, 0xBEEF01, 0xBEEF01, 0x0050, 0x0028);
-    if (!(outcome == RESOLVE_SLASH)) @panic("GF-T wrong result on committed operands -> slash");
-    if (!(executor_bond_after(1000, outcome) == 0)) @panic("GF-T bond forfeited");
+    if (!(outcome == RESOLVE_SLASH)) __t27_assert_fail("\n  GF-T wrong result on committed operands -> slash:\n    outcome = {any}\n    RESOLVE_SLASH = {any}\n", .{ outcome, RESOLVE_SLASH });
+    if (!(executor_bond_after(1000, outcome) == 0)) __t27_assert_fail("\n  GF-T bond forfeited:\n    executor_bond_after(1000, outcome) = {any}\n", .{ executor_bond_after(1000, outcome) });
 }
 test "family_confusion_rejected" {
     const outcome = resolve_full(0, 1, FMT_GFT, FMT_GF_BINARY, 0xBEEF01, 0xBEEF01, 0x0050, 0x0028);
-    if (!(family_matches(FMT_GFT, FMT_GF_BINARY) == false)) @panic("families differ");
-    if (!(outcome == RESOLVE_FAMILY_MISMATCH)) @panic("cross-family -> family mismatch");
-    if (!(executor_bond_after(1000, outcome) == 1000)) @panic("executor bond safe under confusion");
-    if (!(challenger_stake_after_bound(50, outcome) == 0)) @panic("family-confusion griefer stake burned");
+    if (!(family_matches(FMT_GFT, FMT_GF_BINARY) == false)) __t27_assert_fail("\n  families differ:\n    family_matches(FMT_GFT, FMT_GF_BINARY) = {any}\n", .{ family_matches(FMT_GFT, FMT_GF_BINARY) });
+    if (!(outcome == RESOLVE_FAMILY_MISMATCH)) __t27_assert_fail("\n  cross-family -> family mismatch:\n    outcome = {any}\n    RESOLVE_FAMILY_MISMATCH = {any}\n", .{ outcome, RESOLVE_FAMILY_MISMATCH });
+    if (!(executor_bond_after(1000, outcome) == 1000)) __t27_assert_fail("\n  executor bond safe under confusion:\n    executor_bond_after(1000, outcome) = {any}\n", .{ executor_bond_after(1000, outcome) });
+    if (!(challenger_stake_after_bound(50, outcome) == 0)) __t27_assert_fail("\n  family-confusion griefer stake burned:\n    challenger_stake_after_bound(50, outcome) = {any}\n", .{ challenger_stake_after_bound(50, outcome) });
 }
 test "rung_confusion_rejected" {
     const wrong = resolve_full_rung(5, 6, FMT_GFT, FMT_GFT, 9, 4, 0xAAAA, 0xAAAA, 0x11, 0x22);
-    if (!(rung_matches(9, 4) == false)) @panic("GF-T64 (Et9) != GF-T16 (Et4)");
-    if (!(wrong == RESOLVE_RUNG_MISMATCH)) @panic("wrong-rung recompute -> rung mismatch, no slash");
-    if (!(executor_bond_after(1000, wrong) == 1000)) @panic("executor bond safe under rung confusion");
-    if (!(challenger_stake_after_bound(50, wrong) == 0)) @panic("rung-confusion griefer stake burned");
+    if (!(rung_matches(9, 4) == false)) __t27_assert_fail("\n  GF-T64 (Et9) != GF-T16 (Et4):\n    rung_matches(9, 4) = {any}\n", .{ rung_matches(9, 4) });
+    if (!(wrong == RESOLVE_RUNG_MISMATCH)) __t27_assert_fail("\n  wrong-rung recompute -> rung mismatch, no slash:\n    wrong = {any}\n    RESOLVE_RUNG_MISMATCH = {any}\n", .{ wrong, RESOLVE_RUNG_MISMATCH });
+    if (!(executor_bond_after(1000, wrong) == 1000)) __t27_assert_fail("\n  executor bond safe under rung confusion:\n    executor_bond_after(1000, wrong) = {any}\n", .{ executor_bond_after(1000, wrong) });
+    if (!(challenger_stake_after_bound(50, wrong) == 0)) __t27_assert_fail("\n  rung-confusion griefer stake burned:\n    challenger_stake_after_bound(50, wrong) = {any}\n", .{ challenger_stake_after_bound(50, wrong) });
     const slash = resolve_full_rung(5, 6, FMT_GFT, FMT_GFT, 9, 9, 0xAAAA, 0xAAAA, 0x11, 0x22);
-    if (!(slash == RESOLVE_SLASH)) @panic("same rung + anchored + wrong result -> slash");
+    if (!(slash == RESOLVE_SLASH)) __t27_assert_fail("\n  same rung + anchored + wrong result -> slash:\n    slash = {any}\n    RESOLVE_SLASH = {any}\n", .{ slash, RESOLVE_SLASH });
     const honest = resolve_full_rung(5, 6, FMT_GFT, FMT_GFT, 9, 9, 0xAAAA, 0xAAAA, 0x33, 0x33);
-    if (!(honest == RESOLVE_HONEST)) @panic("same rung + matching result -> honest");
+    if (!(honest == RESOLVE_HONEST)) __t27_assert_fail("\n  same rung + matching result -> honest:\n    honest = {any}\n    RESOLVE_HONEST = {any}\n", .{ honest, RESOLVE_HONEST });
 }
 test "rung_guard_precedence" {
     const stale = resolve_full_rung(6, 6, FMT_GFT, FMT_GFT, 9, 4, 0xAAAA, 0xAAAA, 0x11, 0x22);
-    if (!(stale == RESOLVE_STALE)) @panic("stale short-circuits before the rung check");
+    if (!(stale == RESOLVE_STALE)) __t27_assert_fail("\n  stale short-circuits before the rung check:\n    stale = {any}\n    RESOLVE_STALE = {any}\n", .{ stale, RESOLVE_STALE });
     const fam = resolve_full_rung(5, 6, FMT_GF_BINARY, FMT_GFT, 9, 4, 0xAAAA, 0xAAAA, 0x11, 0x22);
-    if (!(fam == RESOLVE_FAMILY_MISMATCH)) @panic("family mismatch dominates a rung mismatch");
+    if (!(fam == RESOLVE_FAMILY_MISMATCH)) __t27_assert_fail("\n  family mismatch dominates a rung mismatch:\n    fam = {any}\n    RESOLVE_FAMILY_MISMATCH = {any}\n", .{ fam, RESOLVE_FAMILY_MISMATCH });
 }
 test "gf_dispute_d256_anchor" {
-    if (!(resolve_bound_d256(1, 0x4100, 0x4100) == RESOLVE_HONEST)) @panic("matched digest + correct result -> honest");
-    if (!(resolve_bound_d256(1, 0x9999, 0x4100) == RESOLVE_SLASH)) @panic("matched digest + wrong result -> slash");
-    if (!(resolve_bound_d256(0, 0x9999, 0x4100) == RESOLVE_MALFORMED)) @panic("digest mismatch -> malformed");
-    if (!(executor_bond_after(1000, resolve_bound_d256(0, 0x9999, 0x4100)) == 1000)) @panic("malformed keeps the bond");
-    if (!(resolve_full_d256(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 1, 0x4100, 0x4100) == RESOLVE_HONEST)) @panic("fresh + same family + matched digest -> honest");
-    if (!(resolve_full_d256(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 1, 0x9999, 0x4100) == RESOLVE_SLASH)) @panic("wrong GF -> slash");
-    if (!(resolve_full_d256(5, 5, FMT_GF_BINARY, FMT_GF_BINARY, 1, 0x4100, 0x4100) == RESOLVE_STALE)) @panic("stale epoch -> stale");
-    if (!(resolve_full_d256(0, 1, FMT_GF_BINARY, FMT_GFT, 1, 0x4100, 0x4100) == RESOLVE_FAMILY_MISMATCH)) @panic("cross-family -> mismatch");
-    if (!(resolve_full_d256(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 0, 0x4100, 0x4100) == RESOLVE_MALFORMED)) @panic("digest mismatch -> malformed");
-    if (!(resolve_full_d256(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 1, 0x4100, 0x4100) == resolve_full(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 0xAB, 0xAB, 0x4100, 0x4100))) @panic("d256 matches resolve_full on the honest path");
+    if (!(resolve_bound_d256(1, 0x4100, 0x4100) == RESOLVE_HONEST)) __t27_assert_fail("\n  matched digest + correct result -> honest:\n    resolve_bound_d256(1, 0x4100, 0x4100) = {any}\n    RESOLVE_HONEST = {any}\n", .{ resolve_bound_d256(1, 0x4100, 0x4100), RESOLVE_HONEST });
+    if (!(resolve_bound_d256(1, 0x9999, 0x4100) == RESOLVE_SLASH)) __t27_assert_fail("\n  matched digest + wrong result -> slash:\n    resolve_bound_d256(1, 0x9999, 0x4100) = {any}\n    RESOLVE_SLASH = {any}\n", .{ resolve_bound_d256(1, 0x9999, 0x4100), RESOLVE_SLASH });
+    if (!(resolve_bound_d256(0, 0x9999, 0x4100) == RESOLVE_MALFORMED)) __t27_assert_fail("\n  digest mismatch -> malformed:\n    resolve_bound_d256(0, 0x9999, 0x4100) = {any}\n    RESOLVE_MALFORMED = {any}\n", .{ resolve_bound_d256(0, 0x9999, 0x4100), RESOLVE_MALFORMED });
+    if (!(executor_bond_after(1000, resolve_bound_d256(0, 0x9999, 0x4100)) == 1000)) __t27_assert_fail("\n  malformed keeps the bond:\n    executor_bond_after(1000, resolve_bound_d256(0, 0x9999, 0x4100)) = {any}\n", .{ executor_bond_after(1000, resolve_bound_d256(0, 0x9999, 0x4100)) });
+    if (!(resolve_full_d256(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 1, 0x4100, 0x4100) == RESOLVE_HONEST)) __t27_assert_fail("\n  fresh + same family + matched digest -> honest:\n    resolve_full_d256(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 1, 0x4100, 0x4100) = {any}\n    RESOLVE_HONEST = {any}\n", .{ resolve_full_d256(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 1, 0x4100, 0x4100), RESOLVE_HONEST });
+    if (!(resolve_full_d256(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 1, 0x9999, 0x4100) == RESOLVE_SLASH)) __t27_assert_fail("\n  wrong GF -> slash:\n    resolve_full_d256(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 1, 0x9999, 0x4100) = {any}\n    RESOLVE_SLASH = {any}\n", .{ resolve_full_d256(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 1, 0x9999, 0x4100), RESOLVE_SLASH });
+    if (!(resolve_full_d256(5, 5, FMT_GF_BINARY, FMT_GF_BINARY, 1, 0x4100, 0x4100) == RESOLVE_STALE)) __t27_assert_fail("\n  stale epoch -> stale:\n    resolve_full_d256(5, 5, FMT_GF_BINARY, FMT_GF_BINARY, 1, 0x4100, 0x4100) = {any}\n    RESOLVE_STALE = {any}\n", .{ resolve_full_d256(5, 5, FMT_GF_BINARY, FMT_GF_BINARY, 1, 0x4100, 0x4100), RESOLVE_STALE });
+    if (!(resolve_full_d256(0, 1, FMT_GF_BINARY, FMT_GFT, 1, 0x4100, 0x4100) == RESOLVE_FAMILY_MISMATCH)) __t27_assert_fail("\n  cross-family -> mismatch:\n    resolve_full_d256(0, 1, FMT_GF_BINARY, FMT_GFT, 1, 0x4100, 0x4100) = {any}\n    RESOLVE_FAMILY_MISMATCH = {any}\n", .{ resolve_full_d256(0, 1, FMT_GF_BINARY, FMT_GFT, 1, 0x4100, 0x4100), RESOLVE_FAMILY_MISMATCH });
+    if (!(resolve_full_d256(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 0, 0x4100, 0x4100) == RESOLVE_MALFORMED)) __t27_assert_fail("\n  digest mismatch -> malformed:\n    resolve_full_d256(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 0, 0x4100, 0x4100) = {any}\n    RESOLVE_MALFORMED = {any}\n", .{ resolve_full_d256(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 0, 0x4100, 0x4100), RESOLVE_MALFORMED });
+    if (!(resolve_full_d256(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 1, 0x4100, 0x4100) == resolve_full(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 0xAB, 0xAB, 0x4100, 0x4100))) __t27_assert_fail("\n  d256 matches resolve_full on the honest path:\n    resolve_full_d256(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 1, 0x4100, 0x4100) = {any}\n    resolve_full(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 0xAB, 0xAB, 0x4100, 0x4100) = {any}\n", .{ resolve_full_d256(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 1, 0x4100, 0x4100), resolve_full(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 0xAB, 0xAB, 0x4100, 0x4100) });
 }
 test "verifier_quorum_basics" {
-    if (!(verifier_quorum3(0x4100, 0x4100, 0x4100) == 1)) @panic("unanimous -> quorum");
-    if (!(verifier_quorum3(0x4100, 0x4100, 0x9999) == 1)) @panic("2-of-3 -> quorum");
-    if (!(verifier_quorum3(0x4100, 0x9999, 0x4100) == 1)) @panic("2-of-3 (split positions) -> quorum");
-    if (!(verifier_quorum3(0x4100, 0x9999, 0xBEEF) == 0)) @panic("all distinct -> no quorum");
-    if (!(quorum_result3(0x9999, 0x4100, 0x4100) == 0x4100)) @panic("majority value wins over the odd one");
+    if (!(verifier_quorum3(0x4100, 0x4100, 0x4100) == 1)) __t27_assert_fail("\n  unanimous -> quorum:\n    verifier_quorum3(0x4100, 0x4100, 0x4100) = {any}\n", .{ verifier_quorum3(0x4100, 0x4100, 0x4100) });
+    if (!(verifier_quorum3(0x4100, 0x4100, 0x9999) == 1)) __t27_assert_fail("\n  2-of-3 -> quorum:\n    verifier_quorum3(0x4100, 0x4100, 0x9999) = {any}\n", .{ verifier_quorum3(0x4100, 0x4100, 0x9999) });
+    if (!(verifier_quorum3(0x4100, 0x9999, 0x4100) == 1)) __t27_assert_fail("\n  2-of-3 (split positions) -> quorum:\n    verifier_quorum3(0x4100, 0x9999, 0x4100) = {any}\n", .{ verifier_quorum3(0x4100, 0x9999, 0x4100) });
+    if (!(verifier_quorum3(0x4100, 0x9999, 0xBEEF) == 0)) __t27_assert_fail("\n  all distinct -> no quorum:\n    verifier_quorum3(0x4100, 0x9999, 0xBEEF) = {any}\n", .{ verifier_quorum3(0x4100, 0x9999, 0xBEEF) });
+    if (!(quorum_result3(0x9999, 0x4100, 0x4100) == 0x4100)) __t27_assert_fail("\n  majority value wins over the odd one:\n    quorum_result3(0x9999, 0x4100, 0x4100) = {any}\n", .{ quorum_result3(0x9999, 0x4100, 0x4100) });
 }
 test "dishonest_minority_outvoted" {
     const outcome = resolve_quorum3(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x9999);
-    if (!(outcome == RESOLVE_HONEST)) @panic("honest executor survives a lying minority verifier");
-    if (!(executor_bond_after(1000, outcome) == 1000)) @panic("bond retained");
+    if (!(outcome == RESOLVE_HONEST)) __t27_assert_fail("\n  honest executor survives a lying minority verifier:\n    outcome = {any}\n    RESOLVE_HONEST = {any}\n", .{ outcome, RESOLVE_HONEST });
+    if (!(executor_bond_after(1000, outcome) == 1000)) __t27_assert_fail("\n  bond retained:\n    executor_bond_after(1000, outcome) = {any}\n", .{ executor_bond_after(1000, outcome) });
 }
 test "quorum_still_slashes_fraud" {
     const outcome = resolve_quorum3(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 0xAB, 0xAB, 0x9999, 0x4100, 0x9999, 0x4100);
-    if (!(outcome == RESOLVE_SLASH)) @panic("majority recomputation catches the wrong result");
-    if (!(executor_bond_after(1000, outcome) == 0)) @panic("bond slashed");
+    if (!(outcome == RESOLVE_SLASH)) __t27_assert_fail("\n  majority recomputation catches the wrong result:\n    outcome = {any}\n    RESOLVE_SLASH = {any}\n", .{ outcome, RESOLVE_SLASH });
+    if (!(executor_bond_after(1000, outcome) == 0)) __t27_assert_fail("\n  bond slashed:\n    executor_bond_after(1000, outcome) = {any}\n", .{ executor_bond_after(1000, outcome) });
 }
 test "no_quorum_is_indeterminate" {
     const outcome = resolve_quorum3(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 0xAB, 0xAB, 0x4100, 0x1111, 0x2222, 0x3333);
-    if (!(outcome == RESOLVE_INDETERMINATE)) @panic("split verifiers -> indeterminate");
-    if (!(executor_bond_after(1000, outcome) == 1000)) @panic("no slash on an unresolved recomputation");
-    if (!(challenger_reward(1000, outcome) == 0)) @panic("no reward on an unresolved recomputation");
-    if (!(challenger_stake_after_bound(50, outcome) == 50)) @panic("INDETERMINATE keeps the challenger's stake");
+    if (!(outcome == RESOLVE_INDETERMINATE)) __t27_assert_fail("\n  split verifiers -> indeterminate:\n    outcome = {any}\n    RESOLVE_INDETERMINATE = {any}\n", .{ outcome, RESOLVE_INDETERMINATE });
+    if (!(executor_bond_after(1000, outcome) == 1000)) __t27_assert_fail("\n  no slash on an unresolved recomputation:\n    executor_bond_after(1000, outcome) = {any}\n", .{ executor_bond_after(1000, outcome) });
+    if (!(challenger_reward(1000, outcome) == 0)) __t27_assert_fail("\n  no reward on an unresolved recomputation:\n    challenger_reward(1000, outcome) = {any}\n", .{ challenger_reward(1000, outcome) });
+    if (!(challenger_stake_after_bound(50, outcome) == 50)) __t27_assert_fail("\n  INDETERMINATE keeps the challenger's stake:\n    challenger_stake_after_bound(50, outcome) = {any}\n", .{ challenger_stake_after_bound(50, outcome) });
 }
 test "stake_burns_only_on_challenger_fault" {
-    if (!(challenger_stake_after_bound(50, RESOLVE_SLASH) == 50)) @panic("correct challenge keeps stake");
-    if (!(challenger_stake_after_bound(50, RESOLVE_STALE) == 50)) @panic("replay keeps stake");
-    if (!(challenger_stake_after_bound(50, RESOLVE_INDETERMINATE) == 50)) @panic("verifier split keeps stake");
-    if (!(challenger_stake_after_bound(50, RESOLVE_HONEST) == 0)) @panic("frivolous challenge burns stake");
-    if (!(challenger_stake_after_bound(50, RESOLVE_MALFORMED) == 0)) @panic("fabricated operands burn stake");
-    if (!(challenger_stake_after_bound(50, RESOLVE_FAMILY_MISMATCH) == 0)) @panic("family confusion burns stake");
+    if (!(challenger_stake_after_bound(50, RESOLVE_SLASH) == 50)) __t27_assert_fail("\n  correct challenge keeps stake:\n    challenger_stake_after_bound(50, RESOLVE_SLASH) = {any}\n", .{ challenger_stake_after_bound(50, RESOLVE_SLASH) });
+    if (!(challenger_stake_after_bound(50, RESOLVE_STALE) == 50)) __t27_assert_fail("\n  replay keeps stake:\n    challenger_stake_after_bound(50, RESOLVE_STALE) = {any}\n", .{ challenger_stake_after_bound(50, RESOLVE_STALE) });
+    if (!(challenger_stake_after_bound(50, RESOLVE_INDETERMINATE) == 50)) __t27_assert_fail("\n  verifier split keeps stake:\n    challenger_stake_after_bound(50, RESOLVE_INDETERMINATE) = {any}\n", .{ challenger_stake_after_bound(50, RESOLVE_INDETERMINATE) });
+    if (!(challenger_stake_after_bound(50, RESOLVE_HONEST) == 0)) __t27_assert_fail("\n  frivolous challenge burns stake:\n    challenger_stake_after_bound(50, RESOLVE_HONEST) = {any}\n", .{ challenger_stake_after_bound(50, RESOLVE_HONEST) });
+    if (!(challenger_stake_after_bound(50, RESOLVE_MALFORMED) == 0)) __t27_assert_fail("\n  fabricated operands burn stake:\n    challenger_stake_after_bound(50, RESOLVE_MALFORMED) = {any}\n", .{ challenger_stake_after_bound(50, RESOLVE_MALFORMED) });
+    if (!(challenger_stake_after_bound(50, RESOLVE_FAMILY_MISMATCH) == 0)) __t27_assert_fail("\n  family confusion burns stake:\n    challenger_stake_after_bound(50, RESOLVE_FAMILY_MISMATCH) = {any}\n", .{ challenger_stake_after_bound(50, RESOLVE_FAMILY_MISMATCH) });
 }
 test "dissenting_verifier_is_slashed" {
-    if (!(verifier_dissented(0x4100, 0x4100, 1) == 0)) @panic("agreeing verifier did not dissent");
-    if (!(verifier_dissented(0x9999, 0x4100, 1) == 1)) @panic("the odd-one-out dissented from the quorum");
-    if (!(verifier_stake_after(50, verifier_dissented(0x4100, 0x4100, 1)) == 50)) @panic("agreeing verifier keeps its stake");
-    if (!(verifier_stake_after(50, verifier_dissented(0x9999, 0x4100, 1)) == 0)) @panic("dissenting verifier's stake is burned");
+    if (!(verifier_dissented(0x4100, 0x4100, 1) == 0)) __t27_assert_fail("\n  agreeing verifier did not dissent:\n    verifier_dissented(0x4100, 0x4100, 1) = {any}\n", .{ verifier_dissented(0x4100, 0x4100, 1) });
+    if (!(verifier_dissented(0x9999, 0x4100, 1) == 1)) __t27_assert_fail("\n  the odd-one-out dissented from the quorum:\n    verifier_dissented(0x9999, 0x4100, 1) = {any}\n", .{ verifier_dissented(0x9999, 0x4100, 1) });
+    if (!(verifier_stake_after(50, verifier_dissented(0x4100, 0x4100, 1)) == 50)) __t27_assert_fail("\n  agreeing verifier keeps its stake:\n    verifier_stake_after(50, verifier_dissented(0x4100, 0x4100, 1)) = {any}\n", .{ verifier_stake_after(50, verifier_dissented(0x4100, 0x4100, 1)) });
+    if (!(verifier_stake_after(50, verifier_dissented(0x9999, 0x4100, 1)) == 0)) __t27_assert_fail("\n  dissenting verifier's stake is burned:\n    verifier_stake_after(50, verifier_dissented(0x9999, 0x4100, 1)) = {any}\n", .{ verifier_stake_after(50, verifier_dissented(0x9999, 0x4100, 1)) });
 }
 test "no_quorum_no_verifier_penalty" {
-    if (!(verifier_dissented(0x1111, 0x1111, 0) == 0)) @panic("no quorum -> no dissent recorded");
-    if (!(verifier_stake_after(50, verifier_dissented(0x1111, 0x2222, 0)) == 50)) @panic("split set does not burn any verifier stake");
+    if (!(verifier_dissented(0x1111, 0x1111, 0) == 0)) __t27_assert_fail("\n  no quorum -> no dissent recorded:\n    verifier_dissented(0x1111, 0x1111, 0) = {any}\n", .{ verifier_dissented(0x1111, 0x1111, 0) });
+    if (!(verifier_stake_after(50, verifier_dissented(0x1111, 0x2222, 0)) == 50)) __t27_assert_fail("\n  split set does not burn any verifier stake:\n    verifier_stake_after(50, verifier_dissented(0x1111, 0x2222, 0)) = {any}\n", .{ verifier_stake_after(50, verifier_dissented(0x1111, 0x2222, 0)) });
 }
 test "quorum_k_of_n" {
-    if (!(quorum_threshold(3) == 2)) @panic("3 nodes -> majority 2");
-    if (!(quorum_threshold(5) == 3)) @panic("5 nodes -> majority 3");
-    if (!(quorum_threshold(7) == 4)) @panic("7 nodes -> majority 4");
-    if (!(quorum_threshold(1) == 1)) @panic("single node -> 1");
-    if (!(has_quorum_k(3, 3) == 1)) @panic("3-of-5 clears a 3 threshold");
-    if (!(has_quorum_k(2, 3) == 0)) @panic("2 agreements miss a 3 threshold");
-    if (!(has_quorum_k(4, 3) == 1)) @panic("4 clears 3");
+    if (!(quorum_threshold(3) == 2)) __t27_assert_fail("\n  3 nodes -> majority 2:\n    quorum_threshold(3) = {any}\n", .{ quorum_threshold(3) });
+    if (!(quorum_threshold(5) == 3)) __t27_assert_fail("\n  5 nodes -> majority 3:\n    quorum_threshold(5) = {any}\n", .{ quorum_threshold(5) });
+    if (!(quorum_threshold(7) == 4)) __t27_assert_fail("\n  7 nodes -> majority 4:\n    quorum_threshold(7) = {any}\n", .{ quorum_threshold(7) });
+    if (!(quorum_threshold(1) == 1)) __t27_assert_fail("\n  single node -> 1:\n    quorum_threshold(1) = {any}\n", .{ quorum_threshold(1) });
+    if (!(has_quorum_k(3, 3) == 1)) __t27_assert_fail("\n  3-of-5 clears a 3 threshold:\n    has_quorum_k(3, 3) = {any}\n", .{ has_quorum_k(3, 3) });
+    if (!(has_quorum_k(2, 3) == 0)) __t27_assert_fail("\n  2 agreements miss a 3 threshold:\n    has_quorum_k(2, 3) = {any}\n", .{ has_quorum_k(2, 3) });
+    if (!(has_quorum_k(4, 3) == 1)) __t27_assert_fail("\n  4 clears 3:\n    has_quorum_k(4, 3) = {any}\n", .{ has_quorum_k(4, 3) });
 }
 test "quorum3_is_the_n3_instance" {
-    if (!(max_agree3(0x41, 0x41, 0x41) == 3)) @panic("unanimous -> 3 agree");
-    if (!(max_agree3(0x41, 0x41, 0x99) == 2)) @panic("2-of-3 -> 2 agree");
-    if (!(max_agree3(0x41, 0x99, 0xBE) == 1)) @panic("all distinct -> 1 agree");
-    if (!(has_quorum_k(max_agree3(0x41, 0x41, 0x99), quorum_threshold(3)) == verifier_quorum3(0x41, 0x41, 0x99))) @panic("general == specific on 2-of-3");
-    if (!(has_quorum_k(max_agree3(0x41, 0x99, 0xBE), quorum_threshold(3)) == verifier_quorum3(0x41, 0x99, 0xBE))) @panic("general == specific on split");
+    if (!(max_agree3(0x41, 0x41, 0x41) == 3)) __t27_assert_fail("\n  unanimous -> 3 agree:\n    max_agree3(0x41, 0x41, 0x41) = {any}\n", .{ max_agree3(0x41, 0x41, 0x41) });
+    if (!(max_agree3(0x41, 0x41, 0x99) == 2)) __t27_assert_fail("\n  2-of-3 -> 2 agree:\n    max_agree3(0x41, 0x41, 0x99) = {any}\n", .{ max_agree3(0x41, 0x41, 0x99) });
+    if (!(max_agree3(0x41, 0x99, 0xBE) == 1)) __t27_assert_fail("\n  all distinct -> 1 agree:\n    max_agree3(0x41, 0x99, 0xBE) = {any}\n", .{ max_agree3(0x41, 0x99, 0xBE) });
+    if (!(has_quorum_k(max_agree3(0x41, 0x41, 0x99), quorum_threshold(3)) == verifier_quorum3(0x41, 0x41, 0x99))) __t27_assert_fail("\n  general == specific on 2-of-3:\n    has_quorum_k(max_agree3(0x41, 0x41, 0x99), quorum_threshold(3)) = {any}\n    verifier_quorum3(0x41, 0x41, 0x99) = {any}\n", .{ has_quorum_k(max_agree3(0x41, 0x41, 0x99), quorum_threshold(3)), verifier_quorum3(0x41, 0x41, 0x99) });
+    if (!(has_quorum_k(max_agree3(0x41, 0x99, 0xBE), quorum_threshold(3)) == verifier_quorum3(0x41, 0x99, 0xBE))) __t27_assert_fail("\n  general == specific on split:\n    has_quorum_k(max_agree3(0x41, 0x99, 0xBE), quorum_threshold(3)) = {any}\n    verifier_quorum3(0x41, 0x99, 0xBE) = {any}\n", .{ has_quorum_k(max_agree3(0x41, 0x99, 0xBE), quorum_threshold(3)), verifier_quorum3(0x41, 0x99, 0xBE) });
 }
 test "verifier_reward_splits_the_burn" {
-    if (!(verifier_reward(50, 2) == 25)) @panic("one 50-burn split between two honest -> 25 each");
-    if (!(verifier_reward(100, 2) == 50)) @panic("two dissenters (100 burned), two honest -> 50 each");
-    if (!(verifier_reward(50, 3) == 16)) @panic("50 over 3 honest -> 16 floor (2 dust unminted)");
-    if (!(verifier_reward(50, 0) == 0)) @panic("no honest verifier -> nothing to pay, no divide-by-zero");
+    if (!(verifier_reward(50, 2) == 25)) __t27_assert_fail("\n  one 50-burn split between two honest -> 25 each:\n    verifier_reward(50, 2) = {any}\n", .{ verifier_reward(50, 2) });
+    if (!(verifier_reward(100, 2) == 50)) __t27_assert_fail("\n  two dissenters (100 burned), two honest -> 50 each:\n    verifier_reward(100, 2) = {any}\n", .{ verifier_reward(100, 2) });
+    if (!(verifier_reward(50, 3) == 16)) __t27_assert_fail("\n  50 over 3 honest -> 16 floor (2 dust unminted):\n    verifier_reward(50, 3) = {any}\n", .{ verifier_reward(50, 3) });
+    if (!(verifier_reward(50, 0) == 0)) __t27_assert_fail("\n  no honest verifier -> nothing to pay, no divide-by-zero:\n    verifier_reward(50, 0) = {any}\n", .{ verifier_reward(50, 0) });
 }
 test "verifier_reward_no_over_issuance" {
-    if (!((2 * verifier_reward(50, 2)) == 50)) @panic("2 * 25 == 50, exact");
-    if (!((3 * verifier_reward(50, 3)) == 48)) @panic("3 * 16 == 48 <= 50 (floor keeps the dust)");
+    if (!((2 * verifier_reward(50, 2)) == 50)) __t27_assert_fail("\n  2 * 25 == 50, exact:\n    2 * verifier_reward(50, 2) = {any}\n", .{ 2 * verifier_reward(50, 2) });
+    if (!((3 * verifier_reward(50, 3)) == 48)) __t27_assert_fail("\n  3 * 16 == 48 <= 50 (floor keeps the dust):\n    3 * verifier_reward(50, 3) = {any}\n", .{ 3 * verifier_reward(50, 3) });
 }
 test "honest_verification_is_profitable" {
-    if (!((verifier_stake_after(50, 0) + verifier_reward(50, 2)) == 75)) @panic("honest net = kept 50 + reward 25 = 75 > staked 50");
-    if (!(verifier_stake_after(50, 1) == 0)) @panic("the colluder loses its whole 50 stake");
+    if (!((verifier_stake_after(50, 0) + verifier_reward(50, 2)) == 75)) __t27_assert_fail("\n  honest net = kept 50 + reward 25 = 75 > staked 50:\n    verifier_stake_after(50, 0) + verifier_reward(50, 2) = {any}\n", .{ verifier_stake_after(50, 0) + verifier_reward(50, 2) });
+    if (!(verifier_stake_after(50, 1) == 0)) __t27_assert_fail("\n  the colluder loses its whole 50 stake:\n    verifier_stake_after(50, 1) = {any}\n", .{ verifier_stake_after(50, 1) });
 }
 test "max_agree5_counts" {
-    if (!(count5(0x41, 0x41, 0x41, 0x41, 0x41, 0x41) == 5)) @panic("unanimous -> 5 agree");
-    if (!(max_agree5(0x41, 0x41, 0x41, 0x99, 0xBE) == 3)) @panic("3 of 5 agree on 0x41");
-    if (!(max_agree5(0x41, 0x41, 0x99, 0x99, 0xBE) == 2)) @panic("2-2-1 -> largest group is 2");
-    if (!(max_agree5(0x1, 0x2, 0x3, 0x4, 0x5) == 1)) @panic("all distinct -> 1");
-    if (!(quorum_value5(0x99, 0x41, 0x41, 0x41, 0xBE, 3) == 0x41)) @panic("the value with >= 3 wins");
+    if (!(count5(0x41, 0x41, 0x41, 0x41, 0x41, 0x41) == 5)) __t27_assert_fail("\n  unanimous -> 5 agree:\n    count5(0x41, 0x41, 0x41, 0x41, 0x41, 0x41) = {any}\n", .{ count5(0x41, 0x41, 0x41, 0x41, 0x41, 0x41) });
+    if (!(max_agree5(0x41, 0x41, 0x41, 0x99, 0xBE) == 3)) __t27_assert_fail("\n  3 of 5 agree on 0x41:\n    max_agree5(0x41, 0x41, 0x41, 0x99, 0xBE) = {any}\n", .{ max_agree5(0x41, 0x41, 0x41, 0x99, 0xBE) });
+    if (!(max_agree5(0x41, 0x41, 0x99, 0x99, 0xBE) == 2)) __t27_assert_fail("\n  2-2-1 -> largest group is 2:\n    max_agree5(0x41, 0x41, 0x99, 0x99, 0xBE) = {any}\n", .{ max_agree5(0x41, 0x41, 0x99, 0x99, 0xBE) });
+    if (!(max_agree5(0x1, 0x2, 0x3, 0x4, 0x5) == 1)) __t27_assert_fail("\n  all distinct -> 1:\n    max_agree5(0x1, 0x2, 0x3, 0x4, 0x5) = {any}\n", .{ max_agree5(0x1, 0x2, 0x3, 0x4, 0x5) });
+    if (!(quorum_value5(0x99, 0x41, 0x41, 0x41, 0xBE, 3) == 0x41)) __t27_assert_fail("\n  the value with >= 3 wins:\n    quorum_value5(0x99, 0x41, 0x41, 0x41, 0xBE, 3) = {any}\n", .{ quorum_value5(0x99, 0x41, 0x41, 0x41, 0xBE, 3) });
 }
 test "quorum5_outvotes_two_liars" {
     var outcome = resolve_quorum5(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 0x9999, 0x9999);
-    if (!(outcome == RESOLVE_HONEST)) @panic("3 honest of 5 outvote 2 liars -> honest executor safe");
+    if (!(outcome == RESOLVE_HONEST)) __t27_assert_fail("\n  3 honest of 5 outvote 2 liars -> honest executor safe:\n    outcome = {any}\n    RESOLVE_HONEST = {any}\n", .{ outcome, RESOLVE_HONEST });
     outcome = resolve_quorum5(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 0xAB, 0xAB, 0x9999, 0x4100, 0x4100, 0x4100, 0x9999, 0x9999);
-    if (!(outcome == RESOLVE_SLASH)) @panic("the 3-of-5 majority still slashes real fraud");
+    if (!(outcome == RESOLVE_SLASH)) __t27_assert_fail("\n  the 3-of-5 majority still slashes real fraud:\n    outcome = {any}\n    RESOLVE_SLASH = {any}\n", .{ outcome, RESOLVE_SLASH });
 }
 test "quorum5_no_majority_indeterminate" {
     const outcome = resolve_quorum5(0, 1, FMT_GF_BINARY, FMT_GF_BINARY, 0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x9999, 0x9999, 0xBEEF);
-    if (!(outcome == RESOLVE_INDETERMINATE)) @panic("2-2-1 split has no 3-of-5 majority -> indeterminate");
-    if (!(executor_bond_after(1000, outcome) == 1000)) @panic("no slash without a quorum");
+    if (!(outcome == RESOLVE_INDETERMINATE)) __t27_assert_fail("\n  2-2-1 split has no 3-of-5 majority -> indeterminate:\n    outcome = {any}\n    RESOLVE_INDETERMINATE = {any}\n", .{ outcome, RESOLVE_INDETERMINATE });
+    if (!(executor_bond_after(1000, outcome) == 1000)) __t27_assert_fail("\n  no slash without a quorum:\n    executor_bond_after(1000, outcome) = {any}\n", .{ executor_bond_after(1000, outcome) });
 }
 test "verifier_economics_5_two_dissenters" {
-    if (!(dissenter_count5(0x41, 0x41, 0x41, 0x99, 0xBE) == 2)) @panic("2 of 5 dissent from the 3-majority");
-    if (!(max_agree5(0x41, 0x41, 0x41, 0x99, 0xBE) == 3)) @panic("3 honest form the quorum");
-    if (!(burned_total5(0x41, 0x41, 0x41, 0x99, 0xBE, 50) == 100)) @panic("two 50-stakes burned");
-    if (!(honest_share5(0x41, 0x41, 0x41, 0x99, 0xBE, 50) == 33)) @panic("100 split among 3 honest -> 33 each (floor)");
-    if (!((verifier_stake_after(50, 0) + honest_share5(0x41, 0x41, 0x41, 0x99, 0xBE, 50)) == 83)) @panic("honest net 50 + 33 = 83 > 50 staked");
-    if (!(verifier_stake_after(50, 1) == 0)) @panic("each dissenter's whole stake is burned");
-    if (!((3 * honest_share5(0x41, 0x41, 0x41, 0x99, 0xBE, 50)) <= burned_total5(0x41, 0x41, 0x41, 0x99, 0xBE, 50))) @panic("no over-issuance: 3*33 <= 100");
+    if (!(dissenter_count5(0x41, 0x41, 0x41, 0x99, 0xBE) == 2)) __t27_assert_fail("\n  2 of 5 dissent from the 3-majority:\n    dissenter_count5(0x41, 0x41, 0x41, 0x99, 0xBE) = {any}\n", .{ dissenter_count5(0x41, 0x41, 0x41, 0x99, 0xBE) });
+    if (!(max_agree5(0x41, 0x41, 0x41, 0x99, 0xBE) == 3)) __t27_assert_fail("\n  3 honest form the quorum:\n    max_agree5(0x41, 0x41, 0x41, 0x99, 0xBE) = {any}\n", .{ max_agree5(0x41, 0x41, 0x41, 0x99, 0xBE) });
+    if (!(burned_total5(0x41, 0x41, 0x41, 0x99, 0xBE, 50) == 100)) __t27_assert_fail("\n  two 50-stakes burned:\n    burned_total5(0x41, 0x41, 0x41, 0x99, 0xBE, 50) = {any}\n", .{ burned_total5(0x41, 0x41, 0x41, 0x99, 0xBE, 50) });
+    if (!(honest_share5(0x41, 0x41, 0x41, 0x99, 0xBE, 50) == 33)) __t27_assert_fail("\n  100 split among 3 honest -> 33 each (floor):\n    honest_share5(0x41, 0x41, 0x41, 0x99, 0xBE, 50) = {any}\n", .{ honest_share5(0x41, 0x41, 0x41, 0x99, 0xBE, 50) });
+    if (!((verifier_stake_after(50, 0) + honest_share5(0x41, 0x41, 0x41, 0x99, 0xBE, 50)) == 83)) __t27_assert_fail("\n  honest net 50 + 33 = 83 > 50 staked:\n    verifier_stake_after(50, 0) + honest_share5(0x41, 0x41, 0x41, 0x99, 0xBE, 50) = {any}\n", .{ verifier_stake_after(50, 0) + honest_share5(0x41, 0x41, 0x41, 0x99, 0xBE, 50) });
+    if (!(verifier_stake_after(50, 1) == 0)) __t27_assert_fail("\n  each dissenter's whole stake is burned:\n    verifier_stake_after(50, 1) = {any}\n", .{ verifier_stake_after(50, 1) });
+    if (!((3 * honest_share5(0x41, 0x41, 0x41, 0x99, 0xBE, 50)) <= burned_total5(0x41, 0x41, 0x41, 0x99, 0xBE, 50))) __t27_assert_fail("\n  no over-issuance: 3*33 <= 100:\n    3 * honest_share5(0x41, 0x41, 0x41, 0x99, 0xBE, 50) = {any}\n    burned_total5(0x41, 0x41, 0x41, 0x99, 0xBE, 50) = {any}\n", .{ 3 * honest_share5(0x41, 0x41, 0x41, 0x99, 0xBE, 50), burned_total5(0x41, 0x41, 0x41, 0x99, 0xBE, 50) });
 }
 test "verifier_economics_5_one_dissenter" {
-    if (!(dissenter_count5(0x41, 0x41, 0x41, 0x41, 0x99) == 1)) @panic("1 of 5 dissents from the 4-majority");
-    if (!(burned_total5(0x41, 0x41, 0x41, 0x41, 0x99, 50) == 50)) @panic("one 50-stake burned");
-    if (!(honest_share5(0x41, 0x41, 0x41, 0x41, 0x99, 50) == 12)) @panic("50 split among 4 -> 12 each (floor)");
-    if (!((verifier_stake_after(50, 0) + honest_share5(0x41, 0x41, 0x41, 0x41, 0x99, 50)) == 62)) @panic("honest net 62 > 50");
+    if (!(dissenter_count5(0x41, 0x41, 0x41, 0x41, 0x99) == 1)) __t27_assert_fail("\n  1 of 5 dissents from the 4-majority:\n    dissenter_count5(0x41, 0x41, 0x41, 0x41, 0x99) = {any}\n", .{ dissenter_count5(0x41, 0x41, 0x41, 0x41, 0x99) });
+    if (!(burned_total5(0x41, 0x41, 0x41, 0x41, 0x99, 50) == 50)) __t27_assert_fail("\n  one 50-stake burned:\n    burned_total5(0x41, 0x41, 0x41, 0x41, 0x99, 50) = {any}\n", .{ burned_total5(0x41, 0x41, 0x41, 0x41, 0x99, 50) });
+    if (!(honest_share5(0x41, 0x41, 0x41, 0x41, 0x99, 50) == 12)) __t27_assert_fail("\n  50 split among 4 -> 12 each (floor):\n    honest_share5(0x41, 0x41, 0x41, 0x41, 0x99, 50) = {any}\n", .{ honest_share5(0x41, 0x41, 0x41, 0x41, 0x99, 50) });
+    if (!((verifier_stake_after(50, 0) + honest_share5(0x41, 0x41, 0x41, 0x41, 0x99, 50)) == 62)) __t27_assert_fail("\n  honest net 62 > 50:\n    verifier_stake_after(50, 0) + honest_share5(0x41, 0x41, 0x41, 0x41, 0x99, 50) = {any}\n", .{ verifier_stake_after(50, 0) + honest_share5(0x41, 0x41, 0x41, 0x41, 0x99, 50) });
 }
 test "burned_total5_saturates" {
-    if (!(dissenter_count5(0x41, 0x42, 0x43, 0x44, 0x45) == 4)) @panic("5 distinct votes -> 4 dissent from a lone majority");
-    if (!(burned_total5(0x41, 0x42, 0x43, 0x44, 0x45, 100) == 400)) @panic("small stake exact: 4 * 100 = 400");
-    if (!(burned_total5(0x41, 0x42, 0x43, 0x44, 0x45, 1100000000) == 4294967295)) @panic("4 * 1.1e9 = 4.4e9 saturates to u32 max, not a wrap to ~1.05e8");
-    if (!(honest_share5(0x41, 0x42, 0x43, 0x44, 0x45, 1100000000) == 4294967295)) @panic("lone honest verifier gets the whole capped pool, never a wrapped dust value");
+    if (!(dissenter_count5(0x41, 0x42, 0x43, 0x44, 0x45) == 4)) __t27_assert_fail("\n  5 distinct votes -> 4 dissent from a lone majority:\n    dissenter_count5(0x41, 0x42, 0x43, 0x44, 0x45) = {any}\n", .{ dissenter_count5(0x41, 0x42, 0x43, 0x44, 0x45) });
+    if (!(burned_total5(0x41, 0x42, 0x43, 0x44, 0x45, 100) == 400)) __t27_assert_fail("\n  small stake exact: 4 * 100 = 400:\n    burned_total5(0x41, 0x42, 0x43, 0x44, 0x45, 100) = {any}\n", .{ burned_total5(0x41, 0x42, 0x43, 0x44, 0x45, 100) });
+    if (!(burned_total5(0x41, 0x42, 0x43, 0x44, 0x45, 1100000000) == 4294967295)) __t27_assert_fail("\n  4 * 1.1e9 = 4.4e9 saturates to u32 max, not a wrap to ~1.05e8:\n    burned_total5(0x41, 0x42, 0x43, 0x44, 0x45, 1100000000) = {any}\n", .{ burned_total5(0x41, 0x42, 0x43, 0x44, 0x45, 1100000000) });
+    if (!(honest_share5(0x41, 0x42, 0x43, 0x44, 0x45, 1100000000) == 4294967295)) __t27_assert_fail("\n  lone honest verifier gets the whole capped pool, never a wrapped dust value:\n    honest_share5(0x41, 0x42, 0x43, 0x44, 0x45, 1100000000) = {any}\n", .{ honest_share5(0x41, 0x42, 0x43, 0x44, 0x45, 1100000000) });
 }
 test "bitnet_dispute_needs_both_parts" {
-    if (!(resolve_bitnet(0xAB, 0xAB, 0x4100, 0x4100, 1) == RESOLVE_HONEST)) @panic("valid ternary + correct GF -> honest");
-    if (!(resolve_bitnet(0xAB, 0xAB, 0x9999, 0x4100, 1) == RESOLVE_SLASH)) @panic("valid ternary but wrong GF value -> slash");
-    if (!(resolve_bitnet(0xAB, 0xAB, 0x4100, 0x4100, 0) == RESOLVE_SLASH)) @panic("bad ternary recompute -> slash despite a matching GF value");
-    if (!(resolve_bitnet(0xAB, 0xAC, 0x4100, 0x4100, 0) == RESOLVE_MALFORMED)) @panic("unbound dispute -> malformed, no slash");
-    if (!(executor_bond_after(1000, resolve_bitnet(0xAB, 0xAC, 0x4100, 0x4100, 0)) == 1000)) @panic("malformed keeps the bond");
+    if (!(resolve_bitnet(0xAB, 0xAB, 0x4100, 0x4100, 1) == RESOLVE_HONEST)) __t27_assert_fail("\n  valid ternary + correct GF -> honest:\n    resolve_bitnet(0xAB, 0xAB, 0x4100, 0x4100, 1) = {any}\n    RESOLVE_HONEST = {any}\n", .{ resolve_bitnet(0xAB, 0xAB, 0x4100, 0x4100, 1), RESOLVE_HONEST });
+    if (!(resolve_bitnet(0xAB, 0xAB, 0x9999, 0x4100, 1) == RESOLVE_SLASH)) __t27_assert_fail("\n  valid ternary but wrong GF value -> slash:\n    resolve_bitnet(0xAB, 0xAB, 0x9999, 0x4100, 1) = {any}\n    RESOLVE_SLASH = {any}\n", .{ resolve_bitnet(0xAB, 0xAB, 0x9999, 0x4100, 1), RESOLVE_SLASH });
+    if (!(resolve_bitnet(0xAB, 0xAB, 0x4100, 0x4100, 0) == RESOLVE_SLASH)) __t27_assert_fail("\n  bad ternary recompute -> slash despite a matching GF value:\n    resolve_bitnet(0xAB, 0xAB, 0x4100, 0x4100, 0) = {any}\n    RESOLVE_SLASH = {any}\n", .{ resolve_bitnet(0xAB, 0xAB, 0x4100, 0x4100, 0), RESOLVE_SLASH });
+    if (!(resolve_bitnet(0xAB, 0xAC, 0x4100, 0x4100, 0) == RESOLVE_MALFORMED)) __t27_assert_fail("\n  unbound dispute -> malformed, no slash:\n    resolve_bitnet(0xAB, 0xAC, 0x4100, 0x4100, 0) = {any}\n    RESOLVE_MALFORMED = {any}\n", .{ resolve_bitnet(0xAB, 0xAC, 0x4100, 0x4100, 0), RESOLVE_MALFORMED });
+    if (!(executor_bond_after(1000, resolve_bitnet(0xAB, 0xAC, 0x4100, 0x4100, 0)) == 1000)) __t27_assert_fail("\n  malformed keeps the bond:\n    executor_bond_after(1000, resolve_bitnet(0xAB, 0xAC, 0x4100, 0x4100, 0)) = {any}\n", .{ executor_bond_after(1000, resolve_bitnet(0xAB, 0xAC, 0x4100, 0x4100, 0)) });
 }
 test "bitnet_full_closes_replay_and_family" {
-    if (!(resolve_bitnet_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x4100, 0x4100, 1) == RESOLVE_HONEST)) @panic("fresh + same family + valid -> honest");
-    if (!(resolve_bitnet_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x9999, 0x4100, 1) == RESOLVE_SLASH)) @panic("fresh GF fraud -> slash");
-    if (!(resolve_bitnet_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x4100, 0x4100, 0) == RESOLVE_SLASH)) @panic("fresh bad ternary -> slash");
-    if (!(resolve_bitnet_full(6, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x9999, 0x4100, 1) == RESOLVE_STALE)) @panic("replayed BitNet fraud -> stale, no re-slash");
-    if (!(resolve_bitnet(0xAB, 0xAB, 0x9999, 0x4100, 1) == RESOLVE_SLASH)) @panic("contrast: bare resolve_bitnet re-slashes the replay (no epoch)");
-    if (!(resolve_bitnet_full(5, 6, FMT_GFT, FMT_GF_BINARY, 0xAB, 0xAB, 0x4100, 0x4100, 1) == RESOLVE_FAMILY_MISMATCH)) @panic("cross-family BitNet dispute -> family mismatch");
-    if (!(resolve_bitnet_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAC, 0x4100, 0x4100, 1) == RESOLVE_MALFORMED)) @panic("fresh same-family but unbound leaf -> malformed");
-    if (!(executor_bond_after(1000, resolve_bitnet_full(6, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x9999, 0x4100, 1)) == 1000)) @panic("replayed BitNet dispute keeps the bond");
+    if (!(resolve_bitnet_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x4100, 0x4100, 1) == RESOLVE_HONEST)) __t27_assert_fail("\n  fresh + same family + valid -> honest:\n    resolve_bitnet_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x4100, 0x4100, 1) = {any}\n    RESOLVE_HONEST = {any}\n", .{ resolve_bitnet_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x4100, 0x4100, 1), RESOLVE_HONEST });
+    if (!(resolve_bitnet_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x9999, 0x4100, 1) == RESOLVE_SLASH)) __t27_assert_fail("\n  fresh GF fraud -> slash:\n    resolve_bitnet_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x9999, 0x4100, 1) = {any}\n    RESOLVE_SLASH = {any}\n", .{ resolve_bitnet_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x9999, 0x4100, 1), RESOLVE_SLASH });
+    if (!(resolve_bitnet_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x4100, 0x4100, 0) == RESOLVE_SLASH)) __t27_assert_fail("\n  fresh bad ternary -> slash:\n    resolve_bitnet_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x4100, 0x4100, 0) = {any}\n    RESOLVE_SLASH = {any}\n", .{ resolve_bitnet_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x4100, 0x4100, 0), RESOLVE_SLASH });
+    if (!(resolve_bitnet_full(6, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x9999, 0x4100, 1) == RESOLVE_STALE)) __t27_assert_fail("\n  replayed BitNet fraud -> stale, no re-slash:\n    resolve_bitnet_full(6, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x9999, 0x4100, 1) = {any}\n    RESOLVE_STALE = {any}\n", .{ resolve_bitnet_full(6, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x9999, 0x4100, 1), RESOLVE_STALE });
+    if (!(resolve_bitnet(0xAB, 0xAB, 0x9999, 0x4100, 1) == RESOLVE_SLASH)) __t27_assert_fail("\n  contrast: bare resolve_bitnet re-slashes the replay (no epoch):\n    resolve_bitnet(0xAB, 0xAB, 0x9999, 0x4100, 1) = {any}\n    RESOLVE_SLASH = {any}\n", .{ resolve_bitnet(0xAB, 0xAB, 0x9999, 0x4100, 1), RESOLVE_SLASH });
+    if (!(resolve_bitnet_full(5, 6, FMT_GFT, FMT_GF_BINARY, 0xAB, 0xAB, 0x4100, 0x4100, 1) == RESOLVE_FAMILY_MISMATCH)) __t27_assert_fail("\n  cross-family BitNet dispute -> family mismatch:\n    resolve_bitnet_full(5, 6, FMT_GFT, FMT_GF_BINARY, 0xAB, 0xAB, 0x4100, 0x4100, 1) = {any}\n    RESOLVE_FAMILY_MISMATCH = {any}\n", .{ resolve_bitnet_full(5, 6, FMT_GFT, FMT_GF_BINARY, 0xAB, 0xAB, 0x4100, 0x4100, 1), RESOLVE_FAMILY_MISMATCH });
+    if (!(resolve_bitnet_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAC, 0x4100, 0x4100, 1) == RESOLVE_MALFORMED)) __t27_assert_fail("\n  fresh same-family but unbound leaf -> malformed:\n    resolve_bitnet_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAC, 0x4100, 0x4100, 1) = {any}\n    RESOLVE_MALFORMED = {any}\n", .{ resolve_bitnet_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAC, 0x4100, 0x4100, 1), RESOLVE_MALFORMED });
+    if (!(executor_bond_after(1000, resolve_bitnet_full(6, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x9999, 0x4100, 1)) == 1000)) __t27_assert_fail("\n  replayed BitNet dispute keeps the bond:\n    executor_bond_after(1000, resolve_bitnet_full(6, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x9999, 0x4100, 1)) = {any}\n", .{ executor_bond_after(1000, resolve_bitnet_full(6, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x9999, 0x4100, 1)) });
 }
 test "bitnet_dispute_d256_anchor" {
-    if (!(resolve_bitnet_d256(1, 0x4100, 0x4100, 1) == RESOLVE_HONEST)) @panic("matched digest + valid ternary + correct GF -> honest");
-    if (!(resolve_bitnet_d256(1, 0x9999, 0x4100, 1) == RESOLVE_SLASH)) @panic("matched digest, wrong GF -> slash");
-    if (!(resolve_bitnet_d256(1, 0x4100, 0x4100, 0) == RESOLVE_SLASH)) @panic("matched digest, bad ternary -> slash");
-    if (!(resolve_bitnet_d256(0, 0x4100, 0x4100, 0) == RESOLVE_MALFORMED)) @panic("digest mismatch -> malformed");
-    if (!(executor_bond_after(1000, resolve_bitnet_d256(0, 0x4100, 0x4100, 0)) == 1000)) @panic("malformed keeps the bond");
-    if (!(resolve_bitnet_d256(1, 0x4100, 0x4100, 1) == resolve_bitnet(0xAB, 0xAB, 0x4100, 0x4100, 1))) @panic("d256 matches resolve_bitnet on the honest path");
+    if (!(resolve_bitnet_d256(1, 0x4100, 0x4100, 1) == RESOLVE_HONEST)) __t27_assert_fail("\n  matched digest + valid ternary + correct GF -> honest:\n    resolve_bitnet_d256(1, 0x4100, 0x4100, 1) = {any}\n    RESOLVE_HONEST = {any}\n", .{ resolve_bitnet_d256(1, 0x4100, 0x4100, 1), RESOLVE_HONEST });
+    if (!(resolve_bitnet_d256(1, 0x9999, 0x4100, 1) == RESOLVE_SLASH)) __t27_assert_fail("\n  matched digest, wrong GF -> slash:\n    resolve_bitnet_d256(1, 0x9999, 0x4100, 1) = {any}\n    RESOLVE_SLASH = {any}\n", .{ resolve_bitnet_d256(1, 0x9999, 0x4100, 1), RESOLVE_SLASH });
+    if (!(resolve_bitnet_d256(1, 0x4100, 0x4100, 0) == RESOLVE_SLASH)) __t27_assert_fail("\n  matched digest, bad ternary -> slash:\n    resolve_bitnet_d256(1, 0x4100, 0x4100, 0) = {any}\n    RESOLVE_SLASH = {any}\n", .{ resolve_bitnet_d256(1, 0x4100, 0x4100, 0), RESOLVE_SLASH });
+    if (!(resolve_bitnet_d256(0, 0x4100, 0x4100, 0) == RESOLVE_MALFORMED)) __t27_assert_fail("\n  digest mismatch -> malformed:\n    resolve_bitnet_d256(0, 0x4100, 0x4100, 0) = {any}\n    RESOLVE_MALFORMED = {any}\n", .{ resolve_bitnet_d256(0, 0x4100, 0x4100, 0), RESOLVE_MALFORMED });
+    if (!(executor_bond_after(1000, resolve_bitnet_d256(0, 0x4100, 0x4100, 0)) == 1000)) __t27_assert_fail("\n  malformed keeps the bond:\n    executor_bond_after(1000, resolve_bitnet_d256(0, 0x4100, 0x4100, 0)) = {any}\n", .{ executor_bond_after(1000, resolve_bitnet_d256(0, 0x4100, 0x4100, 0)) });
+    if (!(resolve_bitnet_d256(1, 0x4100, 0x4100, 1) == resolve_bitnet(0xAB, 0xAB, 0x4100, 0x4100, 1))) __t27_assert_fail("\n  d256 matches resolve_bitnet on the honest path:\n    resolve_bitnet_d256(1, 0x4100, 0x4100, 1) = {any}\n    resolve_bitnet(0xAB, 0xAB, 0x4100, 0x4100, 1) = {any}\n", .{ resolve_bitnet_d256(1, 0x4100, 0x4100, 1), resolve_bitnet(0xAB, 0xAB, 0x4100, 0x4100, 1) });
 }
 test "bitnet_d256_full_closes_replay" {
-    if (!(resolve_bitnet_d256_full(5, 6, FMT_GFT, FMT_GFT, 1, 0x4100, 0x4100, 1) == RESOLVE_HONEST)) @panic("fresh matched-digest honest -> honest");
-    if (!(resolve_bitnet_d256_full(5, 6, FMT_GFT, FMT_GFT, 1, 0x9999, 0x4100, 1) == RESOLVE_SLASH)) @panic("fresh matched-digest GF fraud -> slash");
-    if (!(resolve_bitnet_d256_full(6, 6, FMT_GFT, FMT_GFT, 1, 0x9999, 0x4100, 1) == RESOLVE_STALE)) @panic("replayed 256-bit fraud -> stale");
-    if (!(resolve_bitnet_d256(1, 0x9999, 0x4100, 1) == RESOLVE_SLASH)) @panic("contrast: bare resolve_bitnet_d256 re-slashes the replay");
-    if (!(resolve_bitnet_d256_full(5, 6, FMT_GFT, FMT_GF_BINARY, 1, 0x4100, 0x4100, 1) == RESOLVE_FAMILY_MISMATCH)) @panic("cross-family -> family mismatch");
-    if (!(resolve_bitnet_d256_full(5, 6, FMT_GFT, FMT_GFT, 0, 0x4100, 0x4100, 1) == RESOLVE_MALFORMED)) @panic("fresh same-family but digest mismatch -> malformed");
-    if (!(resolve_bitnet_d256_full(5, 6, FMT_GFT, FMT_GFT, 1, 0x4100, 0x4100, 1) == resolve_full_d256(5, 6, FMT_GFT, FMT_GFT, 1, 0x4100, 0x4100))) @panic("honest-path parity with resolve_full_d256");
+    if (!(resolve_bitnet_d256_full(5, 6, FMT_GFT, FMT_GFT, 1, 0x4100, 0x4100, 1) == RESOLVE_HONEST)) __t27_assert_fail("\n  fresh matched-digest honest -> honest:\n    resolve_bitnet_d256_full(5, 6, FMT_GFT, FMT_GFT, 1, 0x4100, 0x4100, 1) = {any}\n    RESOLVE_HONEST = {any}\n", .{ resolve_bitnet_d256_full(5, 6, FMT_GFT, FMT_GFT, 1, 0x4100, 0x4100, 1), RESOLVE_HONEST });
+    if (!(resolve_bitnet_d256_full(5, 6, FMT_GFT, FMT_GFT, 1, 0x9999, 0x4100, 1) == RESOLVE_SLASH)) __t27_assert_fail("\n  fresh matched-digest GF fraud -> slash:\n    resolve_bitnet_d256_full(5, 6, FMT_GFT, FMT_GFT, 1, 0x9999, 0x4100, 1) = {any}\n    RESOLVE_SLASH = {any}\n", .{ resolve_bitnet_d256_full(5, 6, FMT_GFT, FMT_GFT, 1, 0x9999, 0x4100, 1), RESOLVE_SLASH });
+    if (!(resolve_bitnet_d256_full(6, 6, FMT_GFT, FMT_GFT, 1, 0x9999, 0x4100, 1) == RESOLVE_STALE)) __t27_assert_fail("\n  replayed 256-bit fraud -> stale:\n    resolve_bitnet_d256_full(6, 6, FMT_GFT, FMT_GFT, 1, 0x9999, 0x4100, 1) = {any}\n    RESOLVE_STALE = {any}\n", .{ resolve_bitnet_d256_full(6, 6, FMT_GFT, FMT_GFT, 1, 0x9999, 0x4100, 1), RESOLVE_STALE });
+    if (!(resolve_bitnet_d256(1, 0x9999, 0x4100, 1) == RESOLVE_SLASH)) __t27_assert_fail("\n  contrast: bare resolve_bitnet_d256 re-slashes the replay:\n    resolve_bitnet_d256(1, 0x9999, 0x4100, 1) = {any}\n    RESOLVE_SLASH = {any}\n", .{ resolve_bitnet_d256(1, 0x9999, 0x4100, 1), RESOLVE_SLASH });
+    if (!(resolve_bitnet_d256_full(5, 6, FMT_GFT, FMT_GF_BINARY, 1, 0x4100, 0x4100, 1) == RESOLVE_FAMILY_MISMATCH)) __t27_assert_fail("\n  cross-family -> family mismatch:\n    resolve_bitnet_d256_full(5, 6, FMT_GFT, FMT_GF_BINARY, 1, 0x4100, 0x4100, 1) = {any}\n    RESOLVE_FAMILY_MISMATCH = {any}\n", .{ resolve_bitnet_d256_full(5, 6, FMT_GFT, FMT_GF_BINARY, 1, 0x4100, 0x4100, 1), RESOLVE_FAMILY_MISMATCH });
+    if (!(resolve_bitnet_d256_full(5, 6, FMT_GFT, FMT_GFT, 0, 0x4100, 0x4100, 1) == RESOLVE_MALFORMED)) __t27_assert_fail("\n  fresh same-family but digest mismatch -> malformed:\n    resolve_bitnet_d256_full(5, 6, FMT_GFT, FMT_GFT, 0, 0x4100, 0x4100, 1) = {any}\n    RESOLVE_MALFORMED = {any}\n", .{ resolve_bitnet_d256_full(5, 6, FMT_GFT, FMT_GFT, 0, 0x4100, 0x4100, 1), RESOLVE_MALFORMED });
+    if (!(resolve_bitnet_d256_full(5, 6, FMT_GFT, FMT_GFT, 1, 0x4100, 0x4100, 1) == resolve_full_d256(5, 6, FMT_GFT, FMT_GFT, 1, 0x4100, 0x4100))) __t27_assert_fail("\n  honest-path parity with resolve_full_d256:\n    resolve_bitnet_d256_full(5, 6, FMT_GFT, FMT_GFT, 1, 0x4100, 0x4100, 1) = {any}\n    resolve_full_d256(5, 6, FMT_GFT, FMT_GFT, 1, 0x4100, 0x4100) = {any}\n", .{ resolve_bitnet_d256_full(5, 6, FMT_GFT, FMT_GFT, 1, 0x4100, 0x4100, 1), resolve_full_d256(5, 6, FMT_GFT, FMT_GFT, 1, 0x4100, 0x4100) });
 }
 test "majority_flag_basics" {
-    if (!(majority_flag3(1, 1, 1) == 1)) @panic("unanimous yes");
-    if (!(majority_flag3(1, 1, 0) == 1)) @panic("2-of-3 yes");
-    if (!(majority_flag3(1, 0, 0) == 0)) @panic("only one yes -> no");
-    if (!(majority_flag3(0, 0, 0) == 0)) @panic("unanimous no");
+    if (!(majority_flag3(1, 1, 1) == 1)) __t27_assert_fail("\n  unanimous yes:\n    majority_flag3(1, 1, 1) = {any}\n", .{ majority_flag3(1, 1, 1) });
+    if (!(majority_flag3(1, 1, 0) == 1)) __t27_assert_fail("\n  2-of-3 yes:\n    majority_flag3(1, 1, 0) = {any}\n", .{ majority_flag3(1, 1, 0) });
+    if (!(majority_flag3(1, 0, 0) == 0)) __t27_assert_fail("\n  only one yes -> no:\n    majority_flag3(1, 0, 0) = {any}\n", .{ majority_flag3(1, 0, 0) });
+    if (!(majority_flag3(0, 0, 0) == 0)) __t27_assert_fail("\n  unanimous no:\n    majority_flag3(0, 0, 0) = {any}\n", .{ majority_flag3(0, 0, 0) });
 }
 test "bitnet_quorum_outvotes_a_liar" {
-    if (!(resolve_bitnet_quorum(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x9999, 1, 1, 1) == RESOLVE_HONEST)) @panic("value liar outvoted -> honest executor safe");
-    if (!(resolve_bitnet_quorum(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 0, 1, 1) == RESOLVE_HONEST)) @panic("lone false ternary accusation is outvoted");
-    if (!(resolve_bitnet_quorum(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 0, 0, 1) == RESOLVE_SLASH)) @panic("ternary-bad majority slashes");
-    if (!(resolve_bitnet_quorum(0xAB, 0xAB, 0x9999, 0x4100, 0x4100, 0x9999, 1, 1, 1) == RESOLVE_SLASH)) @panic("GF fraud caught by the value majority");
-    if (!(resolve_bitnet_quorum(0xAB, 0xAB, 0x4100, 0x1111, 0x2222, 0x3333, 1, 1, 1) == RESOLVE_INDETERMINATE)) @panic("split value set -> indeterminate");
-    if (!(executor_bond_after(1000, resolve_bitnet_quorum(0xAB, 0xAB, 0x4100, 0x1111, 0x2222, 0x3333, 1, 1, 1)) == 1000)) @panic("indeterminate keeps the bond");
+    if (!(resolve_bitnet_quorum(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x9999, 1, 1, 1) == RESOLVE_HONEST)) __t27_assert_fail("\n  value liar outvoted -> honest executor safe:\n    resolve_bitnet_quorum(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x9999, 1, 1, 1) = {any}\n    RESOLVE_HONEST = {any}\n", .{ resolve_bitnet_quorum(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x9999, 1, 1, 1), RESOLVE_HONEST });
+    if (!(resolve_bitnet_quorum(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 0, 1, 1) == RESOLVE_HONEST)) __t27_assert_fail("\n  lone false ternary accusation is outvoted:\n    resolve_bitnet_quorum(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 0, 1, 1) = {any}\n    RESOLVE_HONEST = {any}\n", .{ resolve_bitnet_quorum(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 0, 1, 1), RESOLVE_HONEST });
+    if (!(resolve_bitnet_quorum(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 0, 0, 1) == RESOLVE_SLASH)) __t27_assert_fail("\n  ternary-bad majority slashes:\n    resolve_bitnet_quorum(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 0, 0, 1) = {any}\n    RESOLVE_SLASH = {any}\n", .{ resolve_bitnet_quorum(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 0, 0, 1), RESOLVE_SLASH });
+    if (!(resolve_bitnet_quorum(0xAB, 0xAB, 0x9999, 0x4100, 0x4100, 0x9999, 1, 1, 1) == RESOLVE_SLASH)) __t27_assert_fail("\n  GF fraud caught by the value majority:\n    resolve_bitnet_quorum(0xAB, 0xAB, 0x9999, 0x4100, 0x4100, 0x9999, 1, 1, 1) = {any}\n    RESOLVE_SLASH = {any}\n", .{ resolve_bitnet_quorum(0xAB, 0xAB, 0x9999, 0x4100, 0x4100, 0x9999, 1, 1, 1), RESOLVE_SLASH });
+    if (!(resolve_bitnet_quorum(0xAB, 0xAB, 0x4100, 0x1111, 0x2222, 0x3333, 1, 1, 1) == RESOLVE_INDETERMINATE)) __t27_assert_fail("\n  split value set -> indeterminate:\n    resolve_bitnet_quorum(0xAB, 0xAB, 0x4100, 0x1111, 0x2222, 0x3333, 1, 1, 1) = {any}\n    RESOLVE_INDETERMINATE = {any}\n", .{ resolve_bitnet_quorum(0xAB, 0xAB, 0x4100, 0x1111, 0x2222, 0x3333, 1, 1, 1), RESOLVE_INDETERMINATE });
+    if (!(executor_bond_after(1000, resolve_bitnet_quorum(0xAB, 0xAB, 0x4100, 0x1111, 0x2222, 0x3333, 1, 1, 1)) == 1000)) __t27_assert_fail("\n  indeterminate keeps the bond:\n    executor_bond_after(1000, resolve_bitnet_quorum(0xAB, 0xAB, 0x4100, 0x1111, 0x2222, 0x3333, 1, 1, 1)) = {any}\n", .{ executor_bond_after(1000, resolve_bitnet_quorum(0xAB, 0xAB, 0x4100, 0x1111, 0x2222, 0x3333, 1, 1, 1)) });
 }
 test "majority_flag5_basics" {
-    if (!(majority_flag5(1, 1, 1, 0, 0) == 1)) @panic("3-of-5 yes");
-    if (!(majority_flag5(1, 1, 0, 0, 0) == 0)) @panic("2-of-5 -> no");
-    if (!(majority_flag5(1, 1, 1, 1, 1) == 1)) @panic("unanimous yes");
-    if (!(majority_flag5(0, 0, 0, 0, 0) == 0)) @panic("unanimous no");
+    if (!(majority_flag5(1, 1, 1, 0, 0) == 1)) __t27_assert_fail("\n  3-of-5 yes:\n    majority_flag5(1, 1, 1, 0, 0) = {any}\n", .{ majority_flag5(1, 1, 1, 0, 0) });
+    if (!(majority_flag5(1, 1, 0, 0, 0) == 0)) __t27_assert_fail("\n  2-of-5 -> no:\n    majority_flag5(1, 1, 0, 0, 0) = {any}\n", .{ majority_flag5(1, 1, 0, 0, 0) });
+    if (!(majority_flag5(1, 1, 1, 1, 1) == 1)) __t27_assert_fail("\n  unanimous yes:\n    majority_flag5(1, 1, 1, 1, 1) = {any}\n", .{ majority_flag5(1, 1, 1, 1, 1) });
+    if (!(majority_flag5(0, 0, 0, 0, 0) == 0)) __t27_assert_fail("\n  unanimous no:\n    majority_flag5(0, 0, 0, 0, 0) = {any}\n", .{ majority_flag5(0, 0, 0, 0, 0) });
 }
 test "bitnet_quorum5_outvotes_two_liars" {
-    if (!(resolve_bitnet_quorum5(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 0x9999, 0x9999, 1, 1, 1, 1, 1) == RESOLVE_HONEST)) @panic("2 value liars outvoted by 3-of-5");
-    if (!(resolve_bitnet_quorum5(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 0x4100, 0x4100, 0, 0, 1, 1, 1) == RESOLVE_HONEST)) @panic("2 false ternary accusations outvoted");
-    if (!(resolve_bitnet_quorum5(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 0x4100, 0x4100, 0, 0, 0, 1, 1) == RESOLVE_SLASH)) @panic("3-of-5 ternary-bad majority slashes");
-    if (!(resolve_bitnet_quorum5(0xAB, 0xAB, 0x9999, 0x4100, 0x4100, 0x4100, 0x9999, 0x9999, 1, 1, 1, 1, 1) == RESOLVE_SLASH)) @panic("GF fraud caught by the 3-of-5 value majority");
-    if (!(resolve_bitnet_quorum5(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x9999, 0x9999, 0xBEEF, 1, 1, 1, 1, 1) == RESOLVE_INDETERMINATE)) @panic("2-2-1 split -> indeterminate");
+    if (!(resolve_bitnet_quorum5(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 0x9999, 0x9999, 1, 1, 1, 1, 1) == RESOLVE_HONEST)) __t27_assert_fail("\n  2 value liars outvoted by 3-of-5:\n    resolve_bitnet_quorum5(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 0x9999, 0x9999, 1, 1, 1, 1, 1) = {any}\n    RESOLVE_HONEST = {any}\n", .{ resolve_bitnet_quorum5(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 0x9999, 0x9999, 1, 1, 1, 1, 1), RESOLVE_HONEST });
+    if (!(resolve_bitnet_quorum5(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 0x4100, 0x4100, 0, 0, 1, 1, 1) == RESOLVE_HONEST)) __t27_assert_fail("\n  2 false ternary accusations outvoted:\n    resolve_bitnet_quorum5(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 0x4100, 0x4100, 0, 0, 1, 1, 1) = {any}\n    RESOLVE_HONEST = {any}\n", .{ resolve_bitnet_quorum5(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 0x4100, 0x4100, 0, 0, 1, 1, 1), RESOLVE_HONEST });
+    if (!(resolve_bitnet_quorum5(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 0x4100, 0x4100, 0, 0, 0, 1, 1) == RESOLVE_SLASH)) __t27_assert_fail("\n  3-of-5 ternary-bad majority slashes:\n    resolve_bitnet_quorum5(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 0x4100, 0x4100, 0, 0, 0, 1, 1) = {any}\n    RESOLVE_SLASH = {any}\n", .{ resolve_bitnet_quorum5(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 0x4100, 0x4100, 0, 0, 0, 1, 1), RESOLVE_SLASH });
+    if (!(resolve_bitnet_quorum5(0xAB, 0xAB, 0x9999, 0x4100, 0x4100, 0x4100, 0x9999, 0x9999, 1, 1, 1, 1, 1) == RESOLVE_SLASH)) __t27_assert_fail("\n  GF fraud caught by the 3-of-5 value majority:\n    resolve_bitnet_quorum5(0xAB, 0xAB, 0x9999, 0x4100, 0x4100, 0x4100, 0x9999, 0x9999, 1, 1, 1, 1, 1) = {any}\n    RESOLVE_SLASH = {any}\n", .{ resolve_bitnet_quorum5(0xAB, 0xAB, 0x9999, 0x4100, 0x4100, 0x4100, 0x9999, 0x9999, 1, 1, 1, 1, 1), RESOLVE_SLASH });
+    if (!(resolve_bitnet_quorum5(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x9999, 0x9999, 0xBEEF, 1, 1, 1, 1, 1) == RESOLVE_INDETERMINATE)) __t27_assert_fail("\n  2-2-1 split -> indeterminate:\n    resolve_bitnet_quorum5(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x9999, 0x9999, 0xBEEF, 1, 1, 1, 1, 1) = {any}\n    RESOLVE_INDETERMINATE = {any}\n", .{ resolve_bitnet_quorum5(0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x9999, 0x9999, 0xBEEF, 1, 1, 1, 1, 1), RESOLVE_INDETERMINATE });
 }
 test "bitnet_quorum_full_closes_replay" {
-    if (!(resolve_bitnet_quorum_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x9999, 0x4100, 0x4100, 0x9999, 1, 1, 1) == RESOLVE_SLASH)) @panic("fresh quorum GF fraud -> slash");
-    if (!(resolve_bitnet_quorum_full(6, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x9999, 0x4100, 0x4100, 0x9999, 1, 1, 1) == RESOLVE_STALE)) @panic("replayed quorum fraud -> stale");
-    if (!(resolve_bitnet_quorum(0xAB, 0xAB, 0x9999, 0x4100, 0x4100, 0x9999, 1, 1, 1) == RESOLVE_SLASH)) @panic("bare quorum re-slashes the replay");
-    if (!(resolve_bitnet_quorum_full(5, 6, FMT_GFT, FMT_GF_BINARY, 0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 1, 1, 1) == RESOLVE_FAMILY_MISMATCH)) @panic("cross-family quorum dispute -> family mismatch");
-    if (!(resolve_bitnet_quorum_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x4100, 0x1111, 0x2222, 0x3333, 1, 1, 1) == RESOLVE_INDETERMINATE)) @panic("split value set -> indeterminate (checked before freshness)");
-    if (!(resolve_bitnet_quorum_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 1, 1, 1) == RESOLVE_HONEST)) @panic("fresh honest quorum -> honest");
-    if (!(resolve_bitnet_quorum5_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x9999, 0x4100, 0x4100, 0x4100, 0x9999, 0x9999, 1, 1, 1, 1, 1) == RESOLVE_SLASH)) @panic("fresh 3-of-5 GF fraud -> slash");
-    if (!(resolve_bitnet_quorum5_full(6, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x9999, 0x4100, 0x4100, 0x4100, 0x9999, 0x9999, 1, 1, 1, 1, 1) == RESOLVE_STALE)) @panic("replayed 3-of-5 fraud -> stale");
+    if (!(resolve_bitnet_quorum_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x9999, 0x4100, 0x4100, 0x9999, 1, 1, 1) == RESOLVE_SLASH)) __t27_assert_fail("\n  fresh quorum GF fraud -> slash:\n    resolve_bitnet_quorum_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x9999, 0x4100, 0x4100, 0x9999, 1, 1, 1) = {any}\n    RESOLVE_SLASH = {any}\n", .{ resolve_bitnet_quorum_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x9999, 0x4100, 0x4100, 0x9999, 1, 1, 1), RESOLVE_SLASH });
+    if (!(resolve_bitnet_quorum_full(6, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x9999, 0x4100, 0x4100, 0x9999, 1, 1, 1) == RESOLVE_STALE)) __t27_assert_fail("\n  replayed quorum fraud -> stale:\n    resolve_bitnet_quorum_full(6, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x9999, 0x4100, 0x4100, 0x9999, 1, 1, 1) = {any}\n    RESOLVE_STALE = {any}\n", .{ resolve_bitnet_quorum_full(6, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x9999, 0x4100, 0x4100, 0x9999, 1, 1, 1), RESOLVE_STALE });
+    if (!(resolve_bitnet_quorum(0xAB, 0xAB, 0x9999, 0x4100, 0x4100, 0x9999, 1, 1, 1) == RESOLVE_SLASH)) __t27_assert_fail("\n  bare quorum re-slashes the replay:\n    resolve_bitnet_quorum(0xAB, 0xAB, 0x9999, 0x4100, 0x4100, 0x9999, 1, 1, 1) = {any}\n    RESOLVE_SLASH = {any}\n", .{ resolve_bitnet_quorum(0xAB, 0xAB, 0x9999, 0x4100, 0x4100, 0x9999, 1, 1, 1), RESOLVE_SLASH });
+    if (!(resolve_bitnet_quorum_full(5, 6, FMT_GFT, FMT_GF_BINARY, 0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 1, 1, 1) == RESOLVE_FAMILY_MISMATCH)) __t27_assert_fail("\n  cross-family quorum dispute -> family mismatch:\n    resolve_bitnet_quorum_full(5, 6, FMT_GFT, FMT_GF_BINARY, 0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 1, 1, 1) = {any}\n    RESOLVE_FAMILY_MISMATCH = {any}\n", .{ resolve_bitnet_quorum_full(5, 6, FMT_GFT, FMT_GF_BINARY, 0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 1, 1, 1), RESOLVE_FAMILY_MISMATCH });
+    if (!(resolve_bitnet_quorum_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x4100, 0x1111, 0x2222, 0x3333, 1, 1, 1) == RESOLVE_INDETERMINATE)) __t27_assert_fail("\n  split value set -> indeterminate (checked before freshness):\n    resolve_bitnet_quorum_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x4100, 0x1111, 0x2222, 0x3333, 1, 1, 1) = {any}\n    RESOLVE_INDETERMINATE = {any}\n", .{ resolve_bitnet_quorum_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x4100, 0x1111, 0x2222, 0x3333, 1, 1, 1), RESOLVE_INDETERMINATE });
+    if (!(resolve_bitnet_quorum_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 1, 1, 1) == RESOLVE_HONEST)) __t27_assert_fail("\n  fresh honest quorum -> honest:\n    resolve_bitnet_quorum_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 1, 1, 1) = {any}\n    RESOLVE_HONEST = {any}\n", .{ resolve_bitnet_quorum_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x4100, 0x4100, 0x4100, 0x4100, 1, 1, 1), RESOLVE_HONEST });
+    if (!(resolve_bitnet_quorum5_full(5, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x9999, 0x4100, 0x4100, 0x4100, 0x9999, 0x9999, 1, 1, 1, 1, 1) == RESOLVE_SLASH)) __t27_assert_fail("\n  fresh 3-of-5 GF fraud -> slash:\n    RESOLVE_SLASH = {any}\n", .{ RESOLVE_SLASH });
+    if (!(resolve_bitnet_quorum5_full(6, 6, FMT_GFT, FMT_GFT, 0xAB, 0xAB, 0x9999, 0x4100, 0x4100, 0x4100, 0x9999, 0x9999, 1, 1, 1, 1, 1) == RESOLVE_STALE)) __t27_assert_fail("\n  replayed 3-of-5 fraud -> stale:\n    RESOLVE_STALE = {any}\n", .{ RESOLVE_STALE });
 }

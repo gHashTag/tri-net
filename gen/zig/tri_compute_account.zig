@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 fn total(balance: u32, locked: u32) u32 {
@@ -109,132 +117,132 @@ fn bal_after_finalize_checked(balance: u32, pending: u32, settle_epoch: u32, now
 test "lock_conserves_total" {
     const ba = bal_after_lock(1000, 200);
     const la = locked_after_lock(1000, 0, 200);
-    if (!(total(ba, la) == total(1000, 0))) @panic("lock conserves total");
-    if (!(ba == 800)) @panic("balance reduced by the bond");
-    if (!(la == 200)) @panic("bond now locked");
+    if (!(total(ba, la) == total(1000, 0))) __t27_assert_fail("\n  lock conserves total:\n    total(ba, la) = {any}\n    total(1000, 0) = {any}\n", .{ total(ba, la), total(1000, 0) });
+    if (!(ba == 800)) __t27_assert_fail("\n  balance reduced by the bond:\n    ba = {any}\n", .{ ba });
+    if (!(la == 200)) __t27_assert_fail("\n  bond now locked:\n    la = {any}\n", .{ la });
 }
 test "release_conserves_total" {
     const ba = bal_after_release(800, 200);
-    if (!(total(ba, 0) == total(800, 200))) @panic("release conserves total");
-    if (!(ba == 1000)) @panic("the whole bond returns");
+    if (!(total(ba, 0) == total(800, 200))) __t27_assert_fail("\n  release conserves total:\n    total(ba, 0) = {any}\n    total(800, 200) = {any}\n", .{ total(ba, 0), total(800, 200) });
+    if (!(ba == 1000)) __t27_assert_fail("\n  the whole bond returns:\n    ba = {any}\n", .{ ba });
 }
 test "slash_removes_exactly_the_bond" {
     const ba = bal_after_slash(800);
-    if (!(total(ba, 0) == (total(800, 200) - 200))) @panic("slash removes exactly the bond");
-    if (!(ba == 800)) @panic("spendable balance is untouched by a slash");
+    if (!(total(ba, 0) == (total(800, 200) - 200))) __t27_assert_fail("\n  slash removes exactly the bond:\n    total(ba, 0) = {any}\n    total(800, 200) - 200 = {any}\n", .{ total(ba, 0), total(800, 200) - 200 });
+    if (!(ba == 800)) __t27_assert_fail("\n  spendable balance is untouched by a slash:\n    ba = {any}\n", .{ ba });
 }
 test "settle_mints_exactly_the_reward" {
     const ba = bal_after_settle(1000, 16);
-    if (!(total(ba, 0) == (total(1000, 0) + 16))) @panic("settle mints exactly the reward");
+    if (!(total(ba, 0) == (total(1000, 0) + 16))) __t27_assert_fail("\n  settle mints exactly the reward:\n    total(ba, 0) = {any}\n    total(1000, 0) + 16 = {any}\n", .{ total(ba, 0), total(1000, 0) + 16 });
 }
 test "balance_mint_saturates" {
-    if (!(bal_add_sat(1000, 500) == 1500)) @panic("normal add exact");
-    if (!(bal_add_sat(0xFFFFFFF0, 32) == 0xFFFFFFFF)) @panic("overflowing add saturates, no wrap");
-    if (!(bal_after_settle(0xFFFFFFF0, 32) == 0xFFFFFFFF)) @panic("settle into near-max balance saturates");
-    if (!(bal_after_finalize(0xFFFFFFF0, 32) == 0xFFFFFFFF)) @panic("finalize into near-max balance saturates");
-    if (!(bal_after_finalize_gated(0xFFFFFFF0, 32, 1, 100, 10) == 0xFFFFFFFF)) @panic("gated finalize saturates too");
-    if (!(bal_after_finalize(800, 16) == 816)) @panic("finalize small values exact");
-    if (!(bal_after_settle(1000, 16) == 1016)) @panic("settle small values exact");
+    if (!(bal_add_sat(1000, 500) == 1500)) __t27_assert_fail("\n  normal add exact:\n    bal_add_sat(1000, 500) = {any}\n", .{ bal_add_sat(1000, 500) });
+    if (!(bal_add_sat(0xFFFFFFF0, 32) == 0xFFFFFFFF)) __t27_assert_fail("\n  overflowing add saturates, no wrap:\n    bal_add_sat(0xFFFFFFF0, 32) = {any}\n", .{ bal_add_sat(0xFFFFFFF0, 32) });
+    if (!(bal_after_settle(0xFFFFFFF0, 32) == 0xFFFFFFFF)) __t27_assert_fail("\n  settle into near-max balance saturates:\n    bal_after_settle(0xFFFFFFF0, 32) = {any}\n", .{ bal_after_settle(0xFFFFFFF0, 32) });
+    if (!(bal_after_finalize(0xFFFFFFF0, 32) == 0xFFFFFFFF)) __t27_assert_fail("\n  finalize into near-max balance saturates:\n    bal_after_finalize(0xFFFFFFF0, 32) = {any}\n", .{ bal_after_finalize(0xFFFFFFF0, 32) });
+    if (!(bal_after_finalize_gated(0xFFFFFFF0, 32, 1, 100, 10) == 0xFFFFFFFF)) __t27_assert_fail("\n  gated finalize saturates too:\n    bal_after_finalize_gated(0xFFFFFFF0, 32, 1, 100, 10) = {any}\n", .{ bal_after_finalize_gated(0xFFFFFFF0, 32, 1, 100, 10) });
+    if (!(bal_after_finalize(800, 16) == 816)) __t27_assert_fail("\n  finalize small values exact:\n    bal_after_finalize(800, 16) = {any}\n", .{ bal_after_finalize(800, 16) });
+    if (!(bal_after_settle(1000, 16) == 1016)) __t27_assert_fail("\n  settle small values exact:\n    bal_after_settle(1000, 16) = {any}\n", .{ bal_after_settle(1000, 16) });
 }
 test "lock_release_round_trips" {
     const ba = bal_after_lock(1000, 200);
     const la = locked_after_lock(1000, 0, 200);
     const back = bal_after_release(ba, la);
-    if (!(back == 1000)) @panic("lock+release is a no-op on total and on balance");
+    if (!(back == 1000)) __t27_assert_fail("\n  lock+release is a no-op on total and on balance:\n    back = {any}\n", .{ back });
 }
 test "settle_escrows_not_spendable" {
     const pend = pending_after_settle(0, 16);
-    if (!(pend == 16)) @panic("reward escrowed in pending");
-    if (!(total3(800, 200, pend) == (total3(800, 200, 0) + 16))) @panic("settle mints exactly the reward into escrow");
-    if (!(bal_after_clawback(800) == 800)) @panic("the reward is not in spendable balance yet");
+    if (!(pend == 16)) __t27_assert_fail("\n  reward escrowed in pending:\n    pend = {any}\n", .{ pend });
+    if (!(total3(800, 200, pend) == (total3(800, 200, 0) + 16))) __t27_assert_fail("\n  settle mints exactly the reward into escrow:\n    total3(800, 200, pend) = {any}\n    total3(800, 200, 0) + 16 = {any}\n", .{ total3(800, 200, pend), total3(800, 200, 0) + 16 });
+    if (!(bal_after_clawback(800) == 800)) __t27_assert_fail("\n  the reward is not in spendable balance yet:\n    bal_after_clawback(800) = {any}\n", .{ bal_after_clawback(800) });
 }
 test "finalize_conserves_total" {
     const b = bal_after_finalize(800, 16);
-    if (!(b == 816)) @panic("pending reward becomes spendable");
-    if (!(total3(b, 200, 0) == total3(800, 200, 16))) @panic("finalize conserves total3");
+    if (!(b == 816)) __t27_assert_fail("\n  pending reward becomes spendable:\n    b = {any}\n", .{ b });
+    if (!(total3(b, 200, 0) == total3(800, 200, 16))) __t27_assert_fail("\n  finalize conserves total3:\n    total3(b, 200, 0) = {any}\n    total3(800, 200, 16) = {any}\n", .{ total3(b, 200, 0), total3(800, 200, 16) });
 }
 test "clawback_reverts_reward_to_pool" {
     const b = bal_after_clawback(800);
-    if (!(b == 800)) @panic("spendable balance untouched by clawback");
-    if (!(total3(b, 200, 0) == (total3(800, 200, 16) - 16))) @panic("clawback removes exactly the escrowed reward");
+    if (!(b == 800)) __t27_assert_fail("\n  spendable balance untouched by clawback:\n    b = {any}\n", .{ b });
+    if (!(total3(b, 200, 0) == (total3(800, 200, 16) - 16))) __t27_assert_fail("\n  clawback removes exactly the escrowed reward:\n    total3(b, 200, 0) = {any}\n    total3(800, 200, 16) - 16 = {any}\n", .{ total3(b, 200, 0), total3(800, 200, 16) - 16 });
 }
 test "fraud_nets_reward_plus_bond_worse" {
     const honest = total3(bal_after_finalize(bal_after_release(800, 200), 16), 0, 0);
     const fraud = total3(bal_after_clawback(800), 0, 0);
-    if (!(honest == 1016)) @panic("honest keeps balance + reward + returned bond");
-    if (!(fraud == 800)) @panic("fraud loses the escrowed reward and the slashed bond");
-    if (!((honest - fraud) == (16 + 200))) @panic("cheating costs exactly reward + bond vs honesty");
+    if (!(honest == 1016)) __t27_assert_fail("\n  honest keeps balance + reward + returned bond:\n    honest = {any}\n", .{ honest });
+    if (!(fraud == 800)) __t27_assert_fail("\n  fraud loses the escrowed reward and the slashed bond:\n    fraud = {any}\n", .{ fraud });
+    if (!((honest - fraud) == (16 + 200))) __t27_assert_fail("\n  cheating costs exactly reward + bond vs honesty:\n    honest - fraud = {any}\n    16 + 200 = {any}\n", .{ honest - fraud, 16 + 200 });
 }
 test "finality_window_boundary" {
-    if (!(is_final(100, 105, 10) == false)) @panic("5 < 10 epochs: still in the window");
-    if (!(is_final(100, 109, 10) == false)) @panic("one epoch short: not final");
-    if (!(is_final(100, 110, 10) == true)) @panic("exactly a window elapsed: final");
-    if (!(is_final(100, 200, 10) == true)) @panic("well past the window: final");
-    if (!(is_final(100, 90, 10) == false)) @panic("clock before settle epoch: never final");
+    if (!(is_final(100, 105, 10) == false)) __t27_assert_fail("\n  5 < 10 epochs: still in the window:\n    is_final(100, 105, 10) = {any}\n", .{ is_final(100, 105, 10) });
+    if (!(is_final(100, 109, 10) == false)) __t27_assert_fail("\n  one epoch short: not final:\n    is_final(100, 109, 10) = {any}\n", .{ is_final(100, 109, 10) });
+    if (!(is_final(100, 110, 10) == true)) __t27_assert_fail("\n  exactly a window elapsed: final:\n    is_final(100, 110, 10) = {any}\n", .{ is_final(100, 110, 10) });
+    if (!(is_final(100, 200, 10) == true)) __t27_assert_fail("\n  well past the window: final:\n    is_final(100, 200, 10) = {any}\n", .{ is_final(100, 200, 10) });
+    if (!(is_final(100, 90, 10) == false)) __t27_assert_fail("\n  clock before settle epoch: never final:\n    is_final(100, 90, 10) = {any}\n", .{ is_final(100, 90, 10) });
 }
 test "finalize_is_gated_by_the_window" {
-    if (!(bal_after_finalize_gated(800, 16, 100, 105, 10) == 800)) @panic("premature finalize leaves balance put");
-    if (!(bal_after_finalize_gated(800, 16, 100, 110, 10) == 816)) @panic("post-window finalize releases the reward");
-    if (!(bal_after_finalize_gated(800, 16, 100, 105, 10) == bal_after_clawback(800))) @panic("in-window: reward not yet spendable, clawback still bites");
+    if (!(bal_after_finalize_gated(800, 16, 100, 105, 10) == 800)) __t27_assert_fail("\n  premature finalize leaves balance put:\n    bal_after_finalize_gated(800, 16, 100, 105, 10) = {any}\n", .{ bal_after_finalize_gated(800, 16, 100, 105, 10) });
+    if (!(bal_after_finalize_gated(800, 16, 100, 110, 10) == 816)) __t27_assert_fail("\n  post-window finalize releases the reward:\n    bal_after_finalize_gated(800, 16, 100, 110, 10) = {any}\n", .{ bal_after_finalize_gated(800, 16, 100, 110, 10) });
+    if (!(bal_after_finalize_gated(800, 16, 100, 105, 10) == bal_after_clawback(800))) __t27_assert_fail("\n  in-window: reward not yet spendable, clawback still bites:\n    bal_after_finalize_gated(800, 16, 100, 105, 10) = {any}\n    bal_after_clawback(800) = {any}\n", .{ bal_after_finalize_gated(800, 16, 100, 105, 10), bal_after_clawback(800) });
 }
 test "outstanding_tracks_concurrent_escrow" {
     const o1 = outstanding_after_escrow(0, 16);
     const o2 = outstanding_after_escrow(o1, 32);
-    if (!(o2 == 48)) @panic("two concurrent escrows sum to 48 at risk");
+    if (!(o2 == 48)) __t27_assert_fail("\n  two concurrent escrows sum to 48 at risk:\n    o2 = {any}\n", .{ o2 });
     const r1 = outstanding_after_release(o2, 16);
-    if (!(r1 == 32)) @panic("finalizing one task lowers outstanding by only its reward");
+    if (!(r1 == 32)) __t27_assert_fail("\n  finalizing one task lowers outstanding by only its reward:\n    r1 = {any}\n", .{ r1 });
     const r2 = outstanding_after_release(r1, 32);
-    if (!(r2 == 0)) @panic("releasing the other returns outstanding to zero");
+    if (!(r2 == 0)) __t27_assert_fail("\n  releasing the other returns outstanding to zero:\n    r2 = {any}\n", .{ r2 });
 }
 test "finalize_and_clawback_release_equally" {
-    if (!(outstanding_after_release(48, 16) == outstanding_after_release(48, 16))) @panic("same release regardless of the reason");
-    if (!(outstanding_after_release(16, 32) == 0)) @panic("over-release drains to zero, no underflow");
-    if (!(outstanding_after_escrow(0xFFFFFFF0, 32) == 0xFFFFFFFF)) @panic("escrow saturates, no wrap");
+    if (!(outstanding_after_release(48, 16) == outstanding_after_release(48, 16))) __t27_assert_fail("\n  same release regardless of the reason:\n    outstanding_after_release(48, 16) = {any}\n", .{ outstanding_after_release(48, 16) });
+    if (!(outstanding_after_release(16, 32) == 0)) __t27_assert_fail("\n  over-release drains to zero, no underflow:\n    outstanding_after_release(16, 32) = {any}\n", .{ outstanding_after_release(16, 32) });
+    if (!(outstanding_after_escrow(0xFFFFFFF0, 32) == 0xFFFFFFFF)) __t27_assert_fail("\n  escrow saturates, no wrap:\n    outstanding_after_escrow(0xFFFFFFF0, 32) = {any}\n", .{ outstanding_after_escrow(0xFFFFFFF0, 32) });
 }
 test "outstanding_round_trips" {
     const o = outstanding_after_escrow(outstanding_after_escrow(outstanding_after_escrow(100, 5), 7), 9);
-    if (!(o == 121)) @panic("100 + 5 + 7 + 9 in flight");
+    if (!(o == 121)) __t27_assert_fail("\n  100 + 5 + 7 + 9 in flight:\n    o = {any}\n", .{ o });
     const back = outstanding_after_release(outstanding_after_release(outstanding_after_release(o, 5), 7), 9);
-    if (!(back == 100)) @panic("releasing the whole batch returns to the starting level");
+    if (!(back == 100)) __t27_assert_fail("\n  releasing the whole batch returns to the starting level:\n    back = {any}\n", .{ back });
 }
 test "outstanding_agrees_with_pending" {
-    if (!(outstanding_after_escrow(0, 16) == pending_after_settle(0, 16))) @panic("escrow raises both identically");
-    if (!(outstanding_after_escrow(16, 32) == pending_after_settle(16, 32))) @panic("and accumulates identically");
-    if (!(escrow_consistent(pending_after_settle(0, 16), outstanding_after_escrow(0, 16)) == true)) @panic("the two stay equal after an escrow");
-    if (!(outstanding_after_release(16, 16) == 0)) @panic("releasing the one task zeroes outstanding, as finalize zeroes pending");
-    if (!(escrow_consistent(48, 48) == true)) @panic("equal -> consistent");
-    if (!(escrow_consistent(48, 32) == false)) @panic("a drift is flagged, never silently gated on");
+    if (!(outstanding_after_escrow(0, 16) == pending_after_settle(0, 16))) __t27_assert_fail("\n  escrow raises both identically:\n    outstanding_after_escrow(0, 16) = {any}\n    pending_after_settle(0, 16) = {any}\n", .{ outstanding_after_escrow(0, 16), pending_after_settle(0, 16) });
+    if (!(outstanding_after_escrow(16, 32) == pending_after_settle(16, 32))) __t27_assert_fail("\n  and accumulates identically:\n    outstanding_after_escrow(16, 32) = {any}\n    pending_after_settle(16, 32) = {any}\n", .{ outstanding_after_escrow(16, 32), pending_after_settle(16, 32) });
+    if (!(escrow_consistent(pending_after_settle(0, 16), outstanding_after_escrow(0, 16)) == true)) __t27_assert_fail("\n  the two stay equal after an escrow:\n    escrow_consistent(pending_after_settle(0, 16), outstanding_after_escrow(0, 16)) = {any}\n", .{ escrow_consistent(pending_after_settle(0, 16), outstanding_after_escrow(0, 16)) });
+    if (!(outstanding_after_release(16, 16) == 0)) __t27_assert_fail("\n  releasing the one task zeroes outstanding, as finalize zeroes pending:\n    outstanding_after_release(16, 16) = {any}\n", .{ outstanding_after_release(16, 16) });
+    if (!(escrow_consistent(48, 48) == true)) __t27_assert_fail("\n  equal -> consistent:\n    escrow_consistent(48, 48) = {any}\n", .{ escrow_consistent(48, 48) });
+    if (!(escrow_consistent(48, 32) == false)) __t27_assert_fail("\n  a drift is flagged, never silently gated on:\n    escrow_consistent(48, 32) = {any}\n", .{ escrow_consistent(48, 32) });
 }
 test "pending_release_mirrors_outstanding" {
-    if (!(pending_after_release(48, 16) == 32)) @panic("pending drops by exactly the released reward");
-    if (!(pending_after_release(48, 16) == outstanding_after_release(48, 16))) @panic("pending and outstanding release identically");
-    if (!(escrow_consistent(pending_after_release(48, 16), outstanding_after_release(48, 16)) == true)) @panic("consistent after a release, not only an escrow");
-    if (!(pending_after_release(10, 20) == 0)) @panic("an over-release floors at 0, never underflows to ~4e9");
+    if (!(pending_after_release(48, 16) == 32)) __t27_assert_fail("\n  pending drops by exactly the released reward:\n    pending_after_release(48, 16) = {any}\n", .{ pending_after_release(48, 16) });
+    if (!(pending_after_release(48, 16) == outstanding_after_release(48, 16))) __t27_assert_fail("\n  pending and outstanding release identically:\n    pending_after_release(48, 16) = {any}\n    outstanding_after_release(48, 16) = {any}\n", .{ pending_after_release(48, 16), outstanding_after_release(48, 16) });
+    if (!(escrow_consistent(pending_after_release(48, 16), outstanding_after_release(48, 16)) == true)) __t27_assert_fail("\n  consistent after a release, not only an escrow:\n    escrow_consistent(pending_after_release(48, 16), outstanding_after_release(48, 16)) = {any}\n", .{ escrow_consistent(pending_after_release(48, 16), outstanding_after_release(48, 16)) });
+    if (!(pending_after_release(10, 20) == 0)) __t27_assert_fail("\n  an over-release floors at 0, never underflows to ~4e9:\n    pending_after_release(10, 20) = {any}\n", .{ pending_after_release(10, 20) });
 }
 test "clawback_removes_reward_before_finalize" {
     const pend0 = pending_after_settle(0, 16);
     const pend1 = pending_after_release(pend0, 16);
-    if (!(pend1 == 0)) @panic("clawback empties pending (the 'pending then 0' contract, now real)");
-    if (!(bal_after_finalize_gated(500, pend1, 0, 100, 10) == 500)) @panic("window elapsed but clawed-back reward cannot finalize -> balance unchanged");
-    if (!(bal_after_finalize_gated(500, pend0, 0, 100, 10) == 516)) @panic("an honest un-clawed reward still finalizes to balance after the window");
+    if (!(pend1 == 0)) __t27_assert_fail("\n  clawback empties pending (the 'pending then 0' contract, now real):\n    pend1 = {any}\n", .{ pend1 });
+    if (!(bal_after_finalize_gated(500, pend1, 0, 100, 10) == 500)) __t27_assert_fail("\n  window elapsed but clawed-back reward cannot finalize -> balance unchanged:\n    bal_after_finalize_gated(500, pend1, 0, 100, 10) = {any}\n", .{ bal_after_finalize_gated(500, pend1, 0, 100, 10) });
+    if (!(bal_after_finalize_gated(500, pend0, 0, 100, 10) == 516)) __t27_assert_fail("\n  an honest un-clawed reward still finalizes to balance after the window:\n    bal_after_finalize_gated(500, pend0, 0, 100, 10) = {any}\n", .{ bal_after_finalize_gated(500, pend0, 0, 100, 10) });
 }
 test "slashed_reward_never_finalizes" {
-    if (!(bal_after_finalize_checked(500, 16, 0, 100, 10, 0) == 516)) @panic("not slashed + window elapsed -> finalizes");
-    if (!(bal_after_finalize_checked(500, 16, 0, 100, 10, 1) == 500)) @panic("slashed -> never finalizes, even past the window (clawback bypassed)");
-    if (!(bal_after_finalize_checked(500, 16, 0, 5, 10, 0) == 500)) @panic("not slashed but inside the window -> still no finalize (time gate intact)");
-    if (!(bal_after_finalize_checked(500, 16, 0, 5, 10, 1) == 500)) @panic("slashed inside the window -> no finalize");
+    if (!(bal_after_finalize_checked(500, 16, 0, 100, 10, 0) == 516)) __t27_assert_fail("\n  not slashed + window elapsed -> finalizes:\n    bal_after_finalize_checked(500, 16, 0, 100, 10, 0) = {any}\n", .{ bal_after_finalize_checked(500, 16, 0, 100, 10, 0) });
+    if (!(bal_after_finalize_checked(500, 16, 0, 100, 10, 1) == 500)) __t27_assert_fail("\n  slashed -> never finalizes, even past the window (clawback bypassed):\n    bal_after_finalize_checked(500, 16, 0, 100, 10, 1) = {any}\n", .{ bal_after_finalize_checked(500, 16, 0, 100, 10, 1) });
+    if (!(bal_after_finalize_checked(500, 16, 0, 5, 10, 0) == 500)) __t27_assert_fail("\n  not slashed but inside the window -> still no finalize (time gate intact):\n    bal_after_finalize_checked(500, 16, 0, 5, 10, 0) = {any}\n", .{ bal_after_finalize_checked(500, 16, 0, 5, 10, 0) });
+    if (!(bal_after_finalize_checked(500, 16, 0, 5, 10, 1) == 500)) __t27_assert_fail("\n  slashed inside the window -> no finalize:\n    bal_after_finalize_checked(500, 16, 0, 5, 10, 1) = {any}\n", .{ bal_after_finalize_checked(500, 16, 0, 5, 10, 1) });
 }
 test "escrow_saturation_keeps_them_equal" {
-    if (!(pending_after_settle(0xFFFFFFF0, 32) == 0xFFFFFFFF)) @panic("overflowing escrow saturates pending, no wrap");
-    if (!(pending_after_settle(0xFFFFFFF0, 32) == outstanding_after_escrow(0xFFFFFFF0, 32))) @panic("pending == outstanding at the ceiling");
-    if (!(escrow_consistent(pending_after_settle(0xFFFFFFF0, 32), outstanding_after_escrow(0xFFFFFFF0, 32)) == true)) @panic("still consistent under overflow");
-    if (!(pending_after_settle(1000, 500) == 1500)) @panic("normal accumulation is exact");
+    if (!(pending_after_settle(0xFFFFFFF0, 32) == 0xFFFFFFFF)) __t27_assert_fail("\n  overflowing escrow saturates pending, no wrap:\n    pending_after_settle(0xFFFFFFF0, 32) = {any}\n", .{ pending_after_settle(0xFFFFFFF0, 32) });
+    if (!(pending_after_settle(0xFFFFFFF0, 32) == outstanding_after_escrow(0xFFFFFFF0, 32))) __t27_assert_fail("\n  pending == outstanding at the ceiling:\n    pending_after_settle(0xFFFFFFF0, 32) = {any}\n    outstanding_after_escrow(0xFFFFFFF0, 32) = {any}\n", .{ pending_after_settle(0xFFFFFFF0, 32), outstanding_after_escrow(0xFFFFFFF0, 32) });
+    if (!(escrow_consistent(pending_after_settle(0xFFFFFFF0, 32), outstanding_after_escrow(0xFFFFFFF0, 32)) == true)) __t27_assert_fail("\n  still consistent under overflow:\n    escrow_consistent(pending_after_settle(0xFFFFFFF0, 32), outstanding_after_escrow(0xFFFFFFF0, 32)) = {any}\n", .{ escrow_consistent(pending_after_settle(0xFFFFFFF0, 32), outstanding_after_escrow(0xFFFFFFF0, 32)) });
+    if (!(pending_after_settle(1000, 500) == 1500)) __t27_assert_fail("\n  normal accumulation is exact:\n    pending_after_settle(1000, 500) = {any}\n", .{ pending_after_settle(1000, 500) });
 }
 test "total_conserved_over_outstanding_cycle" {
     const o0 = outstanding_after_escrow(0, 16);
     const t_mid = total3(800, 200, o0);
     const o1 = outstanding_after_release(o0, 16);
     const t_end = total3(800 + 16, 200, o1);
-    if (!(t_mid == total3(800, 200, 16))) @panic("mid-flight holdings count the at-risk 16");
-    if (!(t_end == t_mid)) @panic("finalize (outstanding -> balance) conserves total holdings");
+    if (!(t_mid == total3(800, 200, 16))) __t27_assert_fail("\n  mid-flight holdings count the at-risk 16:\n    t_mid = {any}\n    total3(800, 200, 16) = {any}\n", .{ t_mid, total3(800, 200, 16) });
+    if (!(t_end == t_mid)) __t27_assert_fail("\n  finalize (outstanding -> balance) conserves total holdings:\n    t_end = {any}\n    t_mid = {any}\n", .{ t_end, t_mid });
 }

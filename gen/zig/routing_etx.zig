@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MILLI: u32 = 1000;
@@ -54,38 +62,82 @@ fn learn_ok(is_self_route: u32, feasible: bool) bool {
     return feasible;
 }
 test "perfect_link_is_exactly_one_transmission" {
+    const e = etx_milli(1000, 1000, 1000);
+    if (!(e == 1000)) __t27_assert_fail("\n  assertion failed:\n    e = {any}\n", .{ e });
 }
 test "optimistic_prior_link" {
+    const e = etx_milli(900, 900, 1000);
+    if (!(e == 1234)) __t27_assert_fail("\n  assertion failed:\n    e = {any}\n", .{ e });
 }
 test "dead_forward_direction_is_dead" {
+    const e = etx_milli(149, 1000, 1000);
+    if (!(e == 0)) __t27_assert_fail("\n  assertion failed:\n    e = {any}\n", .{ e });
 }
 test "dead_reverse_direction_is_dead" {
+    const e = etx_milli(1000, 100, 1000);
+    if (!(e == 0)) __t27_assert_fail("\n  assertion failed:\n    e = {any}\n", .{ e });
 }
 test "rti_penalty_scales_cost" {
+    const clear = etx_milli(1000, 1000, 1000);
+    const blocked = etx_milli(1000, 1000, 10000);
+    if (!(clear == 1000)) __t27_assert_fail("\n  assertion failed:\n    clear = {any}\n", .{ clear });
+    if (!(blocked == 10000)) __t27_assert_fail("\n  assertion failed:\n    blocked = {any}\n", .{ blocked });
 }
 test "runaway_penalty_is_clamped_not_wrapped" {
+    const huge = etx_milli(1000, 1000, 500000);
+    const at_cap = etx_milli(1000, 1000, 32000);
+    if (!(huge == 32000)) __t27_assert_fail("\n  assertion failed:\n    huge = {any}\n", .{ huge });
+    if (!(at_cap == 32000)) __t27_assert_fail("\n  assertion failed:\n    at_cap = {any}\n", .{ at_cap });
 }
 test "strictly_better_wins_ties_do_not" {
+    const win = better_route(1200, 1300);
+    const tie = better_route(1300, 1300);
+    if (!(win == true)) __t27_assert_fail("\n  assertion failed:\n    win = {any}\n", .{ win });
+    if (!(tie == false)) __t27_assert_fail("\n  assertion failed:\n    tie = {any}\n", .{ tie });
 }
 test "dead_candidate_never_wins" {
+    const w = better_route(0, 5000);
+    if (!(w == false)) __t27_assert_fail("\n  assertion failed:\n    w = {any}\n", .{ w });
 }
 test "anything_beats_dead_incumbent" {
+    const w = better_route(9000, 0);
+    if (!(w == true)) __t27_assert_fail("\n  assertion failed:\n    w = {any}\n", .{ w });
 }
 test "path_adds_and_dead_propagates" {
+    const p = path_etx(2000, 1500);
+    const d = path_etx(2000, 0);
+    if (!(p == 3500)) __t27_assert_fail("\n  assertion failed:\n    p = {any}\n", .{ p });
+    if (!(d == 0)) __t27_assert_fail("\n  assertion failed:\n    d = {any}\n", .{ d });
 }
 test "no_incumbent_is_always_feasible" {
+    const f = is_feasible(9999, 0, 0);
+    if (!(f == true)) __t27_assert_fail("\n  assertion failed:\n    f = {any}\n", .{ f });
 }
 test "strictly_better_is_feasible_ties_are_not" {
+    const better = is_feasible(1200, 1500, 1);
+    const tie = is_feasible(1500, 1500, 1);
+    const worse = is_feasible(1800, 1500, 1);
+    if (!(better == true)) __t27_assert_fail("\n  assertion failed:\n    better = {any}\n", .{ better });
+    if (!(tie == false)) __t27_assert_fail("\n  assertion failed:\n    tie = {any}\n", .{ tie });
+    if (!(worse == false)) __t27_assert_fail("\n  assertion failed:\n    worse = {any}\n", .{ worse });
 }
 test "dead_candidate_not_feasible" {
+    const f = is_feasible(0, 1500, 1);
+    if (!(f == false)) __t27_assert_fail("\n  assertion failed:\n    f = {any}\n", .{ f });
 }
 test "self_route_never_learned" {
+    const selfroute = learn_ok(1, true);
+    const normal = learn_ok(0, true);
+    const infeasible = learn_ok(0, false);
+    if (!(selfroute == false)) __t27_assert_fail("\n  assertion failed:\n    selfroute = {any}\n", .{ selfroute });
+    if (!(normal == true)) __t27_assert_fail("\n  assertion failed:\n    normal = {any}\n", .{ normal });
+    if (!(infeasible == false)) __t27_assert_fail("\n  assertion failed:\n    infeasible = {any}\n", .{ infeasible });
 }
 comptime {
     // invariant: dead_epsilon_is_150_milli
-    // invariant: dead_epsilon_is_150_milli verified (no statements)
+    if (!(DEAD_EPS_MILLI == 150)) __t27_assert_fail("\n  assertion failed:\n    DEAD_EPS_MILLI = {any}\n", .{ DEAD_EPS_MILLI });
 }
 comptime {
     // invariant: optimistic_prior_is_900_milli
-    // invariant: optimistic_prior_is_900_milli verified (no statements)
+    if (!(OPTIMISTIC_MILLI == 900)) __t27_assert_fail("\n  assertion failed:\n    OPTIMISTIC_MILLI = {any}\n", .{ OPTIMISTIC_MILLI });
 }

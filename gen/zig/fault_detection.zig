@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_NODES: u32 = 8;
@@ -115,79 +123,79 @@ fn count_failed_nodes(table: [8]u32) u32 {
 }
 test "create_node_state_basic" {
     const state = create_node_state(1, 0, 50, 80);
-    if (!(get_is_alive(state) == 1)) @panic("alive");
-    if (!(get_failure_count(state) == 0)) @panic("no failures");
-    if (!(get_last_heartbeat(state) == 50)) @panic("heartbeat");
-    if (!(get_link_quality(state) == 80)) @panic("quality");
+    if (!(get_is_alive(state) == 1)) __t27_assert_fail("\n  alive:\n    get_is_alive(state) = {any}\n", .{ get_is_alive(state) });
+    if (!(get_failure_count(state) == 0)) __t27_assert_fail("\n  no failures:\n    get_failure_count(state) = {any}\n", .{ get_failure_count(state) });
+    if (!(get_last_heartbeat(state) == 50)) __t27_assert_fail("\n  heartbeat:\n    get_last_heartbeat(state) = {any}\n", .{ get_last_heartbeat(state) });
+    if (!(get_link_quality(state) == 80)) __t27_assert_fail("\n  quality:\n    get_link_quality(state) = {any}\n", .{ get_link_quality(state) });
 }
 test "is_heartbeat_timeout_detects" {
     const state = create_node_state(1, 0, 100, 80);
-    if (!(is_heartbeat_timeout(state, 11000) == true)) @panic("timeout");
+    if (!(is_heartbeat_timeout(state, 11000) == true)) __t27_assert_fail("\n  timeout:\n    is_heartbeat_timeout(state, 11000) = {any}\n", .{ is_heartbeat_timeout(state, 11000) });
 }
 test "is_heartbeat_timeout_not_timeout" {
     const state = create_node_state(1, 0, 5000, 80);
-    if (!(is_heartbeat_timeout(state, 8000) == false)) @panic("not timeout");
+    if (!(is_heartbeat_timeout(state, 8000) == false)) __t27_assert_fail("\n  not timeout:\n    is_heartbeat_timeout(state, 8000) = {any}\n", .{ is_heartbeat_timeout(state, 8000) });
 }
 test "detect_node_failure_returns_1_when_timeout" {
     const state = create_node_state(1, 0, 100, 80);
-    if (!(detect_node_failure(state, 11000) == 1)) @panic("failure detected");
+    if (!(detect_node_failure(state, 11000) == 1)) __t27_assert_fail("\n  failure detected:\n    detect_node_failure(state, 11000) = {any}\n", .{ detect_node_failure(state, 11000) });
 }
 test "detect_node_failure_returns_0_when_ok" {
     const state = create_node_state(1, 0, 5000, 80);
-    if (!(detect_node_failure(state, 8000) == 0)) @panic("no failure");
+    if (!(detect_node_failure(state, 8000) == 0)) __t27_assert_fail("\n  no failure:\n    detect_node_failure(state, 8000) = {any}\n", .{ detect_node_failure(state, 8000) });
 }
 test "increment_failure_count_increments" {
     const state = create_node_state(1, 1, 5000, 80);
     const new_state = increment_failure_count(state);
-    if (!(get_failure_count(new_state) == 2)) @panic("incremented");
+    if (!(get_failure_count(new_state) == 2)) __t27_assert_fail("\n  incremented:\n    get_failure_count(new_state) = {any}\n", .{ get_failure_count(new_state) });
 }
 test "reset_failure_count_clears" {
     const state = create_node_state(1, 3, 5000, 80);
     const new_state = reset_failure_count(state, 8000);
-    if (!(get_failure_count(new_state) == 0)) @panic("cleared");
-    if (!(get_last_heartbeat(new_state) == 8000)) @panic("time updated");
+    if (!(get_failure_count(new_state) == 0)) __t27_assert_fail("\n  cleared:\n    get_failure_count(new_state) = {any}\n", .{ get_failure_count(new_state) });
+    if (!(get_last_heartbeat(new_state) == 8000)) __t27_assert_fail("\n  time updated:\n    get_last_heartbeat(new_state) = {any}\n", .{ get_last_heartbeat(new_state) });
 }
 test "is_node_failed_threshold" {
     const state = create_node_state(1, 3, 5000, 80);
-    if (!(is_node_failed(state) == true)) @panic("at threshold");
+    if (!(is_node_failed(state) == true)) __t27_assert_fail("\n  at threshold:\n    is_node_failed(state) = {any}\n", .{ is_node_failed(state) });
 }
 test "is_node_failed_below_threshold" {
     const state = create_node_state(1, 2, 5000, 80);
-    if (!(is_node_failed(state) == false)) @panic("below threshold");
+    if (!(is_node_failed(state) == false)) __t27_assert_fail("\n  below threshold:\n    is_node_failed(state) = {any}\n", .{ is_node_failed(state) });
 }
 test "is_node_warning" {
     const state = create_node_state(1, 2, 5000, 80);
-    if (!(is_node_warning(state) == true)) @panic("warning state");
+    if (!(is_node_warning(state) == true)) __t27_assert_fail("\n  warning state:\n    is_node_warning(state) = {any}\n", .{ is_node_warning(state) });
 }
 test "is_poor_link_detects" {
     const state = create_node_state(1, 0, 5000, 20);
-    if (!(is_poor_link(state) == true)) @panic("poor quality");
+    if (!(is_poor_link(state) == true)) __t27_assert_fail("\n  poor quality:\n    is_poor_link(state) = {any}\n", .{ is_poor_link(state) });
 }
 test "is_poor_link_good" {
     const state = create_node_state(1, 0, 5000, 80);
-    if (!(is_poor_link(state) == false)) @panic("good quality");
+    if (!(is_poor_link(state) == false)) __t27_assert_fail("\n  good quality:\n    is_poor_link(state) = {any}\n", .{ is_poor_link(state) });
 }
 test "update_link_quality_changes" {
     const state = create_node_state(1, 0, 5000, 50);
     const new_state = update_link_quality(state, 90);
-    if (!(get_link_quality(new_state) == 90)) @panic("quality updated");
+    if (!(get_link_quality(new_state) == 90)) __t27_assert_fail("\n  quality updated:\n    get_link_quality(new_state) = {any}\n", .{ get_link_quality(new_state) });
 }
 test "mark_node_dead" {
     const state = create_node_state(1, 0, 5000, 80);
     const new_state = mark_node_dead(state);
-    if (!(get_is_alive(new_state) == 0)) @panic("marked dead");
+    if (!(get_is_alive(new_state) == 0)) __t27_assert_fail("\n  marked dead:\n    get_is_alive(new_state) = {any}\n", .{ get_is_alive(new_state) });
 }
 test "mark_node_alive" {
     const state = create_node_state(0, 3, 5000, 80);
     const new_state = mark_node_alive(state, 8000);
-    if (!(get_is_alive(new_state) == 1)) @panic("marked alive");
-    if (!(get_failure_count(new_state) == 0)) @panic("failures reset");
+    if (!(get_is_alive(new_state) == 1)) __t27_assert_fail("\n  marked alive:\n    get_is_alive(new_state) = {any}\n", .{ get_is_alive(new_state) });
+    if (!(get_failure_count(new_state) == 0)) __t27_assert_fail("\n  failures reset:\n    get_failure_count(new_state) = {any}\n", .{ get_failure_count(new_state) });
 }
 test "count_failed_nodes_multiple" {
     const table = create_node_table(create_node_state(1, 3, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 4, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 5, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 0, 5000, 80));
-    if (!(count_failed_nodes(table) == 3)) @panic("3 failed nodes");
+    if (!(count_failed_nodes(table) == 3)) __t27_assert_fail("\n  3 failed nodes:\n    count_failed_nodes(table) = {any}\n", .{ count_failed_nodes(table) });
 }
 test "count_failed_nodes_zero" {
     const table = create_node_table(create_node_state(1, 0, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 0, 5000, 80), create_node_state(1, 0, 5000, 80));
-    if (!(count_failed_nodes(table) == 0)) @panic("0 failed nodes");
+    if (!(count_failed_nodes(table) == 0)) __t27_assert_fail("\n  0 failed nodes:\n    count_failed_nodes(table) = {any}\n", .{ count_failed_nodes(table) });
 }

@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_PATHS: u32 = 4;
@@ -187,63 +195,63 @@ fn estimate_path_lifetime(energy: u32, drain_rate: u32) u32 {
 }
 test "create_energy_cost_basic" {
     const cost = create_energy_cost(50, 30, 20, 3);
-    if (!(get_tx_power(cost) == 50)) @panic("TX power");
-    if (!(get_rx_power(cost) == 30)) @panic("RX power");
-    if (!(get_processing_cost(cost) == 20)) @panic("processing");
-    if (!(get_hop_count_cost(cost) == 3)) @panic("hop count");
+    if (!(get_tx_power(cost) == 50)) __t27_assert_fail("\n  TX power:\n    get_tx_power(cost) = {any}\n", .{ get_tx_power(cost) });
+    if (!(get_rx_power(cost) == 30)) __t27_assert_fail("\n  RX power:\n    get_rx_power(cost) = {any}\n", .{ get_rx_power(cost) });
+    if (!(get_processing_cost(cost) == 20)) __t27_assert_fail("\n  processing:\n    get_processing_cost(cost) = {any}\n", .{ get_processing_cost(cost) });
+    if (!(get_hop_count_cost(cost) == 3)) __t27_assert_fail("\n  hop count:\n    get_hop_count_cost(cost) = {any}\n", .{ get_hop_count_cost(cost) });
 }
 test "create_path_energy_basic" {
     const energy = create_path_energy(80, 100, 1, 500);
-    if (!(get_battery_levels(energy) == 80)) @panic("battery");
-    if (!(get_total_cost(energy) == 100)) @panic("cost");
-    if (!(get_path_valid(energy) == 1)) @panic("valid");
-    if (!(get_energy_score(energy) == 500)) @panic("score");
+    if (!(get_battery_levels(energy) == 80)) __t27_assert_fail("\n  battery:\n    get_battery_levels(energy) = {any}\n", .{ get_battery_levels(energy) });
+    if (!(get_total_cost(energy) == 100)) __t27_assert_fail("\n  cost:\n    get_total_cost(energy) = {any}\n", .{ get_total_cost(energy) });
+    if (!(get_path_valid(energy) == 1)) __t27_assert_fail("\n  valid:\n    get_path_valid(energy) = {any}\n", .{ get_path_valid(energy) });
+    if (!(get_energy_score(energy) == 500)) __t27_assert_fail("\n  score:\n    get_energy_score(energy) = {any}\n", .{ get_energy_score(energy) });
 }
 test "calculate_total_energy_cost" {
     const cost = create_energy_cost(50, 30, 20, 3);
     const total = calculate_total_energy_cost(cost);
-    if (!(total == 300)) @panic("total energy");
+    if (!(total == 300)) __t27_assert_fail("\n  total energy:\n    total = {any}\n", .{ total });
 }
 test "calculate_energy_score_high_battery" {
     const cost = create_energy_cost(50, 30, 20, 3);
     const score = calculate_energy_score(80, cost);
-    if (!((score >= 26) and (score <= 27))) @panic("energy score");
+    if (!((score >= 26) and (score <= 27))) __t27_assert_fail("\n  energy score:\n    score = {any}\n", .{ score });
 }
 test "calculate_energy_score_low_cost" {
     const cost = create_energy_cost(20, 10, 10, 2);
     const score = calculate_energy_score(50, cost);
-    if (!(score == 62)) @panic("energy score");
+    if (!(score == 62)) __t27_assert_fail("\n  energy score:\n    score = {any}\n", .{ score });
 }
 test "is_path_viable_true" {
     const energy = create_path_energy(60, 100, 1, 500);
-    if (!(is_path_viable(energy) == true)) @panic("viable");
+    if (!(is_path_viable(energy) == true)) __t27_assert_fail("\n  viable:\n    is_path_viable(energy) = {any}\n", .{ is_path_viable(energy) });
 }
 test "is_path_viable_critical_battery" {
     const energy = create_path_energy(15, 100, 1, 500);
-    if (!(is_path_viable(energy) == false)) @panic("critical battery");
+    if (!(is_path_viable(energy) == false)) __t27_assert_fail("\n  critical battery:\n    is_path_viable(energy) = {any}\n", .{ is_path_viable(energy) });
 }
 test "is_path_viable_invalid_path" {
     const energy = create_path_energy(60, 100, 0, 500);
-    if (!(is_path_viable(energy) == false)) @panic("invalid path");
+    if (!(is_path_viable(energy) == false)) __t27_assert_fail("\n  invalid path:\n    is_path_viable(energy) = {any}\n", .{ is_path_viable(energy) });
 }
 test "find_energy_optimal_path_highest_score" {
     const array = create_energy_array(create_path_energy(60, 100, 1, 200), create_path_energy(80, 100, 1, 400), create_path_energy(70, 100, 1, 300), create_path_energy(50, 100, 1, 100));
-    if (!(find_energy_optimal_path(array) == 1)) @panic("path 1 optimal");
+    if (!(find_energy_optimal_path(array) == 1)) __t27_assert_fail("\n  path 1 optimal:\n    find_energy_optimal_path(array) = {any}\n", .{ find_energy_optimal_path(array) });
 }
 test "find_min_cost_path" {
     const array = create_energy_array(create_path_energy(80, 150, 1, 200), create_path_energy(70, 80, 1, 300), create_path_energy(60, 120, 1, 250), create_path_energy(90, 200, 1, 400));
-    if (!(find_min_cost_path(array) == 1)) @panic("path 1 minimum cost");
+    if (!(find_min_cost_path(array) == 1)) __t27_assert_fail("\n  path 1 minimum cost:\n    find_min_cost_path(array) = {any}\n", .{ find_min_cost_path(array) });
 }
 test "select_balanced_path_highest_battery" {
     const array = create_energy_array(create_path_energy(50, 100, 1, 200), create_path_energy(90, 100, 1, 300), create_path_energy(70, 100, 1, 250), create_path_energy(60, 100, 1, 150));
-    if (!(select_balanced_path(array, 0) == 1)) @panic("path 1 selected");
+    if (!(select_balanced_path(array, 0) == 1)) __t27_assert_fail("\n  path 1 selected:\n    select_balanced_path(array, 0) = {any}\n", .{ select_balanced_path(array, 0) });
 }
 test "estimate_path_lifetime_normal" {
     const energy = create_path_energy(80, 100, 1, 500);
     const lifetime = estimate_path_lifetime(energy, 10);
-    if (!(lifetime == 8)) @panic("8 time units");
+    if (!(lifetime == 8)) __t27_assert_fail("\n  8 time units:\n    lifetime = {any}\n", .{ lifetime });
 }
 test "estimate_path_lifetime_zero_drain" {
     const energy = create_path_energy(80, 100, 1, 500);
-    if (!(estimate_path_lifetime(energy, 0) == 0xFF)) @panic("infinite lifetime");
+    if (!(estimate_path_lifetime(energy, 0) == 0xFF)) __t27_assert_fail("\n  infinite lifetime:\n    estimate_path_lifetime(energy, 0) = {any}\n", .{ estimate_path_lifetime(energy, 0) });
 }

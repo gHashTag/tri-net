@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 fn total_work3(w0: u32, w1: u32, w2: u32) u32 {
@@ -54,77 +62,77 @@ fn balance_after_pool_settle(prev_balance: u32, pool: u32, reward: u32) u32 {
     }
 }
 test "proportional_and_zero_work" {
-    if (!(pool_share(1000, 16, 96) == 166)) @panic("16/96 of 1000 (floor)");
-    if (!(pool_share(1000, 32, 96) == 333)) @panic("32/96 of 1000 (floor)");
-    if (!(pool_share(1000, 48, 96) == 500)) @panic("48/96 of 1000 (floor)");
-    if (!(pool_share(1000, 0, 96) == 0)) @panic("a node with no work earns nothing");
+    if (!(pool_share(1000, 16, 96) == 166)) __t27_assert_fail("\n  16/96 of 1000 (floor):\n    pool_share(1000, 16, 96) = {any}\n", .{ pool_share(1000, 16, 96) });
+    if (!(pool_share(1000, 32, 96) == 333)) __t27_assert_fail("\n  32/96 of 1000 (floor):\n    pool_share(1000, 32, 96) = {any}\n", .{ pool_share(1000, 32, 96) });
+    if (!(pool_share(1000, 48, 96) == 500)) __t27_assert_fail("\n  48/96 of 1000 (floor):\n    pool_share(1000, 48, 96) = {any}\n", .{ pool_share(1000, 48, 96) });
+    if (!(pool_share(1000, 0, 96) == 0)) __t27_assert_fail("\n  a node with no work earns nothing:\n    pool_share(1000, 0, 96) = {any}\n", .{ pool_share(1000, 0, 96) });
 }
 test "pool_split_is_already_rung_proportional" {
-    if (!(pool_share(1000, 64, 80) == 800)) @panic("GF-T64 node earns 64/80 of the pool");
-    if (!(pool_share(1000, 16, 80) == 200)) @panic("GF-T16 node earns 16/80");
-    if (!(pool_share(1000, 64, 80) == (4 * pool_share(1000, 16, 80)))) @panic("GF-T64 : GF-T16 = 4 : 1 = the width/rung ratio");
-    if (!(pool_share(1000, 32, 40) == 800)) @panic("GF-T32 node earns 32/40");
-    if (!(pool_share(1000, 8, 40) == 200)) @panic("GF-T8 node earns 8/40");
+    if (!(pool_share(1000, 64, 80) == 800)) __t27_assert_fail("\n  GF-T64 node earns 64/80 of the pool:\n    pool_share(1000, 64, 80) = {any}\n", .{ pool_share(1000, 64, 80) });
+    if (!(pool_share(1000, 16, 80) == 200)) __t27_assert_fail("\n  GF-T16 node earns 16/80:\n    pool_share(1000, 16, 80) = {any}\n", .{ pool_share(1000, 16, 80) });
+    if (!(pool_share(1000, 64, 80) == (4 * pool_share(1000, 16, 80)))) __t27_assert_fail("\n  GF-T64 : GF-T16 = 4 : 1 = the width/rung ratio:\n    pool_share(1000, 64, 80) = {any}\n    4 * pool_share(1000, 16, 80) = {any}\n", .{ pool_share(1000, 64, 80), 4 * pool_share(1000, 16, 80) });
+    if (!(pool_share(1000, 32, 40) == 800)) __t27_assert_fail("\n  GF-T32 node earns 32/40:\n    pool_share(1000, 32, 40) = {any}\n", .{ pool_share(1000, 32, 40) });
+    if (!(pool_share(1000, 8, 40) == 200)) __t27_assert_fail("\n  GF-T8 node earns 8/40:\n    pool_share(1000, 8, 40) = {any}\n", .{ pool_share(1000, 8, 40) });
 }
 test "no_over_issuance" {
     const s0 = pool_share(1000, 16, 96);
     const s1 = pool_share(1000, 32, 96);
     const s2 = pool_share(1000, 48, 96);
-    if (!(((s0 + s1) + s2) == 999)) @panic("sum <= pool; floor under-issues by the remainder");
+    if (!(((s0 + s1) + s2) == 999)) __t27_assert_fail("\n  sum <= pool; floor under-issues by the remainder:\n    (s0 + s1) + s2 = {any}\n", .{ (s0 + s1) + s2 });
 }
 test "empty_round_pays_zero" {
-    if (!(pool_share(1000, 0, 0) == 0)) @panic("empty round is safe and pays nothing");
-    if (!(total_work3(0, 0, 0) == 0)) @panic("no work summed");
+    if (!(pool_share(1000, 0, 0) == 0)) __t27_assert_fail("\n  empty round is safe and pays nothing:\n    pool_share(1000, 0, 0) = {any}\n", .{ pool_share(1000, 0, 0) });
+    if (!(total_work3(0, 0, 0) == 0)) __t27_assert_fail("\n  no work summed:\n    total_work3(0, 0, 0) = {any}\n", .{ total_work3(0, 0, 0) });
 }
 test "total_work3_saturates" {
-    if (!(total_work3(16, 32, 48) == 96)) @panic("normal sum is exact");
-    if (!(total_work3(4000000000, 400000000, 0) == 4294967295)) @panic("sum 4.4e9 > 2^32 saturates, no wrap");
-    if (!(total_work3(4294967295, 4294967295, 4294967295) == 4294967295)) @panic("three max totals saturate");
-    if (!(pool_share(1000, 3000000000, total_work3(3000000000, 3000000000, 3000000000)) <= 1000)) @panic("saturated total keeps the share within the pool");
+    if (!(total_work3(16, 32, 48) == 96)) __t27_assert_fail("\n  normal sum is exact:\n    total_work3(16, 32, 48) = {any}\n", .{ total_work3(16, 32, 48) });
+    if (!(total_work3(4000000000, 400000000, 0) == 4294967295)) __t27_assert_fail("\n  sum 4.4e9 > 2^32 saturates, no wrap:\n    total_work3(4000000000, 400000000, 0) = {any}\n", .{ total_work3(4000000000, 400000000, 0) });
+    if (!(total_work3(4294967295, 4294967295, 4294967295) == 4294967295)) __t27_assert_fail("\n  three max totals saturate:\n    total_work3(4294967295, 4294967295, 4294967295) = {any}\n", .{ total_work3(4294967295, 4294967295, 4294967295) });
+    if (!(pool_share(1000, 3000000000, total_work3(3000000000, 3000000000, 3000000000)) <= 1000)) __t27_assert_fail("\n  saturated total keeps the share within the pool:\n    pool_share(1000, 3000000000, total_work3(3000000000, 3000000000, 3000000000)) = {any}\n", .{ pool_share(1000, 3000000000, total_work3(3000000000, 3000000000, 3000000000)) });
 }
 test "more_work_earns_more" {
-    if (!(pool_share(1000, 48, 96) > pool_share(1000, 16, 96))) @panic("more work, bigger share");
+    if (!(pool_share(1000, 48, 96) > pool_share(1000, 16, 96))) __t27_assert_fail("\n  more work, bigger share:\n    pool_share(1000, 48, 96) = {any}\n    pool_share(1000, 16, 96) = {any}\n", .{ pool_share(1000, 48, 96), pool_share(1000, 16, 96) });
 }
 test "large_pool_no_overflow" {
-    if (!(pool_share(1000000, 16000, 24000) == 666666)) @panic("large pool*work floor-divides exactly (no u32 overflow)");
-    if (!(pool_share(1000000, 8000, 24000) == 333333)) @panic("second node's share is exact too");
+    if (!(pool_share(1000000, 16000, 24000) == 666666)) __t27_assert_fail("\n  large pool*work floor-divides exactly (no u32 overflow):\n    pool_share(1000000, 16000, 24000) = {any}\n", .{ pool_share(1000000, 16000, 24000) });
+    if (!(pool_share(1000000, 8000, 24000) == 333333)) __t27_assert_fail("\n  second node's share is exact too:\n    pool_share(1000000, 8000, 24000) = {any}\n", .{ pool_share(1000000, 8000, 24000) });
     const s0 = pool_share(1000000, 16000, 24000);
     const s1 = pool_share(1000000, 8000, 24000);
-    if (!((s0 + s1) == 999999)) @panic("sum 999999 <= pool 1e6 at scale; floor loses one dust unit");
+    if (!((s0 + s1) == 999999)) __t27_assert_fail("\n  sum 999999 <= pool 1e6 at scale; floor loses one dust unit:\n    s0 + s1 = {any}\n", .{ s0 + s1 });
 }
 test "deposit_funds_the_pool" {
-    if (!(pool_after_deposit(0, 1000) == 1000)) @panic("first deposit funds an empty pool");
-    if (!(pool_after_deposit(1000, 500) == 1500)) @panic("deposits accumulate");
-    if (!(pool_after_deposit(0xFFFFFFF0, 32) == 0xFFFFFFFF)) @panic("deposit saturates, no wrap");
+    if (!(pool_after_deposit(0, 1000) == 1000)) __t27_assert_fail("\n  first deposit funds an empty pool:\n    pool_after_deposit(0, 1000) = {any}\n", .{ pool_after_deposit(0, 1000) });
+    if (!(pool_after_deposit(1000, 500) == 1500)) __t27_assert_fail("\n  deposits accumulate:\n    pool_after_deposit(1000, 500) = {any}\n", .{ pool_after_deposit(1000, 500) });
+    if (!(pool_after_deposit(0xFFFFFFF0, 32) == 0xFFFFFFFF)) __t27_assert_fail("\n  deposit saturates, no wrap:\n    pool_after_deposit(0xFFFFFFF0, 32) = {any}\n", .{ pool_after_deposit(0xFFFFFFF0, 32) });
 }
 test "payout_never_exceeds_the_pool" {
-    if (!(payout_capped(1000, 300) == 300)) @panic("a payout within the pool is paid in full");
-    if (!(pool_after_payout(1000, 300) == 700)) @panic("the pool is drawn down by the payout");
-    if (!(payout_capped(100, 300) == 100)) @panic("an over-draw is capped at the pool balance");
-    if (!(pool_after_payout(100, 300) == 0)) @panic("an over-draw drains the pool to zero, never negative");
+    if (!(payout_capped(1000, 300) == 300)) __t27_assert_fail("\n  a payout within the pool is paid in full:\n    payout_capped(1000, 300) = {any}\n", .{ payout_capped(1000, 300) });
+    if (!(pool_after_payout(1000, 300) == 700)) __t27_assert_fail("\n  the pool is drawn down by the payout:\n    pool_after_payout(1000, 300) = {any}\n", .{ pool_after_payout(1000, 300) });
+    if (!(payout_capped(100, 300) == 100)) __t27_assert_fail("\n  an over-draw is capped at the pool balance:\n    payout_capped(100, 300) = {any}\n", .{ payout_capped(100, 300) });
+    if (!(pool_after_payout(100, 300) == 0)) __t27_assert_fail("\n  an over-draw drains the pool to zero, never negative:\n    pool_after_payout(100, 300) = {any}\n", .{ pool_after_payout(100, 300) });
 }
 test "payouts_never_exceed_deposits" {
     const p0 = pool_after_deposit(0, 1000);
     const p1 = pool_after_payout(p0, pool_share(1000, 16, 96));
     const p2 = pool_after_payout(p1, pool_share(1000, 32, 96));
     const p3 = pool_after_payout(p2, pool_share(1000, 48, 96));
-    if (!(p1 == 834)) @panic("after 166 -> 834 remains");
-    if (!(p2 == 501)) @panic("after 333 -> 501 remains");
-    if (!(p3 == 1)) @panic("after 500 -> 1 remains (the floor dust stays funded)");
-    if (!(p3 == (1000 - ((166 + 333) + 500)))) @panic("pool end == deposit minus total payouts, exactly conserved");
+    if (!(p1 == 834)) __t27_assert_fail("\n  after 166 -> 834 remains:\n    p1 = {any}\n", .{ p1 });
+    if (!(p2 == 501)) __t27_assert_fail("\n  after 333 -> 501 remains:\n    p2 = {any}\n", .{ p2 });
+    if (!(p3 == 1)) __t27_assert_fail("\n  after 500 -> 1 remains (the floor dust stays funded):\n    p3 = {any}\n", .{ p3 });
+    if (!(p3 == (1000 - ((166 + 333) + 500)))) __t27_assert_fail("\n  pool end == deposit minus total payouts, exactly conserved:\n    p3 = {any}\n    1000 - ((166 + 333) + 500) = {any}\n", .{ p3, 1000 - ((166 + 333) + 500) });
 }
 test "pool_settle_conserves_total" {
-    if (!(balance_after_pool_settle(500, 1000, 300) == 800)) @panic("executor credited the reward");
-    if (!(pool_after_payout(1000, 300) == 700)) @panic("pool drawn down by the same reward");
-    if (!((balance_after_pool_settle(500, 1000, 300) + pool_after_payout(1000, 300)) == (500 + 1000))) @panic("balance + pool conserved across settle");
+    if (!(balance_after_pool_settle(500, 1000, 300) == 800)) __t27_assert_fail("\n  executor credited the reward:\n    balance_after_pool_settle(500, 1000, 300) = {any}\n", .{ balance_after_pool_settle(500, 1000, 300) });
+    if (!(pool_after_payout(1000, 300) == 700)) __t27_assert_fail("\n  pool drawn down by the same reward:\n    pool_after_payout(1000, 300) = {any}\n", .{ pool_after_payout(1000, 300) });
+    if (!((balance_after_pool_settle(500, 1000, 300) + pool_after_payout(1000, 300)) == (500 + 1000))) __t27_assert_fail("\n  balance + pool conserved across settle:\n    balance_after_pool_settle(500, 1000, 300) + pool_after_payout(1000, 300) = {any}\n    500 + 1000 = {any}\n", .{ balance_after_pool_settle(500, 1000, 300) + pool_after_payout(1000, 300), 500 + 1000 });
 }
 test "pool_settle_caps_underfunded" {
-    if (!(balance_after_pool_settle(500, 100, 300) == 600)) @panic("credit capped at the funded 100");
-    if (!(pool_after_payout(100, 300) == 0)) @panic("underfunded pool drains to zero, not negative");
-    if (!((balance_after_pool_settle(500, 100, 300) + pool_after_payout(100, 300)) == (500 + 100))) @panic("capped settle still conserves balance + pool");
+    if (!(balance_after_pool_settle(500, 100, 300) == 600)) __t27_assert_fail("\n  credit capped at the funded 100:\n    balance_after_pool_settle(500, 100, 300) = {any}\n", .{ balance_after_pool_settle(500, 100, 300) });
+    if (!(pool_after_payout(100, 300) == 0)) __t27_assert_fail("\n  underfunded pool drains to zero, not negative:\n    pool_after_payout(100, 300) = {any}\n", .{ pool_after_payout(100, 300) });
+    if (!((balance_after_pool_settle(500, 100, 300) + pool_after_payout(100, 300)) == (500 + 100))) __t27_assert_fail("\n  capped settle still conserves balance + pool:\n    balance_after_pool_settle(500, 100, 300) + pool_after_payout(100, 300) = {any}\n    500 + 100 = {any}\n", .{ balance_after_pool_settle(500, 100, 300) + pool_after_payout(100, 300), 500 + 100 });
 }
 test "pool_settle_credit_saturates" {
-    if (!(balance_after_pool_settle(500, 1000, 300) == 800)) @panic("normal credit exact (regression)");
-    if (!(balance_after_pool_settle(0xFFFFFFF0, 1000, 300) == 0xFFFFFFFF)) @panic("credit that would overflow saturates to u32 max, not a wrap to 284");
-    if (!(balance_after_pool_settle(0xFFFFFFFF, 1000, 300) == 0xFFFFFFFF)) @panic("already-max balance stays at max, never wraps to a small value");
+    if (!(balance_after_pool_settle(500, 1000, 300) == 800)) __t27_assert_fail("\n  normal credit exact (regression):\n    balance_after_pool_settle(500, 1000, 300) = {any}\n", .{ balance_after_pool_settle(500, 1000, 300) });
+    if (!(balance_after_pool_settle(0xFFFFFFF0, 1000, 300) == 0xFFFFFFFF)) __t27_assert_fail("\n  credit that would overflow saturates to u32 max, not a wrap to 284:\n    balance_after_pool_settle(0xFFFFFFF0, 1000, 300) = {any}\n", .{ balance_after_pool_settle(0xFFFFFFF0, 1000, 300) });
+    if (!(balance_after_pool_settle(0xFFFFFFFF, 1000, 300) == 0xFFFFFFFF)) __t27_assert_fail("\n  already-max balance stays at max, never wraps to a small value:\n    balance_after_pool_settle(0xFFFFFFFF, 1000, 300) = {any}\n", .{ balance_after_pool_settle(0xFFFFFFFF, 1000, 300) });
 }

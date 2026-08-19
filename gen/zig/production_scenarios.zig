@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const STATE_COLD_START: u8 = 0;
@@ -77,83 +85,83 @@ fn check_max_hops(ttl: u8, max_hops: u8) bool {
 }
 test "cold_start_initial_state" {
     const node = cold_start();
-    if (!(node_state_of(node) == STATE_COLD_START)) @panic("cold start state");
-    if (!(node_neighbors(node) == 0)) @panic("no neighbors");
-    if (!(node_uptime(node) == 0)) @panic("zero uptime");
+    if (!(node_state_of(node) == STATE_COLD_START)) __t27_assert_fail("\n  cold start state:\n    node_state_of(node) = {any}\n    STATE_COLD_START = {any}\n", .{ node_state_of(node), STATE_COLD_START });
+    if (!(node_neighbors(node) == 0)) __t27_assert_fail("\n  no neighbors:\n    node_neighbors(node) = {any}\n", .{ node_neighbors(node) });
+    if (!(node_uptime(node) == 0)) __t27_assert_fail("\n  zero uptime:\n    node_uptime(node) = {any}\n", .{ node_uptime(node) });
 }
 test "discover_neighbor_transitions" {
     const node = cold_start();
     const node2 = discover_neighbor(node);
-    if (!(node_state_of(node2) == STATE_DISCOVERING)) @panic("discovering");
+    if (!(node_state_of(node2) == STATE_DISCOVERING)) __t27_assert_fail("\n  discovering:\n    node_state_of(node2) = {any}\n    STATE_DISCOVERING = {any}\n", .{ node_state_of(node2), STATE_DISCOVERING });
     const node3 = discover_neighbor(node2);
-    if (!(node_state_of(node3) == STATE_CONNECTED)) @panic("connected");
-    if (!(node_neighbors(node3) == 1)) @panic("1 neighbor");
+    if (!(node_state_of(node3) == STATE_CONNECTED)) __t27_assert_fail("\n  connected:\n    node_state_of(node3) = {any}\n    STATE_CONNECTED = {any}\n", .{ node_state_of(node3), STATE_CONNECTED });
+    if (!(node_neighbors(node3) == 1)) __t27_assert_fail("\n  1 neighbor:\n    node_neighbors(node3) = {any}\n", .{ node_neighbors(node3) });
 }
 test "simulate_partition_removes_neighbors" {
     const node = create_node_state(STATE_CONNECTED, 3, 1000);
     const node2 = simulate_partition(node);
-    if (!(node_state_of(node2) == STATE_PARTITIONED)) @panic("partitioned");
-    if (!(node_neighbors(node2) == 0)) @panic("neighbors cleared");
+    if (!(node_state_of(node2) == STATE_PARTITIONED)) __t27_assert_fail("\n  partitioned:\n    node_state_of(node2) = {any}\n    STATE_PARTITIONED = {any}\n", .{ node_state_of(node2), STATE_PARTITIONED });
+    if (!(node_neighbors(node2) == 0)) __t27_assert_fail("\n  neighbors cleared:\n    node_neighbors(node2) = {any}\n", .{ node_neighbors(node2) });
 }
 test "recover_from_partition_transitions" {
     const node = create_node_state(STATE_PARTITIONED, 0, 1000);
     const node2 = recover_from_partition(node);
-    if (!(node_state_of(node2) == STATE_RECOVERING)) @panic("recovering");
+    if (!(node_state_of(node2) == STATE_RECOVERING)) __t27_assert_fail("\n  recovering:\n    node_state_of(node2) = {any}\n    STATE_RECOVERING = {any}\n", .{ node_state_of(node2), STATE_RECOVERING });
 }
 test "node_join_increases_neighbors" {
     const node = create_node_state(STATE_CONNECTED, 2, 1000);
     const node2 = node_join(node);
-    if (!(node_neighbors(node2) == 3)) @panic("3 neighbors");
+    if (!(node_neighbors(node2) == 3)) __t27_assert_fail("\n  3 neighbors:\n    node_neighbors(node2) = {any}\n", .{ node_neighbors(node2) });
 }
 test "node_leave_decreases_neighbors" {
     const node = create_node_state(STATE_CONNECTED, 3, 1000);
     const node2 = node_leave(node);
-    if (!(node_neighbors(node2) == 2)) @panic("2 neighbors");
+    if (!(node_neighbors(node2) == 2)) __t27_assert_fail("\n  2 neighbors:\n    node_neighbors(node2) = {any}\n", .{ node_neighbors(node2) });
 }
 test "node_leave_no_neighbors" {
     const node = create_node_state(STATE_CONNECTED, 0, 1000);
     const node2 = node_leave(node);
-    if (!(node_neighbors(node2) == 0)) @panic("still 0");
+    if (!(node_neighbors(node2) == 0)) __t27_assert_fail("\n  still 0:\n    node_neighbors(node2) = {any}\n", .{ node_neighbors(node2) });
 }
 test "simulate_interference_high_clears" {
     const node = create_node_state(STATE_CONNECTED, 3, 1000);
     const node2 = simulate_interference(node, 200);
-    if (!(node_neighbors(node2) == 0)) @panic("high interference clears");
+    if (!(node_neighbors(node2) == 0)) __t27_assert_fail("\n  high interference clears:\n    node_neighbors(node2) = {any}\n", .{ node_neighbors(node2) });
 }
 test "simulate_interference_low_ok" {
     const node = create_node_state(STATE_CONNECTED, 3, 1000);
     const node2 = simulate_interference(node, 50);
-    if (!(node_neighbors(node2) == 3)) @panic("low interference ok");
+    if (!(node_neighbors(node2) == 3)) __t27_assert_fail("\n  low interference ok:\n    node_neighbors(node2) = {any}\n", .{ node_neighbors(node2) });
 }
 test "battery_drain_kills_node" {
     const uptime = 5000;
     const drain = 4;
     const uptime2 = battery_drain(uptime, drain);
-    if (!(uptime2 == 0)) @panic("battery dead");
+    if (!(uptime2 == 0)) __t27_assert_fail("\n  battery dead:\n    uptime2 = {any}\n", .{ uptime2 });
 }
 test "battery_drain_survives" {
     const uptime = 100;
     const drain = 1;
     const uptime2 = battery_drain(uptime, drain);
-    if (!(uptime2 > 0)) @panic("battery ok");
+    if (!(uptime2 > 0)) __t27_assert_fail("\n  battery ok:\n    uptime2 = {any}\n", .{ uptime2 });
 }
 test "check_max_hops_valid" {
-    if (!(check_max_hops(3, 5) == true)) @panic("valid hops");
-    if (!(check_max_hops(1, 5) == true)) @panic("min hops");
-    if (!(check_max_hops(5, 5) == true)) @panic("max hops");
+    if (!(check_max_hops(3, 5) == true)) __t27_assert_fail("\n  valid hops:\n    check_max_hops(3, 5) = {any}\n", .{ check_max_hops(3, 5) });
+    if (!(check_max_hops(1, 5) == true)) __t27_assert_fail("\n  min hops:\n    check_max_hops(1, 5) = {any}\n", .{ check_max_hops(1, 5) });
+    if (!(check_max_hops(5, 5) == true)) __t27_assert_fail("\n  max hops:\n    check_max_hops(5, 5) = {any}\n", .{ check_max_hops(5, 5) });
 }
 test "check_max_hops_invalid" {
-    if (!(check_max_hops(0, 5) == false)) @panic("zero ttl");
-    if (!(check_max_hops(6, 5) == false)) @panic("exceeds max");
+    if (!(check_max_hops(0, 5) == false)) __t27_assert_fail("\n  zero ttl:\n    check_max_hops(0, 5) = {any}\n", .{ check_max_hops(0, 5) });
+    if (!(check_max_hops(6, 5) == false)) __t27_assert_fail("\n  exceeds max:\n    check_max_hops(6, 5) = {any}\n", .{ check_max_hops(6, 5) });
 }
 test "complete_scenario_cold_to_connected" {
     var node = cold_start();
     node = discover_neighbor(node);
     node = discover_neighbor(node);
-    if (!(node_state_of(node) == STATE_CONNECTED)) @panic("connected");
-    if (!(node_neighbors(node) == 1)) @panic("1 neighbor");
+    if (!(node_state_of(node) == STATE_CONNECTED)) __t27_assert_fail("\n  connected:\n    node_state_of(node) = {any}\n    STATE_CONNECTED = {any}\n", .{ node_state_of(node), STATE_CONNECTED });
+    if (!(node_neighbors(node) == 1)) __t27_assert_fail("\n  1 neighbor:\n    node_neighbors(node) = {any}\n", .{ node_neighbors(node) });
     node = simulate_partition(node);
-    if (!(node_state_of(node) == STATE_PARTITIONED)) @panic("partitioned");
+    if (!(node_state_of(node) == STATE_PARTITIONED)) __t27_assert_fail("\n  partitioned:\n    node_state_of(node) = {any}\n    STATE_PARTITIONED = {any}\n", .{ node_state_of(node), STATE_PARTITIONED });
     node = recover_from_partition(node);
-    if (!(node_state_of(node) == STATE_RECOVERING)) @panic("recovering");
+    if (!(node_state_of(node) == STATE_RECOVERING)) __t27_assert_fail("\n  recovering:\n    node_state_of(node) = {any}\n    STATE_RECOVERING = {any}\n", .{ node_state_of(node), STATE_RECOVERING });
 }

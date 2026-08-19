@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const M_C: u32 = 0x9E3779B9;
@@ -52,7 +60,7 @@ fn merkle_verify8(leaf: u32, s0: u32, s1: u32, s2: u32, idx: u32, root: u32) boo
     return n2 == root;
 }
 test "hpair_order_sensitive" {
-    if (!(hpair(0x11111111, 0x22222222) != hpair(0x22222222, 0x11111111))) @panic("order matters");
+    if (!(hpair(0x11111111, 0x22222222) != hpair(0x22222222, 0x11111111))) __t27_assert_fail("\n  order matters:\n    hpair(0x11111111, 0x22222222) = {any}\n    hpair(0x22222222, 0x11111111) = {any}\n", .{ hpair(0x11111111, 0x22222222), hpair(0x22222222, 0x11111111) });
 }
 test "verify_valid_proof_idx3" {
     const l0 = leaf_hash(0, 1000, 31, 700);
@@ -66,7 +74,7 @@ test "verify_valid_proof_idx3" {
     const root = merkle_root8(l0, l1, l2, l3, l4, l5, l6, l7);
     const s1 = hpair(l0, l1);
     const s2 = hpair(hpair(l4, l5), hpair(l6, l7));
-    if (!(merkle_verify8(l3, l2, s1, s2, 3, root) == true)) @panic("valid proof for l3");
+    if (!(merkle_verify8(l3, l2, s1, s2, 3, root) == true)) __t27_assert_fail("\n  valid proof for l3:\n    merkle_verify8(l3, l2, s1, s2, 3, root) = {any}\n", .{ merkle_verify8(l3, l2, s1, s2, 3, root) });
 }
 test "verify_valid_proof_idx5" {
     const l0 = leaf_hash(0, 1000, 31, 700);
@@ -80,7 +88,7 @@ test "verify_valid_proof_idx5" {
     const root = merkle_root8(l0, l1, l2, l3, l4, l5, l6, l7);
     const s1 = hpair(l6, l7);
     const s2 = hpair(hpair(l0, l1), hpair(l2, l3));
-    if (!(merkle_verify8(l5, l4, s1, s2, 5, root) == true)) @panic("valid proof for l5");
+    if (!(merkle_verify8(l5, l4, s1, s2, 5, root) == true)) __t27_assert_fail("\n  valid proof for l5:\n    merkle_verify8(l5, l4, s1, s2, 5, root) = {any}\n", .{ merkle_verify8(l5, l4, s1, s2, 5, root) });
 }
 test "verify_rejects_forged_reward" {
     const l0 = leaf_hash(0, 1000, 31, 700);
@@ -95,14 +103,14 @@ test "verify_rejects_forged_reward" {
     const s1 = hpair(l0, l1);
     const s2 = hpair(hpair(l4, l5), hpair(l6, l7));
     const forged = leaf_hash(3, 4000, 20, 9999);
-    if (!(merkle_verify8(forged, l2, s1, s2, 3, root) == false)) @panic("forged reward rejected");
+    if (!(merkle_verify8(forged, l2, s1, s2, 3, root) == false)) __t27_assert_fail("\n  forged reward rejected:\n    merkle_verify8(forged, l2, s1, s2, 3, root) = {any}\n", .{ merkle_verify8(forged, l2, s1, s2, 3, root) });
 }
 test "root_tamper_evident" {
     const base = merkle_root8(1, 2, 3, 4, 5, 6, 7, 8);
     const one = merkle_root8(1, 2, 3, 4, 5, 6, 7, 9);
     const mid = merkle_root8(1, 2, 99, 4, 5, 6, 7, 8);
-    if (!(base != one)) @panic("changing a leaf changes the root");
-    if (!(base != mid)) @panic("changing a middle leaf changes the root");
+    if (!(base != one)) __t27_assert_fail("\n  changing a leaf changes the root:\n    base = {any}\n    one = {any}\n", .{ base, one });
+    if (!(base != mid)) __t27_assert_fail("\n  changing a middle leaf changes the root:\n    base = {any}\n    mid = {any}\n", .{ base, mid });
 }
 test "verify_rejects_wrong_sibling" {
     const l0 = leaf_hash(0, 1000, 31, 700);
@@ -116,7 +124,7 @@ test "verify_rejects_wrong_sibling" {
     const root = merkle_root8(l0, l1, l2, l3, l4, l5, l6, l7);
     const s1 = hpair(l0, l1);
     const s2 = hpair(hpair(l4, l5), hpair(l6, l7));
-    if (!(merkle_verify8(l3, l7, s1, s2, 3, root) == false)) @panic("wrong sibling s0 rejected");
+    if (!(merkle_verify8(l3, l7, s1, s2, 3, root) == false)) __t27_assert_fail("\n  wrong sibling s0 rejected:\n    merkle_verify8(l3, l7, s1, s2, 3, root) = {any}\n", .{ merkle_verify8(l3, l7, s1, s2, 3, root) });
 }
 test "account_balance_proof" {
     const a0 = account_leaf(0, 2108);
@@ -130,7 +138,7 @@ test "account_balance_proof" {
     const state_root = merkle_root8(a0, a1, a2, a3, a4, a5, a6, a7);
     const s1 = hpair(a2, a3);
     const s2 = hpair(hpair(a4, a5), hpair(a6, a7));
-    if (!(merkle_verify8(a0, a1, s1, s2, 0, state_root) == true)) @panic("node0 proves 2108 $TRI");
+    if (!(merkle_verify8(a0, a1, s1, s2, 0, state_root) == true)) __t27_assert_fail("\n  node0 proves 2108 $TRI:\n    merkle_verify8(a0, a1, s1, s2, 0, state_root) = {any}\n", .{ merkle_verify8(a0, a1, s1, s2, 0, state_root) });
     const forged = account_leaf(0, 999999);
-    if (!(merkle_verify8(forged, a1, s1, s2, 0, state_root) == false)) @panic("forged balance rejected");
+    if (!(merkle_verify8(forged, a1, s1, s2, 0, state_root) == false)) __t27_assert_fail("\n  forged balance rejected:\n    merkle_verify8(forged, a1, s1, s2, 0, state_root) = {any}\n", .{ merkle_verify8(forged, a1, s1, s2, 0, state_root) });
 }

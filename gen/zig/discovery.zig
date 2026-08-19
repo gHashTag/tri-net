@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const HDR_LEN: usize = 17;
@@ -26,22 +34,40 @@ fn is_fresh(now_ms: u64, ts_ms: u64) bool {
     }
 }
 test "empty_beacon_is_33_bytes" {
+    const l = hello_len(0);
+    if (!(l == 33)) __t27_assert_fail("\n  assertion failed:\n    l = {any}\n", .{ l });
 }
 test "three_neighbors_is_45_bytes" {
+    const l = hello_len(3);
+    const m = mac_offset(3);
+    if (!(l == 45)) __t27_assert_fail("\n  assertion failed:\n    l = {any}\n", .{ l });
+    if (!(m == 29)) __t27_assert_fail("\n  assertion failed:\n    m = {any}\n", .{ m });
 }
 test "parse_accepts_exact_length" {
+    const ok = parse_len_ok(45, 3);
+    if (!(ok == true)) __t27_assert_fail("\n  assertion failed:\n    ok = {any}\n", .{ ok });
 }
 test "parse_rejects_truncated" {
+    const short = parse_len_ok(44, 3);
+    const hdr = parse_len_ok(16, 0);
+    if (!(short == false)) __t27_assert_fail("\n  assertion failed:\n    short = {any}\n", .{ short });
+    if (!(hdr == false)) __t27_assert_fail("\n  assertion failed:\n    hdr = {any}\n", .{ hdr });
 }
 test "fresh_within_window_both_directions" {
+    const past = is_fresh(1000000, 500000);
+    const future = is_fresh(500000, 1000000);
+    if (!(past == true)) __t27_assert_fail("\n  assertion failed:\n    past = {any}\n", .{ past });
+    if (!(future == true)) __t27_assert_fail("\n  assertion failed:\n    future = {any}\n", .{ future });
 }
 test "stale_beyond_window_rejected" {
+    const stale = is_fresh(1000000, 300000);
+    if (!(stale == false)) __t27_assert_fail("\n  assertion failed:\n    stale = {any}\n", .{ stale });
 }
 comptime {
     // invariant: header_is_17_bytes
-    // invariant: header_is_17_bytes verified (no statements)
+    if (!(HDR_LEN == 17)) __t27_assert_fail("\n  assertion failed:\n    HDR_LEN = {any}\n", .{ HDR_LEN });
 }
 comptime {
     // invariant: mac_is_16_bytes
-    // invariant: mac_is_16_bytes verified (no statements)
+    if (!(MAC_LEN == 16)) __t27_assert_fail("\n  assertion failed:\n    MAC_LEN = {any}\n", .{ MAC_LEN });
 }

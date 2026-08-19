@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_NODES: u32 = 8;
@@ -107,92 +115,92 @@ fn should_sleep(state: u32, current_time: u32, sleep_start: u32, sleep_end: u32)
 }
 test "create_power_state_basic" {
     const state = create_power_state(80, POWER_NORMAL, 50, 100);
-    if (!(get_battery_level(state) == 80)) @panic("battery");
-    if (!(get_power_mode(state) == POWER_NORMAL)) @panic("mode");
-    if (!(get_consumption(state) == 50)) @panic("consumption");
-    if (!(get_uptime(state) == 100)) @panic("uptime");
+    if (!(get_battery_level(state) == 80)) __t27_assert_fail("\n  battery:\n    get_battery_level(state) = {any}\n", .{ get_battery_level(state) });
+    if (!(get_power_mode(state) == POWER_NORMAL)) __t27_assert_fail("\n  mode:\n    get_power_mode(state) = {any}\n    POWER_NORMAL = {any}\n", .{ get_power_mode(state), POWER_NORMAL });
+    if (!(get_consumption(state) == 50)) __t27_assert_fail("\n  consumption:\n    get_consumption(state) = {any}\n", .{ get_consumption(state) });
+    if (!(get_uptime(state) == 100)) __t27_assert_fail("\n  uptime:\n    get_uptime(state) = {any}\n", .{ get_uptime(state) });
 }
 test "is_battery_critical_true" {
     const state = create_power_state(15, POWER_NORMAL, 50, 100);
-    if (!(is_battery_critical(state) == true)) @panic("critical");
+    if (!(is_battery_critical(state) == true)) __t27_assert_fail("\n  critical:\n    is_battery_critical(state) = {any}\n", .{ is_battery_critical(state) });
 }
 test "is_battery_critical_false" {
     const state = create_power_state(25, POWER_NORMAL, 50, 100);
-    if (!(is_battery_critical(state) == false)) @panic("not critical");
+    if (!(is_battery_critical(state) == false)) __t27_assert_fail("\n  not critical:\n    is_battery_critical(state) = {any}\n", .{ is_battery_critical(state) });
 }
 test "is_battery_low" {
     const state = create_power_state(30, POWER_NORMAL, 50, 100);
-    if (!(is_battery_low(state) == true)) @panic("low");
+    if (!(is_battery_low(state) == true)) __t27_assert_fail("\n  low:\n    is_battery_low(state) = {any}\n", .{ is_battery_low(state) });
 }
 test "is_battery_healthy" {
     const state = create_power_state(70, POWER_NORMAL, 50, 100);
-    if (!(is_battery_healthy(state) == true)) @panic("healthy");
+    if (!(is_battery_healthy(state) == true)) __t27_assert_fail("\n  healthy:\n    is_battery_healthy(state) = {any}\n", .{ is_battery_healthy(state) });
 }
 test "estimate_remaining_time_calculates" {
     const state = create_power_state(60, POWER_NORMAL, 10, 100);
     const time = estimate_remaining_time(state);
-    if (!((time >= 59) and (time <= 61))) @panic("estimated time");
+    if (!((time >= 59) and (time <= 61))) __t27_assert_fail("\n  estimated time:\n    time = {any}\n", .{ time });
 }
 test "estimate_remaining_time_zero_consumption" {
     const state = create_power_state(60, POWER_NORMAL, 0, 100);
-    if (!(estimate_remaining_time(state) == 0xFF)) @panic("infinite time");
+    if (!(estimate_remaining_time(state) == 0xFF)) __t27_assert_fail("\n  infinite time:\n    estimate_remaining_time(state) = {any}\n", .{ estimate_remaining_time(state) });
 }
 test "update_power_mode_emergency" {
     const state = create_power_state(15, POWER_NORMAL, 50, 100);
     const new_state = update_power_mode(state);
-    if (!(get_power_mode(new_state) == POWER_EMERGENCY)) @panic("emergency mode");
+    if (!(get_power_mode(new_state) == POWER_EMERGENCY)) __t27_assert_fail("\n  emergency mode:\n    get_power_mode(new_state) = {any}\n    POWER_EMERGENCY = {any}\n", .{ get_power_mode(new_state), POWER_EMERGENCY });
 }
 test "update_power_mode_eco" {
     const state = create_power_state(30, POWER_NORMAL, 50, 100);
     const new_state = update_power_mode(state);
-    if (!(get_power_mode(new_state) == POWER_ECO)) @panic("eco mode");
+    if (!(get_power_mode(new_state) == POWER_ECO)) __t27_assert_fail("\n  eco mode:\n    get_power_mode(new_state) = {any}\n    POWER_ECO = {any}\n", .{ get_power_mode(new_state), POWER_ECO });
 }
 test "update_power_mode_normal" {
     const state = create_power_state(80, POWER_NORMAL, 50, 100);
     const new_state = update_power_mode(state);
-    if (!(get_power_mode(new_state) == POWER_NORMAL)) @panic("normal mode");
+    if (!(get_power_mode(new_state) == POWER_NORMAL)) __t27_assert_fail("\n  normal mode:\n    get_power_mode(new_state) = {any}\n    POWER_NORMAL = {any}\n", .{ get_power_mode(new_state), POWER_NORMAL });
 }
 test "reduce_consumption_works" {
     const state = create_power_state(80, POWER_NORMAL, 50, 100);
     const new_state = reduce_consumption(state, 10);
-    if (!(get_consumption(new_state) == 40)) @panic("consumption reduced");
+    if (!(get_consumption(new_state) == 40)) __t27_assert_fail("\n  consumption reduced:\n    get_consumption(new_state) = {any}\n", .{ get_consumption(new_state) });
 }
 test "reduce_consumption_minimum" {
     const state = create_power_state(80, POWER_NORMAL, 2, 100);
     const new_state = reduce_consumption(state, 5);
-    if (!(get_consumption(new_state) == 1)) @panic("minimum consumption");
+    if (!(get_consumption(new_state) == 1)) __t27_assert_fail("\n  minimum consumption:\n    get_consumption(new_state) = {any}\n", .{ get_consumption(new_state) });
 }
 test "drain_battery_works" {
     const state = create_power_state(80, POWER_NORMAL, 50, 100);
     const new_state = drain_battery(state, 20);
-    if (!(get_battery_level(new_state) == 60)) @panic("battery drained");
+    if (!(get_battery_level(new_state) == 60)) __t27_assert_fail("\n  battery drained:\n    get_battery_level(new_state) = {any}\n", .{ get_battery_level(new_state) });
 }
 test "drain_battery_empty" {
     const state = create_power_state(10, POWER_NORMAL, 50, 100);
     const new_state = drain_battery(state, 20);
-    if (!(get_battery_level(new_state) == 0)) @panic("battery empty");
+    if (!(get_battery_level(new_state) == 0)) __t27_assert_fail("\n  battery empty:\n    get_battery_level(new_state) = {any}\n", .{ get_battery_level(new_state) });
 }
 test "get_power_priority_critical" {
     const state = create_power_state(15, POWER_NORMAL, 50, 100);
-    if (!(get_power_priority(state) == 3)) @panic("highest priority");
+    if (!(get_power_priority(state) == 3)) __t27_assert_fail("\n  highest priority:\n    get_power_priority(state) = {any}\n", .{ get_power_priority(state) });
 }
 test "get_power_priority_low" {
     const state = create_power_state(30, POWER_NORMAL, 50, 100);
-    if (!(get_power_priority(state) == 2)) @panic("medium priority");
+    if (!(get_power_priority(state) == 2)) __t27_assert_fail("\n  medium priority:\n    get_power_priority(state) = {any}\n", .{ get_power_priority(state) });
 }
 test "get_power_priority_normal" {
     const state = create_power_state(70, POWER_NORMAL, 50, 100);
-    if (!(get_power_priority(state) == 1)) @panic("normal priority");
+    if (!(get_power_priority(state) == 1)) __t27_assert_fail("\n  normal priority:\n    get_power_priority(state) = {any}\n", .{ get_power_priority(state) });
 }
 test "should_sleep_critical_in_window" {
     const state = create_power_state(15, POWER_NORMAL, 50, 100);
-    if (!(should_sleep(state, 5000, 4000, 6000) == true)) @panic("should sleep");
+    if (!(should_sleep(state, 5000, 4000, 6000) == true)) __t27_assert_fail("\n  should sleep:\n    should_sleep(state, 5000, 4000, 6000) = {any}\n", .{ should_sleep(state, 5000, 4000, 6000) });
 }
 test "should_sleep_critical_outside_window" {
     const state = create_power_state(15, POWER_NORMAL, 50, 100);
-    if (!(should_sleep(state, 7000, 4000, 6000) == false)) @panic("no sleep");
+    if (!(should_sleep(state, 7000, 4000, 6000) == false)) __t27_assert_fail("\n  no sleep:\n    should_sleep(state, 7000, 4000, 6000) = {any}\n", .{ should_sleep(state, 7000, 4000, 6000) });
 }
 test "should_sleep_healthy_battery" {
     const state = create_power_state(70, POWER_NORMAL, 50, 100);
-    if (!(should_sleep(state, 5000, 4000, 6000) == false)) @panic("no sleep with healthy battery");
+    if (!(should_sleep(state, 5000, 4000, 6000) == false)) __t27_assert_fail("\n  no sleep with healthy battery:\n    should_sleep(state, 5000, 4000, 6000) = {any}\n", .{ should_sleep(state, 5000, 4000, 6000) });
 }

@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const PREAMBLE_LEN: usize = 13;
@@ -32,32 +40,60 @@ fn sync_margin_pct() usize {
     return (SYNC_THRESHOLD * 100) / PEAK;
 }
 test "empty_frame_is_21_symbols" {
+    const s = frame_symbols(0);
+    if (!(s == 21)) __t27_assert_fail("\n  assertion failed:\n    s = {any}\n", .{ s });
 }
 test "one_byte_payload_is_29_symbols" {
+    const s = frame_symbols(1);
+    if (!(s == 29)) __t27_assert_fail("\n  assertion failed:\n    s = {any}\n", .{ s });
 }
 test "max_frame_symbols" {
+    const s = frame_symbols(255);
+    if (!(s == 2061)) __t27_assert_fail("\n  assertion failed:\n    s = {any}\n", .{ s });
 }
 test "min_parse_len_is_preamble_plus_length_byte" {
+    const m = min_parse_len();
+    if (!(m == 21)) __t27_assert_fail("\n  assertion failed:\n    m = {any}\n", .{ m });
 }
 test "can_parse_gate" {
+    const ok = can_parse(21);
+    const short = can_parse(20);
+    if (!(ok == true)) __t27_assert_fail("\n  assertion failed:\n    ok = {any}\n", .{ ok });
+    if (!(short == false)) __t27_assert_fail("\n  assertion failed:\n    short = {any}\n", .{ short });
 }
 test "payload_cap" {
+    const fits = payload_fits(255);
+    const over = payload_fits(256);
+    if (!(fits == true)) __t27_assert_fail("\n  assertion failed:\n    fits = {any}\n", .{ fits });
+    if (!(over == false)) __t27_assert_fail("\n  assertion failed:\n    over = {any}\n", .{ over });
 }
 test "decode_bounds" {
+    const inside = decode_fits(13, 2, 29);
+    const past = decode_fits(13, 2, 28);
+    if (!(inside == true)) __t27_assert_fail("\n  assertion failed:\n    inside = {any}\n", .{ inside });
+    if (!(past == false)) __t27_assert_fail("\n  assertion failed:\n    past = {any}\n", .{ past });
 }
 test "sync_gate" {
+    const locked = is_synced(13);
+    const edge = is_synced(8);
+    const noise = is_synced(7);
+    if (!(locked == true)) __t27_assert_fail("\n  assertion failed:\n    locked = {any}\n", .{ locked });
+    if (!(edge == true)) __t27_assert_fail("\n  assertion failed:\n    edge = {any}\n", .{ edge });
+    if (!(noise == false)) __t27_assert_fail("\n  assertion failed:\n    noise = {any}\n", .{ noise });
 }
 test "sync_margin_is_61_percent" {
+    const p = sync_margin_pct();
+    if (!(p == 61)) __t27_assert_fail("\n  assertion failed:\n    p = {any}\n", .{ p });
 }
 comptime {
     // invariant: preamble_is_barker13
-    // invariant: preamble_is_barker13 verified (no statements)
+    if (!(PREAMBLE_LEN == 13)) __t27_assert_fail("\n  assertion failed:\n    PREAMBLE_LEN = {any}\n", .{ PREAMBLE_LEN });
 }
 comptime {
     // invariant: payload_cap_is_one_byte
-    // invariant: payload_cap_is_one_byte verified (no statements)
+    if (!(MAX_PAYLOAD == 255)) __t27_assert_fail("\n  assertion failed:\n    MAX_PAYLOAD = {any}\n", .{ MAX_PAYLOAD });
 }
 comptime {
     // invariant: threshold_below_peak
-    // invariant: threshold_below_peak verified (no statements)
+    if (!(SYNC_THRESHOLD == 8)) __t27_assert_fail("\n  assertion failed:\n    SYNC_THRESHOLD = {any}\n", .{ SYNC_THRESHOLD });
 }

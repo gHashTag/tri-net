@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const SHA_PAD256: u32 = 0x80000000;
@@ -51,18 +59,18 @@ fn who_ok(sig_ok: u32, claimed_executor: u32, hashed_pubkey_lo: u32) bool {
     }
 }
 test "pubkey_preimage_layout" {
-    if (!(pubkey_pre(0, 0xAA, 1, 2, 3, 4, 5, 6, 7) == 0xAA)) @panic("key word 0 at idx 0");
-    if (!(pubkey_pre(7, 0xAA, 1, 2, 3, 4, 5, 6, 0xBB) == 0xBB)) @panic("key word 7 at idx 7");
-    if (!(pubkey_pre(8, 0, 0, 0, 0, 0, 0, 0, 0) == SHA_PAD256)) @panic("pad marker at idx 8");
-    if (!(pubkey_pre(15, 0, 0, 0, 0, 0, 0, 0, 0) == PUBKEY_BITS)) @panic("256-bit length at idx 15");
-    if (!(pubkey_pre(11, 0xAA, 1, 2, 3, 4, 5, 6, 7) == 0)) @panic("interior pad word is zero");
+    if (!(pubkey_pre(0, 0xAA, 1, 2, 3, 4, 5, 6, 7) == 0xAA)) __t27_assert_fail("\n  key word 0 at idx 0:\n    pubkey_pre(0, 0xAA, 1, 2, 3, 4, 5, 6, 7) = {any}\n", .{ pubkey_pre(0, 0xAA, 1, 2, 3, 4, 5, 6, 7) });
+    if (!(pubkey_pre(7, 0xAA, 1, 2, 3, 4, 5, 6, 0xBB) == 0xBB)) __t27_assert_fail("\n  key word 7 at idx 7:\n    pubkey_pre(7, 0xAA, 1, 2, 3, 4, 5, 6, 0xBB) = {any}\n", .{ pubkey_pre(7, 0xAA, 1, 2, 3, 4, 5, 6, 0xBB) });
+    if (!(pubkey_pre(8, 0, 0, 0, 0, 0, 0, 0, 0) == SHA_PAD256)) __t27_assert_fail("\n  pad marker at idx 8:\n    pubkey_pre(8, 0, 0, 0, 0, 0, 0, 0, 0) = {any}\n    SHA_PAD256 = {any}\n", .{ pubkey_pre(8, 0, 0, 0, 0, 0, 0, 0, 0), SHA_PAD256 });
+    if (!(pubkey_pre(15, 0, 0, 0, 0, 0, 0, 0, 0) == PUBKEY_BITS)) __t27_assert_fail("\n  256-bit length at idx 15:\n    pubkey_pre(15, 0, 0, 0, 0, 0, 0, 0, 0) = {any}\n    PUBKEY_BITS = {any}\n", .{ pubkey_pre(15, 0, 0, 0, 0, 0, 0, 0, 0), PUBKEY_BITS });
+    if (!(pubkey_pre(11, 0xAA, 1, 2, 3, 4, 5, 6, 7) == 0)) __t27_assert_fail("\n  interior pad word is zero:\n    pubkey_pre(11, 0xAA, 1, 2, 3, 4, 5, 6, 7) = {any}\n", .{ pubkey_pre(11, 0xAA, 1, 2, 3, 4, 5, 6, 7) });
 }
 test "identity_binding" {
-    if (!(identity_matches(0x1234ABCD, 0x1234ABCD) == true)) @panic("matching commitment accepted");
-    if (!(identity_matches(0x0000E0E0, 0x1234ABCD) == false)) @panic("claimed executor != key commitment rejected");
+    if (!(identity_matches(0x1234ABCD, 0x1234ABCD) == true)) __t27_assert_fail("\n  matching commitment accepted:\n    identity_matches(0x1234ABCD, 0x1234ABCD) = {any}\n", .{ identity_matches(0x1234ABCD, 0x1234ABCD) });
+    if (!(identity_matches(0x0000E0E0, 0x1234ABCD) == false)) __t27_assert_fail("\n  claimed executor != key commitment rejected:\n    identity_matches(0x0000E0E0, 0x1234ABCD) = {any}\n", .{ identity_matches(0x0000E0E0, 0x1234ABCD) });
 }
 test "who_needs_sig_and_identity" {
-    if (!(who_ok(1, 0x1234ABCD, 0x1234ABCD) == true)) @panic("valid sig + matching key -> who ok");
-    if (!(who_ok(0, 0x1234ABCD, 0x1234ABCD) == false)) @panic("no signature -> who fails");
-    if (!(who_ok(1, 0x0000E0E0, 0x1234ABCD) == false)) @panic("valid sig but wrong signer identity -> who fails");
+    if (!(who_ok(1, 0x1234ABCD, 0x1234ABCD) == true)) __t27_assert_fail("\n  valid sig + matching key -> who ok:\n    who_ok(1, 0x1234ABCD, 0x1234ABCD) = {any}\n", .{ who_ok(1, 0x1234ABCD, 0x1234ABCD) });
+    if (!(who_ok(0, 0x1234ABCD, 0x1234ABCD) == false)) __t27_assert_fail("\n  no signature -> who fails:\n    who_ok(0, 0x1234ABCD, 0x1234ABCD) = {any}\n", .{ who_ok(0, 0x1234ABCD, 0x1234ABCD) });
+    if (!(who_ok(1, 0x0000E0E0, 0x1234ABCD) == false)) __t27_assert_fail("\n  valid sig but wrong signer identity -> who fails:\n    who_ok(1, 0x0000E0E0, 0x1234ABCD) = {any}\n", .{ who_ok(1, 0x0000E0E0, 0x1234ABCD) });
 }

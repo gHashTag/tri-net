@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const DEFENDER_HONEST: u32 = 1;
@@ -32,35 +40,35 @@ fn challenger_bond_after(verdict: u32, defender_bond: u32, challenger_bond: u32)
     }
 }
 test "challenge_needs_disagreement" {
-    if (!(is_valid_challenge(0x6EAC3F90, 0xDEADBEEF) == true)) @panic("different seals -> valid");
-    if (!(is_valid_challenge(0x6EAC3F90, 0x6EAC3F90) == false)) @panic("same seal -> no dispute");
+    if (!(is_valid_challenge(0x6EAC3F90, 0xDEADBEEF) == true)) __t27_assert_fail("\n  different seals -> valid:\n    is_valid_challenge(0x6EAC3F90, 0xDEADBEEF) = {any}\n", .{ is_valid_challenge(0x6EAC3F90, 0xDEADBEEF) });
+    if (!(is_valid_challenge(0x6EAC3F90, 0x6EAC3F90) == false)) __t27_assert_fail("\n  same seal -> no dispute:\n    is_valid_challenge(0x6EAC3F90, 0x6EAC3F90) = {any}\n", .{ is_valid_challenge(0x6EAC3F90, 0x6EAC3F90) });
 }
 test "honest_defender_wins" {
     const v = resolve(0x6EAC3F90, 0x6EAC3F90);
-    if (!(v == DEFENDER_HONEST)) @panic("defender honest");
+    if (!(v == DEFENDER_HONEST)) __t27_assert_fail("\n  defender honest:\n    v = {any}\n    DEFENDER_HONEST = {any}\n", .{ v, DEFENDER_HONEST });
 }
 test "lying_defender_slashed" {
     const v = resolve(0xBADBAD00, 0x6EAC3F90);
-    if (!(v == DEFENDER_LIED)) @panic("defender lied");
+    if (!(v == DEFENDER_LIED)) __t27_assert_fail("\n  defender lied:\n    v = {any}\n    DEFENDER_LIED = {any}\n", .{ v, DEFENDER_LIED });
 }
 test "bonds_honest_defender" {
     const da = defender_bond_after(DEFENDER_HONEST, 100, 100);
     const ca = challenger_bond_after(DEFENDER_HONEST, 100, 100);
-    if (!(da == 200)) @panic("defender gains challenger's bond");
-    if (!(ca == 0)) @panic("challenger loses its bond");
-    if (!((da + ca) == 200)) @panic("total bond conserved");
+    if (!(da == 200)) __t27_assert_fail("\n  defender gains challenger's bond:\n    da = {any}\n", .{ da });
+    if (!(ca == 0)) __t27_assert_fail("\n  challenger loses its bond:\n    ca = {any}\n", .{ ca });
+    if (!((da + ca) == 200)) __t27_assert_fail("\n  total bond conserved:\n    da + ca = {any}\n", .{ da + ca });
 }
 test "bonds_lying_defender" {
     const da = defender_bond_after(DEFENDER_LIED, 100, 100);
     const ca = challenger_bond_after(DEFENDER_LIED, 100, 100);
-    if (!(da == 0)) @panic("defender is slashed");
-    if (!(ca == 200)) @panic("challenger gains defender's bond");
-    if (!((da + ca) == 200)) @panic("total bond conserved");
+    if (!(da == 0)) __t27_assert_fail("\n  defender is slashed:\n    da = {any}\n", .{ da });
+    if (!(ca == 200)) __t27_assert_fail("\n  challenger gains defender's bond:\n    ca = {any}\n", .{ ca });
+    if (!((da + ca) == 200)) __t27_assert_fail("\n  total bond conserved:\n    da + ca = {any}\n", .{ da + ca });
 }
 test "griefing_unprofitable" {
     const v = resolve(0x11223344, 0x11223344);
     const ca = challenger_bond_after(v, 100, 100);
-    if (!(ca < 100)) @panic("frivolous challenger ends with less than it posted");
+    if (!(ca < 100)) __t27_assert_fail("\n  frivolous challenger ends with less than it posted:\n    ca = {any}\n", .{ ca });
 }
 const RESOLVE_TIMEOUT: u32 = 27;
 fn challenge_admissible(now_epoch: u32, receipt_epoch: u32, window: u32) bool {
@@ -117,11 +125,11 @@ test "witness_quorum" {
     const v_frame = witness_verdict(0xAAAA, 0xBBBB, 0xAAAA, 0xAAAA);
     const v_caught = witness_verdict(0xBAD0, 0xAAAA, 0xAAAA, 0xDEAD);
     const v_none = witness_verdict(0xAAAA, 0x1111, 0x2222, 0x3333);
-    if (!(v_unanimous == DEFENDER_HONEST)) @panic("unanimous truth clears the defender");
-    if (!(v_one_liar == DEFENDER_HONEST)) @panic("one lying witness cannot flip an honest majority");
-    if (!(v_frame == DEFENDER_HONEST)) @panic("one framing witness cannot slash an honest defender");
-    if (!(v_caught == DEFENDER_LIED)) @panic("a real lie is caught by the majority");
-    if (!(v_none == VERDICT_NONE)) @panic("no quorum -> no verdict, dispute stays open");
+    if (!(v_unanimous == DEFENDER_HONEST)) __t27_assert_fail("\n  unanimous truth clears the defender:\n    v_unanimous = {any}\n    DEFENDER_HONEST = {any}\n", .{ v_unanimous, DEFENDER_HONEST });
+    if (!(v_one_liar == DEFENDER_HONEST)) __t27_assert_fail("\n  one lying witness cannot flip an honest majority:\n    v_one_liar = {any}\n    DEFENDER_HONEST = {any}\n", .{ v_one_liar, DEFENDER_HONEST });
+    if (!(v_frame == DEFENDER_HONEST)) __t27_assert_fail("\n  one framing witness cannot slash an honest defender:\n    v_frame = {any}\n    DEFENDER_HONEST = {any}\n", .{ v_frame, DEFENDER_HONEST });
+    if (!(v_caught == DEFENDER_LIED)) __t27_assert_fail("\n  a real lie is caught by the majority:\n    v_caught = {any}\n    DEFENDER_LIED = {any}\n", .{ v_caught, DEFENDER_LIED });
+    if (!(v_none == VERDICT_NONE)) __t27_assert_fail("\n  no quorum -> no verdict, dispute stays open:\n    v_none = {any}\n    VERDICT_NONE = {any}\n", .{ v_none, VERDICT_NONE });
 }
 fn witness_is_majority(seal: u32, majority: u32) bool {
     return (majority != 0) and (seal == majority);
@@ -158,11 +166,11 @@ test "witness_economics" {
     const m = witness_payout(0xAAAA, 0xAAAA, 0xAAAA, 0xDEAD, 100);
     const l = witness_payout(0xDEAD, 0xAAAA, 0xAAAA, 0xDEAD, 100);
     const n = witness_payout(0x1111, 0x1111, 0x2222, 0x3333, 100);
-    if (!(u == 100)) @panic("unanimous round: stake back, no free reward");
-    if (!(m == 150)) @panic("majority of two splits the one forfeited stake");
-    if (!(l == 0)) @panic("the dissenter forfeits");
-    if (!(n == 100)) @panic("no quorum refunds everyone");
-    if (!(((m + m) + l) == 300)) @panic("2-1 round conserves the three stakes");
+    if (!(u == 100)) __t27_assert_fail("\n  unanimous round: stake back, no free reward:\n    u = {any}\n", .{ u });
+    if (!(m == 150)) __t27_assert_fail("\n  majority of two splits the one forfeited stake:\n    m = {any}\n", .{ m });
+    if (!(l == 0)) __t27_assert_fail("\n  the dissenter forfeits:\n    l = {any}\n", .{ l });
+    if (!(n == 100)) __t27_assert_fail("\n  no quorum refunds everyone:\n    n = {any}\n", .{ n });
+    if (!(((m + m) + l) == 300)) __t27_assert_fail("\n  2-1 round conserves the three stakes:\n    (m + m) + l = {any}\n", .{ (m + m) + l });
 }
 const MAX_OPEN_DISPUTES: u32 = 3;
 const CH_BPS_UNIT: u32 = 10000;
@@ -208,14 +216,14 @@ fn may_open_dispute_rung(open_count: u32, risk: u32, reward: u32, bond: u32, min
 test "rung_aware_admission" {
     const p4 = dispute_rung_min_bps(2000, 4);
     const p9 = dispute_rung_min_bps(2000, 9);
-    const @"f0" = may_open_dispute_rung(0, 400, 100, 100, 2000, 4);
+    const f0 = may_open_dispute_rung(0, 400, 100, 100, 2000, 4);
     const w0 = may_open_dispute_rung(0, 400, 100, 100, 2000, 9);
     const w1 = may_open_dispute_rung(0, 400, 100, 225, 2000, 9);
-    if (!(p4 == 2000)) @panic("at the flagship the base premium applies");
-    if (!(p9 == 4500)) @panic("Et9 adds 2500 bps");
-    if (!(@"f0" == true)) @panic("bond 100 covers 500 at 20% on the flagship");
-    if (!(w0 == false)) @panic("the SAME bond fails the SAME dispute at Et9 (needs 45%)");
-    if (!(w1 == true)) @panic("225 covers 500 at 45% on the wide rung");
+    if (!(p4 == 2000)) __t27_assert_fail("\n  at the flagship the base premium applies:\n    p4 = {any}\n", .{ p4 });
+    if (!(p9 == 4500)) __t27_assert_fail("\n  Et9 adds 2500 bps:\n    p9 = {any}\n", .{ p9 });
+    if (!(f0 == true)) __t27_assert_fail("\n  bond 100 covers 500 at 20% on the flagship:\n    f0 = {any}\n", .{ f0 });
+    if (!(w0 == false)) __t27_assert_fail("\n  the SAME bond fails the SAME dispute at Et9 (needs 45%):\n    w0 = {any}\n", .{ w0 });
+    if (!(w1 == true)) __t27_assert_fail("\n  225 covers 500 at 45% on the wide rung:\n    w1 = {any}\n", .{ w1 });
 }
 test "dispute_slots_and_risk_ledger" {
     const s0 = dispute_slots_ok(0);
@@ -225,13 +233,13 @@ test "dispute_slots_and_risk_ledger" {
     const r0 = risk_after_close(140, 40);
     const ru = risk_after_close(30, 40);
     const rs = risk_after_open(0xFFFFFFF0, 0x100);
-    if (!(s0 == true)) @panic("empty ledger has slots");
-    if (!(s2 == true)) @panic("slot 3 of 3 may open");
-    if (!(s3 == false)) @panic("the cap is exact at MAX_OPEN_DISPUTES");
-    if (!(r1 == 140)) @panic("open adds the reward at risk");
-    if (!(r0 == 100)) @panic("close returns to the baseline");
-    if (!(ru == 0)) @panic("close floors at zero, never wraps");
-    if (!(rs == 0xFFFFFFFF)) @panic("an overflowing open saturates");
+    if (!(s0 == true)) __t27_assert_fail("\n  empty ledger has slots:\n    s0 = {any}\n", .{ s0 });
+    if (!(s2 == true)) __t27_assert_fail("\n  slot 3 of 3 may open:\n    s2 = {any}\n", .{ s2 });
+    if (!(s3 == false)) __t27_assert_fail("\n  the cap is exact at MAX_OPEN_DISPUTES:\n    s3 = {any}\n", .{ s3 });
+    if (!(r1 == 140)) __t27_assert_fail("\n  open adds the reward at risk:\n    r1 = {any}\n", .{ r1 });
+    if (!(r0 == 100)) __t27_assert_fail("\n  close returns to the baseline:\n    r0 = {any}\n", .{ r0 });
+    if (!(ru == 0)) __t27_assert_fail("\n  close floors at zero, never wraps:\n    ru = {any}\n", .{ ru });
+    if (!(rs == 0xFFFFFFFF)) __t27_assert_fail("\n  an overflowing open saturates:\n    rs = {any}\n", .{ rs });
 }
 test "dispute_admission_gate" {
     const a0 = may_open_dispute(0, 0, 400, 100, 2000);
@@ -239,48 +247,48 @@ test "dispute_admission_gate" {
     const a2 = may_open_dispute(3, 0, 10, 1000000, 2000);
     const a3 = may_open_dispute(1, 400, 100, 100, 2000);
     const a4 = may_open_dispute(1, 450, 100, 100, 2000);
-    if (!(a0 == true)) @panic("bond 100 covers 20% of 400");
-    if (!(a1 == false)) @panic("bond 100 cannot cover 20% of 600");
-    if (!(a2 == false)) @panic("no slot, no dispute, whatever the bond");
-    if (!(a3 == true)) @panic("risk 400 + 100 = 500 requires exactly the full bond -- exact cover admits");
-    if (!(a4 == false)) @panic("risk 450 + 100 = 550 requires 110 > bond 100 -- rejected");
+    if (!(a0 == true)) __t27_assert_fail("\n  bond 100 covers 20% of 400:\n    a0 = {any}\n", .{ a0 });
+    if (!(a1 == false)) __t27_assert_fail("\n  bond 100 cannot cover 20% of 600:\n    a1 = {any}\n", .{ a1 });
+    if (!(a2 == false)) __t27_assert_fail("\n  no slot, no dispute, whatever the bond:\n    a2 = {any}\n", .{ a2 });
+    if (!(a3 == true)) __t27_assert_fail("\n  risk 400 + 100 = 500 requires exactly the full bond -- exact cover admits:\n    a3 = {any}\n", .{ a3 });
+    if (!(a4 == false)) __t27_assert_fail("\n  risk 450 + 100 = 550 requires 110 > bond 100 -- rejected:\n    a4 = {any}\n", .{ a4 });
 }
 test "rung_window_edges" {
-    const @"f0" = challenge_admissible_rung(1063, 1000, 4);
-    const @"f1" = challenge_admissible_rung(1064, 1000, 4);
+    const f0 = challenge_admissible_rung(1063, 1000, 4);
+    const f1 = challenge_admissible_rung(1064, 1000, 4);
     const w0 = challenge_admissible_rung(1064, 1000, 9);
     const w1 = challenge_admissible_rung(1143, 1000, 9);
     const w2 = challenge_admissible_rung(1144, 1000, 9);
-    if (!(@"f0" == true)) @panic("flagship: epoch 63 of 64 is challengeable");
-    if (!(@"f1" == false)) @panic("flagship: the finalization epoch admits nothing");
-    if (!(w0 == true)) @panic("GF-T64 (Et9) is still challengeable where GF-T16 finalized");
-    if (!(w1 == true)) @panic("GF-T64: epoch 143 of 144 is challengeable");
-    if (!(w2 == false)) @panic("GF-T64: its own finalization epoch admits nothing");
+    if (!(f0 == true)) __t27_assert_fail("\n  flagship: epoch 63 of 64 is challengeable:\n    f0 = {any}\n", .{ f0 });
+    if (!(f1 == false)) __t27_assert_fail("\n  flagship: the finalization epoch admits nothing:\n    f1 = {any}\n", .{ f1 });
+    if (!(w0 == true)) __t27_assert_fail("\n  GF-T64 (Et9) is still challengeable where GF-T16 finalized:\n    w0 = {any}\n", .{ w0 });
+    if (!(w1 == true)) __t27_assert_fail("\n  GF-T64: epoch 143 of 144 is challengeable:\n    w1 = {any}\n", .{ w1 });
+    if (!(w2 == false)) __t27_assert_fail("\n  GF-T64: its own finalization epoch admits nothing:\n    w2 = {any}\n", .{ w2 });
 }
 test "window_edges" {
     const a0 = challenge_admissible(100, 100, 8);
     const a1 = challenge_admissible(107, 100, 8);
     const a2 = challenge_admissible(108, 100, 8);
     const a3 = challenge_admissible(99, 100, 8);
-    if (!(a0 == true)) @panic("fresh receipt is challengeable");
-    if (!(a1 == true)) @panic("last in-window epoch (window - 1) is challengeable");
-    if (!(a2 == false)) @panic("the finalization epoch itself admits no challenge");
-    if (!(a3 == false)) @panic("a backwards clock admits nothing");
+    if (!(a0 == true)) __t27_assert_fail("\n  fresh receipt is challengeable:\n    a0 = {any}\n", .{ a0 });
+    if (!(a1 == true)) __t27_assert_fail("\n  last in-window epoch (window - 1) is challengeable:\n    a1 = {any}\n", .{ a1 });
+    if (!(a2 == false)) __t27_assert_fail("\n  the finalization epoch itself admits no challenge:\n    a2 = {any}\n", .{ a2 });
+    if (!(a3 == false)) __t27_assert_fail("\n  a backwards clock admits nothing:\n    a3 = {any}\n", .{ a3 });
 }
 test "expiry_edges" {
     const e0 = dispute_expired(50, 77);
     const e1 = dispute_expired(50, 78);
     const e2 = dispute_expired(50, 49);
-    if (!(e0 == false)) @panic("at the timeout the dispute is still live");
-    if (!(e1 == true)) @panic("one epoch past the timeout it expires");
-    if (!(e2 == false)) @panic("a backwards clock never expires a dispute");
+    if (!(e0 == false)) __t27_assert_fail("\n  at the timeout the dispute is still live:\n    e0 = {any}\n", .{ e0 });
+    if (!(e1 == true)) __t27_assert_fail("\n  one epoch past the timeout it expires:\n    e1 = {any}\n", .{ e1 });
+    if (!(e2 == false)) __t27_assert_fail("\n  a backwards clock never expires a dispute:\n    e2 = {any}\n", .{ e2 });
 }
 test "expired_dispute_settles_for_defender" {
     const v = expired_verdict();
     const da = defender_bond_after(v, 150, 100);
     const ca = challenger_bond_after(v, 150, 100);
-    if (!(v == DEFENDER_HONEST)) @panic("no proof -> no slash");
-    if (!(da == 250)) @panic("defender keeps both bonds");
-    if (!(ca == 0)) @panic("the non-resolving challenger forfeits");
-    if (!((da + ca) == 250)) @panic("total bond conserved on the expiry path");
+    if (!(v == DEFENDER_HONEST)) __t27_assert_fail("\n  no proof -> no slash:\n    v = {any}\n    DEFENDER_HONEST = {any}\n", .{ v, DEFENDER_HONEST });
+    if (!(da == 250)) __t27_assert_fail("\n  defender keeps both bonds:\n    da = {any}\n", .{ da });
+    if (!(ca == 0)) __t27_assert_fail("\n  the non-resolving challenger forfeits:\n    ca = {any}\n", .{ ca });
+    if (!((da + ca) == 250)) __t27_assert_fail("\n  total bond conserved on the expiry path:\n    da + ca = {any}\n", .{ da + ca });
 }

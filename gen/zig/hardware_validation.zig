@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const VAL_PENDING: u32 = 0;
@@ -72,74 +80,74 @@ fn extract_metric_unit(metric: u32) u32 {
 }
 test "create_test_result_correct" {
     const result = create_test_result(VAL_PASSED, TEST_SIMULATION, 0, 1000);
-    if (!(extract_state(result) == VAL_PASSED)) @panic("state");
-    if (!(extract_test_type(result) == TEST_SIMULATION)) @panic("type");
-    if (!(extract_errors(result) == 0)) @panic("errors");
-    if (!(extract_iterations(result) == 1000)) @panic("iterations");
+    if (!(extract_state(result) == VAL_PASSED)) __t27_assert_fail("\n  state:\n    extract_state(result) = {any}\n    VAL_PASSED = {any}\n", .{ extract_state(result), VAL_PASSED });
+    if (!(extract_test_type(result) == TEST_SIMULATION)) __t27_assert_fail("\n  type:\n    extract_test_type(result) = {any}\n    TEST_SIMULATION = {any}\n", .{ extract_test_type(result), TEST_SIMULATION });
+    if (!(extract_errors(result) == 0)) __t27_assert_fail("\n  errors:\n    extract_errors(result) = {any}\n", .{ extract_errors(result) });
+    if (!(extract_iterations(result) == 1000)) __t27_assert_fail("\n  iterations:\n    extract_iterations(result) = {any}\n", .{ extract_iterations(result) });
 }
 test "calculate_pass_rate_perfect" {
     const rate = calculate_pass_rate(100, 100);
-    if (!(rate == 100)) @panic("100% pass rate");
+    if (!(rate == 100)) __t27_assert_fail("\n  100% pass rate:\n    rate = {any}\n", .{ rate });
 }
 test "calculate_pass_rate_half" {
     const rate = calculate_pass_rate(50, 100);
-    if (!(rate == 50)) @panic("50% pass rate");
+    if (!(rate == 50)) __t27_assert_fail("\n  50% pass rate:\n    rate = {any}\n", .{ rate });
 }
 test "calculate_pass_rate_zero" {
     const rate = calculate_pass_rate(0, 100);
-    if (!(rate == 0)) @panic("0% pass rate");
+    if (!(rate == 0)) __t27_assert_fail("\n  0% pass rate:\n    rate = {any}\n", .{ rate });
 }
 test "calculate_pass_rate_zero_total" {
     const rate = calculate_pass_rate(50, 0);
-    if (!(rate == 0)) @panic("zero total = 0%");
+    if (!(rate == 0)) __t27_assert_fail("\n  zero total = 0%:\n    rate = {any}\n", .{ rate });
 }
 test "test_passed_yes" {
     const result = create_test_result(VAL_PASSED, TEST_SIMULATION, 0, 100);
-    if (!(test_passed(result) == true)) @panic("no errors + passed state");
+    if (!(test_passed(result) == true)) __t27_assert_fail("\n  no errors + passed state:\n    test_passed(result) = {any}\n", .{ test_passed(result) });
 }
 test "test_passed_no_errors_but_pending" {
     const result = create_test_result(VAL_PENDING, TEST_SIMULATION, 0, 100);
-    if (!(test_passed(result) == false)) @panic("pending state");
+    if (!(test_passed(result) == false)) __t27_assert_fail("\n  pending state:\n    test_passed(result) = {any}\n", .{ test_passed(result) });
 }
 test "test_passed_errors" {
     const result = create_test_result(VAL_PASSED, TEST_SIMULATION, 5, 100);
-    if (!(test_passed(result) == false)) @panic("has errors");
+    if (!(test_passed(result) == false)) __t27_assert_fail("\n  has errors:\n    test_passed(result) = {any}\n", .{ test_passed(result) });
 }
 test "bit_accurate_exact_match" {
-    if (!(bit_accurate(0x12345678, 0x12345678, 0xFFFFFFFF) == true)) @panic("exact match");
+    if (!(bit_accurate(0x12345678, 0x12345678, 0xFFFFFFFF) == true)) __t27_assert_fail("\n  exact match:\n    bit_accurate(0x12345678, 0x12345678, 0xFFFFFFFF) = {any}\n", .{ bit_accurate(0x12345678, 0x12345678, 0xFFFFFFFF) });
 }
 test "bit_accurate_tolerance" {
-    if (!(bit_accurate(0x12345678, 0x12345670, 0x000000FF) == true)) @panic("tolerance OK");
+    if (!(bit_accurate(0x12345678, 0x12345670, 0x000000FF) == true)) __t27_assert_fail("\n  tolerance OK:\n    bit_accurate(0x12345678, 0x12345670, 0x000000FF) = {any}\n", .{ bit_accurate(0x12345678, 0x12345670, 0x000000FF) });
 }
 test "bit_accurate_fail" {
-    if (!(bit_accurate(0x12345678, 0x1234FF78, 0x000000FF) == false)) @panic("diff outside tolerated bits");
+    if (!(bit_accurate(0x12345678, 0x1234FF78, 0x000000FF) == false)) __t27_assert_fail("\n  diff outside tolerated bits:\n    bit_accurate(0x12345678, 0x1234FF78, 0x000000FF) = {any}\n", .{ bit_accurate(0x12345678, 0x1234FF78, 0x000000FF) });
 }
 test "fpga_board_ready_yes" {
     const result = create_test_result(VAL_PASSED, TEST_FPGA_BOARD, 0, 100);
-    if (!(fpga_board_ready(result) == true)) @panic("FPGA board ready");
+    if (!(fpga_board_ready(result) == true)) __t27_assert_fail("\n  FPGA board ready:\n    fpga_board_ready(result) = {any}\n", .{ fpga_board_ready(result) });
 }
 test "fpga_board_ready_no" {
     const result = create_test_result(VAL_PASSED, TEST_SIMULATION, 0, 100);
-    if (!(fpga_board_ready(result) == false)) @panic("not FPGA test");
+    if (!(fpga_board_ready(result) == false)) __t27_assert_fail("\n  not FPGA test:\n    fpga_board_ready(result) = {any}\n", .{ fpga_board_ready(result) });
 }
 test "create_packet_capture_correct" {
     const capture = create_packet_capture(1, 2, 0xAB, 100);
-    if (!(extract_capture_src(capture) == 1)) @panic("src");
-    if (!(extract_capture_dst(capture) == 2)) @panic("dst");
-    if (!(extract_capture_payload(capture) == 0xAB)) @panic("payload");
-    if (!(extract_capture_timestamp(capture) == 100)) @panic("timestamp");
+    if (!(extract_capture_src(capture) == 1)) __t27_assert_fail("\n  src:\n    extract_capture_src(capture) = {any}\n", .{ extract_capture_src(capture) });
+    if (!(extract_capture_dst(capture) == 2)) __t27_assert_fail("\n  dst:\n    extract_capture_dst(capture) = {any}\n", .{ extract_capture_dst(capture) });
+    if (!(extract_capture_payload(capture) == 0xAB)) __t27_assert_fail("\n  payload:\n    extract_capture_payload(capture) = {any}\n", .{ extract_capture_payload(capture) });
+    if (!(extract_capture_timestamp(capture) == 100)) __t27_assert_fail("\n  timestamp:\n    extract_capture_timestamp(capture) = {any}\n", .{ extract_capture_timestamp(capture) });
 }
 test "create_performance_metric_correct" {
     const metric = create_performance_metric(5, 1000, 1);
-    if (!(extract_metric_type(metric) == 5)) @panic("type");
-    if (!(extract_metric_value(metric) == 1000)) @panic("value");
-    if (!(extract_metric_unit(metric) == 1)) @panic("unit");
+    if (!(extract_metric_type(metric) == 5)) __t27_assert_fail("\n  type:\n    extract_metric_type(metric) = {any}\n", .{ extract_metric_type(metric) });
+    if (!(extract_metric_value(metric) == 1000)) __t27_assert_fail("\n  value:\n    extract_metric_value(metric) = {any}\n", .{ extract_metric_value(metric) });
+    if (!(extract_metric_unit(metric) == 1)) __t27_assert_fail("\n  unit:\n    extract_metric_unit(metric) = {any}\n", .{ extract_metric_unit(metric) });
 }
 test "extract_metric_value_large" {
     const metric = create_performance_metric(3, 0xFFFFFF, 2);
-    if (!(extract_metric_value(metric) == 0xFFFFFF)) @panic("max value");
+    if (!(extract_metric_value(metric) == 0xFFFFFF)) __t27_assert_fail("\n  max value:\n    extract_metric_value(metric) = {any}\n", .{ extract_metric_value(metric) });
 }
 test "extract_metric_type_boundary" {
     const metric = create_performance_metric(0xF, 1000, 0);
-    if (!(extract_metric_type(metric) == 0xF)) @panic("max type");
+    if (!(extract_metric_type(metric) == 0xF)) __t27_assert_fail("\n  max type:\n    extract_metric_type(metric) = {any}\n", .{ extract_metric_type(metric) });
 }

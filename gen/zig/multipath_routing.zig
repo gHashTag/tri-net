@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_PATHS: u32 = 4;
@@ -182,82 +190,82 @@ fn calculate_multipath_gain(path_array: [4]u32) u32 {
 }
 test "create_multipath_basic" {
     const path = create_multipath(PATH_VALID, 10, 20, 30);
-    if (!(get_path_valid(path) == PATH_VALID)) @panic("valid");
-    if (!(get_multipath_hop1(path) == 10)) @panic("hop1");
-    if (!(get_multipath_hop2(path) == 20)) @panic("hop2");
-    if (!(get_multipath_hop3(path) == 30)) @panic("hop3");
+    if (!(get_path_valid(path) == PATH_VALID)) __t27_assert_fail("\n  valid:\n    get_path_valid(path) = {any}\n    PATH_VALID = {any}\n", .{ get_path_valid(path), PATH_VALID });
+    if (!(get_multipath_hop1(path) == 10)) __t27_assert_fail("\n  hop1:\n    get_multipath_hop1(path) = {any}\n", .{ get_multipath_hop1(path) });
+    if (!(get_multipath_hop2(path) == 20)) __t27_assert_fail("\n  hop2:\n    get_multipath_hop2(path) = {any}\n", .{ get_multipath_hop2(path) });
+    if (!(get_multipath_hop3(path) == 30)) __t27_assert_fail("\n  hop3:\n    get_multipath_hop3(path) = {any}\n", .{ get_multipath_hop3(path) });
 }
 test "create_multipath_state_basic" {
     const state = create_multipath_state(3, 1, 100, 50);
-    if (!(get_active_paths(state) == 3)) @panic("active paths");
-    if (!(get_current_path(state) == 1)) @panic("current path");
-    if (!(get_flow_id(state) == 100)) @panic("flow ID");
-    if (!(get_multipath_last_update(state) == 50)) @panic("last update");
+    if (!(get_active_paths(state) == 3)) __t27_assert_fail("\n  active paths:\n    get_active_paths(state) = {any}\n", .{ get_active_paths(state) });
+    if (!(get_current_path(state) == 1)) __t27_assert_fail("\n  current path:\n    get_current_path(state) = {any}\n", .{ get_current_path(state) });
+    if (!(get_flow_id(state) == 100)) __t27_assert_fail("\n  flow ID:\n    get_flow_id(state) = {any}\n", .{ get_flow_id(state) });
+    if (!(get_multipath_last_update(state) == 50)) __t27_assert_fail("\n  last update:\n    get_multipath_last_update(state) = {any}\n", .{ get_multipath_last_update(state) });
 }
 test "count_valid_paths_all" {
     const array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
-    if (!(count_valid_paths(array) == 3)) @panic("3 valid paths");
+    if (!(count_valid_paths(array) == 3)) __t27_assert_fail("\n  3 valid paths:\n    count_valid_paths(array) = {any}\n", .{ count_valid_paths(array) });
 }
 test "count_valid_paths_some" {
     const array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
-    if (!(count_valid_paths(array) == 2)) @panic("2 valid paths");
+    if (!(count_valid_paths(array) == 2)) __t27_assert_fail("\n  2 valid paths:\n    count_valid_paths(array) = {any}\n", .{ count_valid_paths(array) });
 }
 test "is_multipath_viable_true" {
     const array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_INVALID, 0, 0, 0));
-    if (!(is_multipath_viable(array) == true)) @panic("viable");
+    if (!(is_multipath_viable(array) == true)) __t27_assert_fail("\n  viable:\n    is_multipath_viable(array) = {any}\n", .{ is_multipath_viable(array) });
 }
 test "is_multipath_viable_false" {
     const array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_INVALID, 0, 0, 0));
-    if (!(is_multipath_viable(array) == false)) @panic("not viable");
+    if (!(is_multipath_viable(array) == false)) __t27_assert_fail("\n  not viable:\n    is_multipath_viable(array) = {any}\n", .{ is_multipath_viable(array) });
 }
 test "select_primary_path_first" {
     const array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
-    if (!(select_primary_path(array, create_path_array(0, 0, 0, 0)) == 0)) @panic("first path selected");
+    if (!(select_primary_path(array, create_path_array(0, 0, 0, 0)) == 0)) __t27_assert_fail("\n  first path selected:\n    select_primary_path(array, create_path_array(0, 0, 0, 0)) = {any}\n", .{ select_primary_path(array, create_path_array(0, 0, 0, 0)) });
 }
 test "select_primary_path_skip_invalid" {
     const array = create_path_array(create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
-    if (!(select_primary_path(array, create_path_array(0, 0, 0, 0)) == 1)) @panic("second path selected");
+    if (!(select_primary_path(array, create_path_array(0, 0, 0, 0)) == 1)) __t27_assert_fail("\n  second path selected:\n    select_primary_path(array, create_path_array(0, 0, 0, 0)) = {any}\n", .{ select_primary_path(array, create_path_array(0, 0, 0, 0)) });
 }
 test "calculate_path_diversity_high" {
     const array = create_path_array(create_multipath(PATH_VALID, 1, 20, 30), create_multipath(PATH_VALID, 2, 21, 31), create_multipath(PATH_VALID, 3, 22, 32), create_multipath(PATH_VALID, 4, 23, 33));
     const diversity = calculate_path_diversity(array);
-    if (!(diversity == 4)) @panic("4 different first hops");
+    if (!(diversity == 4)) __t27_assert_fail("\n  4 different first hops:\n    diversity = {any}\n", .{ diversity });
 }
 test "calculate_path_diversity_low" {
     const array = create_path_array(create_multipath(PATH_VALID, 1, 20, 30), create_multipath(PATH_VALID, 1, 21, 31), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_INVALID, 0, 0, 0));
     const diversity = calculate_path_diversity(array);
-    if (!(diversity == 1)) @panic("1 unique first hop");
+    if (!(diversity == 1)) __t27_assert_fail("\n  1 unique first hop:\n    diversity = {any}\n", .{ diversity });
 }
 test "distribute_load_round_robin" {
     const array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
     const next = distribute_load(array, 0, 0);
-    if (!(next == 1)) @panic("distribute to path 1");
+    if (!(next == 1)) __t27_assert_fail("\n  distribute to path 1:\n    next = {any}\n", .{ next });
 }
 test "distribute_load_wraps" {
     const array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
     const next1 = distribute_load(array, 1, 0);
-    if (!(next1 == 2)) @panic("distribute to path 2");
+    if (!(next1 == 2)) __t27_assert_fail("\n  distribute to path 2:\n    next1 = {any}\n", .{ next1 });
     const next2 = distribute_load(array, 2, 0);
-    if (!(next2 == 0)) @panic("skips invalid path 3, wraps to path 0");
+    if (!(next2 == 0)) __t27_assert_fail("\n  skips invalid path 3, wraps to path 0:\n    next2 = {any}\n", .{ next2 });
     const next3 = distribute_load(array, 3, 0);
-    if (!(next3 == 1)) @panic("wraps to path 1");
+    if (!(next3 == 1)) __t27_assert_fail("\n  wraps to path 1:\n    next3 = {any}\n", .{ next3 });
 }
 test "needs_failover_true" {
     const array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_VALID, 40, 50, 60));
-    if (!(needs_failover(array, 1) == true)) @panic("needs failover");
+    if (!(needs_failover(array, 1) == true)) __t27_assert_fail("\n  needs failover:\n    needs_failover(array, 1) = {any}\n", .{ needs_failover(array, 1) });
 }
 test "needs_failover_false" {
     const array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_VALID, 15, 25, 35));
-    if (!(needs_failover(array, 1) == false)) @panic("no failover needed");
+    if (!(needs_failover(array, 1) == false)) __t27_assert_fail("\n  no failover needed:\n    needs_failover(array, 1) = {any}\n", .{ needs_failover(array, 1) });
 }
 test "perform_failover_updates_state" {
     const state = create_multipath_state(3, 1, 100, 50);
     const array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_INVALID, 0, 0, 0), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_VALID, 40, 50, 60));
     const new_state = perform_failover(state, array, 1);
-    if (!(get_current_path(new_state) != 1)) @panic("path changed");
+    if (!(get_current_path(new_state) != 1)) __t27_assert_fail("\n  path changed:\n    get_current_path(new_state) = {any}\n", .{ get_current_path(new_state) });
 }
 test "calculate_multipath_gain" {
     const array = create_path_array(create_multipath(PATH_VALID, 10, 20, 30), create_multipath(PATH_VALID, 40, 50, 60), create_multipath(PATH_VALID, 70, 80, 90), create_multipath(PATH_INVALID, 0, 0, 0));
     const gain = calculate_multipath_gain(array);
-    if (!(gain > 0)) @panic("multipath provides gain");
+    if (!(gain > 0)) __t27_assert_fail("\n  multipath provides gain:\n    gain = {any}\n", .{ gain });
 }

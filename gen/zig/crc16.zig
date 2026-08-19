@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const CRC16_CCITT_POLY: u16 = 0x1021;
@@ -25,17 +33,17 @@ fn verify_crc16_4bytes(b0: u8, b1: u8, b2: u8, b3: u8, crc_received: u16) bool {
 }
 test "crc_update_byte_changes" {
     const crc = crc_update_byte(0xFFFF, 0);
-    if (!(crc != 0xFFFF)) @panic("changes");
+    if (!(crc != 0xFFFF)) __t27_assert_fail("\n  changes:\n    crc = {any}\n", .{ crc });
 }
 test "crc16_4bytes_reproducible" {
     const crc1 = crc16_4bytes(1, 2, 3, 4);
     const crc2 = crc16_4bytes(1, 2, 3, 4);
-    if (!(crc1 == crc2)) @panic("reproducible");
+    if (!(crc1 == crc2)) __t27_assert_fail("\n  reproducible:\n    crc1 = {any}\n    crc2 = {any}\n", .{ crc1, crc2 });
 }
 test "crc16_4bytes_different" {
     const crc1 = crc16_4bytes(1, 2, 3, 4);
     const crc2 = crc16_4bytes(1, 2, 3, 5);
-    if (!(crc1 != crc2)) @panic("different");
+    if (!(crc1 != crc2)) __t27_assert_fail("\n  different:\n    crc1 = {any}\n    crc2 = {any}\n", .{ crc1, crc2 });
 }
 test "verify_crc16_valid" {
     const crc_calc = crc16_4bytes(0xAA, 0xBB, 0xCC, 0xDD);
@@ -45,10 +53,10 @@ test "verify_crc16_valid" {
 test "verify_crc16_invalid" {
     const crc_calc = crc16_4bytes(0xAA, 0xBB, 0xCC, 0xDD);
     const valid = verify_crc16_4bytes(0xAA, 0xBB, 0xCC, 0xFF, crc_calc);
-    if (!(valid == false)) @panic("invalid");
+    if (!(valid == false)) __t27_assert_fail("\n  invalid:\n    valid = {any}\n", .{ valid });
 }
 test "crc16_sensitivity" {
     const crc1 = crc16_4bytes(0x01, 0x02, 0x03, 0x04);
     const crc2 = crc16_4bytes(0x01, 0x02, 0x03, 0x05);
-    if (!(crc1 != crc2)) @panic("sensitive");
+    if (!(crc1 != crc2)) __t27_assert_fail("\n  sensitive:\n    crc1 = {any}\n    crc2 = {any}\n", .{ crc1, crc2 });
 }

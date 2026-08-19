@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_MODULES: u32 = 16;
@@ -406,17 +414,17 @@ fn validate_integration_health(modules: [MAX_MODULES]u32, module_count: u32) u32
 }
 test "module_registration_roundtrip" {
     const m = create_module_registration(7, 3, 9, 50000);
-    if (!(get_registered_module_id(m) == 7)) @panic("module id");
-    if (!(get_registered_module_type(m) == 3)) @panic("module type");
-    if (!(get_registered_module_priority(m) == 9)) @panic("priority");
-    if (!(get_registered_module_status(m) == 50000)) @panic("status");
+    if (!(get_registered_module_id(m) == 7)) __t27_assert_fail("\n  module id:\n    get_registered_module_id(m) = {any}\n", .{ get_registered_module_id(m) });
+    if (!(get_registered_module_type(m) == 3)) __t27_assert_fail("\n  module type:\n    get_registered_module_type(m) = {any}\n", .{ get_registered_module_type(m) });
+    if (!(get_registered_module_priority(m) == 9)) __t27_assert_fail("\n  priority:\n    get_registered_module_priority(m) = {any}\n", .{ get_registered_module_priority(m) });
+    if (!(get_registered_module_status(m) == 50000)) __t27_assert_fail("\n  status:\n    get_registered_module_status(m) = {any}\n", .{ get_registered_module_status(m) });
 }
 test "send_message_requires_active_destination" {
-    const mods: [16]u32 = .{ create_module_registration(1,0,1,STATUS_ACTIVE), create_module_registration(2,0,1,0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    const mods: [16]u32 = .{ create_module_registration(1, 0, 1, STATUS_ACTIVE), create_module_registration(2, 0, 1, 0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
     const msg_ok = create_integration_message(1, 5, 1, 0);
-    if (!(send_message(mods, msg_ok) == 1)) @panic("active destination accepts");
+    if (!(send_message(mods, msg_ok) == 1)) __t27_assert_fail("\n  active destination accepts:\n    send_message(mods, msg_ok) = {any}\n", .{ send_message(mods, msg_ok) });
     const msg_down = create_integration_message(2, 5, 2, 0);
-    if (!(send_message(mods, msg_down) == 0)) @panic("inactive destination rejects");
+    if (!(send_message(mods, msg_down) == 0)) __t27_assert_fail("\n  inactive destination rejects:\n    send_message(mods, msg_down) = {any}\n", .{ send_message(mods, msg_down) });
     const msg_missing = create_integration_message(3, 5, 99, 0);
-    if (!(send_message(mods, msg_missing) == 0)) @panic("unknown destination rejects");
+    if (!(send_message(mods, msg_missing) == 0)) __t27_assert_fail("\n  unknown destination rejects:\n    send_message(mods, msg_missing) = {any}\n", .{ send_message(mods, msg_missing) });
 }

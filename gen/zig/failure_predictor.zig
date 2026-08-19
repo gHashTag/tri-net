@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_NODES: u32 = 8;
@@ -152,83 +160,83 @@ fn find_most_at_risk(health_array: [8]u32) u32 {
 }
 test "create_health_metrics_basic" {
     const metrics = create_health_metrics(60, 70, 5, 45);
-    if (!(get_cpu_usage(metrics) == 60)) @panic("CPU usage");
-    if (!(get_memory_usage(metrics) == 70)) @panic("memory usage");
-    if (!(get_error_rate(metrics) == 5)) @panic("error rate");
-    if (!(get_temperature(metrics) == 45)) @panic("temperature");
+    if (!(get_cpu_usage(metrics) == 60)) __t27_assert_fail("\n  CPU usage:\n    get_cpu_usage(metrics) = {any}\n", .{ get_cpu_usage(metrics) });
+    if (!(get_memory_usage(metrics) == 70)) __t27_assert_fail("\n  memory usage:\n    get_memory_usage(metrics) = {any}\n", .{ get_memory_usage(metrics) });
+    if (!(get_error_rate(metrics) == 5)) __t27_assert_fail("\n  error rate:\n    get_error_rate(metrics) = {any}\n", .{ get_error_rate(metrics) });
+    if (!(get_temperature(metrics) == 45)) __t27_assert_fail("\n  temperature:\n    get_temperature(metrics) = {any}\n", .{ get_temperature(metrics) });
 }
 test "create_risk_score_basic" {
     const score = create_risk_score(75, 80, 1, 1000);
-    if (!(get_risk_level(score) == 75)) @panic("risk level");
-    if (!(get_confidence(score) == 80)) @panic("confidence");
-    if (!(get_risk_trend(score) == 1)) @panic("trend");
-    if (!(get_prediction_time(score) == 1000)) @panic("prediction time");
+    if (!(get_risk_level(score) == 75)) __t27_assert_fail("\n  risk level:\n    get_risk_level(score) = {any}\n", .{ get_risk_level(score) });
+    if (!(get_confidence(score) == 80)) __t27_assert_fail("\n  confidence:\n    get_confidence(score) = {any}\n", .{ get_confidence(score) });
+    if (!(get_risk_trend(score) == 1)) __t27_assert_fail("\n  trend:\n    get_risk_trend(score) = {any}\n", .{ get_risk_trend(score) });
+    if (!(get_prediction_time(score) == 1000)) __t27_assert_fail("\n  prediction time:\n    get_prediction_time(score) = {any}\n", .{ get_prediction_time(score) });
 }
 test "calculate_health_score_healthy" {
     const metrics = create_health_metrics(20, 30, 2, 40);
     const score = calculate_health_score(metrics);
-    if (!(score >= 75)) @panic("healthy score");
+    if (!(score >= 75)) __t27_assert_fail("\n  healthy score:\n    score = {any}\n", .{ score });
 }
 test "calculate_health_score_degraded" {
     const metrics = create_health_metrics(80, 70, 15, 75);
     const score = calculate_health_score(metrics);
-    if (!(score < 40)) @panic("degraded score");
+    if (!(score < 40)) __t27_assert_fail("\n  degraded score:\n    score = {any}\n", .{ score });
 }
 test "predict_failure_probability_healthy" {
     const metrics = create_health_metrics(10, 20, 2, 30);
-    if (!(predict_failure_probability(metrics) == 0)) @panic("no failure");
+    if (!(predict_failure_probability(metrics) == 0)) __t27_assert_fail("\n  no failure:\n    predict_failure_probability(metrics) = {any}\n", .{ predict_failure_probability(metrics) });
 }
 test "predict_failure_probability_critical" {
     const metrics = create_health_metrics(90, 95, 40, 85);
-    if (!(predict_failure_probability(metrics) >= 80)) @panic("high failure prob");
+    if (!(predict_failure_probability(metrics) >= 80)) __t27_assert_fail("\n  high failure prob:\n    predict_failure_probability(metrics) = {any}\n", .{ predict_failure_probability(metrics) });
 }
 test "is_trending_failure_degrading" {
     const current = create_health_metrics(50, 60, 8, 48);
     const previous = create_health_metrics(40, 50, 5, 45);
-    if (!(is_trending_failure(current, previous) == 0)) @panic("not trending to failure");
+    if (!(is_trending_failure(current, previous) == 0)) __t27_assert_fail("\n  not trending to failure:\n    is_trending_failure(current, previous) = {any}\n", .{ is_trending_failure(current, previous) });
 }
 test "is_trending_failure_significant" {
     const current = create_health_metrics(80, 85, 20, 60);
     const previous = create_health_metrics(30, 35, 5, 40);
-    if (!(is_trending_failure(current, previous) == 1)) @panic("trending to failure");
+    if (!(is_trending_failure(current, previous) == 1)) __t27_assert_fail("\n  trending to failure:\n    is_trending_failure(current, previous) = {any}\n", .{ is_trending_failure(current, previous) });
 }
 test "predict_time_to_failure_healthy" {
     const metrics = create_health_metrics(10, 20, 2, 30);
-    if (!(predict_time_to_failure(metrics) == 0xFF)) @panic("no failure predicted");
+    if (!(predict_time_to_failure(metrics) == 0xFF)) __t27_assert_fail("\n  no failure predicted:\n    predict_time_to_failure(metrics) = {any}\n", .{ predict_time_to_failure(metrics) });
 }
 test "predict_time_to_failure_critical" {
     const metrics = create_health_metrics(95, 95, 60, 90);
-    if (!(predict_time_to_failure(metrics) == 5)) @panic("immediate failure");
+    if (!(predict_time_to_failure(metrics) == 5)) __t27_assert_fail("\n  immediate failure:\n    predict_time_to_failure(metrics) = {any}\n", .{ predict_time_to_failure(metrics) });
 }
 test "predict_time_to_failure_medium" {
     const metrics = create_health_metrics(60, 65, 20, 55);
-    if (!(predict_time_to_failure(metrics) == 50)) @panic("medium-term failure");
+    if (!(predict_time_to_failure(metrics) == 50)) __t27_assert_fail("\n  medium-term failure:\n    predict_time_to_failure(metrics) = {any}\n", .{ predict_time_to_failure(metrics) });
 }
 test "calculate_failure_risk_low" {
     const metrics = create_health_metrics(30, 40, 5, 45);
     const risk = calculate_failure_risk(metrics, 0);
-    if (!(risk < 30)) @panic("low risk");
+    if (!(risk < 30)) __t27_assert_fail("\n  low risk:\n    risk = {any}\n", .{ risk });
 }
 test "calculate_failure_risk_high_with_degradation" {
     const metrics = create_health_metrics(80, 85, 25, 70);
     const risk = calculate_failure_risk(metrics, 30);
-    if (!(risk >= 80)) @panic("high risk with degradation");
+    if (!(risk >= 80)) __t27_assert_fail("\n  high risk with degradation:\n    risk = {any}\n", .{ risk });
 }
 test "needs_immediate_action_true" {
     const metrics = create_health_metrics(97, 80, 10, 96);
-    if (!(needs_immediate_action(metrics) == true)) @panic("immediate action needed");
+    if (!(needs_immediate_action(metrics) == true)) __t27_assert_fail("\n  immediate action needed:\n    needs_immediate_action(metrics) = {any}\n", .{ needs_immediate_action(metrics) });
 }
 test "needs_immediate_action_false" {
     const metrics = create_health_metrics(60, 70, 5, 45);
-    if (!(needs_immediate_action(metrics) == false)) @panic("no immediate action");
+    if (!(needs_immediate_action(metrics) == false)) __t27_assert_fail("\n  no immediate action:\n    needs_immediate_action(metrics) = {any}\n", .{ needs_immediate_action(metrics) });
 }
 test "find_most_at_risk_middle" {
     const array = create_health_array(create_health_metrics(30, 40, 5, 45), create_health_metrics(90, 95, 60, 90), create_health_metrics(50, 60, 10, 55), create_health_metrics(40, 50, 8, 50), 0, 0, 0, 0);
-    if (!(find_most_at_risk(array) == 1)) @panic("node 1 most at-risk");
+    if (!(find_most_at_risk(array) == 1)) __t27_assert_fail("\n  node 1 most at-risk:\n    find_most_at_risk(array) = {any}\n", .{ find_most_at_risk(array) });
 }
 test "find_most_at_risk_all_healthy" {
     const array = create_health_array(create_health_metrics(30, 40, 5, 45), create_health_metrics(20, 30, 2, 40), create_health_metrics(25, 35, 3, 42), create_health_metrics(35, 45, 4, 48), 0, 0, 0, 0);
     const riskiest = find_most_at_risk(array);
     const risk = calculate_failure_risk(get_health_metrics(array, riskiest), 0);
-    if (!(risk < 30)) @panic("all nodes healthy");
+    if (!(risk < 30)) __t27_assert_fail("\n  all nodes healthy:\n    risk = {any}\n", .{ risk });
 }

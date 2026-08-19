@@ -9,6 +9,7 @@
 #include <stddef.h>
 #include <assert.h>
 #define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
+#define assert_eq(a, b) do { if ((a) != (b)) { __builtin_trap(); } } while (0)
 
 #ifndef MESHWIRE_H
 #define MESHWIRE_H
@@ -83,10 +84,10 @@ bool parse_accepts(uint8_t b0, uint8_t b1) {
    ------------------------------------------------------- */
 
 /* invariant: header_is_11_bytes */
-/* _Static_assert(1, "invariant: header_is_11_bytes"); */
+/* invariant header_is_11_bytes is not a C constant expression: (HEADER_LEN == 11) */
 
 /* invariant: kinds_distinct */
-/* _Static_assert(1, "invariant: kinds_distinct"); */
+/* invariant kinds_distinct is not a C constant expression: (KIND_HELLO != KIND_DATA) */
 
 
 /* -------------------------------------------------------
@@ -94,35 +95,49 @@ bool parse_accepts(uint8_t b0, uint8_t b1) {
    ------------------------------------------------------- */
 
 void test_byte0_is_version(void) {
-    /* TODO: implement test */
+    int b = header_byte(KIND_DATA, 16909060, 168496141, 8, 0);
+    assert((b == 1));
 }
 
 void test_byte1_is_kind(void) {
-    /* TODO: implement test */
+    int b = header_byte(KIND_DATA, 16909060, 168496141, 8, 1);
+    assert((b == 1));
 }
 
 void test_src_be_first_and_last_byte(void) {
-    /* TODO: implement test */
+    int b2 = header_byte(KIND_DATA, 16909060, 168496141, 8, 2);
+    int b5 = header_byte(KIND_DATA, 16909060, 168496141, 8, 5);
+    assert((b2 == 1));
+    assert((b5 == 4));
 }
 
 void test_ttl_is_last_byte(void) {
-    /* TODO: implement test */
+    int b = header_byte(KIND_HELLO, 1, 2, 4, 10);
+    assert((b == 4));
 }
 
 void test_src_roundtrips_through_bytes(void) {
-    /* TODO: implement test */
+    int b2 = header_byte(KIND_DATA, 16909060, 168496141, 8, 2);
+    int b3 = header_byte(KIND_DATA, 16909060, 168496141, 8, 3);
+    int b4 = header_byte(KIND_DATA, 16909060, 168496141, 8, 4);
+    int b5 = header_byte(KIND_DATA, 16909060, 168496141, 8, 5);
+    int w = u32_be(b2, b3, b4, b5);
+    assert((w == 16909060));
 }
 
 void test_parse_accepts_valid(void) {
-    /* TODO: implement test */
+    int ok = parse_accepts(1, KIND_DATA);
+    assert((ok == true));
 }
 
 void test_parse_rejects_bad_version(void) {
-    /* TODO: implement test */
+    int ok = parse_accepts(99, KIND_DATA);
+    assert((ok == false));
 }
 
 void test_parse_rejects_bad_kind(void) {
-    /* TODO: implement test */
+    int ok = parse_accepts(1, 2);
+    assert((ok == false));
 }
 
 

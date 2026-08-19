@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_NODES: u32 = 8;
@@ -282,21 +290,21 @@ fn calculate_uptime(total_uptime: u32, total_time: u32) u32 {
 }
 test "health_metric_roundtrip" {
     const m = create_health_metric(4, METRIC_LATENCY, 35, 200);
-    if (!(get_health_node_id(m) == 4)) @panic("node id");
-    if (!(get_health_metric_type(m) == METRIC_LATENCY)) @panic("metric type");
-    if (!(get_health_value(m) == 35)) @panic("value");
-    if (!(get_health_timestamp(m) == 200)) @panic("timestamp");
+    if (!(get_health_node_id(m) == 4)) __t27_assert_fail("\n  node id:\n    get_health_node_id(m) = {any}\n", .{ get_health_node_id(m) });
+    if (!(get_health_metric_type(m) == METRIC_LATENCY)) __t27_assert_fail("\n  metric type:\n    get_health_metric_type(m) = {any}\n    METRIC_LATENCY = {any}\n", .{ get_health_metric_type(m), METRIC_LATENCY });
+    if (!(get_health_value(m) == 35)) __t27_assert_fail("\n  value:\n    get_health_value(m) = {any}\n", .{ get_health_value(m) });
+    if (!(get_health_timestamp(m) == 200)) __t27_assert_fail("\n  timestamp:\n    get_health_timestamp(m) = {any}\n", .{ get_health_timestamp(m) });
 }
 test "node_health_mixes_metric_polarity" {
-    const ms: [16]u32 = .{ create_health_metric(1,METRIC_CPU,20,0), create_health_metric(1,METRIC_BANDWIDTH,90,1), create_health_metric(1,METRIC_LATENCY,30,2), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-    if (!(calculate_node_health(ms, 3) == 80)) @panic("polarity-aware mean");
+    const ms: [16]u32 = .{ create_health_metric(1, METRIC_CPU, 20, 0), create_health_metric(1, METRIC_BANDWIDTH, 90, 1), create_health_metric(1, METRIC_LATENCY, 30, 2), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    if (!(calculate_node_health(ms, 3) == 80)) __t27_assert_fail("\n  polarity-aware mean:\n    calculate_node_health(ms, 3) = {any}\n", .{ calculate_node_health(ms, 3) });
 }
 test "node_health_saturates_out_of_range" {
-    const ms: [16]u32 = .{ create_health_metric(1,METRIC_LATENCY,200,0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-    if (!(calculate_node_health(ms, 1) == 0)) @panic("out-of-range metric floors at 0");
+    const ms: [16]u32 = .{ create_health_metric(1, METRIC_LATENCY, 200, 0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    if (!(calculate_node_health(ms, 1) == 0)) __t27_assert_fail("\n  out-of-range metric floors at 0:\n    calculate_node_health(ms, 1) = {any}\n", .{ calculate_node_health(ms, 1) });
 }
 test "network_health_average" {
     const nodes: [8]u32 = .{ 90, 70, 80, 0, 0, 0, 0, 0 };
-    if (!(calculate_network_health(nodes, 3) == 80)) @panic("network mean");
-    if (!(calculate_network_health(nodes, 0) == 100)) @panic("no nodes is healthy");
+    if (!(calculate_network_health(nodes, 3) == 80)) __t27_assert_fail("\n  network mean:\n    calculate_network_health(nodes, 3) = {any}\n", .{ calculate_network_health(nodes, 3) });
+    if (!(calculate_network_health(nodes, 0) == 100)) __t27_assert_fail("\n  no nodes is healthy:\n    calculate_network_health(nodes, 0) = {any}\n", .{ calculate_network_health(nodes, 0) });
 }

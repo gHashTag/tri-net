@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 fn tick(counter: u32) u32 {
@@ -20,25 +28,25 @@ fn twr_tof(t1: u32, t2: u32, t3: u32, t4: u32) u32 {
 test "tick_advances" {
     const c1 = tick(0);
     const c2 = tick(c1);
-    if (!(c2 == 2)) @panic("two ticks");
+    if (!(c2 == 2)) __t27_assert_fail("\n  two ticks:\n    c2 = {any}\n", .{ c2 });
 }
 test "capture_latches" {
     const c = capture(123456);
-    if (!(c == 123456)) @panic("latched value");
+    if (!(c == 123456)) __t27_assert_fail("\n  latched value:\n    c = {any}\n", .{ c });
 }
 test "elapsed_same_clock" {
     const d = elapsed(1000, 1300);
-    if (!(d == 300)) @panic("300 tick span");
+    if (!(d == 300)) __t27_assert_fail("\n  300 tick span:\n    d = {any}\n", .{ d });
 }
 test "elapsed_wraps" {
     const d = elapsed(0xFFFFFFFE, 3);
-    if (!(d == 5)) @panic("wrap-around correct");
+    if (!(d == 5)) __t27_assert_fail("\n  wrap-around correct:\n    d = {any}\n", .{ d });
 }
 test "twr_cancels_offset" {
     const tof = twr_tof(1000, 101050, 101250, 1300);
-    if (!(tof == 50)) @panic("offset cancelled, ToF recovered");
+    if (!(tof == 50)) __t27_assert_fail("\n  offset cancelled, ToF recovered:\n    tof = {any}\n", .{ tof });
 }
 test "twr_zero_when_instant" {
     const tof = twr_tof(1000, 5000, 5300, 1300);
-    if (!(tof == 0)) @panic("symmetric -> zero range");
+    if (!(tof == 0)) __t27_assert_fail("\n  symmetric -> zero range:\n    tof = {any}\n", .{ tof });
 }

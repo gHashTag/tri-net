@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const OK: u32 = 0;
@@ -43,25 +51,25 @@ fn reject_reason(sig_ok: u32, included: u32, compute_ok: u32) u32 {
     }
 }
 test "acceptance_needs_all_three" {
-    if (!(receipt_accepted(1, 1, 1) == true)) @panic("all three pass -> accepted");
-    if (!(receipt_accepted(0, 1, 1) == false)) @panic("bad signature -> rejected");
-    if (!(receipt_accepted(1, 0, 1) == false)) @panic("not in batch -> rejected");
-    if (!(receipt_accepted(1, 1, 0) == false)) @panic("bad compute -> rejected");
-    if (!(receipt_accepted(1, 0, 0) == false)) @panic("two failures -> rejected");
+    if (!(receipt_accepted(1, 1, 1) == true)) __t27_assert_fail("\n  all three pass -> accepted:\n    receipt_accepted(1, 1, 1) = {any}\n", .{ receipt_accepted(1, 1, 1) });
+    if (!(receipt_accepted(0, 1, 1) == false)) __t27_assert_fail("\n  bad signature -> rejected:\n    receipt_accepted(0, 1, 1) = {any}\n", .{ receipt_accepted(0, 1, 1) });
+    if (!(receipt_accepted(1, 0, 1) == false)) __t27_assert_fail("\n  not in batch -> rejected:\n    receipt_accepted(1, 0, 1) = {any}\n", .{ receipt_accepted(1, 0, 1) });
+    if (!(receipt_accepted(1, 1, 0) == false)) __t27_assert_fail("\n  bad compute -> rejected:\n    receipt_accepted(1, 1, 0) = {any}\n", .{ receipt_accepted(1, 1, 0) });
+    if (!(receipt_accepted(1, 0, 0) == false)) __t27_assert_fail("\n  two failures -> rejected:\n    receipt_accepted(1, 0, 0) = {any}\n", .{ receipt_accepted(1, 0, 0) });
 }
 test "signature_is_not_correctness" {
-    if (!(receipt_accepted(1, 1, 0) == false)) @panic("signed but wrong compute -> rejected");
-    if (!(reject_reason(1, 1, 0) == BAD_COMPUTE)) @panic("reason: bad compute");
+    if (!(receipt_accepted(1, 1, 0) == false)) __t27_assert_fail("\n  signed but wrong compute -> rejected:\n    receipt_accepted(1, 1, 0) = {any}\n", .{ receipt_accepted(1, 1, 0) });
+    if (!(reject_reason(1, 1, 0) == BAD_COMPUTE)) __t27_assert_fail("\n  reason: bad compute:\n    reject_reason(1, 1, 0) = {any}\n    BAD_COMPUTE = {any}\n", .{ reject_reason(1, 1, 0), BAD_COMPUTE });
 }
 test "reason_codes" {
-    if (!(reject_reason(1, 1, 1) == OK)) @panic("accepted -> OK");
-    if (!(reject_reason(0, 1, 1) == BAD_SIG)) @panic("bad sig first");
-    if (!(reject_reason(1, 0, 1) == NOT_IN_BATCH)) @panic("not-in-batch when sig ok");
-    if (!(reject_reason(0, 0, 0) == BAD_SIG)) @panic("signature checked first");
+    if (!(reject_reason(1, 1, 1) == OK)) __t27_assert_fail("\n  accepted -> OK:\n    reject_reason(1, 1, 1) = {any}\n    OK = {any}\n", .{ reject_reason(1, 1, 1), OK });
+    if (!(reject_reason(0, 1, 1) == BAD_SIG)) __t27_assert_fail("\n  bad sig first:\n    reject_reason(0, 1, 1) = {any}\n    BAD_SIG = {any}\n", .{ reject_reason(0, 1, 1), BAD_SIG });
+    if (!(reject_reason(1, 0, 1) == NOT_IN_BATCH)) __t27_assert_fail("\n  not-in-batch when sig ok:\n    reject_reason(1, 0, 1) = {any}\n    NOT_IN_BATCH = {any}\n", .{ reject_reason(1, 0, 1), NOT_IN_BATCH });
+    if (!(reject_reason(0, 0, 0) == BAD_SIG)) __t27_assert_fail("\n  signature checked first:\n    reject_reason(0, 0, 0) = {any}\n    BAD_SIG = {any}\n", .{ reject_reason(0, 0, 0), BAD_SIG });
 }
 test "compute_dispatch_by_op" {
-    if (!(compute_ok_for_op(GF_OP_MUL, 1, 0) == 1)) @panic("MUL uses mul_ok");
-    if (!(compute_ok_for_op(GF_OP_ADD, 0, 1) == 1)) @panic("ADD uses add_ok");
-    if (!(compute_ok_for_op(GF_OP_MUL, 0, 1) == 0)) @panic("MUL ignores add_ok");
-    if (!(compute_ok_for_op(0x99, 1, 1) == 0)) @panic("unknown op -> not recomputable");
+    if (!(compute_ok_for_op(GF_OP_MUL, 1, 0) == 1)) __t27_assert_fail("\n  MUL uses mul_ok:\n    compute_ok_for_op(GF_OP_MUL, 1, 0) = {any}\n", .{ compute_ok_for_op(GF_OP_MUL, 1, 0) });
+    if (!(compute_ok_for_op(GF_OP_ADD, 0, 1) == 1)) __t27_assert_fail("\n  ADD uses add_ok:\n    compute_ok_for_op(GF_OP_ADD, 0, 1) = {any}\n", .{ compute_ok_for_op(GF_OP_ADD, 0, 1) });
+    if (!(compute_ok_for_op(GF_OP_MUL, 0, 1) == 0)) __t27_assert_fail("\n  MUL ignores add_ok:\n    compute_ok_for_op(GF_OP_MUL, 0, 1) = {any}\n", .{ compute_ok_for_op(GF_OP_MUL, 0, 1) });
+    if (!(compute_ok_for_op(0x99, 1, 1) == 0)) __t27_assert_fail("\n  unknown op -> not recomputable:\n    compute_ok_for_op(0x99, 1, 1) = {any}\n", .{ compute_ok_for_op(0x99, 1, 1) });
 }

@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_TESTS: u32 = 32;
@@ -300,15 +308,15 @@ fn generate_test_report(summary: u32, coverage: u32, duration_ms: u32) u32 {
 }
 test "test_result_roundtrip" {
     const r = create_test_result(8, 2, 40, 3);
-    if (!(get_test_id(r) == 8)) @panic("test id");
-    if (!(get_test_status(r) == 2)) @panic("status");
-    if (!(get_assertion_count(r) == 40)) @panic("assertions");
-    if (!(get_failure_count(r) == 3)) @panic("failures");
+    if (!(get_test_id(r) == 8)) __t27_assert_fail("\n  test id:\n    get_test_id(r) = {any}\n", .{ get_test_id(r) });
+    if (!(get_test_status(r) == 2)) __t27_assert_fail("\n  status:\n    get_test_status(r) = {any}\n", .{ get_test_status(r) });
+    if (!(get_assertion_count(r) == 40)) __t27_assert_fail("\n  assertions:\n    get_assertion_count(r) = {any}\n", .{ get_assertion_count(r) });
+    if (!(get_failure_count(r) == 3)) __t27_assert_fail("\n  failures:\n    get_failure_count(r) = {any}\n", .{ get_failure_count(r) });
 }
 test "test_case_roundtrip" {
     const tc = create_test_case(4, 9, 55, 110);
-    if (!(get_test_case_id(tc) == 4)) @panic("case id");
-    if (!(get_function_id(tc) == 9)) @panic("function id");
-    if (!(get_test_input(tc) == 55)) @panic("input");
-    if (!(get_expected_output(tc) == 110)) @panic("expected");
+    if (!(get_test_case_id(tc) == 4)) __t27_assert_fail("\n  case id:\n    get_test_case_id(tc) = {any}\n", .{ get_test_case_id(tc) });
+    if (!(get_function_id(tc) == 9)) __t27_assert_fail("\n  function id:\n    get_function_id(tc) = {any}\n", .{ get_function_id(tc) });
+    if (!(get_test_input(tc) == 55)) __t27_assert_fail("\n  input:\n    get_test_input(tc) = {any}\n", .{ get_test_input(tc) });
+    if (!(get_expected_output(tc) == 110)) __t27_assert_fail("\n  expected:\n    get_expected_output(tc) = {any}\n", .{ get_expected_output(tc) });
 }

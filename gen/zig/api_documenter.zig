@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_FUNCTIONS: u32 = 64;
@@ -262,15 +270,15 @@ fn generate_documentation_report(func_docs: [MAX_FUNCTIONS]u32, func_count: u32,
 }
 test "function_doc_roundtrip" {
     const d = create_function_doc(8, 4, 2, 40000);
-    if (!(get_doc_function_id(d) == 8)) @panic("function id");
-    if (!(get_doc_param_count(d) == 4)) @panic("param count");
-    if (!(get_doc_return_type(d) == 2)) @panic("return type");
-    if (!(get_doc_complexity(d) == 40000)) @panic("complexity");
+    if (!(get_doc_function_id(d) == 8)) __t27_assert_fail("\n  function id:\n    get_doc_function_id(d) = {any}\n", .{ get_doc_function_id(d) });
+    if (!(get_doc_param_count(d) == 4)) __t27_assert_fail("\n  param count:\n    get_doc_param_count(d) = {any}\n", .{ get_doc_param_count(d) });
+    if (!(get_doc_return_type(d) == 2)) __t27_assert_fail("\n  return type:\n    get_doc_return_type(d) = {any}\n", .{ get_doc_return_type(d) });
+    if (!(get_doc_complexity(d) == 40000)) __t27_assert_fail("\n  complexity:\n    get_doc_complexity(d) = {any}\n", .{ get_doc_complexity(d) });
 }
 test "param_doc_roundtrip" {
     const p = create_param_doc(3, 5, 2, 100000);
-    if (!(get_param_doc_id(p) == 3)) @panic("param id");
-    if (!(get_param_doc_type(p) == 5)) @panic("param type");
-    if (!(get_param_direction(p) == 2)) @panic("direction");
-    if (!(get_param_description_id(p) == 100000)) @panic("description id");
+    if (!(get_param_doc_id(p) == 3)) __t27_assert_fail("\n  param id:\n    get_param_doc_id(p) = {any}\n", .{ get_param_doc_id(p) });
+    if (!(get_param_doc_type(p) == 5)) __t27_assert_fail("\n  param type:\n    get_param_doc_type(p) = {any}\n", .{ get_param_doc_type(p) });
+    if (!(get_param_direction(p) == 2)) __t27_assert_fail("\n  direction:\n    get_param_direction(p) = {any}\n", .{ get_param_direction(p) });
+    if (!(get_param_description_id(p) == 100000)) __t27_assert_fail("\n  description id:\n    get_param_description_id(p) = {any}\n", .{ get_param_description_id(p) });
 }

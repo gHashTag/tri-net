@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_NODES: u32 = 8;
@@ -143,78 +151,78 @@ fn reward_node(current_score: u32, reward: u32) u32 {
 }
 test "create_trust_score_basic" {
     const score = create_trust_score(5, 75, 8, 2);
-    if (!(get_trust_node_id(score) == 5)) @panic("node id");
-    if (!(get_trust_score_value(score) == 75)) @panic("trust score");
-    if (!(get_positive_interactions(score) == 8)) @panic("positive interactions");
-    if (!(get_negative_interactions(score) == 2)) @panic("negative interactions");
+    if (!(get_trust_node_id(score) == 5)) __t27_assert_fail("\n  node id:\n    get_trust_node_id(score) = {any}\n", .{ get_trust_node_id(score) });
+    if (!(get_trust_score_value(score) == 75)) __t27_assert_fail("\n  trust score:\n    get_trust_score_value(score) = {any}\n", .{ get_trust_score_value(score) });
+    if (!(get_positive_interactions(score) == 8)) __t27_assert_fail("\n  positive interactions:\n    get_positive_interactions(score) = {any}\n", .{ get_positive_interactions(score) });
+    if (!(get_negative_interactions(score) == 2)) __t27_assert_fail("\n  negative interactions:\n    get_negative_interactions(score) = {any}\n", .{ get_negative_interactions(score) });
 }
 test "create_trust_relationship_basic" {
     const rel = create_trust_relationship(1, 2, 80, 1000);
-    if (!(get_trust_source(rel) == 1)) @panic("source");
-    if (!(get_trust_destination(rel) == 2)) @panic("destination");
-    if (!(get_trust_level(rel) == 80)) @panic("trust level");
-    if (!(get_trust_verified(rel) == 1000)) @panic("verified time");
+    if (!(get_trust_source(rel) == 1)) __t27_assert_fail("\n  source:\n    get_trust_source(rel) = {any}\n", .{ get_trust_source(rel) });
+    if (!(get_trust_destination(rel) == 2)) __t27_assert_fail("\n  destination:\n    get_trust_destination(rel) = {any}\n", .{ get_trust_destination(rel) });
+    if (!(get_trust_level(rel) == 80)) __t27_assert_fail("\n  trust level:\n    get_trust_level(rel) = {any}\n", .{ get_trust_level(rel) });
+    if (!(get_trust_verified(rel) == 1000)) __t27_assert_fail("\n  verified time:\n    get_trust_verified(rel) = {any}\n", .{ get_trust_verified(rel) });
 }
 test "calculate_trust_score_balanced" {
     const score = calculate_trust_score(10, 10);
-    if (!(score == 50)) @panic("balanced trust");
+    if (!(score == 50)) __t27_assert_fail("\n  balanced trust:\n    score = {any}\n", .{ score });
 }
 test "calculate_trust_score_mostly_positive" {
     const score = calculate_trust_score(18, 2);
-    if (!(score == 90)) @panic("high trust");
+    if (!(score == 90)) __t27_assert_fail("\n  high trust:\n    score = {any}\n", .{ score });
 }
 test "calculate_trust_score_mostly_negative" {
     const score = calculate_trust_score(2, 18);
-    if (!(score == 10)) @panic("low trust");
+    if (!(score == 10)) __t27_assert_fail("\n  low trust:\n    score = {any}\n", .{ score });
 }
 test "calculate_trust_score_no_interactions" {
-    if (!(calculate_trust_score(0, 0) == 50)) @panic("neutral trust");
+    if (!(calculate_trust_score(0, 0) == 50)) __t27_assert_fail("\n  neutral trust:\n    calculate_trust_score(0, 0) = {any}\n", .{ calculate_trust_score(0, 0) });
 }
 test "update_trust_score_increases" {
     const current = create_trust_score(5, 50, 5, 5);
     const updated = update_trust_score(current, 3, 1);
-    if (!(get_trust_score_value(updated) >= 55)) @panic("trust increased");
+    if (!(get_trust_score_value(updated) >= 55)) __t27_assert_fail("\n  trust increased:\n    get_trust_score_value(updated) = {any}\n", .{ get_trust_score_value(updated) });
 }
 test "update_trust_score_decreases" {
     const current = create_trust_score(5, 50, 5, 5);
     const updated = update_trust_score(current, 1, 3);
-    if (!(get_trust_score_value(updated) < 50)) @panic("trust decreased");
+    if (!(get_trust_score_value(updated) < 50)) __t27_assert_fail("\n  trust decreased:\n    get_trust_score_value(updated) = {any}\n", .{ get_trust_score_value(updated) });
 }
 test "is_node_trusted_true" {
     const score = create_trust_score(5, 75, 15, 5);
-    if (!(is_node_trusted(score) == true)) @panic("trusted");
+    if (!(is_node_trusted(score) == true)) __t27_assert_fail("\n  trusted:\n    is_node_trusted(score) = {any}\n", .{ is_node_trusted(score) });
 }
 test "is_node_trusted_false" {
     const score = create_trust_score(5, 30, 3, 7);
-    if (!(is_node_trusted(score) == false)) @panic("not trusted");
+    if (!(is_node_trusted(score) == false)) __t27_assert_fail("\n  not trusted:\n    is_node_trusted(score) = {any}\n", .{ is_node_trusted(score) });
 }
 test "is_node_highly_trusted" {
     const score = create_trust_score(5, 85, 17, 3);
-    if (!(is_node_highly_trusted(score) == true)) @panic("highly trusted");
+    if (!(is_node_highly_trusted(score) == true)) __t27_assert_fail("\n  highly trusted:\n    is_node_highly_trusted(score) = {any}\n", .{ is_node_highly_trusted(score) });
 }
 test "is_node_low_trusted" {
     const score = create_trust_score(5, 15, 2, 8);
-    if (!(is_node_low_trusted(score) == true)) @panic("low trusted");
+    if (!(is_node_low_trusted(score) == true)) __t27_assert_fail("\n  low trusted:\n    is_node_low_trusted(score) = {any}\n", .{ is_node_low_trusted(score) });
 }
 test "find_most_trusted_middle" {
     const array = create_trust_array(create_trust_score(1, 60, 6, 4), create_trust_score(2, 90, 9, 1), create_trust_score(3, 45, 5, 5), create_trust_score(4, 75, 8, 2), 0, 0, 0, 0);
-    if (!(find_most_trusted(array) == 1)) @panic("node 1 most trusted");
+    if (!(find_most_trusted(array) == 1)) __t27_assert_fail("\n  node 1 most trusted:\n    find_most_trusted(array) = {any}\n", .{ find_most_trusted(array) });
 }
 test "should_route_via_node_true" {
     const array = create_trust_array(create_trust_score(1, 80, 8, 2), create_trust_score(2, 60, 6, 4), create_trust_score(3, 75, 7, 3), create_trust_score(4, 70, 7, 3), 0, 0, 0, 0);
-    if (!(should_route_via_node(array, 0, 70) == true)) @panic("can route via node 0");
+    if (!(should_route_via_node(array, 0, 70) == true)) __t27_assert_fail("\n  can route via node 0:\n    should_route_via_node(array, 0, 70) = {any}\n", .{ should_route_via_node(array, 0, 70) });
 }
 test "should_route_via_node_false" {
     const array = create_trust_array(create_trust_score(1, 80, 8, 2), create_trust_score(2, 60, 6, 4), create_trust_score(3, 75, 7, 3), create_trust_score(4, 70, 7, 3), 0, 0, 0, 0);
-    if (!(should_route_via_node(array, 2, 90) == false)) @panic("cannot route via node 2");
+    if (!(should_route_via_node(array, 2, 90) == false)) __t27_assert_fail("\n  cannot route via node 2:\n    should_route_via_node(array, 2, 90) = {any}\n", .{ should_route_via_node(array, 2, 90) });
 }
 test "penalize_node_reduces_trust" {
     const current = create_trust_score(5, 70, 7, 3);
     const penalized = penalize_node(current, 5);
-    if (!(get_trust_score_value(penalized) < 70)) @panic("trust reduced");
+    if (!(get_trust_score_value(penalized) < 70)) __t27_assert_fail("\n  trust reduced:\n    get_trust_score_value(penalized) = {any}\n", .{ get_trust_score_value(penalized) });
 }
 test "reward_node_increases_trust" {
     const current = create_trust_score(5, 70, 7, 3);
     const rewarded = reward_node(current, 5);
-    if (!(get_trust_score_value(rewarded) > 70)) @panic("trust increased");
+    if (!(get_trust_score_value(rewarded) > 70)) __t27_assert_fail("\n  trust increased:\n    get_trust_score_value(rewarded) = {any}\n", .{ get_trust_score_value(rewarded) });
 }

@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const BASE_MS: u16 = 10;
@@ -29,29 +37,29 @@ fn is_expired(counter: u16) bool {
 }
 test "calc_timeout_zero" {
     const t0 = calc_timeout(0);
-    if (!(t0 == BASE_MS)) @panic("retry 0 â base");
+    if (!(t0 == BASE_MS)) __t27_assert_fail("\n  retry 0 â base:\n    t0 = {any}\n    BASE_MS = {any}\n", .{ t0, BASE_MS });
 }
 test "calc_timeout_doubles" {
     const t0 = calc_timeout(0);
     const t1 = calc_timeout(1);
     const t2 = calc_timeout(2);
-    if (!(t0 == 10)) @panic("0â10");
-    if (!(t1 == 20)) @panic("1â20");
-    if (!(t2 == 40)) @panic("2â40");
+    if (!(t0 == 10)) __t27_assert_fail("\n  0â10:\n    t0 = {any}\n", .{ t0 });
+    if (!(t1 == 20)) __t27_assert_fail("\n  1â20:\n    t1 = {any}\n", .{ t1 });
+    if (!(t2 == 40)) __t27_assert_fail("\n  2â40:\n    t2 = {any}\n", .{ t2 });
 }
 test "calc_timeout_capped" {
     const t3 = calc_timeout(3);
-    if (!(t3 == 80)) @panic("3â80 (capped)");
+    if (!(t3 == 80)) __t27_assert_fail("\n  3â80 (capped):\n    t3 = {any}\n", .{ t3 });
 }
 test "tick_counter_decrements" {
     const c1 = tick_counter(10);
     const c2 = tick_counter(c1);
-    if (!(c1 == 9)) @panic("first tick");
-    if (!(c2 == 8)) @panic("second tick");
+    if (!(c1 == 9)) __t27_assert_fail("\n  first tick:\n    c1 = {any}\n", .{ c1 });
+    if (!(c2 == 8)) __t27_assert_fail("\n  second tick:\n    c2 = {any}\n", .{ c2 });
 }
 test "tick_counter_stops_at_zero" {
     const c0 = tick_counter(0);
-    if (!(c0 == 0)) @panic("stays at zero");
+    if (!(c0 == 0)) __t27_assert_fail("\n  stays at zero:\n    c0 = {any}\n", .{ c0 });
 }
 test "tick_counter_reaches_zero" {
     const c1 = tick_counter(5);
@@ -59,19 +67,19 @@ test "tick_counter_reaches_zero" {
     const c3 = tick_counter(c2);
     const c4 = tick_counter(c3);
     const c5 = tick_counter(c4);
-    if (!(c5 == 0)) @panic("reaches zero");
+    if (!(c5 == 0)) __t27_assert_fail("\n  reaches zero:\n    c5 = {any}\n", .{ c5 });
 }
 test "is_expired_check" {
-    if (!(is_expired(0) == true)) @panic("zero is expired");
-    if (!(is_expired(1) == false)) @panic("non-zero not expired");
+    if (!(is_expired(0) == true)) __t27_assert_fail("\n  zero is expired:\n    is_expired(0) = {any}\n", .{ is_expired(0) });
+    if (!(is_expired(1) == false)) __t27_assert_fail("\n  non-zero not expired:\n    is_expired(1) = {any}\n", .{ is_expired(1) });
 }
 test "full_backoff_sequence" {
     const r0 = calc_timeout(0);
     const r1 = calc_timeout(1);
     const r2 = calc_timeout(2);
     const r3 = calc_timeout(3);
-    if (!(r0 == 10)) @panic("0â10");
-    if (!(r1 == 20)) @panic("1â20");
-    if (!(r2 == 40)) @panic("2â40");
-    if (!(r3 == 80)) @panic("3â80");
+    if (!(r0 == 10)) __t27_assert_fail("\n  0â10:\n    r0 = {any}\n", .{ r0 });
+    if (!(r1 == 20)) __t27_assert_fail("\n  1â20:\n    r1 = {any}\n", .{ r1 });
+    if (!(r2 == 40)) __t27_assert_fail("\n  2â40:\n    r2 = {any}\n", .{ r2 });
+    if (!(r3 == 80)) __t27_assert_fail("\n  3â80:\n    r3 = {any}\n", .{ r3 });
 }

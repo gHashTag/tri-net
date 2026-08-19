@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const PSK_SIZE: u32 = 16;
@@ -34,64 +42,64 @@ test "md5_process_block_compresses" {
     const block = 0x1234567890ABCDEF;
     const state = 0xABCDEF1234567890;
     const h1, const h2 = md5_process_block(block, state);
-    if (!((h1 != 0) or (h2 != 0))) @panic("compressed");
+    if (!((h1 != 0) or (h2 != 0))) __t27_assert_fail("\n  compressed:\n    h1 = {any}\n    h2 = {any}\n", .{ h1, h2 });
 }
 test "md5_digest_returns_hash" {
     const h1, const h2 = md5_process_block(0x1234567890ABCDEF, 0);
     const hash = md5_digest(h1, h2);
-    if (!(hash == ((@as(u64, @intCast(h1)) << 32) | @as(u64, @intCast(h2))))) @panic("hash created");
+    if (!(hash == ((@as(u64, @intCast(h1)) << 32) | @as(u64, @intCast(h2))))) __t27_assert_fail("\n  hash created:\n    hash = {any}\n    (@as(u64, @intCast(h1)) << 32) | @as(u64, @intCast(h2)) = {any}\n", .{ hash, (@as(u64, @intCast(h1)) << 32) | @as(u64, @intCast(h2)) });
 }
 test "quarter_round_changes_state" {
     const state = 0x01234567;
     const new_state = quarter_round(state, 0x89ABCDEF);
-    if (!(new_state != state)) @panic("state changed");
+    if (!(new_state != state)) __t27_assert_fail("\n  state changed:\n    new_state = {any}\n    state = {any}\n", .{ new_state, state });
 }
 test "quarter_round_deterministic" {
     const state = 0x01234567;
     const result1 = quarter_round(state, 0x89ABCDEF);
     const result2 = quarter_round(state, 0x89ABCDEF);
-    if (!(result1 == result2)) @panic("deterministic");
+    if (!(result1 == result2)) __t27_assert_fail("\n  deterministic:\n    result1 = {any}\n    result2 = {any}\n", .{ result1, result2 });
 }
 test "generate_psk_returns_key" {
     const key = generate_psk(0x12345678);
-    if (!(key == 0x12345678)) @panic("psk from seed");
+    if (!(key == 0x12345678)) __t27_assert_fail("\n  psk from seed:\n    key = {any}\n", .{ key });
 }
 test "hmac_md5_creates_mac" {
     const mac = hmac_md5(0xABCD, 0x1234);
-    if (!(mac == (0xABCD ^ 0x1234))) @panic("XOR MAC created");
+    if (!(mac == (0xABCD ^ 0x1234))) __t27_assert_fail("\n  XOR MAC created:\n    mac = {any}\n    0xABCD ^ 0x1234 = {any}\n", .{ mac, 0xABCD ^ 0x1234 });
 }
 test "verify_hmac_valid" {
     const mac = hmac_md5(0xABCD, 0x1234);
-    if (!(verify_hmac(0xABCD, 0x1234, mac) == true)) @panic("valid MAC");
+    if (!(verify_hmac(0xABCD, 0x1234, mac) == true)) __t27_assert_fail("\n  valid MAC:\n    verify_hmac(0xABCD, 0x1234, mac) = {any}\n", .{ verify_hmac(0xABCD, 0x1234, mac) });
 }
 test "verify_hmac_invalid" {
     const mac = hmac_md5(0xABCD, 0x1234);
     _ = mac; // dead after const-inlining
-    if (!(verify_hmac(0xABCD, 0x1234, 0x5678) == false)) @panic("invalid MAC");
+    if (!(verify_hmac(0xABCD, 0x1234, 0x5678) == false)) __t27_assert_fail("\n  invalid MAC:\n    verify_hmac(0xABCD, 0x1234, 0x5678) = {any}\n", .{ verify_hmac(0xABCD, 0x1234, 0x5678) });
 }
 test "quarter_round_different_inputs" {
     const state = 0x01234567;
     const result1 = quarter_round(state, 0x89ABCDEF);
     const result2 = quarter_round(state, 0x11111111);
-    if (!(result1 != result2)) @panic("different inputs produce different outputs");
+    if (!(result1 != result2)) __t27_assert_fail("\n  different inputs produce different outputs:\n    result1 = {any}\n    result2 = {any}\n", .{ result1, result2 });
 }
 test "md5_different_blocks_produce_different_hashes" {
     const h1_a, const h2_a = md5_process_block(0x1234567890ABCDEF, 0);
     const h1_b, const h2_b = md5_process_block(0xFEDCBA0987654321, 0);
-    if (!((h1_a != h1_b) or (h2_a != h2_b))) @panic("different blocks produce different hashes");
+    if (!((h1_a != h1_b) or (h2_a != h2_b))) __t27_assert_fail("\n  different blocks produce different hashes:\n    h1_a = {any}\n    h1_b = {any}\n    h2_a = {any}\n    h2_b = {any}\n", .{ h1_a, h1_b, h2_a, h2_b });
 }
 test "hmac_md5_same_key_different_messages" {
     const mac1 = hmac_md5(0xABCD, 0x1234);
     const mac2 = hmac_md5(0xABCD, 0x5678);
-    if (!(mac1 != mac2)) @panic("different messages produce different MACs");
+    if (!(mac1 != mac2)) __t27_assert_fail("\n  different messages produce different MACs:\n    mac1 = {any}\n    mac2 = {any}\n", .{ mac1, mac2 });
 }
 test "generate_psk_deterministic" {
     const key1 = generate_psk(0xDEADBEEF);
     const key2 = generate_psk(0xDEADBEEF);
-    if (!(key1 == key2)) @panic("same seed produces same key");
+    if (!(key1 == key2)) __t27_assert_fail("\n  same seed produces same key:\n    key1 = {any}\n    key2 = {any}\n", .{ key1, key2 });
 }
 test "generate_psk_different_seeds" {
     const key1 = generate_psk(0x11111111);
     const key2 = generate_psk(0x22222222);
-    if (!(key1 != key2)) @panic("different seeds produce different keys");
+    if (!(key1 != key2)) __t27_assert_fail("\n  different seeds produce different keys:\n    key1 = {any}\n    key2 = {any}\n", .{ key1, key2 });
 }

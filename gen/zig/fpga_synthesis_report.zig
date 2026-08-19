@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const RESOURCE_LUT: u32 = 1;
@@ -61,75 +69,75 @@ fn extract_bram(summary: u32) u32 {
 }
 test "create_synthesis_result_correct" {
     const result = create_synthesis_result(500, 100, 75);
-    if (!(extract_utilization(result) == 500)) @panic("utilization");
-    if (!(extract_timing_slack(result) == 100)) @panic("slack");
-    if (!(extract_achieved_freq(result) == 75)) @panic("frequency");
+    if (!(extract_utilization(result) == 500)) __t27_assert_fail("\n  utilization:\n    extract_utilization(result) = {any}\n", .{ extract_utilization(result) });
+    if (!(extract_timing_slack(result) == 100)) __t27_assert_fail("\n  slack:\n    extract_timing_slack(result) = {any}\n", .{ extract_timing_slack(result) });
+    if (!(extract_achieved_freq(result) == 75)) __t27_assert_fail("\n  frequency:\n    extract_achieved_freq(result) = {any}\n", .{ extract_achieved_freq(result) });
 }
 test "timing_met_positive_slack" {
     const result = create_synthesis_result(500, 50, 100);
-    if (!(timing_met(result) == true)) @panic("positive slack = met");
+    if (!(timing_met(result) == true)) __t27_assert_fail("\n  positive slack = met:\n    timing_met(result) = {any}\n", .{ timing_met(result) });
 }
 test "timing_met_zero_slack" {
     const result = create_synthesis_result(500, 0, 100);
-    if (!(timing_met(result) == false)) @panic("zero slack = not met");
+    if (!(timing_met(result) == false)) __t27_assert_fail("\n  zero slack = not met:\n    timing_met(result) = {any}\n", .{ timing_met(result) });
 }
 test "timing_met_negative_slack" {
     const result = create_synthesis_result(500, 0, 100);
-    if (!(timing_met(result) == false)) @panic("zero or less = not met");
+    if (!(timing_met(result) == false)) __t27_assert_fail("\n  zero or less = not met:\n    timing_met(result) = {any}\n", .{ timing_met(result) });
 }
 test "utilization_acceptable_under_80" {
     const result = create_synthesis_result(750, 50, 100);
-    if (!(utilization_acceptable(result) == true)) @panic("75% acceptable");
+    if (!(utilization_acceptable(result) == true)) __t27_assert_fail("\n  75% acceptable:\n    utilization_acceptable(result) = {any}\n", .{ utilization_acceptable(result) });
 }
 test "utilization_acceptable_over_80" {
     const result = create_synthesis_result(850, 50, 100);
-    if (!(utilization_acceptable(result) == false)) @panic("85% not acceptable");
+    if (!(utilization_acceptable(result) == false)) __t27_assert_fail("\n  85% not acceptable:\n    utilization_acceptable(result) = {any}\n", .{ utilization_acceptable(result) });
 }
 test "calculate_resource_percentage_half" {
     const pct = calculate_resource_percentage(50, 100);
-    if (!(pct == 50)) @panic("50% utilization");
+    if (!(pct == 50)) __t27_assert_fail("\n  50% utilization:\n    pct = {any}\n", .{ pct });
 }
 test "calculate_resource_percentage_full" {
     const pct = calculate_resource_percentage(100, 100);
-    if (!(pct == 100)) @panic("100% utilization");
+    if (!(pct == 100)) __t27_assert_fail("\n  100% utilization:\n    pct = {any}\n", .{ pct });
 }
 test "calculate_resource_percentage_zero_max" {
     const pct = calculate_resource_percentage(50, 0);
-    if (!(pct == 0)) @panic("zero max = 0%");
+    if (!(pct == 0)) __t27_assert_fail("\n  zero max = 0%:\n    pct = {any}\n", .{ pct });
 }
 test "estimate_total_resources_calculates" {
     const lut, const ff = estimate_total_resources(19, 500, 300);
-    if (!(lut == 9500)) @panic("total LUT");
-    if (!(ff == 5700)) @panic("total FF");
+    if (!(lut == 9500)) __t27_assert_fail("\n  total LUT:\n    lut = {any}\n", .{ lut });
+    if (!(ff == 5700)) __t27_assert_fail("\n  total FF:\n    ff = {any}\n", .{ ff });
 }
 test "frequency_achievable_met" {
     const result = create_synthesis_result(500, 50, 100);
-    if (!(frequency_achievable(result, 75) == true)) @panic("100MHz >= 75MHz");
+    if (!(frequency_achievable(result, 75) == true)) __t27_assert_fail("\n  100MHz >= 75MHz:\n    frequency_achievable(result, 75) = {any}\n", .{ frequency_achievable(result, 75) });
 }
 test "frequency_achievable_not_met" {
     const result = create_synthesis_result(500, 50, 60);
-    if (!(frequency_achievable(result, 75) == false)) @panic("60MHz < 75MHz");
+    if (!(frequency_achievable(result, 75) == false)) __t27_assert_fail("\n  60MHz < 75MHz:\n    frequency_achievable(result, 75) = {any}\n", .{ frequency_achievable(result, 75) });
 }
 test "create_resource_summary_correct" {
     const summary = create_resource_summary(1000, 800, 10, 5);
-    if (!(extract_lut(summary) == 1000)) @panic("LUT count");
-    if (!(extract_ff(summary) == 800)) @panic("FF count");
-    if (!(extract_dsp(summary) == 10)) @panic("DSP count");
-    if (!(extract_bram(summary) == 5)) @panic("BRAM count");
+    if (!(extract_lut(summary) == 1000)) __t27_assert_fail("\n  LUT count:\n    extract_lut(summary) = {any}\n", .{ extract_lut(summary) });
+    if (!(extract_ff(summary) == 800)) __t27_assert_fail("\n  FF count:\n    extract_ff(summary) = {any}\n", .{ extract_ff(summary) });
+    if (!(extract_dsp(summary) == 10)) __t27_assert_fail("\n  DSP count:\n    extract_dsp(summary) = {any}\n", .{ extract_dsp(summary) });
+    if (!(extract_bram(summary) == 5)) __t27_assert_fail("\n  BRAM count:\n    extract_bram(summary) = {any}\n", .{ extract_bram(summary) });
 }
 test "extract_lut_correct" {
     const summary = create_resource_summary(1500, 1200, 8, 4);
-    if (!(extract_lut(summary) == 1500)) @panic("LUT extraction");
+    if (!(extract_lut(summary) == 1500)) __t27_assert_fail("\n  LUT extraction:\n    extract_lut(summary) = {any}\n", .{ extract_lut(summary) });
 }
 test "extract_ff_correct" {
     const summary = create_resource_summary(1500, 1200, 8, 4);
-    if (!(extract_ff(summary) == 1200)) @panic("FF extraction");
+    if (!(extract_ff(summary) == 1200)) __t27_assert_fail("\n  FF extraction:\n    extract_ff(summary) = {any}\n", .{ extract_ff(summary) });
 }
 test "extract_dsp_correct" {
     const summary = create_resource_summary(1500, 1200, 8, 4);
-    if (!(extract_dsp(summary) == 8)) @panic("DSP extraction");
+    if (!(extract_dsp(summary) == 8)) __t27_assert_fail("\n  DSP extraction:\n    extract_dsp(summary) = {any}\n", .{ extract_dsp(summary) });
 }
 test "extract_bram_correct" {
     const summary = create_resource_summary(1500, 1200, 8, 4);
-    if (!(extract_bram(summary) == 4)) @panic("BRAM extraction");
+    if (!(extract_bram(summary) == 4)) __t27_assert_fail("\n  BRAM extraction:\n    extract_bram(summary) = {any}\n", .{ extract_bram(summary) });
 }

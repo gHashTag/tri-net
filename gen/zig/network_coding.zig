@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_PACKETS: u32 = 4;
@@ -120,95 +128,95 @@ fn calculate_coding_gain(original: u32, coded: u32) u32 {
 }
 test "create_packet_basic" {
     const pkt = create_packet(5, 10, 0xAB, 100);
-    if (!(get_packet_src(pkt) == 5)) @panic("source");
-    if (!(get_packet_dst(pkt) == 10)) @panic("destination");
-    if (!(get_packet_payload(pkt) == 0xAB)) @panic("payload");
-    if (!(get_packet_seq(pkt) == 100)) @panic("sequence");
+    if (!(get_packet_src(pkt) == 5)) __t27_assert_fail("\n  source:\n    get_packet_src(pkt) = {any}\n", .{ get_packet_src(pkt) });
+    if (!(get_packet_dst(pkt) == 10)) __t27_assert_fail("\n  destination:\n    get_packet_dst(pkt) = {any}\n", .{ get_packet_dst(pkt) });
+    if (!(get_packet_payload(pkt) == 0xAB)) __t27_assert_fail("\n  payload:\n    get_packet_payload(pkt) = {any}\n", .{ get_packet_payload(pkt) });
+    if (!(get_packet_seq(pkt) == 100)) __t27_assert_fail("\n  sequence:\n    get_packet_seq(pkt) = {any}\n", .{ get_packet_seq(pkt) });
 }
 test "create_coded_packet_basic" {
     const coded = create_coded_packet(0b1010, 0xCD, 5, 1000);
-    if (!(get_coeff_vector(coded) == 0b1010)) @panic("coefficient");
-    if (!(get_coded_payload(coded) == 0xCD)) @panic("coded payload");
-    if (!(get_generation(coded) == 5)) @panic("generation");
+    if (!(get_coeff_vector(coded) == 0b1010)) __t27_assert_fail("\n  coefficient:\n    get_coeff_vector(coded) = {any}\n", .{ get_coeff_vector(coded) });
+    if (!(get_coded_payload(coded) == 0xCD)) __t27_assert_fail("\n  coded payload:\n    get_coded_payload(coded) = {any}\n", .{ get_coded_payload(coded) });
+    if (!(get_generation(coded) == 5)) __t27_assert_fail("\n  generation:\n    get_generation(coded) = {any}\n", .{ get_generation(coded) });
 }
 test "xor_packets_basic" {
     const pkt1 = create_packet(1, 2, 0xAA, 100);
     const pkt2 = create_packet(3, 4, 0x55, 101);
     const xored = xor_packets(pkt1, pkt2);
-    if (!(get_packet_payload(xored) == 0xFF)) @panic("XOR payload");
+    if (!(get_packet_payload(xored) == 0xFF)) __t27_assert_fail("\n  XOR payload:\n    get_packet_payload(xored) = {any}\n", .{ get_packet_payload(xored) });
 }
 test "create_xoded_native" {
     const pkt1 = create_packet(1, 2, 0xAA, 100);
     const pkt2 = create_packet(3, 4, 0x55, 100);
     const coded = create_xoded_native(pkt1, pkt2, 5, 1000);
-    if (!(get_coded_payload(coded) == 0xFF)) @panic("coded payload");
-    if (!(get_coeff_vector(coded) == 0b11)) @panic("both packets");
+    if (!(get_coded_payload(coded) == 0xFF)) __t27_assert_fail("\n  coded payload:\n    get_coded_payload(coded) = {any}\n", .{ get_coded_payload(coded) });
+    if (!(get_coeff_vector(coded) == 0b11)) __t27_assert_fail("\n  both packets:\n    get_coeff_vector(coded) = {any}\n", .{ get_coeff_vector(coded) });
 }
 test "decode_xoded_packet" {
     const pkt1 = create_packet(1, 2, 0xAA, 100);
     const pkt2 = create_packet(3, 4, 0x55, 100);
     const coded = create_xoded_native(pkt1, pkt2, 5, 1000);
     const decoded = decode_xoded_packet(coded, pkt1);
-    if (!(get_packet_payload(decoded) == 0x55)) @panic("decoded payload");
+    if (!(get_packet_payload(decoded) == 0x55)) __t27_assert_fail("\n  decoded payload:\n    get_packet_payload(decoded) = {any}\n", .{ get_packet_payload(decoded) });
 }
 test "same_generation_true" {
     const pkt1 = create_packet(1, 2, 0xAA, 8);
     const pkt2 = create_packet(3, 4, 0x55, 10);
-    if (!(same_generation(pkt1, pkt2) == true)) @panic("same generation");
+    if (!(same_generation(pkt1, pkt2) == true)) __t27_assert_fail("\n  same generation:\n    same_generation(pkt1, pkt2) = {any}\n", .{ same_generation(pkt1, pkt2) });
 }
 test "same_generation_false" {
     const pkt1 = create_packet(1, 2, 0xAA, 3);
     const pkt2 = create_packet(3, 4, 0x55, 8);
-    if (!(same_generation(pkt1, pkt2) == false)) @panic("different generation");
+    if (!(same_generation(pkt1, pkt2) == false)) __t27_assert_fail("\n  different generation:\n    same_generation(pkt1, pkt2) = {any}\n", .{ same_generation(pkt1, pkt2) });
 }
 test "get_generation_id" {
     const pkt1 = create_packet(1, 2, 0xAA, 8);
     const pkt2 = create_packet(3, 4, 0x55, 10);
-    if (!(get_generation_id(pkt1) == get_generation_id(pkt2))) @panic("same generation ID");
+    if (!(get_generation_id(pkt1) == get_generation_id(pkt2))) __t27_assert_fail("\n  same generation ID:\n    get_generation_id(pkt1) = {any}\n    get_generation_id(pkt2) = {any}\n", .{ get_generation_id(pkt1), get_generation_id(pkt2) });
 }
 test "is_coding_beneficial_different_hops" {
     const pkt1 = create_packet(1, 2, 0xAA, 100);
     const pkt2 = create_packet(3, 4, 0x55, 101);
-    if (!(is_coding_beneficial(pkt1, pkt2, 10, 20) == true)) @panic("beneficial");
+    if (!(is_coding_beneficial(pkt1, pkt2, 10, 20) == true)) __t27_assert_fail("\n  beneficial:\n    is_coding_beneficial(pkt1, pkt2, 10, 20) = {any}\n", .{ is_coding_beneficial(pkt1, pkt2, 10, 20) });
 }
 test "is_coding_beneficial_same_hop" {
     const pkt1 = create_packet(1, 2, 0xAA, 100);
     const pkt2 = create_packet(3, 4, 0x55, 101);
-    if (!(is_coding_beneficial(pkt1, pkt2, 10, 10) == false)) @panic("not beneficial");
+    if (!(is_coding_beneficial(pkt1, pkt2, 10, 10) == false)) __t27_assert_fail("\n  not beneficial:\n    is_coding_beneficial(pkt1, pkt2, 10, 10) = {any}\n", .{ is_coding_beneficial(pkt1, pkt2, 10, 10) });
 }
 test "linear_code_packets_both_odd" {
     const pkt1 = create_packet(1, 2, 0xAA, 100);
     const pkt2 = create_packet(3, 4, 0x55, 101);
     const coded = linear_code_packets(pkt1, pkt2, 3, 5);
-    if (!(get_packet_payload(coded) == 0xFF)) @panic("linear coded payload");
+    if (!(get_packet_payload(coded) == 0xFF)) __t27_assert_fail("\n  linear coded payload:\n    get_packet_payload(coded) = {any}\n", .{ get_packet_payload(coded) });
 }
 test "linear_code_packets_one_even" {
     const pkt1 = create_packet(1, 2, 0xAA, 100);
     const pkt2 = create_packet(3, 4, 0x55, 101);
     const coded = linear_code_packets(pkt1, pkt2, 2, 5);
-    if (!(get_packet_payload(coded) == 0x55)) @panic("only pkt2 coded");
+    if (!(get_packet_payload(coded) == 0x55)) __t27_assert_fail("\n  only pkt2 coded:\n    get_packet_payload(coded) = {any}\n", .{ get_packet_payload(coded) });
 }
 test "create_coded_generation" {
     const gen = create_coded_generation(create_packet(1, 2, 0xAA, 100), create_packet(3, 4, 0x55, 101), 0, 0);
-    if (!(count_generation_packets(gen) == 2)) @panic("2 packets");
+    if (!(count_generation_packets(gen) == 2)) __t27_assert_fail("\n  2 packets:\n    count_generation_packets(gen) = {any}\n", .{ count_generation_packets(gen) });
 }
 test "count_generation_packets_full" {
     const gen = create_coded_generation(create_packet(1, 2, 0xAA, 100), create_packet(3, 4, 0x55, 101), create_packet(5, 6, 0x33, 102), create_packet(7, 8, 0x11, 103));
-    if (!(count_generation_packets(gen) == 4)) @panic("4 packets");
+    if (!(count_generation_packets(gen) == 4)) __t27_assert_fail("\n  4 packets:\n    count_generation_packets(gen) = {any}\n", .{ count_generation_packets(gen) });
 }
 test "is_generation_decodable_true" {
     const gen = create_coded_generation(create_packet(1, 2, 0xAA, 100), create_packet(3, 4, 0x55, 101), 0, 0);
-    if (!(is_generation_decodable(gen, 2) == 1)) @panic("decodable");
+    if (!(is_generation_decodable(gen, 2) == 1)) __t27_assert_fail("\n  decodable:\n    is_generation_decodable(gen, 2) = {any}\n", .{ is_generation_decodable(gen, 2) });
 }
 test "is_generation_decodable_false" {
     const gen = create_coded_generation(create_packet(1, 2, 0xAA, 100), 0, 0, 0);
-    if (!(is_generation_decodable(gen, 2) == 0)) @panic("not decodable");
+    if (!(is_generation_decodable(gen, 2) == 0)) __t27_assert_fail("\n  not decodable:\n    is_generation_decodable(gen, 2) = {any}\n", .{ is_generation_decodable(gen, 2) });
 }
 test "calculate_coding_gain" {
     const gain = calculate_coding_gain(4, 2);
-    if (!(gain == 2)) @panic("2 packets saved");
+    if (!(gain == 2)) __t27_assert_fail("\n  2 packets saved:\n    gain = {any}\n", .{ gain });
 }
 test "calculate_coding_gain_zero" {
     const gain = calculate_coding_gain(4, 4);
-    if (!(gain == 0)) @panic("no gain");
+    if (!(gain == 0)) __t27_assert_fail("\n  no gain:\n    gain = {any}\n", .{ gain });
 }

@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const DEPTH_CAP: u32 = 64;
@@ -28,42 +36,42 @@ fn depth_survives(depth: u32, burst: u32) bool {
     return depth >= burst;
 }
 test "ilv_roundtrip" {
-    if (!(ilv_orig(ilv_tx_pos(0, 8, 4), 8, 4) == 0)) @panic("o=0");
-    if (!(ilv_orig(ilv_tx_pos(7, 8, 4), 8, 4) == 7)) @panic("o=7");
-    if (!(ilv_orig(ilv_tx_pos(31, 8, 4), 8, 4) == 31)) @panic("o=31");
-    if (!(ilv_orig(ilv_tx_pos(13, 8, 4), 8, 4) == 13)) @panic("o=13");
+    if (!(ilv_orig(ilv_tx_pos(0, 8, 4), 8, 4) == 0)) __t27_assert_fail("\n  o=0:\n    ilv_orig(ilv_tx_pos(0, 8, 4), 8, 4) = {any}\n", .{ ilv_orig(ilv_tx_pos(0, 8, 4), 8, 4) });
+    if (!(ilv_orig(ilv_tx_pos(7, 8, 4), 8, 4) == 7)) __t27_assert_fail("\n  o=7:\n    ilv_orig(ilv_tx_pos(7, 8, 4), 8, 4) = {any}\n", .{ ilv_orig(ilv_tx_pos(7, 8, 4), 8, 4) });
+    if (!(ilv_orig(ilv_tx_pos(31, 8, 4), 8, 4) == 31)) __t27_assert_fail("\n  o=31:\n    ilv_orig(ilv_tx_pos(31, 8, 4), 8, 4) = {any}\n", .{ ilv_orig(ilv_tx_pos(31, 8, 4), 8, 4) });
+    if (!(ilv_orig(ilv_tx_pos(13, 8, 4), 8, 4) == 13)) __t27_assert_fail("\n  o=13:\n    ilv_orig(ilv_tx_pos(13, 8, 4), 8, 4) = {any}\n", .{ ilv_orig(ilv_tx_pos(13, 8, 4), 8, 4) });
 }
 test "ilv_adjacent_differ" {
     const c0 = ilv_codeword(ilv_orig(0, 8, 4), 4);
     const c1 = ilv_codeword(ilv_orig(1, 8, 4), 4);
     const c2 = ilv_codeword(ilv_orig(2, 8, 4), 4);
-    if (!(c0 != c1)) @panic("tx0 vs tx1 different codeword");
-    if (!(c1 != c2)) @panic("tx1 vs tx2 different codeword");
-    if (!(c0 == 0)) @panic("tx0 -> codeword 0");
-    if (!(c1 == 1)) @panic("tx1 -> codeword 1");
+    if (!(c0 != c1)) __t27_assert_fail("\n  tx0 vs tx1 different codeword:\n    c0 = {any}\n    c1 = {any}\n", .{ c0, c1 });
+    if (!(c1 != c2)) __t27_assert_fail("\n  tx1 vs tx2 different codeword:\n    c1 = {any}\n    c2 = {any}\n", .{ c1, c2 });
+    if (!(c0 == 0)) __t27_assert_fail("\n  tx0 -> codeword 0:\n    c0 = {any}\n", .{ c0 });
+    if (!(c1 == 1)) __t27_assert_fail("\n  tx1 -> codeword 1:\n    c1 = {any}\n", .{ c1 });
 }
 test "ilv_burst_spreads" {
-    if (!(ilv_codeword(ilv_orig(0, 8, 4), 4) == 0)) @panic("t0->cw0");
-    if (!(ilv_codeword(ilv_orig(3, 8, 4), 4) == 3)) @panic("t3->cw3");
-    if (!(ilv_codeword(ilv_orig(7, 8, 4), 4) == 7)) @panic("t7->cw7");
-    if (!(ilv_codeword(ilv_orig(8, 8, 4), 4) == 0)) @panic("t8->cw0 (next column)");
+    if (!(ilv_codeword(ilv_orig(0, 8, 4), 4) == 0)) __t27_assert_fail("\n  t0->cw0:\n    ilv_codeword(ilv_orig(0, 8, 4), 4) = {any}\n", .{ ilv_codeword(ilv_orig(0, 8, 4), 4) });
+    if (!(ilv_codeword(ilv_orig(3, 8, 4), 4) == 3)) __t27_assert_fail("\n  t3->cw3:\n    ilv_codeword(ilv_orig(3, 8, 4), 4) = {any}\n", .{ ilv_codeword(ilv_orig(3, 8, 4), 4) });
+    if (!(ilv_codeword(ilv_orig(7, 8, 4), 4) == 7)) __t27_assert_fail("\n  t7->cw7:\n    ilv_codeword(ilv_orig(7, 8, 4), 4) = {any}\n", .{ ilv_codeword(ilv_orig(7, 8, 4), 4) });
+    if (!(ilv_codeword(ilv_orig(8, 8, 4), 4) == 0)) __t27_assert_fail("\n  t8->cw0 (next column):\n    ilv_codeword(ilv_orig(8, 8, 4), 4) = {any}\n", .{ ilv_codeword(ilv_orig(8, 8, 4), 4) });
 }
 test "ilv_is_permutation" {
-    if (!(ilv_tx_pos(0, 8, 4) != ilv_tx_pos(1, 8, 4))) @panic("distinct 0,1");
-    if (!(ilv_tx_pos(4, 8, 4) != ilv_tx_pos(5, 8, 4))) @panic("distinct 4,5");
-    if (!(ilv_tx_pos(0, 8, 4) == 0)) @panic("o0 -> t0");
-    if (!(ilv_tx_pos(4, 8, 4) == 1)) @panic("o4(row1,col0) -> t1");
+    if (!(ilv_tx_pos(0, 8, 4) != ilv_tx_pos(1, 8, 4))) __t27_assert_fail("\n  distinct 0,1:\n    ilv_tx_pos(0, 8, 4) = {any}\n    ilv_tx_pos(1, 8, 4) = {any}\n", .{ ilv_tx_pos(0, 8, 4), ilv_tx_pos(1, 8, 4) });
+    if (!(ilv_tx_pos(4, 8, 4) != ilv_tx_pos(5, 8, 4))) __t27_assert_fail("\n  distinct 4,5:\n    ilv_tx_pos(4, 8, 4) = {any}\n    ilv_tx_pos(5, 8, 4) = {any}\n", .{ ilv_tx_pos(4, 8, 4), ilv_tx_pos(5, 8, 4) });
+    if (!(ilv_tx_pos(0, 8, 4) == 0)) __t27_assert_fail("\n  o0 -> t0:\n    ilv_tx_pos(0, 8, 4) = {any}\n", .{ ilv_tx_pos(0, 8, 4) });
+    if (!(ilv_tx_pos(4, 8, 4) == 1)) __t27_assert_fail("\n  o4(row1,col0) -> t1:\n    ilv_tx_pos(4, 8, 4) = {any}\n", .{ ilv_tx_pos(4, 8, 4) });
 }
 test "choose_depth_matches_burst" {
-    if (!(choose_depth(5) == 5)) @panic("burst 5 -> depth 5");
-    if (!(choose_depth(12) == 12)) @panic("burst 12 -> depth 12");
+    if (!(choose_depth(5) == 5)) __t27_assert_fail("\n  burst 5 -> depth 5:\n    choose_depth(5) = {any}\n", .{ choose_depth(5) });
+    if (!(choose_depth(12) == 12)) __t27_assert_fail("\n  burst 12 -> depth 12:\n    choose_depth(12) = {any}\n", .{ choose_depth(12) });
     if (!(depth_survives(choose_depth(12), 12))) @panic("chosen depth survives its burst");
 }
 test "choose_depth_beats_fixed" {
-    if (!(depth_survives(8, 12) == false)) @panic("fixed depth 8 fails a burst of 12");
-    if (!(depth_survives(choose_depth(12), 12) == true)) @panic("adaptive depth survives 12");
+    if (!(depth_survives(8, 12) == false)) __t27_assert_fail("\n  fixed depth 8 fails a burst of 12:\n    depth_survives(8, 12) = {any}\n", .{ depth_survives(8, 12) });
+    if (!(depth_survives(choose_depth(12), 12) == true)) __t27_assert_fail("\n  adaptive depth survives 12:\n    depth_survives(choose_depth(12), 12) = {any}\n", .{ depth_survives(choose_depth(12), 12) });
 }
 test "choose_depth_bounds" {
-    if (!(choose_depth(0) == 1)) @panic("no burst -> depth 1");
-    if (!(choose_depth(1000) == DEPTH_CAP)) @panic("huge burst clamps to cap");
+    if (!(choose_depth(0) == 1)) __t27_assert_fail("\n  no burst -> depth 1:\n    choose_depth(0) = {any}\n", .{ choose_depth(0) });
+    if (!(choose_depth(1000) == DEPTH_CAP)) __t27_assert_fail("\n  huge burst clamps to cap:\n    choose_depth(1000) = {any}\n    DEPTH_CAP = {any}\n", .{ choose_depth(1000), DEPTH_CAP });
 }

@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 const ALPHA_Q8: u8 = 0x20;
 const ONE_MINUS_ALPHA_Q8: u8 = 0xE0;
@@ -69,40 +77,40 @@ test "ewma_calculation" {
     const current: u8 = 0x40;
     const sample: u8 = 0x60;
     const new_etx: u8 = update_ewma(current, sample);
-    if (!(new_etx > current)) @panic("new_etx > current");
-    if (!(new_etx < sample)) @panic("new_etx < sample");
+    if (!(new_etx > current)) __t27_assert_fail("\n  new_etx > current:\n    new_etx = {any}\n    current = {any}\n", .{ new_etx, current });
+    if (!(new_etx < sample)) __t27_assert_fail("\n  new_etx < sample:\n    new_etx = {any}\n    sample = {any}\n", .{ new_etx, sample });
 }
 test "trend_detection" {
     const improving_history: [8]u8 = .{ 0x70, 0x68, 0x60, 0x58, 0x50, 0x48, 0x40, 0x38 };
     const trend: i8 = calculate_trend(improving_history);
-    if (!(trend < 0)) @panic("trend < 0");
+    if (!(trend < 0)) __t27_assert_fail("\n  trend < 0:\n    trend = {any}\n", .{ trend });
     const worsening_history: [8]u8 = .{ 0x40, 0x48, 0x50, 0x58, 0x60, 0x68, 0x70, 0x78 };
     const trend2: i8 = calculate_trend(worsening_history);
-    if (!(trend2 > 0)) @panic("trend2 > 0");
+    if (!(trend2 > 0)) __t27_assert_fail("\n  trend2 > 0:\n    trend2 = {any}\n", .{ trend2 });
 }
 test "etx_prediction" {
     const current: u8 = 0x60;
     const trend: i8 = 0x08;
     const predicted: u8 = predict_next_etx(current, trend);
-    if (!(predicted > current)) @panic("predicted > current");
-    if (!(predicted < 0x70)) @panic("predicted < 0x70");
+    if (!(predicted > current)) __t27_assert_fail("\n  predicted > current:\n    predicted = {any}\n    current = {any}\n", .{ predicted, current });
+    if (!(predicted < 0x70)) __t27_assert_fail("\n  predicted < 0x70:\n    predicted = {any}\n", .{ predicted });
 }
 test "degradation_detection" {
-    if (!(is_degrading(0x70, 0x10) == true)) @panic("is_degrading 0x70 0x10 == true");
-    if (!(is_degrading(0x70, -0x10) == false)) @panic("is_degrading 0x70 -0x10 == false");
-    if (!(is_degrading(0x30, 0x10) == false)) @panic("is_degrading 0x30 0x10 == false");
+    if (!(is_degrading(0x70, 0x10) == true)) __t27_assert_fail("\n  is_degrading 0x70 0x10 == true:\n    is_degrading(0x70, 0x10) = {any}\n", .{ is_degrading(0x70, 0x10) });
+    if (!(is_degrading(0x70, -0x10) == false)) __t27_assert_fail("\n  is_degrading 0x70 -0x10 == false:\n    is_degrading(0x70, -0x10) = {any}\n", .{ is_degrading(0x70, -0x10) });
+    if (!(is_degrading(0x30, 0x10) == false)) __t27_assert_fail("\n  is_degrading 0x30 0x10 == false:\n    is_degrading(0x30, 0x10) = {any}\n", .{ is_degrading(0x30, 0x10) });
 }
 test "quality_score_calculation" {
     const etx: u8 = 0x50;
     const latency: u16 = 100;
     const score: u8 = quality_score(etx, latency);
-    if (!(score > 50)) @panic("score > 50");
-    if (!(score < 200)) @panic("score < 200");
+    if (!(score > 50)) __t27_assert_fail("\n  score > 50:\n    score = {any}\n", .{ score });
+    if (!(score < 200)) __t27_assert_fail("\n  score < 200:\n    score = {any}\n", .{ score });
 }
 test "quality_classification" {
-    if (!(classify_quality(30) == 0)) @panic("classify_quality 30 == 0");
-    if (!(classify_quality(80) == 1)) @panic("classify_quality 80 == 1");
-    if (!(classify_quality(125) == 2)) @panic("classify_quality 125 == 2");
-    if (!(classify_quality(175) == 3)) @panic("classify_quality 175 == 3");
-    if (!(classify_quality(225) == 4)) @panic("classify_quality 225 == 4");
+    if (!(classify_quality(30) == 0)) __t27_assert_fail("\n  classify_quality 30 == 0:\n    classify_quality(30) = {any}\n", .{ classify_quality(30) });
+    if (!(classify_quality(80) == 1)) __t27_assert_fail("\n  classify_quality 80 == 1:\n    classify_quality(80) = {any}\n", .{ classify_quality(80) });
+    if (!(classify_quality(125) == 2)) __t27_assert_fail("\n  classify_quality 125 == 2:\n    classify_quality(125) = {any}\n", .{ classify_quality(125) });
+    if (!(classify_quality(175) == 3)) __t27_assert_fail("\n  classify_quality 175 == 3:\n    classify_quality(175) = {any}\n", .{ classify_quality(175) });
+    if (!(classify_quality(225) == 4)) __t27_assert_fail("\n  classify_quality 225 == 4:\n    classify_quality(225) = {any}\n", .{ classify_quality(225) });
 }

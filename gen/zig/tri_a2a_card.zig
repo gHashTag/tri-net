@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const FMT_GF_BINARY: u32 = 0;
@@ -117,75 +125,75 @@ fn can_serve_skill_op(card: u32, skill: u32) bool {
 }
 test "gft16_host_routing" {
     const c = make_card(family_bit(FMT_GFT), 16);
-    if (!(can_serve(c, FMT_GFT, 16) == true)) @panic("GF-T16 host serves a GF-T16 task");
-    if (!(can_serve(c, FMT_GF_BINARY, 16) == false)) @panic("GF-T16 host rejects a binary GF16 task (family)");
-    if (!(can_serve(c, FMT_GFT, 8) == false)) @panic("GF-T16 host rejects a GF-T8 task (width)");
+    if (!(can_serve(c, FMT_GFT, 16) == true)) __t27_assert_fail("\n  GF-T16 host serves a GF-T16 task:\n    can_serve(c, FMT_GFT, 16) = {any}\n", .{ can_serve(c, FMT_GFT, 16) });
+    if (!(can_serve(c, FMT_GF_BINARY, 16) == false)) __t27_assert_fail("\n  GF-T16 host rejects a binary GF16 task (family):\n    can_serve(c, FMT_GF_BINARY, 16) = {any}\n", .{ can_serve(c, FMT_GF_BINARY, 16) });
+    if (!(can_serve(c, FMT_GFT, 8) == false)) __t27_assert_fail("\n  GF-T16 host rejects a GF-T8 task (width):\n    can_serve(c, FMT_GFT, 8) = {any}\n", .{ can_serve(c, FMT_GFT, 8) });
 }
 test "binary_multiwidth_host" {
     const c = make_card(family_bit(FMT_GF_BINARY), 16 | 32);
-    if (!(can_serve(c, FMT_GF_BINARY, 16) == true)) @panic("serves GF16");
-    if (!(can_serve(c, FMT_GF_BINARY, 32) == true)) @panic("serves GF32");
-    if (!(can_serve(c, FMT_GF_BINARY, 8) == false)) @panic("does not serve GF8 (not advertised)");
-    if (!(can_serve(c, FMT_GFT, 16) == false)) @panic("does not serve any GF-T");
+    if (!(can_serve(c, FMT_GF_BINARY, 16) == true)) __t27_assert_fail("\n  serves GF16:\n    can_serve(c, FMT_GF_BINARY, 16) = {any}\n", .{ can_serve(c, FMT_GF_BINARY, 16) });
+    if (!(can_serve(c, FMT_GF_BINARY, 32) == true)) __t27_assert_fail("\n  serves GF32:\n    can_serve(c, FMT_GF_BINARY, 32) = {any}\n", .{ can_serve(c, FMT_GF_BINARY, 32) });
+    if (!(can_serve(c, FMT_GF_BINARY, 8) == false)) __t27_assert_fail("\n  does not serve GF8 (not advertised):\n    can_serve(c, FMT_GF_BINARY, 8) = {any}\n", .{ can_serve(c, FMT_GF_BINARY, 8) });
+    if (!(can_serve(c, FMT_GFT, 16) == false)) __t27_assert_fail("\n  does not serve any GF-T:\n    can_serve(c, FMT_GFT, 16) = {any}\n", .{ can_serve(c, FMT_GFT, 16) });
 }
 test "dual_family_host" {
     const c = make_card(family_bit(FMT_GF_BINARY) | family_bit(FMT_GFT), 8 | 16);
-    if (!(can_serve(c, FMT_GF_BINARY, 16) == true)) @panic("GF16 ok");
-    if (!(can_serve(c, FMT_GFT, 16) == true)) @panic("GF-T16 ok");
-    if (!(can_serve(c, FMT_GFT, 8) == true)) @panic("GF-T8 ok");
-    if (!(can_serve(c, FMT_GF_BINARY, 32) == false)) @panic("GF32 not advertised");
+    if (!(can_serve(c, FMT_GF_BINARY, 16) == true)) __t27_assert_fail("\n  GF16 ok:\n    can_serve(c, FMT_GF_BINARY, 16) = {any}\n", .{ can_serve(c, FMT_GF_BINARY, 16) });
+    if (!(can_serve(c, FMT_GFT, 16) == true)) __t27_assert_fail("\n  GF-T16 ok:\n    can_serve(c, FMT_GFT, 16) = {any}\n", .{ can_serve(c, FMT_GFT, 16) });
+    if (!(can_serve(c, FMT_GFT, 8) == true)) __t27_assert_fail("\n  GF-T8 ok:\n    can_serve(c, FMT_GFT, 8) = {any}\n", .{ can_serve(c, FMT_GFT, 8) });
+    if (!(can_serve(c, FMT_GF_BINARY, 32) == false)) __t27_assert_fail("\n  GF32 not advertised:\n    can_serve(c, FMT_GF_BINARY, 32) = {any}\n", .{ can_serve(c, FMT_GF_BINARY, 32) });
 }
 test "route_by_skill_id" {
     const gft = make_card(family_bit(FMT_GFT), 8 | 16);
-    if (!(can_serve_skill(gft, 0xA611) == true)) @panic("GF-T16 mul routes to a GF-T host");
-    if (!(can_serve_skill(gft, 0xA811) == true)) @panic("GF-T8 mul routes to a GF-T host");
-    if (!(can_serve_skill(gft, 0x1611) == false)) @panic("binary GF16 mul does NOT route to a GF-T-only host");
+    if (!(can_serve_skill(gft, 0xA611) == true)) __t27_assert_fail("\n  GF-T16 mul routes to a GF-T host:\n    can_serve_skill(gft, 0xA611) = {any}\n", .{ can_serve_skill(gft, 0xA611) });
+    if (!(can_serve_skill(gft, 0xA811) == true)) __t27_assert_fail("\n  GF-T8 mul routes to a GF-T host:\n    can_serve_skill(gft, 0xA811) = {any}\n", .{ can_serve_skill(gft, 0xA811) });
+    if (!(can_serve_skill(gft, 0x1611) == false)) __t27_assert_fail("\n  binary GF16 mul does NOT route to a GF-T-only host:\n    can_serve_skill(gft, 0x1611) = {any}\n", .{ can_serve_skill(gft, 0x1611) });
 }
 test "gft_ladder_card_routing" {
-    if (!(skill_card_family(0xA411) == FMT_GFT)) @panic("GF-T4 is FMT_GFT");
-    if (!(skill_card_width(0xA411) == 4)) @panic("GF-T4 width 4");
-    if (!(skill_card_family(0xA511) == FMT_GFT)) @panic("GF-T32 is FMT_GFT (was mis-classed binary)");
-    if (!(skill_card_width(0xA511) == 32)) @panic("GF-T32 width 32 (was mis-routed to 16)");
-    if (!(skill_card_family(0xA311) == FMT_GFT)) @panic("GF-T64 is FMT_GFT");
-    if (!(skill_card_width(0xA311) == 64)) @panic("GF-T64 width 64");
-    if (!(skill_card_width(0xA211) == 128)) @panic("GF-T128 width 128");
+    if (!(skill_card_family(0xA411) == FMT_GFT)) __t27_assert_fail("\n  GF-T4 is FMT_GFT:\n    skill_card_family(0xA411) = {any}\n    FMT_GFT = {any}\n", .{ skill_card_family(0xA411), FMT_GFT });
+    if (!(skill_card_width(0xA411) == 4)) __t27_assert_fail("\n  GF-T4 width 4:\n    skill_card_width(0xA411) = {any}\n", .{ skill_card_width(0xA411) });
+    if (!(skill_card_family(0xA511) == FMT_GFT)) __t27_assert_fail("\n  GF-T32 is FMT_GFT (was mis-classed binary):\n    skill_card_family(0xA511) = {any}\n    FMT_GFT = {any}\n", .{ skill_card_family(0xA511), FMT_GFT });
+    if (!(skill_card_width(0xA511) == 32)) __t27_assert_fail("\n  GF-T32 width 32 (was mis-routed to 16):\n    skill_card_width(0xA511) = {any}\n", .{ skill_card_width(0xA511) });
+    if (!(skill_card_family(0xA311) == FMT_GFT)) __t27_assert_fail("\n  GF-T64 is FMT_GFT:\n    skill_card_family(0xA311) = {any}\n    FMT_GFT = {any}\n", .{ skill_card_family(0xA311), FMT_GFT });
+    if (!(skill_card_width(0xA311) == 64)) __t27_assert_fail("\n  GF-T64 width 64:\n    skill_card_width(0xA311) = {any}\n", .{ skill_card_width(0xA311) });
+    if (!(skill_card_width(0xA211) == 128)) __t27_assert_fail("\n  GF-T128 width 128:\n    skill_card_width(0xA211) = {any}\n", .{ skill_card_width(0xA211) });
     const full = make_card(family_bit(FMT_GFT), ((((4 | 8) | 16) | 32) | 64) | 128);
-    if (!(can_serve_skill(full, 0xA411) == true)) @panic("full-ladder host serves GF-T4");
-    if (!(can_serve_skill(full, 0xA511) == true)) @panic("full-ladder host serves GF-T32");
-    if (!(can_serve_skill(full, 0xA311) == true)) @panic("full-ladder host serves GF-T64");
-    if (!(can_serve_skill(full, 0xA211) == true)) @panic("full-ladder host serves GF-T128");
+    if (!(can_serve_skill(full, 0xA411) == true)) __t27_assert_fail("\n  full-ladder host serves GF-T4:\n    can_serve_skill(full, 0xA411) = {any}\n", .{ can_serve_skill(full, 0xA411) });
+    if (!(can_serve_skill(full, 0xA511) == true)) __t27_assert_fail("\n  full-ladder host serves GF-T32:\n    can_serve_skill(full, 0xA511) = {any}\n", .{ can_serve_skill(full, 0xA511) });
+    if (!(can_serve_skill(full, 0xA311) == true)) __t27_assert_fail("\n  full-ladder host serves GF-T64:\n    can_serve_skill(full, 0xA311) = {any}\n", .{ can_serve_skill(full, 0xA311) });
+    if (!(can_serve_skill(full, 0xA211) == true)) __t27_assert_fail("\n  full-ladder host serves GF-T128:\n    can_serve_skill(full, 0xA211) = {any}\n", .{ can_serve_skill(full, 0xA211) });
     const gft16 = make_card(family_bit(FMT_GFT), 16);
-    if (!(can_serve_skill(gft16, 0xA311) == false)) @panic("a GF-T16-only host rejects a GF-T64 task");
-    if (!(can_serve_skill(gft16, 0xA611) == true)) @panic("but still serves GF-T16");
+    if (!(can_serve_skill(gft16, 0xA311) == false)) __t27_assert_fail("\n  a GF-T16-only host rejects a GF-T64 task:\n    can_serve_skill(gft16, 0xA311) = {any}\n", .{ can_serve_skill(gft16, 0xA311) });
+    if (!(can_serve_skill(gft16, 0xA611) == true)) __t27_assert_fail("\n  but still serves GF-T16:\n    can_serve_skill(gft16, 0xA611) = {any}\n", .{ can_serve_skill(gft16, 0xA611) });
     const bin16 = make_card(family_bit(FMT_GF_BINARY), 16 | 64);
-    if (!(can_serve_skill(bin16, 0xA311) == false)) @panic("a binary-GF host does NOT serve a GF-T64 task (bug fixed)");
-    if (!(can_serve_skill(bin16, 0x1611) == true)) @panic("binary GF16 still serves its own binary skill");
+    if (!(can_serve_skill(bin16, 0xA311) == false)) __t27_assert_fail("\n  a binary-GF host does NOT serve a GF-T64 task (bug fixed):\n    can_serve_skill(bin16, 0xA311) = {any}\n", .{ can_serve_skill(bin16, 0xA311) });
+    if (!(can_serve_skill(bin16, 0x1611) == true)) __t27_assert_fail("\n  binary GF16 still serves its own binary skill:\n    can_serve_skill(bin16, 0x1611) = {any}\n", .{ can_serve_skill(bin16, 0x1611) });
 }
 test "op_advertisement" {
     const mulonly: u32 = make_card_ops(family_bit(FMT_GFT), 16, op_bit(GF_OP_MUL));
-    if (!(hosts_op(mulonly, GF_OP_MUL) == true)) @panic("hosts mul");
-    if (!(hosts_op(mulonly, GF_OP_ADD) == false)) @panic("does NOT host add");
-    if (!(can_serve_op(mulonly, FMT_GFT, 16, GF_OP_MUL) == true)) @panic("GF-T16 mul served");
-    if (!(can_serve_op(mulonly, FMT_GFT, 16, GF_OP_ADD) == false)) @panic("GF-T16 add NOT served (op)");
-    if (!(can_serve_op(mulonly, FMT_GF_BINARY, 16, GF_OP_MUL) == false)) @panic("wrong family still rejected");
+    if (!(hosts_op(mulonly, GF_OP_MUL) == true)) __t27_assert_fail("\n  hosts mul:\n    hosts_op(mulonly, GF_OP_MUL) = {any}\n", .{ hosts_op(mulonly, GF_OP_MUL) });
+    if (!(hosts_op(mulonly, GF_OP_ADD) == false)) __t27_assert_fail("\n  does NOT host add:\n    hosts_op(mulonly, GF_OP_ADD) = {any}\n", .{ hosts_op(mulonly, GF_OP_ADD) });
+    if (!(can_serve_op(mulonly, FMT_GFT, 16, GF_OP_MUL) == true)) __t27_assert_fail("\n  GF-T16 mul served:\n    can_serve_op(mulonly, FMT_GFT, 16, GF_OP_MUL) = {any}\n", .{ can_serve_op(mulonly, FMT_GFT, 16, GF_OP_MUL) });
+    if (!(can_serve_op(mulonly, FMT_GFT, 16, GF_OP_ADD) == false)) __t27_assert_fail("\n  GF-T16 add NOT served (op):\n    can_serve_op(mulonly, FMT_GFT, 16, GF_OP_ADD) = {any}\n", .{ can_serve_op(mulonly, FMT_GFT, 16, GF_OP_ADD) });
+    if (!(can_serve_op(mulonly, FMT_GF_BINARY, 16, GF_OP_MUL) == false)) __t27_assert_fail("\n  wrong family still rejected:\n    can_serve_op(mulonly, FMT_GF_BINARY, 16, GF_OP_MUL) = {any}\n", .{ can_serve_op(mulonly, FMT_GF_BINARY, 16, GF_OP_MUL) });
 }
 test "route_skill_with_op" {
     const both: u32 = make_card_ops(family_bit(FMT_GFT), 8 | 16, op_bit(GF_OP_MUL) | op_bit(GF_OP_ADD));
-    if (!(can_serve_skill_op(both, 0xA611) == true)) @panic("hosts GF-T16 mul");
-    if (!(can_serve_skill_op(both, 0xA610) == true)) @panic("hosts GF-T16 add");
+    if (!(can_serve_skill_op(both, 0xA611) == true)) __t27_assert_fail("\n  hosts GF-T16 mul:\n    can_serve_skill_op(both, 0xA611) = {any}\n", .{ can_serve_skill_op(both, 0xA611) });
+    if (!(can_serve_skill_op(both, 0xA610) == true)) __t27_assert_fail("\n  hosts GF-T16 add:\n    can_serve_skill_op(both, 0xA610) = {any}\n", .{ can_serve_skill_op(both, 0xA610) });
     const mulonly: u32 = make_card_ops(family_bit(FMT_GFT), 16, op_bit(GF_OP_MUL));
-    if (!(can_serve_skill_op(mulonly, 0xA611) == true)) @panic("mul-only takes the mul skill");
-    if (!(can_serve_skill_op(mulonly, 0xA610) == false)) @panic("mul-only rejects the add skill");
+    if (!(can_serve_skill_op(mulonly, 0xA611) == true)) __t27_assert_fail("\n  mul-only takes the mul skill:\n    can_serve_skill_op(mulonly, 0xA611) = {any}\n", .{ can_serve_skill_op(mulonly, 0xA611) });
+    if (!(can_serve_skill_op(mulonly, 0xA610) == false)) __t27_assert_fail("\n  mul-only rejects the add skill:\n    can_serve_skill_op(mulonly, 0xA610) = {any}\n", .{ can_serve_skill_op(mulonly, 0xA610) });
 }
 test "gft_ladder_op_routing" {
     const m64: u32 = make_card_ops(family_bit(FMT_GFT), 64, op_bit(GF_OP_MUL));
-    if (!(can_serve_skill_op(m64, 0xA311) == true)) @panic("GF-T64 mul-only takes GF-T64 mul");
-    if (!(can_serve_skill_op(m64, 0xA310) == false)) @panic("GF-T64 mul-only rejects GF-T64 add");
+    if (!(can_serve_skill_op(m64, 0xA311) == true)) __t27_assert_fail("\n  GF-T64 mul-only takes GF-T64 mul:\n    can_serve_skill_op(m64, 0xA311) = {any}\n", .{ can_serve_skill_op(m64, 0xA311) });
+    if (!(can_serve_skill_op(m64, 0xA310) == false)) __t27_assert_fail("\n  GF-T64 mul-only rejects GF-T64 add:\n    can_serve_skill_op(m64, 0xA310) = {any}\n", .{ can_serve_skill_op(m64, 0xA310) });
     const full: u32 = make_card_ops(family_bit(FMT_GFT), ((((4 | 8) | 16) | 32) | 64) | 128, op_bit(GF_OP_MUL) | op_bit(GF_OP_ADD));
-    if (!(can_serve_skill_op(full, 0xA411) == true)) @panic("GF-T4 mul");
-    if (!(can_serve_skill_op(full, 0xA410) == true)) @panic("GF-T4 add");
-    if (!(can_serve_skill_op(full, 0xA511) == true)) @panic("GF-T32 mul");
-    if (!(can_serve_skill_op(full, 0xA211) == true)) @panic("GF-T128 mul");
+    if (!(can_serve_skill_op(full, 0xA411) == true)) __t27_assert_fail("\n  GF-T4 mul:\n    can_serve_skill_op(full, 0xA411) = {any}\n", .{ can_serve_skill_op(full, 0xA411) });
+    if (!(can_serve_skill_op(full, 0xA410) == true)) __t27_assert_fail("\n  GF-T4 add:\n    can_serve_skill_op(full, 0xA410) = {any}\n", .{ can_serve_skill_op(full, 0xA410) });
+    if (!(can_serve_skill_op(full, 0xA511) == true)) __t27_assert_fail("\n  GF-T32 mul:\n    can_serve_skill_op(full, 0xA511) = {any}\n", .{ can_serve_skill_op(full, 0xA511) });
+    if (!(can_serve_skill_op(full, 0xA211) == true)) __t27_assert_fail("\n  GF-T128 mul:\n    can_serve_skill_op(full, 0xA211) = {any}\n", .{ can_serve_skill_op(full, 0xA211) });
     const m4: u32 = make_card_ops(family_bit(FMT_GFT), 4, op_bit(GF_OP_MUL) | op_bit(GF_OP_ADD));
-    if (!(can_serve_skill_op(m4, 0xA311) == false)) @panic("GF-T4-only host rejects a GF-T64 mul (wrong rung)");
+    if (!(can_serve_skill_op(m4, 0xA311) == false)) __t27_assert_fail("\n  GF-T4-only host rejects a GF-T64 mul (wrong rung):\n    can_serve_skill_op(m4, 0xA311) = {any}\n", .{ can_serve_skill_op(m4, 0xA311) });
 }

@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 fn get_sent(metrics: u32) u32 {
@@ -34,29 +42,29 @@ fn success_rate(sent: u32, success: u32) u8 {
     }
 }
 test "initial_zero" {
-    if (!(get_sent(0) == 0)) @panic("initial");
+    if (!(get_sent(0) == 0)) __t27_assert_fail("\n  initial:\n    get_sent(0) = {any}\n", .{ get_sent(0) });
 }
 test "inc_sent_works" {
     const m1 = inc_sent(0);
-    if (!(get_sent(m1) == 1)) @panic("inc works");
+    if (!(get_sent(m1) == 1)) __t27_assert_fail("\n  inc works:\n    get_sent(m1) = {any}\n", .{ get_sent(m1) });
 }
 test "inc_recv_works" {
     const m1 = inc_recv(0);
-    if (!(get_recv(m1) == 1)) @panic("inc works");
+    if (!(get_recv(m1) == 1)) __t27_assert_fail("\n  inc works:\n    get_recv(m1) = {any}\n", .{ get_recv(m1) });
 }
 test "inc_success_works" {
     const m1 = inc_success(0);
-    if (!(get_success(m1) == 1)) @panic("inc success");
+    if (!(get_success(m1) == 1)) __t27_assert_fail("\n  inc success:\n    get_success(m1) = {any}\n", .{ get_success(m1) });
 }
 test "success_rate_perfect" {
-    if (!(success_rate(1, 1) == 100)) @panic("100%");
+    if (!(success_rate(1, 1) == 100)) __t27_assert_fail("\n  100%:\n    success_rate(1, 1) = {any}\n", .{ success_rate(1, 1) });
 }
 test "success_rate_zero_sent" {
-    if (!(success_rate(0, 0) == 100)) @panic("none sent = 100%");
+    if (!(success_rate(0, 0) == 100)) __t27_assert_fail("\n  none sent = 100%:\n    success_rate(0, 0) = {any}\n", .{ success_rate(0, 0) });
 }
 test "success_rate_half" {
-    if (!(success_rate(10, 5) == 50)) @panic("50%");
+    if (!(success_rate(10, 5) == 50)) __t27_assert_fail("\n  50%:\n    success_rate(10, 5) = {any}\n", .{ success_rate(10, 5) });
 }
 test "success_rate_zero_success" {
-    if (!(success_rate(10, 0) == 0)) @panic("0%");
+    if (!(success_rate(10, 0) == 0)) __t27_assert_fail("\n  0%:\n    success_rate(10, 0) = {any}\n", .{ success_rate(10, 0) });
 }

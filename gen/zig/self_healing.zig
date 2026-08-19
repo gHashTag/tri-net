@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const RECOVERY_COOLDOWN: u32 = 5000;
@@ -112,108 +120,108 @@ fn update_network_after_recovery(network_state: u32, nodes_recovered: u32, links
 }
 test "create_recovery_state_basic" {
     const state = create_recovery_state(2, 1000, 1, 5);
-    if (!(get_attempts(state) == 2)) @panic("attempts");
-    if (!(get_last_attempt(state) == 1000)) @panic("last attempt");
-    if (!(get_in_progress(state) == 1)) @panic("in progress");
-    if (!(get_success_count(state) == 5)) @panic("success count");
+    if (!(get_attempts(state) == 2)) __t27_assert_fail("\n  attempts:\n    get_attempts(state) = {any}\n", .{ get_attempts(state) });
+    if (!(get_last_attempt(state) == 1000)) __t27_assert_fail("\n  last attempt:\n    get_last_attempt(state) = {any}\n", .{ get_last_attempt(state) });
+    if (!(get_in_progress(state) == 1)) __t27_assert_fail("\n  in progress:\n    get_in_progress(state) = {any}\n", .{ get_in_progress(state) });
+    if (!(get_success_count(state) == 5)) __t27_assert_fail("\n  success count:\n    get_success_count(state) = {any}\n", .{ get_success_count(state) });
 }
 test "can_recover_true" {
     const state = create_recovery_state(1, 1000, 0, 2);
-    if (!(can_recover(state, 8000) == true)) @panic("can recover");
+    if (!(can_recover(state, 8000) == true)) __t27_assert_fail("\n  can recover:\n    can_recover(state, 8000) = {any}\n", .{ can_recover(state, 8000) });
 }
 test "can_recover_max_attempts" {
     const state = create_recovery_state(3, 1000, 0, 0);
-    if (!(can_recover(state, 8000) == false)) @panic("max attempts reached");
+    if (!(can_recover(state, 8000) == false)) __t27_assert_fail("\n  max attempts reached:\n    can_recover(state, 8000) = {any}\n", .{ can_recover(state, 8000) });
 }
 test "can_recover_in_progress" {
     const state = create_recovery_state(1, 1000, 1, 0);
-    if (!(can_recover(state, 8000) == false)) @panic("already in progress");
+    if (!(can_recover(state, 8000) == false)) __t27_assert_fail("\n  already in progress:\n    can_recover(state, 8000) = {any}\n", .{ can_recover(state, 8000) });
 }
 test "can_recover_cooldown" {
     const state = create_recovery_state(1, 7000, 0, 0);
-    if (!(can_recover(state, 8000) == false)) @panic("cooldown not met");
+    if (!(can_recover(state, 8000) == false)) __t27_assert_fail("\n  cooldown not met:\n    can_recover(state, 8000) = {any}\n", .{ can_recover(state, 8000) });
 }
 test "start_recovery_sets_flag" {
     const state = create_recovery_state(1, 1000, 0, 0);
     const new_state = start_recovery(state, 5000);
-    if (!(get_in_progress(new_state) == 1)) @panic("in progress set");
-    if (!(get_last_attempt(new_state) == 5000)) @panic("time updated");
+    if (!(get_in_progress(new_state) == 1)) __t27_assert_fail("\n  in progress set:\n    get_in_progress(new_state) = {any}\n", .{ get_in_progress(new_state) });
+    if (!(get_last_attempt(new_state) == 5000)) __t27_assert_fail("\n  time updated:\n    get_last_attempt(new_state) = {any}\n", .{ get_last_attempt(new_state) });
 }
 test "complete_recovery_success" {
     const state = create_recovery_state(2, 5000, 1, 3);
     const new_state = complete_recovery_success(state);
-    if (!(get_in_progress(new_state) == 0)) @panic("in progress cleared");
-    if (!(get_success_count(new_state) == 4)) @panic("success incremented");
+    if (!(get_in_progress(new_state) == 0)) __t27_assert_fail("\n  in progress cleared:\n    get_in_progress(new_state) = {any}\n", .{ get_in_progress(new_state) });
+    if (!(get_success_count(new_state) == 4)) __t27_assert_fail("\n  success incremented:\n    get_success_count(new_state) = {any}\n", .{ get_success_count(new_state) });
 }
 test "complete_recovery_failure" {
     const state = create_recovery_state(2, 5000, 1, 3);
     const new_state = complete_recovery_failure(state);
-    if (!(get_in_progress(new_state) == 0)) @panic("in progress cleared");
-    if (!(get_attempts(new_state) == 3)) @panic("attempts incremented");
+    if (!(get_in_progress(new_state) == 0)) __t27_assert_fail("\n  in progress cleared:\n    get_in_progress(new_state) = {any}\n", .{ get_in_progress(new_state) });
+    if (!(get_attempts(new_state) == 3)) __t27_assert_fail("\n  attempts incremented:\n    get_attempts(new_state) = {any}\n", .{ get_attempts(new_state) });
 }
 test "reset_recovery_clears" {
     const state = create_recovery_state(3, 5000, 1, 0);
     const new_state = reset_recovery(state);
-    if (!(get_attempts(new_state) == 0)) @panic("attempts cleared");
-    if (!(get_in_progress(new_state) == 0)) @panic("in progress cleared");
+    if (!(get_attempts(new_state) == 0)) __t27_assert_fail("\n  attempts cleared:\n    get_attempts(new_state) = {any}\n", .{ get_attempts(new_state) });
+    if (!(get_in_progress(new_state) == 0)) __t27_assert_fail("\n  in progress cleared:\n    get_in_progress(new_state) = {any}\n", .{ get_in_progress(new_state) });
 }
 test "is_recovery_failed_max" {
     const state = create_recovery_state(3, 5000, 0, 0);
-    if (!(is_recovery_failed(state) == true)) @panic("recovery failed");
+    if (!(is_recovery_failed(state) == true)) __t27_assert_fail("\n  recovery failed:\n    is_recovery_failed(state) = {any}\n", .{ is_recovery_failed(state) });
 }
 test "is_recovery_failed_below_max" {
     const state = create_recovery_state(2, 5000, 0, 0);
-    if (!(is_recovery_failed(state) == false)) @panic("recovery not failed");
+    if (!(is_recovery_failed(state) == false)) __t27_assert_fail("\n  recovery not failed:\n    is_recovery_failed(state) = {any}\n", .{ is_recovery_failed(state) });
 }
 test "create_network_state_basic" {
     const state = create_network_state(7, 8, 2, 12);
-    if (!(get_healthy_nodes(state) == 7)) @panic("healthy nodes");
-    if (!(get_total_nodes(state) == 8)) @panic("total nodes");
-    if (!(get_degraded_links(state) == 2)) @panic("degraded links");
-    if (!(get_total_links(state) == 12)) @panic("total links");
+    if (!(get_healthy_nodes(state) == 7)) __t27_assert_fail("\n  healthy nodes:\n    get_healthy_nodes(state) = {any}\n", .{ get_healthy_nodes(state) });
+    if (!(get_total_nodes(state) == 8)) __t27_assert_fail("\n  total nodes:\n    get_total_nodes(state) = {any}\n", .{ get_total_nodes(state) });
+    if (!(get_degraded_links(state) == 2)) __t27_assert_fail("\n  degraded links:\n    get_degraded_links(state) = {any}\n", .{ get_degraded_links(state) });
+    if (!(get_total_links(state) == 12)) __t27_assert_fail("\n  total links:\n    get_total_links(state) = {any}\n", .{ get_total_links(state) });
 }
 test "network_health_percent_calculates" {
     const state = create_network_state(6, 8, 2, 12);
-    if (!(network_health_percent(state) == 75)) @panic("75% healthy");
+    if (!(network_health_percent(state) == 75)) __t27_assert_fail("\n  75% healthy:\n    network_health_percent(state) = {any}\n", .{ network_health_percent(state) });
 }
 test "network_health_percent_zero_nodes" {
     const state = create_network_state(0, 0, 0, 0);
-    if (!(network_health_percent(state) == 100)) @panic("100% when no nodes");
+    if (!(network_health_percent(state) == 100)) __t27_assert_fail("\n  100% when no nodes:\n    network_health_percent(state) = {any}\n", .{ network_health_percent(state) });
 }
 test "is_network_healthy_true" {
     const state = create_network_state(7, 8, 1, 12);
-    if (!(is_network_healthy(state) == true)) @panic("network healthy");
+    if (!(is_network_healthy(state) == true)) __t27_assert_fail("\n  network healthy:\n    is_network_healthy(state) = {any}\n", .{ is_network_healthy(state) });
 }
 test "is_network_healthy_false" {
     const state = create_network_state(4, 8, 4, 12);
-    if (!(is_network_healthy(state) == false)) @panic("network not healthy");
+    if (!(is_network_healthy(state) == false)) __t27_assert_fail("\n  network not healthy:\n    is_network_healthy(state) = {any}\n", .{ is_network_healthy(state) });
 }
 test "is_network_degraded" {
     const state = create_network_state(5, 8, 3, 12);
-    if (!(is_network_degraded(state) == true)) @panic("network degraded");
+    if (!(is_network_degraded(state) == true)) __t27_assert_fail("\n  network degraded:\n    is_network_degraded(state) = {any}\n", .{ is_network_degraded(state) });
 }
 test "is_network_critical" {
     const state = create_network_state(3, 8, 5, 12);
-    if (!(is_network_critical(state) == true)) @panic("network critical");
+    if (!(is_network_critical(state) == true)) __t27_assert_fail("\n  network critical:\n    is_network_critical(state) = {any}\n", .{ is_network_critical(state) });
 }
 test "should_initiate_healing_needed" {
     const rec_state = create_recovery_state(1, 1000, 0, 2);
     const net_state = create_network_state(5, 8, 3, 12);
-    if (!(should_initiate_healing(rec_state, net_state, 8000) == 1)) @panic("start healing");
+    if (!(should_initiate_healing(rec_state, net_state, 8000) == 1)) __t27_assert_fail("\n  start healing:\n    should_initiate_healing(rec_state, net_state, 8000) = {any}\n", .{ should_initiate_healing(rec_state, net_state, 8000) });
 }
 test "should_initiate_healing_not_needed" {
     const rec_state = create_recovery_state(1, 1000, 0, 2);
     const net_state = create_network_state(7, 8, 1, 12);
-    if (!(should_initiate_healing(rec_state, net_state, 8000) == 0)) @panic("no healing");
+    if (!(should_initiate_healing(rec_state, net_state, 8000) == 0)) __t27_assert_fail("\n  no healing:\n    should_initiate_healing(rec_state, net_state, 8000) = {any}\n", .{ should_initiate_healing(rec_state, net_state, 8000) });
 }
 test "should_initiate_healing_wait" {
     const rec_state = create_recovery_state(1, 7000, 0, 2);
     const net_state = create_network_state(5, 8, 3, 12);
-    if (!(should_initiate_healing(rec_state, net_state, 8000) == 2)) @panic("wait cooldown");
+    if (!(should_initiate_healing(rec_state, net_state, 8000) == 2)) __t27_assert_fail("\n  wait cooldown:\n    should_initiate_healing(rec_state, net_state, 8000) = {any}\n", .{ should_initiate_healing(rec_state, net_state, 8000) });
 }
 test "update_network_after_recovery_improves" {
     const state = create_network_state(5, 8, 4, 12);
     const new_state = update_network_after_recovery(state, 2, 1);
-    if (!(get_healthy_nodes(new_state) == 7)) @panic("nodes recovered");
-    if (!(get_degraded_links(new_state) == 3)) @panic("links restored");
+    if (!(get_healthy_nodes(new_state) == 7)) __t27_assert_fail("\n  nodes recovered:\n    get_healthy_nodes(new_state) = {any}\n", .{ get_healthy_nodes(new_state) });
+    if (!(get_degraded_links(new_state) == 3)) __t27_assert_fail("\n  links restored:\n    get_degraded_links(new_state) = {any}\n", .{ get_degraded_links(new_state) });
 }

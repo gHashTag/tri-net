@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const PPM: u32 = 1000000;
@@ -35,39 +43,39 @@ fn reward_units(node_bytes: u32, round_bytes: u32, pool: u32) u64 {
 test "share_proportional" {
     const half = reward_share_ppm(100, 200);
     const quarter = reward_share_ppm(50, 200);
-    if (!(half == 500000)) @panic("half");
-    if (!(quarter == 250000)) @panic("quarter");
-    if (!(half == (quarter + quarter))) @panic("2x bytes = 2x share");
+    if (!(half == 500000)) __t27_assert_fail("\n  half:\n    half = {any}\n", .{ half });
+    if (!(quarter == 250000)) __t27_assert_fail("\n  quarter:\n    quarter = {any}\n", .{ quarter });
+    if (!(half == (quarter + quarter))) __t27_assert_fail("\n  2x bytes = 2x share:\n    half = {any}\n    quarter + quarter = {any}\n", .{ half, quarter + quarter });
 }
 test "share_full" {
-    if (!(reward_share_ppm(200, 200) == PPM)) @panic("full share");
+    if (!(reward_share_ppm(200, 200) == PPM)) __t27_assert_fail("\n  full share:\n    reward_share_ppm(200, 200) = {any}\n    PPM = {any}\n", .{ reward_share_ppm(200, 200), PPM });
 }
 test "share_zero_guard" {
-    if (!(reward_share_ppm(5, 0) == 0)) @panic("empty round pays nobody");
-    if (!(reward_share_ppm(0, 200) == 0)) @panic("no work no share");
+    if (!(reward_share_ppm(5, 0) == 0)) __t27_assert_fail("\n  empty round pays nobody:\n    reward_share_ppm(5, 0) = {any}\n", .{ reward_share_ppm(5, 0) });
+    if (!(reward_share_ppm(0, 200) == 0)) __t27_assert_fail("\n  no work no share:\n    reward_share_ppm(0, 200) = {any}\n", .{ reward_share_ppm(0, 200) });
 }
 test "units_no_free_mint" {
-    if (!(reward_units(0, 200, 1000) == 0)) @panic("no free mint");
+    if (!(reward_units(0, 200, 1000) == 0)) __t27_assert_fail("\n  no free mint:\n    reward_units(0, 200, 1000) = {any}\n", .{ reward_units(0, 200, 1000) });
 }
 test "units_proportional" {
-    if (!(reward_units(100, 200, 1000) == 500)) @panic("half of pool");
+    if (!(reward_units(100, 200, 1000) == 500)) __t27_assert_fail("\n  half of pool:\n    reward_units(100, 200, 1000) = {any}\n", .{ reward_units(100, 200, 1000) });
 }
 test "units_conservation" {
     const a = reward_units(100, 300, 1000);
     const b = reward_units(200, 300, 1000);
-    if (!(a == 333)) @panic("node a");
-    if (!(b == 666)) @panic("node b");
-    if (!((a + b) <= @as(u64, @intCast(1000)))) @panic("sum <= pool");
+    if (!(a == 333)) __t27_assert_fail("\n  node a:\n    a = {any}\n", .{ a });
+    if (!(b == 666)) __t27_assert_fail("\n  node b:\n    b = {any}\n", .{ b });
+    if (!((a + b) <= @as(u64, @intCast(1000)))) __t27_assert_fail("\n  sum <= pool:\n    a + b = {any}\n    @as(u64, @intCast(1000)) = {any}\n", .{ a + b, @as(u64, @intCast(1000)) });
 }
 test "round_monotonic" {
     const r0 = round_add(0, 19974);
     const r1 = round_add(r0, 40000);
-    if (!(r1 > r0)) @panic("monotonic");
-    if (!(r0 == 19974)) @panic("epoch1");
-    if (!(r1 == 59974)) @panic("epoch1+2");
+    if (!(r1 > r0)) __t27_assert_fail("\n  monotonic:\n    r1 = {any}\n    r0 = {any}\n", .{ r1, r0 });
+    if (!(r0 == 19974)) __t27_assert_fail("\n  epoch1:\n    r0 = {any}\n", .{ r0 });
+    if (!(r1 == 59974)) __t27_assert_fail("\n  epoch1+2:\n    r1 = {any}\n", .{ r1 });
 }
 test "round_saturates" {
-    if (!(round_add(0xFFFFFF00, 0x0000FFFF) == 0xFFFFFFFF)) @panic("saturates");
+    if (!(round_add(0xFFFFFF00, 0x0000FFFF) == 0xFFFFFFFF)) __t27_assert_fail("\n  saturates:\n    round_add(0xFFFFFF00, 0x0000FFFF) = {any}\n", .{ round_add(0xFFFFFF00, 0x0000FFFF) });
 }
 fn weighted_contrib(node_bytes: u32, quality: u32) u64 {
     return @as(u64, @intCast(node_bytes)) * @as(u64, @intCast(quality));
@@ -90,30 +98,30 @@ test "weighted_quality_rewards_coverage" {
     const wt = round_add_weighted(round_add_weighted(0, 1000, 47), 1000, 10);
     const a = reward_weighted(1000, 47, wt, 1000);
     const b = reward_weighted(1000, 10, wt, 1000);
-    if (!(a > b)) @panic("better link earns more per byte");
-    if (!(wt == @as(u64, @intCast(57000)))) @panic("weighted total = 47000 + 10000");
+    if (!(a > b)) __t27_assert_fail("\n  better link earns more per byte:\n    a = {any}\n    b = {any}\n", .{ a, b });
+    if (!(wt == @as(u64, @intCast(57000)))) __t27_assert_fail("\n  weighted total = 47000 + 10000:\n    wt = {any}\n    @as(u64, @intCast(57000)) = {any}\n", .{ wt, @as(u64, @intCast(57000)) });
 }
 test "weighted_equal_quality_is_proportional" {
     const wt = round_add_weighted(round_add_weighted(0, 100, 5), 200, 5);
     const a = reward_weighted(100, 5, wt, 1000);
     const b = reward_weighted(200, 5, wt, 1000);
-    if (!(a == 333)) @panic("third");
-    if (!(b == 666)) @panic("two thirds");
+    if (!(a == 333)) __t27_assert_fail("\n  third:\n    a = {any}\n", .{ a });
+    if (!(b == 666)) __t27_assert_fail("\n  two thirds:\n    b = {any}\n", .{ b });
 }
 test "weighted_conservation" {
     const wt = round_add_weighted(round_add_weighted(0, 1000, 47), 500, 30);
     const a = reward_weighted(1000, 47, wt, 10000);
     const b = reward_weighted(500, 30, wt, 10000);
-    if (!((a + b) <= @as(u64, @intCast(10000)))) @panic("sum <= pool");
+    if (!((a + b) <= @as(u64, @intCast(10000)))) __t27_assert_fail("\n  sum <= pool:\n    a + b = {any}\n    @as(u64, @intCast(10000)) = {any}\n", .{ a + b, @as(u64, @intCast(10000)) });
 }
 test "weighted_zero_quality" {
     const wt = round_add_weighted(0, 1000, 47);
-    if (!(reward_weighted(1000, 0, wt, 1000) == 0)) @panic("dead link no reward");
+    if (!(reward_weighted(1000, 0, wt, 1000) == 0)) __t27_assert_fail("\n  dead link no reward:\n    reward_weighted(1000, 0, wt, 1000) = {any}\n", .{ reward_weighted(1000, 0, wt, 1000) });
 }
 test "weighted_large_total_not_zero" {
     const big = @as(u64, @intCast(4294967296));
     const r = reward_weighted(1000000, 1000, big, 1000);
-    if (!(r > @as(u64, @intCast(0)))) @panic("large total not read as zero");
+    if (!(r > @as(u64, @intCast(0)))) __t27_assert_fail("\n  large total not read as zero:\n    r = {any}\n    @as(u64, @intCast(0)) = {any}\n", .{ r, @as(u64, @intCast(0)) });
 }
 fn snr_to_quality(snr_db: u32) u32 {
     if (snr_db <= SNR_FLOOR) {
@@ -125,17 +133,17 @@ fn snr_to_quality(snr_db: u32) u32 {
     }
 }
 test "snr_quality_floor" {
-    if (!(snr_to_quality(1) == 0)) @panic("1 dB unusable");
-    if (!(snr_to_quality(3) == 0)) @panic("at floor unusable");
+    if (!(snr_to_quality(1) == 0)) __t27_assert_fail("\n  1 dB unusable:\n    snr_to_quality(1) = {any}\n", .{ snr_to_quality(1) });
+    if (!(snr_to_quality(3) == 0)) __t27_assert_fail("\n  at floor unusable:\n    snr_to_quality(3) = {any}\n", .{ snr_to_quality(3) });
 }
 test "snr_quality_measured" {
-    if (!(snr_to_quality(34) == 31)) @panic("strong link (.13->.12 -10 dB)");
-    if (!(snr_to_quality(5) == 2)) @panic("weak link (.13->.12 -50 dB)");
-    if (!(snr_to_quality(34) > snr_to_quality(5))) @panic("stronger link -> higher quality");
+    if (!(snr_to_quality(34) == 31)) __t27_assert_fail("\n  strong link (.13->.12 -10 dB):\n    snr_to_quality(34) = {any}\n", .{ snr_to_quality(34) });
+    if (!(snr_to_quality(5) == 2)) __t27_assert_fail("\n  weak link (.13->.12 -50 dB):\n    snr_to_quality(5) = {any}\n", .{ snr_to_quality(5) });
+    if (!(snr_to_quality(34) > snr_to_quality(5))) __t27_assert_fail("\n  stronger link -> higher quality:\n    snr_to_quality(34) = {any}\n    snr_to_quality(5) = {any}\n", .{ snr_to_quality(34), snr_to_quality(5) });
 }
 test "snr_quality_ceiling" {
-    if (!(snr_to_quality(100) == 37)) @panic("saturates at CEIL-FLOOR");
-    if (!(snr_to_quality(40) == 37)) @panic("at ceiling");
+    if (!(snr_to_quality(100) == 37)) __t27_assert_fail("\n  saturates at CEIL-FLOOR:\n    snr_to_quality(100) = {any}\n", .{ snr_to_quality(100) });
+    if (!(snr_to_quality(40) == 37)) __t27_assert_fail("\n  at ceiling:\n    snr_to_quality(40) = {any}\n", .{ snr_to_quality(40) });
 }
 test "snr_drives_reward" {
     const qa = snr_to_quality(34);
@@ -143,5 +151,5 @@ test "snr_drives_reward" {
     const wt = round_add_weighted(round_add_weighted(0, 10000, qa), 10000, qb);
     const ra = reward_weighted(10000, qa, wt, 1000);
     const rb = reward_weighted(10000, qb, wt, 1000);
-    if (!(ra > rb)) @panic("better coverage earns more $TRI");
+    if (!(ra > rb)) __t27_assert_fail("\n  better coverage earns more $TRI:\n    ra = {any}\n    rb = {any}\n", .{ ra, rb });
 }

@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const OPT_NONE: u32 = 0;
@@ -84,87 +92,87 @@ fn analyze_bit_width(min_val: u32, max_val: u32) u8 {
 }
 test "estimate_complexity_simple" {
     const complexity = estimate_complexity(10, 5, 16);
-    if (!(complexity == 280)) @panic("simple complexity");
+    if (!(complexity == 280)) __t27_assert_fail("\n  simple complexity:\n    complexity = {any}\n", .{ complexity });
 }
 test "estimate_complexity_high" {
     const complexity = estimate_complexity(50, 20, 32);
-    if (!(complexity == 1060)) @panic("high complexity");
+    if (!(complexity == 1060)) __t27_assert_fail("\n  high complexity:\n    complexity = {any}\n", .{ complexity });
 }
 test "calculate_sharing_savings_half" {
     const savings = calculate_sharing_savings(1000, 2);
-    if (!(savings == 500)) @panic("50% savings");
+    if (!(savings == 500)) __t27_assert_fail("\n  50% savings:\n    savings = {any}\n", .{ savings });
 }
 test "calculate_sharing_savings_quarter" {
     const savings = calculate_sharing_savings(1000, 4);
-    if (!(savings == 750)) @panic("75% savings");
+    if (!(savings == 750)) __t27_assert_fail("\n  75% savings:\n    savings = {any}\n", .{ savings });
 }
 test "calculate_sharing_savings_zero_factor" {
     const savings = calculate_sharing_savings(1000, 0);
-    if (!(savings == 0)) @panic("zero factor = no savings");
+    if (!(savings == 0)) __t27_assert_fail("\n  zero factor = no savings:\n    savings = {any}\n", .{ savings });
 }
 test "calculate_bitwidth_savings_reduces" {
     const savings = calculate_bitwidth_savings(32, 16, 100);
-    if (!(savings == 200)) @panic("200 bytes saved");
+    if (!(savings == 200)) __t27_assert_fail("\n  200 bytes saved:\n    savings = {any}\n", .{ savings });
 }
 test "calculate_bitwidth_savings_no_reduction" {
     const savings = calculate_bitwidth_savings(16, 32, 100);
-    if (!(savings == 0)) @panic("no reduction = no savings");
+    if (!(savings == 0)) __t27_assert_fail("\n  no reduction = no savings:\n    savings = {any}\n", .{ savings });
 }
 test "const_folding_applicable_high_ratio" {
-    if (!(const_folding_applicable(100, 50) == true)) @panic("50% constants");
+    if (!(const_folding_applicable(100, 50) == true)) __t27_assert_fail("\n  50% constants:\n    const_folding_applicable(100, 50) = {any}\n", .{ const_folding_applicable(100, 50) });
 }
 test "const_folding_applicable_low_ratio" {
-    if (!(const_folding_applicable(100, 20) == false)) @panic("20% constants");
+    if (!(const_folding_applicable(100, 20) == false)) __t27_assert_fail("\n  20% constants:\n    const_folding_applicable(100, 20) = {any}\n", .{ const_folding_applicable(100, 20) });
 }
 test "fifo_to_ram_applicable_yes" {
-    if (!(fifo_to_ram_applicable(32, 16) == true)) @panic("deep+wide");
+    if (!(fifo_to_ram_applicable(32, 16) == true)) __t27_assert_fail("\n  deep+wide:\n    fifo_to_ram_applicable(32, 16) = {any}\n", .{ fifo_to_ram_applicable(32, 16) });
 }
 test "fifo_to_ram_applicable_shallow" {
-    if (!(fifo_to_ram_applicable(8, 16) == false)) @panic("too shallow");
+    if (!(fifo_to_ram_applicable(8, 16) == false)) __t27_assert_fail("\n  too shallow:\n    fifo_to_ram_applicable(8, 16) = {any}\n", .{ fifo_to_ram_applicable(8, 16) });
 }
 test "fifo_to_ram_applicable_narrow" {
-    if (!(fifo_to_ram_applicable(32, 4) == false)) @panic("too narrow");
+    if (!(fifo_to_ram_applicable(32, 4) == false)) __t27_assert_fail("\n  too narrow:\n    fifo_to_ram_applicable(32, 4) = {any}\n", .{ fifo_to_ram_applicable(32, 4) });
 }
 test "create_resource_type_correct" {
     const res = create_resource_type(1, 5000);
-    if (!(extract_resource_type(res) == 1)) @panic("type");
-    if (!(extract_resource_amount(res) == 5000)) @panic("amount");
+    if (!(extract_resource_type(res) == 1)) __t27_assert_fail("\n  type:\n    extract_resource_type(res) = {any}\n", .{ extract_resource_type(res) });
+    if (!(extract_resource_amount(res) == 5000)) __t27_assert_fail("\n  amount:\n    extract_resource_amount(res) = {any}\n", .{ extract_resource_amount(res) });
 }
 test "create_optimization_result_correct" {
     const result = create_optimization_result(2, 100, 70);
-    if (!(extract_strategy(result) == 2)) @panic("strategy");
-    if (!(extract_original(result) == 100)) @panic("original");
-    if (!(extract_optimized(result) == 70)) @panic("optimized");
+    if (!(extract_strategy(result) == 2)) __t27_assert_fail("\n  strategy:\n    extract_strategy(result) = {any}\n", .{ extract_strategy(result) });
+    if (!(extract_original(result) == 100)) __t27_assert_fail("\n  original:\n    extract_original(result) = {any}\n", .{ extract_original(result) });
+    if (!(extract_optimized(result) == 70)) __t27_assert_fail("\n  optimized:\n    extract_optimized(result) = {any}\n", .{ extract_optimized(result) });
 }
 test "calculate_savings_percentage_30" {
     const pct = calculate_savings_percentage(100, 70);
-    if (!(pct == 30)) @panic("30% savings");
+    if (!(pct == 30)) __t27_assert_fail("\n  30% savings:\n    pct = {any}\n", .{ pct });
 }
 test "calculate_savings_percentage_zero" {
     const pct = calculate_savings_percentage(100, 100);
-    if (!(pct == 0)) @panic("0% savings");
+    if (!(pct == 0)) __t27_assert_fail("\n  0% savings:\n    pct = {any}\n", .{ pct });
 }
 test "calculate_savings_percentage_negative" {
     const pct = calculate_savings_percentage(70, 100);
-    if (!(pct == 0)) @panic("negative = 0%");
+    if (!(pct == 0)) __t27_assert_fail("\n  negative = 0%:\n    pct = {any}\n", .{ pct });
 }
 test "optimization_worthwhile_yes" {
     const result = create_optimization_result(1, 100, 80);
-    if (!(optimization_worthwhile(result) == true)) @panic("20% savings");
+    if (!(optimization_worthwhile(result) == true)) __t27_assert_fail("\n  20% savings:\n    optimization_worthwhile(result) = {any}\n", .{ optimization_worthwhile(result) });
 }
 test "optimization_worthwhile_no" {
     const result = create_optimization_result(1, 100, 95);
-    if (!(optimization_worthwhile(result) == false)) @panic("5% savings");
+    if (!(optimization_worthwhile(result) == false)) __t27_assert_fail("\n  5% savings:\n    optimization_worthwhile(result) = {any}\n", .{ optimization_worthwhile(result) });
 }
 test "analyze_bit_width_8bit" {
     const bits = analyze_bit_width(0, 255);
-    if (!(bits == 8)) @panic("8-bit range");
+    if (!(bits == 8)) __t27_assert_fail("\n  8-bit range:\n    bits = {any}\n", .{ bits });
 }
 test "analyze_bit_width_16bit" {
     const bits = analyze_bit_width(0, 65535);
-    if (!(bits == 16)) @panic("16-bit range");
+    if (!(bits == 16)) __t27_assert_fail("\n  16-bit range:\n    bits = {any}\n", .{ bits });
 }
 test "analyze_bit_width_32bit" {
     const bits = analyze_bit_width(0, 0xFFFFFFFF);
-    if (!(bits == 32)) @panic("32-bit range");
+    if (!(bits == 32)) __t27_assert_fail("\n  32-bit range:\n    bits = {any}\n", .{ bits });
 }

@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_QUEUE_SIZE: u32 = 16;
@@ -61,39 +69,39 @@ fn ticks_to_milliseconds(ticks: u32) u32 {
 }
 test "create_queue_correct_layout" {
     const q = create_queue(5, 10, 15);
-    if (!(queue_count(q) == 5)) @panic("count");
-    if (!(queue_head(q) == 10)) @panic("head");
-    if (!(queue_tail(q) == 15)) @panic("tail");
+    if (!(queue_count(q) == 5)) __t27_assert_fail("\n  count:\n    queue_count(q) = {any}\n", .{ queue_count(q) });
+    if (!(queue_head(q) == 10)) __t27_assert_fail("\n  head:\n    queue_head(q) = {any}\n", .{ queue_head(q) });
+    if (!(queue_tail(q) == 15)) __t27_assert_fail("\n  tail:\n    queue_tail(q) = {any}\n", .{ queue_tail(q) });
 }
 test "queue_enqueue_increases_count" {
     const q = create_queue(0, 0, 0);
     const q2 = queue_enqueue(q);
-    if (!(queue_count(q2) == 1)) @panic("count increased");
-    if (!(queue_tail(q2) == 1)) @panic("tail advanced");
+    if (!(queue_count(q2) == 1)) __t27_assert_fail("\n  count increased:\n    queue_count(q2) = {any}\n", .{ queue_count(q2) });
+    if (!(queue_tail(q2) == 1)) __t27_assert_fail("\n  tail advanced:\n    queue_tail(q2) = {any}\n", .{ queue_tail(q2) });
 }
 test "queue_enqueue_full" {
     const q = create_queue(MAX_QUEUE_SIZE, 0, MAX_QUEUE_SIZE - 1);
     const q2 = queue_enqueue(q);
-    if (!(queue_count(q2) == MAX_QUEUE_SIZE)) @panic("still full");
+    if (!(queue_count(q2) == MAX_QUEUE_SIZE)) __t27_assert_fail("\n  still full:\n    queue_count(q2) = {any}\n    MAX_QUEUE_SIZE = {any}\n", .{ queue_count(q2), MAX_QUEUE_SIZE });
 }
 test "queue_dequeue_decreases_count" {
     const q = create_queue(5, 0, 5);
     const q2 = queue_dequeue(q);
-    if (!(queue_count(q2) == 4)) @panic("count decreased");
-    if (!(queue_head(q2) == 1)) @panic("head advanced");
+    if (!(queue_count(q2) == 4)) __t27_assert_fail("\n  count decreased:\n    queue_count(q2) = {any}\n", .{ queue_count(q2) });
+    if (!(queue_head(q2) == 1)) __t27_assert_fail("\n  head advanced:\n    queue_head(q2) = {any}\n", .{ queue_head(q2) });
 }
 test "queue_dequeue_empty" {
     const q = create_queue(0, 0, 0);
     const q2 = queue_dequeue(q);
-    if (!(queue_count(q2) == 0)) @panic("still empty");
+    if (!(queue_count(q2) == 0)) __t27_assert_fail("\n  still empty:\n    queue_count(q2) = {any}\n", .{ queue_count(q2) });
 }
 test "queue_is_full_detects_full" {
     const q = create_queue(MAX_QUEUE_SIZE, 0, MAX_QUEUE_SIZE - 1);
-    if (!(queue_is_full(q) == true)) @panic("is full");
+    if (!(queue_is_full(q) == true)) __t27_assert_fail("\n  is full:\n    queue_is_full(q) = {any}\n", .{ queue_is_full(q) });
 }
 test "queue_is_empty_detects_empty" {
     const q = create_queue(0, 0, 0);
-    if (!(queue_is_empty(q) == true)) @panic("is empty");
+    if (!(queue_is_empty(q) == true)) __t27_assert_fail("\n  is empty:\n    queue_is_empty(q) = {any}\n", .{ queue_is_empty(q) });
 }
 test "queue_max_capacity" {
     const q = create_queue(0, 0, 0);
@@ -113,38 +121,38 @@ test "queue_max_capacity" {
     const q15 = queue_enqueue(q14);
     const q16 = queue_enqueue(q15);
     const q17 = queue_enqueue(q16);
-    if (!(queue_count(q17) == MAX_QUEUE_SIZE)) @panic("max capacity");
-    if (!(queue_is_full(q17) == true)) @panic("is full");
+    if (!(queue_count(q17) == MAX_QUEUE_SIZE)) __t27_assert_fail("\n  max capacity:\n    queue_count(q17) = {any}\n    MAX_QUEUE_SIZE = {any}\n", .{ queue_count(q17), MAX_QUEUE_SIZE });
+    if (!(queue_is_full(q17) == true)) __t27_assert_fail("\n  is full:\n    queue_is_full(q17) = {any}\n", .{ queue_is_full(q17) });
 }
 test "inc_counter_increments" {
     const c = inc_counter(0);
-    if (!(c == 1)) @panic("incremented");
+    if (!(c == 1)) __t27_assert_fail("\n  incremented:\n    c = {any}\n", .{ c });
 }
 test "inc_counter_overflows_at_max" {
     const c = inc_counter(MAX_COUNTER);
-    if (!(c == 0)) @panic("wrapped to zero");
+    if (!(c == 0)) __t27_assert_fail("\n  wrapped to zero:\n    c = {any}\n", .{ c });
 }
 test "counter_will_overflow_detects_max" {
-    if (!(counter_will_overflow(MAX_COUNTER) == true)) @panic("will overflow");
-    if (!(counter_will_overflow(MAX_COUNTER - 1) == false)) @panic("not yet");
+    if (!(counter_will_overflow(MAX_COUNTER) == true)) __t27_assert_fail("\n  will overflow:\n    counter_will_overflow(MAX_COUNTER) = {any}\n", .{ counter_will_overflow(MAX_COUNTER) });
+    if (!(counter_will_overflow(MAX_COUNTER - 1) == false)) __t27_assert_fail("\n  not yet:\n    counter_will_overflow(MAX_COUNTER - 1) = {any}\n", .{ counter_will_overflow(MAX_COUNTER - 1) });
 }
 test "ticks_to_microseconds_converts" {
     const us = ticks_to_microseconds(10);
-    if (!(us == 1000)) @panic("10 ticks = 1000us");
+    if (!(us == 1000)) __t27_assert_fail("\n  10 ticks = 1000us:\n    us = {any}\n", .{ us });
 }
 test "microseconds_to_ticks_converts" {
     const ticks = microseconds_to_ticks(1000);
-    if (!(ticks == 10)) @panic("1000us = 10 ticks");
+    if (!(ticks == 10)) __t27_assert_fail("\n  1000us = 10 ticks:\n    ticks = {any}\n", .{ ticks });
 }
 test "ticks_to_milliseconds_converts" {
     const ms = ticks_to_milliseconds(100);
-    if (!(ms == 10)) @panic("100 ticks = 10ms");
+    if (!(ms == 10)) __t27_assert_fail("\n  100 ticks = 10ms:\n    ms = {any}\n", .{ ms });
 }
 test "timer_conversion_roundtrip" {
     const us = 5000;
     const ticks = microseconds_to_ticks(us);
     const us2 = ticks_to_microseconds(ticks);
-    if (!(us2 >= (us - TIMER_TICK_US))) @panic("roundtrip within 1 tick");
+    if (!(us2 >= (us - TIMER_TICK_US))) __t27_assert_fail("\n  roundtrip within 1 tick:\n    us2 = {any}\n    us - TIMER_TICK_US = {any}\n", .{ us2, us - TIMER_TICK_US });
 }
 test "queue_enqueue_dequeue_balance" {
     const q = create_queue(0, 0, 0);
@@ -152,5 +160,5 @@ test "queue_enqueue_dequeue_balance" {
     const q3 = queue_enqueue(q2);
     const q4 = queue_dequeue(q3);
     const q5 = queue_dequeue(q4);
-    if (!(queue_count(q5) == 0)) @panic("balanced enqueue/dequeue");
+    if (!(queue_count(q5) == 0)) __t27_assert_fail("\n  balanced enqueue/dequeue:\n    queue_count(q5) = {any}\n", .{ queue_count(q5) });
 }

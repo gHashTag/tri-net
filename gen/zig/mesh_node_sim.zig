@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const NODE_1: u32 = 1;
@@ -60,60 +68,60 @@ fn calculate_hops(from: u32, to: u32, topology: u8) u8 {
 }
 test "create_link_quality_correct" {
     const link = create_link_quality(NODE_1, NODE_2, 200);
-    if (!(link_from(link) == NODE_1)) @panic("from node");
-    if (!(link_to(link) == NODE_2)) @panic("to node");
-    if (!(link_quality(link) == 200)) @panic("quality");
+    if (!(link_from(link) == NODE_1)) __t27_assert_fail("\n  from node:\n    link_from(link) = {any}\n    NODE_1 = {any}\n", .{ link_from(link), NODE_1 });
+    if (!(link_to(link) == NODE_2)) __t27_assert_fail("\n  to node:\n    link_to(link) = {any}\n    NODE_2 = {any}\n", .{ link_to(link), NODE_2 });
+    if (!(link_quality(link) == 200)) __t27_assert_fail("\n  quality:\n    link_quality(link) = {any}\n", .{ link_quality(link) });
 }
 test "is_link_good_threshold" {
     const link = create_link_quality(NODE_1, NODE_2, 150);
-    if (!(is_link_good(link, 100) == true)) @panic("above threshold");
-    if (!(is_link_good(link, 200) == false)) @panic("below threshold");
+    if (!(is_link_good(link, 100) == true)) __t27_assert_fail("\n  above threshold:\n    is_link_good(link, 100) = {any}\n", .{ is_link_good(link, 100) });
+    if (!(is_link_good(link, 200) == false)) __t27_assert_fail("\n  below threshold:\n    is_link_good(link, 200) = {any}\n", .{ is_link_good(link, 200) });
 }
 test "create_2node_mesh" {
     const link1, const link2 = create_2node_mesh(180);
-    if (!(link_from(link1) == NODE_1)) @panic("1â2");
-    if (!(link_from(link2) == NODE_2)) @panic("2â1");
-    if (!(link_quality(link1) == 180)) @panic("quality same");
+    if (!(link_from(link1) == NODE_1)) __t27_assert_fail("\n  1â2:\n    link_from(link1) = {any}\n    NODE_1 = {any}\n", .{ link_from(link1), NODE_1 });
+    if (!(link_from(link2) == NODE_2)) __t27_assert_fail("\n  2â1:\n    link_from(link2) = {any}\n    NODE_2 = {any}\n", .{ link_from(link2), NODE_2 });
+    if (!(link_quality(link1) == 180)) __t27_assert_fail("\n  quality same:\n    link_quality(link1) = {any}\n", .{ link_quality(link1) });
 }
 test "create_3node_mesh" {
     const link1, const link2, const link3 = create_3node_mesh(100, 150, 200);
-    if (!(link_to(link1) == NODE_2)) @panic("1â2");
-    if (!(link_to(link2) == NODE_3)) @panic("2â3");
-    if (!(link_to(link3) == NODE_1)) @panic("3â1");
+    if (!(link_to(link1) == NODE_2)) __t27_assert_fail("\n  1â2:\n    link_to(link1) = {any}\n    NODE_2 = {any}\n", .{ link_to(link1), NODE_2 });
+    if (!(link_to(link2) == NODE_3)) __t27_assert_fail("\n  2â3:\n    link_to(link2) = {any}\n    NODE_3 = {any}\n", .{ link_to(link2), NODE_3 });
+    if (!(link_to(link3) == NODE_1)) __t27_assert_fail("\n  3â1:\n    link_to(link3) = {any}\n    NODE_1 = {any}\n", .{ link_to(link3), NODE_1 });
 }
 test "create_4node_line" {
     const link1, const link2, const link3 = create_4node_line(120, 130, 140);
-    if (!(link_from(link1) == NODE_1)) @panic("1â2");
-    if (!(link_from(link2) == NODE_2)) @panic("2â3");
-    if (!(link_from(link3) == NODE_3)) @panic("3â4");
+    if (!(link_from(link1) == NODE_1)) __t27_assert_fail("\n  1â2:\n    link_from(link1) = {any}\n    NODE_1 = {any}\n", .{ link_from(link1), NODE_1 });
+    if (!(link_from(link2) == NODE_2)) __t27_assert_fail("\n  2â3:\n    link_from(link2) = {any}\n    NODE_2 = {any}\n", .{ link_from(link2), NODE_2 });
+    if (!(link_from(link3) == NODE_3)) __t27_assert_fail("\n  3â4:\n    link_from(link3) = {any}\n    NODE_3 = {any}\n", .{ link_from(link3), NODE_3 });
 }
 test "calculate_hops_same_node" {
     const hops = calculate_hops(NODE_1, NODE_1, 2);
-    if (!(hops == 0)) @panic("same node = 0 hops");
+    if (!(hops == 0)) __t27_assert_fail("\n  same node = 0 hops:\n    hops = {any}\n", .{ hops });
 }
 test "calculate_hops_2node" {
     const hops = calculate_hops(NODE_1, NODE_2, 2);
-    if (!(hops == 1)) @panic("2-node = 1 hop");
+    if (!(hops == 1)) __t27_assert_fail("\n  2-node = 1 hop:\n    hops = {any}\n", .{ hops });
 }
 test "calculate_hops_3node_direct" {
     const hops = calculate_hops(NODE_1, NODE_2, 3);
-    if (!(hops == 1)) @panic("3-node direct = 1 hop");
+    if (!(hops == 1)) __t27_assert_fail("\n  3-node direct = 1 hop:\n    hops = {any}\n", .{ hops });
 }
 test "calculate_hops_4node_adjacent" {
     const hops = calculate_hops(NODE_1, NODE_2, 4);
-    if (!(hops == 1)) @panic("4-node adjacent = 1 hop");
+    if (!(hops == 1)) __t27_assert_fail("\n  4-node adjacent = 1 hop:\n    hops = {any}\n", .{ hops });
 }
 test "calculate_hops_4node_2hops" {
     const hops = calculate_hops(NODE_1, NODE_3, 4);
-    if (!(hops == 2)) @panic("4-node 1â3 = 2 hops");
+    if (!(hops == 2)) __t27_assert_fail("\n  4-node 1â3 = 2 hops:\n    hops = {any}\n", .{ hops });
 }
 test "calculate_hops_4node_3hops" {
     const hops = calculate_hops(NODE_1, NODE_4, 4);
-    if (!(hops == 3)) @panic("4-node 1â4 = 3 hops");
+    if (!(hops == 3)) __t27_assert_fail("\n  4-node 1â4 = 3 hops:\n    hops = {any}\n", .{ hops });
 }
 test "link_quality_threshold_check" {
     const link1, _ = create_2node_mesh(50);
-    if (!(is_link_good(link1, 75) == false)) @panic("poor link");
+    if (!(is_link_good(link1, 75) == false)) __t27_assert_fail("\n  poor link:\n    is_link_good(link1, 75) = {any}\n", .{ is_link_good(link1, 75) });
     const link2, _ = create_2node_mesh(100);
-    if (!(is_link_good(link2, 75) == true)) @panic("good link");
+    if (!(is_link_good(link2, 75) == true)) __t27_assert_fail("\n  good link:\n    is_link_good(link2, 75) = {any}\n", .{ is_link_good(link2, 75) });
 }

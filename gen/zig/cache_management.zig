@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_ENTRIES: u32 = 16;
@@ -264,23 +272,23 @@ fn update_stats(stats: u32, hit: u32, evicted: u32) u32 {
 }
 test "cache_entry_roundtrip" {
     const e = create_cache_entry(9, 3, 40, 128);
-    if (!(get_data_id(e) == 9)) @panic("data id");
-    if (!(get_access_count(e) == 3)) @panic("access count");
-    if (!(get_age(e) == 40)) @panic("age");
-    if (!(get_entry_size(e) == 128)) @panic("size");
+    if (!(get_data_id(e) == 9)) __t27_assert_fail("\n  data id:\n    get_data_id(e) = {any}\n", .{ get_data_id(e) });
+    if (!(get_access_count(e) == 3)) __t27_assert_fail("\n  access count:\n    get_access_count(e) = {any}\n", .{ get_access_count(e) });
+    if (!(get_age(e) == 40)) __t27_assert_fail("\n  age:\n    get_age(e) = {any}\n", .{ get_age(e) });
+    if (!(get_entry_size(e) == 128)) __t27_assert_fail("\n  size:\n    get_entry_size(e) = {any}\n", .{ get_entry_size(e) });
 }
 test "access_count_saturates" {
     const e = create_cache_entry(1, 254, 0, 8);
     const e2 = update_access_count(e);
-    if (!(get_access_count(e2) == 255)) @panic("increments");
+    if (!(get_access_count(e2) == 255)) __t27_assert_fail("\n  increments:\n    get_access_count(e2) = {any}\n", .{ get_access_count(e2) });
     const e3 = update_access_count(e2);
-    if (!(get_access_count(e3) == 255)) @panic("saturates at 255");
+    if (!(get_access_count(e3) == 255)) __t27_assert_fail("\n  saturates at 255:\n    get_access_count(e3) = {any}\n", .{ get_access_count(e3) });
 }
 test "eviction_prefers_cold_then_old" {
-    const cache: [16]u32 = .{ create_cache_entry(1,5,10,8), create_cache_entry(2,1,10,8), create_cache_entry(3,1,200,8), create_cache_entry(4,9,250,8), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-    if (!(find_eviction_candidate(cache) == 2)) @panic("coldest then oldest wins");
+    const cache: [16]u32 = .{ create_cache_entry(1, 5, 10, 8), create_cache_entry(2, 1, 10, 8), create_cache_entry(3, 1, 200, 8), create_cache_entry(4, 9, 250, 8), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    if (!(find_eviction_candidate(cache) == 2)) __t27_assert_fail("\n  coldest then oldest wins:\n    find_eviction_candidate(cache) = {any}\n", .{ find_eviction_candidate(cache) });
 }
 test "hit_rate_calculation" {
-    if (!(calculate_hit_rate(75, 100) == 75)) @panic("75 percent");
-    if (!(calculate_hit_rate(0, 0) == 0)) @panic("no accesses is 0");
+    if (!(calculate_hit_rate(75, 100) == 75)) __t27_assert_fail("\n  75 percent:\n    calculate_hit_rate(75, 100) = {any}\n", .{ calculate_hit_rate(75, 100) });
+    if (!(calculate_hit_rate(0, 0) == 0)) __t27_assert_fail("\n  no accesses is 0:\n    calculate_hit_rate(0, 0) = {any}\n", .{ calculate_hit_rate(0, 0) });
 }

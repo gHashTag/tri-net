@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_NODES: u32 = 8;
@@ -230,25 +238,25 @@ fn get_notification_duration(notification: u32) u32 {
 }
 test "quarantine_state_roundtrip" {
     const st = create_quarantine_state(9, STATUS_SUSPENDED, 200, 12345);
-    if (!(get_quarantine_node_id(st) == 9)) @panic("node id");
-    if (!(get_quarantine_status(st) == STATUS_SUSPENDED)) @panic("status");
-    if (!(get_start_time(st) == 200)) @panic("start time");
-    if (!(get_violation_count(st) == 12345)) @panic("violations");
+    if (!(get_quarantine_node_id(st) == 9)) __t27_assert_fail("\n  node id:\n    get_quarantine_node_id(st) = {any}\n", .{ get_quarantine_node_id(st) });
+    if (!(get_quarantine_status(st) == STATUS_SUSPENDED)) __t27_assert_fail("\n  status:\n    get_quarantine_status(st) = {any}\n    STATUS_SUSPENDED = {any}\n", .{ get_quarantine_status(st), STATUS_SUSPENDED });
+    if (!(get_start_time(st) == 200)) __t27_assert_fail("\n  start time:\n    get_start_time(st) = {any}\n", .{ get_start_time(st) });
+    if (!(get_violation_count(st) == 12345)) __t27_assert_fail("\n  violations:\n    get_violation_count(st) = {any}\n", .{ get_violation_count(st) });
 }
 test "quarantine_lifecycle" {
     var st = create_quarantine_state(5, STATUS_NORMAL, 0, 0);
     st = quarantine_node(st, 100);
-    if (!(get_quarantine_status(st) == STATUS_QUARANTINED)) @panic("quarantined");
-    if (!(get_violation_count(st) == 1)) @panic("violation recorded");
-    if (!(should_release_quarantine(st, 100 + QUARANTINE_DURATION) == 1)) @panic("released after the duration");
-    if (!(should_release_quarantine(st, 100) == 0)) @panic("held before the duration");
+    if (!(get_quarantine_status(st) == STATUS_QUARANTINED)) __t27_assert_fail("\n  quarantined:\n    get_quarantine_status(st) = {any}\n    STATUS_QUARANTINED = {any}\n", .{ get_quarantine_status(st), STATUS_QUARANTINED });
+    if (!(get_violation_count(st) == 1)) __t27_assert_fail("\n  violation recorded:\n    get_violation_count(st) = {any}\n", .{ get_violation_count(st) });
+    if (!(should_release_quarantine(st, 100 + QUARANTINE_DURATION) == 1)) __t27_assert_fail("\n  released after the duration:\n    should_release_quarantine(st, 100 + QUARANTINE_DURATION) = {any}\n", .{ should_release_quarantine(st, 100 + QUARANTINE_DURATION) });
+    if (!(should_release_quarantine(st, 100) == 0)) __t27_assert_fail("\n  held before the duration:\n    should_release_quarantine(st, 100) = {any}\n", .{ should_release_quarantine(st, 100) });
     st = release_quarantine(st);
-    if (!(get_quarantine_status(st) == STATUS_NORMAL)) @panic("released");
-    if (!(get_violation_count(st) == 1)) @panic("violations persist");
+    if (!(get_quarantine_status(st) == STATUS_NORMAL)) __t27_assert_fail("\n  released:\n    get_quarantine_status(st) = {any}\n    STATUS_NORMAL = {any}\n", .{ get_quarantine_status(st), STATUS_NORMAL });
+    if (!(get_violation_count(st) == 1)) __t27_assert_fail("\n  violations persist:\n    get_violation_count(st) = {any}\n", .{ get_violation_count(st) });
 }
 test "ban_pins_violation_ceiling" {
     var st = create_quarantine_state(5, STATUS_NORMAL, 0, 3);
     st = ban_node(st);
-    if (!(get_quarantine_status(st) == STATUS_BANNED)) @panic("banned");
-    if (!(get_violation_count(st) == 0x3FFF)) @panic("ceiling fits the 14-bit field");
+    if (!(get_quarantine_status(st) == STATUS_BANNED)) __t27_assert_fail("\n  banned:\n    get_quarantine_status(st) = {any}\n    STATUS_BANNED = {any}\n", .{ get_quarantine_status(st), STATUS_BANNED });
+    if (!(get_violation_count(st) == 0x3FFF)) __t27_assert_fail("\n  ceiling fits the 14-bit field:\n    get_violation_count(st) = {any}\n", .{ get_violation_count(st) });
 }

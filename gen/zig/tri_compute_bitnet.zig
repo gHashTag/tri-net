@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const OP_BITNET: u32 = 0x20;
@@ -114,92 +122,92 @@ fn bitnet_digest_pre(idx: u32, weight_code: u32, act_hash: u32, gf_result: u32, 
     return 0;
 }
 test "sparsity_count" {
-    if (!(active_weights4(0x61) == 3)) @panic("three nonzero weights");
-    if (!(active_weights4(0x00) == 0)) @panic("all-zero weights -> nothing active");
-    if (!(active_weights4(0x55) == 4)) @panic("0x55 = four +1 trits -> 4 active");
+    if (!(active_weights4(0x61) == 3)) __t27_assert_fail("\n  three nonzero weights:\n    active_weights4(0x61) = {any}\n", .{ active_weights4(0x61) });
+    if (!(active_weights4(0x00) == 0)) __t27_assert_fail("\n  all-zero weights -> nothing active:\n    active_weights4(0x00) = {any}\n", .{ active_weights4(0x00) });
+    if (!(active_weights4(0x55) == 4)) __t27_assert_fail("\n  0x55 = four +1 trits -> 4 active:\n    active_weights4(0x55) = {any}\n", .{ active_weights4(0x55) });
 }
 test "trit_11_is_a_zero" {
-    if (!(is_active(0) == 0)) @panic("00 -> zero -> inactive");
-    if (!(is_active(1) == 1)) @panic("01 -> +1 -> active");
-    if (!(is_active(2) == 1)) @panic("10 -> -1 -> active");
-    if (!(is_active(3) == 0)) @panic("11 -> redundant zero -> inactive, NOT counted");
-    if (!(active_weights4(0xFF) == 0)) @panic("four 11-codes all decode to zero -> 0 active");
-    if (!(active_weights4(0x1B) == 2)) @panic("mixed word counts only the two canonical nonzero trits");
-    if (!(active_weights4(0xF5) == 2)) @panic("0xF5 = {01,01,11,11} -> 2 active (the two 11s do not count)");
+    if (!(is_active(0) == 0)) __t27_assert_fail("\n  00 -> zero -> inactive:\n    is_active(0) = {any}\n", .{ is_active(0) });
+    if (!(is_active(1) == 1)) __t27_assert_fail("\n  01 -> +1 -> active:\n    is_active(1) = {any}\n", .{ is_active(1) });
+    if (!(is_active(2) == 1)) __t27_assert_fail("\n  10 -> -1 -> active:\n    is_active(2) = {any}\n", .{ is_active(2) });
+    if (!(is_active(3) == 0)) __t27_assert_fail("\n  11 -> redundant zero -> inactive, NOT counted:\n    is_active(3) = {any}\n", .{ is_active(3) });
+    if (!(active_weights4(0xFF) == 0)) __t27_assert_fail("\n  four 11-codes all decode to zero -> 0 active:\n    active_weights4(0xFF) = {any}\n", .{ active_weights4(0xFF) });
+    if (!(active_weights4(0x1B) == 2)) __t27_assert_fail("\n  mixed word counts only the two canonical nonzero trits:\n    active_weights4(0x1B) = {any}\n", .{ active_weights4(0x1B) });
+    if (!(active_weights4(0xF5) == 2)) __t27_assert_fail("\n  0xF5 = {{01,01,11,11}} -> 2 active (the two 11s do not count):\n    active_weights4(0xF5) = {any}\n", .{ active_weights4(0xF5) });
 }
 test "canonical_packing_gate" {
-    if (!(packing_is_canonical(0x00) == true)) @panic("all-00 zeros are canonical");
-    if (!(packing_is_canonical(0x55) == true)) @panic("all-+1 is canonical");
-    if (!(packing_is_canonical(0x61) == true)) @panic("a mixed canonical word");
-    if (!(packing_is_canonical(0xFF) == false)) @panic("all-11 is a non-canonical zero packing");
-    if (!(packing_is_canonical(0x1B) == false)) @panic("a single 0b11 trit makes the word non-canonical");
-    if (!(weights_canonical4(0xF5) == 2)) @panic("0xF5 has two 11-codes -> only 2 canonical trits");
+    if (!(packing_is_canonical(0x00) == true)) __t27_assert_fail("\n  all-00 zeros are canonical:\n    packing_is_canonical(0x00) = {any}\n", .{ packing_is_canonical(0x00) });
+    if (!(packing_is_canonical(0x55) == true)) __t27_assert_fail("\n  all-+1 is canonical:\n    packing_is_canonical(0x55) = {any}\n", .{ packing_is_canonical(0x55) });
+    if (!(packing_is_canonical(0x61) == true)) __t27_assert_fail("\n  a mixed canonical word:\n    packing_is_canonical(0x61) = {any}\n", .{ packing_is_canonical(0x61) });
+    if (!(packing_is_canonical(0xFF) == false)) __t27_assert_fail("\n  all-11 is a non-canonical zero packing:\n    packing_is_canonical(0xFF) = {any}\n", .{ packing_is_canonical(0xFF) });
+    if (!(packing_is_canonical(0x1B) == false)) __t27_assert_fail("\n  a single 0b11 trit makes the word non-canonical:\n    packing_is_canonical(0x1B) = {any}\n", .{ packing_is_canonical(0x1B) });
+    if (!(weights_canonical4(0xF5) == 2)) __t27_assert_fail("\n  0xF5 has two 11-codes -> only 2 canonical trits:\n    weights_canonical4(0xF5) = {any}\n", .{ weights_canonical4(0xF5) });
 }
 test "canonical_form_is_unique" {
     const zeros_ok = bitnet_leaf(0x00, 0xABCD, 0x4100, 0xC0FFEE01, 0xE0E0, 1);
     const zeros_bad = bitnet_leaf(0xFF, 0xABCD, 0x4100, 0xC0FFEE01, 0xE0E0, 1);
-    if (!(zeros_ok != zeros_bad)) @panic("the two zero-packings hash differently (the malleability)");
-    if (!(packing_is_canonical(0x00) == true)) @panic("only the 0x00 packing is canonical...");
-    if (!(packing_is_canonical(0xFF) == false)) @panic("...so the 0xFF alias is rejected -> one valid leaf");
+    if (!(zeros_ok != zeros_bad)) __t27_assert_fail("\n  the two zero-packings hash differently (the malleability):\n    zeros_ok = {any}\n    zeros_bad = {any}\n", .{ zeros_ok, zeros_bad });
+    if (!(packing_is_canonical(0x00) == true)) __t27_assert_fail("\n  only the 0x00 packing is canonical...:\n    packing_is_canonical(0x00) = {any}\n", .{ packing_is_canonical(0x00) });
+    if (!(packing_is_canonical(0xFF) == false)) __t27_assert_fail("\n  ...so the 0xFF alias is rejected -> one valid leaf:\n    packing_is_canonical(0xFF) = {any}\n", .{ packing_is_canonical(0xFF) });
 }
 test "signed_decode_and_balance" {
-    if (!(pos_weights4(0x61) == 2)) @panic("two +1 weights");
-    if (!(neg_weights4(0x61) == 1)) @panic("one -1 weight");
-    if (!(sign_balance_biased(0x61) == 5)) @panic("balance +1 biased by 4 -> 5");
-    if (!(pos_weights4(0x55) == 4)) @panic("0x55 = four +1");
-    if (!(sign_balance_biased(0x55) == 8)) @panic("all +1 -> +4 -> biased 8");
-    if (!(neg_weights4(0xAA) == 4)) @panic("0xAA = four -1");
-    if (!(sign_balance_biased(0xAA) == 0)) @panic("all -1 -> -4 -> biased 0");
-    if (!(sign_balance_biased(0x00) == 4)) @panic("all zero -> net 0 -> biased 4");
-    if (!(pos_weights4(0xFF) == 0)) @panic("four 11-codes contribute no +1");
-    if (!(neg_weights4(0xFF) == 0)) @panic("four 11-codes contribute no -1");
-    if (!(sign_balance_biased(0xFF) == 4)) @panic("four 11-codes are net zero (biased 4)");
+    if (!(pos_weights4(0x61) == 2)) __t27_assert_fail("\n  two +1 weights:\n    pos_weights4(0x61) = {any}\n", .{ pos_weights4(0x61) });
+    if (!(neg_weights4(0x61) == 1)) __t27_assert_fail("\n  one -1 weight:\n    neg_weights4(0x61) = {any}\n", .{ neg_weights4(0x61) });
+    if (!(sign_balance_biased(0x61) == 5)) __t27_assert_fail("\n  balance +1 biased by 4 -> 5:\n    sign_balance_biased(0x61) = {any}\n", .{ sign_balance_biased(0x61) });
+    if (!(pos_weights4(0x55) == 4)) __t27_assert_fail("\n  0x55 = four +1:\n    pos_weights4(0x55) = {any}\n", .{ pos_weights4(0x55) });
+    if (!(sign_balance_biased(0x55) == 8)) __t27_assert_fail("\n  all +1 -> +4 -> biased 8:\n    sign_balance_biased(0x55) = {any}\n", .{ sign_balance_biased(0x55) });
+    if (!(neg_weights4(0xAA) == 4)) __t27_assert_fail("\n  0xAA = four -1:\n    neg_weights4(0xAA) = {any}\n", .{ neg_weights4(0xAA) });
+    if (!(sign_balance_biased(0xAA) == 0)) __t27_assert_fail("\n  all -1 -> -4 -> biased 0:\n    sign_balance_biased(0xAA) = {any}\n", .{ sign_balance_biased(0xAA) });
+    if (!(sign_balance_biased(0x00) == 4)) __t27_assert_fail("\n  all zero -> net 0 -> biased 4:\n    sign_balance_biased(0x00) = {any}\n", .{ sign_balance_biased(0x00) });
+    if (!(pos_weights4(0xFF) == 0)) __t27_assert_fail("\n  four 11-codes contribute no +1:\n    pos_weights4(0xFF) = {any}\n", .{ pos_weights4(0xFF) });
+    if (!(neg_weights4(0xFF) == 0)) __t27_assert_fail("\n  four 11-codes contribute no -1:\n    neg_weights4(0xFF) = {any}\n", .{ neg_weights4(0xFF) });
+    if (!(sign_balance_biased(0xFF) == 4)) __t27_assert_fail("\n  four 11-codes are net zero (biased 4):\n    sign_balance_biased(0xFF) = {any}\n", .{ sign_balance_biased(0xFF) });
 }
 test "pos_plus_neg_is_active" {
-    if (!((pos_weights4(0x61) + neg_weights4(0x61)) == active_weights4(0x61))) @panic("pos+neg == active (mixed)");
-    if (!((pos_weights4(0x55) + neg_weights4(0x55)) == active_weights4(0x55))) @panic("pos+neg == active (all +1)");
-    if (!((pos_weights4(0xFF) + neg_weights4(0xFF)) == active_weights4(0xFF))) @panic("pos+neg == active (all 11 zeros)");
+    if (!((pos_weights4(0x61) + neg_weights4(0x61)) == active_weights4(0x61))) __t27_assert_fail("\n  pos+neg == active (mixed):\n    pos_weights4(0x61) + neg_weights4(0x61) = {any}\n    active_weights4(0x61) = {any}\n", .{ pos_weights4(0x61) + neg_weights4(0x61), active_weights4(0x61) });
+    if (!((pos_weights4(0x55) + neg_weights4(0x55)) == active_weights4(0x55))) __t27_assert_fail("\n  pos+neg == active (all +1):\n    pos_weights4(0x55) + neg_weights4(0x55) = {any}\n    active_weights4(0x55) = {any}\n", .{ pos_weights4(0x55) + neg_weights4(0x55), active_weights4(0x55) });
+    if (!((pos_weights4(0xFF) + neg_weights4(0xFF)) == active_weights4(0xFF))) __t27_assert_fail("\n  pos+neg == active (all 11 zeros):\n    pos_weights4(0xFF) + neg_weights4(0xFF) = {any}\n    active_weights4(0xFF) = {any}\n", .{ pos_weights4(0xFF) + neg_weights4(0xFF), active_weights4(0xFF) });
 }
 test "bitnet_balance_recompute" {
-    if (!(bitnet_balance_matches(0x61, 5) == true)) @panic("canonical weights + correct balance -> verified");
-    if (!(bitnet_balance_matches(0x61, 8) == false)) @panic("canonical weights + WRONG claimed balance -> rejected (fraud)");
-    if (!(bitnet_balance_matches(0x55, 8) == true)) @panic("all +1 -> biased 8 verified");
-    if (!(bitnet_balance_matches(0xAA, 0) == true)) @panic("all -1 -> biased 0 verified");
-    if (!(bitnet_balance_matches(0xFF, 4) == false)) @panic("non-canonical 0b11 packing rejected regardless of balance");
-    if (!(bitnet_balance_matches(0x1B, sign_balance_biased(0x1B)) == false)) @panic("a single 0b11 trit fails the check even at its own balance");
+    if (!(bitnet_balance_matches(0x61, 5) == true)) __t27_assert_fail("\n  canonical weights + correct balance -> verified:\n    bitnet_balance_matches(0x61, 5) = {any}\n", .{ bitnet_balance_matches(0x61, 5) });
+    if (!(bitnet_balance_matches(0x61, 8) == false)) __t27_assert_fail("\n  canonical weights + WRONG claimed balance -> rejected (fraud):\n    bitnet_balance_matches(0x61, 8) = {any}\n", .{ bitnet_balance_matches(0x61, 8) });
+    if (!(bitnet_balance_matches(0x55, 8) == true)) __t27_assert_fail("\n  all +1 -> biased 8 verified:\n    bitnet_balance_matches(0x55, 8) = {any}\n", .{ bitnet_balance_matches(0x55, 8) });
+    if (!(bitnet_balance_matches(0xAA, 0) == true)) __t27_assert_fail("\n  all -1 -> biased 0 verified:\n    bitnet_balance_matches(0xAA, 0) = {any}\n", .{ bitnet_balance_matches(0xAA, 0) });
+    if (!(bitnet_balance_matches(0xFF, 4) == false)) __t27_assert_fail("\n  non-canonical 0b11 packing rejected regardless of balance:\n    bitnet_balance_matches(0xFF, 4) = {any}\n", .{ bitnet_balance_matches(0xFF, 4) });
+    if (!(bitnet_balance_matches(0x1B, sign_balance_biased(0x1B)) == false)) __t27_assert_fail("\n  a single 0b11 trit fails the check even at its own balance:\n    bitnet_balance_matches(0x1B, sign_balance_biased(0x1B)) = {any}\n", .{ bitnet_balance_matches(0x1B, sign_balance_biased(0x1B)) });
 }
 test "weights_are_bound" {
     const base = bitnet_leaf(0x61, 0xABCD, 0x4100, 0xC0FFEE01, 0xE0E0, 1);
     const flip = bitnet_leaf(0x62, 0xABCD, 0x4100, 0xC0FFEE01, 0xE0E0, 1);
-    if (!(base != flip)) @panic("changing a ternary weight changes the receipt");
+    if (!(base != flip)) __t27_assert_fail("\n  changing a ternary weight changes the receipt:\n    base = {any}\n    flip = {any}\n", .{ base, flip });
 }
 test "gf16_side_is_bound" {
     const base = bitnet_leaf(0x61, 0xABCD, 0x4100, 0xC0FFEE01, 0xE0E0, 1);
     const act = bitnet_leaf(0x61, 0x9999, 0x4100, 0xC0FFEE01, 0xE0E0, 1);
     const res = bitnet_leaf(0x61, 0xABCD, 0x4200, 0xC0FFEE01, 0xE0E0, 1);
-    if (!(base != act)) @panic("changing the GF16 activation changes the receipt");
-    if (!(base != res)) @panic("changing the GF16 result changes the receipt");
+    if (!(base != act)) __t27_assert_fail("\n  changing the GF16 activation changes the receipt:\n    base = {any}\n    act = {any}\n", .{ base, act });
+    if (!(base != res)) __t27_assert_fail("\n  changing the GF16 result changes the receipt:\n    base = {any}\n    res = {any}\n", .{ base, res });
 }
 test "executor_epoch_bound_distinctly" {
     const a = bitnet_leaf(0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3);
     const b = bitnet_leaf(0x61, 0xABCD, 0x4100, 0xC0FFEE01, 3, 5);
-    if (!(a != b)) @panic("same executor+epoch SUM, different pair -> different leaf (no collision)");
+    if (!(a != b)) __t27_assert_fail("\n  same executor+epoch SUM, different pair -> different leaf (no collision):\n    a = {any}\n    b = {any}\n", .{ a, b });
     const base = bitnet_leaf(0x61, 0xABCD, 0x4100, 0xC0FFEE01, 0xE0E0, 1);
     const exe = bitnet_leaf(0x61, 0xABCD, 0x4100, 0xC0FFEE01, 0xE0E1, 1);
     const ep = bitnet_leaf(0x61, 0xABCD, 0x4100, 0xC0FFEE01, 0xE0E0, 2);
-    if (!(base != exe)) @panic("changing the executor changes the leaf");
-    if (!(base != ep)) @panic("changing the epoch changes the leaf");
+    if (!(base != exe)) __t27_assert_fail("\n  changing the executor changes the leaf:\n    base = {any}\n    exe = {any}\n", .{ base, exe });
+    if (!(base != ep)) __t27_assert_fail("\n  changing the epoch changes the leaf:\n    base = {any}\n    ep = {any}\n", .{ base, ep });
 }
 test "bitnet_digest_preimage" {
-    if (!(bitnet_digest_pre(0, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == TAG_BITNET)) @panic("word 0 is the bitnet domain tag");
-    if (!(bitnet_digest_pre(1, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == 0x61)) @panic("word 1 is the weight_code");
-    if (!(bitnet_digest_pre(2, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == 0xABCD)) @panic("word 2 is the activation hash");
-    if (!(bitnet_digest_pre(3, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == 0x4100)) @panic("word 3 is the GF result");
-    if (!(bitnet_digest_pre(4, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == 0xC0FFEE01)) @panic("word 4 is the device");
-    if (!(bitnet_digest_pre(5, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == 5)) @panic("word 5 is the executor (distinct word)");
-    if (!(bitnet_digest_pre(6, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == 3)) @panic("word 6 is the epoch (distinct -- no sum)");
-    if (!(bitnet_digest_pre(7, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == SHA_PAD)) @panic("word 7 starts the SHA-256 padding");
-    if (!(bitnet_digest_pre(10, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == 0)) @panic("middle padding words are zero");
-    if (!(bitnet_digest_pre(15, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == BITNET_MSG_BITS)) @panic("word 15 is the 224-bit message length");
-    if (!(bitnet_digest_pre(5, 0, 0, 0, 0, 3, 5) == 3)) @panic("exec 3 -> word 5 = 3 (a different preimage than exec 5)");
+    if (!(bitnet_digest_pre(0, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == TAG_BITNET)) __t27_assert_fail("\n  word 0 is the bitnet domain tag:\n    bitnet_digest_pre(0, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) = {any}\n    TAG_BITNET = {any}\n", .{ bitnet_digest_pre(0, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3), TAG_BITNET });
+    if (!(bitnet_digest_pre(1, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == 0x61)) __t27_assert_fail("\n  word 1 is the weight_code:\n    bitnet_digest_pre(1, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) = {any}\n", .{ bitnet_digest_pre(1, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) });
+    if (!(bitnet_digest_pre(2, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == 0xABCD)) __t27_assert_fail("\n  word 2 is the activation hash:\n    bitnet_digest_pre(2, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) = {any}\n", .{ bitnet_digest_pre(2, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) });
+    if (!(bitnet_digest_pre(3, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == 0x4100)) __t27_assert_fail("\n  word 3 is the GF result:\n    bitnet_digest_pre(3, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) = {any}\n", .{ bitnet_digest_pre(3, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) });
+    if (!(bitnet_digest_pre(4, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == 0xC0FFEE01)) __t27_assert_fail("\n  word 4 is the device:\n    bitnet_digest_pre(4, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) = {any}\n", .{ bitnet_digest_pre(4, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) });
+    if (!(bitnet_digest_pre(5, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == 5)) __t27_assert_fail("\n  word 5 is the executor (distinct word):\n    bitnet_digest_pre(5, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) = {any}\n", .{ bitnet_digest_pre(5, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) });
+    if (!(bitnet_digest_pre(6, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == 3)) __t27_assert_fail("\n  word 6 is the epoch (distinct -- no sum):\n    bitnet_digest_pre(6, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) = {any}\n", .{ bitnet_digest_pre(6, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) });
+    if (!(bitnet_digest_pre(7, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == SHA_PAD)) __t27_assert_fail("\n  word 7 starts the SHA-256 padding:\n    bitnet_digest_pre(7, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) = {any}\n    SHA_PAD = {any}\n", .{ bitnet_digest_pre(7, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3), SHA_PAD });
+    if (!(bitnet_digest_pre(10, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == 0)) __t27_assert_fail("\n  middle padding words are zero:\n    bitnet_digest_pre(10, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) = {any}\n", .{ bitnet_digest_pre(10, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) });
+    if (!(bitnet_digest_pre(15, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) == BITNET_MSG_BITS)) __t27_assert_fail("\n  word 15 is the 224-bit message length:\n    bitnet_digest_pre(15, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3) = {any}\n    BITNET_MSG_BITS = {any}\n", .{ bitnet_digest_pre(15, 0x61, 0xABCD, 0x4100, 0xC0FFEE01, 5, 3), BITNET_MSG_BITS });
+    if (!(bitnet_digest_pre(5, 0, 0, 0, 0, 3, 5) == 3)) __t27_assert_fail("\n  exec 3 -> word 5 = 3 (a different preimage than exec 5):\n    bitnet_digest_pre(5, 0, 0, 0, 0, 3, 5) = {any}\n", .{ bitnet_digest_pre(5, 0, 0, 0, 0, 3, 5) });
 }

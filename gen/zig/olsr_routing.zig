@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_NEIGHBORS: u32 = 4;
@@ -97,36 +105,36 @@ fn count_neighbors(table: [4]u32) u32 {
 }
 test "create_neighbor_basic" {
     const n = create_neighbor(1, 100, 5000);
-    if (!(get_id(n) == 1)) @panic("id");
-    if (!(get_quality(n) == 100)) @panic("quality");
-    if (!(get_last_seen(n) == 5000)) @panic("timestamp");
+    if (!(get_id(n) == 1)) __t27_assert_fail("\n  id:\n    get_id(n) = {any}\n", .{ get_id(n) });
+    if (!(get_quality(n) == 100)) __t27_assert_fail("\n  quality:\n    get_quality(n) = {any}\n", .{ get_quality(n) });
+    if (!(get_last_seen(n) == 5000)) __t27_assert_fail("\n  timestamp:\n    get_last_seen(n) = {any}\n", .{ get_last_seen(n) });
 }
 test "is_valid_within_timeout" {
     const n = create_neighbor(5, 200, 1000);
-    if (!(is_valid(n, 5000) == true)) @panic("within timeout");
+    if (!(is_valid(n, 5000) == true)) __t27_assert_fail("\n  within timeout:\n    is_valid(n, 5000) = {any}\n", .{ is_valid(n, 5000) });
 }
 test "is_valid_timeout" {
     const n = create_neighbor(5, 200, 1000);
-    if (!(is_valid(n, 8000) == false)) @panic("timeout");
+    if (!(is_valid(n, 8000) == false)) __t27_assert_fail("\n  timeout:\n    is_valid(n, 8000) = {any}\n", .{ is_valid(n, 8000) });
 }
 test "table_reads_and_find" {
-    const table: [4]u32 = .{ create_neighbor(1,100,1000), create_neighbor(2,200,2000), create_neighbor(3,150,3000), create_neighbor(4,50,4000) };
-    if (!(get_id_at(table, 0) == 1)) @panic("entry 0");
-    if (!(get_id_at(table, 3) == 4)) @panic("entry 3");
-    if (!(find_index(table, 3) == 2)) @panic("find id 3");
-    if (!(find_index(table, 9) == NO_SLOT)) @panic("unknown id");
-    if (!(count_neighbors(table) == 4)) @panic("all four present");
+    const table: [4]u32 = .{ create_neighbor(1, 100, 1000), create_neighbor(2, 200, 2000), create_neighbor(3, 150, 3000), create_neighbor(4, 50, 4000) };
+    if (!(get_id_at(table, 0) == 1)) __t27_assert_fail("\n  entry 0:\n    get_id_at(table, 0) = {any}\n", .{ get_id_at(table, 0) });
+    if (!(get_id_at(table, 3) == 4)) __t27_assert_fail("\n  entry 3:\n    get_id_at(table, 3) = {any}\n", .{ get_id_at(table, 3) });
+    if (!(find_index(table, 3) == 2)) __t27_assert_fail("\n  find id 3:\n    find_index(table, 3) = {any}\n", .{ find_index(table, 3) });
+    if (!(find_index(table, 9) == NO_SLOT)) __t27_assert_fail("\n  unknown id:\n    find_index(table, 9) = {any}\n    NO_SLOT = {any}\n", .{ find_index(table, 9), NO_SLOT });
+    if (!(count_neighbors(table) == 4)) __t27_assert_fail("\n  all four present:\n    count_neighbors(table) = {any}\n", .{ count_neighbors(table) });
 }
 test "slot_decisions" {
-    const table: [4]u32 = .{ create_neighbor(1,100,1000), create_neighbor(NO_NEIGHBOR,0,0), create_neighbor(3,150,3000), create_neighbor(4,50,4000) };
-    if (!(slot_for_update(table, 3) == 2)) @panic("known id updates in place");
-    if (!(slot_for_update(table, 9) == 1)) @panic("unknown id takes the first empty slot");
-    const full: [4]u32 = .{ create_neighbor(1,100,1000), create_neighbor(2,200,2000), create_neighbor(3,150,3000), create_neighbor(4,50,4000) };
-    if (!(slot_for_update(full, 9) == NO_SLOT)) @panic("full table admits nothing new");
+    const table: [4]u32 = .{ create_neighbor(1, 100, 1000), create_neighbor(NO_NEIGHBOR, 0, 0), create_neighbor(3, 150, 3000), create_neighbor(4, 50, 4000) };
+    if (!(slot_for_update(table, 3) == 2)) __t27_assert_fail("\n  known id updates in place:\n    slot_for_update(table, 3) = {any}\n", .{ slot_for_update(table, 3) });
+    if (!(slot_for_update(table, 9) == 1)) __t27_assert_fail("\n  unknown id takes the first empty slot:\n    slot_for_update(table, 9) = {any}\n", .{ slot_for_update(table, 9) });
+    const full: [4]u32 = .{ create_neighbor(1, 100, 1000), create_neighbor(2, 200, 2000), create_neighbor(3, 150, 3000), create_neighbor(4, 50, 4000) };
+    if (!(slot_for_update(full, 9) == NO_SLOT)) __t27_assert_fail("\n  full table admits nothing new:\n    slot_for_update(full, 9) = {any}\n    NO_SLOT = {any}\n", .{ slot_for_update(full, 9), NO_SLOT });
 }
 test "mpr_selection" {
-    const table: [4]u32 = .{ create_neighbor(1,100,1000), create_neighbor(2,200,2000), create_neighbor(3,150,3000), create_neighbor(4,50,4000) };
-    if (!(get_best_neighbor(table) == 2)) @panic("best by quality");
-    if (!(get_second_best(table, 2) == 3)) @panic("second best excludes the best");
-    if (!(select_mprs(table) == ((2 << 8) | 3))) @panic("mpr pack [best][second]");
+    const table: [4]u32 = .{ create_neighbor(1, 100, 1000), create_neighbor(2, 200, 2000), create_neighbor(3, 150, 3000), create_neighbor(4, 50, 4000) };
+    if (!(get_best_neighbor(table) == 2)) __t27_assert_fail("\n  best by quality:\n    get_best_neighbor(table) = {any}\n", .{ get_best_neighbor(table) });
+    if (!(get_second_best(table, 2) == 3)) __t27_assert_fail("\n  second best excludes the best:\n    get_second_best(table, 2) = {any}\n", .{ get_second_best(table, 2) });
+    if (!(select_mprs(table) == ((2 << 8) | 3))) __t27_assert_fail("\n  mpr pack [best][second]:\n    select_mprs(table) = {any}\n    (2 << 8) | 3 = {any}\n", .{ select_mprs(table), (2 << 8) | 3 });
 }
