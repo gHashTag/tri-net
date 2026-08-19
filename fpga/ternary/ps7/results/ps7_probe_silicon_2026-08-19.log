@@ -1,0 +1,62 @@
+=== ternary sign-select MAC in the PL of a Puzhi P201Mini ===
+date       : 2026-08-19
+board      : pzp201mini, 192.168.1.107, hwaddr 02:00:00:00:00:02
+part       : xc7z020clg400-1  (JTAG IDCODE read back on the day: 0x23727093)
+bitstream  : ps7_probe.swab.bin, 4045564 bytes, md5 30c5de971f7c4b6254db4f18fe931dc2
+             built by the open flow: yosys -> nextpnr-xilinx -> fasm2frames -> xc7frames2bit
+console    : UART, /dev/cu.usbserial-6 on the host -- the load takes the network
+             with it, so ssh cannot witness its own success
+
+Procedure. load_and_verify.sh does not quiesce the bus, and FIRST_LOAD.md says it
+should: writing the bitstream while a PL master is mid-transaction hangs the CPU
+inside the write to /sys/class/fpga_manager/fpga0/firmware and only the watchdog
+ends it. That is exactly what the first attempt did on this board -- it rebooted.
+quiesce_and_load.sh performs the four-step teardown from that document first.
+
+[quiesce] 1/4 killing the sample streams
+[quiesce] 2/4 unbinding the AD9361 cores
+[quiesce] cf_axi_adc: unbound 79020000.cf-ad9361-lpc
+[quiesce] cf_axi_dds: unbound 79024000.cf-ad9361-dds-core-lpc
+[quiesce] 3/4 unbinding the DMA engines
+[quiesce] dma-axi-dmac: unbound 7c400000.dma
+[quiesce] dma-axi-dmac: unbound 7c420000.dma
+[quiesce] 4/4 taking PL Ethernet down -- the network dies here, the console does not
+[quiesce] macb: unbound e000b000.ethernet
+[quiesce] bus is quiet; loading /tmp/ps7_probe.swab.bin
+[00:06:37] --- preconditions ---
+[00:06:37] fpga manager: Xilinx Zynq FPGA Manager, state=operating
+[00:06:37] bitstream   : /tmp/ps7_probe.swab.bin, 4045564 bytes
+[00:06:37] --- loading ---
+fpga_manager fpga0: writing ps7_probe.swab.bin to Xilinx Zynq FPGA Manager
+[00:06:38] state after load: operating
+[00:06:38] --- verification ---
+[00:06:38] EMIO read: 0x0C0047C0   anchor=0x47C0 expected=0x47C0
+[00:06:38] anchor OK: our bitstream is in the fabric
+[00:06:39] heartbeat: 6 -> 12
+[00:06:39] clock OK: FCLK is running in the fabric
+[00:06:39] ternary MAC vectors:
+[00:06:40]   MAC x=42  w=1 -> 42     ok
+[00:06:41]   MAC x=42  w=2 -> -42    ok
+[00:06:42]   MAC x=42  w=0 -> 0      ok
+[00:06:43]   MAC x=42  w=3 -> 0      ok
+[00:06:44]   MAC x=127 w=1 -> 127    ok
+[00:06:45]   MAC x=127 w=2 -> -127   ok
+[00:06:45] --- VERDICT: loaded, clocked, and bit-exact against the software reference ---
+QUIESCE_LOAD_RC=0
+
+What this establishes, and only this. The ternary primitive -- a two-bit weight
+code where 01 selects +x, 10 selects -x and both remaining codes select 0 --
+computes in the programmable logic of a Zynq-7020, bit-exactly, for all three
+symbols and at the edge of the sample range. The anchor separates "our bitstream
+is live" from "the vendor bitstream is live" and from "the PL is blank", which
+are otherwise indistinguishable from Linux; the heartbeat separates a running
+fabric from a clockless one.
+
+What it does not establish. Nothing about GF-T, which is a different design and
+has never been placed into a fabric. Nothing about throughput: these are six
+single-vector pokes over EMIO GPIO, not a streaming rate. Nothing about timing
+closure beyond the fact that the design ran at the PS-supplied FCLK.
+
+Restored afterwards: `reboot`. The SD card is untouched, so the vendor bitstream
+and the AD9361 datapath come back on their own -- confirmed on this board, state
+operating, anchor back to 0x3FF8, four iio devices present.

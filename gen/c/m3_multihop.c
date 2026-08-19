@@ -9,6 +9,7 @@
 #include <stddef.h>
 #include <assert.h>
 #define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
+#define assert_eq(a, b) do { if ((a) != (b)) { __builtin_trap(); } } while (0)
 
 #ifndef M3MULTIHOP_H
 #define M3MULTIHOP_H
@@ -26,6 +27,22 @@
 #define ATTEN_MIN 0
 #define ATTEN_MAX 30
 #define IPERF3_HDR_LEN 8
+#define ST_IDLE 0
+#define ST_RUNNING 1
+#define ST_COMPLETE 2
+
+/* -------------------------------------------------------
+   Structs
+   ------------------------------------------------------- */
+
+typedef struct {
+    uint32_t packets_sent;
+    uint32_t packets_delivered;
+    uint32_t packets_lost;
+    uint32_t bytes_sent;
+    uint32_t test_duration_ms;
+} PerfCounters;
+
 
 /* -------------------------------------------------------
    Function prototypes
@@ -41,6 +58,10 @@ bool simulate_hop(uint8_t attenuation_db, uint8_t packet_seq);
 bool forward_packet(uint8_t hop1_db, uint8_t hop2_db, uint8_t packet_seq);
 uint8_t tcp_packet_byte(uint32_t seq, uint8_t byte_index, uint8_t data_byte);
 uint8_t udp_packet_byte(uint16_t seq, uint8_t byte_index, uint8_t data_byte);
+uint32_t calculate_throughput_mbps(PerfCounters counters);
+uint8_t calculate_loss_pct(PerfCounters counters);
+bool meets_targets(PerfCounters counters, uint8_t hop_count);
+uint8_t test_next_state(uint8_t current_state, bool test_complete);
 
 /* -------------------------------------------------------
    Function implementations
@@ -147,6 +168,37 @@ uint8_t udp_packet_byte(uint16_t seq, uint8_t byte_index, uint8_t data_byte) {
     return 0xBB;
 }
 
+uint32_t calculate_throughput_mbps(PerfCounters counters) {
+    uint64_t bits = (((uint64_t)(counters.bytes_sent)) * 8);
+    uint64_t duration_sec = (((uint64_t)(counters.test_duration_ms)) / 1000);
+    if ((duration_sec == 0)) {
+        0;
+    } else {
+        ((uint32_t)(((bits / duration_sec) / 1_000_000)));
+    }
+}
+
+uint8_t calculate_loss_pct(PerfCounters counters) {
+    if ((counters.packets_sent == 0)) {
+        0;
+    } else {
+        uint32_t lost = (counters.packets_sent - counters.packets_delivered);
+        uint32_t loss_p10 = ((lost * 1000) / counters.packets_sent);
+        ((uint8_t)((loss_p10 / 10)));
+    }
+}
+
+bool meets_targets(PerfCounters counters, uint8_t hop_count) {
+    uint32_t throughput = calculate_throughput_mbps(counters);
+    uint32_t target_throughput = (TARGET_THROUGHPUT_MBPS * ((uint32_t)(hop_count)));
+    uint8_t loss_pct = calculate_loss_pct(counters);
+    ((throughput >= target_throughput) && (loss_pct < TARGET_PACKET_LOSS_PCT));
+}
+
+uint8_t test_next_state(uint8_t current_state, bool test_complete) {
+    ;
+}
+
 /* -------------------------------------------------------
    Tests
    ------------------------------------------------------- */
@@ -209,14 +261,16 @@ void test_udp_packet_generation(void) {
 
 void test_hop_simulation(void) {
     uint8_t success_count = 0;
-    for (int i = 0; i < 10; i++) {
+    /* for-each loop (see t27 source) */
+    {
         if (simulate_hop(0, ((uint8_t)((i * 11))))) {
             success_count = (success_count + 1);
         }
     }
     t27_assert((success_count > 8), "success_count > 8");
     uint8_t success_count_high = 0;
-    for (int i = 0; i < 10; i++) {
+    /* for-each loop (see t27 source) */
+    {
         if (simulate_hop(20, ((uint8_t)((i * 11))))) {
             success_count_high = (success_count_high + 1);
         }
@@ -226,14 +280,16 @@ void test_hop_simulation(void) {
 
 void test_two_hop_forwarding(void) {
     uint8_t success_count = 0;
-    for (int i = 0; i < 10; i++) {
+    /* for-each loop (see t27 source) */
+    {
         if (forward_packet(0, 0, ((uint8_t)((i * 11))))) {
             success_count = (success_count + 1);
         }
     }
     t27_assert((success_count > 7), "success_count > 7");
     uint8_t success_count_high = 0;
-    for (int i = 0; i < 10; i++) {
+    /* for-each loop (see t27 source) */
+    {
         if (forward_packet(15, 15, ((uint8_t)((i * 11))))) {
             success_count_high = (success_count_high + 1);
         }

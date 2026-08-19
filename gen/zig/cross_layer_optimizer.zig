@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_LAYERS: u32 = 4;
@@ -172,104 +180,104 @@ fn switch_mode(state: u32, new_mode: u32) u32 {
 }
 test "create_layer_params_basic" {
     const params = create_layer_params(50, 100, 3, 64);
-    if (!(get_power(params) == 50)) @panic("power");
-    if (!(get_rate(params) == 100)) @panic("rate");
-    if (!(get_retries(params) == 3)) @panic("retries");
-    if (!(get_window(params) == 64)) @panic("window");
+    if (!(get_power(params) == 50)) __t27_assert_fail("\n  power:\n    get_power(params) = {any}\n", .{ get_power(params) });
+    if (!(get_rate(params) == 100)) __t27_assert_fail("\n  rate:\n    get_rate(params) = {any}\n", .{ get_rate(params) });
+    if (!(get_retries(params) == 3)) __t27_assert_fail("\n  retries:\n    get_retries(params) = {any}\n", .{ get_retries(params) });
+    if (!(get_window(params) == 64)) __t27_assert_fail("\n  window:\n    get_window(params) = {any}\n", .{ get_window(params) });
 }
 test "create_cross_layer_state_basic" {
     const state = create_cross_layer_state(MODE_MODERATE, 10, 1000, 1);
-    if (!(get_mode(state) == MODE_MODERATE)) @panic("mode");
-    if (!(get_update_counter(state) == 10)) @panic("counter");
-    if (!(get_last_sync(state) == 1000)) @panic("last sync");
-    if (!(get_optimization_target(state) == 1)) @panic("target");
+    if (!(get_mode(state) == MODE_MODERATE)) __t27_assert_fail("\n  mode:\n    get_mode(state) = {any}\n    MODE_MODERATE = {any}\n", .{ get_mode(state), MODE_MODERATE });
+    if (!(get_update_counter(state) == 10)) __t27_assert_fail("\n  counter:\n    get_update_counter(state) = {any}\n", .{ get_update_counter(state) });
+    if (!(get_last_sync(state) == 1000)) __t27_assert_fail("\n  last sync:\n    get_last_sync(state) = {any}\n", .{ get_last_sync(state) });
+    if (!(get_optimization_target(state) == 1)) __t27_assert_fail("\n  target:\n    get_optimization_target(state) = {any}\n", .{ get_optimization_target(state) });
 }
 test "create_layer_array_basic" {
     const array = create_layer_array(create_layer_params(50, 100, 3, 64), create_layer_params(60, 120, 2, 128), create_layer_params(40, 80, 5, 32), create_layer_params(70, 150, 1, 256));
-    if (!(get_power(get_layer_params(array, LAYER_PHY)) == 50)) @panic("PHY power");
-    if (!(get_rate(get_layer_params(array, LAYER_MAC)) == 120)) @panic("MAC rate");
-    if (!(get_retries(get_layer_params(array, LAYER_NETWORK)) == 5)) @panic("Network retries");
+    if (!(get_power(get_layer_params(array, LAYER_PHY)) == 50)) __t27_assert_fail("\n  PHY power:\n    get_power(get_layer_params(array, LAYER_PHY)) = {any}\n", .{ get_power(get_layer_params(array, LAYER_PHY)) });
+    if (!(get_rate(get_layer_params(array, LAYER_MAC)) == 120)) __t27_assert_fail("\n  MAC rate:\n    get_rate(get_layer_params(array, LAYER_MAC)) = {any}\n", .{ get_rate(get_layer_params(array, LAYER_MAC)) });
+    if (!(get_retries(get_layer_params(array, LAYER_NETWORK)) == 5)) __t27_assert_fail("\n  Network retries:\n    get_retries(get_layer_params(array, LAYER_NETWORK)) = {any}\n", .{ get_retries(get_layer_params(array, LAYER_NETWORK)) });
 }
 test "update_layer_params_phy" {
     const array = create_layer_array(create_layer_params(50, 100, 3, 64), create_layer_params(60, 120, 2, 128), create_layer_params(40, 80, 5, 32), create_layer_params(70, 150, 1, 256));
     const new_array = update_layer_params(array, LAYER_PHY, create_layer_params(80, 150, 1, 128));
-    if (!(get_power(get_layer_params(new_array, LAYER_PHY)) == 80)) @panic("PHY power updated");
+    if (!(get_power(get_layer_params(new_array, LAYER_PHY)) == 80)) __t27_assert_fail("\n  PHY power updated:\n    get_power(get_layer_params(new_array, LAYER_PHY)) = {any}\n", .{ get_power(get_layer_params(new_array, LAYER_PHY)) });
 }
 test "calculate_joint_metric_balanced" {
     const phy = create_layer_params(50, 100, 3, 64);
     const mac = create_layer_params(60, 120, 2, 128);
     const net = create_layer_params(40, 80, 5, 32);
     const metric = calculate_joint_metric(phy, mac, net);
-    if (!((metric > 0) and (metric < 255))) @panic("valid metric");
+    if (!((metric > 0) and (metric < 255))) __t27_assert_fail("\n  valid metric:\n    metric = {any}\n", .{ metric });
 }
 test "coordinate_power_conservative" {
     const state = create_cross_layer_state(MODE_CONSERVATIVE, 0, 0, 0);
     const phy = create_layer_params(100, 100, 3, 64);
     const mac = create_layer_params(80, 120, 2, 128);
     const new_phy, const new_mac = coordinate_power(state, phy, mac);
-    if (!(new_phy == 90)) @panic("PHY power reduced");
-    if (!(new_mac == 75)) @panic("MAC power reduced");
+    if (!(new_phy == 90)) __t27_assert_fail("\n  PHY power reduced:\n    new_phy = {any}\n", .{ new_phy });
+    if (!(new_mac == 75)) __t27_assert_fail("\n  MAC power reduced:\n    new_mac = {any}\n", .{ new_mac });
 }
 test "coordinate_power_aggressive" {
     const state = create_cross_layer_state(MODE_AGGRESSIVE, 0, 0, 0);
     const phy = create_layer_params(50, 100, 3, 64);
     const mac = create_layer_params(40, 120, 2, 128);
     const new_phy, const new_mac = coordinate_power(state, phy, mac);
-    if (!(new_phy == 60)) @panic("PHY power increased");
-    if (!(new_mac == 45)) @panic("MAC power increased");
+    if (!(new_phy == 60)) __t27_assert_fail("\n  PHY power increased:\n    new_phy = {any}\n", .{ new_phy });
+    if (!(new_mac == 45)) __t27_assert_fail("\n  MAC power increased:\n    new_mac = {any}\n", .{ new_mac });
 }
 test "coordinate_power_moderate" {
     const state = create_cross_layer_state(MODE_MODERATE, 0, 0, 0);
     const phy = create_layer_params(50, 100, 3, 64);
     const mac = create_layer_params(40, 120, 2, 128);
     const new_phy, const new_mac = coordinate_power(state, phy, mac);
-    if (!(new_phy == 50)) @panic("PHY power unchanged");
-    if (!(new_mac == 40)) @panic("MAC power unchanged");
+    if (!(new_phy == 50)) __t27_assert_fail("\n  PHY power unchanged:\n    new_phy = {any}\n", .{ new_phy });
+    if (!(new_mac == 40)) __t27_assert_fail("\n  MAC power unchanged:\n    new_mac = {any}\n", .{ new_mac });
 }
 test "optimize_for_target_latency" {
     const state = create_cross_layer_state(MODE_MODERATE, 0, 0, 0);
     const phy = create_layer_params(50, 100, 5, 64);
     const mac = create_layer_params(60, 100, 2, 128);
     const val1, const val2 = optimize_for_target(state, phy, mac);
-    if (!(val1 == 120)) @panic("rate increased for latency");
-    if (!(val2 == 4)) @panic("retries decreased for latency");
+    if (!(val1 == 120)) __t27_assert_fail("\n  rate increased for latency:\n    val1 = {any}\n", .{ val1 });
+    if (!(val2 == 4)) __t27_assert_fail("\n  retries decreased for latency:\n    val2 = {any}\n", .{ val2 });
 }
 test "optimize_for_target_throughput" {
     const state = create_cross_layer_state(MODE_MODERATE, 0, 0, 1);
     const phy = create_layer_params(50, 100, 5, 64);
     const mac = create_layer_params(60, 100, 2, 128);
     const val1, const val2 = optimize_for_target(state, phy, mac);
-    if (!(val1 == 255)) @panic("rate maximized for throughput");
-    if (!(val2 == 138)) @panic("window increased for throughput");
+    if (!(val1 == 255)) __t27_assert_fail("\n  rate maximized for throughput:\n    val1 = {any}\n", .{ val1 });
+    if (!(val2 == 138)) __t27_assert_fail("\n  window increased for throughput:\n    val2 = {any}\n", .{ val2 });
 }
 test "optimize_for_target_reliability" {
     const state = create_cross_layer_state(MODE_MODERATE, 0, 0, 2);
     const phy = create_layer_params(50, 100, 5, 64);
     const mac = create_layer_params(60, 100, 2, 128);
     const val1, const val2 = optimize_for_target(state, phy, mac);
-    if (!(val1 == 8)) @panic("retries increased for reliability");
-    if (!(val2 == 65)) @panic("power increased for reliability");
+    if (!(val1 == 8)) __t27_assert_fail("\n  retries increased for reliability:\n    val1 = {any}\n", .{ val1 });
+    if (!(val2 == 65)) __t27_assert_fail("\n  power increased for reliability:\n    val2 = {any}\n", .{ val2 });
 }
 test "needs_synchronization_true" {
     const state = create_cross_layer_state(MODE_MODERATE, 0, 1000, 0);
-    if (!(needs_synchronization(state, 1150) == true)) @panic("needs sync");
+    if (!(needs_synchronization(state, 1150) == true)) __t27_assert_fail("\n  needs sync:\n    needs_synchronization(state, 1150) = {any}\n", .{ needs_synchronization(state, 1150) });
 }
 test "needs_synchronization_false" {
     const state = create_cross_layer_state(MODE_MODERATE, 0, 1000, 0);
-    if (!(needs_synchronization(state, 1050) == false)) @panic("no sync needed");
+    if (!(needs_synchronization(state, 1050) == false)) __t27_assert_fail("\n  no sync needed:\n    needs_synchronization(state, 1050) = {any}\n", .{ needs_synchronization(state, 1050) });
 }
 test "increment_updates_works" {
     const state = create_cross_layer_state(MODE_MODERATE, 10, 1000, 0);
     const new_state = increment_updates(state);
-    if (!(get_update_counter(new_state) == 11)) @panic("counter incremented");
+    if (!(get_update_counter(new_state) == 11)) __t27_assert_fail("\n  counter incremented:\n    get_update_counter(new_state) = {any}\n", .{ get_update_counter(new_state) });
 }
 test "increment_updates_wraps" {
     const state = create_cross_layer_state(MODE_MODERATE, 255, 1000, 0);
     const new_state = increment_updates(state);
-    if (!(get_update_counter(new_state) == 0)) @panic("counter wrapped");
+    if (!(get_update_counter(new_state) == 0)) __t27_assert_fail("\n  counter wrapped:\n    get_update_counter(new_state) = {any}\n", .{ get_update_counter(new_state) });
 }
 test "switch_mode_works" {
     const state = create_cross_layer_state(MODE_MODERATE, 10, 1000, 0);
     const new_state = switch_mode(state, MODE_AGGRESSIVE);
-    if (!(get_mode(new_state) == MODE_AGGRESSIVE)) @panic("mode switched");
+    if (!(get_mode(new_state) == MODE_AGGRESSIVE)) __t27_assert_fail("\n  mode switched:\n    get_mode(new_state) = {any}\n    MODE_AGGRESSIVE = {any}\n", .{ get_mode(new_state), MODE_AGGRESSIVE });
 }

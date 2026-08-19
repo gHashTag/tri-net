@@ -9,6 +9,7 @@
 #include <stddef.h>
 #include <assert.h>
 #define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
+#define assert_eq(a, b) do { if ((a) != (b)) { __builtin_trap(); } } while (0)
 
 #ifndef MULTIPATH_ROUTING_H
 #define MULTIPATH_ROUTING_H

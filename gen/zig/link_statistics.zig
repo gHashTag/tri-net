@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 fn get_sent(stats: u32) u16 {
@@ -23,24 +31,24 @@ fn reset() u32 {
 test "inc_sent_increments" {
     const s1 = reset();
     const s2 = inc_sent(s1);
-    if (!(get_sent(s2) == 1)) @panic("inc works");
+    if (!(get_sent(s2) == 1)) __t27_assert_fail("\n  inc works:\n    get_sent(s2) = {any}\n", .{ get_sent(s2) });
 }
 test "inc_recv_increments" {
     const s1 = reset();
     const s2 = inc_recv(s1);
-    if (!(get_recv(s2) == 1)) @panic("inc works");
+    if (!(get_recv(s2) == 1)) __t27_assert_fail("\n  inc works:\n    get_recv(s2) = {any}\n", .{ get_recv(s2) });
 }
 test "both_counters" {
     const s1 = reset();
     const s2 = inc_sent(s1);
     const s3 = inc_recv(s2);
-    if (!(get_sent(s3) == 1)) @panic("sent");
-    if (!(get_recv(s3) == 1)) @panic("recv");
+    if (!(get_sent(s3) == 1)) __t27_assert_fail("\n  sent:\n    get_sent(s3) = {any}\n", .{ get_sent(s3) });
+    if (!(get_recv(s3) == 1)) __t27_assert_fail("\n  recv:\n    get_recv(s3) = {any}\n", .{ get_recv(s3) });
 }
 test "reset_clears" {
     const s1 = reset();
     const s2 = inc_sent(s1);
     _ = s2; // dead after const-inlining
     const s3 = reset();
-    if (!(get_sent(s3) == 0)) @panic("clears");
+    if (!(get_sent(s3) == 0)) __t27_assert_fail("\n  clears:\n    get_sent(s3) = {any}\n", .{ get_sent(s3) });
 }

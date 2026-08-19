@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_NODES: u32 = 8;
@@ -255,25 +263,25 @@ fn recommend_rerouting(prediction: u32, current_node: u32, node_metrics: [MAX_NO
 }
 test "load_metrics_roundtrip" {
     const m = create_load_metrics(80, 60, 200, 12);
-    if (!(get_bandwidth_usage(m) == 80)) @panic("bandwidth");
-    if (!(get_cpu_usage(m) == 60)) @panic("cpu");
-    if (!(get_packet_rate(m) == 200)) @panic("packets");
-    if (!(get_queue_depth(m) == 12)) @panic("queue");
+    if (!(get_bandwidth_usage(m) == 80)) __t27_assert_fail("\n  bandwidth:\n    get_bandwidth_usage(m) = {any}\n", .{ get_bandwidth_usage(m) });
+    if (!(get_cpu_usage(m) == 60)) __t27_assert_fail("\n  cpu:\n    get_cpu_usage(m) = {any}\n", .{ get_cpu_usage(m) });
+    if (!(get_packet_rate(m) == 200)) __t27_assert_fail("\n  packets:\n    get_packet_rate(m) = {any}\n", .{ get_packet_rate(m) });
+    if (!(get_queue_depth(m) == 12)) __t27_assert_fail("\n  queue:\n    get_queue_depth(m) = {any}\n", .{ get_queue_depth(m) });
 }
 test "prediction_roundtrip" {
     const p = create_prediction(90, 75, 2, 9000);
-    if (!(get_predicted_load(p) == 90)) @panic("load");
-    if (!(get_confidence(p) == 75)) @panic("confidence");
-    if (!(get_trend(p) == 2)) @panic("trend");
-    if (!(get_time_horizon(p) == 9000)) @panic("horizon");
+    if (!(get_predicted_load(p) == 90)) __t27_assert_fail("\n  load:\n    get_predicted_load(p) = {any}\n", .{ get_predicted_load(p) });
+    if (!(get_confidence(p) == 75)) __t27_assert_fail("\n  confidence:\n    get_confidence(p) = {any}\n", .{ get_confidence(p) });
+    if (!(get_trend(p) == 2)) __t27_assert_fail("\n  trend:\n    get_trend(p) = {any}\n", .{ get_trend(p) });
+    if (!(get_time_horizon(p) == 9000)) __t27_assert_fail("\n  horizon:\n    get_time_horizon(p) = {any}\n", .{ get_time_horizon(p) });
 }
 test "trend_detection_bands" {
-    const up: [16]u32 = .{ create_load_metrics(10,0,0,0), create_load_metrics(30,0,0,0), create_load_metrics(50,0,0,0), create_load_metrics(70,0,0,0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-    if (!(detect_trend(up, 4) == 1)) @panic("rising by 40 over the window");
-    const flat: [16]u32 = .{ create_load_metrics(50,0,0,0), create_load_metrics(55,0,0,0), create_load_metrics(52,0,0,0), create_load_metrics(58,0,0,0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-    if (!(detect_trend(flat, 4) == 0)) @panic("8-point wobble is stable");
+    const up: [16]u32 = .{ create_load_metrics(10, 0, 0, 0), create_load_metrics(30, 0, 0, 0), create_load_metrics(50, 0, 0, 0), create_load_metrics(70, 0, 0, 0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    if (!(detect_trend(up, 4) == 1)) __t27_assert_fail("\n  rising by 40 over the window:\n    detect_trend(up, 4) = {any}\n", .{ detect_trend(up, 4) });
+    const flat: [16]u32 = .{ create_load_metrics(50, 0, 0, 0), create_load_metrics(55, 0, 0, 0), create_load_metrics(52, 0, 0, 0), create_load_metrics(58, 0, 0, 0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    if (!(detect_trend(flat, 4) == 0)) __t27_assert_fail("\n  8-point wobble is stable:\n    detect_trend(flat, 4) = {any}\n", .{ detect_trend(flat, 4) });
 }
 test "predict_load_no_underflow_when_average_leads" {
-    const h: [16]u32 = .{ create_load_metrics(100,0,0,0), create_load_metrics(100,0,0,0), create_load_metrics(0,0,0,0), create_load_metrics(25,0,0,0), create_load_metrics(50,0,0,0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-    if (!(predict_load(h, 5) == 50)) @panic("no growth credit when below average");
+    const h: [16]u32 = .{ create_load_metrics(100, 0, 0, 0), create_load_metrics(100, 0, 0, 0), create_load_metrics(0, 0, 0, 0), create_load_metrics(25, 0, 0, 0), create_load_metrics(50, 0, 0, 0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    if (!(predict_load(h, 5) == 50)) __t27_assert_fail("\n  no growth credit when below average:\n    predict_load(h, 5) = {any}\n", .{ predict_load(h, 5) });
 }

@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MANT_ONE: u32 = 512;
@@ -496,48 +504,48 @@ fn verify_gft_sub_u64(oa: u32, ob: u32, ma: u64, mb: u64, claimed_offset: u32, c
     }
 }
 test "hi_bit_ladder" {
-    if (!(hi_bit(1) == 0)) @panic("bit 0");
-    if (!(hi_bit(481) == 8)) @panic("481 -> bit 8");
-    if (!(hi_bit(523776) == 18)) @panic("523776 -> bit 18");
-    if (!(hi_bit(1073741824) == 30)) @panic("2^30 -> bit 30");
+    if (!(hi_bit(1) == 0)) __t27_assert_fail("\n  bit 0:\n    hi_bit(1) = {any}\n", .{ hi_bit(1) });
+    if (!(hi_bit(481) == 8)) __t27_assert_fail("\n  481 -> bit 8:\n    hi_bit(481) = {any}\n", .{ hi_bit(481) });
+    if (!(hi_bit(523776) == 18)) __t27_assert_fail("\n  523776 -> bit 18:\n    hi_bit(523776) = {any}\n", .{ hi_bit(523776) });
+    if (!(hi_bit(1073741824) == 30)) __t27_assert_fail("\n  2^30 -> bit 30:\n    hi_bit(1073741824) = {any}\n", .{ hi_bit(1073741824) });
 }
 test "subtract_same_exp" {
-    if (!(gft_sub_offset_c(40, 40, 256, 0) == 39)) @panic("1.5 - 1.0 = 0.5 -> offset 39");
-    if (!(gft_sub_mant_c(40, 40, 256, 0) == 0)) @panic("0.5 -> mantissa 0");
+    if (!(gft_sub_offset_c(40, 40, 256, 0) == 39)) __t27_assert_fail("\n  1.5 - 1.0 = 0.5 -> offset 39:\n    gft_sub_offset_c(40, 40, 256, 0) = {any}\n", .{ gft_sub_offset_c(40, 40, 256, 0) });
+    if (!(gft_sub_mant_c(40, 40, 256, 0) == 0)) __t27_assert_fail("\n  0.5 -> mantissa 0:\n    gft_sub_mant_c(40, 40, 256, 0) = {any}\n", .{ gft_sub_mant_c(40, 40, 256, 0) });
 }
 test "exact_cancellation" {
-    if (!(gft_sub_offset_c(40, 40, 100, 100) == 0)) @panic("x - x = 0 -> offset 0");
-    if (!(gft_sub_mant_c(40, 40, 100, 100) == 0)) @panic("x - x = 0 -> mantissa 0");
+    if (!(gft_sub_offset_c(40, 40, 100, 100) == 0)) __t27_assert_fail("\n  x - x = 0 -> offset 0:\n    gft_sub_offset_c(40, 40, 100, 100) = {any}\n", .{ gft_sub_offset_c(40, 40, 100, 100) });
+    if (!(gft_sub_mant_c(40, 40, 100, 100) == 0)) __t27_assert_fail("\n  x - x = 0 -> mantissa 0:\n    gft_sub_mant_c(40, 40, 100, 100) = {any}\n", .{ gft_sub_mant_c(40, 40, 100, 100) });
 }
 test "near_cancellation_exact" {
-    if (!(gft_sub_offset_c(30, 31, 31, 0) == 29)) @panic("near-cancel exponent 29");
-    if (!(gft_sub_mant_c(30, 31, 31, 0) == 450)) @panic("near-cancel mantissa 450 (not the truncated 452)");
-    if (!(gft_sub_offset_c(25, 35, 0, 0) == 34)) @panic("2^-5 - 2^-15 exponent 34");
-    if (!(gft_sub_mant_c(25, 35, 0, 0) == 511)) @panic("all-ones mantissa 511");
+    if (!(gft_sub_offset_c(30, 31, 31, 0) == 29)) __t27_assert_fail("\n  near-cancel exponent 29:\n    gft_sub_offset_c(30, 31, 31, 0) = {any}\n", .{ gft_sub_offset_c(30, 31, 31, 0) });
+    if (!(gft_sub_mant_c(30, 31, 31, 0) == 450)) __t27_assert_fail("\n  near-cancel mantissa 450 (not the truncated 452):\n    gft_sub_mant_c(30, 31, 31, 0) = {any}\n", .{ gft_sub_mant_c(30, 31, 31, 0) });
+    if (!(gft_sub_offset_c(25, 35, 0, 0) == 34)) __t27_assert_fail("\n  2^-5 - 2^-15 exponent 34:\n    gft_sub_offset_c(25, 35, 0, 0) = {any}\n", .{ gft_sub_offset_c(25, 35, 0, 0) });
+    if (!(gft_sub_mant_c(25, 35, 0, 0) == 511)) __t27_assert_fail("\n  all-ones mantissa 511:\n    gft_sub_mant_c(25, 35, 0, 0) = {any}\n", .{ gft_sub_mant_c(25, 35, 0, 0) });
 }
 test "far_apart_borrow" {
-    if (!(gft_sub_offset_c(70, 40, 100, 0) == 70)) @panic("big(M>0) - tiny keeps exponent");
-    if (!(gft_sub_mant_c(70, 40, 100, 0) == 99)) @panic("mantissa borrows one ULP -> 99");
-    if (!(gft_sub_offset_c(70, 40, 0, 0) == 69)) @panic("big(M=0) - tiny renorms down one");
-    if (!(gft_sub_mant_c(70, 40, 0, 0) == 511)) @panic("and mantissa is all ones");
+    if (!(gft_sub_offset_c(70, 40, 100, 0) == 70)) __t27_assert_fail("\n  big(M>0) - tiny keeps exponent:\n    gft_sub_offset_c(70, 40, 100, 0) = {any}\n", .{ gft_sub_offset_c(70, 40, 100, 0) });
+    if (!(gft_sub_mant_c(70, 40, 100, 0) == 99)) __t27_assert_fail("\n  mantissa borrows one ULP -> 99:\n    gft_sub_mant_c(70, 40, 100, 0) = {any}\n", .{ gft_sub_mant_c(70, 40, 100, 0) });
+    if (!(gft_sub_offset_c(70, 40, 0, 0) == 69)) __t27_assert_fail("\n  big(M=0) - tiny renorms down one:\n    gft_sub_offset_c(70, 40, 0, 0) = {any}\n", .{ gft_sub_offset_c(70, 40, 0, 0) });
+    if (!(gft_sub_mant_c(70, 40, 0, 0) == 511)) __t27_assert_fail("\n  and mantissa is all ones:\n    gft_sub_mant_c(70, 40, 0, 0) = {any}\n", .{ gft_sub_mant_c(70, 40, 0, 0) });
 }
 test "verify_catches_sub_fraud" {
-    if (!(verify_gft_sub(40, 40, 256, 0, 39, 0) == true)) @panic("honest 1.5-1.0=0.5 accepted");
-    if (!(verify_gft_sub(40, 40, 256, 0, 40, 0) == false)) @panic("wrong exponent rejected");
-    if (!(verify_gft_sub(30, 31, 31, 0, 29, 452) == false)) @panic("the 2-ULP-off truncated result rejected");
+    if (!(verify_gft_sub(40, 40, 256, 0, 39, 0) == true)) __t27_assert_fail("\n  honest 1.5-1.0=0.5 accepted:\n    verify_gft_sub(40, 40, 256, 0, 39, 0) = {any}\n", .{ verify_gft_sub(40, 40, 256, 0, 39, 0) });
+    if (!(verify_gft_sub(40, 40, 256, 0, 40, 0) == false)) __t27_assert_fail("\n  wrong exponent rejected:\n    verify_gft_sub(40, 40, 256, 0, 40, 0) = {any}\n", .{ verify_gft_sub(40, 40, 256, 0, 40, 0) });
+    if (!(verify_gft_sub(30, 31, 31, 0, 29, 452) == false)) __t27_assert_fail("\n  the 2-ULP-off truncated result rejected:\n    verify_gft_sub(30, 31, 31, 0, 29, 452) = {any}\n", .{ verify_gft_sub(30, 31, 31, 0, 29, 452) });
 }
 test "per_rung_subtract" {
-    if (!(gft_sub_offset_c_p(40, 40, 256, 0, 512, 9) == 39)) @panic("GF-T16 view: 1.5-1.0 -> offset 39");
-    if (!(gft_sub_mant_c_p(40, 40, 256, 0, 512, 9) == 0)) @panic("GF-T16 view mantissa 0");
-    if (!(verify_gft_sub_p(13, 13, 8, 0, 12, 0, 16, 4) == true)) @panic("GF-T8 1.5-1.0 = 0.5 (offset 12)");
-    if (!(verify_gft_sub_p(13, 13, 8, 0, 13, 0, 16, 4) == false)) @panic("GF-T8 missed renorm rejected");
-    if (!(verify_gft_sub_p(4, 4, 1, 0, 3, 0, 2, 1) == true)) @panic("GF-T4 1.5-1.0 = 0.5 (offset 3)");
+    if (!(gft_sub_offset_c_p(40, 40, 256, 0, 512, 9) == 39)) __t27_assert_fail("\n  GF-T16 view: 1.5-1.0 -> offset 39:\n    gft_sub_offset_c_p(40, 40, 256, 0, 512, 9) = {any}\n", .{ gft_sub_offset_c_p(40, 40, 256, 0, 512, 9) });
+    if (!(gft_sub_mant_c_p(40, 40, 256, 0, 512, 9) == 0)) __t27_assert_fail("\n  GF-T16 view mantissa 0:\n    gft_sub_mant_c_p(40, 40, 256, 0, 512, 9) = {any}\n", .{ gft_sub_mant_c_p(40, 40, 256, 0, 512, 9) });
+    if (!(verify_gft_sub_p(13, 13, 8, 0, 12, 0, 16, 4) == true)) __t27_assert_fail("\n  GF-T8 1.5-1.0 = 0.5 (offset 12):\n    verify_gft_sub_p(13, 13, 8, 0, 12, 0, 16, 4) = {any}\n", .{ verify_gft_sub_p(13, 13, 8, 0, 12, 0, 16, 4) });
+    if (!(verify_gft_sub_p(13, 13, 8, 0, 13, 0, 16, 4) == false)) __t27_assert_fail("\n  GF-T8 missed renorm rejected:\n    verify_gft_sub_p(13, 13, 8, 0, 13, 0, 16, 4) = {any}\n", .{ verify_gft_sub_p(13, 13, 8, 0, 13, 0, 16, 4) });
+    if (!(verify_gft_sub_p(4, 4, 1, 0, 3, 0, 2, 1) == true)) __t27_assert_fail("\n  GF-T4 1.5-1.0 = 0.5 (offset 3):\n    verify_gft_sub_p(4, 4, 1, 0, 3, 0, 2, 1) = {any}\n", .{ verify_gft_sub_p(4, 4, 1, 0, 3, 0, 2, 1) });
 }
 test "gft32_subtract" {
-    if (!(verify_gft_sub_u64(364, 364, 16777216, 0, 363, 0, 33554432, 25, 38) == true)) @panic("GF-T32 1.5-1.0 = 0.5 -> offset 363");
-    if (!(verify_gft_sub_u64(364, 364, 16777216, 0, 364, 0, 33554432, 25, 38) == false)) @panic("GF-T32 missed renorm rejected");
-    if (!(gft_sub_mant_c_u64(364, 364, 100, 100, 33554432, 25, 38) == 0)) @panic("GF-T32 x - x = 0 mantissa");
-    if (!(gft_sub_offset_c_u64(364, 364, 100, 100, 33554432, 25, 38) == 0)) @panic("GF-T32 x - x = 0 offset (zero sentinel)");
+    if (!(verify_gft_sub_u64(364, 364, 16777216, 0, 363, 0, 33554432, 25, 38) == true)) __t27_assert_fail("\n  GF-T32 1.5-1.0 = 0.5 -> offset 363:\n    verify_gft_sub_u64(364, 364, 16777216, 0, 363, 0, 33554432, 25, 38) = {any}\n", .{ verify_gft_sub_u64(364, 364, 16777216, 0, 363, 0, 33554432, 25, 38) });
+    if (!(verify_gft_sub_u64(364, 364, 16777216, 0, 364, 0, 33554432, 25, 38) == false)) __t27_assert_fail("\n  GF-T32 missed renorm rejected:\n    verify_gft_sub_u64(364, 364, 16777216, 0, 364, 0, 33554432, 25, 38) = {any}\n", .{ verify_gft_sub_u64(364, 364, 16777216, 0, 364, 0, 33554432, 25, 38) });
+    if (!(gft_sub_mant_c_u64(364, 364, 100, 100, 33554432, 25, 38) == 0)) __t27_assert_fail("\n  GF-T32 x - x = 0 mantissa:\n    gft_sub_mant_c_u64(364, 364, 100, 100, 33554432, 25, 38) = {any}\n", .{ gft_sub_mant_c_u64(364, 364, 100, 100, 33554432, 25, 38) });
+    if (!(gft_sub_offset_c_u64(364, 364, 100, 100, 33554432, 25, 38) == 0)) __t27_assert_fail("\n  GF-T32 x - x = 0 offset (zero sentinel):\n    gft_sub_offset_c_u64(364, 364, 100, 100, 33554432, 25, 38) = {any}\n", .{ gft_sub_offset_c_u64(364, 364, 100, 100, 33554432, 25, 38) });
 }
 fn bench_sub_mantissa_sweep() void {
     // bench: sub_mantissa_sweep
@@ -555,18 +563,18 @@ fn bench_sub_mantissa_sweep() void {
     const mz = gft_sub_mant(45, 44, 0, 0);
     const ox = gft_sub_offset(50, 44, 256, 384);
     const mx = gft_sub_mant(50, 44, 256, 384);
-    if (!(o1 == 40)) @panic("step 1 offset: deep cancellation drops 4 exponents");
-    if (!(m1 == 256)) @panic("step 1 mantissa");
-    if (!(o2 == 41)) @panic("step 2 offset");
-    if (!(m2 == 256)) @panic("step 2 mantissa");
-    if (!(m3 == 64)) @panic("step 3 mantissa");
-    if (!(m4 == 256)) @panic("step 4 mantissa");
-    if (!(m5 == 448)) @panic("step 5 mantissa");
-    if (!(m6 == 64)) @panic("step 6 mantissa");
-    if (!(m7 == 160)) @panic("step 7 mantissa");
-    if (!(m8 == 256)) @panic("step 8 mantissa");
-    if (!(oz == 44)) @panic("2.0 - 1.0 = 1.0: offset back to 44");
-    if (!(mz == 0)) @panic("2.0 - 1.0 = 1.0: mantissa 0");
-    if (!(ox == 50)) @panic("far-ish pair keeps the larger exponent");
-    if (!(mx == 242)) @panic("cross-exponent mantissa from the oracle");
+    if (!(o1 == 40)) __t27_assert_fail("\n  step 1 offset: deep cancellation drops 4 exponents:\n    o1 = {any}\n", .{ o1 });
+    if (!(m1 == 256)) __t27_assert_fail("\n  step 1 mantissa:\n    m1 = {any}\n", .{ m1 });
+    if (!(o2 == 41)) __t27_assert_fail("\n  step 2 offset:\n    o2 = {any}\n", .{ o2 });
+    if (!(m2 == 256)) __t27_assert_fail("\n  step 2 mantissa:\n    m2 = {any}\n", .{ m2 });
+    if (!(m3 == 64)) __t27_assert_fail("\n  step 3 mantissa:\n    m3 = {any}\n", .{ m3 });
+    if (!(m4 == 256)) __t27_assert_fail("\n  step 4 mantissa:\n    m4 = {any}\n", .{ m4 });
+    if (!(m5 == 448)) __t27_assert_fail("\n  step 5 mantissa:\n    m5 = {any}\n", .{ m5 });
+    if (!(m6 == 64)) __t27_assert_fail("\n  step 6 mantissa:\n    m6 = {any}\n", .{ m6 });
+    if (!(m7 == 160)) __t27_assert_fail("\n  step 7 mantissa:\n    m7 = {any}\n", .{ m7 });
+    if (!(m8 == 256)) __t27_assert_fail("\n  step 8 mantissa:\n    m8 = {any}\n", .{ m8 });
+    if (!(oz == 44)) __t27_assert_fail("\n  2.0 - 1.0 = 1.0: offset back to 44:\n    oz = {any}\n", .{ oz });
+    if (!(mz == 0)) __t27_assert_fail("\n  2.0 - 1.0 = 1.0: mantissa 0:\n    mz = {any}\n", .{ mz });
+    if (!(ox == 50)) __t27_assert_fail("\n  far-ish pair keeps the larger exponent:\n    ox = {any}\n", .{ ox });
+    if (!(mx == 242)) __t27_assert_fail("\n  cross-exponent mantissa from the oracle:\n    mx = {any}\n", .{ mx });
 }

@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 const MAX_PATHS: u8 = 3;
 const ETX_THRESHOLD_GOOD: u8 = 0x30;
@@ -51,29 +59,29 @@ fn path_reliability(etx: u8, loss_rate: u8) u8 {
 test "path_selection_logic" {
     const etx_values: [3]u8 = .{ 0x25, 0x30, 0x20 };
     const best_idx: u8 = select_path_index(etx_values);
-    if (!(best_idx == 2)) @panic("best_idx == 2");
+    if (!(best_idx == 2)) __t27_assert_fail("\n  best_idx == 2:\n    best_idx = {any}\n", .{ best_idx });
 }
 test "quality_score_calculation" {
     const etx: u8 = 0x30;
     const latency: u16 = 50;
     const loss: u8 = 0x0A;
     const score: u8 = path_quality_score(etx, latency, loss);
-    if (!(score > 0)) @panic("score > 0");
-    if (!(score < 200)) @panic("score < 200");
+    if (!(score > 0)) __t27_assert_fail("\n  score > 0:\n    score = {any}\n", .{ score });
+    if (!(score < 200)) __t27_assert_fail("\n  score < 200:\n    score = {any}\n", .{ score });
 }
 test "failover_decision" {
-    if (!(needs_failover(0x25, 0, 3) == false)) @panic("needs_failover 0x25 0 3 == false");
-    if (!(needs_failover(0x70, 0, 3) == true)) @panic("needs_failover 0x70 0 3 == true");
-    if (!(needs_failover(0x70, 3, 3) == false)) @panic("needs_failover 0x70 3 3 == false");
+    if (!(needs_failover(0x25, 0, 3) == false)) __t27_assert_fail("\n  needs_failover 0x25 0 3 == false:\n    needs_failover(0x25, 0, 3) = {any}\n", .{ needs_failover(0x25, 0, 3) });
+    if (!(needs_failover(0x70, 0, 3) == true)) __t27_assert_fail("\n  needs_failover 0x70 0 3 == true:\n    needs_failover(0x70, 0, 3) = {any}\n", .{ needs_failover(0x70, 0, 3) });
+    if (!(needs_failover(0x70, 3, 3) == false)) __t27_assert_fail("\n  needs_failover 0x70 3 3 == false:\n    needs_failover(0x70, 3, 3) = {any}\n", .{ needs_failover(0x70, 3, 3) });
 }
 test "path_index_progression" {
-    if (!(next_path_index(0, 3) == 1)) @panic("next_path_index 0 3 == 1");
-    if (!(next_path_index(1, 3) == 2)) @panic("next_path_index 1 3 == 2");
-    if (!(next_path_index(2, 3) == 0)) @panic("next_path_index 2 3 == 0");
+    if (!(next_path_index(0, 3) == 1)) __t27_assert_fail("\n  next_path_index 0 3 == 1:\n    next_path_index(0, 3) = {any}\n", .{ next_path_index(0, 3) });
+    if (!(next_path_index(1, 3) == 2)) __t27_assert_fail("\n  next_path_index 1 3 == 2:\n    next_path_index(1, 3) = {any}\n", .{ next_path_index(1, 3) });
+    if (!(next_path_index(2, 3) == 0)) __t27_assert_fail("\n  next_path_index 2 3 == 0:\n    next_path_index(2, 3) = {any}\n", .{ next_path_index(2, 3) });
 }
 test "reliability_estimation" {
     const high_reliability: u8 = path_reliability(0x25, 0x05);
     const low_reliability: u8 = path_reliability(0xF0, 0x80);
-    if (!(high_reliability > 200)) @panic("high_reliability > 200");
-    if (!(low_reliability < 150)) @panic("low_reliability < 150");
+    if (!(high_reliability > 200)) __t27_assert_fail("\n  high_reliability > 200:\n    high_reliability = {any}\n", .{ high_reliability });
+    if (!(low_reliability < 150)) __t27_assert_fail("\n  low_reliability < 150:\n    low_reliability = {any}\n", .{ low_reliability });
 }

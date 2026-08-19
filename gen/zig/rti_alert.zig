@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const SEV_CATASTROPHIC: u8 = 4;
@@ -21,18 +29,34 @@ fn alert_severity(anom_sev: u32) u8 {
     }
 }
 test "catastrophic_at_and_above_80" {
+    const hi = alert_severity(85);
+    const ed = alert_severity(80);
+    if (!(hi == 4)) __t27_assert_fail("\n  assertion failed:\n    hi = {any}\n", .{ hi });
+    if (!(ed == 4)) __t27_assert_fail("\n  assertion failed:\n    ed = {any}\n", .{ ed });
 }
 test "critical_band_60_to_79" {
+    const hi = alert_severity(79);
+    const ed = alert_severity(60);
+    if (!(hi == 3)) __t27_assert_fail("\n  assertion failed:\n    hi = {any}\n", .{ hi });
+    if (!(ed == 3)) __t27_assert_fail("\n  assertion failed:\n    ed = {any}\n", .{ ed });
 }
 test "urgent_band_40_to_59" {
+    const hi = alert_severity(59);
+    const ed = alert_severity(40);
+    if (!(hi == 2)) __t27_assert_fail("\n  assertion failed:\n    hi = {any}\n", .{ hi });
+    if (!(ed == 2)) __t27_assert_fail("\n  assertion failed:\n    ed = {any}\n", .{ ed });
 }
 test "warning_below_40" {
+    const hi = alert_severity(39);
+    const lo = alert_severity(0);
+    if (!(hi == 1)) __t27_assert_fail("\n  assertion failed:\n    hi = {any}\n", .{ hi });
+    if (!(lo == 1)) __t27_assert_fail("\n  assertion failed:\n    lo = {any}\n", .{ lo });
 }
 comptime {
     // invariant: severities_ordered
-    // invariant: severities_ordered verified (no statements)
+    if (!(SEV_CATASTROPHIC > SEV_CRITICAL)) __t27_assert_fail("\n  assertion failed:\n    SEV_CATASTROPHIC = {any}\n    SEV_CRITICAL = {any}\n", .{ SEV_CATASTROPHIC, SEV_CRITICAL });
 }
 comptime {
     // invariant: warning_is_min
-    // invariant: warning_is_min verified (no statements)
+    if (!(SEV_WARNING < SEV_URGENT)) __t27_assert_fail("\n  assertion failed:\n    SEV_WARNING = {any}\n    SEV_URGENT = {any}\n", .{ SEV_WARNING, SEV_URGENT });
 }

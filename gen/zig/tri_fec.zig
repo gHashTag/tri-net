@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 fn fec_parity4(a: u32, b: u32, c: u32, d: u32) u32 {
@@ -17,25 +25,25 @@ fn fec_recover(parity: u32, survivors_xor: u32) u32 {
 test "recover_position_a" {
     const p = fec_parity4(0x11111111, 0x22222222, 0x33333333, 0x44444444);
     const surv = fec_xor(fec_xor(0x22222222, 0x33333333), 0x44444444);
-    if (!(fec_recover(p, surv) == 0x11111111)) @panic("recovered a");
+    if (!(fec_recover(p, surv) == 0x11111111)) __t27_assert_fail("\n  recovered a:\n    fec_recover(p, surv) = {any}\n", .{ fec_recover(p, surv) });
 }
 test "recover_position_c" {
     const p = fec_parity4(0x0A0A0A0A, 0x0B0B0B0B, 0x0C0C0C0C, 0x0D0D0D0D);
     const surv = fec_xor(fec_xor(0x0A0A0A0A, 0x0B0B0B0B), 0x0D0D0D0D);
-    if (!(fec_recover(p, surv) == 0x0C0C0C0C)) @panic("recovered c");
+    if (!(fec_recover(p, surv) == 0x0C0C0C0C)) __t27_assert_fail("\n  recovered c:\n    fec_recover(p, surv) = {any}\n", .{ fec_recover(p, surv) });
 }
 test "group_check_is_zero" {
     const p = fec_parity4(0xDEADBEEF, 0x0BADF00D, 0xFEEDFACE, 0x8BADF00D);
     const allxor = fec_xor(fec_xor(fec_xor(fec_xor(0xDEADBEEF, 0x0BADF00D), 0xFEEDFACE), 0x8BADF00D), p);
-    if (!(allxor == 0)) @panic("data XOR parity == 0");
+    if (!(allxor == 0)) __t27_assert_fail("\n  data XOR parity == 0:\n    allxor = {any}\n", .{ allxor });
 }
 test "bad_survivors_wrong_recovery" {
     const p = fec_parity4(0x11111111, 0x22222222, 0x33333333, 0x44444444);
     const surv_bad = fec_xor(fec_xor(0x22222222, 0x33333333), 0x40404040);
-    if (!(fec_recover(p, surv_bad) != 0x11111111)) @panic("bad survivors -> bad recovery");
+    if (!(fec_recover(p, surv_bad) != 0x11111111)) __t27_assert_fail("\n  bad survivors -> bad recovery:\n    fec_recover(p, surv_bad) = {any}\n", .{ fec_recover(p, surv_bad) });
 }
 test "recover_roundtrip" {
     const p = fec_parity4(1, 2, 4, 8);
     const surv = fec_xor(fec_xor(1, 2), 4);
-    if (!(fec_recover(p, surv) == 8)) @panic("roundtrip d=8");
+    if (!(fec_recover(p, surv) == 8)) __t27_assert_fail("\n  roundtrip d=8:\n    fec_recover(p, surv) = {any}\n", .{ fec_recover(p, surv) });
 }

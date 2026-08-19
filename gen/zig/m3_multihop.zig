@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 const NODE_A: u32 = 1;
 const NODE_B: u32 = 2;
@@ -108,87 +116,126 @@ fn udp_packet_byte(seq: u16, byte_index: u8, data_byte: u8) u8 {
     return 0xBB;
 }
 test "expected_loss_rate_calculation" {
-    if (!(expected_loss_rate_p10(0) == 0x10)) @panic("expected_loss_rate_p10 0 == 0x10");
-    if (!(expected_loss_rate_p10(10) > 0x10)) @panic("expected_loss_rate_p10 10 > 0x10");
-    if (!(expected_loss_rate_p10(10) <= 0x40)) @panic("expected_loss_rate_p10 10 <= 0x40");
-    if (!(expected_loss_rate_p10(36) == 0xC0)) @panic("expected_loss_rate_p10 36 == 0xC0");
+    if (!(expected_loss_rate_p10(0) == 0x10)) __t27_assert_fail("\n  expected_loss_rate_p10 0 == 0x10:\n    expected_loss_rate_p10(0) = {any}\n", .{ expected_loss_rate_p10(0) });
+    if (!(expected_loss_rate_p10(10) > 0x10)) __t27_assert_fail("\n  expected_loss_rate_p10 10 > 0x10:\n    expected_loss_rate_p10(10) = {any}\n", .{ expected_loss_rate_p10(10) });
+    if (!(expected_loss_rate_p10(10) <= 0x40)) __t27_assert_fail("\n  expected_loss_rate_p10 10 <= 0x40:\n    expected_loss_rate_p10(10) = {any}\n", .{ expected_loss_rate_p10(10) });
+    if (!(expected_loss_rate_p10(36) == 0xC0)) __t27_assert_fail("\n  expected_loss_rate_p10 36 == 0xC0:\n    expected_loss_rate_p10(36) = {any}\n", .{ expected_loss_rate_p10(36) });
 }
 test "signal_quality_classification" {
-    if (!(signal_quality(5) == 0)) @panic("signal_quality 5 == 0");
-    if (!(signal_quality(10) == 1)) @panic("signal_quality 10 == 1");
-    if (!(signal_quality(15) == 2)) @panic("signal_quality 15 == 2");
-    if (!(signal_quality(25) == 4)) @panic("signal_quality 25 == 4");
-    if (!(signal_quality(30) == 5)) @panic("signal_quality 30 == 5");
+    if (!(signal_quality(5) == 0)) __t27_assert_fail("\n  signal_quality 5 == 0:\n    signal_quality(5) = {any}\n", .{ signal_quality(5) });
+    if (!(signal_quality(10) == 1)) __t27_assert_fail("\n  signal_quality 10 == 1:\n    signal_quality(10) = {any}\n", .{ signal_quality(10) });
+    if (!(signal_quality(15) == 2)) __t27_assert_fail("\n  signal_quality 15 == 2:\n    signal_quality(15) = {any}\n", .{ signal_quality(15) });
+    if (!(signal_quality(25) == 4)) __t27_assert_fail("\n  signal_quality 25 == 4:\n    signal_quality(25) = {any}\n", .{ signal_quality(25) });
+    if (!(signal_quality(30) == 5)) __t27_assert_fail("\n  signal_quality 30 == 5:\n    signal_quality(30) = {any}\n", .{ signal_quality(30) });
 }
 test "throughput_factor_calculation" {
     const factor0: u8 = throughput_factor_p8(0);
-    if (!(factor0 > 0xF0)) @panic("factor0 > 0xF0");
+    if (!(factor0 > 0xF0)) __t27_assert_fail("\n  factor0 > 0xF0:\n    factor0 = {any}\n", .{ factor0 });
     const factor10: u8 = throughput_factor_p8(10);
-    if (!(factor10 > 0xF0)) @panic("factor10 > 0xF0");
-    if (!(factor10 < 0x100)) @panic("factor10 < 0x100");
+    if (!(factor10 > 0xF0)) __t27_assert_fail("\n  factor10 > 0xF0:\n    factor10 = {any}\n", .{ factor10 });
+    if (!(factor10 < 0x100)) __t27_assert_fail("\n  factor10 < 0x100:\n    factor10 = {any}\n", .{ factor10 });
     const factor30: u8 = throughput_factor_p8(30);
-    if (!(factor30 > 0xD0)) @panic("factor30 > 0xD0");
-    if (!(factor30 < 0xF0)) @panic("factor30 < 0xF0");
+    if (!(factor30 > 0xD0)) __t27_assert_fail("\n  factor30 > 0xD0:\n    factor30 = {any}\n", .{ factor30 });
+    if (!(factor30 < 0xF0)) __t27_assert_fail("\n  factor30 < 0xF0:\n    factor30 = {any}\n", .{ factor30 });
 }
 test "total_attenuation_calculation" {
-    if (!(total_attenuation(10, 10) == 20)) @panic("total_attenuation 10 10 == 20");
-    if (!(total_attenuation(15, 15) == 30)) @panic("total_attenuation 15 15 == 30");
-    if (!(total_attenuation(20, 20) == 30)) @panic("total_attenuation 20 20 == 30");
+    if (!(total_attenuation(10, 10) == 20)) __t27_assert_fail("\n  total_attenuation 10 10 == 20:\n    total_attenuation(10, 10) = {any}\n", .{ total_attenuation(10, 10) });
+    if (!(total_attenuation(15, 15) == 30)) __t27_assert_fail("\n  total_attenuation 15 15 == 30:\n    total_attenuation(15, 15) = {any}\n", .{ total_attenuation(15, 15) });
+    if (!(total_attenuation(20, 20) == 30)) __t27_assert_fail("\n  total_attenuation 20 20 == 30:\n    total_attenuation(20, 20) = {any}\n", .{ total_attenuation(20, 20) });
 }
 test "delivery_rate_calculation" {
     const rate0: u8 = delivery_rate_p8(0, 0);
-    if (!(rate0 > 0xF0)) @panic("rate0 > 0xF0");
+    if (!(rate0 > 0xF0)) __t27_assert_fail("\n  rate0 > 0xF0:\n    rate0 = {any}\n", .{ rate0 });
     const rate10: u8 = delivery_rate_p8(10, 10);
-    if (!(rate10 > 0xF0)) @panic("rate10 > 0xF0");
-    if (!(rate10 < 0x100)) @panic("rate10 < 0x100");
+    if (!(rate10 > 0xF0)) __t27_assert_fail("\n  rate10 > 0xF0:\n    rate10 = {any}\n", .{ rate10 });
+    if (!(rate10 < 0x100)) __t27_assert_fail("\n  rate10 < 0x100:\n    rate10 = {any}\n", .{ rate10 });
 }
 test "tcp_packet_generation" {
     const seq: u32 = 0x12345678;
-    if (!(tcp_packet_byte(seq, 0, 0) == 0x12)) @panic("tcp_packet_byte seq 0 0 == 0x12");
-    if (!(tcp_packet_byte(seq, 1, 0) == 0x34)) @panic("tcp_packet_byte seq 1 0 == 0x34");
-    if (!(tcp_packet_byte(seq, 2, 0) == 0x56)) @panic("tcp_packet_byte seq 2 0 == 0x56");
-    if (!(tcp_packet_byte(seq, 3, 0) == 0x78)) @panic("tcp_packet_byte seq 3 0 == 0x78");
-    if (!(tcp_packet_byte(seq, 10, 0) == 0xAA)) @panic("tcp_packet_byte seq 10 0 == 0xAA");
+    if (!(tcp_packet_byte(seq, 0, 0) == 0x12)) __t27_assert_fail("\n  tcp_packet_byte seq 0 0 == 0x12:\n    tcp_packet_byte(seq, 0, 0) = {any}\n", .{ tcp_packet_byte(seq, 0, 0) });
+    if (!(tcp_packet_byte(seq, 1, 0) == 0x34)) __t27_assert_fail("\n  tcp_packet_byte seq 1 0 == 0x34:\n    tcp_packet_byte(seq, 1, 0) = {any}\n", .{ tcp_packet_byte(seq, 1, 0) });
+    if (!(tcp_packet_byte(seq, 2, 0) == 0x56)) __t27_assert_fail("\n  tcp_packet_byte seq 2 0 == 0x56:\n    tcp_packet_byte(seq, 2, 0) = {any}\n", .{ tcp_packet_byte(seq, 2, 0) });
+    if (!(tcp_packet_byte(seq, 3, 0) == 0x78)) __t27_assert_fail("\n  tcp_packet_byte seq 3 0 == 0x78:\n    tcp_packet_byte(seq, 3, 0) = {any}\n", .{ tcp_packet_byte(seq, 3, 0) });
+    if (!(tcp_packet_byte(seq, 10, 0) == 0xAA)) __t27_assert_fail("\n  tcp_packet_byte seq 10 0 == 0xAA:\n    tcp_packet_byte(seq, 10, 0) = {any}\n", .{ tcp_packet_byte(seq, 10, 0) });
 }
 test "udp_packet_generation" {
     const seq: u16 = 0x1234;
-    if (!(udp_packet_byte(seq, 0, 0) == 0x12)) @panic("udp_packet_byte seq 0 0 == 0x12");
-    if (!(udp_packet_byte(seq, 1, 0) == 0x34)) @panic("udp_packet_byte seq 1 0 == 0x34");
-    if (!(udp_packet_byte(seq, 10, 0) == 0xBB)) @panic("udp_packet_byte seq 10 0 == 0xBB");
+    if (!(udp_packet_byte(seq, 0, 0) == 0x12)) __t27_assert_fail("\n  udp_packet_byte seq 0 0 == 0x12:\n    udp_packet_byte(seq, 0, 0) = {any}\n", .{ udp_packet_byte(seq, 0, 0) });
+    if (!(udp_packet_byte(seq, 1, 0) == 0x34)) __t27_assert_fail("\n  udp_packet_byte seq 1 0 == 0x34:\n    udp_packet_byte(seq, 1, 0) = {any}\n", .{ udp_packet_byte(seq, 1, 0) });
+    if (!(udp_packet_byte(seq, 10, 0) == 0xBB)) __t27_assert_fail("\n  udp_packet_byte seq 10 0 == 0xBB:\n    udp_packet_byte(seq, 10, 0) = {any}\n", .{ udp_packet_byte(seq, 10, 0) });
 }
 test "hop_simulation" {
     var success_count: u8 = 0;
     _ = &success_count;
-    for (0..10) |i| {
+    for (0 .. 10) |i| {
         if (simulate_hop(0, @as(u8, @intCast(i * 11)))) {
             success_count = success_count + 1;
         }
     }
-    if (!(success_count > 8)) @panic("success_count > 8");
+    if (!(success_count > 8)) __t27_assert_fail("\n  success_count > 8:\n    success_count = {any}\n", .{ success_count });
     var success_count_high: u8 = 0;
     _ = &success_count_high;
-    for (0..10) |i| {
+    for (0 .. 10) |i| {
         if (simulate_hop(20, @as(u8, @intCast(i * 11)))) {
             success_count_high = success_count_high + 1;
         }
     }
-    if (!(success_count_high < success_count)) @panic("attenuated link loses at least one packet");
+    if (!(success_count_high < success_count)) __t27_assert_fail("\n  attenuated link loses at least one packet:\n    success_count_high = {any}\n    success_count = {any}\n", .{ success_count_high, success_count });
 }
 test "two_hop_forwarding" {
     var success_count: u8 = 0;
     _ = &success_count;
-    for (0..10) |i| {
+    for (0 .. 10) |i| {
         if (forward_packet(0, 0, @as(u8, @intCast(i * 11)))) {
             success_count = success_count + 1;
         }
     }
-    if (!(success_count > 7)) @panic("success_count > 7");
+    if (!(success_count > 7)) __t27_assert_fail("\n  success_count > 7:\n    success_count = {any}\n", .{ success_count });
     var success_count_high: u8 = 0;
     _ = &success_count_high;
-    for (0..10) |i| {
+    for (0 .. 10) |i| {
         if (forward_packet(15, 15, @as(u8, @intCast(i * 11)))) {
             success_count_high = success_count_high + 1;
         }
     }
-    if (!(success_count_high <= success_count)) @panic("attenuated path does not beat the clean one");
+    if (!(success_count_high <= success_count)) __t27_assert_fail("\n  attenuated path does not beat the clean one:\n    success_count_high = {any}\n    success_count = {any}\n", .{ success_count_high, success_count });
+}
+const ST_IDLE: u8 = 0;
+const ST_RUNNING: u8 = 1;
+const ST_COMPLETE: u8 = 2;
+const PerfCounters = struct {
+    packets_sent: u32,
+    packets_delivered: u32,
+    packets_lost: u32,
+    bytes_sent: u32,
+    test_duration_ms: u32,
+};
+fn calculate_throughput_mbps(counters: PerfCounters) u32 {
+    const bits: u64 = @as(u64, @intCast(counters.bytes_sent)) << 3;
+    const duration_sec: u64 = @as(u64, @intCast(counters.test_duration_ms)) / 1000;
+    if (duration_sec == 0) {
+        0;
+    } else {
+        @as(u32, @intCast((bits / duration_sec) / 1_000_000));
+    }
+}
+fn calculate_loss_pct(counters: PerfCounters) u8 {
+    if (counters.packets_sent == 0) {
+        0;
+    } else {
+        const lost: u32 = counters.packets_sent - counters.packets_delivered;
+        const loss_p10: u32 = (lost * 1000) / counters.packets_sent;
+        @as(u8, @intCast(loss_p10 / 10));
+    }
+}
+fn meets_targets(counters: PerfCounters, hop_count: u8) bool {
+    const throughput: u32 = calculate_throughput_mbps(counters);
+    const target_throughput: u32 = TARGET_THROUGHPUT_MBPS * @as(u32, @intCast(hop_count));
+    const loss_pct: u8 = calculate_loss_pct(counters);
+    (throughput >= target_throughput) and (loss_pct < TARGET_PACKET_LOSS_PCT);
+}
+fn test_next_state(current_state: u8, test_complete: bool) u8 {
+    _ = current_state; // unused by the spec body
+    _ = test_complete; // unused by the spec body
+    ;
 }

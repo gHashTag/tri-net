@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_NODES: u32 = 32;
@@ -244,17 +252,17 @@ fn generate_simulation_report(stats: u32, duration: u32, node_count: u32) u32 {
 }
 test "sim_event_roundtrip" {
     const e = create_sim_event(5, 40000, 9, 12);
-    if (!(get_event_id(e) == 5)) @panic("event id");
-    if (!(get_event_timestamp(e) == 40000)) @panic("timestamp");
-    if (!(get_event_type(e) == 9)) @panic("event type");
-    if (!(get_event_node_id(e) == 12)) @panic("node id");
+    if (!(get_event_id(e) == 5)) __t27_assert_fail("\n  event id:\n    get_event_id(e) = {any}\n", .{ get_event_id(e) });
+    if (!(get_event_timestamp(e) == 40000)) __t27_assert_fail("\n  timestamp:\n    get_event_timestamp(e) = {any}\n", .{ get_event_timestamp(e) });
+    if (!(get_event_type(e) == 9)) __t27_assert_fail("\n  event type:\n    get_event_type(e) = {any}\n", .{ get_event_type(e) });
+    if (!(get_event_node_id(e) == 12)) __t27_assert_fail("\n  node id:\n    get_event_node_id(e) = {any}\n", .{ get_event_node_id(e) });
 }
 test "energy_drain_fails_node" {
     var st = create_node_state(3, NODE_ACTIVE, 10, 7);
     st = update_node_energy(st, 4);
-    if (!(get_node_energy(st) == 6)) @panic("energy drained");
-    if (!(get_node_status(st) == NODE_ACTIVE)) @panic("still active");
+    if (!(get_node_energy(st) == 6)) __t27_assert_fail("\n  energy drained:\n    get_node_energy(st) = {any}\n", .{ get_node_energy(st) });
+    if (!(get_node_status(st) == NODE_ACTIVE)) __t27_assert_fail("\n  still active:\n    get_node_status(st) = {any}\n    NODE_ACTIVE = {any}\n", .{ get_node_status(st), NODE_ACTIVE });
     st = update_node_energy(st, 100);
-    if (!(get_node_energy(st) == 0)) @panic("clamps at zero");
-    if (!(get_node_status(st) == NODE_FAILED)) @panic("empty battery fails the node");
+    if (!(get_node_energy(st) == 0)) __t27_assert_fail("\n  clamps at zero:\n    get_node_energy(st) = {any}\n", .{ get_node_energy(st) });
+    if (!(get_node_status(st) == NODE_FAILED)) __t27_assert_fail("\n  empty battery fails the node:\n    get_node_status(st) = {any}\n    NODE_FAILED = {any}\n", .{ get_node_status(st), NODE_FAILED });
 }

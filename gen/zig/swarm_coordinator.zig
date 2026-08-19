@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_NODES: u32 = 8;
@@ -189,81 +197,81 @@ fn cooperative_decision(neighbor_values: u32, my_value: u32, weight_neighbors: u
 }
 test "create_proposal_basic" {
     const proposal = create_proposal(5, 10, 100, 1000);
-    if (!(get_proposal_id(proposal) == 5)) @panic("proposal id");
-    if (!(get_proposal_node(proposal) == 10)) @panic("node id");
-    if (!(get_proposal_value(proposal) == 100)) @panic("value");
-    if (!(get_proposal_timestamp(proposal) == 1000)) @panic("timestamp");
+    if (!(get_proposal_id(proposal) == 5)) __t27_assert_fail("\n  proposal id:\n    get_proposal_id(proposal) = {any}\n", .{ get_proposal_id(proposal) });
+    if (!(get_proposal_node(proposal) == 10)) __t27_assert_fail("\n  node id:\n    get_proposal_node(proposal) = {any}\n", .{ get_proposal_node(proposal) });
+    if (!(get_proposal_value(proposal) == 100)) __t27_assert_fail("\n  value:\n    get_proposal_value(proposal) = {any}\n", .{ get_proposal_value(proposal) });
+    if (!(get_proposal_timestamp(proposal) == 1000)) __t27_assert_fail("\n  timestamp:\n    get_proposal_timestamp(proposal) = {any}\n", .{ get_proposal_timestamp(proposal) });
 }
 test "create_vote_yes" {
     const vote = create_vote(5, VOTE_YES, 10, 1000);
-    if (!(get_vote_node(vote) == 5)) @panic("node");
-    if (!(get_vote_value(vote) == VOTE_YES)) @panic("yes vote");
-    if (!(get_vote_proposal_id(vote) == 10)) @panic("proposal id");
+    if (!(get_vote_node(vote) == 5)) __t27_assert_fail("\n  node:\n    get_vote_node(vote) = {any}\n", .{ get_vote_node(vote) });
+    if (!(get_vote_value(vote) == VOTE_YES)) __t27_assert_fail("\n  yes vote:\n    get_vote_value(vote) = {any}\n    VOTE_YES = {any}\n", .{ get_vote_value(vote), VOTE_YES });
+    if (!(get_vote_proposal_id(vote) == 10)) __t27_assert_fail("\n  proposal id:\n    get_vote_proposal_id(vote) = {any}\n", .{ get_vote_proposal_id(vote) });
 }
 test "create_vote_no" {
     const vote = create_vote(5, VOTE_NO, 10, 1000);
-    if (!(get_vote_value(vote) == VOTE_NO)) @panic("no vote");
+    if (!(get_vote_value(vote) == VOTE_NO)) __t27_assert_fail("\n  no vote:\n    get_vote_value(vote) = {any}\n    VOTE_NO = {any}\n", .{ get_vote_value(vote), VOTE_NO });
 }
 test "create_vote_abstain" {
     const vote = create_vote(5, VOTE_ABSTAIN, 10, 1000);
-    if (!(get_vote_value(vote) == VOTE_ABSTAIN)) @panic("abstain vote");
+    if (!(get_vote_value(vote) == VOTE_ABSTAIN)) __t27_assert_fail("\n  abstain vote:\n    get_vote_value(vote) = {any}\n    VOTE_ABSTAIN = {any}\n", .{ get_vote_value(vote), VOTE_ABSTAIN });
 }
 test "count_votes_unanimous_yes" {
     const vote_array = create_vote_array(create_vote(1, VOTE_YES, 10, 1000), create_vote(2, VOTE_YES, 10, 1000), create_vote(3, VOTE_YES, 10, 1000), create_vote(4, VOTE_YES, 10, 1000), create_vote(5, VOTE_YES, 10, 1000), create_vote(6, VOTE_YES, 10, 1000), create_vote(7, VOTE_YES, 10, 1000), create_vote(8, VOTE_YES, 10, 1000));
     const yes, const no, const abstain = count_votes(vote_array, 10);
-    if (!(yes == 8)) @panic("8 yes votes");
-    if (!(no == 0)) @panic("0 no votes");
-    if (!(abstain == 0)) @panic("0 abstain");
+    if (!(yes == 8)) __t27_assert_fail("\n  8 yes votes:\n    yes = {any}\n", .{ yes });
+    if (!(no == 0)) __t27_assert_fail("\n  0 no votes:\n    no = {any}\n", .{ no });
+    if (!(abstain == 0)) __t27_assert_fail("\n  0 abstain:\n    abstain = {any}\n", .{ abstain });
 }
 test "count_votes_mixed" {
     const vote_array = create_vote_array(create_vote(1, VOTE_YES, 10, 1000), create_vote(2, VOTE_NO, 10, 1000), create_vote(3, VOTE_YES, 10, 1000), create_vote(4, VOTE_ABSTAIN, 10, 1000), create_vote(5, VOTE_YES, 10, 1000), create_vote(6, VOTE_NO, 10, 1000), create_vote(7, VOTE_YES, 10, 1000), create_vote(8, VOTE_ABSTAIN, 10, 1000));
     const yes, const no, const abstain = count_votes(vote_array, 10);
-    if (!(yes == 4)) @panic("4 yes votes");
-    if (!(no == 2)) @panic("2 no votes");
-    if (!(abstain == 2)) @panic("2 abstain");
+    if (!(yes == 4)) __t27_assert_fail("\n  4 yes votes:\n    yes = {any}\n", .{ yes });
+    if (!(no == 2)) __t27_assert_fail("\n  2 no votes:\n    no = {any}\n", .{ no });
+    if (!(abstain == 2)) __t27_assert_fail("\n  2 abstain:\n    abstain = {any}\n", .{ abstain });
 }
 test "has_quorum_true" {
     const yes, const no, const abstain = .{ 4, 3, 1 };
-    if (!(has_quorum(yes, no, abstain) == true)) @panic("quorum reached");
+    if (!(has_quorum(yes, no, abstain) == true)) __t27_assert_fail("\n  quorum reached:\n    has_quorum(yes, no, abstain) = {any}\n", .{ has_quorum(yes, no, abstain) });
 }
 test "has_quorum_false" {
     const yes, const no, const abstain = .{ 2, 2, 0 };
-    if (!(has_quorum(yes, no, abstain) == false)) @panic("no quorum");
+    if (!(has_quorum(yes, no, abstain) == false)) __t27_assert_fail("\n  no quorum:\n    has_quorum(yes, no, abstain) = {any}\n", .{ has_quorum(yes, no, abstain) });
 }
 test "proposal_passes_yes" {
     const yes, const no, const abstain = .{ 5, 3, 1 };
     _ = abstain; // dead after const-inlining
-    if (!(proposal_passes(yes, no) == true)) @panic("proposal passes");
+    if (!(proposal_passes(yes, no) == true)) __t27_assert_fail("\n  proposal passes:\n    proposal_passes(yes, no) = {any}\n", .{ proposal_passes(yes, no) });
 }
 test "proposal_passes_no" {
     const yes, const no, const abstain = .{ 3, 5, 1 };
     _ = abstain; // dead after const-inlining
-    if (!(proposal_passes(yes, no) == false)) @panic("proposal fails");
+    if (!(proposal_passes(yes, no) == false)) __t27_assert_fail("\n  proposal fails:\n    proposal_passes(yes, no) = {any}\n", .{ proposal_passes(yes, no) });
 }
 test "proposal_passes_tie" {
     const yes, const no, const abstain = .{ 4, 4, 1 };
     _ = abstain; // dead after const-inlining
-    if (!(proposal_passes(yes, no) == false)) @panic("proposal fails on tie");
+    if (!(proposal_passes(yes, no) == false)) __t27_assert_fail("\n  proposal fails on tie:\n    proposal_passes(yes, no) = {any}\n", .{ proposal_passes(yes, no) });
 }
 test "calculate_consensus_value_average" {
     const vote_array = create_vote_array(create_proposal(1, 10, 100, 1000), create_proposal(2, 10, 200, 1000), create_proposal(3, 10, 150, 1000), create_proposal(4, 10, 250, 1000), create_proposal(5, 10, 0, 0), create_proposal(6, 10, 0, 0), create_proposal(7, 10, 0, 0), create_proposal(8, 10, 0, 0));
     const consensus = calculate_consensus_value(vote_array, 10);
-    if (!(consensus == 175)) @panic("average of 100,200,150,250 = 175");
+    if (!(consensus == 175)) __t27_assert_fail("\n  average of 100,200,150,250 = 175:\n    consensus = {any}\n", .{ consensus });
 }
 test "calculate_consensus_value_empty" {
     const vote_array = create_vote_array(create_proposal(1, 99, 100, 1000), create_proposal(2, 99, 200, 1000), create_proposal(3, 10, 0, 0), create_proposal(4, 10, 0, 0), create_proposal(5, 10, 0, 0), create_proposal(6, 10, 0, 0), create_proposal(7, 10, 0, 0), create_proposal(8, 10, 0, 0));
     const consensus = calculate_consensus_value(vote_array, 10);
-    if (!(consensus == 0)) @panic("no votes for proposal");
+    if (!(consensus == 0)) __t27_assert_fail("\n  no votes for proposal:\n    consensus = {any}\n", .{ consensus });
 }
 test "cooperative_decision_equal_weight" {
     const result = cooperative_decision(80, 60, 50);
-    if (!(result == 70)) @panic("equal weighted average");
+    if (!(result == 70)) __t27_assert_fail("\n  equal weighted average:\n    result = {any}\n", .{ result });
 }
 test "cooperative_decision_neighbor_heavy" {
     const result = cooperative_decision(100, 50, 80);
-    if (!(result == 90)) @panic("neighbor-weighted");
+    if (!(result == 90)) __t27_assert_fail("\n  neighbor-weighted:\n    result = {any}\n", .{ result });
 }
 test "cooperative_decision_self_heavy" {
     const result = cooperative_decision(50, 100, 20);
-    if (!(result == 90)) @panic("self-weighted");
+    if (!(result == 90)) __t27_assert_fail("\n  self-weighted:\n    result = {any}\n", .{ result });
 }

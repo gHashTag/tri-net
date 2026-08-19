@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_ERRORS: u32 = 16;
@@ -257,18 +265,18 @@ fn generate_validation_report(summary: u32, metrics: u32, filename_id: u32) u32 
 }
 test "validation_error_roundtrip" {
     const e = create_validation_error(7, ERROR_TYPE_MISMATCH, 199, 3000);
-    if (!(get_error_id(e) == 7)) @panic("error id");
-    if (!(get_error_type(e) == ERROR_TYPE_MISMATCH)) @panic("error type");
-    if (!(get_error_line(e) == 199)) @panic("line");
-    if (!(get_error_severity(e) == 3000)) @panic("severity");
+    if (!(get_error_id(e) == 7)) __t27_assert_fail("\n  error id:\n    get_error_id(e) = {any}\n", .{ get_error_id(e) });
+    if (!(get_error_type(e) == ERROR_TYPE_MISMATCH)) __t27_assert_fail("\n  error type:\n    get_error_type(e) = {any}\n    ERROR_TYPE_MISMATCH = {any}\n", .{ get_error_type(e), ERROR_TYPE_MISMATCH });
+    if (!(get_error_line(e) == 199)) __t27_assert_fail("\n  line:\n    get_error_line(e) = {any}\n", .{ get_error_line(e) });
+    if (!(get_error_severity(e) == 3000)) __t27_assert_fail("\n  severity:\n    get_error_severity(e) = {any}\n", .{ get_error_severity(e) });
 }
 test "signature_validation_paths" {
     const ok_sig = create_function_signature(5, 4, 2, 1);
-    if (!(validate_function_signature(ok_sig) == 0)) @panic("4 params bool return is valid");
+    if (!(validate_function_signature(ok_sig) == 0)) __t27_assert_fail("\n  4 params bool return is valid:\n    validate_function_signature(ok_sig) = {any}\n", .{ validate_function_signature(ok_sig) });
     const many = create_function_signature(5, 12, 2, 1);
     const e1 = validate_function_signature(many);
-    if (!(get_error_type(e1) == ERROR_CONSTRAINT_VIOLATION)) @panic("12 params violates the constraint");
+    if (!(get_error_type(e1) == ERROR_CONSTRAINT_VIOLATION)) __t27_assert_fail("\n  12 params violates the constraint:\n    get_error_type(e1) = {any}\n    ERROR_CONSTRAINT_VIOLATION = {any}\n", .{ get_error_type(e1), ERROR_CONSTRAINT_VIOLATION });
     const badret = create_function_signature(5, 4, 9, 1);
     const e2 = validate_function_signature(badret);
-    if (!(get_error_type(e2) == ERROR_TYPE_MISMATCH)) @panic("return type 9 is invalid");
+    if (!(get_error_type(e2) == ERROR_TYPE_MISMATCH)) __t27_assert_fail("\n  return type 9 is invalid:\n    get_error_type(e2) = {any}\n    ERROR_TYPE_MISMATCH = {any}\n", .{ get_error_type(e2), ERROR_TYPE_MISMATCH });
 }

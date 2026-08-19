@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const GFT16_BIAS: u32 = 40;
@@ -124,70 +132,70 @@ fn gft_mul_result(offset_a: u32, ma: u32, offset_b: u32, mb: u32, bias: u32, off
     return gft_result_encode(gft_mul_offset_full(offset_a, ma, offset_b, mb, bias, offset_max), gft_mul_mant(ma, mb));
 }
 test "mul_exponent_law" {
-    if (!(gft_mul_offset(40, 40, GFT16_BIAS, GFT16_OFFSET_MAX) == 40)) @panic("unity * unity = unity (offset 40)");
-    if (!(gft_mul_offset(41, 41, GFT16_BIAS, GFT16_OFFSET_MAX) == 42)) @panic("phi^1 * phi^1 = phi^2");
-    if (!(gft_mul_offset(50, 60, GFT16_BIAS, GFT16_OFFSET_MAX) == 70)) @panic("phi^10 * phi^20 = phi^30");
-    if (!(gft_mul_offset(40, 55, GFT16_BIAS, GFT16_OFFSET_MAX) == 55)) @panic("unity * x = x");
+    if (!(gft_mul_offset(40, 40, GFT16_BIAS, GFT16_OFFSET_MAX) == 40)) __t27_assert_fail("\n  unity * unity = unity (offset 40):\n    gft_mul_offset(40, 40, GFT16_BIAS, GFT16_OFFSET_MAX) = {any}\n", .{ gft_mul_offset(40, 40, GFT16_BIAS, GFT16_OFFSET_MAX) });
+    if (!(gft_mul_offset(41, 41, GFT16_BIAS, GFT16_OFFSET_MAX) == 42)) __t27_assert_fail("\n  phi^1 * phi^1 = phi^2:\n    gft_mul_offset(41, 41, GFT16_BIAS, GFT16_OFFSET_MAX) = {any}\n", .{ gft_mul_offset(41, 41, GFT16_BIAS, GFT16_OFFSET_MAX) });
+    if (!(gft_mul_offset(50, 60, GFT16_BIAS, GFT16_OFFSET_MAX) == 70)) __t27_assert_fail("\n  phi^10 * phi^20 = phi^30:\n    gft_mul_offset(50, 60, GFT16_BIAS, GFT16_OFFSET_MAX) = {any}\n", .{ gft_mul_offset(50, 60, GFT16_BIAS, GFT16_OFFSET_MAX) });
+    if (!(gft_mul_offset(40, 55, GFT16_BIAS, GFT16_OFFSET_MAX) == 55)) __t27_assert_fail("\n  unity * x = x:\n    gft_mul_offset(40, 55, GFT16_BIAS, GFT16_OFFSET_MAX) = {any}\n", .{ gft_mul_offset(40, 55, GFT16_BIAS, GFT16_OFFSET_MAX) });
 }
 test "mul_saturation" {
-    if (!(gft_mul_offset(79, 79, GFT16_BIAS, GFT16_OFFSET_MAX) == 80)) @panic("big * big overflows to the inf row");
-    if (!(gft_mul_offset(70, 60, GFT16_BIAS, GFT16_OFFSET_MAX) == 80)) @panic("90 >= offset_max -> inf");
-    if (!(gft_mul_offset(10, 10, GFT16_BIAS, GFT16_OFFSET_MAX) == 0)) @panic("tiny * tiny underflows to offset 0");
-    if (!(gft_mul_offset(0, 0, GFT16_BIAS, GFT16_OFFSET_MAX) == 0)) @panic("min * min = min");
+    if (!(gft_mul_offset(79, 79, GFT16_BIAS, GFT16_OFFSET_MAX) == 80)) __t27_assert_fail("\n  big * big overflows to the inf row:\n    gft_mul_offset(79, 79, GFT16_BIAS, GFT16_OFFSET_MAX) = {any}\n", .{ gft_mul_offset(79, 79, GFT16_BIAS, GFT16_OFFSET_MAX) });
+    if (!(gft_mul_offset(70, 60, GFT16_BIAS, GFT16_OFFSET_MAX) == 80)) __t27_assert_fail("\n  90 >= offset_max -> inf:\n    gft_mul_offset(70, 60, GFT16_BIAS, GFT16_OFFSET_MAX) = {any}\n", .{ gft_mul_offset(70, 60, GFT16_BIAS, GFT16_OFFSET_MAX) });
+    if (!(gft_mul_offset(10, 10, GFT16_BIAS, GFT16_OFFSET_MAX) == 0)) __t27_assert_fail("\n  tiny * tiny underflows to offset 0:\n    gft_mul_offset(10, 10, GFT16_BIAS, GFT16_OFFSET_MAX) = {any}\n", .{ gft_mul_offset(10, 10, GFT16_BIAS, GFT16_OFFSET_MAX) });
+    if (!(gft_mul_offset(0, 0, GFT16_BIAS, GFT16_OFFSET_MAX) == 0)) __t27_assert_fail("\n  min * min = min:\n    gft_mul_offset(0, 0, GFT16_BIAS, GFT16_OFFSET_MAX) = {any}\n", .{ gft_mul_offset(0, 0, GFT16_BIAS, GFT16_OFFSET_MAX) });
 }
 test "verify_catches_fraud" {
-    if (!(verify_gft_mul_offset(41, 41, 42, GFT16_BIAS, GFT16_OFFSET_MAX) == true)) @panic("honest phi^2 accepted");
-    if (!(verify_gft_mul_offset(41, 41, 43, GFT16_BIAS, GFT16_OFFSET_MAX) == false)) @panic("wrong product exponent rejected");
-    if (!(verify_gft_mul_offset(50, 60, 71, GFT16_BIAS, GFT16_OFFSET_MAX) == false)) @panic("off-by-one exponent rejected");
+    if (!(verify_gft_mul_offset(41, 41, 42, GFT16_BIAS, GFT16_OFFSET_MAX) == true)) __t27_assert_fail("\n  honest phi^2 accepted:\n    verify_gft_mul_offset(41, 41, 42, GFT16_BIAS, GFT16_OFFSET_MAX) = {any}\n", .{ verify_gft_mul_offset(41, 41, 42, GFT16_BIAS, GFT16_OFFSET_MAX) });
+    if (!(verify_gft_mul_offset(41, 41, 43, GFT16_BIAS, GFT16_OFFSET_MAX) == false)) __t27_assert_fail("\n  wrong product exponent rejected:\n    verify_gft_mul_offset(41, 41, 43, GFT16_BIAS, GFT16_OFFSET_MAX) = {any}\n", .{ verify_gft_mul_offset(41, 41, 43, GFT16_BIAS, GFT16_OFFSET_MAX) });
+    if (!(verify_gft_mul_offset(50, 60, 71, GFT16_BIAS, GFT16_OFFSET_MAX) == false)) __t27_assert_fail("\n  off-by-one exponent rejected:\n    verify_gft_mul_offset(50, 60, 71, GFT16_BIAS, GFT16_OFFSET_MAX) = {any}\n", .{ verify_gft_mul_offset(50, 60, 71, GFT16_BIAS, GFT16_OFFSET_MAX) });
 }
 test "sign_law" {
-    if (!(gft_mul_sign(0, 0) == 0)) @panic("(+)(+) = +");
-    if (!(gft_mul_sign(1, 1) == 0)) @panic("(-)(-) = +");
-    if (!(gft_mul_sign(0, 1) == 1)) @panic("(+)(-) = -");
+    if (!(gft_mul_sign(0, 0) == 0)) __t27_assert_fail("\n  (+)(+) = +:\n    gft_mul_sign(0, 0) = {any}\n", .{ gft_mul_sign(0, 0) });
+    if (!(gft_mul_sign(1, 1) == 0)) __t27_assert_fail("\n  (-)(-) = +:\n    gft_mul_sign(1, 1) = {any}\n", .{ gft_mul_sign(1, 1) });
+    if (!(gft_mul_sign(0, 1) == 1)) __t27_assert_fail("\n  (+)(-) = -:\n    gft_mul_sign(0, 1) = {any}\n", .{ gft_mul_sign(0, 1) });
 }
 test "mantissa_product" {
-    if (!(gft_mul_mant_carry(0, 0) == 0)) @panic("1.0 * 1.0 = 1.0, no carry");
-    if (!(gft_mul_mant(0, 0) == 0)) @panic("1.0 * 1.0 mantissa 0");
-    if (!(gft_mul_mant_carry(0, 256) == 0)) @panic("1.0 * 1.5 = 1.5, no carry");
-    if (!(gft_mul_mant(0, 256) == 256)) @panic("1.0 * 1.5 mantissa = 256 (1.5)");
-    if (!(gft_mul_mant_carry(256, 256) == 1)) @panic("1.5 * 1.5 = 2.25 carries");
-    if (!(gft_mul_mant(256, 256) == 64)) @panic("1.5 * 1.5 -> 1.125 after renorm, mantissa 64");
+    if (!(gft_mul_mant_carry(0, 0) == 0)) __t27_assert_fail("\n  1.0 * 1.0 = 1.0, no carry:\n    gft_mul_mant_carry(0, 0) = {any}\n", .{ gft_mul_mant_carry(0, 0) });
+    if (!(gft_mul_mant(0, 0) == 0)) __t27_assert_fail("\n  1.0 * 1.0 mantissa 0:\n    gft_mul_mant(0, 0) = {any}\n", .{ gft_mul_mant(0, 0) });
+    if (!(gft_mul_mant_carry(0, 256) == 0)) __t27_assert_fail("\n  1.0 * 1.5 = 1.5, no carry:\n    gft_mul_mant_carry(0, 256) = {any}\n", .{ gft_mul_mant_carry(0, 256) });
+    if (!(gft_mul_mant(0, 256) == 256)) __t27_assert_fail("\n  1.0 * 1.5 mantissa = 256 (1.5):\n    gft_mul_mant(0, 256) = {any}\n", .{ gft_mul_mant(0, 256) });
+    if (!(gft_mul_mant_carry(256, 256) == 1)) __t27_assert_fail("\n  1.5 * 1.5 = 2.25 carries:\n    gft_mul_mant_carry(256, 256) = {any}\n", .{ gft_mul_mant_carry(256, 256) });
+    if (!(gft_mul_mant(256, 256) == 64)) __t27_assert_fail("\n  1.5 * 1.5 -> 1.125 after renorm, mantissa 64:\n    gft_mul_mant(256, 256) = {any}\n", .{ gft_mul_mant(256, 256) });
 }
 test "full_exponent_uses_carry" {
-    if (!(gft_mul_offset_full(41, 0, 41, 0, GFT16_BIAS, GFT16_OFFSET_MAX) == 42)) @panic("no mantissa carry -> exponent 42");
-    if (!(gft_mul_offset_full(41, 256, 41, 256, GFT16_BIAS, GFT16_OFFSET_MAX) == 43)) @panic("1.5*1.5 carry -> exponent 43");
+    if (!(gft_mul_offset_full(41, 0, 41, 0, GFT16_BIAS, GFT16_OFFSET_MAX) == 42)) __t27_assert_fail("\n  no mantissa carry -> exponent 42:\n    gft_mul_offset_full(41, 0, 41, 0, GFT16_BIAS, GFT16_OFFSET_MAX) = {any}\n", .{ gft_mul_offset_full(41, 0, 41, 0, GFT16_BIAS, GFT16_OFFSET_MAX) });
+    if (!(gft_mul_offset_full(41, 256, 41, 256, GFT16_BIAS, GFT16_OFFSET_MAX) == 43)) __t27_assert_fail("\n  1.5*1.5 carry -> exponent 43:\n    gft_mul_offset_full(41, 256, 41, 256, GFT16_BIAS, GFT16_OFFSET_MAX) = {any}\n", .{ gft_mul_offset_full(41, 256, 41, 256, GFT16_BIAS, GFT16_OFFSET_MAX) });
 }
 test "full_verify_catches_mantissa" {
-    if (!(verify_gft_mul_full(40, 0, 40, 256, 40, 256, GFT16_BIAS, GFT16_OFFSET_MAX) == true)) @panic("unity * 1.5 = 1.5 accepted");
-    if (!(verify_gft_mul_full(40, 0, 40, 256, 40, 255, GFT16_BIAS, GFT16_OFFSET_MAX) == false)) @panic("wrong result mantissa rejected");
-    if (!(verify_gft_mul_full(41, 256, 41, 256, 43, 64, GFT16_BIAS, GFT16_OFFSET_MAX) == true)) @panic("1.5*1.5 -> exp 43, mant 64 accepted");
-    if (!(verify_gft_mul_full(41, 256, 41, 256, 42, 64, GFT16_BIAS, GFT16_OFFSET_MAX) == false)) @panic("ignoring the carry (exp 42) rejected");
+    if (!(verify_gft_mul_full(40, 0, 40, 256, 40, 256, GFT16_BIAS, GFT16_OFFSET_MAX) == true)) __t27_assert_fail("\n  unity * 1.5 = 1.5 accepted:\n    verify_gft_mul_full(40, 0, 40, 256, 40, 256, GFT16_BIAS, GFT16_OFFSET_MAX) = {any}\n", .{ verify_gft_mul_full(40, 0, 40, 256, 40, 256, GFT16_BIAS, GFT16_OFFSET_MAX) });
+    if (!(verify_gft_mul_full(40, 0, 40, 256, 40, 255, GFT16_BIAS, GFT16_OFFSET_MAX) == false)) __t27_assert_fail("\n  wrong result mantissa rejected:\n    verify_gft_mul_full(40, 0, 40, 256, 40, 255, GFT16_BIAS, GFT16_OFFSET_MAX) = {any}\n", .{ verify_gft_mul_full(40, 0, 40, 256, 40, 255, GFT16_BIAS, GFT16_OFFSET_MAX) });
+    if (!(verify_gft_mul_full(41, 256, 41, 256, 43, 64, GFT16_BIAS, GFT16_OFFSET_MAX) == true)) __t27_assert_fail("\n  1.5*1.5 -> exp 43, mant 64 accepted:\n    verify_gft_mul_full(41, 256, 41, 256, 43, 64, GFT16_BIAS, GFT16_OFFSET_MAX) = {any}\n", .{ verify_gft_mul_full(41, 256, 41, 256, 43, 64, GFT16_BIAS, GFT16_OFFSET_MAX) });
+    if (!(verify_gft_mul_full(41, 256, 41, 256, 42, 64, GFT16_BIAS, GFT16_OFFSET_MAX) == false)) __t27_assert_fail("\n  ignoring the carry (exp 42) rejected:\n    verify_gft_mul_full(41, 256, 41, 256, 42, 64, GFT16_BIAS, GFT16_OFFSET_MAX) = {any}\n", .{ verify_gft_mul_full(41, 256, 41, 256, 42, 64, GFT16_BIAS, GFT16_OFFSET_MAX) });
 }
 test "result_encode" {
-    if (!(gft_result_encode(42, 0) == (42 << 9))) @panic("encode offset 42, mant 0");
-    if (!(gft_mul_result(41, 0, 41, 0, GFT16_BIAS, GFT16_OFFSET_MAX) == gft_result_encode(42, 0))) @panic("phi^1*phi^1 recomputes to encoded (42,0)");
-    if (!(gft_mul_result(41, 256, 41, 256, GFT16_BIAS, GFT16_OFFSET_MAX) == gft_result_encode(43, 64))) @panic("1.5*1.5 recomputes to encoded (43,64)");
-    if (!(gft_mul_result(41, 0, 41, 0, GFT16_BIAS, GFT16_OFFSET_MAX) != gft_result_encode(43, 0))) @panic("a wrong claimed result differs");
+    if (!(gft_result_encode(42, 0) == (42 << 9))) __t27_assert_fail("\n  encode offset 42, mant 0:\n    gft_result_encode(42, 0) = {any}\n    42 << 9 = {any}\n", .{ gft_result_encode(42, 0), 42 << 9 });
+    if (!(gft_mul_result(41, 0, 41, 0, GFT16_BIAS, GFT16_OFFSET_MAX) == gft_result_encode(42, 0))) __t27_assert_fail("\n  phi^1*phi^1 recomputes to encoded (42,0):\n    gft_mul_result(41, 0, 41, 0, GFT16_BIAS, GFT16_OFFSET_MAX) = {any}\n    gft_result_encode(42, 0) = {any}\n", .{ gft_mul_result(41, 0, 41, 0, GFT16_BIAS, GFT16_OFFSET_MAX), gft_result_encode(42, 0) });
+    if (!(gft_mul_result(41, 256, 41, 256, GFT16_BIAS, GFT16_OFFSET_MAX) == gft_result_encode(43, 64))) __t27_assert_fail("\n  1.5*1.5 recomputes to encoded (43,64):\n    gft_mul_result(41, 256, 41, 256, GFT16_BIAS, GFT16_OFFSET_MAX) = {any}\n    gft_result_encode(43, 64) = {any}\n", .{ gft_mul_result(41, 256, 41, 256, GFT16_BIAS, GFT16_OFFSET_MAX), gft_result_encode(43, 64) });
+    if (!(gft_mul_result(41, 0, 41, 0, GFT16_BIAS, GFT16_OFFSET_MAX) != gft_result_encode(43, 0))) __t27_assert_fail("\n  a wrong claimed result differs:\n    gft_mul_result(41, 0, 41, 0, GFT16_BIAS, GFT16_OFFSET_MAX) = {any}\n    gft_result_encode(43, 0) = {any}\n", .{ gft_mul_result(41, 0, 41, 0, GFT16_BIAS, GFT16_OFFSET_MAX), gft_result_encode(43, 0) });
 }
 test "per_rung_multiply" {
-    if (!(gft_mul_offset_full_p(40, 0, 40, 0, 40, 80, 512) == 40)) @panic("GF-T16 unity*unity offset 40");
-    if (!(gft_mul_offset_full_p(41, 256, 41, 256, 40, 80, 512) == 43)) @panic("GF-T16 1.5*1.5 carry -> 43");
-    if (!(gft_mul_mant_p(256, 256, 512) == 64)) @panic("GF-T16 1.5*1.5 mantissa 64");
-    if (!(gft_mul_mant_carry_p(8, 8, 16) == 1)) @panic("GF-T8 1.5*1.5 carries");
-    if (!(gft_mul_mant_p(8, 8, 16) == 2)) @panic("GF-T8 1.5*1.5 -> mantissa 2");
-    if (!(verify_gft_mul_full_p(13, 8, 13, 8, 14, 2, 13, 26, 16) == true)) @panic("GF-T8 1.5*1.5 = exp 14, mant 2");
-    if (!(verify_gft_mul_full_p(13, 0, 13, 0, 13, 0, 13, 26, 16) == true)) @panic("GF-T8 unity*unity = exp 13, mant 0");
-    if (!(verify_gft_mul_full_p(4, 1, 4, 1, 5, 0, 4, 8, 2) == true)) @panic("GF-T4 1.5*1.5 = exp 5, mant 0");
-    if (!(verify_gft_mul_full_p(4, 1, 4, 1, 4, 0, 4, 8, 2) == false)) @panic("GF-T4 wrong exponent rejected");
+    if (!(gft_mul_offset_full_p(40, 0, 40, 0, 40, 80, 512) == 40)) __t27_assert_fail("\n  GF-T16 unity*unity offset 40:\n    gft_mul_offset_full_p(40, 0, 40, 0, 40, 80, 512) = {any}\n", .{ gft_mul_offset_full_p(40, 0, 40, 0, 40, 80, 512) });
+    if (!(gft_mul_offset_full_p(41, 256, 41, 256, 40, 80, 512) == 43)) __t27_assert_fail("\n  GF-T16 1.5*1.5 carry -> 43:\n    gft_mul_offset_full_p(41, 256, 41, 256, 40, 80, 512) = {any}\n", .{ gft_mul_offset_full_p(41, 256, 41, 256, 40, 80, 512) });
+    if (!(gft_mul_mant_p(256, 256, 512) == 64)) __t27_assert_fail("\n  GF-T16 1.5*1.5 mantissa 64:\n    gft_mul_mant_p(256, 256, 512) = {any}\n", .{ gft_mul_mant_p(256, 256, 512) });
+    if (!(gft_mul_mant_carry_p(8, 8, 16) == 1)) __t27_assert_fail("\n  GF-T8 1.5*1.5 carries:\n    gft_mul_mant_carry_p(8, 8, 16) = {any}\n", .{ gft_mul_mant_carry_p(8, 8, 16) });
+    if (!(gft_mul_mant_p(8, 8, 16) == 2)) __t27_assert_fail("\n  GF-T8 1.5*1.5 -> mantissa 2:\n    gft_mul_mant_p(8, 8, 16) = {any}\n", .{ gft_mul_mant_p(8, 8, 16) });
+    if (!(verify_gft_mul_full_p(13, 8, 13, 8, 14, 2, 13, 26, 16) == true)) __t27_assert_fail("\n  GF-T8 1.5*1.5 = exp 14, mant 2:\n    verify_gft_mul_full_p(13, 8, 13, 8, 14, 2, 13, 26, 16) = {any}\n", .{ verify_gft_mul_full_p(13, 8, 13, 8, 14, 2, 13, 26, 16) });
+    if (!(verify_gft_mul_full_p(13, 0, 13, 0, 13, 0, 13, 26, 16) == true)) __t27_assert_fail("\n  GF-T8 unity*unity = exp 13, mant 0:\n    verify_gft_mul_full_p(13, 0, 13, 0, 13, 0, 13, 26, 16) = {any}\n", .{ verify_gft_mul_full_p(13, 0, 13, 0, 13, 0, 13, 26, 16) });
+    if (!(verify_gft_mul_full_p(4, 1, 4, 1, 5, 0, 4, 8, 2) == true)) __t27_assert_fail("\n  GF-T4 1.5*1.5 = exp 5, mant 0:\n    verify_gft_mul_full_p(4, 1, 4, 1, 5, 0, 4, 8, 2) = {any}\n", .{ verify_gft_mul_full_p(4, 1, 4, 1, 5, 0, 4, 8, 2) });
+    if (!(verify_gft_mul_full_p(4, 1, 4, 1, 4, 0, 4, 8, 2) == false)) __t27_assert_fail("\n  GF-T4 wrong exponent rejected:\n    verify_gft_mul_full_p(4, 1, 4, 1, 4, 0, 4, 8, 2) = {any}\n", .{ verify_gft_mul_full_p(4, 1, 4, 1, 4, 0, 4, 8, 2) });
 }
 test "gft32_multiply" {
-    if (!(gft_mul_mant_carry_u64(0, 0, 33554432) == 0)) @panic("GF-T32 1.0*1.0 no carry");
-    if (!(gft_mul_mant_u64(0, 0, 33554432) == 0)) @panic("GF-T32 unity mantissa 0");
-    if (!(verify_gft_mul_full_u64(364, 0, 364, 0, 364, 0, 364, 728, 33554432) == true)) @panic("GF-T32 unity*unity = offset 364, mant 0");
-    if (!(gft_mul_mant_carry_u64(16777216, 16777216, 33554432) == 1)) @panic("GF-T32 1.5*1.5 carries");
-    if (!(gft_mul_mant_u64(16777216, 16777216, 33554432) == 4194304)) @panic("GF-T32 1.5*1.5 -> mantissa 2^22");
-    if (!(verify_gft_mul_full_u64(364, 16777216, 364, 16777216, 365, 4194304, 364, 728, 33554432) == true)) @panic("GF-T32 1.5*1.5 = offset 365, mant 2^22");
-    if (!(verify_gft_mul_full_u64(364, 16777216, 364, 16777216, 364, 4194304, 364, 728, 33554432) == false)) @panic("GF-T32 missed carry rejected");
+    if (!(gft_mul_mant_carry_u64(0, 0, 33554432) == 0)) __t27_assert_fail("\n  GF-T32 1.0*1.0 no carry:\n    gft_mul_mant_carry_u64(0, 0, 33554432) = {any}\n", .{ gft_mul_mant_carry_u64(0, 0, 33554432) });
+    if (!(gft_mul_mant_u64(0, 0, 33554432) == 0)) __t27_assert_fail("\n  GF-T32 unity mantissa 0:\n    gft_mul_mant_u64(0, 0, 33554432) = {any}\n", .{ gft_mul_mant_u64(0, 0, 33554432) });
+    if (!(verify_gft_mul_full_u64(364, 0, 364, 0, 364, 0, 364, 728, 33554432) == true)) __t27_assert_fail("\n  GF-T32 unity*unity = offset 364, mant 0:\n    verify_gft_mul_full_u64(364, 0, 364, 0, 364, 0, 364, 728, 33554432) = {any}\n", .{ verify_gft_mul_full_u64(364, 0, 364, 0, 364, 0, 364, 728, 33554432) });
+    if (!(gft_mul_mant_carry_u64(16777216, 16777216, 33554432) == 1)) __t27_assert_fail("\n  GF-T32 1.5*1.5 carries:\n    gft_mul_mant_carry_u64(16777216, 16777216, 33554432) = {any}\n", .{ gft_mul_mant_carry_u64(16777216, 16777216, 33554432) });
+    if (!(gft_mul_mant_u64(16777216, 16777216, 33554432) == 4194304)) __t27_assert_fail("\n  GF-T32 1.5*1.5 -> mantissa 2^22:\n    gft_mul_mant_u64(16777216, 16777216, 33554432) = {any}\n", .{ gft_mul_mant_u64(16777216, 16777216, 33554432) });
+    if (!(verify_gft_mul_full_u64(364, 16777216, 364, 16777216, 365, 4194304, 364, 728, 33554432) == true)) __t27_assert_fail("\n  GF-T32 1.5*1.5 = offset 365, mant 2^22:\n    verify_gft_mul_full_u64(364, 16777216, 364, 16777216, 365, 4194304, 364, 728, 33554432) = {any}\n", .{ verify_gft_mul_full_u64(364, 16777216, 364, 16777216, 365, 4194304, 364, 728, 33554432) });
+    if (!(verify_gft_mul_full_u64(364, 16777216, 364, 16777216, 364, 4194304, 364, 728, 33554432) == false)) __t27_assert_fail("\n  GF-T32 missed carry rejected:\n    verify_gft_mul_full_u64(364, 16777216, 364, 16777216, 364, 4194304, 364, 728, 33554432) = {any}\n", .{ verify_gft_mul_full_u64(364, 16777216, 364, 16777216, 364, 4194304, 364, 728, 33554432) });
 }
 fn bench_mul_mantissa_sweep() void {
     // bench: mul_mantissa_sweep
@@ -205,18 +213,18 @@ fn bench_mul_mantissa_sweep() void {
     const c7 = gft_mul_mant_carry(511, 511);
     const o0 = gft_mul_offset(44, 44, 40, 80);
     const of = gft_mul_offset_full(44, 256, 44, 256, 40, 80);
-    if (!(m0 == 0)) @panic("1.0 * 1.0 mantissa 0");
-    if (!(c0 == 0)) @panic("1.0 * 1.0 no carry");
-    if (!(m1 == 288)) @panic("1.25^2 = 1.5625 -> mantissa 288");
-    if (!(c1 == 0)) @panic("1.25^2 no carry");
-    if (!(m2 == 256)) @panic("1.5 * 1.0 = 1.5");
-    if (!(m3 == 64)) @panic("1.5^2 = 2.25 -> mantissa 64");
-    if (!(c3 == 1)) @panic("1.5^2 carries");
-    if (!(m4 == 272)) @panic("1.75^2 = 3.0625 -> mantissa 272");
-    if (!(m5 == 28)) @panic("1.875 * 1.125 -> mantissa 28 (carry regime)");
-    if (!(m6 == 28)) @panic("multiply is commutative across the carry regime");
-    if (!(m7 == 510)) @panic("max mantissa product stays in range");
-    if (!(c7 == 1)) @panic("max product carries");
-    if (!(o0 == 48)) @panic("offset path: 44 + 44 - bias 40");
-    if (!(of == 49)) @panic("full offset includes the mantissa carry");
+    if (!(m0 == 0)) __t27_assert_fail("\n  1.0 * 1.0 mantissa 0:\n    m0 = {any}\n", .{ m0 });
+    if (!(c0 == 0)) __t27_assert_fail("\n  1.0 * 1.0 no carry:\n    c0 = {any}\n", .{ c0 });
+    if (!(m1 == 288)) __t27_assert_fail("\n  1.25^2 = 1.5625 -> mantissa 288:\n    m1 = {any}\n", .{ m1 });
+    if (!(c1 == 0)) __t27_assert_fail("\n  1.25^2 no carry:\n    c1 = {any}\n", .{ c1 });
+    if (!(m2 == 256)) __t27_assert_fail("\n  1.5 * 1.0 = 1.5:\n    m2 = {any}\n", .{ m2 });
+    if (!(m3 == 64)) __t27_assert_fail("\n  1.5^2 = 2.25 -> mantissa 64:\n    m3 = {any}\n", .{ m3 });
+    if (!(c3 == 1)) __t27_assert_fail("\n  1.5^2 carries:\n    c3 = {any}\n", .{ c3 });
+    if (!(m4 == 272)) __t27_assert_fail("\n  1.75^2 = 3.0625 -> mantissa 272:\n    m4 = {any}\n", .{ m4 });
+    if (!(m5 == 28)) __t27_assert_fail("\n  1.875 * 1.125 -> mantissa 28 (carry regime):\n    m5 = {any}\n", .{ m5 });
+    if (!(m6 == 28)) __t27_assert_fail("\n  multiply is commutative across the carry regime:\n    m6 = {any}\n", .{ m6 });
+    if (!(m7 == 510)) __t27_assert_fail("\n  max mantissa product stays in range:\n    m7 = {any}\n", .{ m7 });
+    if (!(c7 == 1)) __t27_assert_fail("\n  max product carries:\n    c7 = {any}\n", .{ c7 });
+    if (!(o0 == 48)) __t27_assert_fail("\n  offset path: 44 + 44 - bias 40:\n    o0 = {any}\n", .{ o0 });
+    if (!(of == 49)) __t27_assert_fail("\n  full offset includes the mantissa carry:\n    of = {any}\n", .{ of });
 }

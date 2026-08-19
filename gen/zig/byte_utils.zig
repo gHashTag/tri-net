@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 fn get_bit(byte: u8, i: usize) u8 {
@@ -38,25 +46,25 @@ fn swap_nibbles(byte: u8) u8 {
 }
 test "get_bit_lsb" {
     const bit = get_bit(0x01, 0);
-    if (!(bit == 1)) @panic("LSB is 1");
+    if (!(bit == 1)) __t27_assert_fail("\n  LSB is 1:\n    bit = {any}\n", .{ bit });
 }
 test "get_bit_msb" {
     const bit = get_bit(0x80, 7);
-    if (!(bit == 1)) @panic("MSB is 1");
+    if (!(bit == 1)) __t27_assert_fail("\n  MSB is 1:\n    bit = {any}\n", .{ bit });
 }
 test "low_nibble_test" {
     const nib = low_nibble(0xAB);
-    if (!(nib == 0x0B)) @panic("low nibble");
+    if (!(nib == 0x0B)) __t27_assert_fail("\n  low nibble:\n    nib = {any}\n", .{ nib });
 }
 test "high_nibble_test" {
     const nib = high_nibble(0xAB);
-    if (!(nib == 0x0A)) @panic("high nibble");
+    if (!(nib == 0x0A)) __t27_assert_fail("\n  high nibble:\n    nib = {any}\n", .{ nib });
 }
 test "combine_nibbles_test" {
     const byte = combine_nibbles(0x0A, 0x0B);
-    if (!(byte == 0xAB)) @panic("combine");
+    if (!(byte == 0xAB)) __t27_assert_fail("\n  combine:\n    byte = {any}\n", .{ byte });
 }
 test "swap_nibbles_test" {
     const result = swap_nibbles(0xAB);
-    if (!(result == 0xBA)) @panic("swap");
+    if (!(result == 0xBA)) __t27_assert_fail("\n  swap:\n    result = {any}\n", .{ result });
 }

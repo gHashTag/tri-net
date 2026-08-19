@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const OFF_CLASS: u32 = 0;
@@ -80,50 +88,50 @@ fn operand_pre(idx: u32, op: u32, a_off: u32, a_mant: u32, b_off: u32, b_mant: u
     return 0;
 }
 test "be_reassembly" {
-    if (!(task_id(0x12, 0x34, 0x56, 0x78) == 0x12345678)) @panic("task id from 4 BE bytes");
-    if (!(skill_id(0xA6, 0x11) == 0xA611)) @panic("skill id from 2 BE bytes (GF-T16 mul)");
+    if (!(task_id(0x12, 0x34, 0x56, 0x78) == 0x12345678)) __t27_assert_fail("\n  task id from 4 BE bytes:\n    task_id(0x12, 0x34, 0x56, 0x78) = {any}\n", .{ task_id(0x12, 0x34, 0x56, 0x78) });
+    if (!(skill_id(0xA6, 0x11) == 0xA611)) __t27_assert_fail("\n  skill id from 2 BE bytes (GF-T16 mul):\n    skill_id(0xA6, 0x11) = {any}\n", .{ skill_id(0xA6, 0x11) });
 }
 test "header_layout" {
-    if (!(HDR_LEN == 7)) @panic("msg_class(1)+task(4)+skill(2)");
-    if (!(body_offset() == OFF_BODY)) @panic("body after the fixed header");
-    if (!(OFF_SKILL == 5)) @panic("skill at byte 5");
+    if (!(HDR_LEN == 7)) __t27_assert_fail("\n  msg_class(1)+task(4)+skill(2):\n    HDR_LEN = {any}\n", .{ HDR_LEN });
+    if (!(body_offset() == OFF_BODY)) __t27_assert_fail("\n  body after the fixed header:\n    body_offset() = {any}\n    OFF_BODY = {any}\n", .{ body_offset(), OFF_BODY });
+    if (!(OFF_SKILL == 5)) __t27_assert_fail("\n  skill at byte 5:\n    OFF_SKILL = {any}\n", .{ OFF_SKILL });
 }
 test "class_rules" {
-    if (!(class_valid(MSG_TASK_ASSIGN) == true)) @panic("assign is valid");
-    if (!(class_valid(MSG_TASK_RESULT) == true)) @panic("result is valid");
-    if (!(class_valid(0) == false)) @panic("msg_class 0 is malformed");
-    if (!(class_valid(99) == false)) @panic("unknown msg_class is malformed");
-    if (!(body_has_receipt(MSG_TASK_RESULT) == true)) @panic("result carries a receipt");
-    if (!(body_has_receipt(MSG_TASK_ASSIGN) == false)) @panic("assign carries no receipt");
+    if (!(class_valid(MSG_TASK_ASSIGN) == true)) __t27_assert_fail("\n  assign is valid:\n    class_valid(MSG_TASK_ASSIGN) = {any}\n", .{ class_valid(MSG_TASK_ASSIGN) });
+    if (!(class_valid(MSG_TASK_RESULT) == true)) __t27_assert_fail("\n  result is valid:\n    class_valid(MSG_TASK_RESULT) = {any}\n", .{ class_valid(MSG_TASK_RESULT) });
+    if (!(class_valid(0) == false)) __t27_assert_fail("\n  msg_class 0 is malformed:\n    class_valid(0) = {any}\n", .{ class_valid(0) });
+    if (!(class_valid(99) == false)) __t27_assert_fail("\n  unknown msg_class is malformed:\n    class_valid(99) = {any}\n", .{ class_valid(99) });
+    if (!(body_has_receipt(MSG_TASK_RESULT) == true)) __t27_assert_fail("\n  result carries a receipt:\n    body_has_receipt(MSG_TASK_RESULT) = {any}\n", .{ body_has_receipt(MSG_TASK_RESULT) });
+    if (!(body_has_receipt(MSG_TASK_ASSIGN) == false)) __t27_assert_fail("\n  assign carries no receipt:\n    body_has_receipt(MSG_TASK_ASSIGN) = {any}\n", .{ body_has_receipt(MSG_TASK_ASSIGN) });
 }
 test "signed_result_layout" {
-    if (!(SIG_LEN == 64)) @panic("Ed25519 signature is 64 bytes");
-    if (!(body_has_signature(MSG_TASK_RESULT) == true)) @panic("a result carries a signature");
-    if (!(body_has_signature(MSG_TASK_ASSIGN) == false)) @panic("an assign carries no signature");
-    if (!(sig_offset(36) == (OFF_BODY + 36))) @panic("signature after a 36-byte receipt body");
-    if (!(signed_result_len(36) == ((OFF_BODY + 36) + SIG_LEN))) @panic("total = header + body + 64B signature");
+    if (!(SIG_LEN == 64)) __t27_assert_fail("\n  Ed25519 signature is 64 bytes:\n    SIG_LEN = {any}\n", .{ SIG_LEN });
+    if (!(body_has_signature(MSG_TASK_RESULT) == true)) __t27_assert_fail("\n  a result carries a signature:\n    body_has_signature(MSG_TASK_RESULT) = {any}\n", .{ body_has_signature(MSG_TASK_RESULT) });
+    if (!(body_has_signature(MSG_TASK_ASSIGN) == false)) __t27_assert_fail("\n  an assign carries no signature:\n    body_has_signature(MSG_TASK_ASSIGN) = {any}\n", .{ body_has_signature(MSG_TASK_ASSIGN) });
+    if (!(sig_offset(36) == (OFF_BODY + 36))) __t27_assert_fail("\n  signature after a 36-byte receipt body:\n    sig_offset(36) = {any}\n    OFF_BODY + 36 = {any}\n", .{ sig_offset(36), OFF_BODY + 36 });
+    if (!(signed_result_len(36) == ((OFF_BODY + 36) + SIG_LEN))) __t27_assert_fail("\n  total = header + body + 64B signature:\n    signed_result_len(36) = {any}\n    (OFF_BODY + 36) + SIG_LEN = {any}\n", .{ signed_result_len(36), (OFF_BODY + 36) + SIG_LEN });
 }
 test "assign_operand_layout" {
-    if (!(ASSIGN_BODY_LEN == 7)) @panic("op(1)+a_off(1)+a_mant(2)+b_off(1)+b_mant(2)");
-    if (!(OFF_ASSIGN_B_OFF == 4)) @panic("b operand after a");
-    if (!(assign_mant(0x01, 0x00) == 256)) @panic("mantissa 256 from bytes 0x01 0x00");
-    if (!(assign_mant(0x01, 0xFF) == 511)) @panic("mantissa 511 (max 9-bit) from 0x01 0xFF");
+    if (!(ASSIGN_BODY_LEN == 7)) __t27_assert_fail("\n  op(1)+a_off(1)+a_mant(2)+b_off(1)+b_mant(2):\n    ASSIGN_BODY_LEN = {any}\n", .{ ASSIGN_BODY_LEN });
+    if (!(OFF_ASSIGN_B_OFF == 4)) __t27_assert_fail("\n  b operand after a:\n    OFF_ASSIGN_B_OFF = {any}\n", .{ OFF_ASSIGN_B_OFF });
+    if (!(assign_mant(0x01, 0x00) == 256)) __t27_assert_fail("\n  mantissa 256 from bytes 0x01 0x00:\n    assign_mant(0x01, 0x00) = {any}\n", .{ assign_mant(0x01, 0x00) });
+    if (!(assign_mant(0x01, 0xFF) == 511)) __t27_assert_fail("\n  mantissa 511 (max 9-bit) from 0x01 0xFF:\n    assign_mant(0x01, 0xFF) = {any}\n", .{ assign_mant(0x01, 0xFF) });
 }
 test "operand_preimage_layout" {
-    if (!(operand_pre(0, 0x11, 41, 0, 41, 0) == 0x11)) @panic("op at word 0");
-    if (!(operand_pre(1, 0x11, 41, 0, 41, 0) == 41)) @panic("a_offset at word 1");
-    if (!(operand_pre(4, 0x11, 41, 0, 41, 7) == 7)) @panic("b_mantissa at word 4");
-    if (!(operand_pre(5, 0, 0, 0, 0, 0) == SHA_PAD_W)) @panic("pad marker at word 5");
-    if (!(operand_pre(15, 0, 0, 0, 0, 0) == OPERAND_BITS)) @panic("160-bit length at word 15");
-    if (!(operand_pre(9, 0x11, 41, 0, 41, 0) == 0)) @panic("interior pad word is zero");
+    if (!(operand_pre(0, 0x11, 41, 0, 41, 0) == 0x11)) __t27_assert_fail("\n  op at word 0:\n    operand_pre(0, 0x11, 41, 0, 41, 0) = {any}\n", .{ operand_pre(0, 0x11, 41, 0, 41, 0) });
+    if (!(operand_pre(1, 0x11, 41, 0, 41, 0) == 41)) __t27_assert_fail("\n  a_offset at word 1:\n    operand_pre(1, 0x11, 41, 0, 41, 0) = {any}\n", .{ operand_pre(1, 0x11, 41, 0, 41, 0) });
+    if (!(operand_pre(4, 0x11, 41, 0, 41, 7) == 7)) __t27_assert_fail("\n  b_mantissa at word 4:\n    operand_pre(4, 0x11, 41, 0, 41, 7) = {any}\n", .{ operand_pre(4, 0x11, 41, 0, 41, 7) });
+    if (!(operand_pre(5, 0, 0, 0, 0, 0) == SHA_PAD_W)) __t27_assert_fail("\n  pad marker at word 5:\n    operand_pre(5, 0, 0, 0, 0, 0) = {any}\n    SHA_PAD_W = {any}\n", .{ operand_pre(5, 0, 0, 0, 0, 0), SHA_PAD_W });
+    if (!(operand_pre(15, 0, 0, 0, 0, 0) == OPERAND_BITS)) __t27_assert_fail("\n  160-bit length at word 15:\n    operand_pre(15, 0, 0, 0, 0, 0) = {any}\n    OPERAND_BITS = {any}\n", .{ operand_pre(15, 0, 0, 0, 0, 0), OPERAND_BITS });
+    if (!(operand_pre(9, 0x11, 41, 0, 41, 0) == 0)) __t27_assert_fail("\n  interior pad word is zero:\n    operand_pre(9, 0x11, 41, 0, 41, 0) = {any}\n", .{ operand_pre(9, 0x11, 41, 0, 41, 0) });
 }
 test "operand_tamper_changes_the_preimage" {
-    if (!(operand_pre(0, 0x10, 41, 0, 41, 0) != operand_pre(0, 0x11, 41, 0, 41, 0))) @panic("op tamper moves word 0");
-    if (!(operand_pre(1, 0x11, 42, 0, 41, 0) != operand_pre(1, 0x11, 41, 0, 41, 0))) @panic("a_off tamper moves word 1");
-    if (!(operand_pre(2, 0x11, 41, 5, 41, 0) != operand_pre(2, 0x11, 41, 0, 41, 0))) @panic("a_mant tamper moves word 2");
-    if (!(operand_pre(3, 0x11, 41, 0, 42, 0) != operand_pre(3, 0x11, 41, 0, 41, 0))) @panic("b_off tamper moves word 3");
-    if (!(operand_pre(4, 0x11, 41, 0, 41, 9) != operand_pre(4, 0x11, 41, 0, 41, 0))) @panic("b_mant tamper moves word 4");
-    if (!(operand_pre(0, 0x11, 99, 99, 99, 99) == operand_pre(0, 0x11, 41, 0, 41, 0))) @panic("word 0 depends only on op");
-    if (!(operand_pre(1, 0x10, 41, 5, 42, 9) == operand_pre(1, 0x11, 41, 0, 41, 0))) @panic("word 1 depends only on a_off");
-    if (!(operand_pre(4, 0x10, 99, 99, 99, 7) == operand_pre(4, 0x11, 41, 0, 41, 7))) @panic("word 4 depends only on b_mant");
+    if (!(operand_pre(0, 0x10, 41, 0, 41, 0) != operand_pre(0, 0x11, 41, 0, 41, 0))) __t27_assert_fail("\n  op tamper moves word 0:\n    operand_pre(0, 0x10, 41, 0, 41, 0) = {any}\n    operand_pre(0, 0x11, 41, 0, 41, 0) = {any}\n", .{ operand_pre(0, 0x10, 41, 0, 41, 0), operand_pre(0, 0x11, 41, 0, 41, 0) });
+    if (!(operand_pre(1, 0x11, 42, 0, 41, 0) != operand_pre(1, 0x11, 41, 0, 41, 0))) __t27_assert_fail("\n  a_off tamper moves word 1:\n    operand_pre(1, 0x11, 42, 0, 41, 0) = {any}\n    operand_pre(1, 0x11, 41, 0, 41, 0) = {any}\n", .{ operand_pre(1, 0x11, 42, 0, 41, 0), operand_pre(1, 0x11, 41, 0, 41, 0) });
+    if (!(operand_pre(2, 0x11, 41, 5, 41, 0) != operand_pre(2, 0x11, 41, 0, 41, 0))) __t27_assert_fail("\n  a_mant tamper moves word 2:\n    operand_pre(2, 0x11, 41, 5, 41, 0) = {any}\n    operand_pre(2, 0x11, 41, 0, 41, 0) = {any}\n", .{ operand_pre(2, 0x11, 41, 5, 41, 0), operand_pre(2, 0x11, 41, 0, 41, 0) });
+    if (!(operand_pre(3, 0x11, 41, 0, 42, 0) != operand_pre(3, 0x11, 41, 0, 41, 0))) __t27_assert_fail("\n  b_off tamper moves word 3:\n    operand_pre(3, 0x11, 41, 0, 42, 0) = {any}\n    operand_pre(3, 0x11, 41, 0, 41, 0) = {any}\n", .{ operand_pre(3, 0x11, 41, 0, 42, 0), operand_pre(3, 0x11, 41, 0, 41, 0) });
+    if (!(operand_pre(4, 0x11, 41, 0, 41, 9) != operand_pre(4, 0x11, 41, 0, 41, 0))) __t27_assert_fail("\n  b_mant tamper moves word 4:\n    operand_pre(4, 0x11, 41, 0, 41, 9) = {any}\n    operand_pre(4, 0x11, 41, 0, 41, 0) = {any}\n", .{ operand_pre(4, 0x11, 41, 0, 41, 9), operand_pre(4, 0x11, 41, 0, 41, 0) });
+    if (!(operand_pre(0, 0x11, 99, 99, 99, 99) == operand_pre(0, 0x11, 41, 0, 41, 0))) __t27_assert_fail("\n  word 0 depends only on op:\n    operand_pre(0, 0x11, 99, 99, 99, 99) = {any}\n    operand_pre(0, 0x11, 41, 0, 41, 0) = {any}\n", .{ operand_pre(0, 0x11, 99, 99, 99, 99), operand_pre(0, 0x11, 41, 0, 41, 0) });
+    if (!(operand_pre(1, 0x10, 41, 5, 42, 9) == operand_pre(1, 0x11, 41, 0, 41, 0))) __t27_assert_fail("\n  word 1 depends only on a_off:\n    operand_pre(1, 0x10, 41, 5, 42, 9) = {any}\n    operand_pre(1, 0x11, 41, 0, 41, 0) = {any}\n", .{ operand_pre(1, 0x10, 41, 5, 42, 9), operand_pre(1, 0x11, 41, 0, 41, 0) });
+    if (!(operand_pre(4, 0x10, 99, 99, 99, 7) == operand_pre(4, 0x11, 41, 0, 41, 7))) __t27_assert_fail("\n  word 4 depends only on b_mant:\n    operand_pre(4, 0x10, 99, 99, 99, 7) = {any}\n    operand_pre(4, 0x11, 41, 0, 41, 7) = {any}\n", .{ operand_pre(4, 0x10, 99, 99, 99, 7), operand_pre(4, 0x11, 41, 0, 41, 7) });
 }

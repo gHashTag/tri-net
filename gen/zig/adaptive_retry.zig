@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 const BASE_DELAY_MS: u8 = 10;
 const MAX_RETRIES: u8 = 5;
@@ -61,34 +69,34 @@ fn total_retry_time(max_retries: u8) u16 {
 }
 test "exponential_backoff_calculation" {
     const delay0: u16 = backoff_delay_ms(0);
-    if (!(delay0 == 10)) @panic("delay0 == 10");
+    if (!(delay0 == 10)) __t27_assert_fail("\n  delay0 == 10:\n    delay0 = {any}\n", .{ delay0 });
     const delay1: u16 = backoff_delay_ms(1);
-    if (!(delay1 == 20)) @panic("delay1 == 20");
+    if (!(delay1 == 20)) __t27_assert_fail("\n  delay1 == 20:\n    delay1 = {any}\n", .{ delay1 });
     const delay2: u16 = backoff_delay_ms(2);
-    if (!(delay2 == 40)) @panic("delay2 == 40");
+    if (!(delay2 == 40)) __t27_assert_fail("\n  delay2 == 40:\n    delay2 = {any}\n", .{ delay2 });
     const delay3: u16 = backoff_delay_ms(3);
-    if (!(delay3 == 80)) @panic("delay3 == 80");
+    if (!(delay3 == 80)) __t27_assert_fail("\n  delay3 == 80:\n    delay3 = {any}\n", .{ delay3 });
 }
 test "quality_based_retry_limits" {
-    if (!(max_retries_for_quality(0xCC) == 5)) @panic("max_retries_for_quality 0xCC == 5");
-    if (!(max_retries_for_quality(0x80) == 3)) @panic("max_retries_for_quality 0x80 == 3");
-    if (!(max_retries_for_quality(0x40) == 1)) @panic("max_retries_for_quality 0x40 == 1");
+    if (!(max_retries_for_quality(0xCC) == 5)) __t27_assert_fail("\n  max_retries_for_quality 0xCC == 5:\n    max_retries_for_quality(0xCC) = {any}\n", .{ max_retries_for_quality(0xCC) });
+    if (!(max_retries_for_quality(0x80) == 3)) __t27_assert_fail("\n  max_retries_for_quality 0x80 == 3:\n    max_retries_for_quality(0x80) = {any}\n", .{ max_retries_for_quality(0x80) });
+    if (!(max_retries_for_quality(0x40) == 1)) __t27_assert_fail("\n  max_retries_for_quality 0x40 == 1:\n    max_retries_for_quality(0x40) = {any}\n", .{ max_retries_for_quality(0x40) });
 }
 test "retry_permission_check" {
-    if (!(should_retry(0, 0xCC) == true)) @panic("should_retry 0 0xCC == true");
-    if (!(should_retry(5, 0xCC) == false)) @panic("should_retry 5 0xCC == false");
-    if (!(should_retry(0, 0x40) == true)) @panic("should_retry 0 0x40 == true");
-    if (!(should_retry(1, 0x40) == false)) @panic("should_retry 1 0x40 == false");
+    if (!(should_retry(0, 0xCC) == true)) __t27_assert_fail("\n  should_retry 0 0xCC == true:\n    should_retry(0, 0xCC) = {any}\n", .{ should_retry(0, 0xCC) });
+    if (!(should_retry(5, 0xCC) == false)) __t27_assert_fail("\n  should_retry 5 0xCC == false:\n    should_retry(5, 0xCC) = {any}\n", .{ should_retry(5, 0xCC) });
+    if (!(should_retry(0, 0x40) == true)) __t27_assert_fail("\n  should_retry 0 0x40 == true:\n    should_retry(0, 0x40) = {any}\n", .{ should_retry(0, 0x40) });
+    if (!(should_retry(1, 0x40) == false)) __t27_assert_fail("\n  should_retry 1 0x40 == false:\n    should_retry(1, 0x40) = {any}\n", .{ should_retry(1, 0x40) });
 }
 test "success_probability_calculation" {
     const prob1: u8 = retry_success_probability(0, 0xCC);
-    if (!(prob1 > 180)) @panic("prob1 > 180");
+    if (!(prob1 > 180)) __t27_assert_fail("\n  prob1 > 180:\n    prob1 = {any}\n", .{ prob1 });
     const prob2: u8 = retry_success_probability(3, 0xCC);
-    if (!(prob2 < prob1)) @panic("prob2 < prob1");
+    if (!(prob2 < prob1)) __t27_assert_fail("\n  prob2 < prob1:\n    prob2 = {any}\n    prob1 = {any}\n", .{ prob2, prob1 });
     const prob3: u8 = retry_success_probability(0, 0x40);
-    if (!(prob3 < prob1)) @panic("prob3 < prob1");
+    if (!(prob3 < prob1)) __t27_assert_fail("\n  prob3 < prob1:\n    prob3 = {any}\n    prob1 = {any}\n", .{ prob3, prob1 });
 }
 test "total_time_estimation" {
     const total: u16 = total_retry_time(5);
-    if (!(total == 310)) @panic("total == 310");
+    if (!(total == 310)) __t27_assert_fail("\n  total == 310:\n    total = {any}\n", .{ total });
 }

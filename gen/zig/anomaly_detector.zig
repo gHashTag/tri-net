@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_METRICS: u32 = 16;
@@ -305,33 +313,33 @@ fn calculate_anomaly_confidence(report: u32, historical_confidence: u32) u32 {
 }
 test "metric_reading_roundtrip" {
     const r = create_metric_reading(7, 200, 99, 55);
-    if (!(get_metric_id(r) == 7)) @panic("metric id");
-    if (!(get_metric_value(r) == 200)) @panic("metric value");
-    if (!(get_timestamp(r) == 99)) @panic("timestamp");
-    if (!(get_confidence(r) == 55)) @panic("confidence");
+    if (!(get_metric_id(r) == 7)) __t27_assert_fail("\n  metric id:\n    get_metric_id(r) = {any}\n", .{ get_metric_id(r) });
+    if (!(get_metric_value(r) == 200)) __t27_assert_fail("\n  metric value:\n    get_metric_value(r) = {any}\n", .{ get_metric_value(r) });
+    if (!(get_timestamp(r) == 99)) __t27_assert_fail("\n  timestamp:\n    get_timestamp(r) = {any}\n", .{ get_timestamp(r) });
+    if (!(get_confidence(r) == 55)) __t27_assert_fail("\n  confidence:\n    get_confidence(r) = {any}\n", .{ get_confidence(r) });
 }
 test "anomaly_report_roundtrip" {
     const rep = create_anomaly_report(9, 90, TYPE_PATTERN, 12345);
-    if (!(get_anomaly_metric_id(rep) == 9)) @panic("report metric id");
-    if (!(get_severity(rep) == 90)) @panic("severity");
-    if (!(get_anomaly_type(rep) == TYPE_PATTERN)) @panic("anomaly type");
-    if (!(get_anomaly_confidence(rep) == 12345)) @panic("report confidence");
+    if (!(get_anomaly_metric_id(rep) == 9)) __t27_assert_fail("\n  report metric id:\n    get_anomaly_metric_id(rep) = {any}\n", .{ get_anomaly_metric_id(rep) });
+    if (!(get_severity(rep) == 90)) __t27_assert_fail("\n  severity:\n    get_severity(rep) = {any}\n", .{ get_severity(rep) });
+    if (!(get_anomaly_type(rep) == TYPE_PATTERN)) __t27_assert_fail("\n  anomaly type:\n    get_anomaly_type(rep) = {any}\n    TYPE_PATTERN = {any}\n", .{ get_anomaly_type(rep), TYPE_PATTERN });
+    if (!(get_anomaly_confidence(rep) == 12345)) __t27_assert_fail("\n  report confidence:\n    get_anomaly_confidence(rep) = {any}\n", .{ get_anomaly_confidence(rep) });
 }
 test "baseline_and_variance" {
-    const h: [16]u32 = .{ create_metric_reading(1,100,0,50), create_metric_reading(1,120,1,50), create_metric_reading(1,100,2,50), create_metric_reading(1,120,3,50), create_metric_reading(1,100,4,50), create_metric_reading(1,120,5,50), create_metric_reading(1,100,6,50), create_metric_reading(1,120,7,50), 0, 0, 0, 0, 0, 0, 0, 0 };
+    const h: [16]u32 = .{ create_metric_reading(1, 100, 0, 50), create_metric_reading(1, 120, 1, 50), create_metric_reading(1, 100, 2, 50), create_metric_reading(1, 120, 3, 50), create_metric_reading(1, 100, 4, 50), create_metric_reading(1, 120, 5, 50), create_metric_reading(1, 100, 6, 50), create_metric_reading(1, 120, 7, 50), 0, 0, 0, 0, 0, 0, 0, 0 };
     const b = calculate_baseline(h, 8);
-    if (!(b == 110)) @panic("baseline is the mean");
+    if (!(b == 110)) __t27_assert_fail("\n  baseline is the mean:\n    b = {any}\n", .{ b });
     const v = calculate_variance(h, 8, b);
-    if (!(v == 10)) @panic("variance is the mean absolute deviation");
+    if (!(v == 10)) __t27_assert_fail("\n  variance is the mean absolute deviation:\n    v = {any}\n", .{ v });
 }
 test "spike_and_drop_detection" {
-    if (!(detect_spike(150, 110, 10) == 1)) @panic("40 above baseline is a spike");
-    if (!(detect_spike(130, 110, 10) == 0)) @panic("20 above baseline is noise");
-    if (!(detect_drop(70, 110, 10) == 1)) @panic("40 below baseline is a drop");
-    if (!(detect_drop(95, 110, 10) == 0)) @panic("15 below baseline is noise");
+    if (!(detect_spike(150, 110, 10) == 1)) __t27_assert_fail("\n  40 above baseline is a spike:\n    detect_spike(150, 110, 10) = {any}\n", .{ detect_spike(150, 110, 10) });
+    if (!(detect_spike(130, 110, 10) == 0)) __t27_assert_fail("\n  20 above baseline is noise:\n    detect_spike(130, 110, 10) = {any}\n", .{ detect_spike(130, 110, 10) });
+    if (!(detect_drop(70, 110, 10) == 1)) __t27_assert_fail("\n  40 below baseline is a drop:\n    detect_drop(70, 110, 10) = {any}\n", .{ detect_drop(70, 110, 10) });
+    if (!(detect_drop(95, 110, 10) == 0)) __t27_assert_fail("\n  15 below baseline is noise:\n    detect_drop(95, 110, 10) = {any}\n", .{ detect_drop(95, 110, 10) });
 }
 test "severity_bands" {
-    if (!(calculate_severity(250, 100) == 90)) @panic("diff 150 is high severity");
-    if (!(calculate_severity(170, 100) == 60)) @panic("diff 70 is medium severity");
-    if (!(calculate_severity(120, 100) == 30)) @panic("diff 20 is low severity");
+    if (!(calculate_severity(250, 100) == 90)) __t27_assert_fail("\n  diff 150 is high severity:\n    calculate_severity(250, 100) = {any}\n", .{ calculate_severity(250, 100) });
+    if (!(calculate_severity(170, 100) == 60)) __t27_assert_fail("\n  diff 70 is medium severity:\n    calculate_severity(170, 100) = {any}\n", .{ calculate_severity(170, 100) });
+    if (!(calculate_severity(120, 100) == 30)) __t27_assert_fail("\n  diff 20 is low severity:\n    calculate_severity(120, 100) = {any}\n", .{ calculate_severity(120, 100) });
 }

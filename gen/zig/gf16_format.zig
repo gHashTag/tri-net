@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const M_BITS: u32 = 9;
@@ -39,22 +47,52 @@ fn is_zero(bits: u32) bool {
     return (bits & 32767) == 0;
 }
 test "field_widths_fill_sixteen_bits" {
+    const total = (1 + E_BITS) + M_BITS;
+    if (!(total == 16)) __t27_assert_fail("\n  assertion failed:\n    total = {any}\n", .{ total });
 }
 test "masks_match_widths" {
+    const m = M_MAX;
+    const e = E_MAX;
+    if (!(m == 511)) __t27_assert_fail("\n  assertion failed:\n    m = {any}\n", .{ m });
+    if (!(e == 63)) __t27_assert_fail("\n  assertion failed:\n    e = {any}\n", .{ e });
 }
 test "compose_extract_roundtrip" {
+    const bits = compose(1, 42, 300);
+    _ = bits; // dead after const-inlining
+    const s = sign_field(compose(1, 42, 300));
+    const e = exponent_field(compose(1, 42, 300));
+    const m = mantissa_field(compose(1, 42, 300));
+    if (!(s == 1)) __t27_assert_fail("\n  assertion failed:\n    s = {any}\n", .{ s });
+    if (!(e == 42)) __t27_assert_fail("\n  assertion failed:\n    e = {any}\n", .{ e });
+    if (!(m == 300)) __t27_assert_fail("\n  assertion failed:\n    m = {any}\n", .{ m });
 }
 test "nan_is_allones_exponent_nonzero_mantissa" {
+    const nan = is_nan(compose(0, 63, 1));
+    const inf_not_nan = is_nan(compose(0, 63, 0));
+    if (!(nan == true)) __t27_assert_fail("\n  assertion failed:\n    nan = {any}\n", .{ nan });
+    if (!(inf_not_nan == false)) __t27_assert_fail("\n  assertion failed:\n    inf_not_nan = {any}\n", .{ inf_not_nan });
 }
 test "inf_is_allones_exponent_zero_mantissa" {
+    const inf = is_inf(compose(0, 63, 0));
+    const neg_inf = is_inf(compose(1, 63, 0));
+    const normal = is_inf(compose(0, 42, 300));
+    if (!(inf == true)) __t27_assert_fail("\n  assertion failed:\n    inf = {any}\n", .{ inf });
+    if (!(neg_inf == true)) __t27_assert_fail("\n  assertion failed:\n    neg_inf = {any}\n", .{ neg_inf });
+    if (!(normal == false)) __t27_assert_fail("\n  assertion failed:\n    normal = {any}\n", .{ normal });
 }
 test "zero_ignores_sign" {
+    const pz = is_zero(0);
+    const nz = is_zero(compose(1, 0, 0));
+    const not_zero = is_zero(compose(0, 0, 1));
+    if (!(pz == true)) __t27_assert_fail("\n  assertion failed:\n    pz = {any}\n", .{ pz });
+    if (!(nz == true)) __t27_assert_fail("\n  assertion failed:\n    nz = {any}\n", .{ nz });
+    if (!(not_zero == false)) __t27_assert_fail("\n  assertion failed:\n    not_zero = {any}\n", .{ not_zero });
 }
 comptime {
     // invariant: bias_is_31
-    // invariant: bias_is_31 verified (no statements)
+    if (!(BIAS == 31)) __t27_assert_fail("\n  assertion failed:\n    BIAS = {any}\n", .{ BIAS });
 }
 comptime {
     // invariant: mantissa_width_is_9
-    // invariant: mantissa_width_is_9 verified (no statements)
+    if (!(M_BITS == 9)) __t27_assert_fail("\n  assertion failed:\n    M_BITS = {any}\n", .{ M_BITS });
 }

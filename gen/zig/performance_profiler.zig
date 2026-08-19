@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_SAMPLES: u32 = 64;
@@ -269,15 +277,15 @@ fn calculate_improvement_opportunity(current_performance: u32, target_performanc
 }
 test "perf_sample_roundtrip" {
     const smp = create_perf_sample(6, 45, 30, 99);
-    if (!(get_sample_function_id(smp) == 6)) @panic("function id");
-    if (!(get_sample_cpu(smp) == 45)) @panic("cpu");
-    if (!(get_sample_memory(smp) == 30)) @panic("memory");
-    if (!(get_sample_timestamp(smp) == 99)) @panic("timestamp");
+    if (!(get_sample_function_id(smp) == 6)) __t27_assert_fail("\n  function id:\n    get_sample_function_id(smp) = {any}\n", .{ get_sample_function_id(smp) });
+    if (!(get_sample_cpu(smp) == 45)) __t27_assert_fail("\n  cpu:\n    get_sample_cpu(smp) = {any}\n", .{ get_sample_cpu(smp) });
+    if (!(get_sample_memory(smp) == 30)) __t27_assert_fail("\n  memory:\n    get_sample_memory(smp) = {any}\n", .{ get_sample_memory(smp) });
+    if (!(get_sample_timestamp(smp) == 99)) __t27_assert_fail("\n  timestamp:\n    get_sample_timestamp(smp) = {any}\n", .{ get_sample_timestamp(smp) });
 }
 test "hotspot_roundtrip" {
     const h = create_hotspot(6, 90, 1, 77);
-    if (!(get_hotspot_function_id(h) == 6)) @panic("function id");
-    if (!(get_hotspot_score(h) == 90)) @panic("score");
-    if (!(get_hotspot_rank(h) == 1)) @panic("rank");
-    if (!(get_hotspot_impact(h) == 77)) @panic("impact");
+    if (!(get_hotspot_function_id(h) == 6)) __t27_assert_fail("\n  function id:\n    get_hotspot_function_id(h) = {any}\n", .{ get_hotspot_function_id(h) });
+    if (!(get_hotspot_score(h) == 90)) __t27_assert_fail("\n  score:\n    get_hotspot_score(h) = {any}\n", .{ get_hotspot_score(h) });
+    if (!(get_hotspot_rank(h) == 1)) __t27_assert_fail("\n  rank:\n    get_hotspot_rank(h) = {any}\n", .{ get_hotspot_rank(h) });
+    if (!(get_hotspot_impact(h) == 77)) __t27_assert_fail("\n  impact:\n    get_hotspot_impact(h) = {any}\n", .{ get_hotspot_impact(h) });
 }

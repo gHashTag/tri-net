@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_NODES: u32 = 3;
@@ -68,97 +76,97 @@ fn forward_packet(packet: u32, current_node: u32) struct { u32, bool, u32 } {
 }
 test "build_packet_correct_layout" {
     const pkt = build_packet(NODE_A, NODE_B, 3, 5);
-    if (!(extract_src(pkt) == NODE_A)) @panic("src preserved");
-    if (!(extract_dst(pkt) == NODE_B)) @panic("dst preserved");
-    if (!(extract_ttl(pkt) == 3)) @panic("ttl preserved");
-    if (!(extract_payload(pkt) == 5)) @panic("payload preserved");
+    if (!(extract_src(pkt) == NODE_A)) __t27_assert_fail("\n  src preserved:\n    extract_src(pkt) = {any}\n    NODE_A = {any}\n", .{ extract_src(pkt), NODE_A });
+    if (!(extract_dst(pkt) == NODE_B)) __t27_assert_fail("\n  dst preserved:\n    extract_dst(pkt) = {any}\n    NODE_B = {any}\n", .{ extract_dst(pkt), NODE_B });
+    if (!(extract_ttl(pkt) == 3)) __t27_assert_fail("\n  ttl preserved:\n    extract_ttl(pkt) = {any}\n", .{ extract_ttl(pkt) });
+    if (!(extract_payload(pkt) == 5)) __t27_assert_fail("\n  payload preserved:\n    extract_payload(pkt) = {any}\n", .{ extract_payload(pkt) });
 }
 test "tx_path_produces_valid_packet" {
     const pkt = tx_path(NODE_A, NODE_B, 7);
-    if (!(extract_src(pkt) == NODE_A)) @panic("tx src");
-    if (!(extract_dst(pkt) == NODE_B)) @panic("tx dst");
-    if (!(extract_payload(pkt) == 7)) @panic("tx payload");
+    if (!(extract_src(pkt) == NODE_A)) __t27_assert_fail("\n  tx src:\n    extract_src(pkt) = {any}\n    NODE_A = {any}\n", .{ extract_src(pkt), NODE_A });
+    if (!(extract_dst(pkt) == NODE_B)) __t27_assert_fail("\n  tx dst:\n    extract_dst(pkt) = {any}\n    NODE_B = {any}\n", .{ extract_dst(pkt), NODE_B });
+    if (!(extract_payload(pkt) == 7)) __t27_assert_fail("\n  tx payload:\n    extract_payload(pkt) = {any}\n", .{ extract_payload(pkt) });
 }
 test "rx_path_extracts_payload" {
     const pkt = build_packet(NODE_A, NODE_B, 3, 9);
     const payload = rx_path(pkt);
-    if (!(payload == 9)) @panic("rx payload");
+    if (!(payload == 9)) __t27_assert_fail("\n  rx payload:\n    payload = {any}\n", .{ payload });
 }
 test "decrement_ttl_reduces" {
     const pkt = build_packet(NODE_A, NODE_B, 3, 5);
     const new_pkt, const expired = decrement_ttl(pkt);
-    if (!(extract_ttl(new_pkt) == 2)) @panic("ttl decremented");
-    if (!(expired == false)) @panic("not expired");
+    if (!(extract_ttl(new_pkt) == 2)) __t27_assert_fail("\n  ttl decremented:\n    extract_ttl(new_pkt) = {any}\n", .{ extract_ttl(new_pkt) });
+    if (!(expired == false)) __t27_assert_fail("\n  not expired:\n    expired = {any}\n", .{ expired });
 }
 test "decrement_ttl_zero_expires" {
     const pkt = build_packet(NODE_A, NODE_B, 1, 5);
     const new_pkt, const expired = decrement_ttl(pkt);
-    if (!(extract_ttl(new_pkt) == 0)) @panic("ttl zero");
-    if (!(expired == true)) @panic("expired");
+    if (!(extract_ttl(new_pkt) == 0)) __t27_assert_fail("\n  ttl zero:\n    extract_ttl(new_pkt) = {any}\n", .{ extract_ttl(new_pkt) });
+    if (!(expired == true)) __t27_assert_fail("\n  expired:\n    expired = {any}\n", .{ expired });
 }
 test "decrement_ttl_already_expired" {
     const pkt = build_packet(NODE_A, NODE_B, 0, 5);
     const new_pkt, const expired = decrement_ttl(pkt);
-    if (!(extract_ttl(new_pkt) == 0)) @panic("ttl zero");
-    if (!(expired == true)) @panic("expired");
+    if (!(extract_ttl(new_pkt) == 0)) __t27_assert_fail("\n  ttl zero:\n    extract_ttl(new_pkt) = {any}\n", .{ extract_ttl(new_pkt) });
+    if (!(expired == true)) __t27_assert_fail("\n  expired:\n    expired = {any}\n", .{ expired });
 }
 test "route_packet_direct_a_to_b" {
     const next_hop = route_packet(NODE_A, NODE_B, 0);
-    if (!(next_hop == NODE_B)) @panic("direct route AâB");
+    if (!(next_hop == NODE_B)) __t27_assert_fail("\n  direct route AâB:\n    next_hop = {any}\n    NODE_B = {any}\n", .{ next_hop, NODE_B });
 }
 test "route_packet_via_b_a_to_c" {
     const next_hop = route_packet(NODE_A, NODE_C, 0);
-    if (!(next_hop == NODE_B)) @panic("route AâC via B");
+    if (!(next_hop == NODE_B)) __t27_assert_fail("\n  route AâC via B:\n    next_hop = {any}\n    NODE_B = {any}\n", .{ next_hop, NODE_B });
 }
 test "route_packet_direct_b_to_c" {
     const next_hop = route_packet(NODE_B, NODE_C, 0);
-    if (!(next_hop == NODE_C)) @panic("direct route BâC");
+    if (!(next_hop == NODE_C)) __t27_assert_fail("\n  direct route BâC:\n    next_hop = {any}\n    NODE_C = {any}\n", .{ next_hop, NODE_C });
 }
 test "forward_packet_decrements_ttl" {
     const pkt = build_packet(NODE_A, NODE_B, 3, 5);
     const new_pkt, const expired, const next_hop = forward_packet(pkt, NODE_A);
-    if (!(extract_ttl(new_pkt) == 2)) @panic("ttl decreased");
-    if (!(expired == false)) @panic("not expired");
-    if (!(next_hop == NODE_B)) @panic("next hop B");
+    if (!(extract_ttl(new_pkt) == 2)) __t27_assert_fail("\n  ttl decreased:\n    extract_ttl(new_pkt) = {any}\n", .{ extract_ttl(new_pkt) });
+    if (!(expired == false)) __t27_assert_fail("\n  not expired:\n    expired = {any}\n", .{ expired });
+    if (!(next_hop == NODE_B)) __t27_assert_fail("\n  next hop B:\n    next_hop = {any}\n    NODE_B = {any}\n", .{ next_hop, NODE_B });
 }
 test "forward_packet_preserves_payload" {
     const pkt = build_packet(NODE_A, NODE_B, 3, 5);
     const fwd, _, _ = forward_packet(pkt, NODE_A);
-    if (!(extract_ttl(fwd) == 2)) @panic("only the TTL changes (3 -> 2)");
-    if (!(extract_src(fwd) == NODE_A)) @panic("src preserved across the hop");
-    if (!(extract_dst(fwd) == NODE_B)) @panic("dst preserved across the hop");
-    if (!(extract_payload(fwd) == 5)) @panic("payload preserved across the hop");
+    if (!(extract_ttl(fwd) == 2)) __t27_assert_fail("\n  only the TTL changes (3 -> 2):\n    extract_ttl(fwd) = {any}\n", .{ extract_ttl(fwd) });
+    if (!(extract_src(fwd) == NODE_A)) __t27_assert_fail("\n  src preserved across the hop:\n    extract_src(fwd) = {any}\n    NODE_A = {any}\n", .{ extract_src(fwd), NODE_A });
+    if (!(extract_dst(fwd) == NODE_B)) __t27_assert_fail("\n  dst preserved across the hop:\n    extract_dst(fwd) = {any}\n    NODE_B = {any}\n", .{ extract_dst(fwd), NODE_B });
+    if (!(extract_payload(fwd) == 5)) __t27_assert_fail("\n  payload preserved across the hop:\n    extract_payload(fwd) = {any}\n", .{ extract_payload(fwd) });
     const fwd2, _, _ = forward_packet(fwd, NODE_A);
-    if (!(extract_payload(fwd2) == 5)) @panic("payload preserved after a second hop");
-    if (!(extract_src(fwd2) == NODE_A)) @panic("src still preserved");
-    if (!(extract_dst(fwd2) == NODE_B)) @panic("dst still preserved");
-    if (!(extract_ttl(fwd2) == 1)) @panic("TTL 2 -> 1 on the second hop");
+    if (!(extract_payload(fwd2) == 5)) __t27_assert_fail("\n  payload preserved after a second hop:\n    extract_payload(fwd2) = {any}\n", .{ extract_payload(fwd2) });
+    if (!(extract_src(fwd2) == NODE_A)) __t27_assert_fail("\n  src still preserved:\n    extract_src(fwd2) = {any}\n    NODE_A = {any}\n", .{ extract_src(fwd2), NODE_A });
+    if (!(extract_dst(fwd2) == NODE_B)) __t27_assert_fail("\n  dst still preserved:\n    extract_dst(fwd2) = {any}\n    NODE_B = {any}\n", .{ extract_dst(fwd2), NODE_B });
+    if (!(extract_ttl(fwd2) == 1)) __t27_assert_fail("\n  TTL 2 -> 1 on the second hop:\n    extract_ttl(fwd2) = {any}\n", .{ extract_ttl(fwd2) });
 }
 test "forward_packet_ttl_expired" {
     const pkt = build_packet(NODE_A, NODE_B, 1, 5);
     const pkt1, _, _ = forward_packet(pkt, NODE_A);
     _, const exp2, _ = forward_packet(pkt1, NODE_B);
-    if (!(exp2 == true)) @panic("expired after 2 hops");
+    if (!(exp2 == true)) __t27_assert_fail("\n  expired after 2 hops:\n    exp2 = {any}\n", .{ exp2 });
 }
 test "forward_packet_no_route" {
     const pkt = build_packet(NODE_A, 99, 3, 5);
     _, const expired, const next_hop = forward_packet(pkt, NODE_A);
-    if (!(next_hop == 0)) @panic("no route");
-    if (!(expired == false)) @panic("ttl not expired yet");
+    if (!(next_hop == 0)) __t27_assert_fail("\n  no route:\n    next_hop = {any}\n", .{ next_hop });
+    if (!(expired == false)) __t27_assert_fail("\n  ttl not expired yet:\n    expired = {any}\n", .{ expired });
 }
 test "end_to_end_tx_rx" {
     const pkt = tx_path(NODE_A, NODE_B, 42);
     const payload = rx_path(pkt);
-    if (!(payload == 42)) @panic("end-to-end payload");
+    if (!(payload == 42)) __t27_assert_fail("\n  end-to-end payload:\n    payload = {any}\n", .{ payload });
 }
 test "multi_hop_routing" {
     const pkt = tx_path(NODE_A, NODE_C, 7);
     const pkt1, const exp1, const hop1 = forward_packet(pkt, NODE_A);
-    if (!(hop1 == NODE_B)) @panic("first hop to B");
-    if (!(exp1 == false)) @panic("not expired");
+    if (!(hop1 == NODE_B)) __t27_assert_fail("\n  first hop to B:\n    hop1 = {any}\n    NODE_B = {any}\n", .{ hop1, NODE_B });
+    if (!(exp1 == false)) __t27_assert_fail("\n  not expired:\n    exp1 = {any}\n", .{ exp1 });
     const pkt2, const exp2, const hop2 = forward_packet(pkt1, NODE_B);
-    if (!(hop2 == NODE_C)) @panic("second hop to C");
-    if (!(exp2 == false)) @panic("not expired");
+    if (!(hop2 == NODE_C)) __t27_assert_fail("\n  second hop to C:\n    hop2 = {any}\n    NODE_C = {any}\n", .{ hop2, NODE_C });
+    if (!(exp2 == false)) __t27_assert_fail("\n  not expired:\n    exp2 = {any}\n", .{ exp2 });
     const payload = rx_path(pkt2);
-    if (!(payload == 7)) @panic("multi-hop payload");
+    if (!(payload == 7)) __t27_assert_fail("\n  multi-hop payload:\n    payload = {any}\n", .{ payload });
 }

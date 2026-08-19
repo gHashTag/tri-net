@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const KIND_DATA: u32 = 1;
@@ -380,171 +388,171 @@ fn admit_result_signed_sized(assign_task_id: u32, result_task_id: u32, receipt_t
     }
 }
 test "demux_by_port_not_payload" {
-    if (!(is_a2a(KIND_DATA, A2A_PORT) == true)) @panic("DATA on the A2A port is A2A");
-    if (!(is_a2a(0, A2A_PORT) == false)) @panic("HELLO is not A2A even on the port");
-    if (!(is_a2a(KIND_DATA, 0x1234) == false)) @panic("DATA on another port is not A2A");
+    if (!(is_a2a(KIND_DATA, A2A_PORT) == true)) __t27_assert_fail("\n  DATA on the A2A port is A2A:\n    is_a2a(KIND_DATA, A2A_PORT) = {any}\n", .{ is_a2a(KIND_DATA, A2A_PORT) });
+    if (!(is_a2a(0, A2A_PORT) == false)) __t27_assert_fail("\n  HELLO is not A2A even on the port:\n    is_a2a(0, A2A_PORT) = {any}\n", .{ is_a2a(0, A2A_PORT) });
+    if (!(is_a2a(KIND_DATA, 0x1234) == false)) __t27_assert_fail("\n  DATA on another port is not A2A:\n    is_a2a(KIND_DATA, 0x1234) = {any}\n", .{ is_a2a(KIND_DATA, 0x1234) });
 }
 test "skill_et_is_the_ratified_rung" {
-    if (!(skill_et(SKILL_GFT16_MUL) == 4)) @panic("GF-T16 skill -> Et 4");
-    if (!(skill_et(SKILL_GFT16_ADD) == 4)) @panic("GF-T16 add skill -> Et 4");
-    if (!(skill_et(SKILL_GFT8_MUL) == 3)) @panic("GF-T8 skill -> Et 3");
-    if (!(skill_et(SKILL_GF16_MUL) == 0)) @panic("binary GF16 skill has no ternary Et");
-    if (!(skill_et(0xDEADBEEF) == 0)) @panic("an unknown skill is fail-closed at Et 0");
+    if (!(skill_et(SKILL_GFT16_MUL) == 4)) __t27_assert_fail("\n  GF-T16 skill -> Et 4:\n    skill_et(SKILL_GFT16_MUL) = {any}\n", .{ skill_et(SKILL_GFT16_MUL) });
+    if (!(skill_et(SKILL_GFT16_ADD) == 4)) __t27_assert_fail("\n  GF-T16 add skill -> Et 4:\n    skill_et(SKILL_GFT16_ADD) = {any}\n", .{ skill_et(SKILL_GFT16_ADD) });
+    if (!(skill_et(SKILL_GFT8_MUL) == 3)) __t27_assert_fail("\n  GF-T8 skill -> Et 3:\n    skill_et(SKILL_GFT8_MUL) = {any}\n", .{ skill_et(SKILL_GFT8_MUL) });
+    if (!(skill_et(SKILL_GF16_MUL) == 0)) __t27_assert_fail("\n  binary GF16 skill has no ternary Et:\n    skill_et(SKILL_GF16_MUL) = {any}\n", .{ skill_et(SKILL_GF16_MUL) });
+    if (!(skill_et(0xDEADBEEF) == 0)) __t27_assert_fail("\n  an unknown skill is fail-closed at Et 0:\n    skill_et(0xDEADBEEF) = {any}\n", .{ skill_et(0xDEADBEEF) });
 }
 test "assignment_binds_the_exact_rung" {
-    if (!(result_binds_assign_rung(7, 7, 7, SKILL_GFT16_MUL, FMT_GFT, 0x11, 16, 4) == true)) @panic("GF-T16 assignment + Et4/width16/GFT receipt binds");
-    if (!(result_binds_assign_rung(7, 7, 7, SKILL_GFT16_MUL, FMT_GFT, 0x11, 16, 6) == false)) @panic("a GF-T32-rung (Et6) receipt does NOT bind a GF-T16 assignment");
-    if (!(result_binds_assign_rung(7, 7, 7, SKILL_GFT8_MUL, FMT_GFT, 0x11, 8, 3) == true)) @panic("GF-T8 assignment + Et3/width8 receipt binds");
-    if (!(result_binds_assign_rung(7, 7, 7, SKILL_GFT8_MUL, FMT_GFT, 0x11, 8, 4) == false)) @panic("a GF-T16-rung (Et4) receipt does NOT bind a GF-T8 assignment (precision upgrade rejected)");
+    if (!(result_binds_assign_rung(7, 7, 7, SKILL_GFT16_MUL, FMT_GFT, 0x11, 16, 4) == true)) __t27_assert_fail("\n  GF-T16 assignment + Et4/width16/GFT receipt binds:\n    result_binds_assign_rung(7, 7, 7, SKILL_GFT16_MUL, FMT_GFT, 0x11, 16, 4) = {any}\n", .{ result_binds_assign_rung(7, 7, 7, SKILL_GFT16_MUL, FMT_GFT, 0x11, 16, 4) });
+    if (!(result_binds_assign_rung(7, 7, 7, SKILL_GFT16_MUL, FMT_GFT, 0x11, 16, 6) == false)) __t27_assert_fail("\n  a GF-T32-rung (Et6) receipt does NOT bind a GF-T16 assignment:\n    result_binds_assign_rung(7, 7, 7, SKILL_GFT16_MUL, FMT_GFT, 0x11, 16, 6) = {any}\n", .{ result_binds_assign_rung(7, 7, 7, SKILL_GFT16_MUL, FMT_GFT, 0x11, 16, 6) });
+    if (!(result_binds_assign_rung(7, 7, 7, SKILL_GFT8_MUL, FMT_GFT, 0x11, 8, 3) == true)) __t27_assert_fail("\n  GF-T8 assignment + Et3/width8 receipt binds:\n    result_binds_assign_rung(7, 7, 7, SKILL_GFT8_MUL, FMT_GFT, 0x11, 8, 3) = {any}\n", .{ result_binds_assign_rung(7, 7, 7, SKILL_GFT8_MUL, FMT_GFT, 0x11, 8, 3) });
+    if (!(result_binds_assign_rung(7, 7, 7, SKILL_GFT8_MUL, FMT_GFT, 0x11, 8, 4) == false)) __t27_assert_fail("\n  a GF-T16-rung (Et4) receipt does NOT bind a GF-T8 assignment (precision upgrade rejected):\n    result_binds_assign_rung(7, 7, 7, SKILL_GFT8_MUL, FMT_GFT, 0x11, 8, 4) = {any}\n", .{ result_binds_assign_rung(7, 7, 7, SKILL_GFT8_MUL, FMT_GFT, 0x11, 8, 4) });
 }
 test "gft32_is_a_hosted_rung" {
-    if (!(is_hosted_skill(SKILL_GFT32_MUL) == 1)) @panic("GF-T32 mul is hosted");
-    if (!(is_gft_skill(SKILL_GFT32_ADD) == true)) @panic("GF-T32 add is a GF-T (ternary) skill");
-    if (!(is_gf_skill(SKILL_GFT32_MUL) == false)) @panic("GF-T32 is not a binary GF skill");
-    if (!(skill_family(SKILL_GFT32_MUL) == FMT_GFT)) @panic("GF-T32 family is FMT_GFT");
-    if (!(skill_width(SKILL_GFT32_MUL) == 32)) @panic("GF-T32 width 32");
-    if (!(skill_op(SKILL_GFT32_MUL) == 0x11)) @panic("GF-T32 mul -> op 0x11");
-    if (!(skill_op(SKILL_GFT32_ADD) == 0x10)) @panic("GF-T32 add -> op 0x10");
-    if (!(skill_et(SKILL_GFT32_MUL) == 6)) @panic("GF-T32 rung Et 6 (ratified golden rule)");
-    if (!(result_binds_assign_rung(9, 9, 9, SKILL_GFT32_MUL, FMT_GFT, 0x11, 32, 6) == true)) @panic("GF-T32 assignment binds a GF-T32 receipt (width32, Et6)");
-    if (!(result_binds_assign_rung(9, 9, 9, SKILL_GFT32_MUL, FMT_GFT, 0x11, 16, 4) == false)) @panic("a GF-T16 receipt does NOT bind a GF-T32 assignment (precision downgrade rejected)");
+    if (!(is_hosted_skill(SKILL_GFT32_MUL) == 1)) __t27_assert_fail("\n  GF-T32 mul is hosted:\n    is_hosted_skill(SKILL_GFT32_MUL) = {any}\n", .{ is_hosted_skill(SKILL_GFT32_MUL) });
+    if (!(is_gft_skill(SKILL_GFT32_ADD) == true)) __t27_assert_fail("\n  GF-T32 add is a GF-T (ternary) skill:\n    is_gft_skill(SKILL_GFT32_ADD) = {any}\n", .{ is_gft_skill(SKILL_GFT32_ADD) });
+    if (!(is_gf_skill(SKILL_GFT32_MUL) == false)) __t27_assert_fail("\n  GF-T32 is not a binary GF skill:\n    is_gf_skill(SKILL_GFT32_MUL) = {any}\n", .{ is_gf_skill(SKILL_GFT32_MUL) });
+    if (!(skill_family(SKILL_GFT32_MUL) == FMT_GFT)) __t27_assert_fail("\n  GF-T32 family is FMT_GFT:\n    skill_family(SKILL_GFT32_MUL) = {any}\n    FMT_GFT = {any}\n", .{ skill_family(SKILL_GFT32_MUL), FMT_GFT });
+    if (!(skill_width(SKILL_GFT32_MUL) == 32)) __t27_assert_fail("\n  GF-T32 width 32:\n    skill_width(SKILL_GFT32_MUL) = {any}\n", .{ skill_width(SKILL_GFT32_MUL) });
+    if (!(skill_op(SKILL_GFT32_MUL) == 0x11)) __t27_assert_fail("\n  GF-T32 mul -> op 0x11:\n    skill_op(SKILL_GFT32_MUL) = {any}\n", .{ skill_op(SKILL_GFT32_MUL) });
+    if (!(skill_op(SKILL_GFT32_ADD) == 0x10)) __t27_assert_fail("\n  GF-T32 add -> op 0x10:\n    skill_op(SKILL_GFT32_ADD) = {any}\n", .{ skill_op(SKILL_GFT32_ADD) });
+    if (!(skill_et(SKILL_GFT32_MUL) == 6)) __t27_assert_fail("\n  GF-T32 rung Et 6 (ratified golden rule):\n    skill_et(SKILL_GFT32_MUL) = {any}\n", .{ skill_et(SKILL_GFT32_MUL) });
+    if (!(result_binds_assign_rung(9, 9, 9, SKILL_GFT32_MUL, FMT_GFT, 0x11, 32, 6) == true)) __t27_assert_fail("\n  GF-T32 assignment binds a GF-T32 receipt (width32, Et6):\n    result_binds_assign_rung(9, 9, 9, SKILL_GFT32_MUL, FMT_GFT, 0x11, 32, 6) = {any}\n", .{ result_binds_assign_rung(9, 9, 9, SKILL_GFT32_MUL, FMT_GFT, 0x11, 32, 6) });
+    if (!(result_binds_assign_rung(9, 9, 9, SKILL_GFT32_MUL, FMT_GFT, 0x11, 16, 4) == false)) __t27_assert_fail("\n  a GF-T16 receipt does NOT bind a GF-T32 assignment (precision downgrade rejected):\n    result_binds_assign_rung(9, 9, 9, SKILL_GFT32_MUL, FMT_GFT, 0x11, 16, 4) = {any}\n", .{ result_binds_assign_rung(9, 9, 9, SKILL_GFT32_MUL, FMT_GFT, 0x11, 16, 4) });
 }
 test "gft64_gft128_are_hosted_rungs" {
-    if (!(is_hosted_skill(SKILL_GFT64_MUL) == 1)) @panic("GF-T64 mul is hosted");
-    if (!(is_hosted_skill(SKILL_GFT128_ADD) == 1)) @panic("GF-T128 add is hosted");
-    if (!(skill_family(SKILL_GFT64_MUL) == FMT_GFT)) @panic("GF-T64 family FMT_GFT");
-    if (!(skill_family(SKILL_GFT128_MUL) == FMT_GFT)) @panic("GF-T128 family FMT_GFT");
-    if (!(skill_width(SKILL_GFT64_MUL) == 64)) @panic("GF-T64 width 64");
-    if (!(skill_width(SKILL_GFT128_MUL) == 128)) @panic("GF-T128 width 128");
-    if (!(skill_et(SKILL_GFT64_MUL) == 9)) @panic("GF-T64 Et9");
-    if (!(skill_et(SKILL_GFT128_MUL) == 14)) @panic("GF-T128 Et14");
-    if (!(skill_op(SKILL_GFT64_ADD) == 0x10)) @panic("GF-T64 add -> op 0x10");
-    if (!(result_binds_assign_rung(11, 11, 11, SKILL_GFT64_MUL, FMT_GFT, 0x11, 64, 9) == true)) @panic("GF-T64 assignment binds a GF-T64 receipt (width64, Et9)");
-    if (!(result_binds_assign_rung(11, 11, 11, SKILL_GFT64_MUL, FMT_GFT, 0x11, 32, 6) == false)) @panic("a GF-T32 receipt does NOT bind a GF-T64 assignment");
-    if (!(is_hosted_skill(0xBADC0DE) == 0)) @panic("unknown skill not hosted");
-    if (!(skill_et(0xBADC0DE) == 0)) @panic("unknown skill fail-closed Et 0");
+    if (!(is_hosted_skill(SKILL_GFT64_MUL) == 1)) __t27_assert_fail("\n  GF-T64 mul is hosted:\n    is_hosted_skill(SKILL_GFT64_MUL) = {any}\n", .{ is_hosted_skill(SKILL_GFT64_MUL) });
+    if (!(is_hosted_skill(SKILL_GFT128_ADD) == 1)) __t27_assert_fail("\n  GF-T128 add is hosted:\n    is_hosted_skill(SKILL_GFT128_ADD) = {any}\n", .{ is_hosted_skill(SKILL_GFT128_ADD) });
+    if (!(skill_family(SKILL_GFT64_MUL) == FMT_GFT)) __t27_assert_fail("\n  GF-T64 family FMT_GFT:\n    skill_family(SKILL_GFT64_MUL) = {any}\n    FMT_GFT = {any}\n", .{ skill_family(SKILL_GFT64_MUL), FMT_GFT });
+    if (!(skill_family(SKILL_GFT128_MUL) == FMT_GFT)) __t27_assert_fail("\n  GF-T128 family FMT_GFT:\n    skill_family(SKILL_GFT128_MUL) = {any}\n    FMT_GFT = {any}\n", .{ skill_family(SKILL_GFT128_MUL), FMT_GFT });
+    if (!(skill_width(SKILL_GFT64_MUL) == 64)) __t27_assert_fail("\n  GF-T64 width 64:\n    skill_width(SKILL_GFT64_MUL) = {any}\n", .{ skill_width(SKILL_GFT64_MUL) });
+    if (!(skill_width(SKILL_GFT128_MUL) == 128)) __t27_assert_fail("\n  GF-T128 width 128:\n    skill_width(SKILL_GFT128_MUL) = {any}\n", .{ skill_width(SKILL_GFT128_MUL) });
+    if (!(skill_et(SKILL_GFT64_MUL) == 9)) __t27_assert_fail("\n  GF-T64 Et9:\n    skill_et(SKILL_GFT64_MUL) = {any}\n", .{ skill_et(SKILL_GFT64_MUL) });
+    if (!(skill_et(SKILL_GFT128_MUL) == 14)) __t27_assert_fail("\n  GF-T128 Et14:\n    skill_et(SKILL_GFT128_MUL) = {any}\n", .{ skill_et(SKILL_GFT128_MUL) });
+    if (!(skill_op(SKILL_GFT64_ADD) == 0x10)) __t27_assert_fail("\n  GF-T64 add -> op 0x10:\n    skill_op(SKILL_GFT64_ADD) = {any}\n", .{ skill_op(SKILL_GFT64_ADD) });
+    if (!(result_binds_assign_rung(11, 11, 11, SKILL_GFT64_MUL, FMT_GFT, 0x11, 64, 9) == true)) __t27_assert_fail("\n  GF-T64 assignment binds a GF-T64 receipt (width64, Et9):\n    result_binds_assign_rung(11, 11, 11, SKILL_GFT64_MUL, FMT_GFT, 0x11, 64, 9) = {any}\n", .{ result_binds_assign_rung(11, 11, 11, SKILL_GFT64_MUL, FMT_GFT, 0x11, 64, 9) });
+    if (!(result_binds_assign_rung(11, 11, 11, SKILL_GFT64_MUL, FMT_GFT, 0x11, 32, 6) == false)) __t27_assert_fail("\n  a GF-T32 receipt does NOT bind a GF-T64 assignment:\n    result_binds_assign_rung(11, 11, 11, SKILL_GFT64_MUL, FMT_GFT, 0x11, 32, 6) = {any}\n", .{ result_binds_assign_rung(11, 11, 11, SKILL_GFT64_MUL, FMT_GFT, 0x11, 32, 6) });
+    if (!(is_hosted_skill(0xBADC0DE) == 0)) __t27_assert_fail("\n  unknown skill not hosted:\n    is_hosted_skill(0xBADC0DE) = {any}\n", .{ is_hosted_skill(0xBADC0DE) });
+    if (!(skill_et(0xBADC0DE) == 0)) __t27_assert_fail("\n  unknown skill fail-closed Et 0:\n    skill_et(0xBADC0DE) = {any}\n", .{ skill_et(0xBADC0DE) });
 }
 test "gft4_is_the_bottom_hosted_rung" {
-    if (!(is_hosted_skill(SKILL_GFT4_MUL) == 1)) @panic("GF-T4 mul is hosted");
-    if (!(is_gft_skill(SKILL_GFT4_ADD) == true)) @panic("GF-T4 add is a GF-T (ternary) skill");
-    if (!(skill_family(SKILL_GFT4_MUL) == FMT_GFT)) @panic("GF-T4 family FMT_GFT");
-    if (!(skill_width(SKILL_GFT4_MUL) == 4)) @panic("GF-T4 width 4");
-    if (!(skill_op(SKILL_GFT4_MUL) == 0x11)) @panic("GF-T4 mul -> op 0x11");
-    if (!(skill_et(SKILL_GFT4_MUL) == 2)) @panic("GF-T4 rung Et2 (bottom of the ladder)");
-    if (!(result_binds_assign_rung(3, 3, 3, SKILL_GFT4_MUL, FMT_GFT, 0x11, 4, 2) == true)) @panic("GF-T4 assignment binds a GF-T4 receipt (width4, Et2)");
-    if (!(result_binds_assign_rung(3, 3, 3, SKILL_GFT4_MUL, FMT_GFT, 0x11, 8, 3) == false)) @panic("a GF-T8 receipt does NOT bind a GF-T4 assignment (precision upgrade rejected)");
+    if (!(is_hosted_skill(SKILL_GFT4_MUL) == 1)) __t27_assert_fail("\n  GF-T4 mul is hosted:\n    is_hosted_skill(SKILL_GFT4_MUL) = {any}\n", .{ is_hosted_skill(SKILL_GFT4_MUL) });
+    if (!(is_gft_skill(SKILL_GFT4_ADD) == true)) __t27_assert_fail("\n  GF-T4 add is a GF-T (ternary) skill:\n    is_gft_skill(SKILL_GFT4_ADD) = {any}\n", .{ is_gft_skill(SKILL_GFT4_ADD) });
+    if (!(skill_family(SKILL_GFT4_MUL) == FMT_GFT)) __t27_assert_fail("\n  GF-T4 family FMT_GFT:\n    skill_family(SKILL_GFT4_MUL) = {any}\n    FMT_GFT = {any}\n", .{ skill_family(SKILL_GFT4_MUL), FMT_GFT });
+    if (!(skill_width(SKILL_GFT4_MUL) == 4)) __t27_assert_fail("\n  GF-T4 width 4:\n    skill_width(SKILL_GFT4_MUL) = {any}\n", .{ skill_width(SKILL_GFT4_MUL) });
+    if (!(skill_op(SKILL_GFT4_MUL) == 0x11)) __t27_assert_fail("\n  GF-T4 mul -> op 0x11:\n    skill_op(SKILL_GFT4_MUL) = {any}\n", .{ skill_op(SKILL_GFT4_MUL) });
+    if (!(skill_et(SKILL_GFT4_MUL) == 2)) __t27_assert_fail("\n  GF-T4 rung Et2 (bottom of the ladder):\n    skill_et(SKILL_GFT4_MUL) = {any}\n", .{ skill_et(SKILL_GFT4_MUL) });
+    if (!(result_binds_assign_rung(3, 3, 3, SKILL_GFT4_MUL, FMT_GFT, 0x11, 4, 2) == true)) __t27_assert_fail("\n  GF-T4 assignment binds a GF-T4 receipt (width4, Et2):\n    result_binds_assign_rung(3, 3, 3, SKILL_GFT4_MUL, FMT_GFT, 0x11, 4, 2) = {any}\n", .{ result_binds_assign_rung(3, 3, 3, SKILL_GFT4_MUL, FMT_GFT, 0x11, 4, 2) });
+    if (!(result_binds_assign_rung(3, 3, 3, SKILL_GFT4_MUL, FMT_GFT, 0x11, 8, 3) == false)) __t27_assert_fail("\n  a GF-T8 receipt does NOT bind a GF-T4 assignment (precision upgrade rejected):\n    result_binds_assign_rung(3, 3, 3, SKILL_GFT4_MUL, FMT_GFT, 0x11, 8, 3) = {any}\n", .{ result_binds_assign_rung(3, 3, 3, SKILL_GFT4_MUL, FMT_GFT, 0x11, 8, 3) });
 }
 test "only_result_carries_receipt" {
-    if (!(carries_receipt(MSG_TASK_RESULT) == true)) @panic("taskResult carries a receipt");
-    if (!(carries_receipt(MSG_TASK_ASSIGN) == false)) @panic("taskAssign carries no receipt");
-    if (!(carries_receipt(MSG_HEARTBEAT) == false)) @panic("heartbeat carries no receipt");
+    if (!(carries_receipt(MSG_TASK_RESULT) == true)) __t27_assert_fail("\n  taskResult carries a receipt:\n    carries_receipt(MSG_TASK_RESULT) = {any}\n", .{ carries_receipt(MSG_TASK_RESULT) });
+    if (!(carries_receipt(MSG_TASK_ASSIGN) == false)) __t27_assert_fail("\n  taskAssign carries no receipt:\n    carries_receipt(MSG_TASK_ASSIGN) = {any}\n", .{ carries_receipt(MSG_TASK_ASSIGN) });
+    if (!(carries_receipt(MSG_HEARTBEAT) == false)) __t27_assert_fail("\n  heartbeat carries no receipt:\n    carries_receipt(MSG_HEARTBEAT) = {any}\n", .{ carries_receipt(MSG_HEARTBEAT) });
 }
 test "skill_is_goldenfloat" {
-    if (!(is_gf_skill(SKILL_GF16_MUL) == true)) @panic("GF16 mul is a hosted skill");
-    if (!(is_gf_skill(SKILL_GF16_ADD) == true)) @panic("GF16 add is a hosted skill");
-    if (!(is_gft_skill(SKILL_GFT16_MUL) == true)) @panic("GF-T16 mul is a hosted skill");
-    if (!(is_gft_skill(SKILL_GFT8_ADD) == true)) @panic("GF-T8 add is a hosted skill");
-    if (!(is_gft_skill(SKILL_GF16_MUL) == false)) @panic("binary GF16 is NOT a GF-T skill (family distinct)");
-    if (!(is_gf_skill(SKILL_GFT16_MUL) == false)) @panic("GF-T16 is NOT a binary GF skill");
-    if (!(skill_op(SKILL_GF16_MUL) == 0x11)) @panic("GF16 mul skill -> receipt op 0x11");
-    if (!(skill_op(SKILL_GF16_ADD) == 0x10)) @panic("GF16 add skill -> receipt op 0x10");
-    if (!(skill_op(SKILL_GFT16_MUL) == 0x11)) @panic("GF-T16 mul skill -> same op 0x11");
-    if (!(skill_op(SKILL_GFT8_ADD) == 0x10)) @panic("GF-T8 add skill -> op 0x10");
-    if (!(is_gf_skill(0xDEAD) == false)) @panic("a non-GF skill is rejected");
+    if (!(is_gf_skill(SKILL_GF16_MUL) == true)) __t27_assert_fail("\n  GF16 mul is a hosted skill:\n    is_gf_skill(SKILL_GF16_MUL) = {any}\n", .{ is_gf_skill(SKILL_GF16_MUL) });
+    if (!(is_gf_skill(SKILL_GF16_ADD) == true)) __t27_assert_fail("\n  GF16 add is a hosted skill:\n    is_gf_skill(SKILL_GF16_ADD) = {any}\n", .{ is_gf_skill(SKILL_GF16_ADD) });
+    if (!(is_gft_skill(SKILL_GFT16_MUL) == true)) __t27_assert_fail("\n  GF-T16 mul is a hosted skill:\n    is_gft_skill(SKILL_GFT16_MUL) = {any}\n", .{ is_gft_skill(SKILL_GFT16_MUL) });
+    if (!(is_gft_skill(SKILL_GFT8_ADD) == true)) __t27_assert_fail("\n  GF-T8 add is a hosted skill:\n    is_gft_skill(SKILL_GFT8_ADD) = {any}\n", .{ is_gft_skill(SKILL_GFT8_ADD) });
+    if (!(is_gft_skill(SKILL_GF16_MUL) == false)) __t27_assert_fail("\n  binary GF16 is NOT a GF-T skill (family distinct):\n    is_gft_skill(SKILL_GF16_MUL) = {any}\n", .{ is_gft_skill(SKILL_GF16_MUL) });
+    if (!(is_gf_skill(SKILL_GFT16_MUL) == false)) __t27_assert_fail("\n  GF-T16 is NOT a binary GF skill:\n    is_gf_skill(SKILL_GFT16_MUL) = {any}\n", .{ is_gf_skill(SKILL_GFT16_MUL) });
+    if (!(skill_op(SKILL_GF16_MUL) == 0x11)) __t27_assert_fail("\n  GF16 mul skill -> receipt op 0x11:\n    skill_op(SKILL_GF16_MUL) = {any}\n", .{ skill_op(SKILL_GF16_MUL) });
+    if (!(skill_op(SKILL_GF16_ADD) == 0x10)) __t27_assert_fail("\n  GF16 add skill -> receipt op 0x10:\n    skill_op(SKILL_GF16_ADD) = {any}\n", .{ skill_op(SKILL_GF16_ADD) });
+    if (!(skill_op(SKILL_GFT16_MUL) == 0x11)) __t27_assert_fail("\n  GF-T16 mul skill -> same op 0x11:\n    skill_op(SKILL_GFT16_MUL) = {any}\n", .{ skill_op(SKILL_GFT16_MUL) });
+    if (!(skill_op(SKILL_GFT8_ADD) == 0x10)) __t27_assert_fail("\n  GF-T8 add skill -> op 0x10:\n    skill_op(SKILL_GFT8_ADD) = {any}\n", .{ skill_op(SKILL_GFT8_ADD) });
+    if (!(is_gf_skill(0xDEAD) == false)) __t27_assert_fail("\n  a non-GF skill is rejected:\n    is_gf_skill(0xDEAD) = {any}\n", .{ is_gf_skill(0xDEAD) });
 }
 test "result_binds_to_assign" {
-    if (!(result_matches_assign(0x777, 0x777, 0x777) == true)) @panic("matching id + receipt binds");
-    if (!(result_matches_assign(0x777, 0x888, 0x777) == false)) @panic("wrong result task_id rejected");
-    if (!(result_matches_assign(0x777, 0x777, 0x999) == false)) @panic("receipt for another task rejected");
+    if (!(result_matches_assign(0x777, 0x777, 0x777) == true)) __t27_assert_fail("\n  matching id + receipt binds:\n    result_matches_assign(0x777, 0x777, 0x777) = {any}\n", .{ result_matches_assign(0x777, 0x777, 0x777) });
+    if (!(result_matches_assign(0x777, 0x888, 0x777) == false)) __t27_assert_fail("\n  wrong result task_id rejected:\n    result_matches_assign(0x777, 0x888, 0x777) = {any}\n", .{ result_matches_assign(0x777, 0x888, 0x777) });
+    if (!(result_matches_assign(0x777, 0x777, 0x999) == false)) __t27_assert_fail("\n  receipt for another task rejected:\n    result_matches_assign(0x777, 0x777, 0x999) = {any}\n", .{ result_matches_assign(0x777, 0x777, 0x999) });
 }
 test "op_must_match_the_skill" {
-    if (!(op_matches(SKILL_GF16_MUL, 0x11) == true)) @panic("mul skill + mul receipt op agree");
-    if (!(op_matches(SKILL_GF16_MUL, 0x10) == false)) @panic("mul assignment must NOT accept an add receipt");
-    if (!(op_matches(SKILL_GFT8_ADD, 0x10) == true)) @panic("GF-T8 add skill + add op agree");
-    if (!(op_matches(SKILL_GFT8_ADD, 0x11) == false)) @panic("add assignment must NOT accept a mul receipt");
+    if (!(op_matches(SKILL_GF16_MUL, 0x11) == true)) __t27_assert_fail("\n  mul skill + mul receipt op agree:\n    op_matches(SKILL_GF16_MUL, 0x11) = {any}\n", .{ op_matches(SKILL_GF16_MUL, 0x11) });
+    if (!(op_matches(SKILL_GF16_MUL, 0x10) == false)) __t27_assert_fail("\n  mul assignment must NOT accept an add receipt:\n    op_matches(SKILL_GF16_MUL, 0x10) = {any}\n", .{ op_matches(SKILL_GF16_MUL, 0x10) });
+    if (!(op_matches(SKILL_GFT8_ADD, 0x10) == true)) __t27_assert_fail("\n  GF-T8 add skill + add op agree:\n    op_matches(SKILL_GFT8_ADD, 0x10) = {any}\n", .{ op_matches(SKILL_GFT8_ADD, 0x10) });
+    if (!(op_matches(SKILL_GFT8_ADD, 0x11) == false)) __t27_assert_fail("\n  add assignment must NOT accept a mul receipt:\n    op_matches(SKILL_GFT8_ADD, 0x11) = {any}\n", .{ op_matches(SKILL_GFT8_ADD, 0x11) });
 }
 test "composed_binding_gate" {
-    if (!(result_binds_assign(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11) == true)) @panic("all four bind -> valid");
-    if (!(result_binds_assign(0x777, 0x888, 0x777, SKILL_GF16_MUL, 0, 0x11) == false)) @panic("wrong result id -> reject");
-    if (!(result_binds_assign(0x777, 0x777, 0x999, SKILL_GF16_MUL, 0, 0x11) == false)) @panic("receipt for another task -> reject");
-    if (!(result_binds_assign(0x777, 0x777, 0x777, SKILL_GF16_MUL, 1, 0x11) == false)) @panic("GF-T receipt for a binary skill -> reject");
-    if (!(result_binds_assign(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x10) == false)) @panic("add receipt for a mul assignment -> reject");
+    if (!(result_binds_assign(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11) == true)) __t27_assert_fail("\n  all four bind -> valid:\n    result_binds_assign(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11) = {any}\n", .{ result_binds_assign(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11) });
+    if (!(result_binds_assign(0x777, 0x888, 0x777, SKILL_GF16_MUL, 0, 0x11) == false)) __t27_assert_fail("\n  wrong result id -> reject:\n    result_binds_assign(0x777, 0x888, 0x777, SKILL_GF16_MUL, 0, 0x11) = {any}\n", .{ result_binds_assign(0x777, 0x888, 0x777, SKILL_GF16_MUL, 0, 0x11) });
+    if (!(result_binds_assign(0x777, 0x777, 0x999, SKILL_GF16_MUL, 0, 0x11) == false)) __t27_assert_fail("\n  receipt for another task -> reject:\n    result_binds_assign(0x777, 0x777, 0x999, SKILL_GF16_MUL, 0, 0x11) = {any}\n", .{ result_binds_assign(0x777, 0x777, 0x999, SKILL_GF16_MUL, 0, 0x11) });
+    if (!(result_binds_assign(0x777, 0x777, 0x777, SKILL_GF16_MUL, 1, 0x11) == false)) __t27_assert_fail("\n  GF-T receipt for a binary skill -> reject:\n    result_binds_assign(0x777, 0x777, 0x777, SKILL_GF16_MUL, 1, 0x11) = {any}\n", .{ result_binds_assign(0x777, 0x777, 0x777, SKILL_GF16_MUL, 1, 0x11) });
+    if (!(result_binds_assign(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x10) == false)) __t27_assert_fail("\n  add receipt for a mul assignment -> reject:\n    result_binds_assign(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x10) = {any}\n", .{ result_binds_assign(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x10) });
 }
 test "width_binds_the_exact_skill" {
-    if (!(skill_width(SKILL_GFT16_MUL) == 16)) @panic("GFT16 is width 16");
-    if (!(skill_width(SKILL_GFT8_MUL) == 8)) @panic("GFT8 is width 8");
-    if (!(skill_width(SKILL_GF16_MUL) == 16)) @panic("GF16 is width 16");
-    if (!(result_binds_assign(0x777, 0x777, 0x777, SKILL_GFT16_MUL, 1, 0x11) == true)) @panic("GFT16 assignment + GFT-family mul receipt binds on family+op");
-    if (!(result_binds_assign_sized(0x777, 0x777, 0x777, SKILL_GFT16_MUL, 1, 0x11, 8) == false)) @panic("GFT8 (width 8) receipt for a GFT16 assignment -> reject (precision downgrade closed)");
-    if (!(result_binds_assign_sized(0x777, 0x777, 0x777, SKILL_GFT16_MUL, 1, 0x11, 16) == true)) @panic("matching width 16 -> binds");
-    if (!(result_binds_assign_sized(0x777, 0x777, 0x777, SKILL_GFT8_MUL, 1, 0x11, 8) == true)) @panic("GFT8 assignment + width-8 receipt -> binds");
-    if (!(result_binds_assign_sized(0x777, 0x777, 0x777, SKILL_GFT8_MUL, 1, 0x11, 16) == false)) @panic("a width-16 receipt for a GFT8 assignment -> reject");
+    if (!(skill_width(SKILL_GFT16_MUL) == 16)) __t27_assert_fail("\n  GFT16 is width 16:\n    skill_width(SKILL_GFT16_MUL) = {any}\n", .{ skill_width(SKILL_GFT16_MUL) });
+    if (!(skill_width(SKILL_GFT8_MUL) == 8)) __t27_assert_fail("\n  GFT8 is width 8:\n    skill_width(SKILL_GFT8_MUL) = {any}\n", .{ skill_width(SKILL_GFT8_MUL) });
+    if (!(skill_width(SKILL_GF16_MUL) == 16)) __t27_assert_fail("\n  GF16 is width 16:\n    skill_width(SKILL_GF16_MUL) = {any}\n", .{ skill_width(SKILL_GF16_MUL) });
+    if (!(result_binds_assign(0x777, 0x777, 0x777, SKILL_GFT16_MUL, 1, 0x11) == true)) __t27_assert_fail("\n  GFT16 assignment + GFT-family mul receipt binds on family+op:\n    result_binds_assign(0x777, 0x777, 0x777, SKILL_GFT16_MUL, 1, 0x11) = {any}\n", .{ result_binds_assign(0x777, 0x777, 0x777, SKILL_GFT16_MUL, 1, 0x11) });
+    if (!(result_binds_assign_sized(0x777, 0x777, 0x777, SKILL_GFT16_MUL, 1, 0x11, 8) == false)) __t27_assert_fail("\n  GFT8 (width 8) receipt for a GFT16 assignment -> reject (precision downgrade closed):\n    result_binds_assign_sized(0x777, 0x777, 0x777, SKILL_GFT16_MUL, 1, 0x11, 8) = {any}\n", .{ result_binds_assign_sized(0x777, 0x777, 0x777, SKILL_GFT16_MUL, 1, 0x11, 8) });
+    if (!(result_binds_assign_sized(0x777, 0x777, 0x777, SKILL_GFT16_MUL, 1, 0x11, 16) == true)) __t27_assert_fail("\n  matching width 16 -> binds:\n    result_binds_assign_sized(0x777, 0x777, 0x777, SKILL_GFT16_MUL, 1, 0x11, 16) = {any}\n", .{ result_binds_assign_sized(0x777, 0x777, 0x777, SKILL_GFT16_MUL, 1, 0x11, 16) });
+    if (!(result_binds_assign_sized(0x777, 0x777, 0x777, SKILL_GFT8_MUL, 1, 0x11, 8) == true)) __t27_assert_fail("\n  GFT8 assignment + width-8 receipt -> binds:\n    result_binds_assign_sized(0x777, 0x777, 0x777, SKILL_GFT8_MUL, 1, 0x11, 8) = {any}\n", .{ result_binds_assign_sized(0x777, 0x777, 0x777, SKILL_GFT8_MUL, 1, 0x11, 8) });
+    if (!(result_binds_assign_sized(0x777, 0x777, 0x777, SKILL_GFT8_MUL, 1, 0x11, 16) == false)) __t27_assert_fail("\n  a width-16 receipt for a GFT8 assignment -> reject:\n    result_binds_assign_sized(0x777, 0x777, 0x777, SKILL_GFT8_MUL, 1, 0x11, 16) = {any}\n", .{ result_binds_assign_sized(0x777, 0x777, 0x777, SKILL_GFT8_MUL, 1, 0x11, 16) });
 }
 test "admit_result_gate" {
-    if (!(admit_result(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50) == true)) @panic("bound + fresh + admissible -> accept");
-    if (!(admit_result(0x777, 0x100, 0x100, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50) == false)) @panic("stale (id == watermark) -> reject");
-    if (!(admit_result(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 40, 50) == false)) @panic("executor below the reputation floor -> reject");
-    if (!(admit_result(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x10, 0x100, 100, 50) == false)) @panic("wrong op (add receipt) -> reject");
-    if (!(admit_result(0x777, 0x777, 0x777, SKILL_GF16_MUL, 1, 0x11, 0x100, 100, 50) == false)) @panic("cross-family receipt -> reject");
-    if (!(admit_result(0x777, 0x888, 0x888, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50) == false)) @panic("wrong task id -> reject");
+    if (!(admit_result(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50) == true)) __t27_assert_fail("\n  bound + fresh + admissible -> accept:\n    admit_result(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50) = {any}\n", .{ admit_result(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50) });
+    if (!(admit_result(0x777, 0x100, 0x100, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50) == false)) __t27_assert_fail("\n  stale (id == watermark) -> reject:\n    admit_result(0x777, 0x100, 0x100, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50) = {any}\n", .{ admit_result(0x777, 0x100, 0x100, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50) });
+    if (!(admit_result(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 40, 50) == false)) __t27_assert_fail("\n  executor below the reputation floor -> reject:\n    admit_result(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 40, 50) = {any}\n", .{ admit_result(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 40, 50) });
+    if (!(admit_result(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x10, 0x100, 100, 50) == false)) __t27_assert_fail("\n  wrong op (add receipt) -> reject:\n    admit_result(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x10, 0x100, 100, 50) = {any}\n", .{ admit_result(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x10, 0x100, 100, 50) });
+    if (!(admit_result(0x777, 0x777, 0x777, SKILL_GF16_MUL, 1, 0x11, 0x100, 100, 50) == false)) __t27_assert_fail("\n  cross-family receipt -> reject:\n    admit_result(0x777, 0x777, 0x777, SKILL_GF16_MUL, 1, 0x11, 0x100, 100, 50) = {any}\n", .{ admit_result(0x777, 0x777, 0x777, SKILL_GF16_MUL, 1, 0x11, 0x100, 100, 50) });
+    if (!(admit_result(0x777, 0x888, 0x888, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50) == false)) __t27_assert_fail("\n  wrong task id -> reject:\n    admit_result(0x777, 0x888, 0x888, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50) = {any}\n", .{ admit_result(0x777, 0x888, 0x888, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50) });
 }
 test "admit_result_bonded_gate" {
-    if (!(admit_result_bonded(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 2000, 10000, 2000) == true)) @panic("bond 2000 covers 20% of 10000 -> admitted");
-    if (!(admit_result_bonded(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 1999, 10000, 2000) == false)) @panic("bond 1999 is one short of the 2000 required -> rejected");
-    if (!(admit_result_bonded(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 1, 10000, 2000) == false)) @panic("a nominal bond does NOT cover 10000 outstanding -> rejected");
-    if (!(admit_result_bonded(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 5000, 0, 2000) == true)) @panic("no outstanding risk needs no bond -> admitted");
-    if (!(admit_result_bonded(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x10, 0x100, 100, 50, 999999, 10000, 2000) == false)) @panic("over-collateralized but wrong op -> still rejected");
-    if (!(admit_result_bonded(0x777, 0x100, 0x100, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 999999, 10000, 2000) == false)) @panic("over-collateralized but stale -> still rejected");
+    if (!(admit_result_bonded(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 2000, 10000, 2000) == true)) __t27_assert_fail("\n  bond 2000 covers 20% of 10000 -> admitted:\n    admit_result_bonded(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 2000, 10000, 2000) = {any}\n", .{ admit_result_bonded(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 2000, 10000, 2000) });
+    if (!(admit_result_bonded(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 1999, 10000, 2000) == false)) __t27_assert_fail("\n  bond 1999 is one short of the 2000 required -> rejected:\n    admit_result_bonded(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 1999, 10000, 2000) = {any}\n", .{ admit_result_bonded(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 1999, 10000, 2000) });
+    if (!(admit_result_bonded(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 1, 10000, 2000) == false)) __t27_assert_fail("\n  a nominal bond does NOT cover 10000 outstanding -> rejected:\n    admit_result_bonded(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 1, 10000, 2000) = {any}\n", .{ admit_result_bonded(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 1, 10000, 2000) });
+    if (!(admit_result_bonded(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 5000, 0, 2000) == true)) __t27_assert_fail("\n  no outstanding risk needs no bond -> admitted:\n    admit_result_bonded(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 5000, 0, 2000) = {any}\n", .{ admit_result_bonded(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 5000, 0, 2000) });
+    if (!(admit_result_bonded(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x10, 0x100, 100, 50, 999999, 10000, 2000) == false)) __t27_assert_fail("\n  over-collateralized but wrong op -> still rejected:\n    admit_result_bonded(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x10, 0x100, 100, 50, 999999, 10000, 2000) = {any}\n", .{ admit_result_bonded(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x10, 0x100, 100, 50, 999999, 10000, 2000) });
+    if (!(admit_result_bonded(0x777, 0x100, 0x100, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 999999, 10000, 2000) == false)) __t27_assert_fail("\n  over-collateralized but stale -> still rejected:\n    admit_result_bonded(0x777, 0x100, 0x100, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 999999, 10000, 2000) = {any}\n", .{ admit_result_bonded(0x777, 0x100, 0x100, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 999999, 10000, 2000) });
 }
 test "freshness_blocks_replay" {
-    if (!(is_fresh(0x10, 0x0F) == true)) @panic("newer task_id is fresh");
-    if (!(is_fresh(0x0F, 0x0F) == false)) @panic("replayed task_id rejected");
-    if (!(is_fresh(0x0E, 0x0F) == false)) @panic("older task_id rejected");
-    if (!(next_watermark(0x10, 0x0F) == 0x10)) @panic("watermark advances on fresh");
-    if (!(next_watermark(0x0E, 0x0F) == 0x0F)) @panic("watermark holds on stale");
+    if (!(is_fresh(0x10, 0x0F) == true)) __t27_assert_fail("\n  newer task_id is fresh:\n    is_fresh(0x10, 0x0F) = {any}\n", .{ is_fresh(0x10, 0x0F) });
+    if (!(is_fresh(0x0F, 0x0F) == false)) __t27_assert_fail("\n  replayed task_id rejected:\n    is_fresh(0x0F, 0x0F) = {any}\n", .{ is_fresh(0x0F, 0x0F) });
+    if (!(is_fresh(0x0E, 0x0F) == false)) __t27_assert_fail("\n  older task_id rejected:\n    is_fresh(0x0E, 0x0F) = {any}\n", .{ is_fresh(0x0E, 0x0F) });
+    if (!(next_watermark(0x10, 0x0F) == 0x10)) __t27_assert_fail("\n  watermark advances on fresh:\n    next_watermark(0x10, 0x0F) = {any}\n", .{ next_watermark(0x10, 0x0F) });
+    if (!(next_watermark(0x0E, 0x0F) == 0x0F)) __t27_assert_fail("\n  watermark holds on stale:\n    next_watermark(0x0E, 0x0F) = {any}\n", .{ next_watermark(0x0E, 0x0F) });
 }
 test "hosted_skill_set" {
-    if (!(is_hosted_skill(SKILL_GF16_MUL) == 1)) @panic("GF16 mul is hosted");
-    if (!(is_hosted_skill(SKILL_GFT8_ADD) == 1)) @panic("GF-T8 add is hosted");
-    if (!(is_hosted_skill(0xA412) == 0)) @panic("a GF-T4-looking id (0xA412) is NOT hosted");
-    if (!(is_hosted_skill(0xA512) == 0)) @panic("a GF-T32-looking id with an unknown op is NOT hosted");
-    if (!(is_hosted_skill(0xDEAD) == 0)) @panic("garbage skill is NOT hosted");
+    if (!(is_hosted_skill(SKILL_GF16_MUL) == 1)) __t27_assert_fail("\n  GF16 mul is hosted:\n    is_hosted_skill(SKILL_GF16_MUL) = {any}\n", .{ is_hosted_skill(SKILL_GF16_MUL) });
+    if (!(is_hosted_skill(SKILL_GFT8_ADD) == 1)) __t27_assert_fail("\n  GF-T8 add is hosted:\n    is_hosted_skill(SKILL_GFT8_ADD) = {any}\n", .{ is_hosted_skill(SKILL_GFT8_ADD) });
+    if (!(is_hosted_skill(0xA412) == 0)) __t27_assert_fail("\n  a GF-T4-looking id (0xA412) is NOT hosted:\n    is_hosted_skill(0xA412) = {any}\n", .{ is_hosted_skill(0xA412) });
+    if (!(is_hosted_skill(0xA512) == 0)) __t27_assert_fail("\n  a GF-T32-looking id with an unknown op is NOT hosted:\n    is_hosted_skill(0xA512) = {any}\n", .{ is_hosted_skill(0xA512) });
+    if (!(is_hosted_skill(0xDEAD) == 0)) __t27_assert_fail("\n  garbage skill is NOT hosted:\n    is_hosted_skill(0xDEAD) = {any}\n", .{ is_hosted_skill(0xDEAD) });
 }
 test "strict_family_rejects_unhosted" {
-    if (!(skill_family(0xA412) == FMT_GF_BINARY)) @panic("skill_family WRONGLY defaults the GF-T4-looking id to binary");
-    if (!(family_matches(0xA412, FMT_GF_BINARY) == true)) @panic("the bare gate would accept a binary receipt for it (the bug)");
-    if (!(family_matches_strict(0xA412, FMT_GF_BINARY) == false)) @panic("strict rejects the unhosted skill -> no wrong-family receipt");
-    if (!(family_matches_strict(SKILL_GFT16_MUL, FMT_GFT) == true)) @panic("hosted GF-T skill + GF-T receipt matches");
-    if (!(family_matches_strict(SKILL_GF16_MUL, FMT_GF_BINARY) == true)) @panic("hosted binary skill + binary receipt matches");
-    if (!(family_matches_strict(SKILL_GFT16_MUL, FMT_GF_BINARY) == false)) @panic("hosted GF-T skill + binary receipt rejected");
+    if (!(skill_family(0xA412) == FMT_GF_BINARY)) __t27_assert_fail("\n  skill_family WRONGLY defaults the GF-T4-looking id to binary:\n    skill_family(0xA412) = {any}\n    FMT_GF_BINARY = {any}\n", .{ skill_family(0xA412), FMT_GF_BINARY });
+    if (!(family_matches(0xA412, FMT_GF_BINARY) == true)) __t27_assert_fail("\n  the bare gate would accept a binary receipt for it (the bug):\n    family_matches(0xA412, FMT_GF_BINARY) = {any}\n", .{ family_matches(0xA412, FMT_GF_BINARY) });
+    if (!(family_matches_strict(0xA412, FMT_GF_BINARY) == false)) __t27_assert_fail("\n  strict rejects the unhosted skill -> no wrong-family receipt:\n    family_matches_strict(0xA412, FMT_GF_BINARY) = {any}\n", .{ family_matches_strict(0xA412, FMT_GF_BINARY) });
+    if (!(family_matches_strict(SKILL_GFT16_MUL, FMT_GFT) == true)) __t27_assert_fail("\n  hosted GF-T skill + GF-T receipt matches:\n    family_matches_strict(SKILL_GFT16_MUL, FMT_GFT) = {any}\n", .{ family_matches_strict(SKILL_GFT16_MUL, FMT_GFT) });
+    if (!(family_matches_strict(SKILL_GF16_MUL, FMT_GF_BINARY) == true)) __t27_assert_fail("\n  hosted binary skill + binary receipt matches:\n    family_matches_strict(SKILL_GF16_MUL, FMT_GF_BINARY) = {any}\n", .{ family_matches_strict(SKILL_GF16_MUL, FMT_GF_BINARY) });
+    if (!(family_matches_strict(SKILL_GFT16_MUL, FMT_GF_BINARY) == false)) __t27_assert_fail("\n  hosted GF-T skill + binary receipt rejected:\n    family_matches_strict(SKILL_GFT16_MUL, FMT_GF_BINARY) = {any}\n", .{ family_matches_strict(SKILL_GFT16_MUL, FMT_GF_BINARY) });
 }
 test "ingress_rejects_unhosted_skill" {
-    if (!(result_binds_assign(0x777, 0x777, 0x777, 0xA412, FMT_GF_BINARY, 0x12) == false)) @panic("unhosted skill -> result does not bind");
-    if (!(result_binds_assign(0x777, 0x777, 0x777, SKILL_GF16_MUL, FMT_GF_BINARY, 0x11) == true)) @panic("hosted skill still binds");
-    if (!(admit_result(0x777, 0x777, 0x777, 0xA412, FMT_GF_BINARY, 0x12, 0x100, 100, 50) == false)) @panic("admit_result rejects an unhosted skill");
-    if (!(admit_result(0x777, 0x777, 0x777, SKILL_GF16_MUL, FMT_GF_BINARY, 0x11, 0x100, 100, 50) == true)) @panic("admit_result still admits a hosted skill");
+    if (!(result_binds_assign(0x777, 0x777, 0x777, 0xA412, FMT_GF_BINARY, 0x12) == false)) __t27_assert_fail("\n  unhosted skill -> result does not bind:\n    result_binds_assign(0x777, 0x777, 0x777, 0xA412, FMT_GF_BINARY, 0x12) = {any}\n", .{ result_binds_assign(0x777, 0x777, 0x777, 0xA412, FMT_GF_BINARY, 0x12) });
+    if (!(result_binds_assign(0x777, 0x777, 0x777, SKILL_GF16_MUL, FMT_GF_BINARY, 0x11) == true)) __t27_assert_fail("\n  hosted skill still binds:\n    result_binds_assign(0x777, 0x777, 0x777, SKILL_GF16_MUL, FMT_GF_BINARY, 0x11) = {any}\n", .{ result_binds_assign(0x777, 0x777, 0x777, SKILL_GF16_MUL, FMT_GF_BINARY, 0x11) });
+    if (!(admit_result(0x777, 0x777, 0x777, 0xA412, FMT_GF_BINARY, 0x12, 0x100, 100, 50) == false)) __t27_assert_fail("\n  admit_result rejects an unhosted skill:\n    admit_result(0x777, 0x777, 0x777, 0xA412, FMT_GF_BINARY, 0x12, 0x100, 100, 50) = {any}\n", .{ admit_result(0x777, 0x777, 0x777, 0xA412, FMT_GF_BINARY, 0x12, 0x100, 100, 50) });
+    if (!(admit_result(0x777, 0x777, 0x777, SKILL_GF16_MUL, FMT_GF_BINARY, 0x11, 0x100, 100, 50) == true)) __t27_assert_fail("\n  admit_result still admits a hosted skill:\n    admit_result(0x777, 0x777, 0x777, SKILL_GF16_MUL, FMT_GF_BINARY, 0x11, 0x100, 100, 50) = {any}\n", .{ admit_result(0x777, 0x777, 0x777, SKILL_GF16_MUL, FMT_GF_BINARY, 0x11, 0x100, 100, 50) });
 }
 test "watermark_advances_only_when_settled" {
-    if (!(next_watermark_settled(0x20, 0x10, 1) == 0x20)) @panic("settled + fresh -> advance");
-    if (!(next_watermark_settled(0x0E, 0x10, 1) == 0x10)) @panic("settled + stale -> hold");
-    if (!(next_watermark_settled(0xFFFFFFFF, 0x10, 0) == 0x10)) @panic("unsettled high id does NOT jump the watermark");
+    if (!(next_watermark_settled(0x20, 0x10, 1) == 0x20)) __t27_assert_fail("\n  settled + fresh -> advance:\n    next_watermark_settled(0x20, 0x10, 1) = {any}\n", .{ next_watermark_settled(0x20, 0x10, 1) });
+    if (!(next_watermark_settled(0x0E, 0x10, 1) == 0x10)) __t27_assert_fail("\n  settled + stale -> hold:\n    next_watermark_settled(0x0E, 0x10, 1) = {any}\n", .{ next_watermark_settled(0x0E, 0x10, 1) });
+    if (!(next_watermark_settled(0xFFFFFFFF, 0x10, 0) == 0x10)) __t27_assert_fail("\n  unsettled high id does NOT jump the watermark:\n    next_watermark_settled(0xFFFFFFFF, 0x10, 0) = {any}\n", .{ next_watermark_settled(0xFFFFFFFF, 0x10, 0) });
     const w = next_watermark_settled(0xFFFFFFFF, 0x10, 0);
-    if (!(is_fresh(0x11, w) == true)) @panic("epoch 0x11 stays fresh -- the griefer could not block it");
-    if (!(next_watermark_settled(0x20, 0x10, 1) == next_watermark(0x20, 0x10))) @panic("settled advance == bare watermark");
+    if (!(is_fresh(0x11, w) == true)) __t27_assert_fail("\n  epoch 0x11 stays fresh -- the griefer could not block it:\n    is_fresh(0x11, w) = {any}\n", .{ is_fresh(0x11, w) });
+    if (!(next_watermark_settled(0x20, 0x10, 1) == next_watermark(0x20, 0x10))) __t27_assert_fail("\n  settled advance == bare watermark:\n    next_watermark_settled(0x20, 0x10, 1) = {any}\n    next_watermark(0x20, 0x10) = {any}\n", .{ next_watermark_settled(0x20, 0x10, 1), next_watermark(0x20, 0x10) });
 }
 test "executor_binds_the_assignment" {
-    if (!(executor_binds_assign(0xE1, 0xE1) == true)) @panic("committed executor == assigned -> binds");
-    if (!(executor_binds_assign(0xE1, 0xE2) == false)) @panic("a different executor does not bind");
-    if (!(admit_result_authentic(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 2000, 10000, 2000, 0xE1, 0xE1) == true)) @panic("assignee's own result -> accept");
-    if (!(admit_result_authentic(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 2000, 10000, 2000, 0xE1, 0xE2) == false)) @panic("another node's result for the assigned task -> reject (front-run closed)");
-    if (!(admit_result_authentic(0x777, 0x100, 0x100, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 2000, 10000, 2000, 0xE1, 0xE1) == false)) @panic("correct executor but stale -> still reject");
-    if (!(admit_result_authentic(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 1999, 10000, 2000, 0xE1, 0xE1) == false)) @panic("correct executor but under-collateralized -> still reject");
+    if (!(executor_binds_assign(0xE1, 0xE1) == true)) __t27_assert_fail("\n  committed executor == assigned -> binds:\n    executor_binds_assign(0xE1, 0xE1) = {any}\n", .{ executor_binds_assign(0xE1, 0xE1) });
+    if (!(executor_binds_assign(0xE1, 0xE2) == false)) __t27_assert_fail("\n  a different executor does not bind:\n    executor_binds_assign(0xE1, 0xE2) = {any}\n", .{ executor_binds_assign(0xE1, 0xE2) });
+    if (!(admit_result_authentic(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 2000, 10000, 2000, 0xE1, 0xE1) == true)) __t27_assert_fail("\n  assignee's own result -> accept:\n    admit_result_authentic(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 2000, 10000, 2000, 0xE1, 0xE1) = {any}\n", .{ admit_result_authentic(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 2000, 10000, 2000, 0xE1, 0xE1) });
+    if (!(admit_result_authentic(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 2000, 10000, 2000, 0xE1, 0xE2) == false)) __t27_assert_fail("\n  another node's result for the assigned task -> reject (front-run closed):\n    admit_result_authentic(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 2000, 10000, 2000, 0xE1, 0xE2) = {any}\n", .{ admit_result_authentic(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 2000, 10000, 2000, 0xE1, 0xE2) });
+    if (!(admit_result_authentic(0x777, 0x100, 0x100, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 2000, 10000, 2000, 0xE1, 0xE1) == false)) __t27_assert_fail("\n  correct executor but stale -> still reject:\n    admit_result_authentic(0x777, 0x100, 0x100, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 2000, 10000, 2000, 0xE1, 0xE1) = {any}\n", .{ admit_result_authentic(0x777, 0x100, 0x100, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 2000, 10000, 2000, 0xE1, 0xE1) });
+    if (!(admit_result_authentic(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 1999, 10000, 2000, 0xE1, 0xE1) == false)) __t27_assert_fail("\n  correct executor but under-collateralized -> still reject:\n    admit_result_authentic(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 1999, 10000, 2000, 0xE1, 0xE1) = {any}\n", .{ admit_result_authentic(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 1999, 10000, 2000, 0xE1, 0xE1) });
 }
 test "signature_authenticates_the_executor" {
-    if (!(executor_authentic(0xE1, 0xE1, 1, 0xE1) == true)) @panic("assigned + signed + key hashes to executor -> authentic");
-    if (!(executor_authentic(0xE1, 0xE1, 0, 0xE1) == false)) @panic("no valid signature (forger without the key) -> not authentic");
-    if (!(executor_authentic(0xE1, 0xE1, 1, 0xBB) == false)) @panic("valid sig but signer key hashes to 0xBB != committed 0xE1 -> not authentic");
-    if (!(executor_authentic(0xE1, 0xE2, 1, 0xE2) == false)) @panic("a different (even authentic) executor is not the assignee");
+    if (!(executor_authentic(0xE1, 0xE1, 1, 0xE1) == true)) __t27_assert_fail("\n  assigned + signed + key hashes to executor -> authentic:\n    executor_authentic(0xE1, 0xE1, 1, 0xE1) = {any}\n", .{ executor_authentic(0xE1, 0xE1, 1, 0xE1) });
+    if (!(executor_authentic(0xE1, 0xE1, 0, 0xE1) == false)) __t27_assert_fail("\n  no valid signature (forger without the key) -> not authentic:\n    executor_authentic(0xE1, 0xE1, 0, 0xE1) = {any}\n", .{ executor_authentic(0xE1, 0xE1, 0, 0xE1) });
+    if (!(executor_authentic(0xE1, 0xE1, 1, 0xBB) == false)) __t27_assert_fail("\n  valid sig but signer key hashes to 0xBB != committed 0xE1 -> not authentic:\n    executor_authentic(0xE1, 0xE1, 1, 0xBB) = {any}\n", .{ executor_authentic(0xE1, 0xE1, 1, 0xBB) });
+    if (!(executor_authentic(0xE1, 0xE2, 1, 0xE2) == false)) __t27_assert_fail("\n  a different (even authentic) executor is not the assignee:\n    executor_authentic(0xE1, 0xE2, 1, 0xE2) = {any}\n", .{ executor_authentic(0xE1, 0xE2, 1, 0xE2) });
     if (!(admit_result_signed(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 2000, 10000, 2000, 0xE1, 0xE1, 1, 0xE1) == true)) @panic("authentic assignee result -> accept");
     if (!(admit_result_signed(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 2000, 10000, 2000, 0xE1, 0xE1, 0, 0xE1) == false)) @panic("unsigned forge naming the assignee -> reject (the hole closed)");
     if (!(admit_result_signed(0x777, 0x777, 0x777, SKILL_GF16_MUL, 0, 0x11, 0x100, 100, 50, 2000, 10000, 2000, 0xE1, 0xE1, 1, 0xBB) == false)) @panic("signed by a key that is not the committed executor -> reject");

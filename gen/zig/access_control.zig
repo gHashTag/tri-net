@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_NODES: u32 = 8;
@@ -95,78 +103,78 @@ fn check_resource_access(creds: u32, policy: u32, provided_token: u32) u32 {
 }
 test "create_node_creds_basic" {
     const creds = create_node_creds(5, ROLE_USER, 0x123, 1);
-    if (!(get_node_id(creds) == 5)) @panic("node id");
-    if (!(get_role(creds) == ROLE_USER)) @panic("user role");
-    if (!(get_auth_token(creds) == 0x123)) @panic("auth token");
-    if (!(is_authorized(creds) == 1)) @panic("authorized");
+    if (!(get_node_id(creds) == 5)) __t27_assert_fail("\n  node id:\n    get_node_id(creds) = {any}\n", .{ get_node_id(creds) });
+    if (!(get_role(creds) == ROLE_USER)) __t27_assert_fail("\n  user role:\n    get_role(creds) = {any}\n    ROLE_USER = {any}\n", .{ get_role(creds), ROLE_USER });
+    if (!(get_auth_token(creds) == 0x123)) __t27_assert_fail("\n  auth token:\n    get_auth_token(creds) = {any}\n", .{ get_auth_token(creds) });
+    if (!(is_authorized(creds) == 1)) __t27_assert_fail("\n  authorized:\n    is_authorized(creds) = {any}\n", .{ is_authorized(creds) });
 }
 test "create_policy_basic" {
     const policy = create_policy(1, ROLE_USER, 0, 1, 1);
-    if (!(get_resource(policy) == 1)) @panic("resource");
-    if (!(get_min_role(policy) == ROLE_USER)) @panic("min role");
-    if (!(get_guest_perm(policy) == 0)) @panic("guest denied");
-    if (!(get_user_perm(policy) == 1)) @panic("user permitted");
+    if (!(get_resource(policy) == 1)) __t27_assert_fail("\n  resource:\n    get_resource(policy) = {any}\n", .{ get_resource(policy) });
+    if (!(get_min_role(policy) == ROLE_USER)) __t27_assert_fail("\n  min role:\n    get_min_role(policy) = {any}\n    ROLE_USER = {any}\n", .{ get_min_role(policy), ROLE_USER });
+    if (!(get_guest_perm(policy) == 0)) __t27_assert_fail("\n  guest denied:\n    get_guest_perm(policy) = {any}\n", .{ get_guest_perm(policy) });
+    if (!(get_user_perm(policy) == 1)) __t27_assert_fail("\n  user permitted:\n    get_user_perm(policy) = {any}\n", .{ get_user_perm(policy) });
 }
 test "role_meets_minimum_true" {
-    if (!(role_meets_minimum(ROLE_USER, ROLE_GUEST) == true)) @panic("user >= guest");
-    if (!(role_meets_minimum(ROLE_ADMIN, ROLE_USER) == true)) @panic("admin >= user");
+    if (!(role_meets_minimum(ROLE_USER, ROLE_GUEST) == true)) __t27_assert_fail("\n  user >= guest:\n    role_meets_minimum(ROLE_USER, ROLE_GUEST) = {any}\n", .{ role_meets_minimum(ROLE_USER, ROLE_GUEST) });
+    if (!(role_meets_minimum(ROLE_ADMIN, ROLE_USER) == true)) __t27_assert_fail("\n  admin >= user:\n    role_meets_minimum(ROLE_ADMIN, ROLE_USER) = {any}\n", .{ role_meets_minimum(ROLE_ADMIN, ROLE_USER) });
 }
 test "role_meets_minimum_false" {
-    if (!(role_meets_minimum(ROLE_GUEST, ROLE_USER) == false)) @panic("guest < user");
-    if (!(role_meets_minimum(ROLE_USER, ROLE_ADMIN) == false)) @panic("user < admin");
+    if (!(role_meets_minimum(ROLE_GUEST, ROLE_USER) == false)) __t27_assert_fail("\n  guest < user:\n    role_meets_minimum(ROLE_GUEST, ROLE_USER) = {any}\n", .{ role_meets_minimum(ROLE_GUEST, ROLE_USER) });
+    if (!(role_meets_minimum(ROLE_USER, ROLE_ADMIN) == false)) __t27_assert_fail("\n  user < admin:\n    role_meets_minimum(ROLE_USER, ROLE_ADMIN) = {any}\n", .{ role_meets_minimum(ROLE_USER, ROLE_ADMIN) });
 }
 test "check_access_admin" {
     const policy = create_policy(1, ROLE_GUEST, 0, 0, 1);
-    if (!(check_access(policy, ROLE_ADMIN) == 1)) @panic("admin permitted");
+    if (!(check_access(policy, ROLE_ADMIN) == 1)) __t27_assert_fail("\n  admin permitted:\n    check_access(policy, ROLE_ADMIN) = {any}\n", .{ check_access(policy, ROLE_ADMIN) });
 }
 test "check_access_user" {
     const policy = create_policy(1, ROLE_USER, 0, 1, 1);
-    if (!(check_access(policy, ROLE_USER) == 1)) @panic("user permitted");
+    if (!(check_access(policy, ROLE_USER) == 1)) __t27_assert_fail("\n  user permitted:\n    check_access(policy, ROLE_USER) = {any}\n", .{ check_access(policy, ROLE_USER) });
 }
 test "check_access_guest_denied" {
     const policy = create_policy(1, ROLE_USER, 0, 1, 1);
-    if (!(check_access(policy, ROLE_GUEST) == 0)) @panic("guest denied (min role)");
+    if (!(check_access(policy, ROLE_GUEST) == 0)) __t27_assert_fail("\n  guest denied (min role):\n    check_access(policy, ROLE_GUEST) = {any}\n", .{ check_access(policy, ROLE_GUEST) });
 }
 test "verify_creds_valid" {
     const creds = create_node_creds(5, ROLE_USER, 0x123, 1);
-    if (!(verify_creds(creds, 0x123) == true)) @panic("valid credentials");
+    if (!(verify_creds(creds, 0x123) == true)) __t27_assert_fail("\n  valid credentials:\n    verify_creds(creds, 0x123) = {any}\n", .{ verify_creds(creds, 0x123) });
 }
 test "verify_creds_invalid_token" {
     const creds = create_node_creds(5, ROLE_USER, 0x123, 1);
-    if (!(verify_creds(creds, 0x999) == false)) @panic("invalid token");
+    if (!(verify_creds(creds, 0x999) == false)) __t27_assert_fail("\n  invalid token:\n    verify_creds(creds, 0x999) = {any}\n", .{ verify_creds(creds, 0x999) });
 }
 test "verify_creds_unauthorized" {
     const creds = create_node_creds(5, ROLE_USER, 0x123, 0);
-    if (!(verify_creds(creds, 0x123) == false)) @panic("unauthorized node");
+    if (!(verify_creds(creds, 0x123) == false)) __t27_assert_fail("\n  unauthorized node:\n    verify_creds(creds, 0x123) = {any}\n", .{ verify_creds(creds, 0x123) });
 }
 test "authorize_node_works" {
     const creds = create_node_creds(5, ROLE_USER, 0x123, 0);
     const new_creds = authorize_node(creds);
-    if (!(is_authorized(new_creds) == 1)) @panic("node authorized");
+    if (!(is_authorized(new_creds) == 1)) __t27_assert_fail("\n  node authorized:\n    is_authorized(new_creds) = {any}\n", .{ is_authorized(new_creds) });
 }
 test "revoke_node_works" {
     const creds = create_node_creds(5, ROLE_USER, 0x123, 1);
     const new_creds = revoke_node(creds);
-    if (!(is_authorized(new_creds) == 0)) @panic("node revoked");
+    if (!(is_authorized(new_creds) == 0)) __t27_assert_fail("\n  node revoked:\n    is_authorized(new_creds) = {any}\n", .{ is_authorized(new_creds) });
 }
 test "change_role_works" {
     const creds = create_node_creds(5, ROLE_USER, 0x123, 1);
     const new_creds = change_role(creds, ROLE_ADMIN);
-    if (!(get_role(new_creds) == ROLE_ADMIN)) @panic("role changed");
-    if (!(is_authorized(new_creds) == 1)) @panic("authorization kept");
+    if (!(get_role(new_creds) == ROLE_ADMIN)) __t27_assert_fail("\n  role changed:\n    get_role(new_creds) = {any}\n    ROLE_ADMIN = {any}\n", .{ get_role(new_creds), ROLE_ADMIN });
+    if (!(is_authorized(new_creds) == 1)) __t27_assert_fail("\n  authorization kept:\n    is_authorized(new_creds) = {any}\n", .{ is_authorized(new_creds) });
 }
 test "check_resource_access_full_grant" {
     const creds = create_node_creds(5, ROLE_USER, 0x123, 1);
     const policy = create_policy(1, ROLE_GUEST, 0, 1, 1);
-    if (!(check_resource_access(creds, policy, 0x123) == 1)) @panic("access granted");
+    if (!(check_resource_access(creds, policy, 0x123) == 1)) __t27_assert_fail("\n  access granted:\n    check_resource_access(creds, policy, 0x123) = {any}\n", .{ check_resource_access(creds, policy, 0x123) });
 }
 test "check_resource_access_invalid_creds" {
     const creds = create_node_creds(5, ROLE_USER, 0x123, 1);
     const policy = create_policy(1, ROLE_GUEST, 0, 1, 1);
-    if (!(check_resource_access(creds, policy, 0x999) == 0)) @panic("access denied");
+    if (!(check_resource_access(creds, policy, 0x999) == 0)) __t27_assert_fail("\n  access denied:\n    check_resource_access(creds, policy, 0x999) = {any}\n", .{ check_resource_access(creds, policy, 0x999) });
 }
 test "check_resource_access_role_too_low" {
     const creds = create_node_creds(5, ROLE_GUEST, 0x123, 1);
     const policy = create_policy(1, ROLE_USER, 0, 1, 1);
-    if (!(check_resource_access(creds, policy, 0x123) == 0)) @panic("role too low");
+    if (!(check_resource_access(creds, policy, 0x123) == 0)) __t27_assert_fail("\n  role too low:\n    check_resource_access(creds, policy, 0x123) = {any}\n", .{ check_resource_access(creds, policy, 0x123) });
 }

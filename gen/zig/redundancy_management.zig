@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_PATHS: u32 = 4;
@@ -161,73 +169,73 @@ fn failover(path_set: [4]u32, failed_path: u32) [4]u32 {
 }
 test "create_path_basic" {
     const path = create_path(1, 10, 20, 30);
-    if (!(get_path_valid(path) == 1)) @panic("valid");
-    if (!(get_hop1(path) == 10)) @panic("hop1");
-    if (!(get_hop2(path) == 20)) @panic("hop2");
-    if (!(get_hop3(path) == 30)) @panic("hop3");
+    if (!(get_path_valid(path) == 1)) __t27_assert_fail("\n  valid:\n    get_path_valid(path) = {any}\n", .{ get_path_valid(path) });
+    if (!(get_hop1(path) == 10)) __t27_assert_fail("\n  hop1:\n    get_hop1(path) = {any}\n", .{ get_hop1(path) });
+    if (!(get_hop2(path) == 20)) __t27_assert_fail("\n  hop2:\n    get_hop2(path) = {any}\n", .{ get_hop2(path) });
+    if (!(get_hop3(path) == 30)) __t27_assert_fail("\n  hop3:\n    get_hop3(path) = {any}\n", .{ get_hop3(path) });
 }
 test "create_path_set" {
     const path_set = create_path_set(create_path(1, 10, 20, 30), create_path(0, 40, 50, 60), create_path(1, 70, 80, 90), create_path(1, 15, 25, 35));
-    if (!(get_path_valid(get_path(path_set, 0)) == 1)) @panic("path 0 valid");
-    if (!(get_path_valid(get_path(path_set, 1)) == 0)) @panic("path 1 invalid");
+    if (!(get_path_valid(get_path(path_set, 0)) == 1)) __t27_assert_fail("\n  path 0 valid:\n    get_path_valid(get_path(path_set, 0)) = {any}\n", .{ get_path_valid(get_path(path_set, 0)) });
+    if (!(get_path_valid(get_path(path_set, 1)) == 0)) __t27_assert_fail("\n  path 1 invalid:\n    get_path_valid(get_path(path_set, 1)) = {any}\n", .{ get_path_valid(get_path(path_set, 1)) });
 }
 test "find_primary_path_first" {
     const path_set = create_path_set(create_path(1, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(1, 15, 25, 35));
-    if (!(find_primary_path(path_set) == 0)) @panic("first path is primary");
+    if (!(find_primary_path(path_set) == 0)) __t27_assert_fail("\n  first path is primary:\n    find_primary_path(path_set) = {any}\n", .{ find_primary_path(path_set) });
 }
 test "find_primary_path_skip_invalid" {
     const path_set = create_path_set(create_path(0, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(1, 15, 25, 35));
-    if (!(find_primary_path(path_set) == 1)) @panic("second path is primary");
+    if (!(find_primary_path(path_set) == 1)) __t27_assert_fail("\n  second path is primary:\n    find_primary_path(path_set) = {any}\n", .{ find_primary_path(path_set) });
 }
 test "find_backup_path" {
     const path_set = create_path_set(create_path(1, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(0, 15, 25, 35));
-    if (!(find_backup_path(path_set, 0) == 1)) @panic("backup is path 1");
+    if (!(find_backup_path(path_set, 0) == 1)) __t27_assert_fail("\n  backup is path 1:\n    find_backup_path(path_set, 0) = {any}\n", .{ find_backup_path(path_set, 0) });
 }
 test "invalidate_path_works" {
     const path_set = create_path_set(create_path(1, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(0, 15, 25, 35));
     const new_set = invalidate_path(path_set, 0);
-    if (!(get_path_valid(get_path(new_set, 0)) == 0)) @panic("path invalidated");
+    if (!(get_path_valid(get_path(new_set, 0)) == 0)) __t27_assert_fail("\n  path invalidated:\n    get_path_valid(get_path(new_set, 0)) = {any}\n", .{ get_path_valid(get_path(new_set, 0)) });
 }
 test "validate_path_works" {
     const path_set = create_path_set(create_path(0, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(1, 15, 25, 35));
     const new_set = validate_path(path_set, 0);
-    if (!(get_path_valid(get_path(new_set, 0)) == 1)) @panic("path validated");
+    if (!(get_path_valid(get_path(new_set, 0)) == 1)) __t27_assert_fail("\n  path validated:\n    get_path_valid(get_path(new_set, 0)) = {any}\n", .{ get_path_valid(get_path(new_set, 0)) });
 }
 test "count_valid_paths_all" {
     const path_set = create_path_set(create_path(1, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(1, 15, 25, 35));
-    if (!(count_valid_paths(path_set) == 4)) @panic("4 valid paths");
+    if (!(count_valid_paths(path_set) == 4)) __t27_assert_fail("\n  4 valid paths:\n    count_valid_paths(path_set) = {any}\n", .{ count_valid_paths(path_set) });
 }
 test "count_valid_paths_some" {
     const path_set = create_path_set(create_path(1, 10, 20, 30), create_path(0, 40, 50, 60), create_path(1, 70, 80, 90), create_path(0, 15, 25, 35));
-    if (!(count_valid_paths(path_set) == 2)) @panic("2 valid paths");
+    if (!(count_valid_paths(path_set) == 2)) __t27_assert_fail("\n  2 valid paths:\n    count_valid_paths(path_set) = {any}\n", .{ count_valid_paths(path_set) });
 }
 test "has_redundancy_true" {
     const path_set = create_path_set(create_path(1, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(0, 15, 25, 35));
-    if (!(has_redundancy(path_set) == true)) @panic("has redundancy");
+    if (!(has_redundancy(path_set) == true)) __t27_assert_fail("\n  has redundancy:\n    has_redundancy(path_set) = {any}\n", .{ has_redundancy(path_set) });
 }
 test "has_redundancy_false" {
     const path_set = create_path_set(create_path(1, 10, 20, 30), create_path(0, 40, 50, 60), create_path(0, 70, 80, 90), create_path(0, 15, 25, 35));
-    if (!(has_redundancy(path_set) == false)) @panic("no redundancy");
+    if (!(has_redundancy(path_set) == false)) __t27_assert_fail("\n  no redundancy:\n    has_redundancy(path_set) = {any}\n", .{ has_redundancy(path_set) });
 }
 test "get_hop_count_three" {
     const path = create_path(1, 10, 20, 30);
-    if (!(get_hop_count(path) == 3)) @panic("3 hops");
+    if (!(get_hop_count(path) == 3)) __t27_assert_fail("\n  3 hops:\n    get_hop_count(path) = {any}\n", .{ get_hop_count(path) });
 }
 test "get_hop_count_one" {
     const path = create_path(1, 10, 0, 0);
-    if (!(get_hop_count(path) == 1)) @panic("1 hop");
+    if (!(get_hop_count(path) == 1)) __t27_assert_fail("\n  1 hop:\n    get_hop_count(path) = {any}\n", .{ get_hop_count(path) });
 }
 test "find_shortest_path" {
     const path_set = create_path_set(create_path(1, 10, 0, 0), create_path(1, 40, 50, 0), create_path(1, 70, 80, 90), create_path(0, 15, 25, 35));
-    if (!(find_shortest_path(path_set) == 0)) @panic("shortest is path 0");
+    if (!(find_shortest_path(path_set) == 0)) __t27_assert_fail("\n  shortest is path 0:\n    find_shortest_path(path_set) = {any}\n", .{ find_shortest_path(path_set) });
 }
 test "failover_invalidates_failed" {
     const path_set = create_path_set(create_path(1, 10, 20, 30), create_path(1, 40, 50, 60), create_path(1, 70, 80, 90), create_path(0, 15, 25, 35));
     const new_set = failover(path_set, 0);
-    if (!(get_path_valid(get_path(new_set, 0)) == 0)) @panic("failed path invalidated");
+    if (!(get_path_valid(get_path(new_set, 0)) == 0)) __t27_assert_fail("\n  failed path invalidated:\n    get_path_valid(get_path(new_set, 0)) = {any}\n", .{ get_path_valid(get_path(new_set, 0)) });
 }
 test "failover_no_backup" {
     const path_set = create_path_set(create_path(1, 10, 20, 30), create_path(0, 40, 50, 60), create_path(0, 70, 80, 90), create_path(0, 15, 25, 35));
     const new_set = failover(path_set, 0);
-    if (!(get_path_valid(get_path(new_set, 0)) == 1)) @panic("no change when no backup");
+    if (!(get_path_valid(get_path(new_set, 0)) == 1)) __t27_assert_fail("\n  no change when no backup:\n    get_path_valid(get_path(new_set, 0)) = {any}\n", .{ get_path_valid(get_path(new_set, 0)) });
 }

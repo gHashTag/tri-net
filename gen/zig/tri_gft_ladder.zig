@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const GFT4_ET: u32 = 2;
@@ -204,76 +212,76 @@ fn width_to_et(width: u32) u32 {
     return 0;
 }
 test "offset_max_per_rung" {
-    if (!(gft_offset_max(GFT4_ET) == 8)) @panic("GF-T4: 3^2 - 1 = 8");
-    if (!(gft_offset_max(GFT8_ET) == 26)) @panic("GF-T8: 3^3 - 1 = 26");
-    if (!(gft_offset_max(GFT16_ET) == 80)) @panic("GF-T16: 3^4 - 1 = 80 (matches gfvalid)");
-    if (!(gft_offset_max(GFT32_ET) == 728)) @panic("GF-T32: 3^6 - 1 = 728");
+    if (!(gft_offset_max(GFT4_ET) == 8)) __t27_assert_fail("\n  GF-T4: 3^2 - 1 = 8:\n    gft_offset_max(GFT4_ET) = {any}\n", .{ gft_offset_max(GFT4_ET) });
+    if (!(gft_offset_max(GFT8_ET) == 26)) __t27_assert_fail("\n  GF-T8: 3^3 - 1 = 26:\n    gft_offset_max(GFT8_ET) = {any}\n", .{ gft_offset_max(GFT8_ET) });
+    if (!(gft_offset_max(GFT16_ET) == 80)) __t27_assert_fail("\n  GF-T16: 3^4 - 1 = 80 (matches gfvalid):\n    gft_offset_max(GFT16_ET) = {any}\n", .{ gft_offset_max(GFT16_ET) });
+    if (!(gft_offset_max(GFT32_ET) == 728)) __t27_assert_fail("\n  GF-T32: 3^6 - 1 = 728:\n    gft_offset_max(GFT32_ET) = {any}\n", .{ gft_offset_max(GFT32_ET) });
 }
 test "ladder_finiteness" {
-    if (!(is_finite_gft_n(79, GFT16_ET) == true)) @panic("GF-T16 offset 79 is finite");
-    if (!(is_finite_gft_n(80, GFT16_ET) == false)) @panic("GF-T16 offset 80 is the special row");
-    if (!(is_finite_gft_n(40, GFT16_ET) == true)) @panic("GF-T16 unity exponent finite");
-    if (!(is_finite_gft_n(727, GFT32_ET) == true)) @panic("GF-T32 offset 727 is finite");
-    if (!(is_finite_gft_n(728, GFT32_ET) == false)) @panic("GF-T32 offset 728 is the special row");
-    if (!(is_finite_gft_n(7, GFT4_ET) == true)) @panic("GF-T4 offset 7 is finite");
-    if (!(is_finite_gft_n(8, GFT4_ET) == false)) @panic("GF-T4 offset 8 is special");
+    if (!(is_finite_gft_n(79, GFT16_ET) == true)) __t27_assert_fail("\n  GF-T16 offset 79 is finite:\n    is_finite_gft_n(79, GFT16_ET) = {any}\n", .{ is_finite_gft_n(79, GFT16_ET) });
+    if (!(is_finite_gft_n(80, GFT16_ET) == false)) __t27_assert_fail("\n  GF-T16 offset 80 is the special row:\n    is_finite_gft_n(80, GFT16_ET) = {any}\n", .{ is_finite_gft_n(80, GFT16_ET) });
+    if (!(is_finite_gft_n(40, GFT16_ET) == true)) __t27_assert_fail("\n  GF-T16 unity exponent finite:\n    is_finite_gft_n(40, GFT16_ET) = {any}\n", .{ is_finite_gft_n(40, GFT16_ET) });
+    if (!(is_finite_gft_n(727, GFT32_ET) == true)) __t27_assert_fail("\n  GF-T32 offset 727 is finite:\n    is_finite_gft_n(727, GFT32_ET) = {any}\n", .{ is_finite_gft_n(727, GFT32_ET) });
+    if (!(is_finite_gft_n(728, GFT32_ET) == false)) __t27_assert_fail("\n  GF-T32 offset 728 is the special row:\n    is_finite_gft_n(728, GFT32_ET) = {any}\n", .{ is_finite_gft_n(728, GFT32_ET) });
+    if (!(is_finite_gft_n(7, GFT4_ET) == true)) __t27_assert_fail("\n  GF-T4 offset 7 is finite:\n    is_finite_gft_n(7, GFT4_ET) = {any}\n", .{ is_finite_gft_n(7, GFT4_ET) });
+    if (!(is_finite_gft_n(8, GFT4_ET) == false)) __t27_assert_fail("\n  GF-T4 offset 8 is special:\n    is_finite_gft_n(8, GFT4_ET) = {any}\n", .{ is_finite_gft_n(8, GFT4_ET) });
 }
 test "rung_dependent_classification" {
-    if (!(is_finite_gft_n(80, GFT16_ET) == false)) @panic("80 is special at GF-T16");
-    if (!(is_finite_gft_n(80, GFT32_ET) == true)) @panic("80 is finite at GF-T32");
-    if (!(gft_offset_in_range(80, GFT16_ET) == true)) @panic("80 is in range for GF-T16");
-    if (!(gft_offset_in_range(81, GFT16_ET) == false)) @panic("81 exceeds GF-T16's 3^4 offsets");
+    if (!(is_finite_gft_n(80, GFT16_ET) == false)) __t27_assert_fail("\n  80 is special at GF-T16:\n    is_finite_gft_n(80, GFT16_ET) = {any}\n", .{ is_finite_gft_n(80, GFT16_ET) });
+    if (!(is_finite_gft_n(80, GFT32_ET) == true)) __t27_assert_fail("\n  80 is finite at GF-T32:\n    is_finite_gft_n(80, GFT32_ET) = {any}\n", .{ is_finite_gft_n(80, GFT32_ET) });
+    if (!(gft_offset_in_range(80, GFT16_ET) == true)) __t27_assert_fail("\n  80 is in range for GF-T16:\n    gft_offset_in_range(80, GFT16_ET) = {any}\n", .{ gft_offset_in_range(80, GFT16_ET) });
+    if (!(gft_offset_in_range(81, GFT16_ET) == false)) __t27_assert_fail("\n  81 exceeds GF-T16's 3^4 offsets:\n    gft_offset_in_range(81, GFT16_ET) = {any}\n", .{ gft_offset_in_range(81, GFT16_ET) });
 }
 test "bias_per_rung" {
-    if (!(gft_bias(GFT4_ET) == 4)) @panic("GF-T4 bias (3^2-1)/2 = 4");
-    if (!(gft_bias(GFT8_ET) == 13)) @panic("GF-T8 bias (3^3-1)/2 = 13");
-    if (!(gft_bias(GFT16_ET) == 40)) @panic("GF-T16 bias = 40 (matches tri_gft_arith)");
-    if (!(gft_bias(GFT32_ET) == 364)) @panic("GF-T32 bias (3^6-1)/2 = 364");
-    if (!((gft_bias(GFT16_ET) * 2) == gft_offset_max(GFT16_ET))) @panic("bias*2 = offset_max");
+    if (!(gft_bias(GFT4_ET) == 4)) __t27_assert_fail("\n  GF-T4 bias (3^2-1)/2 = 4:\n    gft_bias(GFT4_ET) = {any}\n", .{ gft_bias(GFT4_ET) });
+    if (!(gft_bias(GFT8_ET) == 13)) __t27_assert_fail("\n  GF-T8 bias (3^3-1)/2 = 13:\n    gft_bias(GFT8_ET) = {any}\n", .{ gft_bias(GFT8_ET) });
+    if (!(gft_bias(GFT16_ET) == 40)) __t27_assert_fail("\n  GF-T16 bias = 40 (matches tri_gft_arith):\n    gft_bias(GFT16_ET) = {any}\n", .{ gft_bias(GFT16_ET) });
+    if (!(gft_bias(GFT32_ET) == 364)) __t27_assert_fail("\n  GF-T32 bias (3^6-1)/2 = 364:\n    gft_bias(GFT32_ET) = {any}\n", .{ gft_bias(GFT32_ET) });
+    if (!((gft_bias(GFT16_ET) * 2) == gft_offset_max(GFT16_ET))) __t27_assert_fail("\n  bias*2 = offset_max:\n    gft_bias(GFT16_ET) * 2 = {any}\n    gft_offset_max(GFT16_ET) = {any}\n", .{ gft_bias(GFT16_ET) * 2, gft_offset_max(GFT16_ET) });
 }
 test "mantissa_per_rung" {
-    if (!(gft_mant_bits(GFT4_ET) == 1)) @panic("GF-T4 mantissa 1 bit");
-    if (!(gft_mant_bits(GFT8_ET) == 4)) @panic("GF-T8 mantissa 4 bits");
-    if (!(gft_mant_bits(GFT16_ET) == 9)) @panic("GF-T16 mantissa 9 bits");
-    if (!(gft_mant_bits(GFT32_ET) == 25)) @panic("GF-T32 mantissa 25 bits");
-    if (!(gft_mant_one(GFT16_ET) == 512)) @panic("GF-T16 significand scale 2^9 = 512");
-    if (!(gft_mant_one(GFT8_ET) == 16)) @panic("GF-T8 scale 2^4 = 16");
+    if (!(gft_mant_bits(GFT4_ET) == 1)) __t27_assert_fail("\n  GF-T4 mantissa 1 bit:\n    gft_mant_bits(GFT4_ET) = {any}\n", .{ gft_mant_bits(GFT4_ET) });
+    if (!(gft_mant_bits(GFT8_ET) == 4)) __t27_assert_fail("\n  GF-T8 mantissa 4 bits:\n    gft_mant_bits(GFT8_ET) = {any}\n", .{ gft_mant_bits(GFT8_ET) });
+    if (!(gft_mant_bits(GFT16_ET) == 9)) __t27_assert_fail("\n  GF-T16 mantissa 9 bits:\n    gft_mant_bits(GFT16_ET) = {any}\n", .{ gft_mant_bits(GFT16_ET) });
+    if (!(gft_mant_bits(GFT32_ET) == 25)) __t27_assert_fail("\n  GF-T32 mantissa 25 bits:\n    gft_mant_bits(GFT32_ET) = {any}\n", .{ gft_mant_bits(GFT32_ET) });
+    if (!(gft_mant_one(GFT16_ET) == 512)) __t27_assert_fail("\n  GF-T16 significand scale 2^9 = 512:\n    gft_mant_one(GFT16_ET) = {any}\n", .{ gft_mant_one(GFT16_ET) });
+    if (!(gft_mant_one(GFT8_ET) == 16)) __t27_assert_fail("\n  GF-T8 scale 2^4 = 16:\n    gft_mant_one(GFT8_ET) = {any}\n", .{ gft_mant_one(GFT8_ET) });
 }
 test "width_routing" {
-    if (!(width_to_et(8) == GFT8_ET)) @panic("width 8 -> Et 3");
-    if (!(width_to_et(16) == GFT16_ET)) @panic("width 16 -> Et 4");
-    if (!(gft_bias(width_to_et(8)) == 13)) @panic("GF-T8 bias via width");
-    if (!(gft_offset_max(width_to_et(16)) == 80)) @panic("GF-T16 offset_max via width");
-    if (!(gft_mant_one(width_to_et(4)) == 2)) @panic("GF-T4 mant scale via width");
+    if (!(width_to_et(8) == GFT8_ET)) __t27_assert_fail("\n  width 8 -> Et 3:\n    width_to_et(8) = {any}\n    GFT8_ET = {any}\n", .{ width_to_et(8), GFT8_ET });
+    if (!(width_to_et(16) == GFT16_ET)) __t27_assert_fail("\n  width 16 -> Et 4:\n    width_to_et(16) = {any}\n    GFT16_ET = {any}\n", .{ width_to_et(16), GFT16_ET });
+    if (!(gft_bias(width_to_et(8)) == 13)) __t27_assert_fail("\n  GF-T8 bias via width:\n    gft_bias(width_to_et(8)) = {any}\n", .{ gft_bias(width_to_et(8)) });
+    if (!(gft_offset_max(width_to_et(16)) == 80)) __t27_assert_fail("\n  GF-T16 offset_max via width:\n    gft_offset_max(width_to_et(16)) = {any}\n", .{ gft_offset_max(width_to_et(16)) });
+    if (!(gft_mant_one(width_to_et(4)) == 2)) __t27_assert_fail("\n  GF-T4 mant scale via width:\n    gft_mant_one(width_to_et(4)) = {any}\n", .{ gft_mant_one(width_to_et(4)) });
 }
 test "golden_rule_reproduces_the_ladder" {
-    if (!(fib(6) == 8)) @panic("fib(6) = 8");
-    if (!(fib(10) == 55)) @panic("fib(10) = 55");
-    if (!(gft_et_of_rung(1) == GFT4_ET)) @panic("GF-T4 Et via rule");
-    if (!(gft_mant_of_rung(1) == GFT4_MANT)) @panic("GF-T4 mant via rule");
-    if (!(gft_et_of_rung(3) == GFT16_ET)) @panic("GF-T16 Et via rule");
-    if (!(gft_mant_of_rung(3) == GFT16_MANT)) @panic("GF-T16 mant = 9 via rule");
-    if (!(gft_et_of_rung(4) == GFT32_ET)) @panic("GF-T32 Et = 6 via rule");
-    if (!(gft_mant_of_rung(4) == GFT32_MANT)) @panic("GF-T32 mant = 25 via rule");
-    if (!(gft_et_of_rung(5) == GFT64_ET)) @panic("GF-T64 Et = 9 via rule");
-    if (!(gft_mant_of_rung(5) == GFT64_MANT)) @panic("GF-T64 mant = 64 via rule");
-    if (!(gft_et_of_rung(6) == GFT128_ET)) @panic("GF-T128 Et = 14 via rule");
-    if (!(gft_mant_of_rung(9) == GFT1024_MANT)) @panic("GF-T1024 mant = 3025 via rule");
+    if (!(fib(6) == 8)) __t27_assert_fail("\n  fib(6) = 8:\n    fib(6) = {any}\n", .{ fib(6) });
+    if (!(fib(10) == 55)) __t27_assert_fail("\n  fib(10) = 55:\n    fib(10) = {any}\n", .{ fib(10) });
+    if (!(gft_et_of_rung(1) == GFT4_ET)) __t27_assert_fail("\n  GF-T4 Et via rule:\n    gft_et_of_rung(1) = {any}\n    GFT4_ET = {any}\n", .{ gft_et_of_rung(1), GFT4_ET });
+    if (!(gft_mant_of_rung(1) == GFT4_MANT)) __t27_assert_fail("\n  GF-T4 mant via rule:\n    gft_mant_of_rung(1) = {any}\n    GFT4_MANT = {any}\n", .{ gft_mant_of_rung(1), GFT4_MANT });
+    if (!(gft_et_of_rung(3) == GFT16_ET)) __t27_assert_fail("\n  GF-T16 Et via rule:\n    gft_et_of_rung(3) = {any}\n    GFT16_ET = {any}\n", .{ gft_et_of_rung(3), GFT16_ET });
+    if (!(gft_mant_of_rung(3) == GFT16_MANT)) __t27_assert_fail("\n  GF-T16 mant = 9 via rule:\n    gft_mant_of_rung(3) = {any}\n    GFT16_MANT = {any}\n", .{ gft_mant_of_rung(3), GFT16_MANT });
+    if (!(gft_et_of_rung(4) == GFT32_ET)) __t27_assert_fail("\n  GF-T32 Et = 6 via rule:\n    gft_et_of_rung(4) = {any}\n    GFT32_ET = {any}\n", .{ gft_et_of_rung(4), GFT32_ET });
+    if (!(gft_mant_of_rung(4) == GFT32_MANT)) __t27_assert_fail("\n  GF-T32 mant = 25 via rule:\n    gft_mant_of_rung(4) = {any}\n    GFT32_MANT = {any}\n", .{ gft_mant_of_rung(4), GFT32_MANT });
+    if (!(gft_et_of_rung(5) == GFT64_ET)) __t27_assert_fail("\n  GF-T64 Et = 9 via rule:\n    gft_et_of_rung(5) = {any}\n    GFT64_ET = {any}\n", .{ gft_et_of_rung(5), GFT64_ET });
+    if (!(gft_mant_of_rung(5) == GFT64_MANT)) __t27_assert_fail("\n  GF-T64 mant = 64 via rule:\n    gft_mant_of_rung(5) = {any}\n    GFT64_MANT = {any}\n", .{ gft_mant_of_rung(5), GFT64_MANT });
+    if (!(gft_et_of_rung(6) == GFT128_ET)) __t27_assert_fail("\n  GF-T128 Et = 14 via rule:\n    gft_et_of_rung(6) = {any}\n    GFT128_ET = {any}\n", .{ gft_et_of_rung(6), GFT128_ET });
+    if (!(gft_mant_of_rung(9) == GFT1024_MANT)) __t27_assert_fail("\n  GF-T1024 mant = 3025 via rule:\n    gft_mant_of_rung(9) = {any}\n    GFT1024_MANT = {any}\n", .{ gft_mant_of_rung(9), GFT1024_MANT });
 }
 test "higher_rungs_geometry" {
-    if (!(gft_offset_max(GFT64_ET) == 19682)) @panic("GF-T64: 3^9 - 1 = 19682");
-    if (!(gft_bias(GFT64_ET) == 9841)) @panic("GF-T64 bias (3^9-1)/2 = 9841");
-    if (!(gft_offset_max(GFT128_ET) == 4782968)) @panic("GF-T128: 3^14 - 1 = 4782968");
-    if (!(is_finite_gft_n(19681, GFT64_ET) == true)) @panic("GF-T64 offset 19681 finite");
-    if (!(is_finite_gft_n(19682, GFT64_ET) == false)) @panic("GF-T64 offset 19682 is the special row");
+    if (!(gft_offset_max(GFT64_ET) == 19682)) __t27_assert_fail("\n  GF-T64: 3^9 - 1 = 19682:\n    gft_offset_max(GFT64_ET) = {any}\n", .{ gft_offset_max(GFT64_ET) });
+    if (!(gft_bias(GFT64_ET) == 9841)) __t27_assert_fail("\n  GF-T64 bias (3^9-1)/2 = 9841:\n    gft_bias(GFT64_ET) = {any}\n", .{ gft_bias(GFT64_ET) });
+    if (!(gft_offset_max(GFT128_ET) == 4782968)) __t27_assert_fail("\n  GF-T128: 3^14 - 1 = 4782968:\n    gft_offset_max(GFT128_ET) = {any}\n", .{ gft_offset_max(GFT128_ET) });
+    if (!(is_finite_gft_n(19681, GFT64_ET) == true)) __t27_assert_fail("\n  GF-T64 offset 19681 finite:\n    is_finite_gft_n(19681, GFT64_ET) = {any}\n", .{ is_finite_gft_n(19681, GFT64_ET) });
+    if (!(is_finite_gft_n(19682, GFT64_ET) == false)) __t27_assert_fail("\n  GF-T64 offset 19682 is the special row:\n    is_finite_gft_n(19682, GFT64_ET) = {any}\n", .{ is_finite_gft_n(19682, GFT64_ET) });
 }
 test "wide_rung_geometry" {
-    if (!(gft_pow3_u64(GFT128_ET) == 4782969)) @panic("wide path agrees with u32 at GF-T128");
-    if (!(gft_offset_max_u64(GFT256_ET) == 31381059608)) @panic("GF-T256: 3^22 - 1");
-    if (!(gft_bias_u64(GFT256_ET) == 15690529804)) @panic("GF-T256 bias (3^22-1)/2");
-    if (!(gft_offset_max_u64(GFT512_ET) == 50031545098999706)) @panic("GF-T512: 3^35 - 1 (largest rung in u64)");
-    if (!(gft_bias_u64(GFT512_ET) == 25015772549499853)) @panic("GF-T512 bias (3^35-1)/2");
-    if (!(gft_pow3_u64(GFT1024_ET) == 0)) @panic("GF-T1024 (Et56) exceeds u64 -- bignum, absent not wrong");
+    if (!(gft_pow3_u64(GFT128_ET) == 4782969)) __t27_assert_fail("\n  wide path agrees with u32 at GF-T128:\n    gft_pow3_u64(GFT128_ET) = {any}\n", .{ gft_pow3_u64(GFT128_ET) });
+    if (!(gft_offset_max_u64(GFT256_ET) == 31381059608)) __t27_assert_fail("\n  GF-T256: 3^22 - 1:\n    gft_offset_max_u64(GFT256_ET) = {any}\n", .{ gft_offset_max_u64(GFT256_ET) });
+    if (!(gft_bias_u64(GFT256_ET) == 15690529804)) __t27_assert_fail("\n  GF-T256 bias (3^22-1)/2:\n    gft_bias_u64(GFT256_ET) = {any}\n", .{ gft_bias_u64(GFT256_ET) });
+    if (!(gft_offset_max_u64(GFT512_ET) == 50031545098999706)) __t27_assert_fail("\n  GF-T512: 3^35 - 1 (largest rung in u64):\n    gft_offset_max_u64(GFT512_ET) = {any}\n", .{ gft_offset_max_u64(GFT512_ET) });
+    if (!(gft_bias_u64(GFT512_ET) == 25015772549499853)) __t27_assert_fail("\n  GF-T512 bias (3^35-1)/2:\n    gft_bias_u64(GFT512_ET) = {any}\n", .{ gft_bias_u64(GFT512_ET) });
+    if (!(gft_pow3_u64(GFT1024_ET) == 0)) __t27_assert_fail("\n  GF-T1024 (Et56) exceeds u64 -- bignum, absent not wrong:\n    gft_pow3_u64(GFT1024_ET) = {any}\n", .{ gft_pow3_u64(GFT1024_ET) });
 }
 fn bench_ladder_rung_walk() void {
     // bench: ladder_rung_walk
@@ -291,18 +299,18 @@ fn bench_ladder_rung_walk() void {
     const x9 = gft_offset_max(9);
     const b4 = gft_bias(4);
     const b9 = gft_bias(9);
-    if (!(e1 == 2)) @panic("GF-T4 Et 2");
-    if (!(e2 == 3)) @panic("GF-T8 Et 3");
-    if (!(e3 == 4)) @panic("GF-T16 Et 4");
-    if (!(e4 == 6)) @panic("GF-T32 Et 6");
-    if (!(e5 == 9)) @panic("GF-T64 Et 9");
-    if (!(e6 == 14)) @panic("GF-T128 Et 14");
-    if (!(m1 == 1)) @panic("GF-T4 mant 1");
-    if (!(m3 == 9)) @panic("GF-T16 mant 9");
-    if (!(m5 == 64)) @panic("GF-T64 mant 64");
-    if (!(x2 == 8)) @panic("3^2 - 1");
-    if (!(x4 == 80)) @panic("3^4 - 1");
-    if (!(x9 == 19682)) @panic("3^9 - 1");
-    if (!(b4 == 40)) @panic("GF-T16 bias");
-    if (!(b9 == 9841)) @panic("GF-T64 bias");
+    if (!(e1 == 2)) __t27_assert_fail("\n  GF-T4 Et 2:\n    e1 = {any}\n", .{ e1 });
+    if (!(e2 == 3)) __t27_assert_fail("\n  GF-T8 Et 3:\n    e2 = {any}\n", .{ e2 });
+    if (!(e3 == 4)) __t27_assert_fail("\n  GF-T16 Et 4:\n    e3 = {any}\n", .{ e3 });
+    if (!(e4 == 6)) __t27_assert_fail("\n  GF-T32 Et 6:\n    e4 = {any}\n", .{ e4 });
+    if (!(e5 == 9)) __t27_assert_fail("\n  GF-T64 Et 9:\n    e5 = {any}\n", .{ e5 });
+    if (!(e6 == 14)) __t27_assert_fail("\n  GF-T128 Et 14:\n    e6 = {any}\n", .{ e6 });
+    if (!(m1 == 1)) __t27_assert_fail("\n  GF-T4 mant 1:\n    m1 = {any}\n", .{ m1 });
+    if (!(m3 == 9)) __t27_assert_fail("\n  GF-T16 mant 9:\n    m3 = {any}\n", .{ m3 });
+    if (!(m5 == 64)) __t27_assert_fail("\n  GF-T64 mant 64:\n    m5 = {any}\n", .{ m5 });
+    if (!(x2 == 8)) __t27_assert_fail("\n  3^2 - 1:\n    x2 = {any}\n", .{ x2 });
+    if (!(x4 == 80)) __t27_assert_fail("\n  3^4 - 1:\n    x4 = {any}\n", .{ x4 });
+    if (!(x9 == 19682)) __t27_assert_fail("\n  3^9 - 1:\n    x9 = {any}\n", .{ x9 });
+    if (!(b4 == 40)) __t27_assert_fail("\n  GF-T16 bias:\n    b4 = {any}\n", .{ b4 });
+    if (!(b9 == 9841)) __t27_assert_fail("\n  GF-T64 bias:\n    b9 = {any}\n", .{ b9 });
 }

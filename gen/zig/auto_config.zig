@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_NODES: u32 = 8;
@@ -338,24 +346,24 @@ fn assign_node_role(node_id: u32, capabilities: u32) u32 {
 }
 test "config_param_roundtrip_wide_value" {
     const p = create_config_param(PARAM_HELLO_INTERVAL, 2000, SCOPE_NETWORK, STATUS_PENDING);
-    if (!(get_param_id(p) == PARAM_HELLO_INTERVAL)) @panic("param id");
-    if (!(get_param_value(p) == 2000)) @panic("16-bit value survives");
-    if (!(get_param_scope(p) == SCOPE_NETWORK)) @panic("scope");
-    if (!(get_param_status(p) == STATUS_PENDING)) @panic("status");
+    if (!(get_param_id(p) == PARAM_HELLO_INTERVAL)) __t27_assert_fail("\n  param id:\n    get_param_id(p) = {any}\n    PARAM_HELLO_INTERVAL = {any}\n", .{ get_param_id(p), PARAM_HELLO_INTERVAL });
+    if (!(get_param_value(p) == 2000)) __t27_assert_fail("\n  16-bit value survives:\n    get_param_value(p) = {any}\n", .{ get_param_value(p) });
+    if (!(get_param_scope(p) == SCOPE_NETWORK)) __t27_assert_fail("\n  scope:\n    get_param_scope(p) = {any}\n    SCOPE_NETWORK = {any}\n", .{ get_param_scope(p), SCOPE_NETWORK });
+    if (!(get_param_status(p) == STATUS_PENDING)) __t27_assert_fail("\n  status:\n    get_param_status(p) = {any}\n    STATUS_PENDING = {any}\n", .{ get_param_status(p), STATUS_PENDING });
 }
 test "default_table_values_survive" {
-    if (!(get_param_value(default_config_at(4)) == 2000)) @panic("hello interval");
-    if (!(get_param_value(default_config_at(5)) == 10000)) @panic("route timeout");
-    if (!(get_param_value(default_config_at(0)) == 50)) @panic("tx power");
+    if (!(get_param_value(default_config_at(4)) == 2000)) __t27_assert_fail("\n  hello interval:\n    get_param_value(default_config_at(4)) = {any}\n", .{ get_param_value(default_config_at(4)) });
+    if (!(get_param_value(default_config_at(5)) == 10000)) __t27_assert_fail("\n  route timeout:\n    get_param_value(default_config_at(5)) = {any}\n", .{ get_param_value(default_config_at(5)) });
+    if (!(get_param_value(default_config_at(0)) == 50)) __t27_assert_fail("\n  tx power:\n    get_param_value(default_config_at(0)) = {any}\n", .{ get_param_value(default_config_at(0)) });
 }
 test "config_lookup_finds_param" {
     const cfg: [16]u32 = .{ default_config_at(0), default_config_at(1), default_config_at(2), default_config_at(3), default_config_at(4), default_config_at(5), default_config_at(6), default_config_at(7), 0, 0, 0, 0, 0, 0, 0, 0 };
-    if (!(get_config_value(cfg, PARAM_RETRY_LIMIT) == 3)) @panic("retry limit found");
-    if (!(get_config_value(cfg, 99) == 0)) @panic("unknown param yields 0");
+    if (!(get_config_value(cfg, PARAM_RETRY_LIMIT) == 3)) __t27_assert_fail("\n  retry limit found:\n    get_config_value(cfg, PARAM_RETRY_LIMIT) = {any}\n", .{ get_config_value(cfg, PARAM_RETRY_LIMIT) });
+    if (!(get_config_value(cfg, 99) == 0)) __t27_assert_fail("\n  unknown param yields 0:\n    get_config_value(cfg, 99) = {any}\n", .{ get_config_value(cfg, 99) });
 }
 test "node_role_assignment" {
-    if (!(assign_node_role(1, 0x1) == 1)) @panic("coordinator capability");
-    if (!(assign_node_role(2, 0x2) == 2)) @panic("relay capability");
-    if (!(assign_node_role(3, 0x4) == 3)) @panic("edge capability");
-    if (!(assign_node_role(4, 0x0) == 0)) @panic("no capability is a normal node");
+    if (!(assign_node_role(1, 0x1) == 1)) __t27_assert_fail("\n  coordinator capability:\n    assign_node_role(1, 0x1) = {any}\n", .{ assign_node_role(1, 0x1) });
+    if (!(assign_node_role(2, 0x2) == 2)) __t27_assert_fail("\n  relay capability:\n    assign_node_role(2, 0x2) = {any}\n", .{ assign_node_role(2, 0x2) });
+    if (!(assign_node_role(3, 0x4) == 3)) __t27_assert_fail("\n  edge capability:\n    assign_node_role(3, 0x4) = {any}\n", .{ assign_node_role(3, 0x4) });
+    if (!(assign_node_role(4, 0x0) == 0)) __t27_assert_fail("\n  no capability is a normal node:\n    assign_node_role(4, 0x0) = {any}\n", .{ assign_node_role(4, 0x0) });
 }

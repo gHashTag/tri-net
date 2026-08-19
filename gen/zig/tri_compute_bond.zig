@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const ST_FREE: u32 = 0;
@@ -71,64 +79,64 @@ fn bond_covers_rung(bond: u32, outstanding: u32, min_bps: u32, gf_et: u32) bool 
     return bond >= required_bond_rung(outstanding, min_bps, gf_et);
 }
 test "post_is_guarded" {
-    if (!(can_post(1000, 200) == true)) @panic("can lock within balance");
-    if (!(can_post(1000, 2000) == false)) @panic("cannot over-post");
-    if (!(balance_after_post(1000, 200) == 800)) @panic("valid post reduces balance");
-    if (!(balance_after_post(1000, 2000) == 1000)) @panic("over-post is a no-op (no underflow)");
-    if (!(locked_amount(1000, 200) == 200)) @panic("locks the requested amount");
-    if (!(locked_amount(1000, 2000) == 0)) @panic("invalid post locks nothing");
+    if (!(can_post(1000, 200) == true)) __t27_assert_fail("\n  can lock within balance:\n    can_post(1000, 200) = {any}\n", .{ can_post(1000, 200) });
+    if (!(can_post(1000, 2000) == false)) __t27_assert_fail("\n  cannot over-post:\n    can_post(1000, 2000) = {any}\n", .{ can_post(1000, 2000) });
+    if (!(balance_after_post(1000, 200) == 800)) __t27_assert_fail("\n  valid post reduces balance:\n    balance_after_post(1000, 200) = {any}\n", .{ balance_after_post(1000, 200) });
+    if (!(balance_after_post(1000, 2000) == 1000)) __t27_assert_fail("\n  over-post is a no-op (no underflow):\n    balance_after_post(1000, 2000) = {any}\n", .{ balance_after_post(1000, 2000) });
+    if (!(locked_amount(1000, 200) == 200)) __t27_assert_fail("\n  locks the requested amount:\n    locked_amount(1000, 200) = {any}\n", .{ locked_amount(1000, 200) });
+    if (!(locked_amount(1000, 2000) == 0)) __t27_assert_fail("\n  invalid post locks nothing:\n    locked_amount(1000, 2000) = {any}\n", .{ locked_amount(1000, 2000) });
 }
 test "honest_round_trips_the_bond" {
     const after_post = balance_after_post(1000, 200);
     const bond = locked_amount(1000, 200);
-    if (!(bond_state_after(0) == ST_RELEASED)) @panic("honest -> released");
-    if (!(balance_after_resolve(after_post, bond, 0) == 1000)) @panic("bond returns; balance whole");
+    if (!(bond_state_after(0) == ST_RELEASED)) __t27_assert_fail("\n  honest -> released:\n    bond_state_after(0) = {any}\n    ST_RELEASED = {any}\n", .{ bond_state_after(0), ST_RELEASED });
+    if (!(balance_after_resolve(after_post, bond, 0) == 1000)) __t27_assert_fail("\n  bond returns; balance whole:\n    balance_after_resolve(after_post, bond, 0) = {any}\n", .{ balance_after_resolve(after_post, bond, 0) });
 }
 test "honest_release_saturates" {
-    if (!(balance_after_resolve(500, 200, 0) == 700)) @panic("normal release exact (regression)");
-    if (!(balance_after_resolve(0xFFFFFFF0, 200, 0) == 0xFFFFFFFF)) @panic("release that would overflow saturates to u32 max, not wrap to ~184");
-    if (!(balance_after_resolve(0xFFFFFFF0, 200, 1) == 0xFFFFFFF0)) @panic("slash never adds -> no overflow, balance unchanged");
+    if (!(balance_after_resolve(500, 200, 0) == 700)) __t27_assert_fail("\n  normal release exact (regression):\n    balance_after_resolve(500, 200, 0) = {any}\n", .{ balance_after_resolve(500, 200, 0) });
+    if (!(balance_after_resolve(0xFFFFFFF0, 200, 0) == 0xFFFFFFFF)) __t27_assert_fail("\n  release that would overflow saturates to u32 max, not wrap to ~184:\n    balance_after_resolve(0xFFFFFFF0, 200, 0) = {any}\n", .{ balance_after_resolve(0xFFFFFFF0, 200, 0) });
+    if (!(balance_after_resolve(0xFFFFFFF0, 200, 1) == 0xFFFFFFF0)) __t27_assert_fail("\n  slash never adds -> no overflow, balance unchanged:\n    balance_after_resolve(0xFFFFFFF0, 200, 1) = {any}\n", .{ balance_after_resolve(0xFFFFFFF0, 200, 1) });
 }
 test "slash_forfeits_the_bond" {
     const after_post = balance_after_post(1000, 200);
     const bond = locked_amount(1000, 200);
-    if (!(bond_state_after(1) == ST_SLASHED)) @panic("slash -> slashed");
-    if (!(balance_after_resolve(after_post, bond, 1) == 800)) @panic("bond forfeited; balance stays reduced");
+    if (!(bond_state_after(1) == ST_SLASHED)) __t27_assert_fail("\n  slash -> slashed:\n    bond_state_after(1) = {any}\n    ST_SLASHED = {any}\n", .{ bond_state_after(1), ST_SLASHED });
+    if (!(balance_after_resolve(after_post, bond, 1) == 800)) __t27_assert_fail("\n  bond forfeited; balance stays reduced:\n    balance_after_resolve(after_post, bond, 1) = {any}\n", .{ balance_after_resolve(after_post, bond, 1) });
 }
 test "non_terminal_outcomes_keep_the_bond_locked" {
-    if (!(bond_state_after(2) == ST_LOCKED)) @panic("MALFORMED -> bond stays locked, not slashed");
-    if (!(bond_state_after(3) == ST_LOCKED)) @panic("STALE -> bond stays locked");
-    if (!(bond_state_after(4) == ST_LOCKED)) @panic("FAMILY_MISMATCH -> bond stays locked");
-    if (!(bond_state_after(5) == ST_LOCKED)) @panic("INDETERMINATE -> bond stays locked");
-    if (!(bond_state_after(0) == ST_RELEASED)) @panic("HONEST -> released");
-    if (!(bond_state_after(1) == ST_SLASHED)) @panic("SLASH -> slashed");
+    if (!(bond_state_after(2) == ST_LOCKED)) __t27_assert_fail("\n  MALFORMED -> bond stays locked, not slashed:\n    bond_state_after(2) = {any}\n    ST_LOCKED = {any}\n", .{ bond_state_after(2), ST_LOCKED });
+    if (!(bond_state_after(3) == ST_LOCKED)) __t27_assert_fail("\n  STALE -> bond stays locked:\n    bond_state_after(3) = {any}\n    ST_LOCKED = {any}\n", .{ bond_state_after(3), ST_LOCKED });
+    if (!(bond_state_after(4) == ST_LOCKED)) __t27_assert_fail("\n  FAMILY_MISMATCH -> bond stays locked:\n    bond_state_after(4) = {any}\n    ST_LOCKED = {any}\n", .{ bond_state_after(4), ST_LOCKED });
+    if (!(bond_state_after(5) == ST_LOCKED)) __t27_assert_fail("\n  INDETERMINATE -> bond stays locked:\n    bond_state_after(5) = {any}\n    ST_LOCKED = {any}\n", .{ bond_state_after(5), ST_LOCKED });
+    if (!(bond_state_after(0) == ST_RELEASED)) __t27_assert_fail("\n  HONEST -> released:\n    bond_state_after(0) = {any}\n    ST_RELEASED = {any}\n", .{ bond_state_after(0), ST_RELEASED });
+    if (!(bond_state_after(1) == ST_SLASHED)) __t27_assert_fail("\n  SLASH -> slashed:\n    bond_state_after(1) = {any}\n    ST_SLASHED = {any}\n", .{ bond_state_after(1), ST_SLASHED });
     const after_post = balance_after_post(1000, 200);
-    if (!(balance_after_resolve(after_post, 200, 2) == 800)) @panic("malformed: bond neither returned nor added to balance");
-    if (!(balance_after_resolve(after_post, 200, 5) == 800)) @panic("indeterminate: bond stays escrowed");
+    if (!(balance_after_resolve(after_post, 200, 2) == 800)) __t27_assert_fail("\n  malformed: bond neither returned nor added to balance:\n    balance_after_resolve(after_post, 200, 2) = {any}\n", .{ balance_after_resolve(after_post, 200, 2) });
+    if (!(balance_after_resolve(after_post, 200, 5) == 800)) __t27_assert_fail("\n  indeterminate: bond stays escrowed:\n    balance_after_resolve(after_post, 200, 5) = {any}\n", .{ balance_after_resolve(after_post, 200, 5) });
 }
 test "required_bond_scales" {
-    if (!(required_bond(1000, 2000) == 200)) @panic("20% of 1000 outstanding = 200");
-    if (!(required_bond(1000, BOND_BPS_UNIT) == 1000)) @panic("100% ratio -> bond must equal outstanding");
-    if (!(required_bond(1000, 15000) == 1500)) @panic("150% ratio -> over-collateralized");
-    if (!(required_bond(0, 15000) == 0)) @panic("no outstanding risk needs no bond");
-    if (!(required_bond(1000000, 20000) == 2000000)) @panic("1e6 * 20000 / 10000 = 2e6 (u64, no u32 overflow)");
+    if (!(required_bond(1000, 2000) == 200)) __t27_assert_fail("\n  20% of 1000 outstanding = 200:\n    required_bond(1000, 2000) = {any}\n", .{ required_bond(1000, 2000) });
+    if (!(required_bond(1000, BOND_BPS_UNIT) == 1000)) __t27_assert_fail("\n  100% ratio -> bond must equal outstanding:\n    required_bond(1000, BOND_BPS_UNIT) = {any}\n", .{ required_bond(1000, BOND_BPS_UNIT) });
+    if (!(required_bond(1000, 15000) == 1500)) __t27_assert_fail("\n  150% ratio -> over-collateralized:\n    required_bond(1000, 15000) = {any}\n", .{ required_bond(1000, 15000) });
+    if (!(required_bond(0, 15000) == 0)) __t27_assert_fail("\n  no outstanding risk needs no bond:\n    required_bond(0, 15000) = {any}\n", .{ required_bond(0, 15000) });
+    if (!(required_bond(1000000, 20000) == 2000000)) __t27_assert_fail("\n  1e6 * 20000 / 10000 = 2e6 (u64, no u32 overflow):\n    required_bond(1000000, 20000) = {any}\n", .{ required_bond(1000000, 20000) });
 }
 test "required_bond_scales_with_rung" {
-    if (!(rung_min_bps(2000, 4) == 2000)) @panic("GF-T16 (Et4) uses the base ratio");
-    if (!(rung_min_bps(2000, 6) == 3000)) @panic("GF-T32 (Et6) +2 trits -> +10%");
-    if (!(rung_min_bps(2000, 9) == 4500)) @panic("GF-T64 (Et9) +5 trits -> +25%");
-    if (!(rung_min_bps(2000, 14) == 7000)) @panic("GF-T128 (Et14) +10 trits -> +50%");
-    if (!(rung_min_bps(2000, 3) == 2000)) @panic("sub-flagship GF-T8 uses the base (never shrinks)");
-    if (!(required_bond_rung(1000, 2000, 4) == 200)) @panic("GF-T16 needs 200");
-    if (!(required_bond_rung(1000, 2000, 9) == 450)) @panic("GF-T64 needs 450 -- more collateral");
-    if (!(required_bond_rung(1000, 2000, 9) > required_bond_rung(1000, 2000, 4))) @panic("wider rung -> bigger bond");
-    if (!(bond_covers_rung(450, 1000, 2000, 9) == true)) @panic("450 covers GF-T64");
-    if (!(bond_covers_rung(200, 1000, 2000, 9) == false)) @panic("a GF-T16-sized bond underfunds GF-T64");
+    if (!(rung_min_bps(2000, 4) == 2000)) __t27_assert_fail("\n  GF-T16 (Et4) uses the base ratio:\n    rung_min_bps(2000, 4) = {any}\n", .{ rung_min_bps(2000, 4) });
+    if (!(rung_min_bps(2000, 6) == 3000)) __t27_assert_fail("\n  GF-T32 (Et6) +2 trits -> +10%:\n    rung_min_bps(2000, 6) = {any}\n", .{ rung_min_bps(2000, 6) });
+    if (!(rung_min_bps(2000, 9) == 4500)) __t27_assert_fail("\n  GF-T64 (Et9) +5 trits -> +25%:\n    rung_min_bps(2000, 9) = {any}\n", .{ rung_min_bps(2000, 9) });
+    if (!(rung_min_bps(2000, 14) == 7000)) __t27_assert_fail("\n  GF-T128 (Et14) +10 trits -> +50%:\n    rung_min_bps(2000, 14) = {any}\n", .{ rung_min_bps(2000, 14) });
+    if (!(rung_min_bps(2000, 3) == 2000)) __t27_assert_fail("\n  sub-flagship GF-T8 uses the base (never shrinks):\n    rung_min_bps(2000, 3) = {any}\n", .{ rung_min_bps(2000, 3) });
+    if (!(required_bond_rung(1000, 2000, 4) == 200)) __t27_assert_fail("\n  GF-T16 needs 200:\n    required_bond_rung(1000, 2000, 4) = {any}\n", .{ required_bond_rung(1000, 2000, 4) });
+    if (!(required_bond_rung(1000, 2000, 9) == 450)) __t27_assert_fail("\n  GF-T64 needs 450 -- more collateral:\n    required_bond_rung(1000, 2000, 9) = {any}\n", .{ required_bond_rung(1000, 2000, 9) });
+    if (!(required_bond_rung(1000, 2000, 9) > required_bond_rung(1000, 2000, 4))) __t27_assert_fail("\n  wider rung -> bigger bond:\n    required_bond_rung(1000, 2000, 9) = {any}\n    required_bond_rung(1000, 2000, 4) = {any}\n", .{ required_bond_rung(1000, 2000, 9), required_bond_rung(1000, 2000, 4) });
+    if (!(bond_covers_rung(450, 1000, 2000, 9) == true)) __t27_assert_fail("\n  450 covers GF-T64:\n    bond_covers_rung(450, 1000, 2000, 9) = {any}\n", .{ bond_covers_rung(450, 1000, 2000, 9) });
+    if (!(bond_covers_rung(200, 1000, 2000, 9) == false)) __t27_assert_fail("\n  a GF-T16-sized bond underfunds GF-T64:\n    bond_covers_rung(200, 1000, 2000, 9) = {any}\n", .{ bond_covers_rung(200, 1000, 2000, 9) });
 }
 test "bond_coverage_gate" {
-    if (!(bond_covers(200, 1000, 2000) == true)) @panic("200 covers 20% of 1000");
-    if (!(bond_covers(199, 1000, 2000) == false)) @panic("199 is one short of the 200 required");
-    if (!(bond_covers(1, 1000, 2000) == false)) @panic("a nominal bond does NOT cover 1000 of outstanding risk");
-    if (!(bond_covers(1000, 1000, BOND_BPS_UNIT) == true)) @panic("a full 100% bond covers");
-    if (!(bond_covers(0, 0, 20000) == true)) @panic("a fresh node with no outstanding risk is covered by a zero bond");
+    if (!(bond_covers(200, 1000, 2000) == true)) __t27_assert_fail("\n  200 covers 20% of 1000:\n    bond_covers(200, 1000, 2000) = {any}\n", .{ bond_covers(200, 1000, 2000) });
+    if (!(bond_covers(199, 1000, 2000) == false)) __t27_assert_fail("\n  199 is one short of the 200 required:\n    bond_covers(199, 1000, 2000) = {any}\n", .{ bond_covers(199, 1000, 2000) });
+    if (!(bond_covers(1, 1000, 2000) == false)) __t27_assert_fail("\n  a nominal bond does NOT cover 1000 of outstanding risk:\n    bond_covers(1, 1000, 2000) = {any}\n", .{ bond_covers(1, 1000, 2000) });
+    if (!(bond_covers(1000, 1000, BOND_BPS_UNIT) == true)) __t27_assert_fail("\n  a full 100% bond covers:\n    bond_covers(1000, 1000, BOND_BPS_UNIT) = {any}\n", .{ bond_covers(1000, 1000, BOND_BPS_UNIT) });
+    if (!(bond_covers(0, 0, 20000) == true)) __t27_assert_fail("\n  a fresh node with no outstanding risk is covered by a zero bond:\n    bond_covers(0, 0, 20000) = {any}\n", .{ bond_covers(0, 0, 20000) });
 }

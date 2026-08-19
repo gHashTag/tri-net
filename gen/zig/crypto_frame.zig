@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const EPOCH_LEN: usize = 4;
@@ -104,30 +112,78 @@ fn replay_next_bhi(seen_any: bool, top: u64, blo: u32, bhi: u32, ctr: u64) u32 {
     return bhi;
 }
 test "header_is_epoch_plus_counter" {
+    const h = EPOCH_LEN + COUNTER_LEN;
+    const co = ciphertext_offset();
+    if (!(h == 12)) __t27_assert_fail("\n  assertion failed:\n    h = {any}\n", .{ h });
+    if (!(co == 12)) __t27_assert_fail("\n  assertion failed:\n    co = {any}\n", .{ co });
 }
 test "short_frame_rejected" {
+    const bad = frame_len_ok(11);
+    const ok = frame_len_ok(12);
+    if (!(bad == false)) __t27_assert_fail("\n  assertion failed:\n    bad = {any}\n", .{ bad });
+    if (!(ok == true)) __t27_assert_fail("\n  assertion failed:\n    ok = {any}\n", .{ ok });
 }
 test "ratchet_at_budget_reject_at_cap" {
+    const before = should_ratchet(1048575);
+    const at = should_ratchet(1048576);
+    const cap = must_reject(16777216);
+    const under_cap = must_reject(16777215);
+    if (!(before == false)) __t27_assert_fail("\n  assertion failed:\n    before = {any}\n", .{ before });
+    if (!(at == true)) __t27_assert_fail("\n  assertion failed:\n    at = {any}\n", .{ at });
+    if (!(cap == true)) __t27_assert_fail("\n  assertion failed:\n    cap = {any}\n", .{ cap });
+    if (!(under_cap == false)) __t27_assert_fail("\n  assertion failed:\n    under_cap = {any}\n", .{ under_cap });
 }
 test "nonce_layout_dir_epoch_ctr" {
+    const d = nonce_byte(1, 258, 5, 0);
+    const e_hi = nonce_byte(1, 258, 5, 1);
+    const e_lo = nonce_byte(1, 258, 5, 4);
+    const c_lo = nonce_byte(1, 258, 5, 11);
+    if (!(d == 1)) __t27_assert_fail("\n  assertion failed:\n    d = {any}\n", .{ d });
+    if (!(e_hi == 0)) __t27_assert_fail("\n  assertion failed:\n    e_hi = {any}\n", .{ e_hi });
+    if (!(e_lo == 2)) __t27_assert_fail("\n  assertion failed:\n    e_lo = {any}\n", .{ e_lo });
+    if (!(c_lo == 5)) __t27_assert_fail("\n  assertion failed:\n    c_lo = {any}\n", .{ c_lo });
 }
 test "rx_inverts_tx_direction" {
+    const a = rx_dir(0);
+    const b = rx_dir(1);
+    if (!(a == 1)) __t27_assert_fail("\n  assertion failed:\n    a = {any}\n", .{ a });
+    if (!(b == 0)) __t27_assert_fail("\n  assertion failed:\n    b = {any}\n", .{ b });
 }
 test "replay_first_and_duplicate" {
+    const first = replay_accept(false, 0, 0, 0, 7);
+    const blo = replay_next_blo(false, 0, 0, 0, 7);
+    const dup = replay_accept(true, 7, 1, 0, 7);
+    if (!(first == true)) __t27_assert_fail("\n  assertion failed:\n    first = {any}\n", .{ first });
+    if (!(blo == 1)) __t27_assert_fail("\n  assertion failed:\n    blo = {any}\n", .{ blo });
+    if (!(dup == false)) __t27_assert_fail("\n  assertion failed:\n    dup = {any}\n", .{ dup });
 }
 test "replay_low_lane_in_window" {
+    const fresh = replay_accept(true, 10, 1, 0, 5);
+    const blo = replay_next_blo(true, 10, 1, 0, 5);
+    if (!(fresh == true)) __t27_assert_fail("\n  assertion failed:\n    fresh = {any}\n", .{ fresh });
+    if (!(blo == 33)) __t27_assert_fail("\n  assertion failed:\n    blo = {any}\n", .{ blo });
 }
 test "replay_high_lane_bit" {
+    const fresh = replay_accept(true, 40, 1, 0, 5);
+    const bhi = replay_next_bhi(true, 40, 1, 0, 5);
+    if (!(fresh == true)) __t27_assert_fail("\n  assertion failed:\n    fresh = {any}\n", .{ fresh });
+    if (!(bhi == 8)) __t27_assert_fail("\n  assertion failed:\n    bhi = {any}\n", .{ bhi });
 }
 test "replay_too_old_rejected" {
+    const old = replay_accept(true, 70, 1, 0, 5);
+    if (!(old == false)) __t27_assert_fail("\n  assertion failed:\n    old = {any}\n", .{ old });
 }
 test "replay_forward_jump_carries_lane" {
+    const blo = replay_next_blo(true, 5, 1, 0, 8);
+    const bhi = replay_next_bhi(true, 5, 1, 0, 8);
+    if (!(blo == 9)) __t27_assert_fail("\n  assertion failed:\n    blo = {any}\n", .{ blo });
+    if (!(bhi == 0)) __t27_assert_fail("\n  assertion failed:\n    bhi = {any}\n", .{ bhi });
 }
 comptime {
     // invariant: routine_ratchet_below_hard_cap
-    // invariant: routine_ratchet_below_hard_cap verified (no statements)
+    if (!(REKEY_EVERY_FRAMES < REKEY_HARD_CAP)) __t27_assert_fail("\n  assertion failed:\n    REKEY_EVERY_FRAMES = {any}\n    REKEY_HARD_CAP = {any}\n", .{ REKEY_EVERY_FRAMES, REKEY_HARD_CAP });
 }
 comptime {
     // invariant: hard_cap_fits_seven_nonce_bytes
-    // invariant: hard_cap_fits_seven_nonce_bytes verified (no statements)
+    if (!(REKEY_HARD_CAP < 72057594037927936)) __t27_assert_fail("\n  assertion failed:\n    REKEY_HARD_CAP = {any}\n", .{ REKEY_HARD_CAP });
 }

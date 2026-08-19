@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 fn payable(fresh: u32, finite: u32, already_settled: u32) u32 {
@@ -40,36 +48,36 @@ fn reward_gate_authentic(base_reward: u32, sig_ok: u32, fresh: u32, finite: u32,
     }
 }
 test "no_double_pay" {
-    if (!(reward_gate(16, 1, 1, 1) == 0)) @panic("already-settled receipt pays nothing");
+    if (!(reward_gate(16, 1, 1, 1) == 0)) __t27_assert_fail("\n  already-settled receipt pays nothing:\n    reward_gate(16, 1, 1, 1) = {any}\n", .{ reward_gate(16, 1, 1, 1) });
 }
 test "replay_pays_nothing" {
-    if (!(reward_gate(16, 0, 1, 0) == 0)) @panic("stale/replayed receipt pays nothing");
+    if (!(reward_gate(16, 0, 1, 0) == 0)) __t27_assert_fail("\n  stale/replayed receipt pays nothing:\n    reward_gate(16, 0, 1, 0) = {any}\n", .{ reward_gate(16, 0, 1, 0) });
 }
 test "garbage_pays_nothing" {
-    if (!(reward_gate(16, 1, 0, 0) == 0)) @panic("inf/nan result pays nothing");
+    if (!(reward_gate(16, 1, 0, 0) == 0)) __t27_assert_fail("\n  inf/nan result pays nothing:\n    reward_gate(16, 1, 0, 0) = {any}\n", .{ reward_gate(16, 1, 0, 0) });
 }
 test "honest_path_pays" {
-    if (!(reward_gate(16, 1, 1, 0) == 16)) @panic("fresh + finite + new pays the reward");
-    if (!(payable(1, 1, 0) == 1)) @panic("the gate opens only on the honest path");
+    if (!(reward_gate(16, 1, 1, 0) == 16)) __t27_assert_fail("\n  fresh + finite + new pays the reward:\n    reward_gate(16, 1, 1, 0) = {any}\n", .{ reward_gate(16, 1, 1, 0) });
+    if (!(payable(1, 1, 0) == 1)) __t27_assert_fail("\n  the gate opens only on the honest path:\n    payable(1, 1, 0) = {any}\n", .{ payable(1, 1, 0) });
 }
 test "gate_needs_all_three" {
-    if (!(payable(0, 1, 0) == 0)) @panic("not fresh -> closed");
-    if (!(payable(1, 0, 0) == 0)) @panic("not finite -> closed");
-    if (!(payable(1, 1, 1) == 0)) @panic("already settled -> closed");
-    if (!(payable(1, 1, 0) == 1)) @panic("all three -> open");
+    if (!(payable(0, 1, 0) == 0)) __t27_assert_fail("\n  not fresh -> closed:\n    payable(0, 1, 0) = {any}\n", .{ payable(0, 1, 0) });
+    if (!(payable(1, 0, 0) == 0)) __t27_assert_fail("\n  not finite -> closed:\n    payable(1, 0, 0) = {any}\n", .{ payable(1, 0, 0) });
+    if (!(payable(1, 1, 1) == 0)) __t27_assert_fail("\n  already settled -> closed:\n    payable(1, 1, 1) = {any}\n", .{ payable(1, 1, 1) });
+    if (!(payable(1, 1, 0) == 1)) __t27_assert_fail("\n  all three -> open:\n    payable(1, 1, 0) = {any}\n", .{ payable(1, 1, 0) });
 }
 test "forgery_pays_nothing" {
-    if (!(reward_gate_authentic(16, 0, 1, 1, 0) == 0)) @panic("unsigned/forged receipt pays nothing despite fresh+finite+new");
-    if (!(payable_authentic(0, 1, 1, 0) == 0)) @panic("no valid signature -> gate closed");
+    if (!(reward_gate_authentic(16, 0, 1, 1, 0) == 0)) __t27_assert_fail("\n  unsigned/forged receipt pays nothing despite fresh+finite+new:\n    reward_gate_authentic(16, 0, 1, 1, 0) = {any}\n", .{ reward_gate_authentic(16, 0, 1, 1, 0) });
+    if (!(payable_authentic(0, 1, 1, 0) == 0)) __t27_assert_fail("\n  no valid signature -> gate closed:\n    payable_authentic(0, 1, 1, 0) = {any}\n", .{ payable_authentic(0, 1, 1, 0) });
 }
 test "authentic_gate_needs_all_four" {
-    if (!(reward_gate_authentic(16, 1, 1, 1, 0) == 16)) @panic("sig + fresh + finite + new -> pays");
-    if (!(payable_authentic(1, 0, 1, 0) == 0)) @panic("valid sig but stale -> closed");
-    if (!(payable_authentic(1, 1, 0, 0) == 0)) @panic("valid sig but inf/nan -> closed");
-    if (!(payable_authentic(1, 1, 1, 1) == 0)) @panic("valid sig but already settled -> closed");
-    if (!(payable_authentic(1, 1, 1, 0) == 1)) @panic("all four -> open");
+    if (!(reward_gate_authentic(16, 1, 1, 1, 0) == 16)) __t27_assert_fail("\n  sig + fresh + finite + new -> pays:\n    reward_gate_authentic(16, 1, 1, 1, 0) = {any}\n", .{ reward_gate_authentic(16, 1, 1, 1, 0) });
+    if (!(payable_authentic(1, 0, 1, 0) == 0)) __t27_assert_fail("\n  valid sig but stale -> closed:\n    payable_authentic(1, 0, 1, 0) = {any}\n", .{ payable_authentic(1, 0, 1, 0) });
+    if (!(payable_authentic(1, 1, 0, 0) == 0)) __t27_assert_fail("\n  valid sig but inf/nan -> closed:\n    payable_authentic(1, 1, 0, 0) = {any}\n", .{ payable_authentic(1, 1, 0, 0) });
+    if (!(payable_authentic(1, 1, 1, 1) == 0)) __t27_assert_fail("\n  valid sig but already settled -> closed:\n    payable_authentic(1, 1, 1, 1) = {any}\n", .{ payable_authentic(1, 1, 1, 1) });
+    if (!(payable_authentic(1, 1, 1, 0) == 1)) __t27_assert_fail("\n  all four -> open:\n    payable_authentic(1, 1, 1, 0) = {any}\n", .{ payable_authentic(1, 1, 1, 0) });
 }
 test "authentic_is_stricter" {
-    if (!(payable_authentic(1, 1, 1, 0) == payable(1, 1, 0))) @panic("with a valid sig it matches payable exactly");
-    if (!(payable_authentic(0, 1, 1, 0) == 0)) @panic("without the sig it is strictly stricter");
+    if (!(payable_authentic(1, 1, 1, 0) == payable(1, 1, 0))) __t27_assert_fail("\n  with a valid sig it matches payable exactly:\n    payable_authentic(1, 1, 1, 0) = {any}\n    payable(1, 1, 0) = {any}\n", .{ payable_authentic(1, 1, 1, 0), payable(1, 1, 0) });
+    if (!(payable_authentic(0, 1, 1, 0) == 0)) __t27_assert_fail("\n  without the sig it is strictly stricter:\n    payable_authentic(0, 1, 1, 0) = {any}\n", .{ payable_authentic(0, 1, 1, 0) });
 }

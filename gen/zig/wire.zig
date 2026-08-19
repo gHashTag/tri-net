@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const VERSION: u8 = 1;
@@ -47,26 +55,48 @@ fn parse_accepts(b0: u8, b1: u8) bool {
     }
 }
 test "byte0_is_version" {
+    const b = header_byte(KIND_DATA, 16909060, 168496141, 8, 0);
+    if (!(b == 1)) __t27_assert_fail("\n  assertion failed:\n    b = {any}\n", .{ b });
 }
 test "byte1_is_kind" {
+    const b = header_byte(KIND_DATA, 16909060, 168496141, 8, 1);
+    if (!(b == 1)) __t27_assert_fail("\n  assertion failed:\n    b = {any}\n", .{ b });
 }
 test "src_be_first_and_last_byte" {
+    const b2 = header_byte(KIND_DATA, 16909060, 168496141, 8, 2);
+    const b5 = header_byte(KIND_DATA, 16909060, 168496141, 8, 5);
+    if (!(b2 == 1)) __t27_assert_fail("\n  assertion failed:\n    b2 = {any}\n", .{ b2 });
+    if (!(b5 == 4)) __t27_assert_fail("\n  assertion failed:\n    b5 = {any}\n", .{ b5 });
 }
 test "ttl_is_last_byte" {
+    const b = header_byte(KIND_HELLO, 1, 2, 4, 10);
+    if (!(b == 4)) __t27_assert_fail("\n  assertion failed:\n    b = {any}\n", .{ b });
 }
 test "src_roundtrips_through_bytes" {
+    const b2 = header_byte(KIND_DATA, 16909060, 168496141, 8, 2);
+    const b3 = header_byte(KIND_DATA, 16909060, 168496141, 8, 3);
+    const b4 = header_byte(KIND_DATA, 16909060, 168496141, 8, 4);
+    const b5 = header_byte(KIND_DATA, 16909060, 168496141, 8, 5);
+    const w = u32_be(b2, b3, b4, b5);
+    if (!(w == 16909060)) __t27_assert_fail("\n  assertion failed:\n    w = {any}\n", .{ w });
 }
 test "parse_accepts_valid" {
+    const ok = parse_accepts(1, KIND_DATA);
+    if (!(ok == true)) __t27_assert_fail("\n  assertion failed:\n    ok = {any}\n", .{ ok });
 }
 test "parse_rejects_bad_version" {
+    const ok = parse_accepts(99, KIND_DATA);
+    if (!(ok == false)) __t27_assert_fail("\n  assertion failed:\n    ok = {any}\n", .{ ok });
 }
 test "parse_rejects_bad_kind" {
+    const ok = parse_accepts(1, 2);
+    if (!(ok == false)) __t27_assert_fail("\n  assertion failed:\n    ok = {any}\n", .{ ok });
 }
 comptime {
     // invariant: header_is_11_bytes
-    // invariant: header_is_11_bytes verified (no statements)
+    if (!(HEADER_LEN == 11)) __t27_assert_fail("\n  assertion failed:\n    HEADER_LEN = {any}\n", .{ HEADER_LEN });
 }
 comptime {
     // invariant: kinds_distinct
-    // invariant: kinds_distinct verified (no statements)
+    if (!(KIND_HELLO != KIND_DATA)) __t27_assert_fail("\n  assertion failed:\n    KIND_HELLO = {any}\n    KIND_DATA = {any}\n", .{ KIND_HELLO, KIND_DATA });
 }

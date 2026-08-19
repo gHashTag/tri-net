@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const QUEUE_SIZE: u8 = 8;
@@ -52,22 +60,22 @@ test "queue_initially_empty" {
 }
 test "enqueue_increases_count" {
     const new_state = enqueue(clear(), 0xABCD);
-    if (!(get_count(new_state) == 1)) @panic("count should be 1");
+    if (!(get_count(new_state) == 1)) __t27_assert_fail("\n  count should be 1:\n    get_count(new_state) = {any}\n", .{ get_count(new_state) });
 }
 test "dequeue_from_empty" {
     const new_state = dequeue(clear());
-    if (!(get_count(new_state) == 0)) @panic("should stay empty");
+    if (!(get_count(new_state) == 0)) __t27_assert_fail("\n  should stay empty:\n    get_count(new_state) = {any}\n", .{ get_count(new_state) });
 }
 test "enqueue_dequeue_roundtrip" {
     const state2 = enqueue(clear(), 0x1234);
     const state3 = dequeue(state2);
-    if (!(get_count(state3) == 0)) @panic("back to empty");
+    if (!(get_count(state3) == 0)) __t27_assert_fail("\n  back to empty:\n    get_count(state3) = {any}\n", .{ get_count(state3) });
 }
 test "multiple_enqueues" {
     const s1 = enqueue(clear(), 1);
     const s2 = enqueue(s1, 2);
     const s3 = enqueue(s2, 3);
-    if (!(get_count(s3) == 3)) @panic("count is 3");
+    if (!(get_count(s3) == 3)) __t27_assert_fail("\n  count is 3:\n    get_count(s3) = {any}\n", .{ get_count(s3) });
 }
 test "queue_fills_up" {
     const s1 = enqueue(clear(), 1);
@@ -78,7 +86,7 @@ test "queue_fills_up" {
     const s6 = enqueue(s5, 6);
     const s7 = enqueue(s6, 7);
     const s8 = enqueue(s7, 8);
-    if (!(get_count(s8) == 8)) @panic("full queue");
+    if (!(get_count(s8) == 8)) __t27_assert_fail("\n  full queue:\n    get_count(s8) = {any}\n", .{ get_count(s8) });
 }
 test "enqueue_full_idempotent" {
     const s1 = enqueue(clear(), 1);
@@ -90,13 +98,13 @@ test "enqueue_full_idempotent" {
     const s7 = enqueue(s6, 7);
     const s8 = enqueue(s7, 8);
     const s9 = enqueue(s8, 9);
-    if (!(get_count(s8) == get_count(s9))) @panic("full queue no-op");
+    if (!(get_count(s8) == get_count(s9))) __t27_assert_fail("\n  full queue no-op:\n    get_count(s8) = {any}\n    get_count(s9) = {any}\n", .{ get_count(s8), get_count(s9) });
 }
 test "increment_wrap" {
-    if (!(increment_index(0) == 1)) @panic("0â1");
-    if (!(increment_index(7) == 0)) @panic("7â0");
+    if (!(increment_index(0) == 1)) __t27_assert_fail("\n  0â1:\n    increment_index(0) = {any}\n", .{ increment_index(0) });
+    if (!(increment_index(7) == 0)) __t27_assert_fail("\n  7â0:\n    increment_index(7) = {any}\n", .{ increment_index(7) });
 }
 test "size_check" {
-    if (!(size(clear()) == 0)) @panic("initial size");
-    if (!(size(enqueue(clear(), 1)) == 1)) @panic("size after enqueue");
+    if (!(size(clear()) == 0)) __t27_assert_fail("\n  initial size:\n    size(clear()) = {any}\n", .{ size(clear()) });
+    if (!(size(enqueue(clear(), 1)) == 1)) __t27_assert_fail("\n  size after enqueue:\n    size(enqueue(clear(), 1)) = {any}\n", .{ size(enqueue(clear(), 1)) });
 }

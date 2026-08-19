@@ -18,6 +18,16 @@ standard" one day, not assert it.
 | 6 | Verifiable compute: result **bound** to its input | `tests/gft_receipt_binding.rs` (sha2 + ed25519) | cargo test |
 | 7 | Verifiable compute: **wrong** result recomputed + slashed | `tests/gft_compute_challenge.rs`, `tests/gft32_challenge.rs`, `tests/gft_verifiable_compute.rs` | cargo test |
 | 8 | Workload + batch + settlement: dot / Merkle-batch / ledger | `tests/gft_dot_verifiable.rs`, `gft_receipt_batch.rs`, `gft_ledger_settlement.rs` | cargo test |
+> **Status correction, 2026-08-19.** The on-silicon rows below have no artefact behind
+> them: no place-and-route log naming a `gft_*_ax7203` top, no `.fasm`, no `.bit`, no
+> openocd transcript and no UART capture exists in any branch. Three independent audit
+> passes searched and found none, and `fpga/gft/SYNTH_RESULTS.md` states that
+> place-and-route, timing closure and a loadable bitstream are not proven. A `.v` source
+> file is not a run record. Read these rows as SIMULATION until an artefact lands; the
+> vectors quoted are the same ones the committed Icarus benches carry, so they cannot
+> tell a board from a testbench. The one ternary design that does have a silicon log is
+> `fpga/ternary/ps7/results/ps7_probe_silicon_2026-08-19.log`.
+
 | 9 | **On silicon, 3 rungs:** GF-T8, GF-T16, GF-T32 multiply | `fpga/gft/gft_mul8/_mul/_mul32_ax7203.v`; 3/3, 5/5, 4/4 on AX7203 | on-chip |
 | 10 | **On silicon:** GF-T16 MAC — dot2, streaming row, 4-lane tile | `gft_dot2/_macc/_dot4_ax7203.v`; 3/3, 4/4, 3/3 bit-exact | on-chip |
 | 11 | The whole ladder GF4..GF1024 is real (exact to 632-bit mantissa) | `tests/goldenfloat_family_ladder.rs` (BigUint) | cargo test |

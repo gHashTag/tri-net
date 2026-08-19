@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_NODES: u32 = 32;
@@ -311,14 +319,14 @@ fn generate_topology_visualization(nodes: [MAX_NODES]u32, edges: [MAX_EDGES]u32,
 }
 test "visual_node_roundtrip" {
     const n = create_visual_node(6, 120, 200, 3);
-    if (!(get_viz_node_id(n) == 6)) @panic("node id");
-    if (!(get_node_x_position(n) == 120)) @panic("x");
-    if (!(get_node_y_position(n) == 200)) @panic("y");
+    if (!(get_viz_node_id(n) == 6)) __t27_assert_fail("\n  node id:\n    get_viz_node_id(n) = {any}\n", .{ get_viz_node_id(n) });
+    if (!(get_node_x_position(n) == 120)) __t27_assert_fail("\n  x:\n    get_node_x_position(n) = {any}\n", .{ get_node_x_position(n) });
+    if (!(get_node_y_position(n) == 200)) __t27_assert_fail("\n  y:\n    get_node_y_position(n) = {any}\n", .{ get_node_y_position(n) });
 }
 test "visual_edge_roundtrip" {
     const e = create_visual_edge(2, 5, 80, 1);
-    if (!(get_viz_edge_source(e) == 2)) @panic("source");
-    if (!(get_viz_edge_dest(e) == 5)) @panic("dest");
-    if (!(get_viz_edge_quality(e) == 80)) @panic("quality");
-    if (!(get_viz_edge_type(e) == 1)) @panic("type");
+    if (!(get_viz_edge_source(e) == 2)) __t27_assert_fail("\n  source:\n    get_viz_edge_source(e) = {any}\n", .{ get_viz_edge_source(e) });
+    if (!(get_viz_edge_dest(e) == 5)) __t27_assert_fail("\n  dest:\n    get_viz_edge_dest(e) = {any}\n", .{ get_viz_edge_dest(e) });
+    if (!(get_viz_edge_quality(e) == 80)) __t27_assert_fail("\n  quality:\n    get_viz_edge_quality(e) = {any}\n", .{ get_viz_edge_quality(e) });
+    if (!(get_viz_edge_type(e) == 1)) __t27_assert_fail("\n  type:\n    get_viz_edge_type(e) = {any}\n", .{ get_viz_edge_type(e) });
 }

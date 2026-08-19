@@ -9,10 +9,10 @@ autotests = false
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
-description = "TRI-NET drone-mesh daemon: ETX routing + X25519 + ChaCha20-Poly1305 encrypted IP-over-radio for the Zynq Mini node."
+description = "TRI-NET mesh daemon: ETX routing + X25519 + ChaCha20-Poly1305 encrypted IP-over-radio for the Zynq Mini node."
 repository = "https://github.com/gHashTag/trios-mesh"
 readme = "README.md"
-keywords = ["mesh", "drone", "sdr", "crypto", "routing"]
+keywords = ["mesh", "sdr", "crypto", "routing", "depin"]
 categories = ["network-programming", "cryptography"]
 
 [dependencies]
@@ -104,6 +104,11 @@ path = "tests/goldenfloat_ternary_ladder.rs"
 [[test]]
 name = "goldenfloat_conformance"
 path = "tests/goldenfloat_conformance.rs"
+# The operator CLI. Declared here rather than relying on autobins, which is off
+# because three other binaries in src/bin/ do not compile (issue #96).
+[[bin]]
+name = "tri"
+path = "src/bin/tri.rs"
 
 [profile.release]
 opt-level = "z"

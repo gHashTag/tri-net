@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_TASKS: u32 = 8;
@@ -249,25 +257,25 @@ fn has_resources(state: u32, required_cpu: u32, required_memory: u32) u32 {
 }
 test "task_and_result_roundtrip" {
     const t = create_task(9, TASK_PRIORITY_MEDIUM, 200, 12345);
-    if (!(get_task_id(t) == 9)) @panic("task id");
-    if (!(get_priority(t) == TASK_PRIORITY_MEDIUM)) @panic("priority");
-    if (!(get_data_size(t) == 200)) @panic("size");
-    if (!(get_processing_time(t) == 12345)) @panic("time");
+    if (!(get_task_id(t) == 9)) __t27_assert_fail("\n  task id:\n    get_task_id(t) = {any}\n", .{ get_task_id(t) });
+    if (!(get_priority(t) == TASK_PRIORITY_MEDIUM)) __t27_assert_fail("\n  priority:\n    get_priority(t) = {any}\n    TASK_PRIORITY_MEDIUM = {any}\n", .{ get_priority(t), TASK_PRIORITY_MEDIUM });
+    if (!(get_data_size(t) == 200)) __t27_assert_fail("\n  size:\n    get_data_size(t) = {any}\n", .{ get_data_size(t) });
+    if (!(get_processing_time(t) == 12345)) __t27_assert_fail("\n  time:\n    get_processing_time(t) = {any}\n", .{ get_processing_time(t) });
     const r = create_result(9, STATUS_COMPLETED, 200, 9999);
-    if (!(get_result_task_id(r) == 9)) @panic("result task id");
-    if (!(get_status(r) == STATUS_COMPLETED)) @panic("status");
-    if (!(get_result_value(r) == 9999)) @panic("value");
+    if (!(get_result_task_id(r) == 9)) __t27_assert_fail("\n  result task id:\n    get_result_task_id(r) = {any}\n", .{ get_result_task_id(r) });
+    if (!(get_status(r) == STATUS_COMPLETED)) __t27_assert_fail("\n  status:\n    get_status(r) = {any}\n    STATUS_COMPLETED = {any}\n", .{ get_status(r), STATUS_COMPLETED });
+    if (!(get_result_value(r) == 9999)) __t27_assert_fail("\n  value:\n    get_result_value(r) = {any}\n", .{ get_result_value(r) });
 }
 test "process_and_aggregate" {
     const t = create_task(3, TASK_PRIORITY_HIGH, 10, 5);
     const r = process_task(t);
-    if (!(get_status(r) == STATUS_COMPLETED)) @panic("completed");
-    if (!(get_result_value(r) == 50)) @panic("size times time");
-    const rs: [16]u32 = .{ create_result(1,STATUS_COMPLETED,0,100), create_result(2,STATUS_COMPLETED,0,250), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-    if (!(aggregate_results(rs, 2) == 350)) @panic("sum of result values");
+    if (!(get_status(r) == STATUS_COMPLETED)) __t27_assert_fail("\n  completed:\n    get_status(r) = {any}\n    STATUS_COMPLETED = {any}\n", .{ get_status(r), STATUS_COMPLETED });
+    if (!(get_result_value(r) == 50)) __t27_assert_fail("\n  size times time:\n    get_result_value(r) = {any}\n", .{ get_result_value(r) });
+    const rs: [16]u32 = .{ create_result(1, STATUS_COMPLETED, 0, 100), create_result(2, STATUS_COMPLETED, 0, 250), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    if (!(aggregate_results(rs, 2) == 350)) __t27_assert_fail("\n  sum of result values:\n    aggregate_results(rs, 2) = {any}\n", .{ aggregate_results(rs, 2) });
 }
 test "highest_priority_skips_empty_slots" {
-    const ts: [8]u32 = .{ create_task(1,TASK_PRIORITY_LOW,1,1), create_task(2,TASK_PRIORITY_MEDIUM,1,1), create_task(3,TASK_PRIORITY_LOW,1,1), 0, 0, 0, 0, 0 };
-    if (!(find_highest_priority_task(ts) == 1)) @panic("medium beats low, empties skipped");
-    if (!(count_pending_tasks(ts) == 3)) @panic("three real tasks");
+    const ts: [8]u32 = .{ create_task(1, TASK_PRIORITY_LOW, 1, 1), create_task(2, TASK_PRIORITY_MEDIUM, 1, 1), create_task(3, TASK_PRIORITY_LOW, 1, 1), 0, 0, 0, 0, 0 };
+    if (!(find_highest_priority_task(ts) == 1)) __t27_assert_fail("\n  medium beats low, empties skipped:\n    find_highest_priority_task(ts) = {any}\n", .{ find_highest_priority_task(ts) });
+    if (!(count_pending_tasks(ts) == 3)) __t27_assert_fail("\n  three real tasks:\n    count_pending_tasks(ts) = {any}\n", .{ count_pending_tasks(ts) });
 }

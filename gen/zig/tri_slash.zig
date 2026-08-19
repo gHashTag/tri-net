@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MIN_BOND: u32 = 100;
@@ -31,28 +39,28 @@ fn settle_or_slash(balance: u32, reward: u32, bond: u32, matched: bool) u32 {
 }
 test "honest_node_paid" {
     const b = settle_or_slash(1000, 713, 100, true);
-    if (!(b == 1713)) @panic("honest node gains its reward");
+    if (!(b == 1713)) __t27_assert_fail("\n  honest node gains its reward:\n    b = {any}\n", .{ b });
 }
 test "cheat_node_slashed" {
     const b = settle_or_slash(1000, 713, 100, false);
-    if (!(b == 900)) @panic("cheat loses its bond, gets no reward");
+    if (!(b == 900)) __t27_assert_fail("\n  cheat loses its bond, gets no reward:\n    b = {any}\n", .{ b });
 }
 test "cheating_is_worse" {
     const honest = settle_or_slash(1000, 713, 100, true);
     const cheat = settle_or_slash(1000, 713, 100, false);
-    if (!(cheat < honest)) @panic("cheat < honest");
-    if (!(cheat < 1000)) @panic("cheat loses vs doing nothing");
+    if (!(cheat < honest)) __t27_assert_fail("\n  cheat < honest:\n    cheat = {any}\n    honest = {any}\n", .{ cheat, honest });
+    if (!(cheat < 1000)) __t27_assert_fail("\n  cheat loses vs doing nothing:\n    cheat = {any}\n", .{ cheat });
 }
 test "slash_saturates_at_zero" {
     const b = settle_or_slash(50, 0, 100, false);
-    if (!(b == 0)) @panic("slash floored at 0");
+    if (!(b == 0)) __t27_assert_fail("\n  slash floored at 0:\n    b = {any}\n", .{ b });
 }
 test "bond_gate" {
-    if (!(bond_ok(100) == true)) @panic("at minimum");
-    if (!(bond_ok(500) == true)) @panic("above minimum");
-    if (!(bond_ok(50) == false)) @panic("below minimum rejected");
+    if (!(bond_ok(100) == true)) __t27_assert_fail("\n  at minimum:\n    bond_ok(100) = {any}\n", .{ bond_ok(100) });
+    if (!(bond_ok(500) == true)) __t27_assert_fail("\n  above minimum:\n    bond_ok(500) = {any}\n", .{ bond_ok(500) });
+    if (!(bond_ok(50) == false)) __t27_assert_fail("\n  below minimum rejected:\n    bond_ok(50) = {any}\n", .{ bond_ok(50) });
 }
 test "receipt_match" {
-    if (!(receipt_matches(0x6EAC3F90, 0x6EAC3F90) == true)) @panic("equal seals match");
-    if (!(receipt_matches(0x6EAC3F90, 0xDEADBEEF) == false)) @panic("unequal seals mismatch");
+    if (!(receipt_matches(0x6EAC3F90, 0x6EAC3F90) == true)) __t27_assert_fail("\n  equal seals match:\n    receipt_matches(0x6EAC3F90, 0x6EAC3F90) = {any}\n", .{ receipt_matches(0x6EAC3F90, 0x6EAC3F90) });
+    if (!(receipt_matches(0x6EAC3F90, 0xDEADBEEF) == false)) __t27_assert_fail("\n  unequal seals mismatch:\n    receipt_matches(0x6EAC3F90, 0xDEADBEEF) = {any}\n", .{ receipt_matches(0x6EAC3F90, 0xDEADBEEF) });
 }

@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 fn weighted(raw_work: u32, rep: u32) u32 {
@@ -35,15 +43,15 @@ test "reputation_weighted_split" {
     const w1 = weighted(16, 500);
     const w2 = weighted(16, 250);
     const tw = total_weighted3(w0, w1, w2);
-    if (!(tw == 28000)) @panic("total weighted = 16000+8000+4000");
+    if (!(tw == 28000)) __t27_assert_fail("\n  total weighted = 16000+8000+4000:\n    tw = {any}\n", .{ tw });
     const s0 = payout(1000, w0, tw);
     const s1 = payout(1000, w1, tw);
     const s2 = payout(1000, w2, tw);
-    if (!(s0 == 571)) @panic("rep 1000 -> 571");
-    if (!(s1 == 285)) @panic("rep 500 -> 285");
-    if (!(s2 == 142)) @panic("rep 250 -> 142");
-    if (!(s0 > s1)) @panic("higher reputation earns more for equal work");
-    if (!(s1 > s2)) @panic("a slashed (low-rep) node earns less");
+    if (!(s0 == 571)) __t27_assert_fail("\n  rep 1000 -> 571:\n    s0 = {any}\n", .{ s0 });
+    if (!(s1 == 285)) __t27_assert_fail("\n  rep 500 -> 285:\n    s1 = {any}\n", .{ s1 });
+    if (!(s2 == 142)) __t27_assert_fail("\n  rep 250 -> 142:\n    s2 = {any}\n", .{ s2 });
+    if (!(s0 > s1)) __t27_assert_fail("\n  higher reputation earns more for equal work:\n    s0 = {any}\n    s1 = {any}\n", .{ s0, s1 });
+    if (!(s1 > s2)) __t27_assert_fail("\n  a slashed (low-rep) node earns less:\n    s1 = {any}\n    s2 = {any}\n", .{ s1, s2 });
 }
 test "weighted_no_over_issuance" {
     const w0 = weighted(16, 1000);
@@ -51,28 +59,28 @@ test "weighted_no_over_issuance" {
     const w2 = weighted(16, 250);
     const tw = total_weighted3(w0, w1, w2);
     const sum = (payout(1000, w0, tw) + payout(1000, w1, tw)) + payout(1000, w2, tw);
-    if (!(sum == 998)) @panic("sum 998 <= pool 1000 (floor loses the dust)");
+    if (!(sum == 998)) __t27_assert_fail("\n  sum 998 <= pool 1000 (floor loses the dust):\n    sum = {any}\n", .{ sum });
 }
 test "zero_rep_and_empty_round" {
-    if (!(weighted(48, 0) == 0)) @panic("no reputation => zero weight");
-    if (!(payout(1000, 0, 28000) == 0)) @panic("zero weight => zero payout");
-    if (!(payout(1000, 16000, 0) == 0)) @panic("empty round pays nobody, no divide-by-zero");
+    if (!(weighted(48, 0) == 0)) __t27_assert_fail("\n  no reputation => zero weight:\n    weighted(48, 0) = {any}\n", .{ weighted(48, 0) });
+    if (!(payout(1000, 0, 28000) == 0)) __t27_assert_fail("\n  zero weight => zero payout:\n    payout(1000, 0, 28000) = {any}\n", .{ payout(1000, 0, 28000) });
+    if (!(payout(1000, 16000, 0) == 0)) __t27_assert_fail("\n  empty round pays nobody, no divide-by-zero:\n    payout(1000, 16000, 0) = {any}\n", .{ payout(1000, 16000, 0) });
 }
 test "large_payout_no_overflow" {
-    if (!(payout(1000000, 16000, 24000) == 666666)) @panic("large pool*weighted floor-divides exactly (no u32 overflow)");
-    if (!(payout(1000000, 8000, 24000) == 333333)) @panic("second node's weighted share is exact too");
+    if (!(payout(1000000, 16000, 24000) == 666666)) __t27_assert_fail("\n  large pool*weighted floor-divides exactly (no u32 overflow):\n    payout(1000000, 16000, 24000) = {any}\n", .{ payout(1000000, 16000, 24000) });
+    if (!(payout(1000000, 8000, 24000) == 333333)) __t27_assert_fail("\n  second node's weighted share is exact too:\n    payout(1000000, 8000, 24000) = {any}\n", .{ payout(1000000, 8000, 24000) });
     const s0 = payout(1000000, 16000, 24000);
     const s1 = payout(1000000, 8000, 24000);
-    if (!((s0 + s1) == 999999)) @panic("sum 999999 <= pool 1e6 at scale; no over-issuance under weighting");
+    if (!((s0 + s1) == 999999)) __t27_assert_fail("\n  sum 999999 <= pool 1e6 at scale; no over-issuance under weighting:\n    s0 + s1 = {any}\n", .{ s0 + s1 });
 }
 test "weighted_saturates" {
-    if (!(weighted(16, 1000) == 16000)) @panic("normal weight is exact");
-    if (!(weighted(100000, 1000) == 100000000)) @panic("1e5 * 1e3 = 1e8 fits, exact");
-    if (!(weighted(5000000, 1000) == 4294967295)) @panic("overflowing weight saturates to u32 max, no wrap");
-    if (!(weighted(4294967, 1000) == 4294967000)) @panic("just under the ceiling is still exact");
+    if (!(weighted(16, 1000) == 16000)) __t27_assert_fail("\n  normal weight is exact:\n    weighted(16, 1000) = {any}\n", .{ weighted(16, 1000) });
+    if (!(weighted(100000, 1000) == 100000000)) __t27_assert_fail("\n  1e5 * 1e3 = 1e8 fits, exact:\n    weighted(100000, 1000) = {any}\n", .{ weighted(100000, 1000) });
+    if (!(weighted(5000000, 1000) == 4294967295)) __t27_assert_fail("\n  overflowing weight saturates to u32 max, no wrap:\n    weighted(5000000, 1000) = {any}\n", .{ weighted(5000000, 1000) });
+    if (!(weighted(4294967, 1000) == 4294967000)) __t27_assert_fail("\n  just under the ceiling is still exact:\n    weighted(4294967, 1000) = {any}\n", .{ weighted(4294967, 1000) });
 }
 test "total_weighted3_saturates" {
-    if (!(total_weighted3(16000, 8000, 4000) == 28000)) @panic("normal sum is exact");
-    if (!(total_weighted3(4294967295, 4294967295, 4294967295) == 4294967295)) @panic("three max weights saturate, no wrap");
-    if (!(total_weighted3(4000000000, 400000000, 0) == 4294967295)) @panic("sum 4.4e9 > 2^32 saturates");
+    if (!(total_weighted3(16000, 8000, 4000) == 28000)) __t27_assert_fail("\n  normal sum is exact:\n    total_weighted3(16000, 8000, 4000) = {any}\n", .{ total_weighted3(16000, 8000, 4000) });
+    if (!(total_weighted3(4294967295, 4294967295, 4294967295) == 4294967295)) __t27_assert_fail("\n  three max weights saturate, no wrap:\n    total_weighted3(4294967295, 4294967295, 4294967295) = {any}\n", .{ total_weighted3(4294967295, 4294967295, 4294967295) });
+    if (!(total_weighted3(4000000000, 400000000, 0) == 4294967295)) __t27_assert_fail("\n  sum 4.4e9 > 2^32 saturates:\n    total_weighted3(4000000000, 400000000, 0) = {any}\n", .{ total_weighted3(4000000000, 400000000, 0) });
 }

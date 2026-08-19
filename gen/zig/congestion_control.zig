@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_FLOWS: u32 = 8;
@@ -205,32 +213,32 @@ fn reset_after_timeout(congestion: u32) u32 {
 }
 test "congestion_state_roundtrip" {
     const st = create_congestion_state(32, 16, STATE_FAST_RECOVERY, 5000);
-    if (!(get_cwnd(st) == 32)) @panic("cwnd");
-    if (!(get_ssthresh(st) == 16)) @panic("ssthresh");
-    if (!(get_congestion_state(st) == STATE_FAST_RECOVERY)) @panic("state");
-    if (!(get_loss_count(st) == 5000)) @panic("loss count");
+    if (!(get_cwnd(st) == 32)) __t27_assert_fail("\n  cwnd:\n    get_cwnd(st) = {any}\n", .{ get_cwnd(st) });
+    if (!(get_ssthresh(st) == 16)) __t27_assert_fail("\n  ssthresh:\n    get_ssthresh(st) = {any}\n", .{ get_ssthresh(st) });
+    if (!(get_congestion_state(st) == STATE_FAST_RECOVERY)) __t27_assert_fail("\n  state:\n    get_congestion_state(st) = {any}\n    STATE_FAST_RECOVERY = {any}\n", .{ get_congestion_state(st), STATE_FAST_RECOVERY });
+    if (!(get_loss_count(st) == 5000)) __t27_assert_fail("\n  loss count:\n    get_loss_count(st) = {any}\n", .{ get_loss_count(st) });
 }
 test "slow_start_doubles_until_threshold" {
     var st = initialize_congestion();
-    if (!(get_cwnd(st) == INITIAL_WINDOW)) @panic("initial window");
+    if (!(get_cwnd(st) == INITIAL_WINDOW)) __t27_assert_fail("\n  initial window:\n    get_cwnd(st) = {any}\n    INITIAL_WINDOW = {any}\n", .{ get_cwnd(st), INITIAL_WINDOW });
     st = on_ack(st);
-    if (!(get_cwnd(st) == 8)) @panic("4 doubles to 8");
+    if (!(get_cwnd(st) == 8)) __t27_assert_fail("\n  4 doubles to 8:\n    get_cwnd(st) = {any}\n", .{ get_cwnd(st) });
     st = on_ack(st);
     st = on_ack(st);
     st = on_ack(st);
-    if (!(get_cwnd(st) == 64)) @panic("window reaches the cap");
-    if (!(get_congestion_state(st) == STATE_CONGESTION_AVOIDANCE)) @panic("leaves slow start");
+    if (!(get_cwnd(st) == 64)) __t27_assert_fail("\n  window reaches the cap:\n    get_cwnd(st) = {any}\n", .{ get_cwnd(st) });
+    if (!(get_congestion_state(st) == STATE_CONGESTION_AVOIDANCE)) __t27_assert_fail("\n  leaves slow start:\n    get_congestion_state(st) = {any}\n    STATE_CONGESTION_AVOIDANCE = {any}\n", .{ get_congestion_state(st), STATE_CONGESTION_AVOIDANCE });
     st = on_ack(st);
-    if (!(get_cwnd(st) == MAX_WINDOW)) @panic("linear growth is capped at MAX_WINDOW");
+    if (!(get_cwnd(st) == MAX_WINDOW)) __t27_assert_fail("\n  linear growth is capped at MAX_WINDOW:\n    get_cwnd(st) = {any}\n    MAX_WINDOW = {any}\n", .{ get_cwnd(st), MAX_WINDOW });
 }
 test "loss_threshold_resets_window" {
     var st = create_congestion_state(40, 64, STATE_CONGESTION_AVOIDANCE, 0);
     st = on_loss(st);
     st = on_loss(st);
-    if (!(get_cwnd(st) == 40)) @panic("two losses keep the window");
+    if (!(get_cwnd(st) == 40)) __t27_assert_fail("\n  two losses keep the window:\n    get_cwnd(st) = {any}\n", .{ get_cwnd(st) });
     st = on_loss(st);
-    if (!(get_cwnd(st) == MIN_WINDOW)) @panic("third loss collapses the window");
-    if (!(get_ssthresh(st) == 20)) @panic("ssthresh is half the old window");
-    if (!(get_congestion_state(st) == STATE_SLOW_START)) @panic("back to slow start");
-    if (!(get_loss_count(st) == 0)) @panic("loss counter cleared");
+    if (!(get_cwnd(st) == MIN_WINDOW)) __t27_assert_fail("\n  third loss collapses the window:\n    get_cwnd(st) = {any}\n    MIN_WINDOW = {any}\n", .{ get_cwnd(st), MIN_WINDOW });
+    if (!(get_ssthresh(st) == 20)) __t27_assert_fail("\n  ssthresh is half the old window:\n    get_ssthresh(st) = {any}\n", .{ get_ssthresh(st) });
+    if (!(get_congestion_state(st) == STATE_SLOW_START)) __t27_assert_fail("\n  back to slow start:\n    get_congestion_state(st) = {any}\n    STATE_SLOW_START = {any}\n", .{ get_congestion_state(st), STATE_SLOW_START });
+    if (!(get_loss_count(st) == 0)) __t27_assert_fail("\n  loss counter cleared:\n    get_loss_count(st) = {any}\n", .{ get_loss_count(st) });
 }

@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_PATHS: u32 = 4;
@@ -129,72 +137,72 @@ fn find_least_congested(metrics_array: [4]u32) u32 {
 }
 test "create_path_metrics_basic" {
     const metrics = create_path_metrics(50, 3, 100, 40);
-    if (!(get_latency(metrics) == 50)) @panic("latency");
-    if (!(get_hops(metrics) == 3)) @panic("hops");
-    if (!(get_bandwidth(metrics) == 100)) @panic("bandwidth");
-    if (!(get_load(metrics) == 40)) @panic("load");
+    if (!(get_latency(metrics) == 50)) __t27_assert_fail("\n  latency:\n    get_latency(metrics) = {any}\n", .{ get_latency(metrics) });
+    if (!(get_hops(metrics) == 3)) __t27_assert_fail("\n  hops:\n    get_hops(metrics) = {any}\n", .{ get_hops(metrics) });
+    if (!(get_bandwidth(metrics) == 100)) __t27_assert_fail("\n  bandwidth:\n    get_bandwidth(metrics) = {any}\n", .{ get_bandwidth(metrics) });
+    if (!(get_load(metrics) == 40)) __t27_assert_fail("\n  load:\n    get_load(metrics) = {any}\n", .{ get_load(metrics) });
 }
 test "create_selection_state_basic" {
     const state = create_selection_state(0, 1, METRIC_LATENCY, 1000);
-    if (!(get_primary_path(state) == 0)) @panic("primary");
-    if (!(get_backup_path(state) == 1)) @panic("backup");
-    if (!(get_metric_type(state) == METRIC_LATENCY)) @panic("metric type");
+    if (!(get_primary_path(state) == 0)) __t27_assert_fail("\n  primary:\n    get_primary_path(state) = {any}\n", .{ get_primary_path(state) });
+    if (!(get_backup_path(state) == 1)) __t27_assert_fail("\n  backup:\n    get_backup_path(state) = {any}\n", .{ get_backup_path(state) });
+    if (!(get_metric_type(state) == METRIC_LATENCY)) __t27_assert_fail("\n  metric type:\n    get_metric_type(state) = {any}\n    METRIC_LATENCY = {any}\n", .{ get_metric_type(state), METRIC_LATENCY });
 }
 test "calculate_score_latency" {
     const metrics = create_path_metrics(10, 3, 100, 40);
     const score = calculate_score(metrics, METRIC_LATENCY);
-    if (!((score >= 25) and (score <= 26))) @panic("latency score");
+    if (!((score >= 25) and (score <= 26))) __t27_assert_fail("\n  latency score:\n    score = {any}\n", .{ score });
 }
 test "calculate_score_hops" {
     const metrics = create_path_metrics(50, 2, 100, 40);
     const score = calculate_score(metrics, METRIC_HOPS);
-    if (!((score >= 127) and (score <= 128))) @panic("hops score");
+    if (!((score >= 127) and (score <= 128))) __t27_assert_fail("\n  hops score:\n    score = {any}\n", .{ score });
 }
 test "calculate_score_bandwidth" {
     const metrics = create_path_metrics(50, 3, 150, 40);
-    if (!(calculate_score(metrics, METRIC_BANDWIDTH) == 150)) @panic("bandwidth score");
+    if (!(calculate_score(metrics, METRIC_BANDWIDTH) == 150)) __t27_assert_fail("\n  bandwidth score:\n    calculate_score(metrics, METRIC_BANDWIDTH) = {any}\n", .{ calculate_score(metrics, METRIC_BANDWIDTH) });
 }
 test "find_best_path_latency" {
     const array = create_path_metrics_array(create_path_metrics(100, 3, 100, 40), create_path_metrics(10, 3, 100, 40), create_path_metrics(50, 3, 100, 40), create_path_metrics(30, 3, 100, 40));
-    if (!(find_best_path(array, METRIC_LATENCY) == 1)) @panic("path 1 has best latency");
+    if (!(find_best_path(array, METRIC_LATENCY) == 1)) __t27_assert_fail("\n  path 1 has best latency:\n    find_best_path(array, METRIC_LATENCY) = {any}\n", .{ find_best_path(array, METRIC_LATENCY) });
 }
 test "find_best_path_hops" {
     const array = create_path_metrics_array(create_path_metrics(50, 5, 100, 40), create_path_metrics(50, 3, 100, 40), create_path_metrics(50, 1, 100, 40), create_path_metrics(50, 4, 100, 40));
-    if (!(find_best_path(array, METRIC_HOPS) == 2)) @panic("path 2 has fewest hops");
+    if (!(find_best_path(array, METRIC_HOPS) == 2)) __t27_assert_fail("\n  path 2 has fewest hops:\n    find_best_path(array, METRIC_HOPS) = {any}\n", .{ find_best_path(array, METRIC_HOPS) });
 }
 test "needs_update_true" {
     const state = create_selection_state(0, 1, METRIC_LATENCY, 1000);
-    if (!(needs_update(state, 7000) == true)) @panic("needs update");
+    if (!(needs_update(state, 7000) == true)) __t27_assert_fail("\n  needs update:\n    needs_update(state, 7000) = {any}\n", .{ needs_update(state, 7000) });
 }
 test "needs_update_false" {
     const state = create_selection_state(0, 1, METRIC_LATENCY, 5000);
-    if (!(needs_update(state, 7000) == false)) @panic("no update needed");
+    if (!(needs_update(state, 7000) == false)) __t27_assert_fail("\n  no update needed:\n    needs_update(state, 7000) = {any}\n", .{ needs_update(state, 7000) });
 }
 test "update_selection_works" {
     const state = create_selection_state(0, 1, METRIC_LATENCY, 1000);
     const new_state = update_selection(state, 2, 3, 8000);
-    if (!(get_primary_path(new_state) == 2)) @panic("primary updated");
-    if (!(get_backup_path(new_state) == 3)) @panic("backup updated");
-    if (!(get_last_update(new_state) == 8000)) @panic("time updated");
+    if (!(get_primary_path(new_state) == 2)) __t27_assert_fail("\n  primary updated:\n    get_primary_path(new_state) = {any}\n", .{ get_primary_path(new_state) });
+    if (!(get_backup_path(new_state) == 3)) __t27_assert_fail("\n  backup updated:\n    get_backup_path(new_state) = {any}\n", .{ get_backup_path(new_state) });
+    if (!(get_last_update(new_state) == 8000)) __t27_assert_fail("\n  time updated:\n    get_last_update(new_state) = {any}\n", .{ get_last_update(new_state) });
 }
 test "change_metric_type_works" {
     const state = create_selection_state(0, 1, METRIC_LATENCY, 1000);
     const new_state = change_metric_type(state, METRIC_BANDWIDTH);
-    if (!(get_metric_type(new_state) == METRIC_BANDWIDTH)) @panic("metric changed");
+    if (!(get_metric_type(new_state) == METRIC_BANDWIDTH)) __t27_assert_fail("\n  metric changed:\n    get_metric_type(new_state) = {any}\n    METRIC_BANDWIDTH = {any}\n", .{ get_metric_type(new_state), METRIC_BANDWIDTH });
 }
 test "is_path_congested_true" {
     const metrics = create_path_metrics(50, 3, 100, 90);
-    if (!(is_path_congested(metrics) == true)) @panic("path congested");
+    if (!(is_path_congested(metrics) == true)) __t27_assert_fail("\n  path congested:\n    is_path_congested(metrics) = {any}\n", .{ is_path_congested(metrics) });
 }
 test "is_path_congested_false" {
     const metrics = create_path_metrics(50, 3, 100, 40);
-    if (!(is_path_congested(metrics) == false)) @panic("path not congested");
+    if (!(is_path_congested(metrics) == false)) __t27_assert_fail("\n  path not congested:\n    is_path_congested(metrics) = {any}\n", .{ is_path_congested(metrics) });
 }
 test "find_least_congested" {
     const array = create_path_metrics_array(create_path_metrics(50, 3, 100, 80), create_path_metrics(50, 3, 100, 30), create_path_metrics(50, 3, 100, 60), create_path_metrics(50, 3, 100, 90));
-    if (!(find_least_congested(array) == 1)) @panic("path 1 least congested");
+    if (!(find_least_congested(array) == 1)) __t27_assert_fail("\n  path 1 least congested:\n    find_least_congested(array) = {any}\n", .{ find_least_congested(array) });
 }
 test "find_least_congested_all_equal" {
     const array = create_path_metrics_array(create_path_metrics(50, 3, 100, 50), create_path_metrics(50, 3, 100, 50), create_path_metrics(50, 3, 100, 50), create_path_metrics(50, 3, 100, 50));
-    if (!(find_least_congested(array) == 0)) @panic("first path when equal");
+    if (!(find_least_congested(array) == 0)) __t27_assert_fail("\n  first path when equal:\n    find_least_congested(array) = {any}\n", .{ find_least_congested(array) });
 }

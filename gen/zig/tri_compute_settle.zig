@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const SETTLE_GENESIS: u32 = 0x54524353;
@@ -148,133 +156,133 @@ fn settle_signed(prev_balance: u32, gf_width: u32, fresh: u32, gf_result: u32, e
     return settle_canonical(prev_balance, gf_width, sig_ok, fresh, already_settled, FMT_GF_BINARY, gf_result, exp_bits, mant_bits, 1, 0);
 }
 test "fresh_pays_stale_free" {
-    if (!(compute_reward(16, 1) == 16)) @panic("fresh GF16 op pays 16 $TRI");
-    if (!(compute_reward(16, 0) == 0)) @panic("replayed/stale receipt pays 0");
-    if (!(compute_reward(32, 1) == 32)) @panic("wider GF pays more");
+    if (!(compute_reward(16, 1) == 16)) __t27_assert_fail("\n  fresh GF16 op pays 16 $TRI:\n    compute_reward(16, 1) = {any}\n", .{ compute_reward(16, 1) });
+    if (!(compute_reward(16, 0) == 0)) __t27_assert_fail("\n  replayed/stale receipt pays 0:\n    compute_reward(16, 0) = {any}\n", .{ compute_reward(16, 0) });
+    if (!(compute_reward(32, 1) == 32)) __t27_assert_fail("\n  wider GF pays more:\n    compute_reward(32, 1) = {any}\n", .{ compute_reward(32, 1) });
 }
 test "balance_only_grows_on_fresh" {
     const b0 = settle_balance(100, 16, 1);
     const b1 = settle_balance(b0, 16, 0);
-    if (!(b0 == 116)) @panic("fresh settle credits the executor");
-    if (!(b1 == 116)) @panic("a replayed receipt adds nothing");
+    if (!(b0 == 116)) __t27_assert_fail("\n  fresh settle credits the executor:\n    b0 = {any}\n", .{ b0 });
+    if (!(b1 == 116)) __t27_assert_fail("\n  a replayed receipt adds nothing:\n    b1 = {any}\n", .{ b1 });
 }
 test "balance_saturates" {
-    if (!(settle_balance(0xFFFFFFF0, 32, 1) == 0xFFFFFFFF)) @panic("saturates, no wrap");
+    if (!(settle_balance(0xFFFFFFF0, 32, 1) == 0xFFFFFFFF)) __t27_assert_fail("\n  saturates, no wrap:\n    settle_balance(0xFFFFFFF0, 32, 1) = {any}\n", .{ settle_balance(0xFFFFFFF0, 32, 1) });
 }
 test "settle_root_tamper_evident" {
     const h0 = settle_head(SETTLE_GENESIS, 0x1111);
     const honest = settle_head(h0, 0x2222);
     const t0 = settle_head(SETTLE_GENESIS, 0x9999);
     const tampered = settle_head(t0, 0x2222);
-    if (!(honest != tampered)) @panic("tampering a settled digest changes the root");
+    if (!(honest != tampered)) __t27_assert_fail("\n  tampering a settled digest changes the root:\n    honest = {any}\n    tampered = {any}\n", .{ honest, tampered });
     const r0 = settle_head(SETTLE_GENESIS, 0x2222);
     const swapped = settle_head(r0, 0x1111);
-    if (!(honest != swapped)) @panic("reordering settlements changes the root");
+    if (!(honest != swapped)) __t27_assert_fail("\n  reordering settlements changes the root:\n    honest = {any}\n    swapped = {any}\n", .{ honest, swapped });
 }
 test "finite_gate" {
-    if (!(is_finite_gf16(0x4200) == true)) @panic("4.0 is finite");
-    if (!(is_finite_gf16(0x7E01) == false)) @panic("NaN (0x7E01) is not finite");
-    if (!(is_finite_gf16(0x7E00) == false)) @panic("+inf (0x7E00) is not finite");
-    if (!(is_finite_gf16(0xFE00) == false)) @panic("-inf (0xFE00) is not finite");
+    if (!(is_finite_gf16(0x4200) == true)) __t27_assert_fail("\n  4.0 is finite:\n    is_finite_gf16(0x4200) = {any}\n", .{ is_finite_gf16(0x4200) });
+    if (!(is_finite_gf16(0x7E01) == false)) __t27_assert_fail("\n  NaN (0x7E01) is not finite:\n    is_finite_gf16(0x7E01) = {any}\n", .{ is_finite_gf16(0x7E01) });
+    if (!(is_finite_gf16(0x7E00) == false)) __t27_assert_fail("\n  +inf (0x7E00) is not finite:\n    is_finite_gf16(0x7E00) = {any}\n", .{ is_finite_gf16(0x7E00) });
+    if (!(is_finite_gf16(0xFE00) == false)) __t27_assert_fail("\n  -inf (0xFE00) is not finite:\n    is_finite_gf16(0xFE00) = {any}\n", .{ is_finite_gf16(0xFE00) });
 }
 test "settle_rejects_garbage" {
-    if (!(settle_checked(100, 16, 1, 0x4200) == 116)) @panic("fresh finite GF16 pays 16");
-    if (!(settle_checked(100, 16, 1, 0x7E01) == 100)) @panic("fresh NaN pays nothing");
-    if (!(settle_checked(100, 16, 1, 0x7E00) == 100)) @panic("fresh inf pays nothing");
-    if (!(settle_checked(100, 16, 0, 0x4200) == 100)) @panic("stale pays nothing even if finite");
+    if (!(settle_checked(100, 16, 1, 0x4200) == 116)) __t27_assert_fail("\n  fresh finite GF16 pays 16:\n    settle_checked(100, 16, 1, 0x4200) = {any}\n", .{ settle_checked(100, 16, 1, 0x4200) });
+    if (!(settle_checked(100, 16, 1, 0x7E01) == 100)) __t27_assert_fail("\n  fresh NaN pays nothing:\n    settle_checked(100, 16, 1, 0x7E01) = {any}\n", .{ settle_checked(100, 16, 1, 0x7E01) });
+    if (!(settle_checked(100, 16, 1, 0x7E00) == 100)) __t27_assert_fail("\n  fresh inf pays nothing:\n    settle_checked(100, 16, 1, 0x7E00) = {any}\n", .{ settle_checked(100, 16, 1, 0x7E00) });
+    if (!(settle_checked(100, 16, 0, 0x4200) == 100)) __t27_assert_fail("\n  stale pays nothing even if finite:\n    settle_checked(100, 16, 0, 0x4200) = {any}\n", .{ settle_checked(100, 16, 0, 0x4200) });
 }
 test "settle_checked_gf_per_format" {
-    if (!(settle_checked_gf(100, 16, 1, 0x4200, 6, 9) == 116)) @panic("GF16 fresh finite pays");
-    if (!(settle_checked_gf(100, 16, 1, 0x7E00, 6, 9) == 100)) @panic("GF16 inf pays nothing");
-    if (!(settle_checked_gf(100, 8, 1, 0x20, 3, 4) == 108)) @panic("GF8 fresh finite pays width 8");
-    if (!(settle_checked_gf(100, 8, 1, 0x70, 3, 4) == 100)) @panic("GF8 inf (exp=7) pays nothing");
-    if (!(settle_checked_gf(100, 8, 0, 0x20, 3, 4) == 100)) @panic("stale GF8 pays nothing");
+    if (!(settle_checked_gf(100, 16, 1, 0x4200, 6, 9) == 116)) __t27_assert_fail("\n  GF16 fresh finite pays:\n    settle_checked_gf(100, 16, 1, 0x4200, 6, 9) = {any}\n", .{ settle_checked_gf(100, 16, 1, 0x4200, 6, 9) });
+    if (!(settle_checked_gf(100, 16, 1, 0x7E00, 6, 9) == 100)) __t27_assert_fail("\n  GF16 inf pays nothing:\n    settle_checked_gf(100, 16, 1, 0x7E00, 6, 9) = {any}\n", .{ settle_checked_gf(100, 16, 1, 0x7E00, 6, 9) });
+    if (!(settle_checked_gf(100, 8, 1, 0x20, 3, 4) == 108)) __t27_assert_fail("\n  GF8 fresh finite pays width 8:\n    settle_checked_gf(100, 8, 1, 0x20, 3, 4) = {any}\n", .{ settle_checked_gf(100, 8, 1, 0x20, 3, 4) });
+    if (!(settle_checked_gf(100, 8, 1, 0x70, 3, 4) == 100)) __t27_assert_fail("\n  GF8 inf (exp=7) pays nothing:\n    settle_checked_gf(100, 8, 1, 0x70, 3, 4) = {any}\n", .{ settle_checked_gf(100, 8, 1, 0x70, 3, 4) });
+    if (!(settle_checked_gf(100, 8, 0, 0x20, 3, 4) == 100)) __t27_assert_fail("\n  stale GF8 pays nothing:\n    settle_checked_gf(100, 8, 0, 0x20, 3, 4) = {any}\n", .{ settle_checked_gf(100, 8, 0, 0x20, 3, 4) });
 }
 test "settle_gft_offset" {
-    if (!(settle_checked_gft(100, 16, 1, 40, 80) == 116)) @panic("GF-T16 finite (offset 40) pays");
-    if (!(settle_checked_gft(100, 16, 1, 80, 80) == 100)) @panic("GF-T16 special (offset 80) pays nothing");
-    if (!(settle_checked_gft(100, 16, 0, 40, 80) == 100)) @panic("stale GF-T16 pays nothing");
-    if (!(settle_checked_gft(100, 16, 1, 79, 80) == 116)) @panic("GF-T16 boundary (offset 79, just below the special row) pays");
-    if (!(settle_checked_gft(100, 16, 1, 100, 80) == 100)) @panic("GF-T16 OUT-OF-RANGE offset (100 > 80) pays nothing -- garbage-pay hole closed");
+    if (!(settle_checked_gft(100, 16, 1, 40, 80) == 116)) __t27_assert_fail("\n  GF-T16 finite (offset 40) pays:\n    settle_checked_gft(100, 16, 1, 40, 80) = {any}\n", .{ settle_checked_gft(100, 16, 1, 40, 80) });
+    if (!(settle_checked_gft(100, 16, 1, 80, 80) == 100)) __t27_assert_fail("\n  GF-T16 special (offset 80) pays nothing:\n    settle_checked_gft(100, 16, 1, 80, 80) = {any}\n", .{ settle_checked_gft(100, 16, 1, 80, 80) });
+    if (!(settle_checked_gft(100, 16, 0, 40, 80) == 100)) __t27_assert_fail("\n  stale GF-T16 pays nothing:\n    settle_checked_gft(100, 16, 0, 40, 80) = {any}\n", .{ settle_checked_gft(100, 16, 0, 40, 80) });
+    if (!(settle_checked_gft(100, 16, 1, 79, 80) == 116)) __t27_assert_fail("\n  GF-T16 boundary (offset 79, just below the special row) pays:\n    settle_checked_gft(100, 16, 1, 79, 80) = {any}\n", .{ settle_checked_gft(100, 16, 1, 79, 80) });
+    if (!(settle_checked_gft(100, 16, 1, 100, 80) == 100)) __t27_assert_fail("\n  GF-T16 OUT-OF-RANGE offset (100 > 80) pays nothing -- garbage-pay hole closed:\n    settle_checked_gft(100, 16, 1, 100, 80) = {any}\n", .{ settle_checked_gft(100, 16, 1, 100, 80) });
 }
 test "settle_gft_width_derived_offset_max" {
-    if (!(gft_offset_max_w(8) == 26)) @panic("width 8 -> GF-T8 special row 26");
-    if (!(gft_offset_max_w(16) == 80)) @panic("width 16 -> GF-T16 special row 80");
-    if (!(settle_checked_gft_w(100, 16, 1, 40) == 116)) @panic("GF-T16 finite pays, width-derived ceiling");
-    if (!(settle_checked_gft_w(100, 16, 1, 80) == 100)) @panic("GF-T16 special row withholds");
-    if (!(settle_checked_gft_w(100, 16, 1, 100) == 100)) @panic("GF-T16 out-of-range withholds");
-    if (!(settle_checked_gft_w(100, 8, 1, 25) == 108)) @panic("GF-T8 finite (offset 25) pays");
-    if (!(settle_checked_gft_w(100, 8, 1, 26) == 100)) @panic("GF-T8 special row (26) withholds");
-    if (!(settle_checked_gft_w(100, 8, 1, 40) == 100)) @panic("an offset valid for GF-T16 is out of range for GF-T8 -> withholds");
-    if (!(gft_offset_max_w(32) == 728)) @panic("width 32 -> GF-T32 special row 728 (Et6, not 242)");
-    if (!(settle_checked_gft_w(100, 32, 1, 500) == 132)) @panic("GF-T32 offset 500 (in (242,728]) is finite and PAYS -- the fix");
-    if (!(settle_checked_gft_w(100, 32, 1, 727) == 132)) @panic("GF-T32 offset 727 finite pays");
-    if (!(settle_checked_gft_w(100, 32, 1, 728) == 100)) @panic("GF-T32 special row 728 withholds");
-    if (!(settle_checked_gft_w(100, 7, 1, 5) == 100)) @panic("off-ladder width -> fail-closed, nothing settles");
+    if (!(gft_offset_max_w(8) == 26)) __t27_assert_fail("\n  width 8 -> GF-T8 special row 26:\n    gft_offset_max_w(8) = {any}\n", .{ gft_offset_max_w(8) });
+    if (!(gft_offset_max_w(16) == 80)) __t27_assert_fail("\n  width 16 -> GF-T16 special row 80:\n    gft_offset_max_w(16) = {any}\n", .{ gft_offset_max_w(16) });
+    if (!(settle_checked_gft_w(100, 16, 1, 40) == 116)) __t27_assert_fail("\n  GF-T16 finite pays, width-derived ceiling:\n    settle_checked_gft_w(100, 16, 1, 40) = {any}\n", .{ settle_checked_gft_w(100, 16, 1, 40) });
+    if (!(settle_checked_gft_w(100, 16, 1, 80) == 100)) __t27_assert_fail("\n  GF-T16 special row withholds:\n    settle_checked_gft_w(100, 16, 1, 80) = {any}\n", .{ settle_checked_gft_w(100, 16, 1, 80) });
+    if (!(settle_checked_gft_w(100, 16, 1, 100) == 100)) __t27_assert_fail("\n  GF-T16 out-of-range withholds:\n    settle_checked_gft_w(100, 16, 1, 100) = {any}\n", .{ settle_checked_gft_w(100, 16, 1, 100) });
+    if (!(settle_checked_gft_w(100, 8, 1, 25) == 108)) __t27_assert_fail("\n  GF-T8 finite (offset 25) pays:\n    settle_checked_gft_w(100, 8, 1, 25) = {any}\n", .{ settle_checked_gft_w(100, 8, 1, 25) });
+    if (!(settle_checked_gft_w(100, 8, 1, 26) == 100)) __t27_assert_fail("\n  GF-T8 special row (26) withholds:\n    settle_checked_gft_w(100, 8, 1, 26) = {any}\n", .{ settle_checked_gft_w(100, 8, 1, 26) });
+    if (!(settle_checked_gft_w(100, 8, 1, 40) == 100)) __t27_assert_fail("\n  an offset valid for GF-T16 is out of range for GF-T8 -> withholds:\n    settle_checked_gft_w(100, 8, 1, 40) = {any}\n", .{ settle_checked_gft_w(100, 8, 1, 40) });
+    if (!(gft_offset_max_w(32) == 728)) __t27_assert_fail("\n  width 32 -> GF-T32 special row 728 (Et6, not 242):\n    gft_offset_max_w(32) = {any}\n", .{ gft_offset_max_w(32) });
+    if (!(settle_checked_gft_w(100, 32, 1, 500) == 132)) __t27_assert_fail("\n  GF-T32 offset 500 (in (242,728]) is finite and PAYS -- the fix:\n    settle_checked_gft_w(100, 32, 1, 500) = {any}\n", .{ settle_checked_gft_w(100, 32, 1, 500) });
+    if (!(settle_checked_gft_w(100, 32, 1, 727) == 132)) __t27_assert_fail("\n  GF-T32 offset 727 finite pays:\n    settle_checked_gft_w(100, 32, 1, 727) = {any}\n", .{ settle_checked_gft_w(100, 32, 1, 727) });
+    if (!(settle_checked_gft_w(100, 32, 1, 728) == 100)) __t27_assert_fail("\n  GF-T32 special row 728 withholds:\n    settle_checked_gft_w(100, 32, 1, 728) = {any}\n", .{ settle_checked_gft_w(100, 32, 1, 728) });
+    if (!(settle_checked_gft_w(100, 7, 1, 5) == 100)) __t27_assert_fail("\n  off-ladder width -> fail-closed, nothing settles:\n    settle_checked_gft_w(100, 7, 1, 5) = {any}\n", .{ settle_checked_gft_w(100, 7, 1, 5) });
 }
 test "settle_gft64_gft128_new_rungs" {
-    if (!(gft_offset_max_w(64) == 19682)) @panic("width 64 -> GF-T64 special row 19682");
-    if (!(gft_offset_max_w(128) == 4782968)) @panic("width 128 -> GF-T128 special row 4782968");
-    if (!(settle_checked_gft_w(100, 64, 1, 9841) == 164)) @panic("GF-T64 unity offset 9841 finite -> pays 64");
-    if (!(settle_checked_gft_w(100, 64, 1, 19681) == 164)) @panic("GF-T64 offset just below the row pays");
-    if (!(settle_checked_gft_w(100, 64, 1, 19682) == 100)) @panic("GF-T64 special row 19682 withholds");
-    if (!(settle_checked_gft_w(100, 64, 1, 19683) == 100)) @panic("GF-T64 out-of-range withholds");
-    if (!(settle_checked_gft_w(100, 128, 1, 100) == 228)) @panic("GF-T128 finite -> pays 128");
-    if (!(settle_checked_gft_w(100, 128, 1, 4782968) == 100)) @panic("GF-T128 special row withholds");
-    if (!(settle_checked_gft_w(100, 32, 1, 15000) == 100)) @panic("a GF-T64-range offset is out of range for GF-T32");
+    if (!(gft_offset_max_w(64) == 19682)) __t27_assert_fail("\n  width 64 -> GF-T64 special row 19682:\n    gft_offset_max_w(64) = {any}\n", .{ gft_offset_max_w(64) });
+    if (!(gft_offset_max_w(128) == 4782968)) __t27_assert_fail("\n  width 128 -> GF-T128 special row 4782968:\n    gft_offset_max_w(128) = {any}\n", .{ gft_offset_max_w(128) });
+    if (!(settle_checked_gft_w(100, 64, 1, 9841) == 164)) __t27_assert_fail("\n  GF-T64 unity offset 9841 finite -> pays 64:\n    settle_checked_gft_w(100, 64, 1, 9841) = {any}\n", .{ settle_checked_gft_w(100, 64, 1, 9841) });
+    if (!(settle_checked_gft_w(100, 64, 1, 19681) == 164)) __t27_assert_fail("\n  GF-T64 offset just below the row pays:\n    settle_checked_gft_w(100, 64, 1, 19681) = {any}\n", .{ settle_checked_gft_w(100, 64, 1, 19681) });
+    if (!(settle_checked_gft_w(100, 64, 1, 19682) == 100)) __t27_assert_fail("\n  GF-T64 special row 19682 withholds:\n    settle_checked_gft_w(100, 64, 1, 19682) = {any}\n", .{ settle_checked_gft_w(100, 64, 1, 19682) });
+    if (!(settle_checked_gft_w(100, 64, 1, 19683) == 100)) __t27_assert_fail("\n  GF-T64 out-of-range withholds:\n    settle_checked_gft_w(100, 64, 1, 19683) = {any}\n", .{ settle_checked_gft_w(100, 64, 1, 19683) });
+    if (!(settle_checked_gft_w(100, 128, 1, 100) == 228)) __t27_assert_fail("\n  GF-T128 finite -> pays 128:\n    settle_checked_gft_w(100, 128, 1, 100) = {any}\n", .{ settle_checked_gft_w(100, 128, 1, 100) });
+    if (!(settle_checked_gft_w(100, 128, 1, 4782968) == 100)) __t27_assert_fail("\n  GF-T128 special row withholds:\n    settle_checked_gft_w(100, 128, 1, 4782968) = {any}\n", .{ settle_checked_gft_w(100, 128, 1, 4782968) });
+    if (!(settle_checked_gft_w(100, 32, 1, 15000) == 100)) __t27_assert_fail("\n  a GF-T64-range offset is out of range for GF-T32:\n    settle_checked_gft_w(100, 32, 1, 15000) = {any}\n", .{ settle_checked_gft_w(100, 32, 1, 15000) });
 }
 test "settle_full_gate" {
-    if (!(settle_full(100, 16, 1, 0x4200, 6, 9, 0) == 116)) @panic("fresh finite new -> pays");
-    if (!(settle_full(100, 16, 1, 0x4200, 6, 9, 1) == 100)) @panic("already settled -> no double pay");
-    if (!(settle_full(100, 16, 1, 0x7E00, 6, 9, 0) == 100)) @panic("inf -> pays nothing");
-    if (!(settle_full(100, 16, 0, 0x4200, 6, 9, 0) == 100)) @panic("stale -> pays nothing");
+    if (!(settle_full(100, 16, 1, 0x4200, 6, 9, 0) == 116)) __t27_assert_fail("\n  fresh finite new -> pays:\n    settle_full(100, 16, 1, 0x4200, 6, 9, 0) = {any}\n", .{ settle_full(100, 16, 1, 0x4200, 6, 9, 0) });
+    if (!(settle_full(100, 16, 1, 0x4200, 6, 9, 1) == 100)) __t27_assert_fail("\n  already settled -> no double pay:\n    settle_full(100, 16, 1, 0x4200, 6, 9, 1) = {any}\n", .{ settle_full(100, 16, 1, 0x4200, 6, 9, 1) });
+    if (!(settle_full(100, 16, 1, 0x7E00, 6, 9, 0) == 100)) __t27_assert_fail("\n  inf -> pays nothing:\n    settle_full(100, 16, 1, 0x7E00, 6, 9, 0) = {any}\n", .{ settle_full(100, 16, 1, 0x7E00, 6, 9, 0) });
+    if (!(settle_full(100, 16, 0, 0x4200, 6, 9, 0) == 100)) __t27_assert_fail("\n  stale -> pays nothing:\n    settle_full(100, 16, 0, 0x4200, 6, 9, 0) = {any}\n", .{ settle_full(100, 16, 0, 0x4200, 6, 9, 0) });
 }
 test "settle_full_h_gate" {
-    if (!(settle_full_h(100, 16, 1, 0x7E00, 6, 9, 1, 0) == 100)) @panic("GF16 inf -> pays 0");
-    if (!(settle_full_h(100, 16, 1, 0x4200, 6, 9, 1, 0) == 116)) @panic("GF16 finite pays");
-    if (!(settle_full_h(100, 8, 1, 0x70, 3, 4, 0, 0) == 108)) @panic("GF8 max-exp is normal -> pays");
-    if (!(settle_full_h(100, 16, 1, 0x4200, 6, 9, 1, 1) == 100)) @panic("already settled -> no double pay");
+    if (!(settle_full_h(100, 16, 1, 0x7E00, 6, 9, 1, 0) == 100)) __t27_assert_fail("\n  GF16 inf -> pays 0:\n    settle_full_h(100, 16, 1, 0x7E00, 6, 9, 1, 0) = {any}\n", .{ settle_full_h(100, 16, 1, 0x7E00, 6, 9, 1, 0) });
+    if (!(settle_full_h(100, 16, 1, 0x4200, 6, 9, 1, 0) == 116)) __t27_assert_fail("\n  GF16 finite pays:\n    settle_full_h(100, 16, 1, 0x4200, 6, 9, 1, 0) = {any}\n", .{ settle_full_h(100, 16, 1, 0x4200, 6, 9, 1, 0) });
+    if (!(settle_full_h(100, 8, 1, 0x70, 3, 4, 0, 0) == 108)) __t27_assert_fail("\n  GF8 max-exp is normal -> pays:\n    settle_full_h(100, 8, 1, 0x70, 3, 4, 0, 0) = {any}\n", .{ settle_full_h(100, 8, 1, 0x70, 3, 4, 0, 0) });
+    if (!(settle_full_h(100, 16, 1, 0x4200, 6, 9, 1, 1) == 100)) __t27_assert_fail("\n  already settled -> no double pay:\n    settle_full_h(100, 16, 1, 0x4200, 6, 9, 1, 1) = {any}\n", .{ settle_full_h(100, 16, 1, 0x4200, 6, 9, 1, 1) });
 }
 test "signed_gate" {
-    if (!(settle_signed(1000, 16, 1, 0x4100, 6, 9, 0, 1) == 1016)) @panic("valid sig + fresh + finite settles the reward");
-    if (!(settle_signed(1000, 16, 1, 0x4100, 6, 9, 0, 0) == 1000)) @panic("no valid sig -> no payout even if fresh+finite");
-    if (!(settle_signed(1000, 16, 0, 0x4100, 6, 9, 0, 1) == 1000)) @panic("valid sig does not bypass freshness");
-    if (!(settle_signed(1000, 16, 1, 0x7E00, 6, 9, 0, 1) == 1000)) @panic("valid sig does not bypass the finiteness gate");
+    if (!(settle_signed(1000, 16, 1, 0x4100, 6, 9, 0, 1) == 1016)) __t27_assert_fail("\n  valid sig + fresh + finite settles the reward:\n    settle_signed(1000, 16, 1, 0x4100, 6, 9, 0, 1) = {any}\n", .{ settle_signed(1000, 16, 1, 0x4100, 6, 9, 0, 1) });
+    if (!(settle_signed(1000, 16, 1, 0x4100, 6, 9, 0, 0) == 1000)) __t27_assert_fail("\n  no valid sig -> no payout even if fresh+finite:\n    settle_signed(1000, 16, 1, 0x4100, 6, 9, 0, 0) = {any}\n", .{ settle_signed(1000, 16, 1, 0x4100, 6, 9, 0, 0) });
+    if (!(settle_signed(1000, 16, 0, 0x4100, 6, 9, 0, 1) == 1000)) __t27_assert_fail("\n  valid sig does not bypass freshness:\n    settle_signed(1000, 16, 0, 0x4100, 6, 9, 0, 1) = {any}\n", .{ settle_signed(1000, 16, 0, 0x4100, 6, 9, 0, 1) });
+    if (!(settle_signed(1000, 16, 1, 0x7E00, 6, 9, 0, 1) == 1000)) __t27_assert_fail("\n  valid sig does not bypass the finiteness gate:\n    settle_signed(1000, 16, 1, 0x7E00, 6, 9, 0, 1) = {any}\n", .{ settle_signed(1000, 16, 1, 0x7E00, 6, 9, 0, 1) });
 }
 test "format_aware_reward" {
-    if (!(compute_reward_fmt(16, 1, WORK_BPS_UNIT) == 16)) @panic("unit factor == flat compute_reward");
-    if (!(compute_reward_fmt(16, 1, WORK_BPS_UNIT) == compute_reward(16, 1))) @panic("identity to the flat schedule");
-    if (!(compute_reward_fmt(16, 1, 12500) == 20)) @panic("1.25x factor earns more (16*1.25)");
-    if (!(compute_reward_fmt(16, 1, 8000) == 12)) @panic("0.8x factor earns less (16*0.8=12.8 floor 12)");
-    if (!(compute_reward_fmt(16, 0, 12500) == 0)) @panic("a stale receipt pays 0 at any factor");
-    if (!(compute_reward_fmt(1080, 1, 20000) == 2160)) @panic("max width * 2x: no u32 overflow (u64 widened)");
+    if (!(compute_reward_fmt(16, 1, WORK_BPS_UNIT) == 16)) __t27_assert_fail("\n  unit factor == flat compute_reward:\n    compute_reward_fmt(16, 1, WORK_BPS_UNIT) = {any}\n", .{ compute_reward_fmt(16, 1, WORK_BPS_UNIT) });
+    if (!(compute_reward_fmt(16, 1, WORK_BPS_UNIT) == compute_reward(16, 1))) __t27_assert_fail("\n  identity to the flat schedule:\n    compute_reward_fmt(16, 1, WORK_BPS_UNIT) = {any}\n    compute_reward(16, 1) = {any}\n", .{ compute_reward_fmt(16, 1, WORK_BPS_UNIT), compute_reward(16, 1) });
+    if (!(compute_reward_fmt(16, 1, 12500) == 20)) __t27_assert_fail("\n  1.25x factor earns more (16*1.25):\n    compute_reward_fmt(16, 1, 12500) = {any}\n", .{ compute_reward_fmt(16, 1, 12500) });
+    if (!(compute_reward_fmt(16, 1, 8000) == 12)) __t27_assert_fail("\n  0.8x factor earns less (16*0.8=12.8 floor 12):\n    compute_reward_fmt(16, 1, 8000) = {any}\n", .{ compute_reward_fmt(16, 1, 8000) });
+    if (!(compute_reward_fmt(16, 0, 12500) == 0)) __t27_assert_fail("\n  a stale receipt pays 0 at any factor:\n    compute_reward_fmt(16, 0, 12500) = {any}\n", .{ compute_reward_fmt(16, 0, 12500) });
+    if (!(compute_reward_fmt(1080, 1, 20000) == 2160)) __t27_assert_fail("\n  max width * 2x: no u32 overflow (u64 widened):\n    compute_reward_fmt(1080, 1, 20000) = {any}\n", .{ compute_reward_fmt(1080, 1, 20000) });
 }
 test "payability_predicate" {
-    if (!(payable_flag(FMT_GF_BINARY, 0x4200, 6, 9, 1, 0) == 1)) @panic("GF16 finite payable");
-    if (!(payable_flag(FMT_GF_BINARY, 0x7E00, 6, 9, 1, 0) == 0)) @panic("GF16 inf not payable");
-    if (!(payable_flag(FMT_GF_BINARY, 0x70, 3, 4, 0, 0) == 1)) @panic("GF8 max-exp normal (no inf) payable");
-    if (!(payable_flag(FMT_GF_BINARY, 0x70, 3, 4, 1, 0) == 0)) @panic("GF8 max-exp with has_inf not payable");
-    if (!(payable_flag(FMT_GFT, 40, 0, 0, 0, 80) == 1)) @panic("GF-T16 offset 40 payable");
-    if (!(payable_flag(FMT_GFT, 80, 0, 0, 0, 80) == 0)) @panic("GF-T16 reserved offset 80 not payable");
-    if (!(payable_flag(FMT_GFT, 79, 0, 0, 0, 80) == 1)) @panic("GF-T16 offset 79 (boundary) payable");
-    if (!(payable_flag(FMT_GFT, 100, 0, 0, 0, 80) == 0)) @panic("GF-T16 out-of-range offset 100 NOT payable (was a garbage-pay hole)");
-    if (!(payable_flag(FMT_GFT, 4294967295, 0, 0, 0, 80) == 0)) @panic("GF-T16 max-u32 garbage offset not payable");
+    if (!(payable_flag(FMT_GF_BINARY, 0x4200, 6, 9, 1, 0) == 1)) __t27_assert_fail("\n  GF16 finite payable:\n    payable_flag(FMT_GF_BINARY, 0x4200, 6, 9, 1, 0) = {any}\n", .{ payable_flag(FMT_GF_BINARY, 0x4200, 6, 9, 1, 0) });
+    if (!(payable_flag(FMT_GF_BINARY, 0x7E00, 6, 9, 1, 0) == 0)) __t27_assert_fail("\n  GF16 inf not payable:\n    payable_flag(FMT_GF_BINARY, 0x7E00, 6, 9, 1, 0) = {any}\n", .{ payable_flag(FMT_GF_BINARY, 0x7E00, 6, 9, 1, 0) });
+    if (!(payable_flag(FMT_GF_BINARY, 0x70, 3, 4, 0, 0) == 1)) __t27_assert_fail("\n  GF8 max-exp normal (no inf) payable:\n    payable_flag(FMT_GF_BINARY, 0x70, 3, 4, 0, 0) = {any}\n", .{ payable_flag(FMT_GF_BINARY, 0x70, 3, 4, 0, 0) });
+    if (!(payable_flag(FMT_GF_BINARY, 0x70, 3, 4, 1, 0) == 0)) __t27_assert_fail("\n  GF8 max-exp with has_inf not payable:\n    payable_flag(FMT_GF_BINARY, 0x70, 3, 4, 1, 0) = {any}\n", .{ payable_flag(FMT_GF_BINARY, 0x70, 3, 4, 1, 0) });
+    if (!(payable_flag(FMT_GFT, 40, 0, 0, 0, 80) == 1)) __t27_assert_fail("\n  GF-T16 offset 40 payable:\n    payable_flag(FMT_GFT, 40, 0, 0, 0, 80) = {any}\n", .{ payable_flag(FMT_GFT, 40, 0, 0, 0, 80) });
+    if (!(payable_flag(FMT_GFT, 80, 0, 0, 0, 80) == 0)) __t27_assert_fail("\n  GF-T16 reserved offset 80 not payable:\n    payable_flag(FMT_GFT, 80, 0, 0, 0, 80) = {any}\n", .{ payable_flag(FMT_GFT, 80, 0, 0, 0, 80) });
+    if (!(payable_flag(FMT_GFT, 79, 0, 0, 0, 80) == 1)) __t27_assert_fail("\n  GF-T16 offset 79 (boundary) payable:\n    payable_flag(FMT_GFT, 79, 0, 0, 0, 80) = {any}\n", .{ payable_flag(FMT_GFT, 79, 0, 0, 0, 80) });
+    if (!(payable_flag(FMT_GFT, 100, 0, 0, 0, 80) == 0)) __t27_assert_fail("\n  GF-T16 out-of-range offset 100 NOT payable (was a garbage-pay hole):\n    payable_flag(FMT_GFT, 100, 0, 0, 0, 80) = {any}\n", .{ payable_flag(FMT_GFT, 100, 0, 0, 0, 80) });
+    if (!(payable_flag(FMT_GFT, 4294967295, 0, 0, 0, 80) == 0)) __t27_assert_fail("\n  GF-T16 max-u32 garbage offset not payable:\n    payable_flag(FMT_GFT, 4294967295, 0, 0, 0, 80) = {any}\n", .{ payable_flag(FMT_GFT, 4294967295, 0, 0, 0, 80) });
 }
 test "canonical_all_gates" {
-    if (!(settle_canonical(100, 16, 1, 1, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0) == 116)) @panic("all gates pass -> pays");
-    if (!(settle_canonical(100, 16, 0, 1, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0) == 100)) @panic("no sig -> pays 0");
-    if (!(settle_canonical(100, 16, 1, 1, 1, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0) == 100)) @panic("already settled -> no double pay");
-    if (!(settle_canonical(100, 16, 1, 0, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0) == 100)) @panic("stale -> pays 0");
-    if (!(settle_canonical(100, 16, 1, 1, 0, FMT_GF_BINARY, 0x7E00, 6, 9, 1, 0) == 100)) @panic("GF16 inf -> pays 0");
-    if (!(settle_canonical(100, 8, 1, 1, 0, FMT_GF_BINARY, 0x70, 3, 4, 0, 0) == 108)) @panic("GF8 no-inf max-exp -> pays width 8");
-    if (!(settle_canonical(100, 16, 1, 1, 0, FMT_GFT, 40, 0, 0, 0, 80) == 116)) @panic("GF-T16 finite -> pays");
-    if (!(settle_canonical(100, 16, 1, 1, 0, FMT_GFT, 80, 0, 0, 0, 80) == 100)) @panic("GF-T16 reserved offset -> pays 0");
+    if (!(settle_canonical(100, 16, 1, 1, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0) == 116)) __t27_assert_fail("\n  all gates pass -> pays:\n    settle_canonical(100, 16, 1, 1, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0) = {any}\n", .{ settle_canonical(100, 16, 1, 1, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0) });
+    if (!(settle_canonical(100, 16, 0, 1, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0) == 100)) __t27_assert_fail("\n  no sig -> pays 0:\n    settle_canonical(100, 16, 0, 1, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0) = {any}\n", .{ settle_canonical(100, 16, 0, 1, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0) });
+    if (!(settle_canonical(100, 16, 1, 1, 1, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0) == 100)) __t27_assert_fail("\n  already settled -> no double pay:\n    settle_canonical(100, 16, 1, 1, 1, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0) = {any}\n", .{ settle_canonical(100, 16, 1, 1, 1, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0) });
+    if (!(settle_canonical(100, 16, 1, 0, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0) == 100)) __t27_assert_fail("\n  stale -> pays 0:\n    settle_canonical(100, 16, 1, 0, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0) = {any}\n", .{ settle_canonical(100, 16, 1, 0, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0) });
+    if (!(settle_canonical(100, 16, 1, 1, 0, FMT_GF_BINARY, 0x7E00, 6, 9, 1, 0) == 100)) __t27_assert_fail("\n  GF16 inf -> pays 0:\n    settle_canonical(100, 16, 1, 1, 0, FMT_GF_BINARY, 0x7E00, 6, 9, 1, 0) = {any}\n", .{ settle_canonical(100, 16, 1, 1, 0, FMT_GF_BINARY, 0x7E00, 6, 9, 1, 0) });
+    if (!(settle_canonical(100, 8, 1, 1, 0, FMT_GF_BINARY, 0x70, 3, 4, 0, 0) == 108)) __t27_assert_fail("\n  GF8 no-inf max-exp -> pays width 8:\n    settle_canonical(100, 8, 1, 1, 0, FMT_GF_BINARY, 0x70, 3, 4, 0, 0) = {any}\n", .{ settle_canonical(100, 8, 1, 1, 0, FMT_GF_BINARY, 0x70, 3, 4, 0, 0) });
+    if (!(settle_canonical(100, 16, 1, 1, 0, FMT_GFT, 40, 0, 0, 0, 80) == 116)) __t27_assert_fail("\n  GF-T16 finite -> pays:\n    settle_canonical(100, 16, 1, 1, 0, FMT_GFT, 40, 0, 0, 0, 80) = {any}\n", .{ settle_canonical(100, 16, 1, 1, 0, FMT_GFT, 40, 0, 0, 0, 80) });
+    if (!(settle_canonical(100, 16, 1, 1, 0, FMT_GFT, 80, 0, 0, 0, 80) == 100)) __t27_assert_fail("\n  GF-T16 reserved offset -> pays 0:\n    settle_canonical(100, 16, 1, 1, 0, FMT_GFT, 80, 0, 0, 0, 80) = {any}\n", .{ settle_canonical(100, 16, 1, 1, 0, FMT_GFT, 80, 0, 0, 0, 80) });
 }
 test "canonical_fmt_scales_reward" {
-    if (!(settle_canonical_fmt(100, 16, 1, 1, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0, WORK_BPS_UNIT) == 116)) @panic("unit factor == settle_canonical");
-    if (!(settle_canonical_fmt(100, 16, 1, 1, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0, WORK_BPS_UNIT) == settle_canonical(100, 16, 1, 1, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0))) @panic("identity to the flat path");
-    if (!(settle_canonical_fmt(100, 16, 1, 1, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0, 12500) == 120)) @panic("1.25x factor credits 20 (100+16*1.25)");
-    if (!(settle_canonical_fmt(100, 16, 0, 1, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0, 12500) == 100)) @panic("no sig -> pays 0 at any factor");
-    if (!(settle_canonical_fmt(100, 16, 1, 1, 0, FMT_GF_BINARY, 0x7E00, 6, 9, 1, 0, 12500) == 100)) @panic("inf -> pays 0 at any factor");
-    if (!(settle_canonical_fmt(100, 16, 1, 1, 1, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0, 12500) == 100)) @panic("already settled -> no double pay at any factor");
+    if (!(settle_canonical_fmt(100, 16, 1, 1, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0, WORK_BPS_UNIT) == 116)) __t27_assert_fail("\n  unit factor == settle_canonical:\n    settle_canonical_fmt(100, 16, 1, 1, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0, WORK_BPS_UNIT) = {any}\n", .{ settle_canonical_fmt(100, 16, 1, 1, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0, WORK_BPS_UNIT) });
+    if (!(settle_canonical_fmt(100, 16, 1, 1, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0, WORK_BPS_UNIT) == settle_canonical(100, 16, 1, 1, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0))) __t27_assert_fail("\n  identity to the flat path:\n    settle_canonical_fmt(100, 16, 1, 1, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0, WORK_BPS_UNIT) = {any}\n    settle_canonical(100, 16, 1, 1, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0) = {any}\n", .{ settle_canonical_fmt(100, 16, 1, 1, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0, WORK_BPS_UNIT), settle_canonical(100, 16, 1, 1, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0) });
+    if (!(settle_canonical_fmt(100, 16, 1, 1, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0, 12500) == 120)) __t27_assert_fail("\n  1.25x factor credits 20 (100+16*1.25):\n    settle_canonical_fmt(100, 16, 1, 1, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0, 12500) = {any}\n", .{ settle_canonical_fmt(100, 16, 1, 1, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0, 12500) });
+    if (!(settle_canonical_fmt(100, 16, 0, 1, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0, 12500) == 100)) __t27_assert_fail("\n  no sig -> pays 0 at any factor:\n    settle_canonical_fmt(100, 16, 0, 1, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0, 12500) = {any}\n", .{ settle_canonical_fmt(100, 16, 0, 1, 0, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0, 12500) });
+    if (!(settle_canonical_fmt(100, 16, 1, 1, 0, FMT_GF_BINARY, 0x7E00, 6, 9, 1, 0, 12500) == 100)) __t27_assert_fail("\n  inf -> pays 0 at any factor:\n    settle_canonical_fmt(100, 16, 1, 1, 0, FMT_GF_BINARY, 0x7E00, 6, 9, 1, 0, 12500) = {any}\n", .{ settle_canonical_fmt(100, 16, 1, 1, 0, FMT_GF_BINARY, 0x7E00, 6, 9, 1, 0, 12500) });
+    if (!(settle_canonical_fmt(100, 16, 1, 1, 1, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0, 12500) == 100)) __t27_assert_fail("\n  already settled -> no double pay at any factor:\n    settle_canonical_fmt(100, 16, 1, 1, 1, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0, 12500) = {any}\n", .{ settle_canonical_fmt(100, 16, 1, 1, 1, FMT_GF_BINARY, 0x4200, 6, 9, 1, 0, 12500) });
 }

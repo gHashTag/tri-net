@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const VSTREAM_TYPE: u8 = 8;
@@ -182,250 +190,250 @@ fn nal_fits(nal_size: u16) bool {
     return nal_size <= 17850;
 }
 test "frag_seq_roundtrip" {
-    if (!(frag_seq(0xAB, 0xCD) == 52651)) @panic("0xAB + 0xCD*256 = 52651");
+    if (!(frag_seq(0xAB, 0xCD) == 52651)) __t27_assert_fail("\n  0xAB + 0xCD*256 = 52651:\n    frag_seq(0xAB, 0xCD) = {any}\n", .{ frag_seq(0xAB, 0xCD) });
 }
 test "frag_seq_zero" {
-    if (!(frag_seq(0, 0) == 0)) @panic("zero seq");
+    if (!(frag_seq(0, 0) == 0)) __t27_assert_fail("\n  zero seq:\n    frag_seq(0, 0) = {any}\n", .{ frag_seq(0, 0) });
 }
 test "frag_seq_max" {
-    if (!(frag_seq(255, 255) == 65535)) @panic("max u16");
+    if (!(frag_seq(255, 255) == 65535)) __t27_assert_fail("\n  max u16:\n    frag_seq(255, 255) = {any}\n", .{ frag_seq(255, 255) });
 }
 test "seq_lo_basic" {
-    if (!(seq_lo(256) == 0)) @panic("256 mod 256 = 0");
+    if (!(seq_lo(256) == 0)) __t27_assert_fail("\n  256 mod 256 = 0:\n    seq_lo(256) = {any}\n", .{ seq_lo(256) });
 }
 test "seq_hi_basic" {
-    if (!(seq_hi(256) == 1)) @panic("256 / 256 = 1");
+    if (!(seq_hi(256) == 1)) __t27_assert_fail("\n  256 / 256 = 1:\n    seq_hi(256) = {any}\n", .{ seq_hi(256) });
 }
 test "seq_lo_hi_roundtrip" {
     const lo: u8 = seq_lo(12345);
     const hi: u8 = seq_hi(12345);
-    if (!(frag_seq(lo, hi) == 12345)) @panic("roundtrip preserves value");
+    if (!(frag_seq(lo, hi) == 12345)) __t27_assert_fail("\n  roundtrip preserves value:\n    frag_seq(lo, hi) = {any}\n", .{ frag_seq(lo, hi) });
 }
 test "fragment_count_exact" {
-    if (!(fragment_count(70) == 1)) @panic("70 bytes = 1 fragment");
+    if (!(fragment_count(70) == 1)) __t27_assert_fail("\n  70 bytes = 1 fragment:\n    fragment_count(70) = {any}\n", .{ fragment_count(70) });
 }
 test "fragment_count_remainder" {
-    if (!(fragment_count(100) == 2)) @panic("100 bytes = 2 fragments");
+    if (!(fragment_count(100) == 2)) __t27_assert_fail("\n  100 bytes = 2 fragments:\n    fragment_count(100) = {any}\n", .{ fragment_count(100) });
 }
 test "fragment_count_zero" {
-    if (!(fragment_count(0) == 1)) @panic("0 bytes = 1 fragment");
+    if (!(fragment_count(0) == 1)) __t27_assert_fail("\n  0 bytes = 1 fragment:\n    fragment_count(0) = {any}\n", .{ fragment_count(0) });
 }
 test "fragment_count_large" {
-    if (!(fragment_count(210) == 3)) @panic("210 bytes = 3 fragments");
+    if (!(fragment_count(210) == 3)) __t27_assert_fail("\n  210 bytes = 3 fragments:\n    fragment_count(210) = {any}\n", .{ fragment_count(210) });
 }
 test "packet_size_basic" {
-    if (!(packet_size(70) == 75)) @panic("5 header + 70 data = 75");
+    if (!(packet_size(70) == 75)) __t27_assert_fail("\n  5 header + 70 data = 75:\n    packet_size(70) = {any}\n", .{ packet_size(70) });
 }
 test "packet_size_empty" {
-    if (!(packet_size(0) == 5)) @panic("5 header + 0 data = 5");
+    if (!(packet_size(0) == 5)) __t27_assert_fail("\n  5 header + 0 data = 5:\n    packet_size(0) = {any}\n", .{ packet_size(0) });
 }
 test "is_last_basic" {
-    if (!(is_last_fragment(2, 3) == true)) @panic("frag 2 of 3 is last");
+    if (!(is_last_fragment(2, 3) == true)) __t27_assert_fail("\n  frag 2 of 3 is last:\n    is_last_fragment(2, 3) = {any}\n", .{ is_last_fragment(2, 3) });
 }
 test "is_last_not_last" {
-    if (!(is_last_fragment(0, 3) == false)) @panic("frag 0 of 3 is not last");
+    if (!(is_last_fragment(0, 3) == false)) __t27_assert_fail("\n  frag 0 of 3 is not last:\n    is_last_fragment(0, 3) = {any}\n", .{ is_last_fragment(0, 3) });
 }
 test "is_first_basic" {
-    if (!(is_first_fragment(0) == true)) @panic("frag 0 is first");
+    if (!(is_first_fragment(0) == true)) __t27_assert_fail("\n  frag 0 is first:\n    is_first_fragment(0) = {any}\n", .{ is_first_fragment(0) });
 }
 test "is_first_not_first" {
-    if (!(is_first_fragment(1) == false)) @panic("frag 1 is not first");
+    if (!(is_first_fragment(1) == false)) __t27_assert_fail("\n  frag 1 is not first:\n    is_first_fragment(1) = {any}\n", .{ is_first_fragment(1) });
 }
 test "data_offset_value" {
-    if (!(data_offset() == 5)) @panic("payload starts at byte 5");
+    if (!(data_offset() == 5)) __t27_assert_fail("\n  payload starts at byte 5:\n    data_offset() = {any}\n", .{ data_offset() });
 }
 test "max_nal_size_value" {
-    if (!(max_nal_size() == 17850)) @panic("255 * 70 = 17850");
+    if (!(max_nal_size() == 17850)) __t27_assert_fail("\n  255 * 70 = 17850:\n    max_nal_size() = {any}\n", .{ max_nal_size() });
 }
 test "nal_fits_small" {
-    if (!(nal_fits(100) == true)) @panic("100 <= 17850");
+    if (!(nal_fits(100) == true)) __t27_assert_fail("\n  100 <= 17850:\n    nal_fits(100) = {any}\n", .{ nal_fits(100) });
 }
 test "nal_fits_exact" {
-    if (!(nal_fits(17850) == true)) @panic("17850 <= 17850");
+    if (!(nal_fits(17850) == true)) __t27_assert_fail("\n  17850 <= 17850:\n    nal_fits(17850) = {any}\n", .{ nal_fits(17850) });
 }
 test "nal_fits_too_large" {
-    if (!(nal_fits(17851) == false)) @panic("17851 > 17850");
+    if (!(nal_fits(17851) == false)) __t27_assert_fail("\n  17851 > 17850:\n    nal_fits(17851) = {any}\n", .{ nal_fits(17851) });
 }
 test "fec_group_of_first" {
-    if (!(fec_group_of(0, 129) == 0)) @panic("fragment 0 is in group 0");
+    if (!(fec_group_of(0, 129) == 0)) __t27_assert_fail("\n  fragment 0 is in group 0:\n    fec_group_of(0, 129) = {any}\n", .{ fec_group_of(0, 129) });
 }
 test "fec_group_of_interleaved" {
-    if (!(fec_group_of(1, 129) == 1)) @panic("the NEXT fragment is in the NEXT group");
+    if (!(fec_group_of(1, 129) == 1)) __t27_assert_fail("\n  the NEXT fragment is in the NEXT group:\n    fec_group_of(1, 129) = {any}\n", .{ fec_group_of(1, 129) });
 }
 test "fec_group_of_wraps_by_stride" {
-    if (!(fec_group_of(9, 129) == 0)) @panic("129 frags = 9 groups, so 9 rejoins group 0");
+    if (!(fec_group_of(9, 129) == 0)) __t27_assert_fail("\n  129 frags = 9 groups, so 9 rejoins group 0:\n    fec_group_of(9, 129) = {any}\n", .{ fec_group_of(9, 129) });
 }
 test "fec_group_of_burst_spreads" {
-    if (!(fec_group_of(20, 129) == 2)) @panic("20 mod 9 = 2");
-    if (!(fec_group_of(21, 129) == 3)) @panic("consecutive fragments land in DIFFERENT groups");
+    if (!(fec_group_of(20, 129) == 2)) __t27_assert_fail("\n  20 mod 9 = 2:\n    fec_group_of(20, 129) = {any}\n", .{ fec_group_of(20, 129) });
+    if (!(fec_group_of(21, 129) == 3)) __t27_assert_fail("\n  consecutive fragments land in DIFFERENT groups:\n    fec_group_of(21, 129) = {any}\n", .{ fec_group_of(21, 129) });
 }
 test "fec_group_count_exact" {
-    if (!(fec_group_count(32) == 2)) @panic("32 fragments = 2 full groups");
+    if (!(fec_group_count(32) == 2)) __t27_assert_fail("\n  32 fragments = 2 full groups:\n    fec_group_count(32) = {any}\n", .{ fec_group_count(32) });
 }
 test "fec_group_count_remainder" {
-    if (!(fec_group_count(33) == 3)) @panic("33 fragments needs a third group");
+    if (!(fec_group_count(33) == 3)) __t27_assert_fail("\n  33 fragments needs a third group:\n    fec_group_count(33) = {any}\n", .{ fec_group_count(33) });
 }
 test "fec_group_count_single" {
-    if (!(fec_group_count(1) == 1)) @panic("1 fragment still needs a parity");
+    if (!(fec_group_count(1) == 1)) __t27_assert_fail("\n  1 fragment still needs a parity:\n    fec_group_count(1) = {any}\n", .{ fec_group_count(1) });
 }
 test "fec_group_count_empty" {
-    if (!(fec_group_count(0) == 0)) @panic("no fragments, no parity");
+    if (!(fec_group_count(0) == 0)) __t27_assert_fail("\n  no fragments, no parity:\n    fec_group_count(0) = {any}\n", .{ fec_group_count(0) });
 }
 test "fec_group_count_keyframe" {
-    if (!(fec_group_count(129) == 9)) @panic("a 9000B I-frame needs 9 parities");
+    if (!(fec_group_count(129) == 9)) __t27_assert_fail("\n  a 9000B I-frame needs 9 parities:\n    fec_group_count(129) = {any}\n", .{ fec_group_count(129) });
 }
 test "fec_group_first_is_the_index" {
-    if (!(fec_group_first(2) == 2)) @panic("interleaved: group 2 starts at fragment 2");
+    if (!(fec_group_first(2) == 2)) __t27_assert_fail("\n  interleaved: group 2 starts at fragment 2:\n    fec_group_first(2) = {any}\n", .{ fec_group_first(2) });
 }
 test "fec_group_len_interleaved" {
-    if (!(fec_group_len(0, 129) == 15)) @panic("frags 0,9,...,126 = 15 of them");
+    if (!(fec_group_len(0, 129) == 15)) __t27_assert_fail("\n  frags 0,9,...,126 = 15 of them:\n    fec_group_len(0, 129) = {any}\n", .{ fec_group_len(0, 129) });
 }
 test "fec_group_len_short_group" {
-    if (!(fec_group_len(8, 129) == 14)) @panic("frags 8,17,...,125 = 14 of them");
+    if (!(fec_group_len(8, 129) == 14)) __t27_assert_fail("\n  frags 8,17,...,125 = 14 of them:\n    fec_group_len(8, 129) = {any}\n", .{ fec_group_len(8, 129) });
 }
 test "fec_stride_is_the_burst_we_survive" {
-    if (!(fec_stride(129) == 9)) @panic("9 groups = 9 consecutive losses absorbed");
+    if (!(fec_stride(129) == 9)) __t27_assert_fail("\n  9 groups = 9 consecutive losses absorbed:\n    fec_stride(129) = {any}\n", .{ fec_stride(129) });
 }
 test "fec_group_len_single" {
-    if (!(fec_group_len(0, 1) == 1)) @panic("a lone fragment is a group of one");
+    if (!(fec_group_len(0, 1) == 1)) __t27_assert_fail("\n  a lone fragment is a group of one:\n    fec_group_len(0, 1) = {any}\n", .{ fec_group_len(0, 1) });
 }
 test "fec_can_recover_one" {
-    if (!(fec_can_recover(1) == true)) @panic("exactly one loss is repairable");
+    if (!(fec_can_recover(1) == true)) __t27_assert_fail("\n  exactly one loss is repairable:\n    fec_can_recover(1) = {any}\n", .{ fec_can_recover(1) });
 }
 test "fec_can_recover_none" {
-    if (!(fec_can_recover(0) == false)) @panic("nothing missing, nothing to repair");
+    if (!(fec_can_recover(0) == false)) __t27_assert_fail("\n  nothing missing, nothing to repair:\n    fec_can_recover(0) = {any}\n", .{ fec_can_recover(0) });
 }
 test "fec_can_recover_two" {
-    if (!(fec_can_recover(2) == false)) @panic("one XOR cannot separate two losses");
+    if (!(fec_can_recover(2) == false)) __t27_assert_fail("\n  one XOR cannot separate two losses:\n    fec_can_recover(2) = {any}\n", .{ fec_can_recover(2) });
 }
 test "fb_util_half" {
-    if (!(fb_util_pct(400, 800) == 50)) @panic("400 of 800 is half the budget");
+    if (!(fb_util_pct(400, 800) == 50)) __t27_assert_fail("\n  400 of 800 is half the budget:\n    fb_util_pct(400, 800) = {any}\n", .{ fb_util_pct(400, 800) });
 }
 test "fb_util_saturates" {
-    if (!(fb_util_pct(900, 800) == 100)) @panic("debt must not report over 100%");
+    if (!(fb_util_pct(900, 800) == 100)) __t27_assert_fail("\n  debt must not report over 100%:\n    fb_util_pct(900, 800) = {any}\n", .{ fb_util_pct(900, 800) });
 }
 test "fb_util_zero_rate" {
-    if (!(fb_util_pct(10, 0) == 100)) @panic("a zero-rate link is by definition full");
+    if (!(fb_util_pct(10, 0) == 100)) __t27_assert_fail("\n  a zero-rate link is by definition full:\n    fb_util_pct(10, 0) = {any}\n", .{ fb_util_pct(10, 0) });
 }
 test "fb_drop_none" {
-    if (!(fb_drop_pct(0, 300) == 0)) @panic("nothing dropped");
+    if (!(fb_drop_pct(0, 300) == 0)) __t27_assert_fail("\n  nothing dropped:\n    fb_drop_pct(0, 300) = {any}\n", .{ fb_drop_pct(0, 300) });
 }
 test "fb_drop_the_measured_44" {
-    if (!(fb_drop_pct(1055, 2392) == 44)) @panic("the live call's real numbers");
+    if (!(fb_drop_pct(1055, 2392) == 44)) __t27_assert_fail("\n  the live call's real numbers:\n    fb_drop_pct(1055, 2392) = {any}\n", .{ fb_drop_pct(1055, 2392) });
 }
 test "fb_drop_nothing_offered" {
-    if (!(fb_drop_pct(0, 0) == 0)) @panic("an idle link is not a dropping link");
+    if (!(fb_drop_pct(0, 0) == 0)) __t27_assert_fail("\n  an idle link is not a dropping link:\n    fb_drop_pct(0, 0) = {any}\n", .{ fb_drop_pct(0, 0) });
 }
 test "fb_back_off_on_any_drop" {
-    if (!(fb_should_back_off(10, 1, 85) == true)) @panic("a drop means it is already too late");
+    if (!(fb_should_back_off(10, 1, 85) == true)) __t27_assert_fail("\n  a drop means it is already too late:\n    fb_should_back_off(10, 1, 85) = {any}\n", .{ fb_should_back_off(10, 1, 85) });
 }
 test "fb_back_off_when_nearly_full" {
-    if (!(fb_should_back_off(85, 0, 85) == true)) @panic("85% is about to be too late");
+    if (!(fb_should_back_off(85, 0, 85) == true)) __t27_assert_fail("\n  85% is about to be too late:\n    fb_should_back_off(85, 0, 85) = {any}\n", .{ fb_should_back_off(85, 0, 85) });
 }
 test "fb_hold_when_comfortable" {
-    if (!(fb_should_back_off(70, 0, 85) == false)) @panic("70% needs no action");
+    if (!(fb_should_back_off(70, 0, 85) == false)) __t27_assert_fail("\n  70% needs no action:\n    fb_should_back_off(70, 0, 85) = {any}\n", .{ fb_should_back_off(70, 0, 85) });
 }
 test "fb_climb_only_when_clear" {
-    if (!(fb_may_climb(50, 0, 60) == true)) @panic("half empty, climb");
+    if (!(fb_may_climb(50, 0, 60) == true)) __t27_assert_fail("\n  half empty, climb:\n    fb_may_climb(50, 0, 60) = {any}\n", .{ fb_may_climb(50, 0, 60) });
 }
 test "fb_no_climb_after_a_drop" {
-    if (!(fb_may_climb(10, 5, 60) == false)) @panic("never climb into a link that just dropped");
+    if (!(fb_may_climb(10, 5, 60) == false)) __t27_assert_fail("\n  never climb into a link that just dropped:\n    fb_may_climb(10, 5, 60) = {any}\n", .{ fb_may_climb(10, 5, 60) });
 }
 test "fb_advice_backs_off_on_drops" {
-    if (!(fb_advice(10, 3, 75, 85) == ADVICE_BACK_OFF)) @panic("any drop overrides everything");
+    if (!(fb_advice(10, 3, 75, 85) == ADVICE_BACK_OFF)) __t27_assert_fail("\n  any drop overrides everything:\n    fb_advice(10, 3, 75, 85) = {any}\n    ADVICE_BACK_OFF = {any}\n", .{ fb_advice(10, 3, 75, 85), ADVICE_BACK_OFF });
 }
 test "fb_advice_climbs_when_empty" {
-    if (!(fb_advice(20, 0, 75, 85) == ADVICE_CLIMB)) @panic("quiet link, climb");
+    if (!(fb_advice(20, 0, 75, 85) == ADVICE_CLIMB)) __t27_assert_fail("\n  quiet link, climb:\n    fb_advice(20, 0, 75, 85) = {any}\n    ADVICE_CLIMB = {any}\n", .{ fb_advice(20, 0, 75, 85), ADVICE_CLIMB });
 }
 test "fb_advice_holds_in_the_band" {
-    if (!(fb_advice(80, 0, 75, 85) == ADVICE_HOLD)) @panic("75..85 is the hysteresis band");
+    if (!(fb_advice(80, 0, 75, 85) == ADVICE_HOLD)) __t27_assert_fail("\n  75..85 is the hysteresis band:\n    fb_advice(80, 0, 75, 85) = {any}\n    ADVICE_HOLD = {any}\n", .{ fb_advice(80, 0, 75, 85), ADVICE_HOLD });
 }
 test "fb_advice_backs_off_when_full" {
-    if (!(fb_advice(95, 0, 75, 85) == ADVICE_BACK_OFF)) @panic("95% is full enough");
+    if (!(fb_advice(95, 0, 75, 85) == ADVICE_BACK_OFF)) __t27_assert_fail("\n  95% is full enough:\n    fb_advice(95, 0, 75, 85) = {any}\n    ADVICE_BACK_OFF = {any}\n", .{ fb_advice(95, 0, 75, 85), ADVICE_BACK_OFF });
 }
 test "fb_hysteresis_gap_exists" {
-    if (!(fb_may_climb(70, 0, 60) == false)) @panic("70% must not climb");
-    if (!(fb_should_back_off(70, 0, 85) == false)) @panic("...nor back off: it holds");
+    if (!(fb_may_climb(70, 0, 60) == false)) __t27_assert_fail("\n  70% must not climb:\n    fb_may_climb(70, 0, 60) = {any}\n", .{ fb_may_climb(70, 0, 60) });
+    if (!(fb_should_back_off(70, 0, 85) == false)) __t27_assert_fail("\n  ...nor back off: it holds:\n    fb_should_back_off(70, 0, 85) = {any}\n", .{ fb_should_back_off(70, 0, 85) });
 }
 test "video_seq_stays_low" {
-    if (!(video_seq(40000) == 7232)) @panic("video wraps inside 0..32767");
+    if (!(video_seq(40000) == 7232)) __t27_assert_fail("\n  video wraps inside 0..32767:\n    video_seq(40000) = {any}\n", .{ video_seq(40000) });
 }
 test "express_seq_stays_high" {
-    if (!(express_seq(0) == 32768)) @panic("express lives in the high half");
+    if (!(express_seq(0) == 32768)) __t27_assert_fail("\n  express lives in the high half:\n    express_seq(0) = {any}\n", .{ express_seq(0) });
 }
 test "seq_halves_never_collide" {
-    if (!(video_seq(100) != express_seq(100))) @panic("same counter, disjoint keys");
+    if (!(video_seq(100) != express_seq(100))) __t27_assert_fail("\n  same counter, disjoint keys:\n    video_seq(100) = {any}\n    express_seq(100) = {any}\n", .{ video_seq(100), express_seq(100) });
 }
 test "effective_rate_idle_is_configured" {
-    if (!(fb_effective_rate(0, 0, 700) == 700)) @panic("an idle link says nothing");
+    if (!(fb_effective_rate(0, 0, 700) == 700)) __t27_assert_fail("\n  an idle link says nothing:\n    fb_effective_rate(0, 0, 700) = {any}\n", .{ fb_effective_rate(0, 0, 700) });
 }
 test "effective_rate_lossless_is_configured" {
-    if (!(fb_effective_rate(500, 495, 700) == 700)) @panic("keeping up: no signal");
+    if (!(fb_effective_rate(500, 495, 700) == 700)) __t27_assert_fail("\n  keeping up: no signal:\n    fb_effective_rate(500, 495, 700) = {any}\n", .{ fb_effective_rate(500, 495, 700) });
 }
 test "effective_rate_saturated_is_delivered" {
-    if (!(fb_effective_rate(700, 300, 700) == 300)) @panic("a lossy link states its capacity");
+    if (!(fb_effective_rate(700, 300, 700) == 300)) __t27_assert_fail("\n  a lossy link states its capacity:\n    fb_effective_rate(700, 300, 700) = {any}\n", .{ fb_effective_rate(700, 300, 700) });
 }
 test "effective_rate_boundary" {
-    if (!(fb_effective_rate(700, 630, 700) == 700)) @panic("exactly 90% still counts as keeping up");
-    if (!(fb_effective_rate(700, 629, 700) == 629)) @panic("below 90% is loss");
+    if (!(fb_effective_rate(700, 630, 700) == 700)) __t27_assert_fail("\n  exactly 90% still counts as keeping up:\n    fb_effective_rate(700, 630, 700) = {any}\n", .{ fb_effective_rate(700, 630, 700) });
+    if (!(fb_effective_rate(700, 629, 700) == 629)) __t27_assert_fail("\n  below 90% is loss:\n    fb_effective_rate(700, 629, 700) = {any}\n", .{ fb_effective_rate(700, 629, 700) });
 }
 test "chain_report_takes_the_bottleneck" {
-    if (!(fb_chain_report(500, 200) == 200)) @panic("downstream is the bottleneck");
+    if (!(fb_chain_report(500, 200) == 200)) __t27_assert_fail("\n  downstream is the bottleneck:\n    fb_chain_report(500, 200) = {any}\n", .{ fb_chain_report(500, 200) });
 }
 test "chain_report_takes_local_when_downstream_keeps_up" {
-    if (!(fb_chain_report(300, 500) == 300)) @panic("this hop is the bottleneck");
+    if (!(fb_chain_report(300, 500) == 300)) __t27_assert_fail("\n  this hop is the bottleneck:\n    fb_chain_report(300, 500) = {any}\n", .{ fb_chain_report(300, 500) });
 }
 test "chain_report_equal" {
-    if (!(fb_chain_report(400, 400) == 400)) @panic("no bottleneck, same figure");
+    if (!(fb_chain_report(400, 400) == 400)) __t27_assert_fail("\n  no bottleneck, same figure:\n    fb_chain_report(400, 400) = {any}\n", .{ fb_chain_report(400, 400) });
 }
 test "fec_packet_size_value" {
-    if (!(fec_packet_size() == 76)) @panic("6 header + 70 data = 76");
+    if (!(fec_packet_size() == 76)) __t27_assert_fail("\n  6 header + 70 data = 76:\n    fec_packet_size() = {any}\n", .{ fec_packet_size() });
 }
 comptime {
     // invariant: frag_header_is_5_bytes
-    // invariant: frag_header_is_5_bytes verified (no statements)
+    if (!(FRAG_HEADER_LEN == 5)) __t27_assert_fail("\n  assertion failed:\n    FRAG_HEADER_LEN = {any}\n", .{ FRAG_HEADER_LEN });
 }
 comptime {
     // invariant: max_data_is_70
-    // invariant: max_data_is_70 verified (no statements)
+    if (!(MAX_FRAG_DATA == 70)) __t27_assert_fail("\n  assertion failed:\n    MAX_FRAG_DATA = {any}\n", .{ MAX_FRAG_DATA });
 }
 comptime {
     // invariant: vstream_type_is_8
-    // invariant: vstream_type_is_8 verified (no statements)
+    if (!(VSTREAM_TYPE == 8)) __t27_assert_fail("\n  assertion failed:\n    VSTREAM_TYPE = {any}\n", .{ VSTREAM_TYPE });
 }
 comptime {
     // invariant: fec_type_differs_from_data_type
-    // invariant: fec_type_differs_from_data_type verified (no statements)
+    if (!(VSTREAM_FEC_TYPE != VSTREAM_TYPE)) __t27_assert_fail("\n  assertion failed:\n    VSTREAM_FEC_TYPE = {any}\n    VSTREAM_TYPE = {any}\n", .{ VSTREAM_FEC_TYPE, VSTREAM_TYPE });
 }
 comptime {
     // invariant: fec_header_is_one_longer
-    // invariant: fec_header_is_one_longer verified (no statements)
+    if (!(FEC_HEADER_LEN == 6)) __t27_assert_fail("\n  assertion failed:\n    FEC_HEADER_LEN = {any}\n", .{ FEC_HEADER_LEN });
 }
 comptime {
     // invariant: audio_port_differs_from_video
-    // invariant: audio_port_differs_from_video verified (no statements)
+    if (!(AUDIO_IN_PORT != VIDEO_IN_PORT)) __t27_assert_fail("\n  assertion failed:\n    AUDIO_IN_PORT = {any}\n    VIDEO_IN_PORT = {any}\n", .{ AUDIO_IN_PORT, VIDEO_IN_PORT });
 }
 comptime {
     // invariant: feedback_port_is_its_own
-    // invariant: feedback_port_is_its_own verified (no statements)
+    if (!(FEEDBACK_PORT != AUDIO_IN_PORT)) __t27_assert_fail("\n  assertion failed:\n    FEEDBACK_PORT = {any}\n    AUDIO_IN_PORT = {any}\n", .{ FEEDBACK_PORT, AUDIO_IN_PORT });
 }
 comptime {
     // invariant: feedback_carries_advice
-    // invariant: feedback_carries_advice verified (no statements)
+    if (!(FEEDBACK_LEN == 6)) __t27_assert_fail("\n  assertion failed:\n    FEEDBACK_LEN = {any}\n", .{ FEEDBACK_LEN });
 }
 comptime {
     // invariant: advice_values_are_distinct
-    // invariant: advice_values_are_distinct verified (no statements)
+    if (!(ADVICE_BACK_OFF != ADVICE_CLIMB)) __t27_assert_fail("\n  assertion failed:\n    ADVICE_BACK_OFF = {any}\n    ADVICE_CLIMB = {any}\n", .{ ADVICE_BACK_OFF, ADVICE_CLIMB });
 }
 comptime {
     // invariant: no_dead_zone
-    // invariant: no_dead_zone verified (no statements)
+    if (!(CLIMB_BELOW_PCT == BACK_OFF_AT_PCT)) __t27_assert_fail("\n  assertion failed:\n    CLIMB_BELOW_PCT = {any}\n    BACK_OFF_AT_PCT = {any}\n", .{ CLIMB_BELOW_PCT, BACK_OFF_AT_PCT });
 }
 comptime {
     // invariant: rx_report_type_is_distinct
-    // invariant: rx_report_type_is_distinct verified (no statements)
+    if (!(RX_REPORT_TYPE != VSTREAM_TYPE)) __t27_assert_fail("\n  assertion failed:\n    RX_REPORT_TYPE = {any}\n    VSTREAM_TYPE = {any}\n", .{ RX_REPORT_TYPE, VSTREAM_TYPE });
 }
 comptime {
     // invariant: rx_report_differs_from_fec
-    // invariant: rx_report_differs_from_fec verified (no statements)
+    if (!(RX_REPORT_TYPE != VSTREAM_FEC_TYPE)) __t27_assert_fail("\n  assertion failed:\n    RX_REPORT_TYPE = {any}\n    VSTREAM_FEC_TYPE = {any}\n", .{ RX_REPORT_TYPE, VSTREAM_FEC_TYPE });
 }

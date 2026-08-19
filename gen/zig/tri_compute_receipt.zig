@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const RECEIPT_GENESIS: u32 = 0x54524352;
@@ -321,17 +329,17 @@ fn verify_chain3_full(d0: u32, d1: u32, d2: u32, claimed: u32) bool {
 }
 test "leaf_verifies" {
     const leaf = receipt_leaf(0xE0E0, 0x11, 0xABCD, 2, 1);
-    if (!(verify_leaf(0xE0E0, 0x11, 0xABCD, 2, 1, leaf) == true)) @panic("honest leaf verifies");
+    if (!(verify_leaf(0xE0E0, 0x11, 0xABCD, 2, 1, leaf) == true)) __t27_assert_fail("\n  honest leaf verifies:\n    verify_leaf(0xE0E0, 0x11, 0xABCD, 2, 1, leaf) = {any}\n", .{ verify_leaf(0xE0E0, 0x11, 0xABCD, 2, 1, leaf) });
 }
 test "output_tamper_evident" {
     const honest = receipt_leaf(0xE0E0, 0x11, 0xABCD, 2, 1);
     const forged = receipt_leaf(0xE0E0, 0x11, 0xABCD, 999, 1);
-    if (!(honest != forged)) @panic("rewriting the output changes the receipt leaf");
+    if (!(honest != forged)) __t27_assert_fail("\n  rewriting the output changes the receipt leaf:\n    honest = {any}\n    forged = {any}\n", .{ honest, forged });
 }
 test "executor_bound" {
     const a = receipt_leaf(0xE0E0, 0x11, 0xABCD, 2, 1);
     const b = receipt_leaf(0xBEEF, 0x11, 0xABCD, 2, 1);
-    if (!(a != b)) @panic("different executor => different receipt");
+    if (!(a != b)) __t27_assert_fail("\n  different executor => different receipt:\n    a = {any}\n    b = {any}\n", .{ a, b });
 }
 test "chain_deterministic" {
     const l0 = receipt_leaf(0xE0E0, 0x11, 0x1111, 5, 1);
@@ -340,16 +348,16 @@ test "chain_deterministic" {
     const h0 = receipt_step(RECEIPT_GENESIS, l0);
     const h1 = receipt_step(h0, l1);
     const h2 = receipt_step(h1, l2);
-    if (!(verify_chain3(l0, l1, l2, h2) == true)) @panic("honest chain verifies");
+    if (!(verify_chain3(l0, l1, l2, h2) == true)) __t27_assert_fail("\n  honest chain verifies:\n    verify_chain3(l0, l1, l2, h2) = {any}\n", .{ verify_chain3(l0, l1, l2, h2) });
 }
 test "chain_order_sensitive" {
     const la = receipt_leaf(0xE0E0, 0x11, 0x1111, 5, 1);
     const lb = receipt_leaf(0xE0E0, 0x12, 0x2222, 7, 2);
-    const @"f0" = receipt_step(RECEIPT_GENESIS, la);
-    const forward = receipt_step(@"f0", lb);
+    const f0 = receipt_step(RECEIPT_GENESIS, la);
+    const forward = receipt_step(f0, lb);
     const r0 = receipt_step(RECEIPT_GENESIS, lb);
     const swapped = receipt_step(r0, la);
-    if (!(forward != swapped)) @panic("reordering receipts changes the head");
+    if (!(forward != swapped)) __t27_assert_fail("\n  reordering receipts changes the head:\n    forward = {any}\n    swapped = {any}\n", .{ forward, swapped });
 }
 test "chain_rejects_wrong_head" {
     const l0 = receipt_leaf(0xE0E0, 0x11, 0x1111, 5, 1);
@@ -358,38 +366,38 @@ test "chain_rejects_wrong_head" {
     const h0 = receipt_step(RECEIPT_GENESIS, l0);
     const h1 = receipt_step(h0, l1);
     const h2 = receipt_step(h1, l2);
-    if (!(verify_chain3(l0, l1, l2, h2 ^ 1) == false)) @panic("wrong head rejected");
+    if (!(verify_chain3(l0, l1, l2, h2 ^ 1) == false)) __t27_assert_fail("\n  wrong head rejected:\n    verify_chain3(l0, l1, l2, h2 ^ 1) = {any}\n", .{ verify_chain3(l0, l1, l2, h2 ^ 1) });
 }
 test "leaf64_independent_lanes" {
     const lo = receipt_leaf(0xE0E0, 0x11, 0xABCD, 2, 1);
     const hi = receipt_leaf_hi(0xE0E0, 0x11, 0xABCD, 2, 1);
-    if (!(lo != hi)) @panic("hi lane must decorrelate from lo (real 64-bit commit)");
+    if (!(lo != hi)) __t27_assert_fail("\n  hi lane must decorrelate from lo (real 64-bit commit):\n    lo = {any}\n    hi = {any}\n", .{ lo, hi });
 }
 test "leaf64_verifies_and_tamper" {
     const lo = receipt_leaf(0xE0E0, 0x11, 0xABCD, 2, 1);
     const hi = receipt_leaf_hi(0xE0E0, 0x11, 0xABCD, 2, 1);
-    if (!(verify_leaf64(0xE0E0, 0x11, 0xABCD, 2, 1, lo, hi) == true)) @panic("honest 64-bit commit verifies");
-    if (!(verify_leaf64(0xE0E0, 0x11, 0xABCD, 999, 1, lo, hi) == false)) @panic("tampered output fails 64-bit verify");
+    if (!(verify_leaf64(0xE0E0, 0x11, 0xABCD, 2, 1, lo, hi) == true)) __t27_assert_fail("\n  honest 64-bit commit verifies:\n    verify_leaf64(0xE0E0, 0x11, 0xABCD, 2, 1, lo, hi) = {any}\n", .{ verify_leaf64(0xE0E0, 0x11, 0xABCD, 2, 1, lo, hi) });
+    if (!(verify_leaf64(0xE0E0, 0x11, 0xABCD, 999, 1, lo, hi) == false)) __t27_assert_fail("\n  tampered output fails 64-bit verify:\n    verify_leaf64(0xE0E0, 0x11, 0xABCD, 999, 1, lo, hi) = {any}\n", .{ verify_leaf64(0xE0E0, 0x11, 0xABCD, 999, 1, lo, hi) });
 }
 test "device_binding" {
     const unbound = receipt_leaf_bound(0, 0xE0E0, 0x11, 0xABCD, 2, 1);
     const chip_a = receipt_leaf_bound(0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 2, 1);
     const chip_b = receipt_leaf_bound(0xC0FFEE02, 0xE0E0, 0x11, 0xABCD, 2, 1);
-    if (!(chip_a != chip_b)) @panic("different chip => different receipt");
-    if (!(chip_a != unbound)) @panic("chip-bound differs from unbound (script) receipt");
+    if (!(chip_a != chip_b)) __t27_assert_fail("\n  different chip => different receipt:\n    chip_a = {any}\n    chip_b = {any}\n", .{ chip_a, chip_b });
+    if (!(chip_a != unbound)) __t27_assert_fail("\n  chip-bound differs from unbound (script) receipt:\n    chip_a = {any}\n    unbound = {any}\n", .{ chip_a, unbound });
 }
 test "sign_digest_binds_all" {
     const d = sign_digest(0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 2, 1, 0x1234);
-    if (!(sign_digest(0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 999, 1, 0x1234) != d)) @panic("output change flips digest");
-    if (!(sign_digest(0xC0FFEE02, 0xE0E0, 0x11, 0xABCD, 2, 1, 0x1234) != d)) @panic("device change flips digest");
-    if (!(sign_digest(0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 2, 1, 0x9999) != d)) @panic("chain-head change flips digest");
+    if (!(sign_digest(0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 999, 1, 0x1234) != d)) __t27_assert_fail("\n  output change flips digest:\n    sign_digest(0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 999, 1, 0x1234) = {any}\n    d = {any}\n", .{ sign_digest(0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 999, 1, 0x1234), d });
+    if (!(sign_digest(0xC0FFEE02, 0xE0E0, 0x11, 0xABCD, 2, 1, 0x1234) != d)) __t27_assert_fail("\n  device change flips digest:\n    sign_digest(0xC0FFEE02, 0xE0E0, 0x11, 0xABCD, 2, 1, 0x1234) = {any}\n    d = {any}\n", .{ sign_digest(0xC0FFEE02, 0xE0E0, 0x11, 0xABCD, 2, 1, 0x1234), d });
+    if (!(sign_digest(0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 2, 1, 0x9999) != d)) __t27_assert_fail("\n  chain-head change flips digest:\n    sign_digest(0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 2, 1, 0x9999) = {any}\n    d = {any}\n", .{ sign_digest(0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 2, 1, 0x9999), d });
 }
 test "gf_op_bound" {
     const r_mul = receipt_leaf_gf(GF16, GF_MUL, 0x3C00, 0x4000, 0x4200, 0xC0FFEE01, 0xE0E0, 1);
     const r_add = receipt_leaf_gf(GF16, GF_ADD, 0x3C00, 0x4000, 0x4200, 0xC0FFEE01, 0xE0E0, 1);
-    if (!(r_mul != r_add)) @panic("GoldenFloat op is bound (GF16 MUL != GF16 ADD)");
+    if (!(r_mul != r_add)) __t27_assert_fail("\n  GoldenFloat op is bound (GF16 MUL != GF16 ADD):\n    r_mul = {any}\n    r_add = {any}\n", .{ r_mul, r_add });
     const r_mul2 = receipt_leaf_gf(GF16, GF_MUL, 0x3C00, 0x4000, 0x4300, 0xC0FFEE01, 0xE0E0, 1);
-    if (!(r_mul != r_mul2)) @panic("the GF16 result is bound into the receipt");
+    if (!(r_mul != r_mul2)) __t27_assert_fail("\n  the GF16 result is bound into the receipt:\n    r_mul = {any}\n    r_mul2 = {any}\n", .{ r_mul, r_mul2 });
 }
 test "full_chain_deterministic_and_tamper_evident" {
     const d0 = sign_digest(0xC0FFEE01, 0xE0E0, 0x11, 0x1111, 0x4200, 1, RECEIPT_GENESIS);
@@ -398,81 +406,81 @@ test "full_chain_deterministic_and_tamper_evident" {
     const h1 = chain_step_full(h0, d1);
     const d2 = sign_digest(0xC0FFEE01, 0xE0E0, 0x13, 0x3333, 0x4400, 3, h1);
     const h2 = chain_step_full(h1, d2);
-    if (!(verify_chain3_full(d0, d1, d2, h2) == true)) @panic("honest full chain verifies");
+    if (!(verify_chain3_full(d0, d1, d2, h2) == true)) __t27_assert_fail("\n  honest full chain verifies:\n    verify_chain3_full(d0, d1, d2, h2) = {any}\n", .{ verify_chain3_full(d0, d1, d2, h2) });
     const t1 = sign_digest(0xC0FFEE01, 0xE0E0, 0x12, 0x2222, 0x9999, 2, h0);
-    if (!(t1 != d1)) @panic("output tamper changes the signed digest");
-    if (!(verify_chain3_full(d0, t1, d2, h2) == false)) @panic("tampered receipt breaks the ledger head");
+    if (!(t1 != d1)) __t27_assert_fail("\n  output tamper changes the signed digest:\n    t1 = {any}\n    d1 = {any}\n", .{ t1, d1 });
+    if (!(verify_chain3_full(d0, t1, d2, h2) == false)) __t27_assert_fail("\n  tampered receipt breaks the ledger head:\n    verify_chain3_full(d0, t1, d2, h2) = {any}\n", .{ verify_chain3_full(d0, t1, d2, h2) });
 }
 test "full_chain_binds_device" {
     const d_chip = sign_digest(0xC0FFEE01, 0xE0E0, 0x11, 0x1111, 0x4200, 1, RECEIPT_GENESIS);
     const d_script = sign_digest(0, 0xE0E0, 0x11, 0x1111, 0x4200, 1, RECEIPT_GENESIS);
-    if (!(d_chip != d_script)) @panic("the ledger digest distinguishes silicon from a script");
+    if (!(d_chip != d_script)) __t27_assert_fail("\n  the ledger digest distinguishes silicon from a script:\n    d_chip = {any}\n    d_script = {any}\n", .{ d_chip, d_script });
 }
 test "request_bound_signature" {
     const dA = sign_digest_req(0x1001, 0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 0x4100, 1, RECEIPT_GENESIS);
     const dB = sign_digest_req(0x1002, 0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 0x4100, 1, RECEIPT_GENESIS);
-    if (!(dA != dB)) @panic("same result, different request => different signed digest");
+    if (!(dA != dB)) __t27_assert_fail("\n  same result, different request => different signed digest:\n    dA = {any}\n    dB = {any}\n", .{ dA, dB });
     const dA2 = sign_digest_req(0x1001, 0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 0x9999, 1, RECEIPT_GENESIS);
-    if (!(dA != dA2)) @panic("a tampered result still flips the request-bound digest");
+    if (!(dA != dA2)) __t27_assert_fail("\n  a tampered result still flips the request-bound digest:\n    dA = {any}\n    dA2 = {any}\n", .{ dA, dA2 });
 }
 test "format_family_bound" {
     const binary = receipt_leaf_gf_fmt(FMT_GF_BINARY, GF16, GF_MUL, 0x3C00, 0x4000, 0x4100, 0xC0FFEE01, 0xE0E0, 1);
     const ternary = receipt_leaf_gf_fmt(FMT_GFT, GF16, GF_MUL, 0x3C00, 0x4000, 0x4100, 0xC0FFEE01, 0xE0E0, 1);
-    if (!(binary != ternary)) @panic("GF16 (binary) and GF-T16 (ternary) attest to different receipts");
+    if (!(binary != ternary)) __t27_assert_fail("\n  GF16 (binary) and GF-T16 (ternary) attest to different receipts:\n    binary = {any}\n    ternary = {any}\n", .{ binary, ternary });
 }
 test "rung_attestations_are_distinct" {
     const r16 = receipt_leaf_gf_rung(FMT_GFT, 16, GFT16_RUNG_ET, GF_MUL, 0x11, 0x22, 0x33, 0xC0FFEE01, 0xE0E0, 1);
     const r32 = receipt_leaf_gf_rung(FMT_GFT, 32, GFT32_RUNG_ET, GF_MUL, 0x11, 0x22, 0x33, 0xC0FFEE01, 0xE0E0, 1);
     const r64 = receipt_leaf_gf_rung(FMT_GFT, 64, GFT64_RUNG_ET, GF_MUL, 0x11, 0x22, 0x33, 0xC0FFEE01, 0xE0E0, 1);
     const r128 = receipt_leaf_gf_rung(FMT_GFT, 128, GFT128_RUNG_ET, GF_MUL, 0x11, 0x22, 0x33, 0xC0FFEE01, 0xE0E0, 1);
-    if (!(r16 != r32)) @panic("GF-T16 != GF-T32 attestation");
-    if (!(r16 != r64)) @panic("GF-T16 != GF-T64 attestation");
-    if (!(r32 != r64)) @panic("GF-T32 != GF-T64 attestation");
-    if (!(r64 != r128)) @panic("GF-T64 != GF-T128 attestation");
-    if (!(r16 != r128)) @panic("GF-T16 != GF-T128 attestation");
+    if (!(r16 != r32)) __t27_assert_fail("\n  GF-T16 != GF-T32 attestation:\n    r16 = {any}\n    r32 = {any}\n", .{ r16, r32 });
+    if (!(r16 != r64)) __t27_assert_fail("\n  GF-T16 != GF-T64 attestation:\n    r16 = {any}\n    r64 = {any}\n", .{ r16, r64 });
+    if (!(r32 != r64)) __t27_assert_fail("\n  GF-T32 != GF-T64 attestation:\n    r32 = {any}\n    r64 = {any}\n", .{ r32, r64 });
+    if (!(r64 != r128)) __t27_assert_fail("\n  GF-T64 != GF-T128 attestation:\n    r64 = {any}\n    r128 = {any}\n", .{ r64, r128 });
+    if (!(r16 != r128)) __t27_assert_fail("\n  GF-T16 != GF-T128 attestation:\n    r16 = {any}\n    r128 = {any}\n", .{ r16, r128 });
 }
 test "wrong_rung_geometry_is_caught" {
     const good = receipt_leaf_gf_rung(FMT_GFT, 64, GFT64_RUNG_ET, GF_MUL, 0x11, 0x22, 0x33, 0xC0FFEE01, 0xE0E0, 1);
     const bad = receipt_leaf_gf_rung(FMT_GFT, 64, GFT16_RUNG_ET, GF_MUL, 0x11, 0x22, 0x33, 0xC0FFEE01, 0xE0E0, 1);
     const again = receipt_leaf_gf_rung(FMT_GFT, 64, GFT64_RUNG_ET, GF_MUL, 0x11, 0x22, 0x33, 0xC0FFEE01, 0xE0E0, 1);
-    if (!(good != bad)) @panic("width 64 with GF-T16's Et attests differently -- geometry bound");
-    if (!(good == again)) @panic("same rung + inputs -> same attestation (deterministic)");
+    if (!(good != bad)) __t27_assert_fail("\n  width 64 with GF-T16's Et attests differently -- geometry bound:\n    good = {any}\n    bad = {any}\n", .{ good, bad });
+    if (!(good == again)) __t27_assert_fail("\n  same rung + inputs -> same attestation (deterministic):\n    good = {any}\n    again = {any}\n", .{ good, again });
 }
 test "sha256_preimage_layout" {
-    if (!(digest_pre(0, 0x2001, 0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 0x4100, 1, RECEIPT_GENESIS) == TAG_RECEIPT)) @panic("word 0 is the domain tag");
-    if (!(digest_pre(3, 0x2001, 0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 0x4100, 1, RECEIPT_GENESIS) == 0xE0E0)) @panic("executor lands in word 3");
-    if (!(digest_pre(8, 0x2001, 0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 0x4100, 1, RECEIPT_GENESIS) == RECEIPT_GENESIS)) @panic("prev_head lands in word 8");
-    if (!(digest_pre(9, 0, 0, 0, 0, 0, 0, 0, 0) == SHA_PAD)) @panic("word 9 starts the SHA-256 padding");
-    if (!(digest_pre(15, 0, 0, 0, 0, 0, 0, 0, 0) == DIGEST_MSG_BITS)) @panic("word 15 is the 288-bit message length");
-    if (!(digest_pre(12, 0x2001, 0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 0x4100, 1, RECEIPT_GENESIS) == 0)) @panic("words 10..14 are zero pad");
+    if (!(digest_pre(0, 0x2001, 0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 0x4100, 1, RECEIPT_GENESIS) == TAG_RECEIPT)) __t27_assert_fail("\n  word 0 is the domain tag:\n    digest_pre(0, 0x2001, 0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 0x4100, 1, RECEIPT_GENESIS) = {any}\n    TAG_RECEIPT = {any}\n", .{ digest_pre(0, 0x2001, 0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 0x4100, 1, RECEIPT_GENESIS), TAG_RECEIPT });
+    if (!(digest_pre(3, 0x2001, 0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 0x4100, 1, RECEIPT_GENESIS) == 0xE0E0)) __t27_assert_fail("\n  executor lands in word 3:\n    digest_pre(3, 0x2001, 0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 0x4100, 1, RECEIPT_GENESIS) = {any}\n", .{ digest_pre(3, 0x2001, 0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 0x4100, 1, RECEIPT_GENESIS) });
+    if (!(digest_pre(8, 0x2001, 0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 0x4100, 1, RECEIPT_GENESIS) == RECEIPT_GENESIS)) __t27_assert_fail("\n  prev_head lands in word 8:\n    digest_pre(8, 0x2001, 0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 0x4100, 1, RECEIPT_GENESIS) = {any}\n    RECEIPT_GENESIS = {any}\n", .{ digest_pre(8, 0x2001, 0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 0x4100, 1, RECEIPT_GENESIS), RECEIPT_GENESIS });
+    if (!(digest_pre(9, 0, 0, 0, 0, 0, 0, 0, 0) == SHA_PAD)) __t27_assert_fail("\n  word 9 starts the SHA-256 padding:\n    digest_pre(9, 0, 0, 0, 0, 0, 0, 0, 0) = {any}\n    SHA_PAD = {any}\n", .{ digest_pre(9, 0, 0, 0, 0, 0, 0, 0, 0), SHA_PAD });
+    if (!(digest_pre(15, 0, 0, 0, 0, 0, 0, 0, 0) == DIGEST_MSG_BITS)) __t27_assert_fail("\n  word 15 is the 288-bit message length:\n    digest_pre(15, 0, 0, 0, 0, 0, 0, 0, 0) = {any}\n    DIGEST_MSG_BITS = {any}\n", .{ digest_pre(15, 0, 0, 0, 0, 0, 0, 0, 0), DIGEST_MSG_BITS });
+    if (!(digest_pre(12, 0x2001, 0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 0x4100, 1, RECEIPT_GENESIS) == 0)) __t27_assert_fail("\n  words 10..14 are zero pad:\n    digest_pre(12, 0x2001, 0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 0x4100, 1, RECEIPT_GENESIS) = {any}\n", .{ digest_pre(12, 0x2001, 0xC0FFEE01, 0xE0E0, 0x11, 0xABCD, 0x4100, 1, RECEIPT_GENESIS) });
 }
 test "sha256_preimage_domain_sep" {
-    if (!(digest_pre(0, 0, 0, 0, 0, 0, 0, 0, 0) == TAG_RECEIPT)) @panic("tag fixed even for all-zero fields");
-    if (!(TAG_RECEIPT != 0)) @panic("domain tag is non-zero");
+    if (!(digest_pre(0, 0, 0, 0, 0, 0, 0, 0, 0) == TAG_RECEIPT)) __t27_assert_fail("\n  tag fixed even for all-zero fields:\n    digest_pre(0, 0, 0, 0, 0, 0, 0, 0, 0) = {any}\n    TAG_RECEIPT = {any}\n", .{ digest_pre(0, 0, 0, 0, 0, 0, 0, 0, 0), TAG_RECEIPT });
+    if (!(TAG_RECEIPT != 0)) __t27_assert_fail("\n  domain tag is non-zero:\n    TAG_RECEIPT = {any}\n", .{ TAG_RECEIPT });
 }
 test "ledger_entry_layout" {
-    if (!(ledger_entry_pre(0, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) == 0xAA)) @panic("prev_head word 0 at idx 0");
-    if (!(ledger_entry_pre(8, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) == 0xD0)) @panic("digest word 0 at idx 8");
-    if (!(ledger_entry_pre(16, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) == 1000)) @panic("balance_after at idx 16");
-    if (!(ledger_entry_pre(17, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) == 9)) @panic("epoch at idx 17");
-    if (!(ledger_entry_pre(18, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) == TAG_LEDGER)) @panic("ledger tag at idx 18");
-    if (!(ledger_entry_pre(19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == SHA_PAD)) @panic("SHA pad marker at idx 19");
-    if (!(ledger_entry_pre(31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == LEDGER_MSG_BITS)) @panic("608-bit length at idx 31");
-    if (!(ledger_entry_pre(24, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) == 0)) @panic("interior padding word is zero");
+    if (!(ledger_entry_pre(0, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) == 0xAA)) __t27_assert_fail("\n  prev_head word 0 at idx 0:\n    ledger_entry_pre(0, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) = {any}\n", .{ ledger_entry_pre(0, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) });
+    if (!(ledger_entry_pre(8, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) == 0xD0)) __t27_assert_fail("\n  digest word 0 at idx 8:\n    ledger_entry_pre(8, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) = {any}\n", .{ ledger_entry_pre(8, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) });
+    if (!(ledger_entry_pre(16, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) == 1000)) __t27_assert_fail("\n  balance_after at idx 16:\n    ledger_entry_pre(16, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) = {any}\n", .{ ledger_entry_pre(16, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) });
+    if (!(ledger_entry_pre(17, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) == 9)) __t27_assert_fail("\n  epoch at idx 17:\n    ledger_entry_pre(17, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) = {any}\n", .{ ledger_entry_pre(17, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) });
+    if (!(ledger_entry_pre(18, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) == TAG_LEDGER)) __t27_assert_fail("\n  ledger tag at idx 18:\n    ledger_entry_pre(18, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) = {any}\n    TAG_LEDGER = {any}\n", .{ ledger_entry_pre(18, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9), TAG_LEDGER });
+    if (!(ledger_entry_pre(19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == SHA_PAD)) __t27_assert_fail("\n  SHA pad marker at idx 19:\n    ledger_entry_pre(19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) = {any}\n    SHA_PAD = {any}\n", .{ ledger_entry_pre(19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), SHA_PAD });
+    if (!(ledger_entry_pre(31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == LEDGER_MSG_BITS)) __t27_assert_fail("\n  608-bit length at idx 31:\n    ledger_entry_pre(31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) = {any}\n    LEDGER_MSG_BITS = {any}\n", .{ ledger_entry_pre(31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), LEDGER_MSG_BITS });
+    if (!(ledger_entry_pre(24, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) == 0)) __t27_assert_fail("\n  interior padding word is zero:\n    ledger_entry_pre(24, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) = {any}\n", .{ ledger_entry_pre(24, 0xAA, 1, 2, 3, 4, 5, 6, 7, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 1000, 9) });
 }
 test "merkle_pair_layout" {
-    if (!(merkle_pair_pre(0, 0xA0, 1, 2, 3, 4, 5, 6, 7, 0xB0, 1, 2, 3, 4, 5, 6, 7) == 0xA0)) @panic("left child word 0 at idx 0");
-    if (!(merkle_pair_pre(8, 0xA0, 1, 2, 3, 4, 5, 6, 7, 0xB0, 1, 2, 3, 4, 5, 6, 7) == 0xB0)) @panic("right child word 0 at idx 8");
-    if (!(merkle_pair_pre(15, 0xA0, 1, 2, 3, 4, 5, 6, 7, 0xB0, 1, 2, 3, 4, 5, 6, 7) == 7)) @panic("right child word 7 at idx 15");
-    if (!(merkle_pair_pre(16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == SHA_PAD)) @panic("SHA pad marker at idx 16");
-    if (!(merkle_pair_pre(31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == MERKLE_MSG_BITS)) @panic("512-bit length at idx 31");
-    if (!(merkle_pair_pre(20, 0xA0, 1, 2, 3, 4, 5, 6, 7, 0xB0, 1, 2, 3, 4, 5, 6, 7) == 0)) @panic("interior padding word is zero");
+    if (!(merkle_pair_pre(0, 0xA0, 1, 2, 3, 4, 5, 6, 7, 0xB0, 1, 2, 3, 4, 5, 6, 7) == 0xA0)) __t27_assert_fail("\n  left child word 0 at idx 0:\n    merkle_pair_pre(0, 0xA0, 1, 2, 3, 4, 5, 6, 7, 0xB0, 1, 2, 3, 4, 5, 6, 7) = {any}\n", .{ merkle_pair_pre(0, 0xA0, 1, 2, 3, 4, 5, 6, 7, 0xB0, 1, 2, 3, 4, 5, 6, 7) });
+    if (!(merkle_pair_pre(8, 0xA0, 1, 2, 3, 4, 5, 6, 7, 0xB0, 1, 2, 3, 4, 5, 6, 7) == 0xB0)) __t27_assert_fail("\n  right child word 0 at idx 8:\n    merkle_pair_pre(8, 0xA0, 1, 2, 3, 4, 5, 6, 7, 0xB0, 1, 2, 3, 4, 5, 6, 7) = {any}\n", .{ merkle_pair_pre(8, 0xA0, 1, 2, 3, 4, 5, 6, 7, 0xB0, 1, 2, 3, 4, 5, 6, 7) });
+    if (!(merkle_pair_pre(15, 0xA0, 1, 2, 3, 4, 5, 6, 7, 0xB0, 1, 2, 3, 4, 5, 6, 7) == 7)) __t27_assert_fail("\n  right child word 7 at idx 15:\n    merkle_pair_pre(15, 0xA0, 1, 2, 3, 4, 5, 6, 7, 0xB0, 1, 2, 3, 4, 5, 6, 7) = {any}\n", .{ merkle_pair_pre(15, 0xA0, 1, 2, 3, 4, 5, 6, 7, 0xB0, 1, 2, 3, 4, 5, 6, 7) });
+    if (!(merkle_pair_pre(16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == SHA_PAD)) __t27_assert_fail("\n  SHA pad marker at idx 16:\n    merkle_pair_pre(16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) = {any}\n    SHA_PAD = {any}\n", .{ merkle_pair_pre(16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), SHA_PAD });
+    if (!(merkle_pair_pre(31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == MERKLE_MSG_BITS)) __t27_assert_fail("\n  512-bit length at idx 31:\n    merkle_pair_pre(31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) = {any}\n    MERKLE_MSG_BITS = {any}\n", .{ merkle_pair_pre(31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), MERKLE_MSG_BITS });
+    if (!(merkle_pair_pre(20, 0xA0, 1, 2, 3, 4, 5, 6, 7, 0xB0, 1, 2, 3, 4, 5, 6, 7) == 0)) __t27_assert_fail("\n  interior padding word is zero:\n    merkle_pair_pre(20, 0xA0, 1, 2, 3, 4, 5, 6, 7, 0xB0, 1, 2, 3, 4, 5, 6, 7) = {any}\n", .{ merkle_pair_pre(20, 0xA0, 1, 2, 3, 4, 5, 6, 7, 0xB0, 1, 2, 3, 4, 5, 6, 7) });
 }
 test "input_digest_layout" {
-    if (!(input_digest_pre(0, 9, 9, 9, 9, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 9, 9, 9) == TAG_INPUT)) @panic("tag at word 0");
-    if (!(input_digest_pre(5, 9, 9, 9, 9, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 9, 9, 9) == 0xA0)) @panic("operand hash word 0 at idx 5");
-    if (!(input_digest_pre(12, 9, 9, 9, 9, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 9, 9, 9) == 0xA7)) @panic("operand hash word 7 at idx 12");
-    if (!(input_digest_pre(13, 9, 9, 9, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0x4100, 1, 0x54524352) == 0x4100)) @panic("out at idx 13");
-    if (!(input_digest_pre(16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == SHA_PAD)) @panic("pad at idx 16");
-    if (!(input_digest_pre(31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == MERKLE_MSG_BITS)) @panic("512-bit length at idx 31");
+    if (!(input_digest_pre(0, 9, 9, 9, 9, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 9, 9, 9) == TAG_INPUT)) __t27_assert_fail("\n  tag at word 0:\n    input_digest_pre(0, 9, 9, 9, 9, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 9, 9, 9) = {any}\n    TAG_INPUT = {any}\n", .{ input_digest_pre(0, 9, 9, 9, 9, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 9, 9, 9), TAG_INPUT });
+    if (!(input_digest_pre(5, 9, 9, 9, 9, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 9, 9, 9) == 0xA0)) __t27_assert_fail("\n  operand hash word 0 at idx 5:\n    input_digest_pre(5, 9, 9, 9, 9, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 9, 9, 9) = {any}\n", .{ input_digest_pre(5, 9, 9, 9, 9, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 9, 9, 9) });
+    if (!(input_digest_pre(12, 9, 9, 9, 9, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 9, 9, 9) == 0xA7)) __t27_assert_fail("\n  operand hash word 7 at idx 12:\n    input_digest_pre(12, 9, 9, 9, 9, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 9, 9, 9) = {any}\n", .{ input_digest_pre(12, 9, 9, 9, 9, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 9, 9, 9) });
+    if (!(input_digest_pre(13, 9, 9, 9, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0x4100, 1, 0x54524352) == 0x4100)) __t27_assert_fail("\n  out at idx 13:\n    input_digest_pre(13, 9, 9, 9, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0x4100, 1, 0x54524352) = {any}\n", .{ input_digest_pre(13, 9, 9, 9, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0x4100, 1, 0x54524352) });
+    if (!(input_digest_pre(16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == SHA_PAD)) __t27_assert_fail("\n  pad at idx 16:\n    input_digest_pre(16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) = {any}\n    SHA_PAD = {any}\n", .{ input_digest_pre(16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), SHA_PAD });
+    if (!(input_digest_pre(31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == MERKLE_MSG_BITS)) __t27_assert_fail("\n  512-bit length at idx 31:\n    input_digest_pre(31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) = {any}\n    MERKLE_MSG_BITS = {any}\n", .{ input_digest_pre(31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), MERKLE_MSG_BITS });
 }

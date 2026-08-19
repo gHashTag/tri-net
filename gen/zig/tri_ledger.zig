@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const LEDGER_GENESIS: u32 = 0x54524C47;
@@ -38,13 +46,13 @@ test "balance_accumulates" {
     const b0 = balance_add(0, 713);
     const b1 = balance_add(b0, 258);
     const b2 = balance_add(b1, 27);
-    if (!(b0 == 713)) @panic("round 1");
-    if (!(b1 == 971)) @panic("round 1+2");
-    if (!(b2 == 998)) @panic("round 1+2+3");
-    if (!(b2 > b1)) @panic("monotonic");
+    if (!(b0 == 713)) __t27_assert_fail("\n  round 1:\n    b0 = {any}\n", .{ b0 });
+    if (!(b1 == 971)) __t27_assert_fail("\n  round 1+2:\n    b1 = {any}\n", .{ b1 });
+    if (!(b2 == 998)) __t27_assert_fail("\n  round 1+2+3:\n    b2 = {any}\n", .{ b2 });
+    if (!(b2 > b1)) __t27_assert_fail("\n  monotonic:\n    b2 = {any}\n    b1 = {any}\n", .{ b2, b1 });
 }
 test "balance_saturates" {
-    if (!(balance_add(0xFFFFFF00, 0x0000FFFF) == 0xFFFFFFFF)) @panic("saturates");
+    if (!(balance_add(0xFFFFFF00, 0x0000FFFF) == 0xFFFFFFFF)) __t27_assert_fail("\n  saturates:\n    balance_add(0xFFFFFF00, 0x0000FFFF) = {any}\n", .{ balance_add(0xFFFFFF00, 0x0000FFFF) });
 }
 test "state_deterministic" {
     const a = verify_chain3(0x1111, 1, 0x2222, 2, 0x3333, 3, 0);
@@ -52,7 +60,7 @@ test "state_deterministic" {
     const s0 = state_step(LEDGER_GENESIS, 0x1111, 1);
     const s1 = state_step(s0, 0x2222, 2);
     const s2 = state_step(s1, 0x3333, 3);
-    if (!(verify_chain3(0x1111, 1, 0x2222, 2, 0x3333, 3, s2) == true)) @panic("honest chain verifies");
+    if (!(verify_chain3(0x1111, 1, 0x2222, 2, 0x3333, 3, s2) == true)) __t27_assert_fail("\n  honest chain verifies:\n    verify_chain3(0x1111, 1, 0x2222, 2, 0x3333, 3, s2) = {any}\n", .{ verify_chain3(0x1111, 1, 0x2222, 2, 0x3333, 3, s2) });
 }
 test "state_tamper_evident" {
     const s0 = state_step(LEDGER_GENESIS, 0x1111, 1);
@@ -61,18 +69,18 @@ test "state_tamper_evident" {
     const t0 = state_step(LEDGER_GENESIS, 0x9999, 1);
     const t1 = state_step(t0, 0x2222, 2);
     const tampered = state_step(t1, 0x3333, 3);
-    if (!(honest != tampered)) @panic("tampering an old round changes the state root");
+    if (!(honest != tampered)) __t27_assert_fail("\n  tampering an old round changes the state root:\n    honest = {any}\n    tampered = {any}\n", .{ honest, tampered });
 }
 test "state_order_sensitive" {
     const s0 = state_step(LEDGER_GENESIS, 0xAAAA, 1);
     const forward = state_step(s0, 0xBBBB, 2);
     const r0 = state_step(LEDGER_GENESIS, 0xBBBB, 2);
     const swapped = state_step(r0, 0xAAAA, 1);
-    if (!(forward != swapped)) @panic("reordering rounds changes the state root");
+    if (!(forward != swapped)) __t27_assert_fail("\n  reordering rounds changes the state root:\n    forward = {any}\n    swapped = {any}\n", .{ forward, swapped });
 }
 test "verify_rejects_wrong_root" {
     const s0 = state_step(LEDGER_GENESIS, 0x1111, 1);
     const s1 = state_step(s0, 0x2222, 2);
     const s2 = state_step(s1, 0x3333, 3);
-    if (!(verify_chain3(0x1111, 1, 0x2222, 2, 0x3333, 3, s2 ^ 1) == false)) @panic("wrong root rejected");
+    if (!(verify_chain3(0x1111, 1, 0x2222, 2, 0x3333, 3, s2 ^ 1) == false)) __t27_assert_fail("\n  wrong root rejected:\n    verify_chain3(0x1111, 1, 0x2222, 2, 0x3333, 3, s2 ^ 1) = {any}\n", .{ verify_chain3(0x1111, 1, 0x2222, 2, 0x3333, 3, s2 ^ 1) });
 }

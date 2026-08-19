@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const DEFAULT_TTL: u8 = 8;
@@ -101,14 +109,14 @@ fn delivery_decision(is_local: bool, ttl_expired: bool, route_exists: bool, dest
 }
 test "mesh_ip_converts_correctly" {
     const a, const b, const c, const d = mesh_ip(1);
-    if (!(a == 10)) @panic("network A should be 10");
-    if (!(b == 42)) @panic("network B should be 42");
-    if (!(c == 0)) @panic("network C should be 0");
-    if (!(d == 1)) @panic("node D should be 1");
+    if (!(a == 10)) __t27_assert_fail("\n  network A should be 10:\n    a = {any}\n", .{ a });
+    if (!(b == 42)) __t27_assert_fail("\n  network B should be 42:\n    b = {any}\n", .{ b });
+    if (!(c == 0)) __t27_assert_fail("\n  network C should be 0:\n    c = {any}\n", .{ c });
+    if (!(d == 1)) __t27_assert_fail("\n  node D should be 1:\n    d = {any}\n", .{ d });
 }
 test "mesh_ip_max_node_id" {
     _, _, _, const d = mesh_ip(254);
-    if (!(d == 254)) @panic("max node ID should be 254");
+    if (!(d == 254)) __t27_assert_fail("\n  max node ID should be 254:\n    d = {any}\n", .{ d });
 }
 test "is_mesh_subnet_valid" {
     const valid = is_mesh_subnet(10, 42, 0);
@@ -116,103 +124,103 @@ test "is_mesh_subnet_valid" {
 }
 test "is_mesh_subnet_invalid_network" {
     const valid = is_mesh_subnet(192, 168, 1);
-    if (!(valid == false)) @panic("192.168.1.0 should not be mesh subnet");
+    if (!(valid == false)) __t27_assert_fail("\n  192.168.1.0 should not be mesh subnet:\n    valid = {any}\n", .{ valid });
 }
 test "node_of_ip_valid" {
     const node_id, const valid = node_of_ip(10, 42, 0, 100);
-    if (!(node_id == 100)) @panic("node ID should be 100");
+    if (!(node_id == 100)) __t27_assert_fail("\n  node ID should be 100:\n    node_id = {any}\n", .{ node_id });
     if (!(valid)) @panic("should be valid");
 }
 test "node_of_ip_invalid_subnet" {
     _, const valid = node_of_ip(192, 168, 1, 100);
-    if (!(valid == false)) @panic("wrong subnet should be invalid");
+    if (!(valid == false)) __t27_assert_fail("\n  wrong subnet should be invalid:\n    valid = {any}\n", .{ valid });
 }
 test "node_of_ip_invalid_range" {
     _, const valid = node_of_ip(10, 42, 0, 255);
-    if (!(valid == false)) @panic("node ID 255 should be invalid");
+    if (!(valid == false)) __t27_assert_fail("\n  node ID 255 should be invalid:\n    valid = {any}\n", .{ valid });
 }
 test "node_of_ip_min_boundary" {
     const node_id, const valid = node_of_ip(10, 42, 0, 1);
-    if (!(node_id == 1)) @panic("min node ID should be 1");
+    if (!(node_id == 1)) __t27_assert_fail("\n  min node ID should be 1:\n    node_id = {any}\n", .{ node_id });
     if (!(valid)) @panic("min node ID should be valid");
 }
 test "decrement_ttl_normal" {
     const new_ttl, const expired = decrement_ttl(8);
-    if (!(new_ttl == 7)) @panic("TTL should decrement to 7");
-    if (!(expired == false)) @panic("should not be expired");
+    if (!(new_ttl == 7)) __t27_assert_fail("\n  TTL should decrement to 7:\n    new_ttl = {any}\n", .{ new_ttl });
+    if (!(expired == false)) __t27_assert_fail("\n  should not be expired:\n    expired = {any}\n", .{ expired });
 }
 test "decrement_ttl_at_one" {
     const new_ttl, const expired = decrement_ttl(1);
-    if (!(new_ttl == 0)) @panic("TTL should go to 0");
-    if (!(expired == true)) @panic("should be expired");
+    if (!(new_ttl == 0)) __t27_assert_fail("\n  TTL should go to 0:\n    new_ttl = {any}\n", .{ new_ttl });
+    if (!(expired == true)) __t27_assert_fail("\n  should be expired:\n    expired = {any}\n", .{ expired });
 }
 test "decrement_ttl_at_zero" {
     const new_ttl, const expired = decrement_ttl(0);
-    if (!(new_ttl == 0)) @panic("TTL should stay 0");
-    if (!(expired == true)) @panic("should be expired");
+    if (!(new_ttl == 0)) __t27_assert_fail("\n  TTL should stay 0:\n    new_ttl = {any}\n", .{ new_ttl });
+    if (!(expired == true)) __t27_assert_fail("\n  should be expired:\n    expired = {any}\n", .{ expired });
 }
 test "is_ttl_expired_check" {
     const expired = is_ttl_expired(0);
     if (!(expired)) @panic("TTL 0 should be expired");
     const not_expired = is_ttl_expired(5);
-    if (!(not_expired == false)) @panic("TTL 5 should not be expired");
+    if (!(not_expired == false)) __t27_assert_fail("\n  TTL 5 should not be expired:\n    not_expired = {any}\n", .{ not_expired });
 }
 test "choose_next_hop_all_finite" {
     const next_hop, const found = choose_next_hop(256, 512, 1024, true, true, true);
-    if (!(next_hop == 1)) @panic("should choose n1 (lowest ETX)");
+    if (!(next_hop == 1)) __t27_assert_fail("\n  should choose n1 (lowest ETX):\n    next_hop = {any}\n", .{ next_hop });
     if (!(found)) @panic("should find next hop");
 }
 test "choose_next_hop_two_finite" {
     const next_hop, const found = choose_next_hop(512, 256, 0xFFFF, true, true, false);
-    if (!(next_hop == 2)) @panic("should choose n2 (lowest finite)");
+    if (!(next_hop == 2)) __t27_assert_fail("\n  should choose n2 (lowest finite):\n    next_hop = {any}\n", .{ next_hop });
     if (!(found)) @panic("should find next hop");
 }
 test "choose_next_hop_one_finite" {
     const next_hop, const found = choose_next_hop(0xFFFF, 512, 0xFFFF, false, true, false);
-    if (!(next_hop == 2)) @panic("should choose only finite n2");
+    if (!(next_hop == 2)) __t27_assert_fail("\n  should choose only finite n2:\n    next_hop = {any}\n", .{ next_hop });
     if (!(found)) @panic("should find next hop");
 }
 test "choose_next_hop_none_finite" {
     _, const found = choose_next_hop(0xFFFF, 0xFFFF, 0xFFFF, true, true, true);
-    if (!(found == false)) @panic("should not find next hop");
+    if (!(found == false)) __t27_assert_fail("\n  should not find next hop:\n    found = {any}\n", .{ found });
 }
 test "choose_next_hop_tie_breaker" {
     const next_hop, const found = choose_next_hop(512, 512, 1024, true, true, false);
-    if (!(next_hop == 1)) @panic("should prefer n1 in tie");
+    if (!(next_hop == 1)) __t27_assert_fail("\n  should prefer n1 in tie:\n    next_hop = {any}\n", .{ next_hop });
     if (!(found)) @panic("should find next hop");
 }
 test "delivery_decision_local" {
     const action, const next_hop = delivery_decision(true, false, true, 5);
-    if (!(action == 0)) @panic("should deliver locally");
-    if (!(next_hop == 0)) @panic("next hop irrelevant for local");
+    if (!(action == 0)) __t27_assert_fail("\n  should deliver locally:\n    action = {any}\n", .{ action });
+    if (!(next_hop == 0)) __t27_assert_fail("\n  next hop irrelevant for local:\n    next_hop = {any}\n", .{ next_hop });
 }
 test "delivery_decision_ttl_expired" {
     const action, const next_hop = delivery_decision(false, true, true, 5);
-    if (!(action == 2)) @panic("should drop (TTL expired)");
-    if (!(next_hop == 0)) @panic("next hop irrelevant for drop");
+    if (!(action == 2)) __t27_assert_fail("\n  should drop (TTL expired):\n    action = {any}\n", .{ action });
+    if (!(next_hop == 0)) __t27_assert_fail("\n  next hop irrelevant for drop:\n    next_hop = {any}\n", .{ next_hop });
 }
 test "delivery_decision_no_route" {
     const action, const next_hop = delivery_decision(false, false, false, 5);
-    if (!(action == 2)) @panic("should drop (no route)");
-    if (!(next_hop == 0)) @panic("next hop irrelevant for drop");
+    if (!(action == 2)) __t27_assert_fail("\n  should drop (no route):\n    action = {any}\n", .{ action });
+    if (!(next_hop == 0)) __t27_assert_fail("\n  next hop irrelevant for drop:\n    next_hop = {any}\n", .{ next_hop });
 }
 test "delivery_decision_forward" {
     const action, const next_hop = delivery_decision(false, false, true, 7);
-    if (!(action == 1)) @panic("should forward");
-    if (!(next_hop == 7)) @panic("should forward to destination");
+    if (!(action == 1)) __t27_assert_fail("\n  should forward:\n    action = {any}\n", .{ action });
+    if (!(next_hop == 7)) __t27_assert_fail("\n  should forward to destination:\n    next_hop = {any}\n", .{ next_hop });
 }
 test "full_routing_flow" {
     const dest_node, const valid_dest = node_of_ip(10, 42, 0, 100);
-    if (!(dest_node == 100)) @panic("destination should be node 100");
+    if (!(dest_node == 100)) __t27_assert_fail("\n  destination should be node 100:\n    dest_node = {any}\n", .{ dest_node });
     if (!(valid_dest)) @panic("destination should be valid");
     const is_local = dest_node == 2;
-    if (!(is_local == false)) @panic("not for us, need to forward");
+    if (!(is_local == false)) __t27_assert_fail("\n  not for us, need to forward:\n    is_local = {any}\n", .{ is_local });
     _, const ttl_expired = decrement_ttl(7);
-    if (!(ttl_expired == false)) @panic("TTL still valid");
+    if (!(ttl_expired == false)) __t27_assert_fail("\n  TTL still valid:\n    ttl_expired = {any}\n", .{ ttl_expired });
     const next_hop, const route_exists = choose_next_hop(512, 1024, 256, true, true, true);
-    if (!(next_hop == 3)) @panic("should forward via node 3");
+    if (!(next_hop == 3)) __t27_assert_fail("\n  should forward via node 3:\n    next_hop = {any}\n", .{ next_hop });
     if (!(route_exists)) @panic("route exists");
     const action, const final_hop = delivery_decision(is_local, ttl_expired, route_exists, next_hop);
-    if (!(action == 1)) @panic("should forward");
-    if (!(final_hop == 3)) @panic("forward to node 3");
+    if (!(action == 1)) __t27_assert_fail("\n  should forward:\n    action = {any}\n", .{ action });
+    if (!(final_hop == 3)) __t27_assert_fail("\n  forward to node 3:\n    final_hop = {any}\n", .{ final_hop });
 }

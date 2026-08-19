@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const PENDING: u32 = 0;
@@ -55,35 +63,35 @@ fn can_finalize(state: u32) bool {
     return state == FINALIZED;
 }
 test "provisional_credit" {
-    if (!(provisional_balance(1000, 16, 1) == 1016)) @panic("bonded result credits the reward provisionally");
-    if (!(provisional_balance(1000, 16, 0) == 1000)) @panic("unbonded result is not credited");
+    if (!(provisional_balance(1000, 16, 1) == 1016)) __t27_assert_fail("\n  bonded result credits the reward provisionally:\n    provisional_balance(1000, 16, 1) = {any}\n", .{ provisional_balance(1000, 16, 1) });
+    if (!(provisional_balance(1000, 16, 0) == 1000)) __t27_assert_fail("\n  unbonded result is not credited:\n    provisional_balance(1000, 16, 0) = {any}\n", .{ provisional_balance(1000, 16, 0) });
 }
 test "window_gating" {
-    if (!(window_open(5, 3, 10) == true)) @panic("epoch 5 within [3, 13) -> open");
-    if (!(window_open(13, 3, 10) == false)) @panic("epoch 13 == settled_at+window -> closed");
-    if (!(window_open(20, 3, 10) == false)) @panic("well past the window -> closed");
+    if (!(window_open(5, 3, 10) == true)) __t27_assert_fail("\n  epoch 5 within [3, 13) -> open:\n    window_open(5, 3, 10) = {any}\n", .{ window_open(5, 3, 10) });
+    if (!(window_open(13, 3, 10) == false)) __t27_assert_fail("\n  epoch 13 == settled_at+window -> closed:\n    window_open(13, 3, 10) = {any}\n", .{ window_open(13, 3, 10) });
+    if (!(window_open(20, 3, 10) == false)) __t27_assert_fail("\n  well past the window -> closed:\n    window_open(20, 3, 10) = {any}\n", .{ window_open(20, 3, 10) });
 }
 test "window_grows_with_the_rung" {
-    if (!(window_for_rung(4) == 64)) @panic("GF-T16 (Et4) base window 64");
-    if (!(window_for_rung(6) == 96)) @panic("GF-T32 (Et6) window 96 -- longer than GF-T16");
-    if (!(window_for_rung(9) == 144)) @panic("GF-T64 (Et9) window 144");
-    if (!(window_for_rung(14) == 224)) @panic("GF-T128 (Et14) window 224 -- longest");
-    if (!(window_for_rung(3) == 64)) @panic("sub-flagship GF-T8 (Et3) gets the base, never shrinks");
-    if (!(window_for_rung(6) > window_for_rung(4))) @panic("GF-T32 window > GF-T16");
-    if (!(window_for_rung(9) > window_for_rung(6))) @panic("GF-T64 window > GF-T32");
-    if (!(window_open_rung(100, 0, 4) == false)) @panic("GF-T16 finalized by epoch 100 (window 64)");
-    if (!(window_open_rung(100, 0, 9) == true)) @panic("GF-T64 still challengeable at epoch 100 (window 144)");
+    if (!(window_for_rung(4) == 64)) __t27_assert_fail("\n  GF-T16 (Et4) base window 64:\n    window_for_rung(4) = {any}\n", .{ window_for_rung(4) });
+    if (!(window_for_rung(6) == 96)) __t27_assert_fail("\n  GF-T32 (Et6) window 96 -- longer than GF-T16:\n    window_for_rung(6) = {any}\n", .{ window_for_rung(6) });
+    if (!(window_for_rung(9) == 144)) __t27_assert_fail("\n  GF-T64 (Et9) window 144:\n    window_for_rung(9) = {any}\n", .{ window_for_rung(9) });
+    if (!(window_for_rung(14) == 224)) __t27_assert_fail("\n  GF-T128 (Et14) window 224 -- longest:\n    window_for_rung(14) = {any}\n", .{ window_for_rung(14) });
+    if (!(window_for_rung(3) == 64)) __t27_assert_fail("\n  sub-flagship GF-T8 (Et3) gets the base, never shrinks:\n    window_for_rung(3) = {any}\n", .{ window_for_rung(3) });
+    if (!(window_for_rung(6) > window_for_rung(4))) __t27_assert_fail("\n  GF-T32 window > GF-T16:\n    window_for_rung(6) = {any}\n    window_for_rung(4) = {any}\n", .{ window_for_rung(6), window_for_rung(4) });
+    if (!(window_for_rung(9) > window_for_rung(6))) __t27_assert_fail("\n  GF-T64 window > GF-T32:\n    window_for_rung(9) = {any}\n    window_for_rung(6) = {any}\n", .{ window_for_rung(9), window_for_rung(6) });
+    if (!(window_open_rung(100, 0, 4) == false)) __t27_assert_fail("\n  GF-T16 finalized by epoch 100 (window 64):\n    window_open_rung(100, 0, 4) = {any}\n", .{ window_open_rung(100, 0, 4) });
+    if (!(window_open_rung(100, 0, 9) == true)) __t27_assert_fail("\n  GF-T64 still challengeable at epoch 100 (window 144):\n    window_open_rung(100, 0, 9) = {any}\n", .{ window_open_rung(100, 0, 9) });
 }
 test "lifecycle_states" {
-    if (!(settle_state(1, 0) == PENDING)) @panic("in window, no challenge -> pending");
-    if (!(settle_state(0, 0) == FINALIZED)) @panic("window closed, no challenge -> finalized");
-    if (!(settle_state(1, 1) == REVERSED)) @panic("slashed in window -> reversed");
-    if (!(settle_state(0, 1) == REVERSED)) @panic("slashed after window -> still reversed");
+    if (!(settle_state(1, 0) == PENDING)) __t27_assert_fail("\n  in window, no challenge -> pending:\n    settle_state(1, 0) = {any}\n    PENDING = {any}\n", .{ settle_state(1, 0), PENDING });
+    if (!(settle_state(0, 0) == FINALIZED)) __t27_assert_fail("\n  window closed, no challenge -> finalized:\n    settle_state(0, 0) = {any}\n    FINALIZED = {any}\n", .{ settle_state(0, 0), FINALIZED });
+    if (!(settle_state(1, 1) == REVERSED)) __t27_assert_fail("\n  slashed in window -> reversed:\n    settle_state(1, 1) = {any}\n    REVERSED = {any}\n", .{ settle_state(1, 1), REVERSED });
+    if (!(settle_state(0, 1) == REVERSED)) __t27_assert_fail("\n  slashed after window -> still reversed:\n    settle_state(0, 1) = {any}\n    REVERSED = {any}\n", .{ settle_state(0, 1), REVERSED });
 }
 test "balance_resolution" {
-    if (!(balance_after_settle(1016, 16, REVERSED) == 1000)) @panic("reversal claws back the reward");
-    if (!(balance_after_settle(1016, 16, FINALIZED) == 1016)) @panic("finalize keeps the reward");
-    if (!(balance_after_settle(1016, 16, PENDING) == 1016)) @panic("pending keeps the reward (not yet final)");
-    if (!(can_finalize(FINALIZED) == true)) @panic("finalized can release the bond");
-    if (!(can_finalize(PENDING) == false)) @panic("pending cannot finalize yet");
+    if (!(balance_after_settle(1016, 16, REVERSED) == 1000)) __t27_assert_fail("\n  reversal claws back the reward:\n    balance_after_settle(1016, 16, REVERSED) = {any}\n", .{ balance_after_settle(1016, 16, REVERSED) });
+    if (!(balance_after_settle(1016, 16, FINALIZED) == 1016)) __t27_assert_fail("\n  finalize keeps the reward:\n    balance_after_settle(1016, 16, FINALIZED) = {any}\n", .{ balance_after_settle(1016, 16, FINALIZED) });
+    if (!(balance_after_settle(1016, 16, PENDING) == 1016)) __t27_assert_fail("\n  pending keeps the reward (not yet final):\n    balance_after_settle(1016, 16, PENDING) = {any}\n", .{ balance_after_settle(1016, 16, PENDING) });
+    if (!(can_finalize(FINALIZED) == true)) __t27_assert_fail("\n  finalized can release the bond:\n    can_finalize(FINALIZED) = {any}\n", .{ can_finalize(FINALIZED) });
+    if (!(can_finalize(PENDING) == false)) __t27_assert_fail("\n  pending cannot finalize yet:\n    can_finalize(PENDING) = {any}\n", .{ can_finalize(PENDING) });
 }

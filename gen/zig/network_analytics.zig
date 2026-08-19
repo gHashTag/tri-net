@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_NODES: u32 = 8;
@@ -108,84 +116,84 @@ fn is_congested(stats: u32, max_capacity: u32) bool {
 }
 test "create_traffic_stats_basic" {
     const stats = create_traffic_stats(100, 200, 50, 5);
-    if (!(get_bytes_sent(stats) == 100)) @panic("sent");
-    if (!(get_bytes_recv(stats) == 200)) @panic("received");
-    if (!(get_packet_count(stats) == 50)) @panic("packets");
-    if (!(get_error_count(stats) == 5)) @panic("errors");
+    if (!(get_bytes_sent(stats) == 100)) __t27_assert_fail("\n  sent:\n    get_bytes_sent(stats) = {any}\n", .{ get_bytes_sent(stats) });
+    if (!(get_bytes_recv(stats) == 200)) __t27_assert_fail("\n  received:\n    get_bytes_recv(stats) = {any}\n", .{ get_bytes_recv(stats) });
+    if (!(get_packet_count(stats) == 50)) __t27_assert_fail("\n  packets:\n    get_packet_count(stats) = {any}\n", .{ get_packet_count(stats) });
+    if (!(get_error_count(stats) == 5)) __t27_assert_fail("\n  errors:\n    get_error_count(stats) = {any}\n", .{ get_error_count(stats) });
 }
 test "calculate_total_traffic" {
     const stats = create_traffic_stats(100, 200, 50, 5);
-    if (!(calculate_total_traffic(stats) == 300)) @panic("total traffic");
+    if (!(calculate_total_traffic(stats) == 300)) __t27_assert_fail("\n  total traffic:\n    calculate_total_traffic(stats) = {any}\n", .{ calculate_total_traffic(stats) });
 }
 test "is_traffic_low_true" {
     const stats = create_traffic_stats(30, 40, 10, 0);
-    if (!(is_traffic_low(stats) == true)) @panic("low traffic");
+    if (!(is_traffic_low(stats) == true)) __t27_assert_fail("\n  low traffic:\n    is_traffic_low(stats) = {any}\n", .{ is_traffic_low(stats) });
 }
 test "is_traffic_high_true" {
     const stats = create_traffic_stats(250, 200, 100, 5);
-    if (!(is_traffic_high(stats) == true)) @panic("high traffic");
+    if (!(is_traffic_high(stats) == true)) __t27_assert_fail("\n  high traffic:\n    is_traffic_high(stats) = {any}\n", .{ is_traffic_high(stats) });
 }
 test "is_traffic_normal" {
     const stats = create_traffic_stats(200, 300, 50, 2);
-    if (!(is_traffic_normal(stats) == true)) @panic("normal traffic");
+    if (!(is_traffic_normal(stats) == true)) __t27_assert_fail("\n  normal traffic:\n    is_traffic_normal(stats) = {any}\n", .{ is_traffic_normal(stats) });
 }
 test "calculate_error_rate" {
     const stats = create_traffic_stats(100, 200, 50, 5);
-    if (!(calculate_error_rate(stats) == 10)) @panic("10% error rate");
+    if (!(calculate_error_rate(stats) == 10)) __t27_assert_fail("\n  10% error rate:\n    calculate_error_rate(stats) = {any}\n", .{ calculate_error_rate(stats) });
 }
 test "calculate_error_rate_no_traffic" {
     const stats = create_traffic_stats(0, 0, 0, 0);
-    if (!(calculate_error_rate(stats) == 0)) @panic("no error rate");
+    if (!(calculate_error_rate(stats) == 0)) __t27_assert_fail("\n  no error rate:\n    calculate_error_rate(stats) = {any}\n", .{ calculate_error_rate(stats) });
 }
 test "is_high_error_rate_true" {
     const stats = create_traffic_stats(100, 200, 40, 5);
-    if (!(is_high_error_rate(stats) == true)) @panic("high error rate");
+    if (!(is_high_error_rate(stats) == true)) __t27_assert_fail("\n  high error rate:\n    is_high_error_rate(stats) = {any}\n", .{ is_high_error_rate(stats) });
 }
 test "is_high_error_rate_false" {
     const stats = create_traffic_stats(100, 200, 60, 3);
-    if (!(is_high_error_rate(stats) == false)) @panic("normal error rate");
+    if (!(is_high_error_rate(stats) == false)) __t27_assert_fail("\n  normal error rate:\n    is_high_error_rate(stats) = {any}\n", .{ is_high_error_rate(stats) });
 }
 test "detect_pattern_spike" {
     const current = create_traffic_stats(250, 240, 100, 2);
     const previous = create_traffic_stats(100, 100, 20, 0);
-    if (!(detect_pattern(current, previous) == PATTERN_SPIKE)) @panic("spike detected");
+    if (!(detect_pattern(current, previous) == PATTERN_SPIKE)) __t27_assert_fail("\n  spike detected:\n    detect_pattern(current, previous) = {any}\n    PATTERN_SPIKE = {any}\n", .{ detect_pattern(current, previous), PATTERN_SPIKE });
 }
 test "detect_pattern_dropout" {
     const current = create_traffic_stats(50, 50, 10, 0);
     const previous = create_traffic_stats(250, 250, 80, 2);
-    if (!(detect_pattern(current, previous) == PATTERN_DROPOUT)) @panic("dropout detected");
+    if (!(detect_pattern(current, previous) == PATTERN_DROPOUT)) __t27_assert_fail("\n  dropout detected:\n    detect_pattern(current, previous) = {any}\n    PATTERN_DROPOUT = {any}\n", .{ detect_pattern(current, previous), PATTERN_DROPOUT });
 }
 test "detect_pattern_congestion" {
     const current = create_traffic_stats(200, 200, 40, 5);
     const previous = create_traffic_stats(200, 200, 40, 2);
-    if (!(detect_pattern(current, previous) == PATTERN_CONGESTION)) @panic("congestion detected");
+    if (!(detect_pattern(current, previous) == PATTERN_CONGESTION)) __t27_assert_fail("\n  congestion detected:\n    detect_pattern(current, previous) = {any}\n    PATTERN_CONGESTION = {any}\n", .{ detect_pattern(current, previous), PATTERN_CONGESTION });
 }
 test "detect_pattern_normal" {
     const current = create_traffic_stats(200, 250, 50, 2);
     const previous = create_traffic_stats(180, 230, 45, 1);
-    if (!(detect_pattern(current, previous) == PATTERN_NORMAL)) @panic("normal pattern");
+    if (!(detect_pattern(current, previous) == PATTERN_NORMAL)) __t27_assert_fail("\n  normal pattern:\n    detect_pattern(current, previous) = {any}\n    PATTERN_NORMAL = {any}\n", .{ detect_pattern(current, previous), PATTERN_NORMAL });
 }
 test "update_traffic_works" {
     const stats = create_traffic_stats(100, 200, 50, 5);
     const new_stats = update_traffic(stats, 50, 30, 10, 1);
-    if (!(get_bytes_sent(new_stats) == 150)) @panic("sent updated");
-    if (!(get_bytes_recv(new_stats) == 230)) @panic("received updated");
-    if (!(get_packet_count(new_stats) == 60)) @panic("packets updated");
-    if (!(get_error_count(new_stats) == 6)) @panic("errors updated");
+    if (!(get_bytes_sent(new_stats) == 150)) __t27_assert_fail("\n  sent updated:\n    get_bytes_sent(new_stats) = {any}\n", .{ get_bytes_sent(new_stats) });
+    if (!(get_bytes_recv(new_stats) == 230)) __t27_assert_fail("\n  received updated:\n    get_bytes_recv(new_stats) = {any}\n", .{ get_bytes_recv(new_stats) });
+    if (!(get_packet_count(new_stats) == 60)) __t27_assert_fail("\n  packets updated:\n    get_packet_count(new_stats) = {any}\n", .{ get_packet_count(new_stats) });
+    if (!(get_error_count(new_stats) == 6)) __t27_assert_fail("\n  errors updated:\n    get_error_count(new_stats) = {any}\n", .{ get_error_count(new_stats) });
 }
 test "calculate_utilization" {
     const stats = create_traffic_stats(200, 200, 100, 5);
-    if (!(calculate_utilization(stats, 800) == 50)) @panic("50% utilization");
+    if (!(calculate_utilization(stats, 800) == 50)) __t27_assert_fail("\n  50% utilization:\n    calculate_utilization(stats, 800) = {any}\n", .{ calculate_utilization(stats, 800) });
 }
 test "calculate_utilization_zero_capacity" {
     const stats = create_traffic_stats(400, 600, 100, 5);
-    if (!(calculate_utilization(stats, 0) == 0)) @panic("no capacity");
+    if (!(calculate_utilization(stats, 0) == 0)) __t27_assert_fail("\n  no capacity:\n    calculate_utilization(stats, 0) = {any}\n", .{ calculate_utilization(stats, 0) });
 }
 test "is_congested_true" {
     const stats = create_traffic_stats(250, 250, 200, 10);
-    if (!(is_congested(stats, 500) == true)) @panic("network congested");
+    if (!(is_congested(stats, 500) == true)) __t27_assert_fail("\n  network congested:\n    is_congested(stats, 500) = {any}\n", .{ is_congested(stats, 500) });
 }
 test "is_congested_false" {
     const stats = create_traffic_stats(400, 500, 100, 5);
-    if (!(is_congested(stats, 2000) == false)) @panic("network not congested");
+    if (!(is_congested(stats, 2000) == false)) __t27_assert_fail("\n  network not congested:\n    is_congested(stats, 2000) = {any}\n", .{ is_congested(stats, 2000) });
 }

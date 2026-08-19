@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_FLOWS: u32 = 8;
@@ -202,27 +210,27 @@ fn release_backpressure(flows: [MAX_FLOWS]u32, flow_index: u32) u32 {
 }
 test "flow_state_roundtrip" {
     const f = create_flow_state(3, 7, 16, 9);
-    if (!(get_sender_id(f) == 3)) @panic("sender");
-    if (!(get_receiver_id(f) == 7)) @panic("receiver");
-    if (!(get_window_size(f) == 16)) @panic("window");
-    if (!(get_credits(f) == 9)) @panic("credits");
+    if (!(get_sender_id(f) == 3)) __t27_assert_fail("\n  sender:\n    get_sender_id(f) = {any}\n", .{ get_sender_id(f) });
+    if (!(get_receiver_id(f) == 7)) __t27_assert_fail("\n  receiver:\n    get_receiver_id(f) = {any}\n", .{ get_receiver_id(f) });
+    if (!(get_window_size(f) == 16)) __t27_assert_fail("\n  window:\n    get_window_size(f) = {any}\n", .{ get_window_size(f) });
+    if (!(get_credits(f) == 9)) __t27_assert_fail("\n  credits:\n    get_credits(f) = {any}\n", .{ get_credits(f) });
 }
 test "credit_lifecycle" {
     var f = create_flow_state(1, 2, 16, 1);
     f = consume_credit(f);
-    if (!(get_credits(f) == 0)) @panic("credit consumed");
+    if (!(get_credits(f) == 0)) __t27_assert_fail("\n  credit consumed:\n    get_credits(f) = {any}\n", .{ get_credits(f) });
     f = consume_credit(f);
-    if (!(get_credits(f) == 0)) @panic("no underflow at zero");
+    if (!(get_credits(f) == 0)) __t27_assert_fail("\n  no underflow at zero:\n    get_credits(f) = {any}\n", .{ get_credits(f) });
     f = add_credits(f, 100);
-    if (!(get_credits(f) == 16)) @panic("credits cap at the window");
+    if (!(get_credits(f) == 16)) __t27_assert_fail("\n  credits cap at the window:\n    get_credits(f) = {any}\n", .{ get_credits(f) });
 }
 test "backpressure_levels" {
     var f = create_flow_state(1, 2, 16, 2);
-    if (!(is_under_backpressure(f) == 1)) @panic("14 used is backpressure");
-    if (!(calculate_backpressure_level(f) == 2)) @panic("high level");
+    if (!(is_under_backpressure(f) == 1)) __t27_assert_fail("\n  14 used is backpressure:\n    is_under_backpressure(f) = {any}\n", .{ is_under_backpressure(f) });
+    if (!(calculate_backpressure_level(f) == 2)) __t27_assert_fail("\n  high level:\n    calculate_backpressure_level(f) = {any}\n", .{ calculate_backpressure_level(f) });
     f = create_flow_state(1, 2, 16, 10);
-    if (!(is_under_backpressure(f) == 0)) @panic("6 used is fine");
-    if (!(calculate_backpressure_level(f) == 1)) @panic("moderate level");
+    if (!(is_under_backpressure(f) == 0)) __t27_assert_fail("\n  6 used is fine:\n    is_under_backpressure(f) = {any}\n", .{ is_under_backpressure(f) });
+    if (!(calculate_backpressure_level(f) == 1)) __t27_assert_fail("\n  moderate level:\n    calculate_backpressure_level(f) = {any}\n", .{ calculate_backpressure_level(f) });
     f = create_flow_state(1, 2, 16, 14);
-    if (!(calculate_backpressure_level(f) == 0)) @panic("2 used is no backpressure");
+    if (!(calculate_backpressure_level(f) == 0)) __t27_assert_fail("\n  2 used is no backpressure:\n    calculate_backpressure_level(f) = {any}\n", .{ calculate_backpressure_level(f) });
 }

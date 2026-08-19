@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_PACKETS: u32 = 64;
@@ -341,17 +349,17 @@ fn calculate_animation_stats(frames: [MAX_FRAMES]u32, frame_count: u32) u32 {
 }
 test "anim_packet_roundtrip_and_progress" {
     var p = create_anim_packet(5, 1, 2, 40);
-    if (!(get_anim_packet_id(p) == 5)) @panic("packet id");
-    if (!(get_anim_packet_progress(p) == 40)) @panic("progress");
+    if (!(get_anim_packet_id(p) == 5)) __t27_assert_fail("\n  packet id:\n    get_anim_packet_id(p) = {any}\n", .{ get_anim_packet_id(p) });
+    if (!(get_anim_packet_progress(p) == 40)) __t27_assert_fail("\n  progress:\n    get_anim_packet_progress(p) = {any}\n", .{ get_anim_packet_progress(p) });
     p = update_packet_progress(p, 30);
-    if (!(get_anim_packet_progress(p) == 70)) @panic("advanced");
+    if (!(get_anim_packet_progress(p) == 70)) __t27_assert_fail("\n  advanced:\n    get_anim_packet_progress(p) = {any}\n", .{ get_anim_packet_progress(p) });
     p = update_packet_progress(p, 90);
-    if (!(get_anim_packet_progress(p) == 100)) @panic("caps at 100");
+    if (!(get_anim_packet_progress(p) == 100)) __t27_assert_fail("\n  caps at 100:\n    get_anim_packet_progress(p) = {any}\n", .{ get_anim_packet_progress(p) });
 }
 test "packet_position_interpolates_both_directions" {
     var pos = calculate_packet_position(10, 20, 90, 20, 50);
-    if (!(((pos >> 24) & 0xFF) == 50)) @panic("x midpoint rightward");
+    if (!(((pos >> 24) & 0xFF) == 50)) __t27_assert_fail("\n  x midpoint rightward:\n    (pos >> 24) & 0xFF = {any}\n", .{ (pos >> 24) & 0xFF });
     pos = calculate_packet_position(90, 20, 10, 20, 50);
-    if (!(((pos >> 24) & 0xFF) == 50)) @panic("x midpoint leftward");
-    if (!(((pos >> 16) & 0xFF) == 20)) @panic("y unchanged");
+    if (!(((pos >> 24) & 0xFF) == 50)) __t27_assert_fail("\n  x midpoint leftward:\n    (pos >> 24) & 0xFF = {any}\n", .{ (pos >> 24) & 0xFF });
+    if (!(((pos >> 16) & 0xFF) == 20)) __t27_assert_fail("\n  y unchanged:\n    (pos >> 16) & 0xFF = {any}\n", .{ (pos >> 16) & 0xFF });
 }

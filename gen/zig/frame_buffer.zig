@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 fn get_src(meta: u32) u8 {
@@ -24,42 +32,42 @@ fn empty_meta() u32 {
     return 0;
 }
 test "empty_meta_invalid" {
-    if (!(get_valid(empty_meta()) == false)) @panic("invalid");
+    if (!(get_valid(empty_meta()) == false)) __t27_assert_fail("\n  invalid:\n    get_valid(empty_meta()) = {any}\n", .{ get_valid(empty_meta()) });
 }
 test "create_meta_valid" {
     const meta = create_meta(1, 2, 8);
     if (!(get_valid(meta))) @panic("valid");
 }
 test "get_src_field" {
-    if (!(get_src(create_meta(5, 2, 8)) == 5)) @panic("src");
+    if (!(get_src(create_meta(5, 2, 8)) == 5)) __t27_assert_fail("\n  src:\n    get_src(create_meta(5, 2, 8)) = {any}\n", .{ get_src(create_meta(5, 2, 8)) });
 }
 test "get_dst_field" {
-    if (!(get_dst(create_meta(1, 7, 8)) == 7)) @panic("dst");
+    if (!(get_dst(create_meta(1, 7, 8)) == 7)) __t27_assert_fail("\n  dst:\n    get_dst(create_meta(1, 7, 8)) = {any}\n", .{ get_dst(create_meta(1, 7, 8)) });
 }
 test "get_ttl_field" {
-    if (!(get_ttl(create_meta(1, 2, 15)) == 15)) @panic("ttl");
+    if (!(get_ttl(create_meta(1, 2, 15)) == 15)) __t27_assert_fail("\n  ttl:\n    get_ttl(create_meta(1, 2, 15)) = {any}\n", .{ get_ttl(create_meta(1, 2, 15)) });
 }
 test "roundtrip" {
     const meta = create_meta(3, 5, 10);
-    if (!(get_src(meta) == 3)) @panic("src");
-    if (!(get_dst(meta) == 5)) @panic("dst");
-    if (!(get_ttl(meta) == 10)) @panic("ttl");
+    if (!(get_src(meta) == 3)) __t27_assert_fail("\n  src:\n    get_src(meta) = {any}\n", .{ get_src(meta) });
+    if (!(get_dst(meta) == 5)) __t27_assert_fail("\n  dst:\n    get_dst(meta) = {any}\n", .{ get_dst(meta) });
+    if (!(get_ttl(meta) == 10)) __t27_assert_fail("\n  ttl:\n    get_ttl(meta) = {any}\n", .{ get_ttl(meta) });
 }
 test "invalid_flag" {
-    if (!(get_valid(0) == false)) @panic("zero invalid");
+    if (!(get_valid(0) == false)) __t27_assert_fail("\n  zero invalid:\n    get_valid(0) = {any}\n", .{ get_valid(0) });
 }
 test "field_independence" {
     const m1 = create_meta(1, 2, 3);
     const m2 = create_meta(4, 5, 6);
-    if (!(get_src(m1) == 1)) @panic("m1 src");
-    if (!(get_dst(m2) == 5)) @panic("m2 dst");
+    if (!(get_src(m1) == 1)) __t27_assert_fail("\n  m1 src:\n    get_src(m1) = {any}\n", .{ get_src(m1) });
+    if (!(get_dst(m2) == 5)) __t27_assert_fail("\n  m2 dst:\n    get_dst(m2) = {any}\n", .{ get_dst(m2) });
 }
 test "zero_ttl" {
     const meta = create_meta(1, 2, 0);
-    if (!(get_ttl(meta) == 0)) @panic("zero ok");
+    if (!(get_ttl(meta) == 0)) __t27_assert_fail("\n  zero ok:\n    get_ttl(meta) = {any}\n", .{ get_ttl(meta) });
 }
 test "max_values" {
     const meta = create_meta(15, 15, 15);
-    if (!(get_src(meta) == 15)) @panic("max src");
-    if (!(get_dst(meta) == 15)) @panic("max dst");
+    if (!(get_src(meta) == 15)) __t27_assert_fail("\n  max src:\n    get_src(meta) = {any}\n", .{ get_src(meta) });
+    if (!(get_dst(meta) == 15)) __t27_assert_fail("\n  max dst:\n    get_dst(meta) = {any}\n", .{ get_dst(meta) });
 }

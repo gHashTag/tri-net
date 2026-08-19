@@ -9,6 +9,7 @@
 #include <stddef.h>
 #include <assert.h>
 #define t27_assert(c, m) do { if (!(c)) { __builtin_trap(); } } while (0)
+#define assert_eq(a, b) do { if ((a) != (b)) { __builtin_trap(); } } while (0)
 
 #ifndef RTISECURITY_H
 #define RTISECURITY_H
@@ -166,16 +167,16 @@ uint8_t notification_priority(uint8_t level) {
    ------------------------------------------------------- */
 
 /* invariant: max_zones_16 */
-/* _Static_assert(1, "invariant: max_zones_16"); */
+/* invariant max_zones_16 is not a C constant expression: (MAX_ZONES == 16) */
 
 /* invariant: zone_grid_40 */
-/* _Static_assert(1, "invariant: zone_grid_40"); */
+/* invariant zone_grid_40 is not a C constant expression: (ZONE_GRID == 40) */
 
 /* invariant: alert_cooldown_5000 */
-/* _Static_assert(1, "invariant: alert_cooldown_5000"); */
+/* invariant alert_cooldown_5000 is not a C constant expression: (ALERT_COOLDOWN_MS == 5000) */
 
 /* invariant: alert_entry_8 */
-/* _Static_assert(1, "invariant: alert_entry_8"); */
+/* invariant alert_entry_8 is not a C constant expression: (ALERT_ENTRY_SIZE == 8) */
 
 
 /* -------------------------------------------------------

@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_NODES: u32 = 8;
@@ -263,19 +271,19 @@ fn monitor_network_health(node_states: [MAX_NODES]u32, node_count: u32) u32 {
 }
 test "policy_roundtrip" {
     const p = create_network_policy(7, 200, 3, 3000);
-    if (!(get_policy_id(p) == 7)) @panic("policy id");
-    if (!(get_policy_priority(p) == 200)) @panic("priority");
-    if (!(get_policy_scope(p) == 3)) @panic("scope");
-    if (!(get_policy_parameter(p) == 3000)) @panic("parameter");
+    if (!(get_policy_id(p) == 7)) __t27_assert_fail("\n  policy id:\n    get_policy_id(p) = {any}\n", .{ get_policy_id(p) });
+    if (!(get_policy_priority(p) == 200)) __t27_assert_fail("\n  priority:\n    get_policy_priority(p) = {any}\n", .{ get_policy_priority(p) });
+    if (!(get_policy_scope(p) == 3)) __t27_assert_fail("\n  scope:\n    get_policy_scope(p) = {any}\n", .{ get_policy_scope(p) });
+    if (!(get_policy_parameter(p) == 3000)) __t27_assert_fail("\n  parameter:\n    get_policy_parameter(p) = {any}\n", .{ get_policy_parameter(p) });
 }
 test "coordination_roundtrip" {
     const st = create_coordination_state(9, STATE_NEGOTIATING, 3, 50000);
-    if (!(get_coordinator_id(st) == 9)) @panic("coordinator");
-    if (!(get_coordination_state(st) == STATE_NEGOTIATING)) @panic("state");
-    if (!(get_coordination_phase(st) == 3)) @panic("phase");
-    if (!(get_coordination_timeout(st) == 50000)) @panic("timeout");
+    if (!(get_coordinator_id(st) == 9)) __t27_assert_fail("\n  coordinator:\n    get_coordinator_id(st) = {any}\n", .{ get_coordinator_id(st) });
+    if (!(get_coordination_state(st) == STATE_NEGOTIATING)) __t27_assert_fail("\n  state:\n    get_coordination_state(st) = {any}\n    STATE_NEGOTIATING = {any}\n", .{ get_coordination_state(st), STATE_NEGOTIATING });
+    if (!(get_coordination_phase(st) == 3)) __t27_assert_fail("\n  phase:\n    get_coordination_phase(st) = {any}\n", .{ get_coordination_phase(st) });
+    if (!(get_coordination_timeout(st) == 50000)) __t27_assert_fail("\n  timeout:\n    get_coordination_timeout(st) = {any}\n", .{ get_coordination_timeout(st) });
 }
 test "highest_priority_policy_selection" {
-    const ps: [4]u32 = .{ create_network_policy(1,10,1,0), create_network_policy(2,90,1,0), create_network_policy(3,200,2,0), create_network_policy(4,50,1,0) };
-    if (!(find_highest_priority_policy(ps, 1) == 1)) @panic("highest in scope wins");
+    const ps: [4]u32 = .{ create_network_policy(1, 10, 1, 0), create_network_policy(2, 90, 1, 0), create_network_policy(3, 200, 2, 0), create_network_policy(4, 50, 1, 0) };
+    if (!(find_highest_priority_policy(ps, 1) == 1)) __t27_assert_fail("\n  highest in scope wins:\n    find_highest_priority_policy(ps, 1) = {any}\n", .{ find_highest_priority_policy(ps, 1) });
 }

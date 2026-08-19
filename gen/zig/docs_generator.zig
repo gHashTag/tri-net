@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_SECTIONS: u32 = 16;
@@ -256,15 +264,15 @@ fn validate_documentation(generated_doc: u32, expected_sections: u32, expected_f
 }
 test "output_format_roundtrip" {
     const f = create_output_format(9, 200, 5, 50000);
-    if (!(get_format_id(f) == 9)) @panic("format id");
-    if (!(get_format_version(f) == 200)) @panic("version");
-    if (!(get_format_compression(f) == 5)) @panic("compression");
-    if (!(get_format_encoding(f) == 50000)) @panic("encoding");
+    if (!(get_format_id(f) == 9)) __t27_assert_fail("\n  format id:\n    get_format_id(f) = {any}\n", .{ get_format_id(f) });
+    if (!(get_format_version(f) == 200)) __t27_assert_fail("\n  version:\n    get_format_version(f) = {any}\n", .{ get_format_version(f) });
+    if (!(get_format_compression(f) == 5)) __t27_assert_fail("\n  compression:\n    get_format_compression(f) = {any}\n", .{ get_format_compression(f) });
+    if (!(get_format_encoding(f) == 50000)) __t27_assert_fail("\n  encoding:\n    get_format_encoding(f) = {any}\n", .{ get_format_encoding(f) });
 }
 test "markdown_header_levels" {
     const h1 = generate_markdown_header(1, 7);
-    if (!(((h1 >> 8) & 0xFFFFFF) == 0x23)) @panic("level 1 prefix");
-    if (!((h1 & 0xFF) == 7)) @panic("title id");
+    if (!(((h1 >> 8) & 0xFFFFFF) == 0x23)) __t27_assert_fail("\n  level 1 prefix:\n    (h1 >> 8) & 0xFFFFFF = {any}\n", .{ (h1 >> 8) & 0xFFFFFF });
+    if (!((h1 & 0xFF) == 7)) __t27_assert_fail("\n  title id:\n    h1 & 0xFF = {any}\n", .{ h1 & 0xFF });
     const h3 = generate_markdown_header(3, 7);
-    if (!(((h3 >> 8) & 0xFFFFFF) == 0x232323)) @panic("level 3 prefix");
+    if (!(((h3 >> 8) & 0xFFFFFF) == 0x232323)) __t27_assert_fail("\n  level 3 prefix:\n    (h3 >> 8) & 0xFFFFFF = {any}\n", .{ (h3 >> 8) & 0xFFFFFF });
 }

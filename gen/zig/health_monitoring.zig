@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_CHECKS: u32 = 8;
@@ -265,41 +273,41 @@ fn get_health_percentage(array: [8]u32) u32 {
 }
 test "create_health_check_basic" {
     const check = create_health_check(CHECK_CPU, RESULT_PASS, 50, 100);
-    if (!(get_check_type(check) == CHECK_CPU)) @panic("type");
-    if (!(get_check_result(check) == RESULT_PASS)) @panic("result");
-    if (!(get_check_value(check) == 50)) @panic("value");
-    if (!(get_check_timestamp(check) == 100)) @panic("timestamp");
+    if (!(get_check_type(check) == CHECK_CPU)) __t27_assert_fail("\n  type:\n    get_check_type(check) = {any}\n    CHECK_CPU = {any}\n", .{ get_check_type(check), CHECK_CPU });
+    if (!(get_check_result(check) == RESULT_PASS)) __t27_assert_fail("\n  result:\n    get_check_result(check) = {any}\n    RESULT_PASS = {any}\n", .{ get_check_result(check), RESULT_PASS });
+    if (!(get_check_value(check) == 50)) __t27_assert_fail("\n  value:\n    get_check_value(check) = {any}\n", .{ get_check_value(check) });
+    if (!(get_check_timestamp(check) == 100)) __t27_assert_fail("\n  timestamp:\n    get_check_timestamp(check) = {any}\n", .{ get_check_timestamp(check) });
 }
 test "calculate_overall_health_critical" {
     const array = create_health_array(create_health_check(CHECK_CPU, RESULT_PASS, 50, 100), create_health_check(CHECK_MEMORY, RESULT_FAIL, 90, 101), create_health_check(CHECK_DISK, RESULT_PASS, 40, 102), create_health_check(CHECK_NETWORK, RESULT_PASS, 60, 103), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0));
-    if (!(calculate_overall_health(array) == HEALTH_CRITICAL)) @panic("critical health");
+    if (!(calculate_overall_health(array) == HEALTH_CRITICAL)) __t27_assert_fail("\n  critical health:\n    calculate_overall_health(array) = {any}\n    HEALTH_CRITICAL = {any}\n", .{ calculate_overall_health(array), HEALTH_CRITICAL });
 }
 test "calculate_overall_health_warning" {
     const array = create_health_array(create_health_check(CHECK_CPU, RESULT_WARN, 70, 100), create_health_check(CHECK_MEMORY, RESULT_WARN, 80, 101), create_health_check(CHECK_DISK, RESULT_WARN, 75, 102), create_health_check(CHECK_NETWORK, RESULT_PASS, 60, 103), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0));
-    if (!(calculate_overall_health(array) == HEALTH_WARNING)) @panic("warning health");
+    if (!(calculate_overall_health(array) == HEALTH_WARNING)) __t27_assert_fail("\n  warning health:\n    calculate_overall_health(array) = {any}\n    HEALTH_WARNING = {any}\n", .{ calculate_overall_health(array), HEALTH_WARNING });
 }
 test "calculate_overall_health_healthy" {
     const array = create_health_array(create_health_check(CHECK_CPU, RESULT_PASS, 50, 100), create_health_check(CHECK_MEMORY, RESULT_PASS, 40, 101), create_health_check(CHECK_DISK, RESULT_PASS, 45, 102), create_health_check(CHECK_NETWORK, RESULT_PASS, 35, 103), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0));
-    if (!(calculate_overall_health(array) == HEALTH_HEALTHY)) @panic("healthy");
+    if (!(calculate_overall_health(array) == HEALTH_HEALTHY)) __t27_assert_fail("\n  healthy:\n    calculate_overall_health(array) = {any}\n    HEALTH_HEALTHY = {any}\n", .{ calculate_overall_health(array), HEALTH_HEALTHY });
 }
 test "count_failed_checks_multiple" {
     const array = create_health_array(create_health_check(CHECK_CPU, RESULT_FAIL, 95, 100), create_health_check(CHECK_MEMORY, RESULT_FAIL, 90, 101), create_health_check(CHECK_DISK, RESULT_PASS, 40, 102), create_health_check(CHECK_NETWORK, RESULT_FAIL, 85, 103), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0));
-    if (!(count_failed_checks(array) == 3)) @panic("3 failed checks");
+    if (!(count_failed_checks(array) == 3)) __t27_assert_fail("\n  3 failed checks:\n    count_failed_checks(array) = {any}\n", .{ count_failed_checks(array) });
 }
 test "count_warning_checks_multiple" {
     const array = create_health_array(create_health_check(CHECK_CPU, RESULT_WARN, 70, 100), create_health_check(CHECK_MEMORY, RESULT_WARN, 75, 101), create_health_check(CHECK_DISK, RESULT_PASS, 40, 102), create_health_check(CHECK_NETWORK, RESULT_WARN, 72, 103), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0));
-    if (!(count_warning_checks(array) == 3)) @panic("3 warning checks");
+    if (!(count_warning_checks(array) == 3)) __t27_assert_fail("\n  3 warning checks:\n    count_warning_checks(array) = {any}\n", .{ count_warning_checks(array) });
 }
 test "update_health_check_works" {
     const array = create_health_array(create_health_check(CHECK_CPU, RESULT_PASS, 50, 100), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0));
     const new_array = update_health_check(array, 1, create_health_check(CHECK_MEMORY, RESULT_FAIL, 90, 200));
-    if (!(get_check_result(get_health_check(new_array, 1)) == RESULT_FAIL)) @panic("check updated");
+    if (!(get_check_result(get_health_check(new_array, 1)) == RESULT_FAIL)) __t27_assert_fail("\n  check updated:\n    get_check_result(get_health_check(new_array, 1)) = {any}\n    RESULT_FAIL = {any}\n", .{ get_check_result(get_health_check(new_array, 1)), RESULT_FAIL });
 }
 test "get_health_percentage_all_pass" {
     const array = create_health_array(create_health_check(CHECK_CPU, RESULT_PASS, 50, 100), create_health_check(CHECK_MEMORY, RESULT_PASS, 40, 101), create_health_check(CHECK_DISK, RESULT_PASS, 45, 102), create_health_check(CHECK_NETWORK, RESULT_PASS, 35, 103), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0), create_health_check(0, 0, 0, 0));
-    if (!(get_health_percentage(array) == 100)) @panic("100% healthy");
+    if (!(get_health_percentage(array) == 100)) __t27_assert_fail("\n  100% healthy:\n    get_health_percentage(array) = {any}\n", .{ get_health_percentage(array) });
 }
 test "get_health_percentage_some_fail" {
     const array = create_health_array(create_health_check(CHECK_CPU, RESULT_FAIL, 95, 100), create_health_check(CHECK_MEMORY, RESULT_PASS, 40, 101), create_health_check(CHECK_DISK, RESULT_FAIL, 90, 102), create_health_check(CHECK_NETWORK, RESULT_PASS, 35, 103), create_health_check(0, RESULT_SKIP, 0, 0), create_health_check(0, RESULT_SKIP, 0, 0), create_health_check(0, RESULT_SKIP, 0, 0), create_health_check(0, RESULT_SKIP, 0, 0));
-    if (!(get_health_percentage(array) == 50)) @panic("50% healthy");
+    if (!(get_health_percentage(array) == 50)) __t27_assert_fail("\n  50% healthy:\n    get_health_percentage(array) = {any}\n", .{ get_health_percentage(array) });
 }

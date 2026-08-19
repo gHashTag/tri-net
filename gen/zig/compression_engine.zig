@@ -3,6 +3,14 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
+fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (@inComptime()) {
+        @compileError("assertion failed");
+    } else {
+        std.debug.print(fmt, args);
+        @panic("assertion failed");
+    }
+}
 
 // use types: no references in this module
 const MAX_BLOCKS: u32 = 16;
@@ -266,18 +274,18 @@ fn calculate_compression_speed(original_size: u32, compressed_size: u32, time_ms
 }
 test "block_info_roundtrip" {
     const info = create_block_info(200, 90, METHOD_RLE, 12345);
-    if (!(get_original_size(info) == 200)) @panic("original size");
-    if (!(get_compressed_size(info) == 90)) @panic("compressed size");
-    if (!(get_compression_method(info) == METHOD_RLE)) @panic("method");
-    if (!(get_compression_quality(info) == 12345)) @panic("quality");
+    if (!(get_original_size(info) == 200)) __t27_assert_fail("\n  original size:\n    get_original_size(info) = {any}\n", .{ get_original_size(info) });
+    if (!(get_compressed_size(info) == 90)) __t27_assert_fail("\n  compressed size:\n    get_compressed_size(info) = {any}\n", .{ get_compressed_size(info) });
+    if (!(get_compression_method(info) == METHOD_RLE)) __t27_assert_fail("\n  method:\n    get_compression_method(info) = {any}\n    METHOD_RLE = {any}\n", .{ get_compression_method(info), METHOD_RLE });
+    if (!(get_compression_quality(info) == 12345)) __t27_assert_fail("\n  quality:\n    get_compression_quality(info) = {any}\n", .{ get_compression_quality(info) });
 }
 test "compression_ratio" {
-    if (!(calculate_compression_ratio(200, 100) == 200)) @panic("2x ratio is 200");
-    if (!(calculate_compression_ratio(100, 0) == 100)) @panic("zero compressed guards");
+    if (!(calculate_compression_ratio(200, 100) == 200)) __t27_assert_fail("\n  2x ratio is 200:\n    calculate_compression_ratio(200, 100) = {any}\n", .{ calculate_compression_ratio(200, 100) });
+    if (!(calculate_compression_ratio(100, 0) == 100)) __t27_assert_fail("\n  zero compressed guards:\n    calculate_compression_ratio(100, 0) = {any}\n", .{ calculate_compression_ratio(100, 0) });
 }
 test "rle_single_run_roundtrip" {
     const c = compress_rle(0x1111, 4);
-    if (!(c == 0x41)) @panic("run of four ones");
+    if (!(c == 0x41)) __t27_assert_fail("\n  run of four ones:\n    c = {any}\n", .{ c });
     const d = decompress_rle(c);
-    if (!(d == 0x1111)) @panic("roundtrip restores the run");
+    if (!(d == 0x1111)) __t27_assert_fail("\n  roundtrip restores the run:\n    d = {any}\n", .{ d });
 }
