@@ -3,14 +3,6 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
-fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
-    if (@inComptime()) {
-        @compileError("assertion failed");
-    } else {
-        std.debug.print(fmt, args);
-        @panic("assertion failed");
-    }
-}
 
 // use types: no references in this module
 const OPTIMISTIC: u8 = 230;
@@ -66,43 +58,43 @@ test "test_perfect_link" {
     const fwd = ewma_update(ewma_update(ewma_update(OPTIMISTIC, 255, ALPHA_HALF), 255, ALPHA_HALF), 255, ALPHA_HALF);
     const rev = ewma_update(ewma_update(ewma_update(OPTIMISTIC, 255, ALPHA_HALF), 255, ALPHA_HALF), 255, ALPHA_HALF);
     const etx = calc_etx(fwd, rev);
-    if (!((etx >= 200) and (etx <= 312))) __t27_assert_fail("\n  ETX ~1.0 expected:\n    etx = {any}\n", .{ etx });
+    if (!((etx >= 200) and (etx <= 312))) @panic("ETX ~1.0 expected");
 }
 test "test_half_forward" {
     const fwd = ewma_update(ewma_update(OPTIMISTIC, 255, ALPHA_HALF), 0, ALPHA_HALF);
     const rev = ewma_update(ewma_update(OPTIMISTIC, 255, ALPHA_HALF), 255, ALPHA_HALF);
     const etx = calc_etx(fwd, rev);
-    if (!((etx >= 384) and (etx <= 512))) __t27_assert_fail("\n  ETX ~2.0 expected:\n    etx = {any}\n", .{ etx });
+    if (!((etx >= 384) and (etx <= 512))) @panic("ETX ~2.0 expected");
 }
 test "test_dead_direction" {
     const fwd = ewma_update(ewma_update(OPTIMISTIC, 255, ALPHA_HALF), 255, ALPHA_HALF);
     const rev = ewma_update(ewma_update(ewma_update(OPTIMISTIC, 0, ALPHA_HALF), 0, ALPHA_HALF), 0, ALPHA_HALF);
     const etx = calc_etx(fwd, rev);
-    if (!(etx == 0xFFFF)) __t27_assert_fail("\n  dead link should be infinite:\n    etx = {any}\n", .{ etx });
+    if (!(etx == 0xFFFF)) @panic("dead link should be infinite");
 }
 test "test_force_dead" {
     const fwd = ewma_update(OPTIMISTIC, 255, 160);
     const rev = ewma_update(OPTIMISTIC, 255, 160);
     const etx_healthy = calc_etx(fwd, rev);
-    if (!(etx_healthy != 0xFFFF)) __t27_assert_fail("\n  healthy link should be finite:\n    etx_healthy = {any}\n", .{ etx_healthy });
+    if (!(etx_healthy != 0xFFFF)) @panic("healthy link should be finite");
     const etx_dead = calc_etx(0, 0);
-    if (!(etx_dead == 0xFFFF)) __t27_assert_fail("\n  zeroed link should be infinite:\n    etx_dead = {any}\n", .{ etx_dead });
+    if (!(etx_dead == 0xFFFF)) @panic("zeroed link should be infinite");
     const fwd2 = ewma_update(0, 255, 160);
     const rev2 = ewma_update(0, 255, 160);
     const etx_resurrect = calc_etx(fwd2, rev2);
-    if (!(etx_resurrect != 0xFFFF)) __t27_assert_fail("\n  resurrected link should be finite:\n    etx_resurrect = {any}\n", .{ etx_resurrect });
+    if (!(etx_resurrect != 0xFFFF)) @panic("resurrected link should be finite");
 }
 test "test_etx_buckets" {
     const etx_perfect = calc_etx(230, 230);
-    if (!((etx_perfect >= 200) and (etx_perfect <= 312))) __t27_assert_fail("\n  perfect ETX ~1.0:\n    etx_perfect = {any}\n", .{ etx_perfect });
+    if (!((etx_perfect >= 200) and (etx_perfect <= 312))) @panic("perfect ETX ~1.0");
     const etx_half = calc_etx(115, 230);
-    if (!((etx_half >= 384) and (etx_half <= 512))) __t27_assert_fail("\n  half ETX ~2.0:\n    etx_half = {any}\n", .{ etx_half });
+    if (!((etx_half >= 384) and (etx_half <= 512))) @panic("half ETX ~2.0");
     const etx_dead = calc_etx(230, 0);
-    if (!(etx_dead == 0xFFFF)) __t27_assert_fail("\n  dead direction infinite:\n    etx_dead = {any}\n", .{ etx_dead });
+    if (!(etx_dead == 0xFFFF)) @panic("dead direction infinite");
 }
 test "test_ewma_convergence" {
     const est1 = ewma_update(ewma_update(OPTIMISTIC, 255, ALPHA_HALF), 255, ALPHA_HALF);
-    if (!(est1 > OPTIMISTIC)) __t27_assert_fail("\n  EWMA should increase:\n    est1 = {any}\n    OPTIMISTIC = {any}\n", .{ est1, OPTIMISTIC });
+    if (!(est1 > OPTIMISTIC)) @panic("EWMA should increase");
     const est2 = ewma_update(ewma_update(OPTIMISTIC, 0, ALPHA_HALF), 0, ALPHA_HALF);
-    if (!(est2 < OPTIMISTIC)) __t27_assert_fail("\n  EWMA should decrease:\n    est2 = {any}\n    OPTIMISTIC = {any}\n", .{ est2, OPTIMISTIC });
+    if (!(est2 < OPTIMISTIC)) @panic("EWMA should decrease");
 }

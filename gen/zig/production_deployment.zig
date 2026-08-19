@@ -3,14 +3,6 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
-fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
-    if (@inComptime()) {
-        @compileError("assertion failed");
-    } else {
-        std.debug.print(fmt, args);
-        @panic("assertion failed");
-    }
-}
 
 // use types: no references in this module
 const DEPLOY_PENDING: u32 = 0;
@@ -98,64 +90,64 @@ fn checklist_complete(checklist: u32) bool {
 }
 test "create_deployment_correct" {
     const deploy = create_deployment(DEPLOY_PROGRAMMING, STEP_FLASH, 15, 12345);
-    if (!(extract_deploy_state(deploy) == DEPLOY_PROGRAMMING)) __t27_assert_fail("\n  state:\n    extract_deploy_state(deploy) = {any}\n    DEPLOY_PROGRAMMING = {any}\n", .{ extract_deploy_state(deploy), DEPLOY_PROGRAMMING });
-    if (!(extract_deploy_step(deploy) == STEP_FLASH)) __t27_assert_fail("\n  step:\n    extract_deploy_step(deploy) = {any}\n    STEP_FLASH = {any}\n", .{ extract_deploy_step(deploy), STEP_FLASH });
-    if (!(extract_deploy_progress(deploy) == 15)) __t27_assert_fail("\n  progress:\n    extract_deploy_progress(deploy) = {any}\n", .{ extract_deploy_progress(deploy) });
-    if (!(extract_device_id(deploy) == 12345)) __t27_assert_fail("\n  device:\n    extract_device_id(deploy) = {any}\n", .{ extract_device_id(deploy) });
+    if (!(extract_deploy_state(deploy) == DEPLOY_PROGRAMMING)) @panic("state");
+    if (!(extract_deploy_step(deploy) == STEP_FLASH)) @panic("step");
+    if (!(extract_deploy_progress(deploy) == 15)) @panic("progress");
+    if (!(extract_device_id(deploy) == 12345)) @panic("device");
 }
 test "deployment_complete_yes" {
     const deploy = create_deployment(DEPLOY_ACTIVE, STEP_MONITOR, 31, 12345);
-    if (!(deployment_complete(deploy) == true)) __t27_assert_fail("\n  complete:\n    deployment_complete(deploy) = {any}\n", .{ deployment_complete(deploy) });
+    if (!(deployment_complete(deploy) == true)) @panic("complete");
 }
 test "deployment_complete_no_state" {
     const deploy = create_deployment(DEPLOY_VERIFIED, STEP_MONITOR, 31, 12345);
-    if (!(deployment_complete(deploy) == false)) __t27_assert_fail("\n  not active:\n    deployment_complete(deploy) = {any}\n", .{ deployment_complete(deploy) });
+    if (!(deployment_complete(deploy) == false)) @panic("not active");
 }
 test "deployment_complete_no_progress" {
     const deploy = create_deployment(DEPLOY_ACTIVE, STEP_MONITOR, 15, 12345);
-    if (!(deployment_complete(deploy) == false)) __t27_assert_fail("\n  not 100%:\n    deployment_complete(deploy) = {any}\n", .{ deployment_complete(deploy) });
+    if (!(deployment_complete(deploy) == false)) @panic("not 100%");
 }
 test "create_bitstream_info_correct" {
     const info = create_bitstream_info(0x1234, 0xAB, 5);
-    if (!(extract_bitstream_size(info) == 0x1234)) __t27_assert_fail("\n  size:\n    extract_bitstream_size(info) = {any}\n", .{ extract_bitstream_size(info) });
-    if (!(extract_bitstream_checksum(info) == 0xAB)) __t27_assert_fail("\n  checksum:\n    extract_bitstream_checksum(info) = {any}\n", .{ extract_bitstream_checksum(info) });
-    if (!(extract_bitstream_version(info) == 5)) __t27_assert_fail("\n  version:\n    extract_bitstream_version(info) = {any}\n", .{ extract_bitstream_version(info) });
+    if (!(extract_bitstream_size(info) == 0x1234)) @panic("size");
+    if (!(extract_bitstream_checksum(info) == 0xAB)) @panic("checksum");
+    if (!(extract_bitstream_version(info) == 5)) @panic("version");
 }
 test "flash_programming_success_yes" {
-    if (!(flash_programming_success(1000, 1000) == true)) __t27_assert_fail("\n  exact match:\n    flash_programming_success(1000, 1000) = {any}\n", .{ flash_programming_success(1000, 1000) });
+    if (!(flash_programming_success(1000, 1000) == true)) @panic("exact match");
 }
 test "flash_programming_success_no" {
-    if (!(flash_programming_success(999, 1000) == false)) __t27_assert_fail("\n  mismatch:\n    flash_programming_success(999, 1000) = {any}\n", .{ flash_programming_success(999, 1000) });
+    if (!(flash_programming_success(999, 1000) == false)) @panic("mismatch");
 }
 test "flash_programming_success_zero" {
-    if (!(flash_programming_success(0, 0) == false)) __t27_assert_fail("\n  zero bytes:\n    flash_programming_success(0, 0) = {any}\n", .{ flash_programming_success(0, 0) });
+    if (!(flash_programming_success(0, 0) == false)) @panic("zero bytes");
 }
 test "create_monitor_config_correct" {
     const config = create_monitor_config(1000, 0xFF);
-    if (!(extract_sample_rate(config) == 1000)) __t27_assert_fail("\n  sample rate:\n    extract_sample_rate(config) = {any}\n", .{ extract_sample_rate(config) });
-    if (!(extract_metrics_enabled(config) == 0xFF)) __t27_assert_fail("\n  metrics:\n    extract_metrics_enabled(config) = {any}\n", .{ extract_metrics_enabled(config) });
+    if (!(extract_sample_rate(config) == 1000)) @panic("sample rate");
+    if (!(extract_metrics_enabled(config) == 0xFF)) @panic("metrics");
 }
 test "create_checklist_all_true" {
     const checklist = create_checklist(true, true, true, true);
-    if (!(checklist_complete(checklist) == true)) __t27_assert_fail("\n  all items:\n    checklist_complete(checklist) = {any}\n", .{ checklist_complete(checklist) });
+    if (!(checklist_complete(checklist) == true)) @panic("all items");
 }
 test "checklist_power_true" {
     const checklist = create_checklist(true, false, false, false);
-    if (!(checklist_power(checklist) == true)) __t27_assert_fail("\n  power OK:\n    checklist_power(checklist) = {any}\n", .{ checklist_power(checklist) });
+    if (!(checklist_power(checklist) == true)) @panic("power OK");
 }
 test "checklist_cooling_false" {
     const checklist = create_checklist(true, false, true, true);
-    if (!(checklist_cooling(checklist) == false)) __t27_assert_fail("\n  cooling missing:\n    checklist_cooling(checklist) = {any}\n", .{ checklist_cooling(checklist) });
+    if (!(checklist_cooling(checklist) == false)) @panic("cooling missing");
 }
 test "checklist_network_true" {
     const checklist = create_checklist(false, true, true, false);
-    if (!(checklist_network(checklist) == true)) __t27_assert_fail("\n  network OK:\n    checklist_network(checklist) = {any}\n", .{ checklist_network(checklist) });
+    if (!(checklist_network(checklist) == true)) @panic("network OK");
 }
 test "checklist_monitoring_false" {
     const checklist = create_checklist(true, true, true, false);
-    if (!(checklist_monitoring(checklist) == false)) __t27_assert_fail("\n  monitoring missing:\n    checklist_monitoring(checklist) = {any}\n", .{ checklist_monitoring(checklist) });
+    if (!(checklist_monitoring(checklist) == false)) @panic("monitoring missing");
 }
 test "checklist_complete_incomplete" {
     const checklist = create_checklist(true, true, false, true);
-    if (!(checklist_complete(checklist) == false)) __t27_assert_fail("\n  missing network:\n    checklist_complete(checklist) = {any}\n", .{ checklist_complete(checklist) });
+    if (!(checklist_complete(checklist) == false)) @panic("missing network");
 }

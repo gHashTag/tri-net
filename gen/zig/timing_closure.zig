@@ -3,14 +3,6 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
-fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
-    if (@inComptime()) {
-        @compileError("assertion failed");
-    } else {
-        std.debug.print(fmt, args);
-        @panic("assertion failed");
-    }
-}
 
 // use types: no references in this module
 const TIMING_PASS: u32 = 0;
@@ -87,78 +79,78 @@ fn timing_closure_achieved(report: u32, target_freq: u32) bool {
 }
 test "create_critical_path_correct" {
     const path = create_critical_path(500, 3, 100);
-    if (!(extract_delay(path) == 500)) __t27_assert_fail("\n  delay:\n    extract_delay(path) = {any}\n", .{ extract_delay(path) });
-    if (!(extract_stages(path) == 3)) __t27_assert_fail("\n  stages:\n    extract_stages(path) = {any}\n", .{ extract_stages(path) });
-    if (!(extract_slack(path) == 100)) __t27_assert_fail("\n  slack:\n    extract_slack(path) = {any}\n", .{ extract_slack(path) });
+    if (!(extract_delay(path) == 500)) @panic("delay");
+    if (!(extract_stages(path) == 3)) @panic("stages");
+    if (!(extract_slack(path) == 100)) @panic("slack");
 }
 test "grade_timing_pass" {
     const grade = grade_timing(150);
-    if (!(grade == TIMING_PASS)) __t27_assert_fail("\n  positive slack = pass:\n    grade = {any}\n    TIMING_PASS = {any}\n", .{ grade, TIMING_PASS });
+    if (!(grade == TIMING_PASS)) @panic("positive slack = pass");
 }
 test "grade_timing_marginal" {
     const grade = grade_timing(50);
-    if (!(grade == TIMING_MARGINAL)) __t27_assert_fail("\n  low slack = marginal:\n    grade = {any}\n    TIMING_MARGINAL = {any}\n", .{ grade, TIMING_MARGINAL });
+    if (!(grade == TIMING_MARGINAL)) @panic("low slack = marginal");
 }
 test "grade_timing_fail" {
     const grade = grade_timing(0xFFFFFFFF - 50);
-    if (!(grade == TIMING_FAIL)) __t27_assert_fail("\n  negative = fail:\n    grade = {any}\n    TIMING_FAIL = {any}\n", .{ grade, TIMING_FAIL });
+    if (!(grade == TIMING_FAIL)) @panic("negative = fail");
 }
 test "calculate_pipeline_stages_needed" {
     const stages = calculate_pipeline_stages(500, 50);
-    if (!(stages == MAX_PIPELINE)) __t27_assert_fail("\n  capped at max:\n    stages = {any}\n    MAX_PIPELINE = {any}\n", .{ stages, MAX_PIPELINE });
+    if (!(stages == MAX_PIPELINE)) @panic("capped at max");
 }
 test "calculate_pipeline_stages_few" {
     const stages = calculate_pipeline_stages(40, 50);
-    if (!(stages == 2)) __t27_assert_fail("\n  2 stages needed:\n    stages = {any}\n", .{ stages });
+    if (!(stages == 2)) @panic("2 stages needed");
 }
 test "calculate_pipeline_stages_zero_freq" {
     const stages = calculate_pipeline_stages(100, 0);
-    if (!(stages == MAX_PIPELINE)) __t27_assert_fail("\n  zero freq = max stages:\n    stages = {any}\n    MAX_PIPELINE = {any}\n", .{ stages, MAX_PIPELINE });
+    if (!(stages == MAX_PIPELINE)) @panic("zero freq = max stages");
 }
 test "retiming_needed_yes" {
-    if (!(retiming_needed(10, 100) == true)) __t27_assert_fail("\n  slack < threshold:\n    retiming_needed(10, 100) = {any}\n", .{ retiming_needed(10, 100) });
+    if (!(retiming_needed(10, 100) == true)) @panic("slack < threshold");
 }
 test "retiming_needed_no" {
-    if (!(retiming_needed(150, 100) == false)) __t27_assert_fail("\n  slack >= threshold:\n    retiming_needed(150, 100) = {any}\n", .{ retiming_needed(150, 100) });
+    if (!(retiming_needed(150, 100) == false)) @panic("slack >= threshold");
 }
 test "balance_registers_yes" {
-    if (!(balance_registers(50, 20) == true)) __t27_assert_fail("\n  delay > 2x period:\n    balance_registers(50, 20) = {any}\n", .{ balance_registers(50, 20) });
+    if (!(balance_registers(50, 20) == true)) @panic("delay > 2x period");
 }
 test "balance_registers_no" {
-    if (!(balance_registers(15, 20) == false)) __t27_assert_fail("\n  delay <= 2x period:\n    balance_registers(15, 20) = {any}\n", .{ balance_registers(15, 20) });
+    if (!(balance_registers(15, 20) == false)) @panic("delay <= 2x period");
 }
 test "compare_critical_paths_first" {
     const path1 = create_critical_path(500, 3, 50);
     const path2 = create_critical_path(300, 2, 100);
     const result = compare_critical_paths(path1, path2);
-    if (!(extract_delay(result) == 500)) __t27_assert_fail("\n  first is longer:\n    extract_delay(result) = {any}\n", .{ extract_delay(result) });
+    if (!(extract_delay(result) == 500)) @panic("first is longer");
 }
 test "compare_critical_paths_second" {
     const path1 = create_critical_path(300, 2, 100);
     const path2 = create_critical_path(500, 3, 50);
     const result = compare_critical_paths(path1, path2);
-    if (!(extract_delay(result) == 500)) __t27_assert_fail("\n  second is longer:\n    extract_delay(result) = {any}\n", .{ extract_delay(result) });
+    if (!(extract_delay(result) == 500)) @panic("second is longer");
 }
 test "create_timing_report_correct" {
     const report = create_timing_report(0, 100, 5);
-    if (!(extract_grade(report) == 0)) __t27_assert_fail("\n  grade:\n    extract_grade(report) = {any}\n", .{ extract_grade(report) });
-    if (!(extract_max_freq(report) == 100)) __t27_assert_fail("\n  frequency:\n    extract_max_freq(report) = {any}\n", .{ extract_max_freq(report) });
-    if (!(extract_critical_paths(report) == 5)) __t27_assert_fail("\n  paths:\n    extract_critical_paths(report) = {any}\n", .{ extract_critical_paths(report) });
+    if (!(extract_grade(report) == 0)) @panic("grade");
+    if (!(extract_max_freq(report) == 100)) @panic("frequency");
+    if (!(extract_critical_paths(report) == 5)) @panic("paths");
 }
 test "timing_closure_achieved_yes" {
     const report = create_timing_report(TIMING_PASS, 75, 3);
-    if (!(timing_closure_achieved(report, 50) == true)) __t27_assert_fail("\n  pass + freq met:\n    timing_closure_achieved(report, 50) = {any}\n", .{ timing_closure_achieved(report, 50) });
+    if (!(timing_closure_achieved(report, 50) == true)) @panic("pass + freq met");
 }
 test "timing_closure_achieved_no_grade" {
     const report = create_timing_report(TIMING_FAIL, 75, 3);
-    if (!(timing_closure_achieved(report, 50) == false)) __t27_assert_fail("\n  grade fail:\n    timing_closure_achieved(report, 50) = {any}\n", .{ timing_closure_achieved(report, 50) });
+    if (!(timing_closure_achieved(report, 50) == false)) @panic("grade fail");
 }
 test "timing_closure_achieved_no_freq" {
     const report = create_timing_report(TIMING_PASS, 40, 3);
-    if (!(timing_closure_achieved(report, 50) == false)) __t27_assert_fail("\n  freq not met:\n    timing_closure_achieved(report, 50) = {any}\n", .{ timing_closure_achieved(report, 50) });
+    if (!(timing_closure_achieved(report, 50) == false)) @panic("freq not met");
 }
 test "extract_slack_negative_handling" {
     const path = create_critical_path(500, 3, 0xFF);
     const slack = extract_slack(path);
-    if (!(slack == 0xFF)) __t27_assert_fail("\n  extracted large slack:\n    slack = {any}\n", .{ slack });
+    if (!(slack == 0xFF)) @panic("extracted large slack");
 }

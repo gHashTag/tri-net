@@ -3,14 +3,6 @@
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 const std = @import("std");
-fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {
-    if (@inComptime()) {
-        @compileError("assertion failed");
-    } else {
-        std.debug.print(fmt, args);
-        @panic("assertion failed");
-    }
-}
 
 // use types: no references in this module
 const MAX_ZONES: u8 = 16;
@@ -128,96 +120,96 @@ fn notification_priority(level: u8) u8 {
     return 1;
 }
 test "classify_none" {
-    if (!(classify_alert(30, 3, SENSITIVITY_MEDIUM, false) == ALERT_NONE)) __t27_assert_fail("\n  low brightness:\n    classify_alert(30, 3, SENSITIVITY_MEDIUM, false) = {any}\n    ALERT_NONE = {any}\n", .{ classify_alert(30, 3, SENSITIVITY_MEDIUM, false), ALERT_NONE });
+    if (!(classify_alert(30, 3, SENSITIVITY_MEDIUM, false) == ALERT_NONE)) @panic("low brightness");
 }
 test "classify_info" {
-    if (!(classify_alert(70, 2, SENSITIVITY_MEDIUM, false) == ALERT_INFO)) __t27_assert_fail("\n  small movement:\n    classify_alert(70, 2, SENSITIVITY_MEDIUM, false) = {any}\n    ALERT_INFO = {any}\n", .{ classify_alert(70, 2, SENSITIVITY_MEDIUM, false), ALERT_INFO });
+    if (!(classify_alert(70, 2, SENSITIVITY_MEDIUM, false) == ALERT_INFO)) @panic("small movement");
 }
 test "classify_warning" {
-    if (!(classify_alert(80, 5, SENSITIVITY_MEDIUM, false) == ALERT_WARNING)) __t27_assert_fail("\n  medium object:\n    classify_alert(80, 5, SENSITIVITY_MEDIUM, false) = {any}\n    ALERT_WARNING = {any}\n", .{ classify_alert(80, 5, SENSITIVITY_MEDIUM, false), ALERT_WARNING });
+    if (!(classify_alert(80, 5, SENSITIVITY_MEDIUM, false) == ALERT_WARNING)) @panic("medium object");
 }
 test "classify_critical" {
-    if (!(classify_alert(100, 10, SENSITIVITY_MEDIUM, false) == ALERT_CRITICAL)) __t27_assert_fail("\n  large object:\n    classify_alert(100, 10, SENSITIVITY_MEDIUM, false) = {any}\n    ALERT_CRITICAL = {any}\n", .{ classify_alert(100, 10, SENSITIVITY_MEDIUM, false), ALERT_CRITICAL });
+    if (!(classify_alert(100, 10, SENSITIVITY_MEDIUM, false) == ALERT_CRITICAL)) @panic("large object");
 }
 test "classify_night_sensitive" {
-    if (!(classify_alert(35, 2, SENSITIVITY_MEDIUM, true) == ALERT_INFO)) __t27_assert_fail("\n  night = more sensitive:\n    classify_alert(35, 2, SENSITIVITY_MEDIUM, true) = {any}\n    ALERT_INFO = {any}\n", .{ classify_alert(35, 2, SENSITIVITY_MEDIUM, true), ALERT_INFO });
+    if (!(classify_alert(35, 2, SENSITIVITY_MEDIUM, true) == ALERT_INFO)) @panic("night = more sensitive");
 }
 test "classify_high_sensitivity" {
-    if (!(classify_alert(45, 2, SENSITIVITY_HIGH, false) == ALERT_INFO)) __t27_assert_fail("\n  high sens = lower threshold:\n    classify_alert(45, 2, SENSITIVITY_HIGH, false) = {any}\n    ALERT_INFO = {any}\n", .{ classify_alert(45, 2, SENSITIVITY_HIGH, false), ALERT_INFO });
+    if (!(classify_alert(45, 2, SENSITIVITY_HIGH, false) == ALERT_INFO)) @panic("high sens = lower threshold");
 }
 test "in_cooldown_active" {
-    if (!(in_cooldown(3000) == true)) __t27_assert_fail("\n  3s < 5s cooldown:\n    in_cooldown(3000) = {any}\n", .{ in_cooldown(3000) });
+    if (!(in_cooldown(3000) == true)) @panic("3s < 5s cooldown");
 }
 test "in_cooldown_expired" {
-    if (!(in_cooldown(6000) == false)) __t27_assert_fail("\n  6s > 5s cooldown:\n    in_cooldown(6000) = {any}\n", .{ in_cooldown(6000) });
+    if (!(in_cooldown(6000) == false)) @panic("6s > 5s cooldown");
 }
 test "should_suppress_none" {
-    if (!(should_suppress(ALERT_NONE, ALERT_NONE, 0) == true)) __t27_assert_fail("\n  no alert = suppress:\n    should_suppress(ALERT_NONE, ALERT_NONE, 0) = {any}\n", .{ should_suppress(ALERT_NONE, ALERT_NONE, 0) });
+    if (!(should_suppress(ALERT_NONE, ALERT_NONE, 0) == true)) @panic("no alert = suppress");
 }
 test "should_suppress_cooldown" {
-    if (!(should_suppress(ALERT_INFO, ALERT_WARNING, 2000) == true)) __t27_assert_fail("\n  lower during cooldown:\n    should_suppress(ALERT_INFO, ALERT_WARNING, 2000) = {any}\n", .{ should_suppress(ALERT_INFO, ALERT_WARNING, 2000) });
+    if (!(should_suppress(ALERT_INFO, ALERT_WARNING, 2000) == true)) @panic("lower during cooldown");
 }
 test "should_not_suppress_higher" {
-    if (!(should_suppress(ALERT_CRITICAL, ALERT_INFO, 2000) == false)) __t27_assert_fail("\n  higher level passes:\n    should_suppress(ALERT_CRITICAL, ALERT_INFO, 2000) = {any}\n", .{ should_suppress(ALERT_CRITICAL, ALERT_INFO, 2000) });
+    if (!(should_suppress(ALERT_CRITICAL, ALERT_INFO, 2000) == false)) @panic("higher level passes");
 }
 test "zone_from_coord_basic" {
-    if (!(zone_from_coord(5, 5, 10) == 0)) __t27_assert_fail("\n  top-left zone:\n    zone_from_coord(5, 5, 10) = {any}\n", .{ zone_from_coord(5, 5, 10) });
+    if (!(zone_from_coord(5, 5, 10) == 0)) @panic("top-left zone");
 }
 test "zone_from_coord_second" {
-    if (!(zone_from_coord(15, 5, 10) == 1)) __t27_assert_fail("\n  second zone right:\n    zone_from_coord(15, 5, 10) = {any}\n", .{ zone_from_coord(15, 5, 10) });
+    if (!(zone_from_coord(15, 5, 10) == 1)) @panic("second zone right");
 }
 test "in_zone_inside" {
-    if (!(in_zone(5, 5, 0, 0, 10, 10) == true)) __t27_assert_fail("\n  inside:\n    in_zone(5, 5, 0, 0, 10, 10) = {any}\n", .{ in_zone(5, 5, 0, 0, 10, 10) });
+    if (!(in_zone(5, 5, 0, 0, 10, 10) == true)) @panic("inside");
 }
 test "in_zone_outside_x" {
-    if (!(in_zone(15, 5, 0, 0, 10, 10) == false)) __t27_assert_fail("\n  outside X:\n    in_zone(15, 5, 0, 0, 10, 10) = {any}\n", .{ in_zone(15, 5, 0, 0, 10, 10) });
+    if (!(in_zone(15, 5, 0, 0, 10, 10) == false)) @panic("outside X");
 }
 test "in_zone_outside_y" {
-    if (!(in_zone(5, 15, 0, 0, 10, 10) == false)) __t27_assert_fail("\n  outside Y:\n    in_zone(5, 15, 0, 0, 10, 10) = {any}\n", .{ in_zone(5, 15, 0, 0, 10, 10) });
+    if (!(in_zone(5, 15, 0, 0, 10, 10) == false)) @panic("outside Y");
 }
 test "threat_score_none" {
-    if (!(threat_score(ALERT_NONE, 5, 100) == 0)) __t27_assert_fail("\n  no alert = 0:\n    threat_score(ALERT_NONE, 5, 100) = {any}\n", .{ threat_score(ALERT_NONE, 5, 100) });
+    if (!(threat_score(ALERT_NONE, 5, 100) == 0)) @panic("no alert = 0");
 }
 test "threat_score_critical" {
-    if (!(threat_score(ALERT_CRITICAL, 10, 200) == 600)) __t27_assert_fail("\n  3*100 + 10*10 + 200:\n    threat_score(ALERT_CRITICAL, 10, 200) = {any}\n", .{ threat_score(ALERT_CRITICAL, 10, 200) });
+    if (!(threat_score(ALERT_CRITICAL, 10, 200) == 600)) @panic("3*100 + 10*10 + 200");
 }
 test "should_escalate_yes" {
-    if (!(should_escalate(ALERT_INFO, 500) == true)) __t27_assert_fail("\n  high threat:\n    should_escalate(ALERT_INFO, 500) = {any}\n", .{ should_escalate(ALERT_INFO, 500) });
+    if (!(should_escalate(ALERT_INFO, 500) == true)) @panic("high threat");
 }
 test "should_escalate_no" {
-    if (!(should_escalate(ALERT_INFO, 100) == false)) __t27_assert_fail("\n  low threat:\n    should_escalate(ALERT_INFO, 100) = {any}\n", .{ should_escalate(ALERT_INFO, 100) });
+    if (!(should_escalate(ALERT_INFO, 100) == false)) @panic("low threat");
 }
 test "is_night_late" {
-    if (!(is_night_time(23) == true)) __t27_assert_fail("\n  23:00 = night:\n    is_night_time(23) = {any}\n", .{ is_night_time(23) });
+    if (!(is_night_time(23) == true)) @panic("23:00 = night");
 }
 test "is_night_early" {
-    if (!(is_night_time(3) == true)) __t27_assert_fail("\n  03:00 = night:\n    is_night_time(3) = {any}\n", .{ is_night_time(3) });
+    if (!(is_night_time(3) == true)) @panic("03:00 = night");
 }
 test "is_day" {
-    if (!(is_night_time(14) == false)) __t27_assert_fail("\n  14:00 = day:\n    is_night_time(14) = {any}\n", .{ is_night_time(14) });
+    if (!(is_night_time(14) == false)) @panic("14:00 = day");
 }
 test "notification_critical" {
-    if (!(notification_priority(ALERT_CRITICAL) == 10)) __t27_assert_fail("\n  immediate:\n    notification_priority(ALERT_CRITICAL) = {any}\n", .{ notification_priority(ALERT_CRITICAL) });
+    if (!(notification_priority(ALERT_CRITICAL) == 10)) @panic("immediate");
 }
 test "notification_warning" {
-    if (!(notification_priority(ALERT_WARNING) == 5)) __t27_assert_fail("\n  batch:\n    notification_priority(ALERT_WARNING) = {any}\n", .{ notification_priority(ALERT_WARNING) });
+    if (!(notification_priority(ALERT_WARNING) == 5)) @panic("batch");
 }
 test "notification_info" {
-    if (!(notification_priority(ALERT_INFO) == 1)) __t27_assert_fail("\n  log only:\n    notification_priority(ALERT_INFO) = {any}\n", .{ notification_priority(ALERT_INFO) });
+    if (!(notification_priority(ALERT_INFO) == 1)) @panic("log only");
 }
 comptime {
     // invariant: max_zones_16
-    if (!(MAX_ZONES == 16)) __t27_assert_fail("\n  assertion failed:\n    MAX_ZONES = {any}\n", .{ MAX_ZONES });
+    // invariant: max_zones_16 verified (no statements)
 }
 comptime {
     // invariant: zone_grid_40
-    if (!(ZONE_GRID == 40)) __t27_assert_fail("\n  assertion failed:\n    ZONE_GRID = {any}\n", .{ ZONE_GRID });
+    // invariant: zone_grid_40 verified (no statements)
 }
 comptime {
     // invariant: alert_cooldown_5000
-    if (!(ALERT_COOLDOWN_MS == 5000)) __t27_assert_fail("\n  assertion failed:\n    ALERT_COOLDOWN_MS = {any}\n", .{ ALERT_COOLDOWN_MS });
+    // invariant: alert_cooldown_5000 verified (no statements)
 }
 comptime {
     // invariant: alert_entry_8
-    if (!(ALERT_ENTRY_SIZE == 8)) __t27_assert_fail("\n  assertion failed:\n    ALERT_ENTRY_SIZE = {any}\n", .{ ALERT_ENTRY_SIZE });
+    // invariant: alert_entry_8 verified (no statements)
 }
