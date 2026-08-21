@@ -25,11 +25,27 @@ pub const CAP_WEBRTC: u8 = 8;
 
 pub const INVITE_TTL_SECONDS: u32 = 30;
 
+pub const AUTO_MESH_PROBE_TIMEOUT_SECONDS: u32 = 8;
+
+pub const AUTO_MESH_CONTROL_GRACE_SECONDS: u32 = 1;
+
+pub const AUTO_MESH_ACCEPTED_CONNECT_TIMEOUT_SECONDS: u32 = 30;
+
+pub const MESH_CONTROL_SEND_ATTEMPTS: u32 = 3;
+
 pub const TOKEN_TTL_SECONDS: u32 = 300;
 
 pub const REQUEST_SIGNATURE_TTL_SECONDS: u32 = 60;
 
+pub const REQUEST_SIGNATURE_MAX_FUTURE_SKEW_SECONDS: u32 = 10;
+
 pub const PRESENCE_TTL_SECONDS: u32 = 90;
+
+pub const APNS_MAX_DELIVERY_ATTEMPTS: u32 = 3;
+
+pub const APNS_RETRY_BASE_DELAY_MS: u32 = 100;
+
+pub const APNS_RETRY_MAX_JITTER_MS: u32 = 50;
 
 pub fn device_is_valid(user_id: u64, device_id: u64, key_fingerprint: u64, capabilities: u8) -> bool {
     if (((user_id == 0) || (device_id == 0)) || (key_fingerprint == 0)) {
@@ -63,6 +79,69 @@ pub fn select_route(mesh_reachable: bool, internet_reachable: bool) -> u8 {
     return ROUTE_NONE;
 }
 
+pub fn auto_mesh_should_fallback(auto_requested: bool, target_is_numeric_address: bool, secure_session_ready: bool, acceptance_received: bool, cancelled: bool, initial_deadline_due: bool, accepted_deadline_due: bool) -> bool {
+    if (((!(auto_requested) || target_is_numeric_address) || secure_session_ready) || cancelled) {
+        return false;
+    }
+    if acceptance_received {
+        return accepted_deadline_due;
+    }
+    return initial_deadline_due;
+}
+
+pub fn auto_mesh_fallback_decision_is_due(probe_started_at: u32, now: u32) -> bool {
+    if (now < probe_started_at) {
+        return false;
+    }
+    return ((now - probe_started_at) >= (AUTO_MESH_PROBE_TIMEOUT_SECONDS + AUTO_MESH_CONTROL_GRACE_SECONDS));
+}
+
+pub fn auto_mesh_accepted_fallback_decision_is_due(probe_started_at: u32, now: u32) -> bool {
+    if (now < probe_started_at) {
+        return false;
+    }
+    return ((now - probe_started_at) >= AUTO_MESH_ACCEPTED_CONNECT_TIMEOUT_SECONDS);
+}
+
+pub fn auto_mesh_prompt_is_fresh(received_at: u32, now: u32) -> bool {
+    if (now < received_at) {
+        return false;
+    }
+    return ((now - received_at) <= AUTO_MESH_PROBE_TIMEOUT_SECONDS);
+}
+
+pub fn mesh_control_auth_is_valid(signature_valid: bool, fresh: bool) -> bool {
+    return (signature_valid && fresh);
+}
+
+pub fn mesh_control_route_matches(control_call_id: u64, expected_call_id: u64, recipient_device_id: u64, local_device_id: u64) -> bool {
+    return (((control_call_id != 0) && (control_call_id == expected_call_id)) && (recipient_device_id == local_device_id));
+}
+
+pub fn mesh_control_peer_matches(sender_user_id: u64, expected_sender_user_id: u64, sender_device_id: u64, expected_sender_device_id: u64, sender_key_fingerprint: u64, expected_key_fingerprint: u64) -> bool {
+    return (((sender_user_id == expected_sender_user_id) && (sender_device_id == expected_sender_device_id)) && (sender_key_fingerprint == expected_key_fingerprint));
+}
+
+pub fn mesh_control_is_authorized(route_matches: bool, peer_matches: bool, auth_valid: bool) -> bool {
+    return ((route_matches && peer_matches) && auth_valid);
+}
+
+pub fn incoming_call_should_mark_reported(already_reported: bool, consumed_by_ui: bool) -> bool {
+    return (!(already_reported) && consumed_by_ui);
+}
+
+pub fn incoming_call_should_retry_after_presentation(presentation_succeeded: bool) -> bool {
+    return !(presentation_succeeded);
+}
+
+pub fn mesh_stop_should_notify_peer(has_outbound_control: bool, has_inbound_signed_call: bool) -> bool {
+    return (has_outbound_control || has_inbound_signed_call);
+}
+
+pub fn internet_remote_departure_should_end(active_route: u8) -> bool {
+    return (active_route == ROUTE_INTERNET);
+}
+
 pub fn should_migrate_private_api_endpoint(saved_is_private_literal: bool, bundled_is_local_hostname: bool) -> bool {
     return (saved_is_private_literal && bundled_is_local_hostname);
 }
@@ -82,8 +161,8 @@ pub fn token_is_fresh(issued_at: u32, now: u32) -> bool {
 }
 
 pub fn request_signature_is_fresh(signed_at: u32, now: u32) -> bool {
-    if (now < signed_at) {
-        return false;
+    if (signed_at > now) {
+        return ((signed_at - now) <= REQUEST_SIGNATURE_MAX_FUTURE_SKEW_SECONDS);
     }
     return ((now - signed_at) <= REQUEST_SIGNATURE_TTL_SECONDS);
 }
@@ -102,12 +181,57 @@ pub fn call_target_is_valid(caller_user_id: u64, caller_device_id: u64, callee_u
     return supports_internet_call(callee_capabilities);
 }
 
-pub fn call_target_is_available(caller_user_id: u64, caller_device_id: u64, callee_user_id: u64, callee_device_id: u64, callee_capabilities: u8, online: bool) -> bool {
-    return (online && call_target_is_valid(caller_user_id, caller_device_id, callee_user_id, callee_device_id, callee_capabilities));
+pub fn call_target_is_available(caller_user_id: u64, caller_device_id: u64, callee_user_id: u64, callee_device_id: u64, callee_capabilities: u8, online: bool, voip_push_reachable: bool) -> bool {
+    return ((online || voip_push_reachable) && call_target_is_valid(caller_user_id, caller_device_id, callee_user_id, callee_device_id, callee_capabilities));
+}
+
+pub fn voip_push_may_be_sent(status: u8, invite_fresh: bool, token_valid: bool) -> bool {
+    return (((status == CALL_RINGING) && invite_fresh) && token_valid);
+}
+
+pub fn apns_should_try_alternate_environment(bad_device_token: bool, alternate_already_attempted: bool) -> bool {
+    return (bad_device_token && !(alternate_already_attempted));
+}
+
+pub fn apns_environment_should_be_updated(alternate_succeeded: bool, token_matches: bool) -> bool {
+    return (alternate_succeeded && token_matches);
+}
+
+pub fn apns_delivery_failure_is_retryable(transport_failure: bool, status_code: u32) -> bool {
+    return ((transport_failure || (status_code == 429)) || ((status_code >= 500) && (status_code < 600)));
+}
+
+pub fn apns_should_retry(transient_failure: bool, attempts_completed: u32) -> bool {
+    return (transient_failure && (attempts_completed < APNS_MAX_DELIVERY_ATTEMPTS));
+}
+
+pub fn apns_bounded_jitter_ms(jitter_ms: u32) -> u32 {
+    if (jitter_ms > APNS_RETRY_MAX_JITTER_MS) {
+        return APNS_RETRY_MAX_JITTER_MS;
+    }
+    return jitter_ms;
+}
+
+pub fn apns_retry_delay_ms(attempts_completed: u32, jitter_ms: u32) -> u32 {
+    if (attempts_completed <= 1) {
+        return (APNS_RETRY_BASE_DELAY_MS + apns_bounded_jitter_ms(jitter_ms));
+    }
+    return ((APNS_RETRY_BASE_DELAY_MS << 1) + apns_bounded_jitter_ms(jitter_ms));
+}
+
+pub fn apns_token_should_be_invalidated(permanent_failure: bool, bad_device_token: bool, alternate_attempted: bool, token_matches: bool) -> bool {
+    if (!(permanent_failure) || !(token_matches)) {
+        return false;
+    }
+    return (!(bad_device_token) || alternate_attempted);
 }
 
 pub fn join_is_authorized(request_user_id: u64, request_device_id: u64, callee_user_id: u64, callee_device_id: u64, status: u8, invite_fresh: bool, device_valid: bool) -> bool {
     return (((request_user_id == callee_user_id) && (request_device_id == callee_device_id)) && may_answer(status, invite_fresh, device_valid));
+}
+
+pub fn caller_may_end(request_user_id: u64, request_device_id: u64, caller_user_id: u64, caller_device_id: u64, status: u8) -> bool {
+    return (((request_user_id == caller_user_id) && (request_device_id == caller_device_id)) && (((status == CALL_RINGING) || (status == CALL_ACTIVE)) || (status == CALL_ENDED)));
 }
 
 pub fn next_status(status: u8, accept: bool) -> u8 {

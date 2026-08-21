@@ -289,10 +289,11 @@ private struct StartCallView: View {
                 if !call.directory.results.isEmpty {
                     HStack(spacing: 8) {
                         ForEach(call.directory.results.prefix(3)) { contact in
-                            Button("@\(contact.nickname) [\(contact.source.rawValue)]") {
+                            Button("@\(contact.nickname) [\(contact.source == .mesh && !contact.online ? "LOCAL OFFLINE" : contact.source.rawValue)]") {
                                 call.selectContact(contact)
                             }
-                            .buttonStyle(.plain).font(DS.mono(10, .medium)).foregroundColor(DS.text)
+                            .buttonStyle(.plain).font(DS.mono(10, .medium))
+                            .foregroundColor(contact.online ? DS.text : DS.faint)
                             .padding(.horizontal, 10).padding(.vertical, 6)
                             .overlay(Capsule().stroke(DS.hairline, lineWidth: 1))
                         }
@@ -306,6 +307,15 @@ private struct StartCallView: View {
                     HStack(spacing: 8) {
                         ProgressView().controlSize(.small)
                         Text(call.status).font(DS.ui(11)).foregroundColor(DS.dim)
+                        Button(action: call.cancelPendingCall) {
+                            Label("Stop", systemImage: "xmark")
+                                .font(DS.mono(10, .semibold))
+                                .foregroundColor(DS.danger)
+                                .padding(.horizontal, 10).padding(.vertical, 5)
+                                .overlay(Capsule().stroke(DS.danger.opacity(0.55), lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Stop connection attempt")
                     }
                 }
 
@@ -393,6 +403,8 @@ private struct StartCallView: View {
 
             PillButton(title: "Start Call", icon: "phone.fill", filled: true) { call.startCall() }
                 .padding(.top, 6)
+                .disabled(call.isStarting)
+                .opacity(call.isStarting ? 0.45 : 1)
         }
         .padding(30)
         .sheet(isPresented: $showNickname) { MonitorNicknamePanel(call: call) }

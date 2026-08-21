@@ -38,6 +38,8 @@ struct DeviceRegistrationRequest: Encodable {
     let keyFingerprint: String
     let platform: String
     let voipPushToken: String?
+    let alertPushToken: String?
+    let pushEnvironment: String?
     let capabilities: [String]
 }
 
@@ -47,6 +49,18 @@ struct CreateInternetCallRequest: Encodable {
     let callerDeviceID: String
     let audio: Bool
     let video: Bool
+}
+
+struct InternetCallMedia: Codable, Equatable {
+    let audio: Bool
+    let video: Bool
+
+    static let audioOnly = InternetCallMedia(audio: true, video: false)
+    static let audioVideo = InternetCallMedia(audio: true, video: true)
+
+    static func outgoing(cameraOff: Bool) -> InternetCallMedia {
+        cameraOff ? .audioOnly : .audioVideo
+    }
 }
 
 struct InternetCallSession: Decodable {
@@ -134,6 +148,7 @@ struct GroupChatSummary: Decodable, Identifiable, Equatable {
     let createdAt: Int64
     let lastMessage: String?
     let lastMessageAt: Int64?
+    var unreadCount: Int
 
     var id: String { chatID }
 
@@ -144,6 +159,7 @@ struct GroupChatSummary: Decodable, Identifiable, Equatable {
         case createdAt = "created_at"
         case lastMessage = "last_message"
         case lastMessageAt = "last_message_at"
+        case unreadCount = "unread_count"
     }
 }
 
@@ -171,8 +187,14 @@ private struct IncomingInternetCallsResponse: Decodable {
     let calls: [IncomingInternetCall]
 }
 
-private struct GroupChatsResponse: Decodable {
+struct GroupChatsResponse: Decodable {
     let chats: [GroupChatSummary]
+    let totalUnreadCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case chats
+        case totalUnreadCount = "total_unread_count"
+    }
 }
 
 private struct GroupMessagesResponse: Decodable {
@@ -203,6 +225,7 @@ final class InternetCallAPI {
 
     func register(identity: DeviceIdentity, voipToken: String?) async throws {
         guard !configuration.isDevelopmentDirect else { return }
+        let defaults = UserDefaults.standard
         let body = DeviceRegistrationRequest(
             userID: identity.userID,
             deviceID: identity.deviceID,
@@ -211,6 +234,8 @@ final class InternetCallAPI {
             keyFingerprint: identity.keyFingerprint,
             platform: platformName,
             voipPushToken: voipToken,
+            alertPushToken: defaults.string(forKey: "alertPushToken"),
+            pushEnvironment: defaults.string(forKey: "pushEnvironment"),
             capabilities: ["audio", "video", "mesh", "webrtc"]
         )
         let _: EmptyResponse = try await request(path: "/v1/devices/register", method: "POST", body: body, identity: identity)
@@ -246,6 +271,21 @@ final class InternetCallAPI {
         }
         let body = JoinRequest(userID: identity.userID, deviceID: identity.deviceID)
         return try await request(path: "/v1/calls/\(callID)/join", method: "POST", body: body, identity: identity)
+    }
+
+    func cancelCall(callID: String, identity: DeviceIdentity) async throws {
+        struct EndRequest: Encodable {
+            let userID: String
+            let deviceID: String
+        }
+        guard !configuration.isDevelopmentDirect else { return }
+        let body = EndRequest(userID: identity.userID, deviceID: identity.deviceID)
+        let _: EmptyResponse = try await request(
+            path: "/v1/calls/\(callID)/cancel",
+            method: "POST",
+            body: body,
+            identity: identity
+        )
     }
 
     func incomingCalls(identity: DeviceIdentity) async throws -> [IncomingInternetCall] {
@@ -346,7 +386,7 @@ final class InternetCallAPI {
                                  identity: identity)
     }
 
-    func groupChats(identity: DeviceIdentity) async throws -> [GroupChatSummary] {
+    func groupChats(identity: DeviceIdentity) async throws -> GroupChatsResponse {
         struct ListRequest: Encodable {
             let userID: String
             let deviceID: String
@@ -356,7 +396,7 @@ final class InternetCallAPI {
                                                              method: "POST",
                                                              body: body,
                                                              identity: identity)
-        return response.chats
+        return response
     }
 
     func sendGroupMessage(chatID: String,
@@ -400,6 +440,25 @@ final class InternetCallAPI {
             identity: identity
         )
         return response.messages
+    }
+
+    func markGroupChatRead(chatID: String,
+                           throughMessageID: Int64,
+                           identity: DeviceIdentity) async throws {
+        struct MarkReadRequest: Encodable {
+            let userID: String
+            let deviceID: String
+            let throughMessageID: Int64
+        }
+        let body = MarkReadRequest(userID: identity.userID,
+                                   deviceID: identity.deviceID,
+                                   throughMessageID: throughMessageID)
+        let _: EmptyResponse = try await request(
+            path: "/v1/chats/\(chatID)/read",
+            method: "POST",
+            body: body,
+            identity: identity
+        )
     }
 
     private func request<Body: Encodable, Response: Decodable>(path: String,
@@ -600,11 +659,14 @@ final class GroupChatController: ObservableObject {
     @Published private(set) var chats: [GroupChatSummary] = []
     @Published private(set) var messages: [GroupChatMessage] = []
     @Published private(set) var activeChatID: String?
+    @Published private(set) var totalUnreadCount = 0
     @Published private(set) var isWorking = false
     @Published private(set) var statusMessage: String?
     @Published var titleInput = ""
     @Published var membersInput = ""
     @Published var draft = ""
+
+    var onNewUnread: ((Int) -> Void)?
 
     var activeChat: GroupChatSummary? {
         chats.first { $0.chatID == activeChatID }
@@ -615,6 +677,8 @@ final class GroupChatController: ObservableObject {
     private var api: InternetCallAPI
     private var pollTimer: Timer?
     private var refreshInFlight = false
+    private var observedUnreadByChat: [String: Int]?
+    private var lastMarkedReadMessageID: [String: Int64] = [:]
 
     init(identity: DeviceIdentity, configuration: InternetCallConfiguration) {
         self.identity = identity
@@ -626,6 +690,12 @@ final class GroupChatController: ObservableObject {
         self.identity = identity
         self.configuration = configuration
         api = InternetCallAPI(configuration: configuration)
+        chats = []
+        messages = []
+        activeChatID = nil
+        totalUnreadCount = 0
+        observedUnreadByChat = nil
+        lastMarkedReadMessageID = [:]
         startPolling()
     }
 
@@ -680,13 +750,17 @@ final class GroupChatController: ObservableObject {
             guard let self else { return }
             defer { self.refreshInFlight = false }
             do {
-                self.chats = try await api.groupChats(identity: identity)
+                let response = try await api.groupChats(identity: identity)
+                self.apply(response, activeChatID: self.activeChatID)
                 if let selectedChatID {
                     let received = try await api.groupMessages(chatID: selectedChatID,
                                                                afterMessageID: afterMessageID,
                                                                identity: identity)
                     guard self.activeChatID == selectedChatID else { return }
                     self.merge(received)
+                    try await self.markReadIfPossible(chatID: selectedChatID,
+                                                      identity: identity,
+                                                      api: api)
                 }
                 self.statusMessage = nil
             } catch {
@@ -773,11 +847,59 @@ final class GroupChatController: ObservableObject {
                                                            identity: identity)
                 guard self.activeChatID == chatID else { return }
                 self.merge(received)
+                try await self.markReadIfPossible(chatID: chatID,
+                                                  identity: identity,
+                                                  api: api)
                 self.statusMessage = nil
             } catch {
                 self.statusMessage = error.localizedDescription
             }
         }
+    }
+
+    @MainActor
+    private func apply(_ response: GroupChatsResponse, activeChatID: String?) {
+        let nextUnreadByChat = Dictionary(
+            uniqueKeysWithValues: response.chats.map { ($0.chatID, max(0, $0.unreadCount)) }
+        )
+        var newUnread = 0
+        if let previous = observedUnreadByChat {
+            for chat in response.chats where chat.chatID != activeChatID {
+                let oldCount = previous[chat.chatID] ?? 0
+                newUnread += max(0, chat.unreadCount - oldCount)
+            }
+        }
+        chats = response.chats
+        totalUnreadCount = max(0, response.totalUnreadCount)
+        observedUnreadByChat = nextUnreadByChat
+        if newUnread > 0 {
+            onNewUnread?(newUnread)
+        }
+    }
+
+    @MainActor
+    private func markReadIfPossible(chatID: String,
+                                    identity: DeviceIdentity,
+                                    api: InternetCallAPI) async throws {
+        guard activeChatID == chatID,
+              let throughMessageID = messages.last?.messageID,
+              throughMessageID > (lastMarkedReadMessageID[chatID] ?? 0) else { return }
+        try await api.markGroupChatRead(chatID: chatID,
+                                        throughMessageID: throughMessageID,
+                                        identity: identity)
+        lastMarkedReadMessageID[chatID] = throughMessageID
+        guard activeChatID == chatID else { return }
+        markReadLocally(chatID: chatID)
+    }
+
+    @MainActor
+    private func markReadLocally(chatID: String) {
+        if let index = chats.firstIndex(where: { $0.chatID == chatID }) {
+            let removed = max(0, chats[index].unreadCount)
+            chats[index].unreadCount = 0
+            totalUnreadCount = max(0, totalUnreadCount - removed)
+        }
+        observedUnreadByChat?[chatID] = 0
     }
 
     private func parsedMembers() -> [String] {
@@ -800,6 +922,23 @@ final class GroupChatController: ObservableObject {
     }
 }
 
+enum IncomingCallDeliveryPolicy {
+    static func shouldMarkReported(alreadyReported: Bool,
+                                   consumedByUI: Bool) -> Bool {
+        !alreadyReported && consumedByUI
+    }
+
+    static func shouldRetryAfterPresentation(succeeded: Bool) -> Bool {
+        !succeeded
+    }
+}
+
+enum InternetCallLifecyclePolicy {
+    static func shouldEndAfterRemoteDeparture(activeRoute: CallRoute?) -> Bool {
+        activeRoute == .internet
+    }
+}
+
 final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @unchecked Sendable {
     @Published private(set) var state: InternetCallState = .idle
     @Published private(set) var callID: String?
@@ -813,12 +952,17 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
 
     var onChat: ((String) -> Void)?
     var onReaction: ((String) -> Void)?
-    var onIncomingCall: ((IncomingInternetCall) -> Void)?
+    var onIncomingCall: ((IncomingInternetCall) -> Bool)?
+    var onRemoteEnded: (() -> Void)?
 
     private(set) var identity: DeviceIdentity
     private var configuration: InternetCallConfiguration
     private var api: InternetCallAPI
+    // Accessed on the main queue only. A generation token prevents a cancelled
+    // async attempt from installing its Room after Stop followed by a retry.
     private var room: Room?
+    private var roomAttemptID: UUID?
+    private var outgoingCallID: String?
     private var incomingPollTimer: Timer?
     private var reportedIncomingCallIDs = Set<String>()
     private var registeredVoipToken = UserDefaults.standard.string(forKey: "voipPushToken")
@@ -865,11 +1009,26 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
     private func pollIncomingCalls() async {
         guard configuration.hasDirectoryAPI, !configuration.isDevelopmentDirect else { return }
         guard let calls = try? await api.incomingCalls(identity: identity) else { return }
-        guard let incoming = calls.first(where: { !reportedIncomingCallIDs.contains($0.callID) }) else { return }
         setMain {
-            guard !self.reportedIncomingCallIDs.contains(incoming.callID) else { return }
+            guard let incoming = calls.first(where: {
+                !self.reportedIncomingCallIDs.contains($0.callID)
+            }) else { return }
+            let alreadyReported = self.reportedIncomingCallIDs.contains(incoming.callID)
+            guard !alreadyReported else { return }
+            let consumed = self.onIncomingCall?(incoming) ?? false
+            guard IncomingCallDeliveryPolicy.shouldMarkReported(
+                alreadyReported: alreadyReported,
+                consumedByUI: consumed
+            ) else { return }
             self.reportedIncomingCallIDs.insert(incoming.callID)
-            self.onIncomingCall?(incoming)
+        }
+    }
+
+    func allowIncomingRetry(callID: String) {
+        // Always enqueue this removal. A presentation callback is allowed to
+        // fail immediately, before pollIncomingCalls finishes inserting the ID.
+        DispatchQueue.main.async {
+            self.reportedIncomingCallIDs.remove(callID)
         }
     }
 
@@ -882,25 +1041,110 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
 
     func start(callee: String, audio: Bool = true, video: Bool = true) async throws {
         guard configuration.isConfigured else { throw InternetCallError.notConfigured }
-        setState(.registering)
-        try await api.register(identity: identity, voipToken: registeredVoipToken)
-        let session = try await api.createCall(callee: callee,
-                                               identity: identity,
-                                               audio: audio,
-                                               video: video)
-        try await connect(session: session, audio: audio, video: video)
+        let attemptID = try await beginRoomAttempt()
+        let requestAPI = api
+        let requestIdentity = identity
+        try await setAttemptState(.registering, attemptID: attemptID)
+        try await requestAPI.register(identity: requestIdentity, voipToken: registeredVoipToken)
+        try Task.checkCancellation()
+        // Keep creation independent from the UI task cancellation. If Stop
+        // arrives while POST /v1/calls is in flight, its response still gives us
+        // the call ID required to retract the server-side invitation.
+        let creation = Task {
+            try await requestAPI.createCall(callee: callee,
+                                            identity: requestIdentity,
+                                            audio: audio,
+                                            video: video)
+        }
+        let session = try await creation.value
+        do {
+            try await retainOutgoingCallID(session.callID, attemptID: attemptID)
+            try Task.checkCancellation()
+            try await connect(session: session, audio: audio, video: video, attemptID: attemptID)
+        } catch {
+            clearOutgoingCallID(session.callID)
+            cancelCallBestEffort(session.callID, api: requestAPI, identity: requestIdentity)
+            throw error
+        }
     }
 
     func join(callID: String, audio: Bool = true, video: Bool = true) async throws {
         guard configuration.isConfigured else { throw InternetCallError.notConfigured }
-        setState(.connecting)
+        let attemptID = try await beginRoomAttempt()
+        try await setAttemptState(.connecting, attemptID: attemptID)
         let session = try await api.joinCall(callID: callID, identity: identity)
-        try await connect(session: session, audio: audio, video: video)
+        try Task.checkCancellation()
+        try await connect(session: session, audio: audio, video: video, attemptID: attemptID)
     }
 
-    private func connect(session: InternetCallSession, audio: Bool, video: Bool) async throws {
-        setState(.connecting)
+    private func beginRoomAttempt() async throws -> UUID {
+        try Task.checkCancellation()
+        let attemptID = UUID()
+        do {
+            let oldRoom = try await MainActor.run {
+                try Task.checkCancellation()
+                let oldRoom = self.room
+                self.room = nil
+                self.roomAttemptID = attemptID
+                return oldRoom
+            }
+            if let oldRoom { await oldRoom.disconnect() }
+            try Task.checkCancellation()
+            return attemptID
+        } catch {
+            await MainActor.run {
+                guard self.roomAttemptID == attemptID else { return }
+                self.roomAttemptID = nil
+            }
+            throw error
+        }
+    }
+
+    private func setAttemptState(_ state: InternetCallState, attemptID: UUID) async throws {
+        try await MainActor.run {
+            guard self.roomAttemptID == attemptID else { throw CancellationError() }
+            self.applyState(state)
+        }
+    }
+
+    private func retainOutgoingCallID(_ callID: String, attemptID: UUID) async throws {
+        try await MainActor.run {
+            guard self.roomAttemptID == attemptID else { throw CancellationError() }
+            self.callID = callID
+            self.outgoingCallID = callID
+        }
+    }
+
+    private func clearOutgoingCallID(_ expectedCallID: String) {
         setMain {
+            guard self.outgoingCallID == expectedCallID else { return }
+            self.outgoingCallID = nil
+            if self.callID == expectedCallID { self.callID = nil }
+        }
+    }
+
+    private func cancelCallBestEffort(_ callID: String,
+                                      api: InternetCallAPI,
+                                      identity: DeviceIdentity) {
+        Task {
+            do {
+                try await api.cancelCall(callID: callID, identity: identity)
+                NSLog("TRINET: Internet call ended call=%@", callID)
+            } catch {
+                NSLog("TRINET: Internet call end failed call=%@ error=%@",
+                      callID, error.localizedDescription)
+            }
+        }
+    }
+
+    private func connect(session: InternetCallSession,
+                         audio: Bool,
+                         video: Bool,
+                         attemptID: UUID) async throws {
+        try Task.checkCancellation()
+        try await MainActor.run {
+            guard self.roomAttemptID == attemptID else { throw CancellationError() }
+            self.state = .connecting
             self.callID = session.callID
             self.participantName = ""
             self.hasRemoteParticipant = false
@@ -914,18 +1158,28 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
                                   reportRemoteTrackStatistics: true,
                                   singlePeerConnection: true)
         let newRoom = Room(delegate: self, roomOptions: options)
-        room = newRoom
+        let installed = await MainActor.run {
+            guard self.roomAttemptID == attemptID else { return false }
+            self.room = newRoom
+            return true
+        }
+        guard installed else { throw CancellationError() }
         do {
+            try Task.checkCancellation()
             try await newRoom.connect(url: session.liveKitURL, token: session.token)
+            try Task.checkCancellation()
             NSLog("TRINET: LiveKit signaling connected call=%@", session.callID)
             let cameraPublication = try await newRoom.localParticipant.setCamera(enabled: video)
+            try Task.checkCancellation()
             let microphonePublication = try await newRoom.localParticipant.setMicrophone(enabled: audio)
+            try Task.checkCancellation()
             _ = microphonePublication
             let existingParticipant = newRoom.remoteParticipants.values.first
             let existingVideo = existingParticipant?.trackPublications.values
                 .compactMap { $0.track as? RemoteVideoTrack }
                 .first
-            setMain {
+            let accepted = await MainActor.run {
+                guard self.roomAttemptID == attemptID, self.room === newRoom else { return false }
                 self.localVideoTrack = cameraPublication?.track as? LocalVideoTrack
                 if let existingParticipant {
                     self.participantName = self.participantLabel(existingParticipant)
@@ -935,42 +1189,57 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
                 self.isCameraEnabled = video
                 self.isMuted = !audio
                 self.state = .connected
+                return true
             }
+            guard accepted else { throw CancellationError() }
             NSLog("TRINET: LiveKit media published call=%@ camera=%d microphone=%d",
                   session.callID, video ? 1 : 0, audio ? 1 : 0)
         } catch {
-            NSLog("TRINET: LiveKit connect failed call=%@ error=%@",
-                  session.callID, error.localizedDescription)
-            setFailure(error)
+            if !(error is CancellationError) {
+                NSLog("TRINET: LiveKit connect failed call=%@ error=%@",
+                      session.callID, error.localizedDescription)
+                await MainActor.run {
+                    guard self.roomAttemptID == attemptID, self.room === newRoom else { return }
+                    self.applyFailure(error)
+                }
+            }
             await newRoom.disconnect()
-            room = nil
+            await MainActor.run {
+                guard self.roomAttemptID == attemptID, self.room === newRoom else { return }
+                self.room = nil
+                self.roomAttemptID = nil
+            }
             throw error
         }
     }
 
     func setMuted(_ muted: Bool) {
-        guard let room else { return }
+        guard let activeRoom = currentRoom() else { return }
         Task {
             do {
-                _ = try await room.localParticipant.setMicrophone(enabled: !muted)
-                setMain { self.isMuted = muted }
+                _ = try await activeRoom.localParticipant.setMicrophone(enabled: !muted)
+                setMain {
+                    guard self.room === activeRoom else { return }
+                    self.isMuted = muted
+                }
             } catch {
-                setFailure(error)
+                setFailure(error, for: activeRoom)
             }
         }
     }
 
     func setCamera(enabled: Bool) {
-        guard let room else { return }
+        guard let activeRoom = currentRoom() else { return }
         Task {
             do {
-                let publication = try await room.localParticipant.setCamera(enabled: enabled)
+                let publication = try await activeRoom.localParticipant.setCamera(enabled: enabled)
                 setMain {
+                    guard self.room === activeRoom else { return }
                     self.localVideoTrack = publication?.track as? LocalVideoTrack
                     self.isCameraEnabled = enabled
                 }
             } catch {
-                setFailure(error)
+                setFailure(error, for: activeRoom)
             }
         }
     }
@@ -984,47 +1253,59 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
     }
 
     private func publish(kind: InternetDataMessage.Kind, value: String) {
-        guard let room else { return }
+        guard let activeRoom = currentRoom() else { return }
         Task {
             do {
                 let data = try JSONEncoder().encode(InternetDataMessage(kind: kind, value: value))
                 let options = DataPublishOptions(topic: "trinet.control", reliable: true)
-                try await room.localParticipant.publish(data: data, options: options)
+                try await activeRoom.localParticipant.publish(data: data, options: options)
             } catch {
-                setFailure(error)
+                setFailure(error, for: activeRoom)
             }
         }
     }
 
     func disconnect() {
-        let oldRoom = room
-        room = nil
-        setMain {
+        let disconnected = mainSync {
+            let oldRoom = self.room
+            let outgoingCallID = self.outgoingCallID
+            let api = self.api
+            let identity = self.identity
+            self.roomAttemptID = nil
+            self.room = nil
+            self.outgoingCallID = nil
             self.state = .ended
             self.callID = nil
             self.participantName = ""
             self.hasRemoteParticipant = false
             self.localVideoTrack = nil
             self.remoteVideoTrack = nil
+            return (oldRoom, outgoingCallID, api, identity)
         }
-        Task { await oldRoom?.disconnect() }
+        if let callID = disconnected.1 {
+            cancelCallBestEffort(callID, api: disconnected.2, identity: disconnected.3)
+        }
+        Task { await disconnected.0?.disconnect() }
     }
 
     func room(_ room: Room,
               didUpdateConnectionState connectionState: ConnectionState,
               from oldConnectionState: ConnectionState) {
-        switch connectionState {
-        case .connected:
-            NSLog("TRINET: LiveKit state connected")
-            setState(.connected)
-        case .reconnecting:
-            NSLog("TRINET: LiveKit state reconnecting")
-            setState(.reconnecting)
-        case .disconnected:
-            NSLog("TRINET: LiveKit state disconnected")
-            setState(.ended)
-        default:
-            break
+        setMain {
+            guard self.room === room else { return }
+            switch connectionState {
+            case .connected:
+                NSLog("TRINET: LiveKit state connected")
+                self.applyState(.connected)
+            case .reconnecting:
+                NSLog("TRINET: LiveKit state reconnecting")
+                self.applyState(.reconnecting)
+            case .disconnected:
+                NSLog("TRINET: LiveKit state disconnected")
+                self.applyState(.ended)
+            default:
+                break
+            }
         }
     }
 
@@ -1032,6 +1313,7 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
         let label = participantLabel(participant)
         NSLog("TRINET: LiveKit participant connected %@", label)
         setMain {
+            guard self.room === room else { return }
             self.participantName = label
             self.hasRemoteParticipant = true
         }
@@ -1041,9 +1323,12 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
         let label = participantLabel(participant)
         NSLog("TRINET: LiveKit participant disconnected %@", label)
         setMain {
+            guard self.room === room else { return }
             self.participantName = ""
             self.hasRemoteParticipant = false
             self.remoteVideoTrack = nil
+            self.applyState(.ended)
+            self.onRemoteEnded?()
         }
     }
 
@@ -1054,6 +1339,7 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
         let label = participantLabel(participant)
         NSLog("TRINET: LiveKit remote video subscribed %@", label)
         setMain {
+            guard self.room === room else { return }
             self.participantName = label
             self.remoteVideoTrack = video
         }
@@ -1063,7 +1349,10 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
               participant: RemoteParticipant,
               didUnsubscribeTrack publication: RemoteTrackPublication) {
         guard publication.track is RemoteVideoTrack else { return }
-        setMain { self.remoteVideoTrack = nil }
+        setMain {
+            guard self.room === room else { return }
+            self.remoteVideoTrack = nil
+        }
     }
 
     func room(_ room: Room,
@@ -1073,7 +1362,8 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
               encryptionType: EncryptionType) {
         guard topic == "trinet.control",
               let message = try? JSONDecoder().decode(InternetDataMessage.self, from: data) else { return }
-        DispatchQueue.main.async {
+        setMain {
+            guard self.room === room else { return }
             switch message.kind {
             case .chat:
                 self.onChat?(message.value)
@@ -1084,22 +1374,31 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
     }
 
     func room(_ room: Room, didFailToConnectWithError error: LiveKitError?) {
-        setFailure(error ?? InternetCallError.invalidResponse)
+        setFailure(error ?? InternetCallError.invalidResponse, for: room)
     }
 
     func room(_ room: Room, didDisconnectWithError error: LiveKitError?) {
-        if let error { setFailure(error) } else { setState(.ended) }
+        if let error {
+            setFailure(error, for: room)
+        } else {
+            setMain {
+                guard self.room === room else { return }
+                self.applyState(.ended)
+            }
+        }
     }
 
     private func setState(_ state: InternetCallState) {
-        setMain {
-            self.state = state
-            if state != .failed { self.errorMessage = nil }
-            if state == .ended {
-                self.participantName = ""
-                self.hasRemoteParticipant = false
-                self.remoteVideoTrack = nil
-            }
+        setMain { self.applyState(state) }
+    }
+
+    private func applyState(_ state: InternetCallState) {
+        self.state = state
+        if state != .failed { self.errorMessage = nil }
+        if state == .ended {
+            self.participantName = ""
+            self.hasRemoteParticipant = false
+            self.remoteVideoTrack = nil
         }
     }
 
@@ -1108,14 +1407,28 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
         return participant.identity?.stringValue ?? "Peer"
     }
 
-    private func setFailure(_ error: Error) {
+    private func setFailure(_ error: Error, for expectedRoom: Room? = nil) {
         setMain {
-            self.state = .failed
-            self.errorMessage = error.localizedDescription
-            self.participantName = ""
-            self.hasRemoteParticipant = false
-            self.remoteVideoTrack = nil
+            if let expectedRoom, self.room !== expectedRoom { return }
+            self.applyFailure(error)
         }
+    }
+
+    private func applyFailure(_ error: Error) {
+        self.state = .failed
+        self.errorMessage = error.localizedDescription
+        self.participantName = ""
+        self.hasRemoteParticipant = false
+        self.remoteVideoTrack = nil
+    }
+
+    private func currentRoom() -> Room? {
+        mainSync { self.room }
+    }
+
+    private func mainSync<T>(_ action: () -> T) -> T {
+        if Thread.isMainThread { return action() }
+        return DispatchQueue.main.sync(execute: action)
     }
 
     private func setMain(_ action: @escaping () -> Void) {

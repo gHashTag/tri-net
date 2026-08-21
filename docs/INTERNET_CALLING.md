@@ -128,8 +128,8 @@ can be required in addition to this device proof.
 
 ## Incoming iPhone calls
 
-For background production delivery, the deployment must add an APNs adapter
-that sends a VoIP push whose payload contains:
+For background delivery, configure the call service APNs provider. It sends a
+VoIP push whose payload contains:
 
 ```json
 {
@@ -143,7 +143,10 @@ that sends a VoIP push whose payload contains:
 The iOS app immediately reports the call to CallKit and joins the room only
 after the user answers. Production deployment requires the Push Notifications
 and VoIP background capabilities, an APNs signing key, and a provisioning
-profile for the application bundle identifier.
+profile for the application bundle identifier. See
+`services/call-api/README.md` for the APNs environment variables. Foreground
+polling is only a development fallback; iOS cannot wake a suspended app for a
+local UDP packet.
 
 ## Call API service
 

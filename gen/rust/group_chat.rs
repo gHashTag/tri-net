@@ -43,3 +43,22 @@ pub fn message_page_size(requested: u16) -> u16 {
     return requested;
 }
 
+pub fn advance_read_cursor(current_message_id: u64, observed_message_id: u64) -> u64 {
+    if (observed_message_id > current_message_id) {
+        return observed_message_id;
+    }
+    return current_message_id;
+}
+
+pub fn message_counts_as_unread(message_id: u64, read_cursor: u64, sender_is_self: bool) -> bool {
+    return (!(sender_is_self) && (message_id > read_cursor));
+}
+
+pub fn unread_alert_is_eligible(previous_unread: u32, current_unread: u32, chat_is_active: bool) -> bool {
+    return (!(chat_is_active) && (current_unread > previous_unread));
+}
+
+pub fn push_alert_may_be_sent(sender_is_recipient: bool, active_member: bool, token_valid: bool, inserted_new_message: bool) -> bool {
+    return (((!(sender_is_recipient) && active_member) && token_valid) && inserted_new_message);
+}
+

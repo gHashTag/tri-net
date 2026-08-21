@@ -1,4 +1,4 @@
-// Views.swift — FaceTime-style video call UI for iOS
+// Views.swift — FaceTime & Messenger UI for iOS
 import SwiftUI
 import AVFoundation
 import LiveKit
@@ -11,20 +11,78 @@ func groupDigits(_ s: String) -> String {
     return String(d[0..<3]) + " " + String(d[3..<7]) + " " + String(d[7..<11])
 }
 
-// MARK: - Home Screen
+// MARK: - Avatar View Component
+
+struct AvatarView: View {
+    let name: String
+    let data: Data?
+    var colorHex: String = "#4CD972"
+    var size: CGFloat = 40
+
+    private var initial: String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "T" }
+        if trimmed.starts(with: "@") {
+            return String(trimmed.dropFirst().prefix(1)).uppercased()
+        }
+        return String(trimmed.prefix(1)).uppercased()
+    }
+
+    var body: some View {
+        ZStack {
+            if let data = data, let uiImage = UIImage(data: data) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: size, height: size)
+                    .clipShape(Circle())
+            } else {
+                Circle()
+                    .fill(Color(hex: colorHex) ?? DS.live)
+                    .frame(width: size, height: size)
+                Text(initial)
+                    .font(DS.display(size * 0.45, .bold))
+                    .foregroundColor(DS.onFill)
+            }
+        }
+        .overlay(Circle().stroke(DS.hairlineStrong, lineWidth: 1))
+    }
+}
+
+extension Color {
+    init?(hex: String) {
+        var c = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        if c.count == 6 {
+            c = "FF" + c
+        }
+        guard c.count == 8, let val = UInt64(c, radix: 16) else { return nil }
+        let a = Double((val & 0xFF000000) >> 24) / 255.0
+        let r = Double((val & 0x00FF0000) >> 16) / 255.0
+        let g = Double((val & 0x0000FF00) >> 8) / 255.0
+        let b = Double(val & 0x000000FF) / 255.0
+        self.init(.sRGB, red: r, green: g, blue: b, opacity: a)
+    }
+}
+
+// MARK: - Home Screen (Clean Messenger Layout)
 
 struct HomeView: View {
     @ObservedObject var vm: StreamViewModel
     @ObservedObject private var directory: NicknameDirectoryController
     @ObservedObject private var groupChat: GroupChatController
     @State private var showSettings = false
-    @State private var showNicknameSetup = false
     @State private var showGroupChats = false
+    @State private var showAvatarPicker = false
+    @State private var nicknameInput: String = ""
 
     init(vm: StreamViewModel) {
         self.vm = vm
         directory = vm.directory
         groupChat = vm.groupChat
+    }
+
+    private var homeUnreadCount: Int {
+        max(vm.unreadChat, groupChat.totalUnreadCount)
     }
 
     var body: some View {
@@ -35,220 +93,566 @@ struct HomeView: View {
                 CallScreen(vm: vm)
                     .transition(.opacity)
             } else {
-                VStack(spacing: 22) {
-                    HStack {
-                        Text("TRI-NET").font(DS.display(22, .bold)).tracking(1).foregroundColor(DS.text)
+                VStack(spacing: 0) {
+                    // Top Header Bar
+                    HStack(spacing: 12) {
+                        Text("TRI-NET")
+                            .font(DS.display(22, .bold))
+                            .tracking(1)
+                            .foregroundColor(DS.text)
+
+                        StatusTag(text: "LIVE", live: true)
+
                         Spacer()
+
                         Button(action: { showGroupChats = true }) {
-                            Image(systemName: groupChat.chats.isEmpty ? "bubble.left.and.bubble.right" : "bubble.left.and.bubble.right.fill")
-                                .font(.system(size: 18)).foregroundColor(DS.dim)
-                                .frame(width: 42, height: 42)
+                            ZStack(alignment: .topTrailing) {
+                                Image(systemName: "bubble.left.and.bubble.right.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(DS.dim)
+                                    .frame(width: 40, height: 40)
+                                    .background(DS.surface, in: Circle())
+                                    .overlay(Circle().stroke(DS.hairlineStrong, lineWidth: 1))
+                                if homeUnreadCount > 0 {
+                                    Text(homeUnreadCount > 99 ? "99+" : "\(homeUnreadCount)")
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 4)
+                                        .frame(minWidth: 16, minHeight: 16)
+                                        .background(DS.danger, in: Capsule())
+                                        .offset(x: 4, y: -4)
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
+
+                        Button(action: { showSettings = true }) {
+                            Image(systemName: "gearshape")
+                                .font(.system(size: 16))
+                                .foregroundColor(DS.dim)
+                                .frame(width: 40, height: 40)
+                                .background(DS.surface, in: Circle())
                                 .overlay(Circle().stroke(DS.hairlineStrong, lineWidth: 1))
                         }
-                        Button(action: { showSettings = true }) {
-                            Image(systemName: "gearshape").font(.system(size: 18)).foregroundColor(DS.dim)
-                                .frame(width: 42, height: 42).overlay(Circle().stroke(DS.hairlineStrong, lineWidth: 1))
-                        }
+                        .buttonStyle(.plain)
                     }
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+                    .padding(.bottom, 12)
 
-                    Text("Encrypted mesh | WebRTC internet")
-                        .font(DS.ui(13)).foregroundColor(DS.dim)
+                    ScrollView(.vertical, showsIndicators: false) {
+                        VStack(spacing: 18) {
+                            // Section 1: My Profile & Nickname Setup Card
+                            VStack(alignment: .leading, spacing: 10) {
+                                SectionLabel(text: "My Profile & Nickname")
 
-                    Button(action: { showNicknameSetup = true }) {
-                        HStack(spacing: 8) {
-                            Image(systemName: directory.currentNickname == nil ? "person.crop.circle.badge.plus" : "checkmark.seal.fill")
-                            Text(directory.currentNickname.map { "@\($0)" } ?? "Create your nickname")
-                                .font(DS.mono(13, .medium))
-                            Text(directory.claimKind == .verified ? "VERIFIED" :
-                                 directory.claimKind == .meshLocal ? "MESH" : "NEW")
-                                .font(DS.mono(9, .bold))
-                                .foregroundColor(directory.claimKind == .verified ? DS.live :
-                                                 directory.claimKind == .meshLocal ? DS.warn : DS.dim)
-                        }
-                        .foregroundColor(DS.text)
-                        .padding(.horizontal, 14).padding(.vertical, 9)
-                        .background(DS.surface, in: Capsule())
-                        .overlay(Capsule().stroke(DS.hairline, lineWidth: 1))
-                    }
-                    .buttonStyle(.plain)
-
-                    Spacer()
-
-                    // Primary call button — the one white CTA
-                    Button(action: { vm.startCall() }) {
-                        ZStack {
-                            Circle().fill(vm.cameraAuthorized ? DS.fill : DS.surface)
-                                .overlay(Circle().stroke(vm.cameraAuthorized ? Color.clear : DS.hairlineStrong, lineWidth: 1))
-                                .frame(width: 128, height: 128)
-                            Image(systemName: "video.fill").font(.system(size: 46))
-                                .foregroundColor(vm.cameraAuthorized ? DS.onFill : DS.faint)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!vm.cameraAuthorized)
-
-                    // Peer field
-                    VStack(spacing: 14) {
-                        Picker("Route", selection: $vm.route) {
-                            ForEach(CallRoute.allCases) { route in
-                                Text(route.displayName).tag(route)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-
-                        HStack {
-                            SectionLabel(text: "Find")
-                            TextField(vm.route == .mesh ? "nickname or IP" : "nickname", text: Binding(
-                                get: { vm.directory.searchQuery },
-                                set: { vm.directory.searchQuery = $0 }
-                            ))
-                                .textInputAutocapitalization(.never).autocorrectionDisabled()
-                                .font(DS.mono(16)).foregroundColor(DS.text)
-                                .multilineTextAlignment(.center)
-                                .onSubmit { vm.searchNicknames() }
-                            Button(action: { vm.searchNicknames() }) {
-                                Image(systemName: "magnifyingglass")
-                                    .foregroundColor(DS.text)
-                                    .frame(width: 34, height: 34)
-                            }
-                        }
-                        .padding(.horizontal, 18).padding(.vertical, 14)
-                        .background(DS.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(DS.hairline, lineWidth: 1))
-
-                        if !vm.directory.results.isEmpty {
-                            VStack(spacing: 8) {
-                                ForEach(vm.directory.results.prefix(3)) { contact in
-                                    DirectoryContactButton(contact: contact) {
-                                        vm.selectContact(contact)
-                                        vm.directory.searchQuery = contact.nickname
+                                HStack(spacing: 12) {
+                                    Button(action: { showAvatarPicker = true }) {
+                                        ZStack(alignment: .bottomTrailing) {
+                                            AvatarView(
+                                                name: nicknameInput.isEmpty ? (directory.currentNickname ?? vm.identity.displayName) : nicknameInput,
+                                                data: vm.avatarData,
+                                                colorHex: vm.avatarColorHex,
+                                                size: 46
+                                            )
+                                            Image(systemName: "pencil.circle.fill")
+                                                .font(.system(size: 14))
+                                                .foregroundColor(DS.fill)
+                                                .background(Circle().fill(Color.black))
+                                        }
                                     }
-                                }
-                            }
-                        }
+                                    .buttonStyle(.plain)
 
-                        if !vm.callee.isEmpty {
-                            Text("CALL TARGET | @\(vm.callee)")
-                                .font(DS.mono(11, .medium)).foregroundColor(DS.live)
-                        }
-
-                        Text("SELF | \(directory.currentNickname.map { "@\($0)" } ?? vm.identity.displayName) | \(vm.identity.keyFingerprint)")
-                            .font(DS.mono(12)).foregroundColor(DS.faint)
-
-                        if let error = vm.callError {
-                            Text(error).font(DS.ui(12)).foregroundColor(DS.danger).multilineTextAlignment(.center)
-                        }
-
-                        if !vm.recentIPs.isEmpty {
-                            HStack(spacing: 10) {
-                                ForEach(vm.recentIPs.prefix(3), id: \.self) { ip in
-                                    Button(action: { vm.remoteIP = ip }) {
-                                        Text(ip).font(DS.mono(11)).foregroundColor(DS.dim)
-                                            .padding(.horizontal, 12).padding(.vertical, 7)
-                                            .overlay(Capsule().stroke(DS.hairline, lineWidth: 1))
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        HStack(spacing: 4) {
+                                            Text("@").font(DS.mono(15, .bold)).foregroundColor(DS.dim)
+                                            TextField("your_nickname", text: $nicknameInput)
+                                                .textInputAutocapitalization(.never)
+                                                .autocorrectionDisabled()
+                                                .font(DS.mono(15, .bold))
+                                                .foregroundColor(DS.text)
+                                                .onSubmit { saveNickname() }
+                                        }
+                                        Text("Tap avatar to edit photo · Enter to save")
+                                            .font(DS.ui(10))
+                                            .foregroundColor(DS.faint)
                                     }
-                                }
-                            }
-                        }
 
-                        iPeerRoster(vm: vm, discovery: vm.discovery)
-
-                        // Missed calls — one-tap call back (newest first, capped at 5).
-                        if !vm.missedCalls.isEmpty {
-                            VStack(spacing: 6) {
-                                ForEach(vm.missedCalls) { m in
-                                    HStack(spacing: 8) {
-                                        Image(systemName: "phone.arrow.down.left").font(.system(size: 12)).foregroundColor(DS.danger)
-                                        Text("Missed · \(m.name)").font(DS.ui(13)).foregroundColor(DS.text).lineLimit(1)
-                                        Text(m.at, style: .time).font(DS.mono(10)).foregroundColor(DS.faint)
-                                        Spacer()
-                                        Button("Call back") { vm.remoteIP = m.ip; vm.startCall() }
-                                            .font(DS.mono(12)).foregroundColor(.green)
-                                    }
-                                }
-                            }
-                            .padding(.horizontal, 14).padding(.vertical, 10)
-                            .background(DS.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(DS.hairline, lineWidth: 1))
-                        }
-
-                        // Recent-call journal: duration + average link quality of past completed calls.
-                        if !vm.recentCalls.isEmpty {
-                            VStack(spacing: 6) {
-                                HStack {
-                                    Text("RECENT").font(DS.mono(9)).foregroundColor(DS.faint).tracking(1)
                                     Spacer()
-                                    if #available(iOS 16.0, *) {
-                                        ShareLink(item: vm.callJournalText) {
-                                            Text("Share log").font(DS.mono(9)).foregroundColor(DS.dim)
+
+                                    Button(action: { saveNickname() }) {
+                                        Text(directory.currentNickname == nicknameInput && !nicknameInput.isEmpty ? "Saved" : "Save")
+                                            .font(DS.mono(11, .bold))
+                                            .foregroundColor(DS.onFill)
+                                            .padding(.horizontal, 14)
+                                            .padding(.vertical, 7)
+                                            .background(DS.fill, in: Capsule())
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                .padding(14)
+                                .dsCard()
+                            }
+
+                            // Section 2: Search Contact Bar
+                            VStack(alignment: .leading, spacing: 10) {
+                                SectionLabel(text: "Find Someone")
+
+                                HStack(spacing: 10) {
+                                    Image(systemName: "magnifyingglass")
+                                        .foregroundColor(DS.dim)
+                                    TextField("Type @nickname or IP to find...", text: Binding(
+                                        get: { vm.directory.searchQuery },
+                                        set: { vm.directory.searchQuery = $0 }
+                                    ))
+                                    .textInputAutocapitalization(.never)
+                                    .autocorrectionDisabled()
+                                    .font(DS.mono(14))
+                                    .foregroundColor(DS.text)
+                                    .onSubmit { vm.searchNicknames() }
+
+                                    if !vm.directory.searchQuery.isEmpty {
+                                        Button(action: { vm.directory.searchQuery = "" }) {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .foregroundColor(DS.dim)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                                .padding(.horizontal, 14).padding(.vertical, 12)
+                                .dsCard()
+
+                                if !vm.directory.results.isEmpty {
+                                    VStack(spacing: 8) {
+                                        ForEach(vm.directory.results) { contact in
+                                            DirectoryContactButton(contact: contact) {
+                                                vm.selectContact(contact)
+                                                vm.openChat(with: contact.nickname)
+                                            }
                                         }
                                     }
                                 }
-                                ForEach(vm.recentCalls.prefix(4)) { r in
-                                    HStack(spacing: 8) {
-                                        Image(systemName: "phone.connection").font(.system(size: 12)).foregroundColor(DS.dim)
-                                        Text(r.peer).font(DS.mono(12)).foregroundColor(DS.text).lineLimit(1)
-                                        Spacer()
-                                        Text("\(r.durationSec/60)m\(String(format: "%02d", r.durationSec%60))s · \(r.avgKbps)k\(r.stalls > 0 ? " · ⚠︎\(r.stalls)" : "")")
-                                            .font(DS.mono(10)).foregroundColor(r.avgJitterMs > 40 || r.stalls > 0 ? DS.danger : DS.faint)
-                                        Button("Call") { vm.remoteIP = r.peer; vm.startCall() }
-                                            .font(DS.mono(11)).foregroundColor(.green)
-                                    }
-                                }
-                                // Aggregate stability across the whole journal.
-                                let s = vm.callStats
-                                Divider().overlay(DS.hairline)
-                                HStack(spacing: 8) {
-                                    Text("\(s.count) calls").font(DS.mono(9)).foregroundColor(DS.dim)
-                                    Spacer()
-                                    Text("avg \(s.avgDurationSec/60)m\(String(format: "%02d", s.avgDurationSec%60))s · \(s.avgKbps)k · \(s.totalStalls) stalls")
-                                        .font(DS.mono(9)).foregroundColor(s.totalStalls > 0 ? DS.danger : DS.faint)
-                                }
                             }
-                            .padding(.horizontal, 14).padding(.vertical, 10)
-                            .background(DS.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(DS.hairline, lineWidth: 1))
+
+                            // Section 3: Contacts & Reachable Peers Roster
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack {
+                                    SectionLabel(text: "Contacts & Active Peers")
+                                    Spacer()
+                                    Text("\(vm.discovery.peers.count) online")
+                                        .font(DS.mono(10))
+                                        .foregroundColor(DS.dim)
+                                }
+
+                                iPeerRoster(vm: vm, discovery: vm.discovery)
+                            }
                         }
+                        .padding(.horizontal, 18)
+                        .padding(.bottom, 24)
                     }
-                    .padding(.horizontal, 24)
-
-                    Spacer()
-
-                    Text(vm.cameraAuthorized ? "Tap to call" : "Camera access needed")
-                        .font(DS.ui(13, .medium)).foregroundColor(vm.cameraAuthorized ? DS.dim : DS.text)
-                        .padding(.bottom, 40)
                 }
             }
         }
-        // Incoming call: full-screen ringing takeover (iOS convention) with Accept/Decline.
+        .background(DS.ink)
         .overlay {
-            if let inc = vm.incomingCall {
+            if let inc = vm.incomingMeshCall {
+                IncomingMeshCallOverlay(vm: vm, inc: inc).transition(.opacity)
+            } else if let inc = vm.incomingCall {
                 IncomingCallOverlay(vm: vm, inc: inc).transition(.opacity)
             }
         }
-        .animation(.easeInOut(duration: 0.25), value: vm.incomingCall)
-        .preferredColorScheme(.dark)
-        .animation(.easeInOut(duration: 0.3), value: vm.phase)
-        .onAppear { vm.checkPermission(); if vm.cameraAuthorized { vm.camera.startPreview() } }
+        .overlay(alignment: .bottom) {
+            if let message = vm.callError,
+               vm.incomingMeshCall == nil,
+               vm.incomingCall == nil {
+                CallErrorBanner(message: message)
+                    .padding(.horizontal, 18)
+                    .padding(.bottom, 12)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .sheet(item: Binding(
+            get: { vm.activeChatContact.map { IdentifiableString(value: $0) } },
+            set: { vm.activeChatContact = $0?.value }
+        )) { item in
+            DirectChatView(vm: vm, contact: item.value)
+        }
+        .sheet(isPresented: $showAvatarPicker) {
+            AvatarPickerSheet(vm: vm)
+        }
         .sheet(isPresented: $showSettings) {
             SettingsView(vm: vm)
-        }
-        .sheet(isPresented: $showNicknameSetup) {
-            NicknameSetupView(vm: vm)
         }
         .sheet(isPresented: $showGroupChats) {
             GroupChatCenterView(vm: vm)
         }
-        .sheet(item: $vm.shareFile) { f in
-            ShareSheet(items: [f.url])
+        .onAppear {
+            vm.checkPermission()
+            if let curr = directory.currentNickname, !curr.isEmpty {
+                nicknameInput = curr
+            } else {
+                nicknameInput = vm.identity.displayName
+            }
         }
-        .alert(item: $vm.incomingMeshCall) { incoming in
-            Alert(title: Text("Incoming local call"),
-                  message: Text("@\(incoming.invite.nickname) wants to start an encrypted UDP call."),
-                  primaryButton: .default(Text("Accept"), action: vm.acceptIncomingMeshCall),
-                  secondaryButton: .cancel(Text("Decline"), action: vm.declineIncomingMeshCall))
+    }
+
+    private func saveNickname() {
+        let trimmed = nicknameInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        directory.proposedNickname = trimmed
+        vm.claimNickname()
+        vm.discovery.setName(trimmed)
+    }
+}
+
+struct IdentifiableString: Identifiable {
+    var id: String { value }
+    let value: String
+}
+
+// MARK: - Direct Chat View (Tap on Nickname -> Direct Conversation + Action Bar)
+
+struct DirectChatView: View {
+    @ObservedObject var vm: StreamViewModel
+    @ObservedObject private var directory: NicknameDirectoryController
+    @ObservedObject private var discovery: PeerDiscovery
+    let contact: String
+    @Environment(\.dismiss) private var dismiss
+    @State private var messageText = ""
+
+    init(vm: StreamViewModel, contact: String) {
+        self.vm = vm
+        directory = vm.directory
+        discovery = vm.discovery
+        self.contact = contact
+    }
+
+    private var contactMessages: [DirectChatMessage] {
+        vm.directChats[contact] ?? []
+    }
+
+    private var contactReachable: Bool {
+        if directory.meshContact(named: contact)?.online == true { return true }
+        let target = NicknamePolicy.normalize(contact)
+        return discovery.peers.contains {
+            NicknamePolicy.normalize($0.name) == target
         }
+    }
+
+    var body: some View {
+        NavigationView {
+            ZStack {
+                DS.ink.ignoresSafeArea()
+
+                VStack(spacing: 0) {
+                    // Top Action Bar Header inside Chat
+                    HStack(spacing: 12) {
+                        AvatarView(name: contact, data: nil, size: 40)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("@\(contact)")
+                                .font(DS.mono(15, .bold))
+                                .foregroundColor(DS.text)
+                            StatusTag(text: contactReachable ? "reachable" : "not reachable",
+                                      live: contactReachable)
+                        }
+
+                        Spacer()
+
+                        // Action Buttons: Audio Call, Video Call, AI Agent
+                        HStack(spacing: 8) {
+                            Button(action: {
+                                dismiss()
+                                vm.startAudioCall(to: contact)
+                            }) {
+                                Image(systemName: "phone.fill")
+                                    .font(.system(size: 15))
+                                    .foregroundColor(DS.text)
+                                    .frame(width: 38, height: 38)
+                                    .background(DS.surfaceHi, in: Circle())
+                                    .overlay(Circle().stroke(DS.hairlineStrong, lineWidth: 1))
+                            }
+                            .buttonStyle(.plain)
+
+                            Button(action: {
+                                dismiss()
+                                vm.startVideoCall(to: contact)
+                            }) {
+                                Image(systemName: "video.fill")
+                                    .font(.system(size: 15))
+                                    .foregroundColor(DS.onFill)
+                                    .frame(width: 38, height: 38)
+                                    .background(DS.fill, in: Circle())
+                            }
+                            .buttonStyle(.plain)
+
+                            Button(action: {
+                                vm.toggleAITranscription()
+                            }) {
+                                HStack(spacing: 4) {
+                                    Text("🤖")
+                                        .font(.system(size: 14))
+                                    Text(vm.aiTranscriptionActive ? "AI ON" : "AI")
+                                        .font(DS.mono(10, .bold))
+                                        .foregroundColor(vm.aiTranscriptionActive ? DS.onFill : DS.text)
+                                }
+                                .padding(.horizontal, 10)
+                                .frame(height: 38)
+                                .background(vm.aiTranscriptionActive ? DS.live : DS.surfaceHi, in: Capsule())
+                                .overlay(Capsule().stroke(vm.aiTranscriptionActive ? Color.clear : DS.hairlineStrong, lineWidth: 1))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(DS.surface)
+
+                    Hairline()
+
+                    // AI Subtitles Banner if Active
+                    if vm.aiTranscriptionActive {
+                        HStack(spacing: 8) {
+                            Circle().fill(DS.live).frame(width: 6, height: 6)
+                            Text(vm.liveTranscripts.last ?? "🤖 AI Transcriber Active — Listening for speech...")
+                                .font(DS.mono(11))
+                                .foregroundColor(DS.live)
+                                .lineLimit(1)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16).padding(.vertical, 8)
+                        .background(DS.surfaceHi)
+                    }
+
+                    // Messages Feed
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            LazyVStack(spacing: 12) {
+                                if contactMessages.isEmpty {
+                                    VStack(spacing: 8) {
+                                        Text("No messages yet")
+                                            .font(DS.ui(15, .medium))
+                                            .foregroundColor(DS.dim)
+                                        Text("Write first, call when you want to")
+                                            .font(DS.mono(11))
+                                            .foregroundColor(DS.faint)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.top, 96)
+                                }
+
+                                ForEach(contactMessages) { msg in
+                                    let isMe = msg.sender == (vm.directory.currentNickname ?? vm.identity.displayName)
+                                    HStack(alignment: .bottom, spacing: 8) {
+                                        if isMe { Spacer(minLength: 50) }
+                                        else {
+                                            AvatarView(name: msg.sender, data: nil, size: 28)
+                                        }
+
+                                        VStack(alignment: isMe ? .trailing : .leading, spacing: 4) {
+                                            Text(msg.text)
+                                                .font(DS.ui(14))
+                                                .foregroundColor(isMe ? DS.onFill : DS.text)
+                                                .padding(.horizontal, 14)
+                                                .padding(.vertical, 9)
+                                                .background(isMe ? DS.fill : DS.surfaceHi,
+                                                            in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                                            Text(msg.timestamp, style: .time)
+                                                .font(DS.mono(9))
+                                                .foregroundColor(DS.faint)
+                                        }
+
+                                        if !isMe { Spacer(minLength: 50) }
+                                    }
+                                    .id(msg.id)
+                                }
+                            }
+                            .padding(16)
+                        }
+                        .onChange(of: contactMessages.count) { _ in
+                            if let last = contactMessages.last {
+                                withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
+                            }
+                        }
+                    }
+
+                    Hairline()
+
+                    // Text Input Dock
+                    HStack(spacing: 10) {
+                        TextField("Message @\(contact)", text: $messageText)
+                            .font(DS.ui(14))
+                            .foregroundColor(DS.text)
+                            .frame(minHeight: 48)
+                            .onSubmit {
+                                vm.sendDirectText(to: contact, text: messageText)
+                                messageText = ""
+                            }
+
+                        Button(action: {
+                            vm.sendDirectText(to: contact, text: messageText)
+                            messageText = ""
+                        }) {
+                            Image(systemName: "arrow.up")
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundColor(DS.onFill)
+                                .frame(width: 40, height: 40)
+                                .background(DS.fill, in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                    .padding(.leading, 16)
+                    .padding(.trailing, 6)
+                    .background(DS.surfaceHi, in: Capsule())
+                    .overlay(Capsule().stroke(DS.hairline, lineWidth: 1))
+                    .padding(12)
+                }
+            }
+            .navigationBarHidden(true)
+        }
+        .preferredColorScheme(.dark)
+        .onAppear {
+            vm.markChatAsRead(contact)
+        }
+    }
+}
+
+// MARK: - Avatar Picker Modal Sheet
+
+struct LegacyImagePicker: UIViewControllerRepresentable {
+    @Binding var imageData: Data?
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+        let parent: LegacyImagePicker
+        init(_ parent: LegacyImagePicker) { self.parent = parent }
+
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+            if let img = info[.originalImage] as? UIImage, let data = img.jpegData(compressionQuality: 0.8) {
+                parent.imageData = data
+            }
+            picker.dismiss(animated: true)
+        }
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            picker.dismiss(animated: true)
+        }
+    }
+}
+
+struct AvatarPickerSheet: View {
+    @ObservedObject var vm: StreamViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedColorHex = "#4CD972"
+    @State private var showImagePicker = false
+
+    private let presetColors = ["#4CD972", "#3B82F6", "#EC4899", "#F59E0B", "#8B5CF6", "#10B981"]
+
+    var body: some View {
+        NavigationView {
+            ZStack {
+                DS.ink.ignoresSafeArea()
+
+                VStack(spacing: 24) {
+                    VStack(spacing: 12) {
+                        AvatarView(
+                            name: vm.directory.currentNickname ?? vm.identity.displayName,
+                            data: vm.avatarData,
+                            colorHex: selectedColorHex,
+                            size: 90
+                        )
+
+                        Text("Choose your avatar style")
+                            .font(DS.ui(14))
+                            .foregroundColor(DS.dim)
+                    }
+                    .padding(.top, 20)
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        SectionLabel(text: "Preset Color Avatars")
+                        HStack(spacing: 14) {
+                            ForEach(presetColors, id: \.self) { colorHex in
+                                Button(action: {
+                                    selectedColorHex = colorHex
+                                    vm.saveAvatar(data: nil, colorHex: colorHex)
+                                }) {
+                                    Circle()
+                                        .fill(Color(hex: colorHex) ?? DS.live)
+                                        .frame(width: 44, height: 44)
+                                        .overlay(
+                                            Circle()
+                                                .stroke(selectedColorHex == colorHex && vm.avatarData == nil ? DS.fill : Color.clear, lineWidth: 3)
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(14)
+                        .dsCard()
+                    }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        SectionLabel(text: "Upload Photo")
+                        Button(action: { showImagePicker = true }) {
+                            HStack {
+                                Image(systemName: "photo.on.rectangle")
+                                    .foregroundColor(DS.text)
+                                Text("Select Photo from Library")
+                                    .font(DS.mono(13, .bold))
+                                    .foregroundColor(DS.text)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(DS.dim)
+                            }
+                            .padding(14)
+                            .dsCard()
+                        }
+                        .buttonStyle(.plain)
+
+                        if vm.avatarData != nil {
+                            Button(action: {
+                                vm.saveAvatar(data: nil, colorHex: selectedColorHex)
+                            }) {
+                                Text("Remove photo & use preset color")
+                                    .font(DS.ui(12))
+                                    .foregroundColor(DS.danger)
+                            }
+                            .padding(.top, 4)
+                        }
+                    }
+
+                    Spacer()
+                }
+                .padding(20)
+            }
+            .navigationTitle("Profile Avatar")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") { dismiss() }
+                        .font(DS.mono(13, .bold))
+                        .foregroundColor(DS.text)
+                }
+            }
+            .sheet(isPresented: $showImagePicker) {
+                LegacyImagePicker(imageData: Binding(
+                    get: { vm.avatarData },
+                    set: { data in vm.saveAvatar(data: data, colorHex: selectedColorHex) }
+                ))
+            }
+        }
+        .preferredColorScheme(.dark)
     }
 }
 
@@ -258,102 +662,25 @@ private struct DirectoryContactButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 10) {
-                Circle().fill(contact.online ? DS.live : DS.faint).frame(width: 7, height: 7)
+            HStack(spacing: 12) {
+                AvatarView(name: contact.nickname, data: nil, size: 36)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("@\(contact.nickname)").font(DS.mono(13, .medium)).foregroundColor(DS.text)
                     Text(contact.displayName).font(DS.ui(10)).foregroundColor(DS.faint)
                 }
                 Spacer()
-                Text(contact.source.rawValue).font(DS.mono(9, .bold))
-                    .foregroundColor(contact.source == .mesh ? DS.warn : DS.live)
+                Text(contact.source == .mesh && !contact.online ? "OFFLINE" : "ONLINE")
+                    .font(DS.mono(9, .bold))
+                    .foregroundColor(contact.online ? DS.live : DS.dim)
             }
-            .padding(.horizontal, 12).padding(.vertical, 9)
-            .background(DS.surfaceHi, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .dsCard(bg: DS.surfaceHi, radius: 14)
         }
         .buttonStyle(.plain)
     }
 }
 
-private struct NicknameSetupView: View {
-    @ObservedObject var vm: StreamViewModel
-    @ObservedObject private var directory: NicknameDirectoryController
-    @Environment(\.dismiss) private var dismiss
-
-    init(vm: StreamViewModel) {
-        self.vm = vm
-        directory = vm.directory
-    }
-
-    var body: some View {
-        NavigationView {
-            Form {
-                Section("Your nickname") {
-                    HStack {
-                        Text("@").foregroundColor(.secondary)
-                        TextField("nickname", text: $directory.proposedNickname)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                    }
-                    Text("3-20 characters: lowercase letters, numbers, and underscore. The first character must be a letter.")
-                        .font(.caption).foregroundColor(.secondary)
-                    Button(directory.isWorking ? "Checking..." : "Check and create") {
-                        vm.claimNickname()
-                    }
-                    .disabled(directory.isWorking)
-                }
-
-                if let message = directory.statusMessage {
-                    Section("Status") {
-                        Text(message)
-                    }
-                }
-
-                if !directory.suggestions.isEmpty {
-                    Section("Available alternatives") {
-                        ForEach(directory.suggestions, id: \.self) { suggestion in
-                            Button("@\(suggestion)") {
-                                directory.proposedNickname = suggestion
-                                vm.claimNickname()
-                            }
-                        }
-                    }
-                }
-
-                Section("Verification") {
-                    HRow("Current", directory.currentNickname.map { "@\($0)" } ?? "Not created")
-                    HRow("Scope", directory.claimKind == .verified ? "Global verified" :
-                         directory.claimKind == .meshLocal ? "Mesh local" : "Not registered")
-                    Text("Global uniqueness requires the Directory API. Mesh-local names are checked against currently reachable signed peers.")
-                        .font(.caption).foregroundColor(.secondary)
-                }
-            }
-            .navigationTitle("Nickname")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") { dismiss() }
-                }
-            }
-            .onChange(of: directory.currentNickname) { current in
-                if current != nil { dismiss() }
-            }
-        }
-    }
-}
-
-// Wraps UIActivityViewController so a finished recording can be saved/sent.
-struct ShareSheet: UIViewControllerRepresentable {
-    let items: [Any]
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
-    }
-    func updateUIViewController(_ vc: UIActivityViewController, context: Context) {}
-}
-
-// A distinctive SYNTHESIZED ring — three ascending chirps ("tri"-tone, fitting TRI-NET) + a gap, looped. Not a
-// stock ringtone, so an incoming call is instantly recognizable. Sets the session to .playback so it sounds.
-final class RingSynth {
+struct RingSynth {
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
     private var buffer: AVAudioPCMBuffer?
@@ -365,7 +692,7 @@ final class RingSynth {
     }
     private func makeRing(_ fmt: AVAudioFormat) -> AVAudioPCMBuffer? {
         let sr = 44100.0
-        let notes: [(f: Double, dur: Double)] = [(659.25, 0.10), (987.77, 0.10), (1318.51, 0.16)]  // E5 B5 E6
+        let notes: [(f: Double, dur: Double)] = [(659.25, 0.10), (987.77, 0.10), (1318.51, 0.16)]
         let gap = 0.55
         let total = notes.reduce(0) { $0 + $1.dur } + gap
         let frames = AVAudioFrameCount(total * sr)
@@ -396,8 +723,190 @@ final class RingSynth {
 }
 
 // MARK: - Incoming call (full-screen ring + Accept/Decline)
-// iOS convention: a full-screen takeover, caller identity top, two circular action buttons at the
-// bottom — Decline (red, LEFT), Accept (green, RIGHT). Ring vibrates + plays the tri-tone until answered.
+
+struct IncomingMeshCallOverlay: View {
+    @ObservedObject var vm: StreamViewModel
+    let inc: IncomingMeshCall
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pulse = false
+    @State private var ringTimer: Timer?
+    @State private var ring = RingSynth()
+
+    private var callerName: String {
+        let displayName = inc.invite.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return displayName.isEmpty ? "@\(inc.invite.nickname)" : displayName
+    }
+
+    var body: some View {
+        ZStack {
+            DS.ink.opacity(0.99).ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                HStack(spacing: 7) {
+                    Image(systemName: "lock.shield.fill")
+                    Text("SIGNED MESH")
+                        .tracking(1.1)
+                }
+                .font(DS.mono(11, .bold))
+                .foregroundColor(DS.text)
+                .padding(.horizontal, 13)
+                .padding(.vertical, 8)
+                .background(DS.surface, in: Capsule())
+                .overlay(Capsule().stroke(DS.hairlineStrong, lineWidth: 1))
+                .padding(.top, 34)
+
+                Spacer()
+
+                ZStack(alignment: .bottomTrailing) {
+                    ZStack {
+                        Circle()
+                            .stroke(DS.text.opacity(0.34), lineWidth: 2)
+                            .frame(width: 170, height: 170)
+                            .scaleEffect(pulse ? 1.42 : 0.96)
+                            .opacity(pulse ? 0 : 0.75)
+                        Circle()
+                            .stroke(DS.text.opacity(0.16), lineWidth: 1)
+                            .frame(width: 170, height: 170)
+                            .scaleEffect(pulse ? 1.20 : 0.90)
+                            .opacity(pulse ? 0 : 0.55)
+
+                        AvatarView(name: callerName, data: nil, colorHex: "#F3F3F3", size: 124)
+                    }
+
+                    Image(systemName: "checkmark.shield.fill")
+                        .font(.system(size: 27, weight: .semibold))
+                        .foregroundColor(DS.onFill)
+                        .frame(width: 44, height: 44)
+                        .background(DS.fill, in: Circle())
+                        .overlay(Circle().stroke(DS.ink, lineWidth: 4))
+                        .offset(x: -8, y: -3)
+                }
+
+                Text(callerName)
+                    .font(DS.display(28, .bold))
+                    .foregroundColor(DS.text)
+                    .padding(.top, 28)
+                    .lineLimit(1)
+
+                if callerName != "@\(inc.invite.nickname)" {
+                    Text("@\(inc.invite.nickname)")
+                        .font(DS.mono(13, .medium))
+                        .foregroundColor(DS.dim)
+                        .padding(.top, 5)
+                }
+
+                Text("Incoming encrypted local call")
+                    .font(DS.ui(14))
+                    .foregroundColor(DS.dim)
+                    .padding(.top, 9)
+
+                meshDetail(label: "SAFETY NUMBER", value: inc.invite.keyFingerprint)
+                .padding(14)
+                .frame(maxWidth: 330)
+                .background(DS.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(DS.hairline, lineWidth: 1)
+                )
+                .padding(.top, 20)
+                .padding(.horizontal, 24)
+
+                Spacer()
+
+                HStack(spacing: 70) {
+                    answerButton(
+                        system: "phone.down.fill",
+                        label: "Decline",
+                        foreground: DS.text,
+                        background: DS.surface,
+                        border: DS.hairlineStrong
+                    ) {
+                        stopRing()
+                        vm.declineIncomingMeshCall()
+                    }
+                    answerButton(
+                        system: "phone.fill",
+                        label: "Accept",
+                        foreground: DS.onFill,
+                        background: DS.fill,
+                        border: Color.clear
+                    ) {
+                        stopRing()
+                        vm.acceptIncomingMeshCall()
+                    }
+                }
+                .padding(.bottom, 70)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Signed mesh call from \(callerName)")
+        .onAppear { startRing() }
+        .onDisappear { stopRing() }
+    }
+
+    private func meshDetail(label: String, value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(label)
+                .font(DS.mono(9, .bold))
+                .tracking(1)
+                .foregroundColor(DS.faint)
+            Text(value)
+                .font(DS.mono(11))
+                .foregroundColor(DS.text)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func answerButton(
+        system: String,
+        label: String,
+        foreground: Color,
+        background: Color,
+        border: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        VStack(spacing: 12) {
+            Button(action: action) {
+                Image(systemName: system)
+                    .font(.system(size: 29, weight: .semibold))
+                    .foregroundColor(foreground)
+                    .frame(width: 76, height: 76)
+                    .background(Circle().fill(background))
+                    .overlay(Circle().stroke(border, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(label) signed mesh call from \(callerName)")
+            .accessibilityHint(label == "Accept" ? "Connects the encrypted local call" : "Rejects the local call")
+
+            Text(label)
+                .font(DS.mono(12, .medium))
+                .foregroundColor(DS.dim)
+        }
+    }
+
+    private func startRing() {
+        if !reduceMotion {
+            withAnimation(.easeOut(duration: 1.3).repeatForever(autoreverses: false)) {
+                pulse = true
+            }
+        }
+        ring.start()
+        AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+        ringTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
+            AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+        }
+    }
+
+    private func stopRing() {
+        ring.stop()
+        ringTimer?.invalidate()
+        ringTimer = nil
+    }
+}
+
 struct IncomingCallOverlay: View {
     @ObservedObject var vm: StreamViewModel
     let inc: StreamViewModel.IncomingCall
@@ -406,32 +915,43 @@ struct IncomingCallOverlay: View {
     @State private var ringTimer: Timer?
     @State private var ring = RingSynth()
 
-    private var initial: String { String(inc.name.prefix(1)).uppercased() }
-
     var body: some View {
         ZStack {
             DS.ink.opacity(0.98).ignoresSafeArea()
+
             VStack(spacing: 0) {
                 Spacer()
+
                 ZStack {
-                    // Two expanding rings — "ringing, live now" (Reduce-Motion aware).
-                    Circle().stroke(DS.live.opacity(0.55), lineWidth: 3)
-                        .frame(width: 150, height: 150)
-                        .scaleEffect(pulse ? 1.45 : 1.0).opacity(pulse ? 0 : 0.7)
-                    Circle().stroke(DS.live.opacity(0.30), lineWidth: 2)
-                        .frame(width: 150, height: 150)
-                        .scaleEffect(pulse ? 1.18 : 0.9).opacity(pulse ? 0 : 0.5)
-                    Circle().fill(DS.surfaceHi)
-                        .overlay(Circle().stroke(DS.hairlineStrong, lineWidth: 1))
-                        .frame(width: 118, height: 118)
-                    Text(initial).font(.system(size: 46, weight: .semibold)).foregroundColor(DS.text)
+                    Circle().stroke(DS.live.opacity(0.45), lineWidth: 3)
+                        .frame(width: 170, height: 170)
+                        .scaleEffect(pulse ? 1.45 : 0.95).opacity(pulse ? 0 : 0.7)
+                    Circle().stroke(DS.live.opacity(0.25), lineWidth: 2)
+                        .frame(width: 170, height: 170)
+                        .scaleEffect(pulse ? 1.18 : 0.88).opacity(pulse ? 0 : 0.5)
+
+                    AvatarView(name: inc.name, data: nil, size: 124)
                 }
-                Text(inc.name).font(DS.display(26, .semibold)).foregroundColor(DS.text)
-                    .padding(.top, 26).lineLimit(1)
-                Text("Incoming call · TRI-NET").font(DS.ui(14)).foregroundColor(DS.dim).padding(.top, 6)
-                Text(inc.ip).font(DS.mono(12)).foregroundColor(DS.faint).padding(.top, 2)
+
+                Text(inc.name)
+                    .font(DS.display(28, .bold))
+                    .foregroundColor(DS.text)
+                    .padding(.top, 28)
+                    .lineLimit(1)
+
+                Text("Incoming Encrypted Call · TRI-NET")
+                    .font(DS.ui(14))
+                    .foregroundColor(DS.dim)
+                    .padding(.top, 6)
+
+                Text(inc.ip)
+                    .font(DS.mono(12))
+                    .foregroundColor(DS.faint)
+                    .padding(.top, 4)
+
                 Spacer()
-                HStack(spacing: 80) {
+
+                HStack(spacing: 70) {
                     answerButton(system: "phone.down.fill", label: "Decline", bg: DS.danger) {
                         stopRing(); vm.declineIncoming()
                     }
@@ -447,23 +967,28 @@ struct IncomingCallOverlay: View {
     }
 
     private func answerButton(system: String, label: String, bg: Color, action: @escaping () -> Void) -> some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
             Button(action: action) {
-                Image(systemName: system).font(.system(size: 30, weight: .semibold))
-                    .foregroundColor(.white).frame(width: 76, height: 76)
+                Image(systemName: system)
+                    .font(.system(size: 30, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 76, height: 76)
                     .background(Circle().fill(bg))
+                    .shadow(color: bg.opacity(0.4), radius: 12, x: 0, y: 4)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("\(label) call")
-            Text(label).font(DS.ui(13)).foregroundColor(DS.dim)
+            Text(label)
+                .font(DS.mono(12, .medium))
+                .foregroundColor(DS.dim)
         }
     }
 
     private func startRing() {
         if !reduceMotion {
-            withAnimation(.easeOut(duration: 1.2).repeatForever(autoreverses: false)) { pulse = true }
+            withAnimation(.easeOut(duration: 1.3).repeatForever(autoreverses: false)) { pulse = true }
         }
-        ring.start()   // distinctive TRI-NET tri-tone, looped
+        ring.start()
         AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
         ringTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
             AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
@@ -472,185 +997,140 @@ struct IncomingCallOverlay: View {
     private func stopRing() { ring.stop(); ringTimer?.invalidate(); ringTimer = nil }
 }
 
+private struct CallErrorBanner: View {
+    let message: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.circle")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(DS.text)
+            Text(message)
+                .font(DS.ui(12, .medium))
+                .foregroundColor(DS.text)
+                .multilineTextAlignment(.leading)
+                .lineLimit(3)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(DS.surfaceHi, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(DS.hairlineStrong, lineWidth: 1)
+        )
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Call error. \(message)")
+    }
+}
+
+struct iPeerRoster: View {
+    @ObservedObject var vm: StreamViewModel
+    @ObservedObject var discovery: PeerDiscovery
+
+    var body: some View {
+        VStack(spacing: 8) {
+            if discovery.peers.isEmpty {
+                HStack {
+                    Spacer()
+                    VStack(spacing: 8) {
+                        Image(systemName: "antenna.radiowaves.left.and.right")
+                            .font(.system(size: 22))
+                            .foregroundColor(DS.faint)
+                        Text("Searching for nearby TRI-NET peers...")
+                            .font(DS.mono(11))
+                            .foregroundColor(DS.dim)
+                    }
+                    .padding(.vertical, 24)
+                    Spacer()
+                }
+                .dsCard()
+            } else {
+                ForEach(discovery.peers) { peer in
+                    let unread = vm.unreadCount(for: peer.name)
+                    Button(action: {
+                        vm.openChat(with: peer.name)
+                    }) {
+                        HStack(spacing: 12) {
+                            AvatarView(name: peer.name, data: nil, size: 42)
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(peer.name)
+                                    .font(DS.ui(15, .semibold))
+                                    .foregroundColor(DS.text)
+                                    .lineLimit(1)
+                                HStack(spacing: 6) {
+                                    Circle()
+                                        .fill(peer.status == "call" ? DS.warn : DS.live)
+                                        .frame(width: 6, height: 6)
+                                    Text(peer.status == "call" ? "in call" : "online")
+                                        .font(DS.mono(10))
+                                        .foregroundColor(peer.status == "call" ? DS.warn : DS.live)
+                                }
+                            }
+
+                            Spacer()
+
+                            if unread > 0 {
+                                Text("\(unread)")
+                                    .font(DS.mono(10, .bold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 7).padding(.vertical, 3)
+                                    .background(DS.danger, in: Capsule())
+                            }
+
+                            HStack(spacing: 6) {
+                                Image(systemName: "bubble.left.fill")
+                                    .font(.system(size: 12))
+                                Text("Chat")
+                                    .font(DS.mono(11, .bold))
+                            }
+                            .foregroundColor(DS.text)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(DS.surfaceHi, in: Capsule())
+                            .overlay(Capsule().stroke(DS.hairlineStrong, lineWidth: 1))
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .dsCard(bg: DS.surface, radius: 14)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Call Screen (FaceTime style)
 
 struct RemoteVideoArea: View {
     @ObservedObject var decoder: H264Decoder
     let phase: StreamViewModel.CallPhase
-    let remoteIP: String
+    let media: InternetCallMedia
 
     var body: some View {
         ZStack {
             DS.surface
-            if decoder.frameCount > 0, let frame = decoder.currentFrame {
+            if !media.video {
+                VStack(spacing: 14) {
+                    Image(systemName: "waveform.circle.fill")
+                        .font(.system(size: 48, weight: .light))
+                        .foregroundColor(DS.dim)
+                    Text(phase == .live ? "SECURE AUDIO CONNECTED" : "CONNECTING AUDIO...")
+                        .font(DS.mono(12, .medium)).tracking(1).foregroundColor(DS.dim)
+                }
+            } else if decoder.frameCount > 0, let frame = decoder.currentFrame {
                 RemoteVideoDisplay(imageBuffer: frame, frameId: decoder.frameCount)
             } else {
                 VStack(spacing: 14) {
                     ProgressView().tint(DS.dim)
-                    Text(phase == .connecting ? "CONNECTING" : "WAITING FOR SIGNAL")
+                    Text(phase == .connecting ? "CONNECTING..." : "WAITING FOR SIGNAL")
                         .font(DS.mono(12, .medium)).tracking(1).foregroundColor(DS.dim)
-                    Text(remoteIP).font(DS.mono(11)).foregroundColor(DS.faint)
                 }
             }
         }
-    }
-}
-
-// Group conference: one tile per remote source (roster). Each tile observes ITS OWN decoder, so a
-// new frame from any participant redraws only that tile.
-struct GroupGrid: View {
-    @ObservedObject var vm: StreamViewModel
-    var body: some View {
-        let cols = vm.roster.count <= 1 ? 1 : (vm.roster.count <= 4 ? 2 : 3)   // adaptive grid for 4-6 way
-        let grid = Array(repeating: GridItem(.flexible(), spacing: 2), count: cols)
-        ZStack {
-            DS.surface
-            if vm.roster.isEmpty {
-                VStack(spacing: 12) {
-                    ProgressView().tint(DS.dim)
-                    Text("WAITING FOR PARTICIPANTS").font(DS.mono(12, .medium)).tracking(1).foregroundColor(DS.dim)
-                }
-            } else {
-                LazyVGrid(columns: grid, spacing: 2) {
-                    ForEach(vm.roster, id: \.self) { ip in
-                        if let dec = vm.groupDecoders[ip] { GroupTile(decoder: dec, ip: ip) }
-                    }
-                }
-            }
-        }
-    }
-}
-
-struct GroupTile: View {
-    @ObservedObject var decoder: H264Decoder
-    let ip: String
-    var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            Rectangle().fill(Color.black)
-            if decoder.frameCount > 0, let frame = decoder.currentFrame {
-                RemoteVideoDisplay(imageBuffer: frame, frameId: decoder.frameCount)
-            } else {
-                ProgressView().tint(DS.dim)
-            }
-            Text(ip).font(DS.mono(10)).foregroundColor(.white)
-                .padding(.horizontal, 5).padding(.vertical, 2)
-                .background(Color.black.opacity(0.55)).cornerRadius(4).padding(5)
-        }
-        .aspectRatio(16.0/9.0, contentMode: .fit)   // matches the 16:9 camera/encoder
-        .clipped()
-    }
-}
-
-// Live "who's on this network" roster (Bonjour). Tap a name to CALL, tick several for a GROUP call, or
-// set a ROOM code and "Call room" — no typing IPs. Observes PeerDiscovery so it redraws as peers come/go.
-struct iPeerRoster: View {
-    @ObservedObject var vm: StreamViewModel
-    @ObservedObject var discovery: PeerDiscovery
-    @State private var myName = PeerDiscovery.myName
-    @State private var room = PeerDiscovery.myRoom
-
-    var body: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: "person.crop.circle.fill").foregroundColor(DS.dim)
-                TextField("Your name", text: $myName).font(DS.ui(13)).foregroundColor(DS.text)
-                    .onSubmit { discovery.setName(myName) }
-                Text("ROOM").font(DS.mono(9)).foregroundColor(DS.faint)
-                TextField("open", text: $room).font(DS.mono(13)).foregroundColor(DS.text).frame(width: 62)
-                    .onSubmit { discovery.setRoom(room) }
-            }
-            .padding(.horizontal, 14).padding(.vertical, 10)
-            .background(DS.surface, in: RoundedRectangle(cornerRadius: 14))
-            HStack {
-                Text(room.isEmpty ? "ON THIS NETWORK" : "ROOM \(room.uppercased())").font(DS.mono(10)).foregroundColor(DS.faint)
-                Spacer()
-                if !room.isEmpty && !discovery.peers.isEmpty {
-                    Button("Call room (\(discovery.peers.count))") { vm.callEveryone() }.font(DS.mono(11)).foregroundColor(.green)
-                } else if !vm.selectedUIDs.isEmpty {
-                    Button("Group (\(vm.selectedUIDs.count))") { vm.startGroupFromSelection() }.font(DS.mono(11)).foregroundColor(.green)
-                }
-            }
-            if discovery.peers.isEmpty {
-                Text("searching for TRI-NET peers…").font(DS.mono(11)).foregroundColor(DS.faint)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            } else {
-                ForEach(discovery.peers) { peer in
-                    HStack(spacing: 10) {
-                        Image(systemName: vm.selectedUIDs.contains(peer.uid) ? "checkmark.circle.fill" : "circle")
-                            .foregroundColor(vm.selectedUIDs.contains(peer.uid) ? .green : DS.faint)
-                            .onTapGesture { vm.toggleSelect(peer.uid) }
-                        Circle().fill(peer.status == "call" ? Color.orange : Color.green).frame(width: 7, height: 7)
-                        Text(peer.name).font(DS.ui(14)).foregroundColor(DS.text).lineLimit(1)
-                        if peer.status == "call" { Text("in call").font(DS.mono(9)).foregroundColor(.orange) }
-                        Spacer()
-                        Button("Call") { vm.callPeer(peer) }.font(DS.mono(12)).foregroundColor(DS.text)
-                            .padding(.horizontal, 14).padding(.vertical, 6)
-                            .overlay(Capsule().stroke(DS.hairline, lineWidth: 1))
-                    }
-                }
-            }
-        }
-    }
-}
-
-// Force the interface orientation (iOS 16+). The fullscreen button uses it; plain device rotation is handled
-// by the OS now that landscape is in the Info.plist orientation set.
-func setInterfaceOrientation(_ mask: UIInterfaceOrientationMask) {
-    guard let scene = UIApplication.shared.connectedScenes
-        .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene else { return }
-    if #available(iOS 16.0, *) {
-        scene.requestGeometryUpdate(.iOS(interfaceOrientations: mask)) { _ in }
-    }
-}
-
-// Tap-to-expand link-quality panel: 60s sparklines of encode bitrate + peer jitter.
-private struct iLinkStatsPanel: View {
-    @ObservedObject var vm: StreamViewModel
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("LINK QUALITY · 60s").font(DS.mono(10)).foregroundColor(DS.faint).tracking(1)
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Bitrate  \(vm.bitrateKbps) kbps").font(DS.mono(12)).foregroundColor(DS.text)
-                iSparkline(values: vm.bitrateHistory.map(Double.init), tint: DS.live).frame(height: 44)
-            }
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Peer jitter  \(vm.peerJitterMs) ms").font(DS.mono(12)).foregroundColor(vm.peerJitterMs > 40 ? DS.danger : DS.text)
-                iSparkline(values: vm.jitterHistory.map(Double.init), tint: vm.peerJitterMs > 40 ? DS.danger : DS.dim, threshold: 40).frame(height: 44)
-            }
-            Text("Jitter > 40ms triggers a bitrate back-off.").font(DS.ui(11)).foregroundColor(DS.faint)
-        }
-        .padding(20).frame(maxWidth: .infinity, alignment: .leading)
-        .background(DS.ink)
-    }
-}
-
-private struct iSparkline: View {
-    let values: [Double]
-    var tint: Color = .green
-    var threshold: Double? = nil
-    var body: some View {
-        GeometryReader { geo in
-            let w = geo.size.width, h = geo.size.height
-            let maxV = max(values.max() ?? 1, threshold ?? 0, 1)
-            ZStack {
-                if let t = threshold {
-                    let ty = h - CGFloat(t / maxV) * h
-                    Path { p in p.move(to: CGPoint(x: 0, y: ty)); p.addLine(to: CGPoint(x: w, y: ty)) }
-                        .stroke(DS.danger.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                }
-                if values.count > 1 {
-                    Path { p in
-                        for (i, v) in values.enumerated() {
-                            let x = w * CGFloat(i) / CGFloat(values.count - 1)
-                            let y = h - CGFloat(v / maxV) * h
-                            if i == 0 { p.move(to: CGPoint(x: x, y: y)) } else { p.addLine(to: CGPoint(x: x, y: y)) }
-                        }
-                    }.stroke(tint, style: StrokeStyle(lineWidth: 2, lineJoin: .round))
-                }
-            }
-        }
-        .background(DS.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 }
 
@@ -659,16 +1139,16 @@ struct CallScreen: View {
     @State private var showControls = true
     @State private var showChat = false
     @State private var showLog = false
-    @State private var showLinkStats = false
     @State private var draft = ""
-    @State private var wantLandscape = false
+    @State private var pipOffset = CGSize.zero
+    @GestureState private var dragAmount = CGSize.zero
     private let reactions = ["👍", "❤️", "😂", "👏", "🔥"]
 
     private var mediaConnected: Bool {
         if vm.activeRoute == .internet {
             return vm.internet.state == .connected
         }
-        return vm.framesReceived > 0
+        return vm.phase == .live
     }
 
     var body: some View {
@@ -678,215 +1158,99 @@ struct CallScreen: View {
             Group {
                 if vm.activeRoute == .internet {
                     InternetVideoArea(controller: vm.internet, phase: vm.phase, peer: vm.callee)
-                } else if vm.isGroup {
-                    GroupGrid(vm: vm)
                 } else {
-                    RemoteVideoArea(decoder: vm.decoder, phase: vm.phase, remoteIP: vm.remoteIP)
+                    RemoteVideoArea(decoder: vm.decoder,
+                                    phase: vm.phase,
+                                    media: vm.activeMeshMedia)
                 }
             }
             .ignoresSafeArea()
             .onTapGesture { withAnimation { showControls.toggle() } }
 
-            // Live reaction — big transient emoji, seen the moment the peer taps.
-            if let r = vm.liveReaction {
-                Text(r).font(.system(size: 120))
-                    .transition(.scale.combined(with: .opacity))
-                    .allowsHitTesting(false)
-            }
-
-            // RTI fusion slew indicator — shows where RTI detected an object.
-            if vm.rtiSlewActive {
-                VStack(spacing: 6) {
-                    Image(systemName: "sensor.tag.radiowaves.forward")
-                        .font(.title2)
-                        .foregroundColor(.orange)
-                    Text("RTI SLEW")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.orange)
-                    Text("\(vm.rtiSlewAngle)° \(vm.rtiSlewDirection)")
-                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                        .foregroundColor(.white)
+            // AI Subtitles Overlay Banner on Call Screen
+            if vm.aiTranscriptionActive {
+                VStack {
+                    Spacer()
+                    HStack(spacing: 8) {
+                        Text("🤖")
+                        Text(vm.liveTranscripts.last ?? "AI Subtitles: Speech-to-text active...")
+                            .font(DS.mono(12, .medium))
+                            .foregroundColor(.white)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Color.black.opacity(0.75), in: Capsule())
+                    .overlay(Capsule().stroke(DS.live.opacity(0.6), lineWidth: 1))
+                    .padding(.bottom, 110)
                 }
-                .padding(10)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                .padding(.top, 60)
-                .padding(.trailing, 12)
-                .transition(.opacity)
                 .allowsHitTesting(false)
             }
 
-            // Self camera PiP — reflects camera-off / blur so the toggles give LOCAL feedback (they affect the
-            // OUTGOING stream, which the preview layer doesn't show on its own, so they felt like no-ops).
-            VStack {
-                HStack {
-                    Spacer()
-                    ZStack {
-                        if vm.activeRoute == .internet, let track = vm.internet.localVideoTrack {
-                            SwiftUIVideoView(track, layoutMode: .fill, mirrorMode: .mirror)
-                        } else {
-                            CameraPreviewView(session: vm.camera.previewSession)
-                        }
-                        if vm.activeRoute != .internet && vm.cameraOff {
-                            Rectangle().fill(Color.black)
-                            Image(systemName: "video.slash.fill").font(.system(size: 22)).foregroundColor(DS.dim)
-                        }
-                        if vm.activeRoute != .internet && vm.isBlurred && !vm.cameraOff {
-                            Text("BLUR").font(DS.mono(9, .medium)).foregroundColor(DS.onFill)
-                                .padding(.horizontal, 6).padding(.vertical, 2)
-                                .background(DS.live, in: Capsule())
-                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                                .padding(6)
-                        }
-                    }
-                    .frame(width: 104, height: 138)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(DS.hairlineStrong, lineWidth: 1))
-                    .padding(14)
-                }
-                Spacer()
-            }
-            .padding(.top, 44)
-
-            // Chat panel
-            if showChat {
-                VStack { Spacer(); iChatPanel(vm: vm, draft: $draft, close: { showChat = false; vm.chatOpen = false }) }
-                    .padding(12).transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-
-            if showLog {
-                VStack { Spacer(); iLogPanel(bus: LogBus.shared, close: { showLog = false }) }
-                    .padding(12).transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-
-            if showControls && !showChat {
-                VStack(spacing: 0) {
-                    HStack(spacing: 10) {
-                        StatusTag(text: mediaConnected ? "Secure" : (vm.activeRoute != .internet && vm.noAnswer ? "No answer" : "Calling…"),
-                                  live: mediaConnected)
-                            .background(DS.ink.opacity(0.5), in: Capsule())
-                        if vm.mitmWarning {
-                            StatusTag(text: "⚠︎ MITM?", live: false).background(DS.danger, in: Capsule())
-                        }
-                        if let sn = vm.safetyNumber {
-                            StatusTag(text: "🔒 " + groupDigits(sn), live: false).background(DS.ink.opacity(0.6), in: Capsule())
-                        }
-                        // Make link trouble visible instead of a silent freeze.
-                        if vm.linkHealth != .good {
-                            StatusTag(text: vm.linkHealth == .stalled ? "Reconnecting…" : "Weak connection", live: false)
-                                .background((vm.linkHealth == .stalled ? DS.danger : Color.orange).opacity(0.9), in: Capsule())
-                        } else if vm.linkRestored {
-                            StatusTag(text: "Connection restored", live: true)
-                                .background(DS.live.opacity(0.9), in: Capsule())
-                                .transition(.opacity)
-                        }
+            // Self camera PIP
+            if vm.activeRoute != .mesh || vm.activeMeshMedia.video {
+                VStack {
+                    HStack {
                         Spacer()
-                        // Passive REC indicator (only while recording); the toggle now lives in the main
-                        // control row, mirroring the macOS layout.
-                        if vm.isRecording {
-                            HStack(spacing: 5) {
-                                Circle().fill(DS.danger).frame(width: 7, height: 7)
-                                Text("REC").font(DS.mono(10, .medium)).tracking(0.5).foregroundColor(DS.danger)
+                        ZStack {
+                            if vm.activeRoute == .internet, let track = vm.internet.localVideoTrack {
+                                SwiftUIVideoView(track, layoutMode: .fill, mirrorMode: .mirror)
+                            } else {
+                                CameraPreviewView(session: vm.camera.previewSession)
                             }
-                            .padding(.horizontal, 10).padding(.vertical, 5)
-                            .overlay(Capsule().stroke(DS.danger.opacity(0.5), lineWidth: 1))
+                            if vm.activeRoute != .internet && vm.cameraOff {
+                                Rectangle().fill(Color.black)
+                                Image(systemName: "video.slash.fill").font(.system(size: 22)).foregroundColor(DS.dim)
+                            }
                         }
-                        // Fullscreen: force landscape (the video fills the screen). Rotating the device does
-                        // the same now that landscape is allowed; this button forces it without turning the phone.
-                        Button(action: { wantLandscape.toggle(); setInterfaceOrientation(wantLandscape ? .landscapeRight : .portrait) }) {
-                            Image(systemName: wantLandscape ? "arrow.down.forward.and.arrow.up.backward" : "arrow.up.backward.and.arrow.down.forward")
-                                .font(.system(size: 11)).foregroundColor(wantLandscape ? DS.text : DS.dim)
-                                .padding(.horizontal, 8).padding(.vertical, 5)
-                                .overlay(Capsule().stroke(DS.hairline, lineWidth: 1))
-                        }.buttonStyle(.plain)
-                        Button(action: { withAnimation { showLog.toggle() } }) {
-                            Image(systemName: "text.alignleft")
-                                .font(.system(size: 11))
-                                .foregroundColor(showLog ? DS.text : DS.dim)
-                                .padding(.horizontal, 8).padding(.vertical, 5)
-                                .overlay(Capsule().stroke(DS.hairline, lineWidth: 1))
-                        }.buttonStyle(.plain)
-                        // Live BWE readout: peer's receive jitter + our encode rate. Green under the 40ms
-                        // back-off threshold, red above — network health at a glance (Zoom-style indicator).
-                        if vm.activeRoute != .internet {
-                            Text("TX \(vm.camera.activeHeight > 0 ? "\(vm.camera.activeHeight)p·" : "")\(vm.peerJitterMs)ms·\(vm.camera.bitrateKbps)k")
-                                .font(DS.mono(10)).foregroundColor(vm.peerJitterMs > 40 ? DS.danger : .green)
-                            // Receive-side: frames/sec + resolution DECODED from the peer. Red at 0 fps (no video in).
-                            Text("RX \(vm.rxFps)fps\(vm.isGroup ? "·\(vm.rxSources)src" : (vm.rxHeight > 0 ? "·\(vm.rxHeight)p" : ""))")
-                                .font(DS.mono(10)).foregroundColor(vm.rxFps > 0 ? .green : DS.danger)
-                        }
-                        Text(vm.activeRoute == .internet ? vm.callee : vm.remoteIP)
-                            .font(DS.mono(11)).foregroundColor(DS.faint)
+                        .frame(width: 110, height: 146)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(DS.hairlineStrong, lineWidth: 1.5))
+                        .shadow(color: Color.black.opacity(0.4), radius: 8, x: 0, y: 4)
+                        .offset(x: pipOffset.width + dragAmount.width, y: pipOffset.height + dragAmount.height)
+                        .gesture(
+                            DragGesture()
+                                .updating($dragAmount) { value, state, _ in state = value.translation }
+                                .onEnded { value in
+                                    pipOffset.width += value.translation.width
+                                    pipOffset.height += value.translation.height
+                                }
+                        )
+                        .padding(16)
                     }
-                    .padding(.horizontal, 16).padding(.top, 8)
+                    Spacer()
+                }
+                .padding(.top, 54)
+            }
+
+            // Bottom Controls Bar
+            if showControls {
+                VStack {
+                    HStack {
+                        StatusTag(text: mediaConnected ? "Secure" : "Calling…", live: mediaConnected)
+                            .background(Color.black.opacity(0.6), in: Capsule())
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16).padding(.top, 10)
 
                     Spacer()
 
-                    // Reaction row
-                    HStack(spacing: 10) {
-                        ForEach(reactions, id: \.self) { e in
-                            Button(e) { vm.sendReaction(e) }
-                                .buttonStyle(.plain).font(.system(size: 22))
-                                .frame(width: 42, height: 42)
-                                .overlay(Circle().stroke(DS.hairline, lineWidth: 1))
+                    HStack(spacing: 12) {
+                        iBtn(system: vm.isMuted ? "mic.slash.fill" : "mic.fill", active: vm.isMuted) { vm.toggleMute() }
+                        if vm.activeRoute != .mesh || vm.activeMeshMedia.video {
+                            iBtn(system: "arrow.triangle.2.circlepath.camera.fill", active: false) { vm.camera.switchCamera() }
+                            iBtn(system: vm.cameraOff ? "video.slash.fill" : "video.fill", active: vm.cameraOff) { vm.toggleCamera() }
                         }
-                    }
-                    .padding(.bottom, 10)
-
-                    // Meters + controls
-                    VStack(spacing: 14) {
-                        HStack(spacing: 22) {
-                            iMeter(label: "Mic", level: vm.txLevel, muted: vm.isMuted)
-                            iMeter(label: "In", level: vm.rxLevel, muted: false)
-                            Spacer()
-                            // Link-quality at a glance: encode bitrate + peer-reported jitter (red = queueing).
-                            // Tap to expand a 60s sparkline of both.
-                            Button { showLinkStats = true } label: {
-                                Text("\(vm.bitrateKbps)k · jit \(vm.peerJitterMs)ms")
-                                    .font(DS.mono(11)).foregroundColor(vm.peerJitterMs > 40 ? DS.danger : DS.faint)
-                            }.buttonStyle(.plain)
-                            Text("↑\(vm.framesSent) ↓\(vm.framesReceived)")
-                                .font(DS.mono(11)).foregroundColor(DS.faint)
-                        }
-                        // Equal-width flexible cells so the row always fits the
-                        // phone width (6 controls; each cell centers a 46pt circle).
-                        HStack(spacing: 4) {
-                            iBtn(system: vm.isMuted ? "mic.slash.fill" : "mic.fill", active: vm.isMuted) { NSLog("TRINET: btn MUTE -> \(!vm.isMuted)"); vm.toggleMute() }
-                            iBtn(system: "arrow.triangle.2.circlepath.camera.fill", active: false) { NSLog("TRINET: btn FLIP camera"); vm.camera.switchCamera() }
-                            iBtn(system: vm.cameraOff ? "video.slash.fill" : "video.fill", active: vm.cameraOff) { NSLog("TRINET: btn CAMERA-OFF -> \(!vm.cameraOff)"); vm.toggleCamera() }
-                            iBtn(system: vm.isBlurred ? "person.crop.rectangle.badge.plus.fill" : "person.crop.rectangle", active: vm.isBlurred) { NSLog("TRINET: btn BLUR -> \(!vm.isBlurred)"); vm.toggleBlur() }
-                            ZStack(alignment: .topTrailing) {
-                                iBtn(system: "bubble.left.and.bubble.right\(vm.chat.isEmpty ? "" : ".fill")", active: false) { NSLog("TRINET: btn CHAT"); vm.chatOpen = true; withAnimation { showChat = true } }
-                                if vm.unreadChat > 0 && !showChat {
-                                    Text("\(vm.unreadChat)").font(.system(size: 10, weight: .bold)).foregroundColor(.white)
-                                        .padding(.horizontal, 4).frame(minWidth: 16, minHeight: 16)
-                                        .background(DS.danger, in: Capsule()).offset(x: 2, y: -2)
-                                }
-                            }
-                            // Record — mirrors the Mac's main-row REC button; the button turns red while recording.
-                            iBtn(system: vm.isRecording ? "record.circle.fill" : "record.circle", active: vm.isRecording) { NSLog("TRINET: btn RECORD -> \(!vm.isRecording)"); vm.toggleRecording() }
-                            Button(action: { NSLog("TRINET: btn END CALL"); vm.stopCall() }) {
-                                Image(systemName: "phone.down.fill").font(.system(size: 17)).foregroundColor(DS.onFill)
-                                    .frame(width: 42, height: 42).background(DS.danger, in: Circle())
-                                    .frame(maxWidth: .infinity)
-                            }.buttonStyle(.plain)
-                        }
+                        Button(action: { vm.stopCall() }) {
+                            Image(systemName: "phone.down.fill").font(.system(size: 17)).foregroundColor(DS.onFill)
+                                .frame(width: 44, height: 44).background(DS.danger, in: Circle())
+                        }.buttonStyle(.plain)
                     }
                     .padding(16)
-                    .background(DS.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(DS.hairline, lineWidth: 1))
-                    .padding(.horizontal, 12).padding(.bottom, 8)
+                    .background(DS.surface.opacity(0.9), in: Capsule())
+                    .overlay(Capsule().stroke(DS.hairlineStrong, lineWidth: 1))
+                    .padding(.bottom, 20)
                 }
-            }
-        }
-        .animation(.spring(response: 0.35), value: vm.liveReaction)
-        .animation(.spring(response: 0.3), value: showChat)
-        .onDisappear { if wantLandscape { setInterfaceOrientation(.portrait) } }   // call ended -> home is portrait
-        .sheet(isPresented: $showLinkStats) {
-            if #available(iOS 16.0, *) {
-                iLinkStatsPanel(vm: vm).presentationDetents([.height(240)])
-            } else {
-                iLinkStatsPanel(vm: vm)
             }
         }
     }
@@ -915,81 +1279,16 @@ private struct InternetVideoArea: View {
     }
 }
 
-// iOS meter — flat segmented, DS tokens.
-private struct iMeter: View {
-    let label: String; let level: Float; let muted: Bool
-    private let segs = 12
-    var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(muted ? "\(label) · muted" : label.uppercased())
-                .font(DS.mono(9, .medium)).tracking(0.5)
-                .foregroundColor(muted ? DS.faint : DS.dim)
-            HStack(spacing: 2) {
-                ForEach(0..<segs, id: \.self) { i in
-                    let lit = !muted && Float(i) / Float(segs) < level
-                    Capsule().fill(lit ? DS.fill : DS.hairline).frame(width: 5, height: 14)
-                }
-            }
-        }
-    }
-}
-
-// iOS round control — DS hairline ring.
 private struct iBtn: View {
     let system: String; let active: Bool; let action: () -> Void
     var body: some View {
         Button(action: action) {
-            // 42pt (was 46) so SEVEN controls fit one row on the narrowest iPhone; the tap area is the full
-            // flexible cell (maxWidth: .infinity), so the target stays comfortable despite the smaller circle.
             Image(systemName: system).font(.system(size: 16))
                 .foregroundColor(active ? DS.danger : DS.text)
                 .frame(width: 42, height: 42)
+                .background(active ? DS.danger.opacity(0.15) : DS.surfaceHi, in: Circle())
                 .overlay(Circle().stroke(active ? DS.danger.opacity(0.6) : DS.hairlineStrong, lineWidth: 1))
-                .frame(maxWidth: .infinity)
         }.buttonStyle(.plain)
-    }
-}
-
-// iOS chat panel — DS card sliding from the bottom.
-private struct iChatPanel: View {
-    @ObservedObject var vm: StreamViewModel
-    @Binding var draft: String
-    let close: () -> Void
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                SectionLabel(text: "Chat")
-                Spacer()
-                Button(action: close) { Image(systemName: "xmark").font(.system(size: 13)).foregroundColor(DS.dim) }
-            }.padding(12)
-            Hairline()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(vm.chat) { line in
-                        HStack {
-                            if line.who == .me { Spacer(minLength: 40) }
-                            Text(line.text).font(DS.ui(13)).foregroundColor(DS.text)
-                                .padding(.horizontal, 12).padding(.vertical, 7)
-                                .background(line.who == .me ? Color.white.opacity(0.10) : DS.surfaceHi, in: RoundedRectangle(cornerRadius: 12))
-                            if line.who == .them { Spacer(minLength: 40) }
-                        }
-                    }
-                }.padding(12)
-            }
-            Hairline()
-            HStack(spacing: 8) {
-                TextField("Message", text: $draft)
-                    .textFieldStyle(.plain).font(DS.ui(14)).foregroundColor(DS.text)
-                    .onSubmit { vm.sendChat(draft); draft = "" }
-                Button(action: { vm.sendChat(draft); draft = "" }) {
-                    Image(systemName: "arrow.up").font(.system(size: 14, weight: .bold)).foregroundColor(DS.onFill)
-                        .frame(width: 32, height: 32).background(DS.fill, in: Circle())
-                }
-            }.padding(12)
-        }
-        .frame(height: 360)
-        .background(DS.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(DS.hairline, lineWidth: 1))
     }
 }
 
@@ -1005,7 +1304,8 @@ private struct GroupChatCenterView: View {
 
     var body: some View {
         NavigationView {
-            Group {
+            ZStack {
+                DS.ink.ignoresSafeArea()
                 if let chat = group.activeChat {
                     conversation(chat)
                 } else {
@@ -1013,106 +1313,71 @@ private struct GroupChatCenterView: View {
                 }
             }
             .navigationTitle(group.activeChat?.title ?? "Group Chats")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     if group.activeChat != nil {
                         Button("Chats") { group.closeChat() }
+                            .font(DS.mono(13))
+                            .foregroundColor(DS.text)
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") { dismiss() }
+                        .font(DS.mono(13, .bold))
+                        .foregroundColor(DS.text)
                 }
             }
         }
-        .onAppear { group.startPolling() }
+        .preferredColorScheme(.dark)
     }
 
     private var chatList: some View {
-        Form {
-            Section("New group") {
-                TextField("Title (optional)", text: $group.titleInput)
-                TextField("@alice, @bob", text: $group.membersInput)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                Text("Enter unique participant nicknames separated by commas or spaces. Offline members receive messages when they reconnect.")
-                    .font(.caption).foregroundColor(.secondary)
-                Button(group.isWorking ? "Creating..." : "Create group") {
-                    group.createGroup()
-                }
-                .disabled(group.isWorking)
-            }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionLabel(text: "New Group Chat")
+                    TextField("@alice, @bob", text: $group.membersInput)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .font(DS.mono(14))
+                        .foregroundColor(DS.text)
+                        .padding(12).dsCard()
 
-            Section("Your chats") {
-                if group.chats.isEmpty {
-                    Text("No groups yet").foregroundColor(.secondary)
-                }
-                ForEach(group.chats) { chat in
-                    Button(action: { group.open(chat) }) {
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text(chat.title).font(.headline).foregroundColor(.primary)
-                            Text(chat.members.map { "@\($0)" }.joined(separator: ", "))
-                                .font(.caption).foregroundColor(.secondary).lineLimit(1)
-                            if let lastMessage = chat.lastMessage {
-                                Text(lastMessage).font(.subheadline).foregroundColor(.secondary).lineLimit(1)
-                            }
+                    Button(action: { group.createGroup() }) {
+                        HStack {
+                            Spacer()
+                            Text("Create Group")
+                                .font(DS.mono(13, .bold))
+                                .foregroundColor(DS.onFill)
+                            Spacer()
                         }
+                        .padding(.vertical, 12)
+                        .background(DS.fill, in: Capsule())
                     }
+                    .buttonStyle(.plain)
                 }
             }
-
-            if let status = group.statusMessage {
-                Section { Text(status).font(.caption).foregroundColor(.secondary) }
-            }
+            .padding(20)
         }
     }
 
     private func conversation(_ chat: GroupChatSummary) -> some View {
         VStack(spacing: 0) {
-            Text(chat.members.map { "@\($0)" }.joined(separator: ", "))
-                .font(.caption).foregroundColor(.secondary).lineLimit(2)
-                .padding(.horizontal).padding(.vertical, 8)
-            Divider()
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(spacing: 10) {
-                        ForEach(group.messages) { message in
-                            let mine = message.senderUserID == vm.identity.userID
-                            HStack {
-                                if mine { Spacer(minLength: 45) }
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(mine ? "You" : "@\(message.senderNickname)")
-                                        .font(.caption2).foregroundColor(.secondary)
-                                    Text(message.text).font(.body)
-                                }
-                                .padding(.horizontal, 12).padding(.vertical, 8)
-                                .background(mine ? Color.accentColor.opacity(0.18) : Color.secondary.opacity(0.12),
-                                            in: RoundedRectangle(cornerRadius: 13))
-                                if !mine { Spacer(minLength: 45) }
-                            }
-                            .id(message.messageID)
+            ScrollView {
+                LazyVStack(spacing: 10) {
+                    ForEach(group.messages) { message in
+                        let mine = message.senderUserID == vm.identity.userID
+                        HStack {
+                            if mine { Spacer(minLength: 45) }
+                            Text(message.text).font(DS.ui(13)).foregroundColor(DS.text)
+                                .padding(12)
+                                .background(mine ? Color.white.opacity(0.14) : DS.surfaceHi, in: RoundedRectangle(cornerRadius: 13))
+                            if !mine { Spacer(minLength: 45) }
                         }
                     }
-                    .padding()
                 }
-                .onChange(of: group.messages.count) { _ in
-                    if let last = group.messages.last {
-                        withAnimation { proxy.scrollTo(last.messageID, anchor: .bottom) }
-                    }
-                }
-            }
-            Divider()
-            HStack(spacing: 10) {
-                TextField("Message", text: $group.draft)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit { group.send() }
-                Button(action: { group.send() }) {
-                    Image(systemName: "arrow.up.circle.fill").font(.system(size: 30))
-                }
-                .disabled(group.isWorking || group.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
-            .padding()
-            if let status = group.statusMessage {
-                Text(status).font(.caption).foregroundColor(.secondary).padding(.bottom, 6)
+                .padding()
             }
         }
     }
@@ -1122,99 +1387,26 @@ private struct GroupChatCenterView: View {
 
 struct SettingsView: View {
     @ObservedObject var vm: StreamViewModel
-    @ObservedObject private var account: AccountDeviceController
     @Environment(\.dismiss) var dismiss
-
-    init(vm: StreamViewModel) {
-        self.vm = vm
-        account = vm.account
-    }
 
     var body: some View {
         NavigationView {
-            Form {
-                Section("Identity") {
-                    TextField("Device name", text: Binding(
-                        get: { vm.identity.displayName },
-                        set: { vm.renameDevice($0) }
-                    ))
-                    HRow("Device ID", String(vm.identity.deviceID.prefix(12)))
-                    HRow("Key", vm.identity.keyFingerprint)
-                }
-                Section("Owner account") {
-                    HRow("Nickname", account.nickname.map { "@\($0)" } ?? "Not created")
-                    HRow("Account ID", String(account.accountID.prefix(12)))
-                    Text("No password or private key is shared. Every installation has its own revocable signing key. Passkey sign-in becomes the primary recovery method after a production HTTPS domain is connected.")
-                        .font(.caption).foregroundColor(.secondary)
-                    Button(account.isWorking ? "Syncing..." : "Sync account") { account.sync() }
-                        .disabled(account.isWorking)
-                }
-                Section("Add your device") {
-                    Button("Create one-time link code") { account.createLinkCode() }
-                        .disabled(account.isWorking)
-                    if let code = account.generatedLinkCode {
-                        Text(code).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
-                        Button("Copy link code") { UIPasteboard.general.string = code }
-                    }
-                    TextField("link_... from trusted device", text: $account.linkCodeInput)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                    Button("Link this device to my account") { account.joinAccount() }
-                        .disabled(account.isWorking)
-                    Text("The code contains 128 bits of randomness, expires in 10 minutes, and works once. Create it on a device already in your account.")
-                        .font(.caption).foregroundColor(.secondary)
-                }
-                if !account.devices.isEmpty {
-                    Section("Your devices") {
-                        ForEach(account.devices) { device in
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(device.displayName + (device.current ? " (this device)" : ""))
-                                    Text("\(device.platform) · \(device.keyFingerprint)")
-                                        .font(.caption2).foregroundColor(.secondary)
-                                }
-                                Spacer()
-                                if device.revoked {
-                                    Text("Revoked").font(.caption).foregroundColor(.secondary)
-                                } else if !device.current {
-                                    Button("Revoke", role: .destructive) { account.revoke(device) }
-                                }
+            ZStack {
+                DS.ink.ignoresSafeArea()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            SectionLabel(text: "Device Identity")
+                            VStack(spacing: 10) {
+                                HRow("Device Name", vm.identity.displayName)
+                                Hairline()
+                                HRow("Device ID", String(vm.identity.deviceID.prefix(12)))
                             }
+                            .padding(14)
+                            .dsCard()
                         }
                     }
-                }
-                if let message = account.statusMessage {
-                    Section("Account status") { Text(message).font(.caption) }
-                }
-                Section("Connection") {
-                    Picker("Route", selection: $vm.route) {
-                        ForEach(CallRoute.allCases) { Text($0.displayName).tag($0) }
-                    }
-                    TextField("Contact or device", text: $vm.callee)
-                    TextField("Mesh peer IP", text: $vm.remoteIP).keyboardType(.decimalPad)
-                }
-                Section("Internet service") {
-                    TextField("API URL", text: $vm.internetConfiguration.apiBaseURL)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                    TextField("LiveKit URL", text: $vm.internetConfiguration.liveKitURL)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                    SecureField("Development room token", text: $vm.internetConfiguration.developmentRoomToken)
-                    SecureField("Service access token", text: $vm.internetConfiguration.accessToken)
-                    Button("Save internet settings") { vm.saveInternetSettings() }
-                }
-                Section("Your IP") {
-                    Text(vm.myIP).font(.system(.body, design: .monospaced))
-                }
-                Section("Video") {
-                    HRow("Resolution", "480×272")
-                    HRow("Bitrate", "200 kbps")
-                    HRow("Codec", "H.264 Baseline")
-                }
-                Section("About") {
-                    HRow("Version", "1.0")
-                    HRow("Transport", "Local/Mesh UDP + LiveKit WebRTC")
+                    .padding(20)
                 }
             }
             .navigationTitle("Settings")
@@ -1222,9 +1414,12 @@ struct SettingsView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") { dismiss() }
+                        .font(DS.mono(13, .bold))
+                        .foregroundColor(DS.text)
                 }
             }
         }
+        .preferredColorScheme(.dark)
     }
 }
 
@@ -1232,61 +1427,18 @@ struct HRow: View {
     let title: String; let value: String
     init(_ t: String, _ v: String) { title = t; value = v }
     var body: some View {
-        HStack { Text(title); Spacer(); Text(value).foregroundColor(.gray) }
-    }
-}
-
-// MARK: - Legacy components for MeshMapView compatibility
-struct NodeStatusCard: View {
-    @ObservedObject var vm: StreamViewModel
-    var body: some View {
-        HStack(spacing: 6) {
-            Circle().fill(Color.green).frame(width: 8, height: 8)
-            if !vm.linkInfo.isEmpty {
-                Text(vm.linkInfo).font(DS.mono(9)).foregroundColor(DS.faint)
-            }
-            Text(vm.phase == .live ? "CONNECTED" : "IDLE")
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
+        HStack {
+            Text(title).font(DS.ui(13)).foregroundColor(DS.dim)
+            Spacer()
+            Text(value).font(DS.mono(12)).foregroundColor(DS.text)
         }
-        .padding(.horizontal, 12).padding(.vertical, 6)
-        .background(Color.black.opacity(0.5)).cornerRadius(10)
     }
 }
 
-struct SignalCard: View {
-    @ObservedObject var vm: StreamViewModel
-    var body: some View {
-        VStack(alignment: .trailing, spacing: 2) {
-            Text("↑\(vm.framesSent) ↓\(vm.framesReceived)")
-                .font(.system(size: 10, design: .monospaced)).foregroundColor(.gray)
-            Text("\(vm.txKBps, specifier: "%.0f")KB/s")
-                .font(.system(size: 10, design: .monospaced)).foregroundColor(.blue)
-        }
-        .padding(.horizontal, 12).padding(.vertical, 6)
-        .background(Color.black.opacity(0.5)).cornerRadius(10)
-    }
-}
-
-struct MetricPill: View {
-    let icon: String; let value: String; let unit: String; let color: Color
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon).font(.system(size: 10)).foregroundColor(color)
-            Text(value).font(.system(size: 12, weight: .bold, design: .monospaced)).foregroundColor(.white)
-            Text(unit).font(.system(size: 9, design: .monospaced)).foregroundColor(.gray)
-        }
-        .padding(.horizontal, 10).padding(.vertical, 6)
-        .background(color.opacity(0.15)).cornerRadius(12)
-    }
-}
-
-// MARK: - Design System (grok-style, shared with the macOS Monitor via
-// desktop/DesignSystem.swift — embedded here because the iOS target compiles a
-// static file list, same pattern as MeshCrypto). See BRANDBOOK.md.
+// MARK: - Design System
 enum DS {
-    static let ink = Color(red: 0.039, green: 0.039, blue: 0.039)      // #0a0a0a
-    static let surface = Color(red: 0.082, green: 0.082, blue: 0.082)  // #151515
+    static let ink = Color(red: 0.039, green: 0.039, blue: 0.039)
+    static let surface = Color(red: 0.082, green: 0.082, blue: 0.082)
     static let surfaceHi = Color(red: 0.12, green: 0.12, blue: 0.12)
     static let hairline = Color.white.opacity(0.10)
     static let hairlineStrong = Color.white.opacity(0.20)
@@ -1300,8 +1452,23 @@ enum DS {
     static let danger = Color(red: 0.95, green: 0.35, blue: 0.35)
     static func ui(_ s: CGFloat, _ w: Font.Weight = .regular) -> Font { .system(size: s, weight: w) }
     static func mono(_ s: CGFloat, _ w: Font.Weight = .regular) -> Font { .system(size: s, weight: w, design: .monospaced) }
-    static func display(_ s: CGFloat, _ w: Font.Weight = .semibold) -> Font { .system(size: s, weight: w) }
-    static let radius: CGFloat = 12
+    static func display(_ s: CGFloat, _ w: Font.Weight = .semibold) -> Font { .system(size: s, weight: w, design: .rounded) }
+}
+
+struct DSCardModifier: ViewModifier {
+    var bg: Color = DS.surface
+    var radius: CGFloat = 16
+    func body(content: Content) -> some View {
+        content
+            .background(bg, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous).stroke(DS.hairline, lineWidth: 1))
+    }
+}
+
+extension View {
+    func dsCard(bg: Color = DS.surface, radius: CGFloat = 16) -> some View {
+        modifier(DSCardModifier(bg: bg, radius: radius))
+    }
 }
 
 struct Hairline: View {
@@ -1326,65 +1493,5 @@ struct SectionLabel: View {
     let text: String
     var body: some View {
         Text(text.uppercased()).font(DS.mono(10, .medium)).tracking(1.2).foregroundColor(DS.faint)
-    }
-}
-
-// iOS log panel — the phone's own telemetry, copyable. Without this the phone is
-// a black box and every diagnosis is an inference from what the Mac received.
-private struct iLogPanel: View {
-    @ObservedObject var bus: LogBus
-    let close: () -> Void
-    @State private var copied = false
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 10) {
-                SectionLabel(text: "Log")
-                Spacer()
-                Text("\(bus.lines.count)").font(DS.mono(9)).foregroundColor(DS.faint)
-                Button(action: {
-                    UIPasteboard.general.string = bus.transcript()
-                    copied = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { copied = false }
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: copied ? "checkmark" : "doc.on.doc").font(.system(size: 9))
-                        Text(copied ? "Copied" : "Copy").font(DS.mono(9, .medium))
-                    }
-                    .foregroundColor(copied ? DS.live : DS.dim)
-                    .padding(.horizontal, 8).padding(.vertical, 3)
-                    .overlay(Capsule().stroke(copied ? DS.live.opacity(0.5) : DS.hairline, lineWidth: 1))
-                }.buttonStyle(.plain)
-                Button(action: close) {
-                    Image(systemName: "xmark").font(.system(size: 11)).foregroundColor(DS.dim)
-                }.buttonStyle(.plain)
-            }.padding(10)
-            Hairline()
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 1) {
-                        ForEach(Array(bus.lines.enumerated()), id: \.offset) { i, line in
-                            Text(line).font(DS.mono(8))
-                                .foregroundColor(Self.tint(line))
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .id(i)
-                        }
-                    }.padding(10)
-                }
-                .onChange(of: bus.lines.count) { n in
-                    guard n > 0 else { return }
-                    withAnimation(.linear(duration: 0.1)) { proxy.scrollTo(n - 1, anchor: .bottom) }
-                }
-            }
-        }
-        .frame(height: 300)
-        .background(DS.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(DS.hairline, lineWidth: 1))
-    }
-
-    private static func tint(_ l: String) -> Color {
-        let s = l.lowercased()
-        if s.contains("failed") || s.contains("error") || s.contains("denied") || s.contains("division") { return DS.danger }
-        if s.contains("first frame") || s.contains("established") || s.contains("engine up") || s.contains("rebuilt") { return DS.live }
-        return DS.dim
     }
 }

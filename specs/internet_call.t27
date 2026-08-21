@@ -20,9 +20,17 @@ module InternetCall {
     const CAP_WEBRTC: u8 = 8;
 
     const INVITE_TTL_SECONDS: u32 = 30;
+    const AUTO_MESH_PROBE_TIMEOUT_SECONDS: u32 = 8;
+    const AUTO_MESH_CONTROL_GRACE_SECONDS: u32 = 1;
+    const AUTO_MESH_ACCEPTED_CONNECT_TIMEOUT_SECONDS: u32 = 30;
+    const MESH_CONTROL_SEND_ATTEMPTS: u32 = 3;
     const TOKEN_TTL_SECONDS: u32 = 300;
     const REQUEST_SIGNATURE_TTL_SECONDS: u32 = 60;
+    const REQUEST_SIGNATURE_MAX_FUTURE_SKEW_SECONDS: u32 = 10;
     const PRESENCE_TTL_SECONDS: u32 = 90;
+    const APNS_MAX_DELIVERY_ATTEMPTS: u32 = 3;
+    const APNS_RETRY_BASE_DELAY_MS: u32 = 100;
+    const APNS_RETRY_MAX_JITTER_MS: u32 = 50;
 
     // A routable device must have stable opaque identifiers and a public key.
     // Display names and IP addresses are deliberately excluded from identity.
@@ -59,6 +67,87 @@ module InternetCall {
         return ROUTE_NONE;
     }
 
+    // UDP send success is not delivery proof. Auto first falls back after an
+    // unaccepted probe. A signed acceptance extends, but does not remove, the
+    // deadline for establishing a secure mesh session.
+    fn auto_mesh_should_fallback(auto_requested: bool, target_is_numeric_address: bool, secure_session_ready: bool, acceptance_received: bool, cancelled: bool, initial_deadline_due: bool, accepted_deadline_due: bool) -> bool {
+        if (!auto_requested || target_is_numeric_address || secure_session_ready || cancelled) {
+            return false;
+        }
+        if (acceptance_received) {
+            return accepted_deadline_due;
+        }
+        return initial_deadline_due;
+    }
+
+    // The caller leaves one control-message transit second after the prompt
+    // closes. A signed acceptance received in that window keeps the mesh route.
+    fn auto_mesh_fallback_decision_is_due(probe_started_at: u32, now: u32) -> bool {
+        if (now < probe_started_at) {
+            return false;
+        }
+        return (now - probe_started_at) >=
+               (AUTO_MESH_PROBE_TIMEOUT_SECONDS + AUTO_MESH_CONTROL_GRACE_SECONDS);
+    }
+
+    fn auto_mesh_accepted_fallback_decision_is_due(probe_started_at: u32, now: u32) -> bool {
+        if (now < probe_started_at) {
+            return false;
+        }
+        return (now - probe_started_at) >=
+               AUTO_MESH_ACCEPTED_CONNECT_TIMEOUT_SECONDS;
+    }
+
+    // The receiver dismisses the local prompt when the caller's Auto probe
+    // moves to Internet. This is UI state only; signed invite v1 stays unchanged.
+    fn auto_mesh_prompt_is_fresh(received_at: u32, now: u32) -> bool {
+        if (now < received_at) {
+            return false;
+        }
+        return (now - received_at) <= AUTO_MESH_PROBE_TIMEOUT_SECONDS;
+    }
+
+    fn mesh_control_auth_is_valid(signature_valid: bool, fresh: bool) -> bool {
+        return signature_valid && fresh;
+    }
+
+    fn mesh_control_route_matches(control_call_id: u64, expected_call_id: u64, recipient_device_id: u64, local_device_id: u64) -> bool {
+        return control_call_id != 0 &&
+               control_call_id == expected_call_id &&
+               recipient_device_id == local_device_id;
+    }
+
+    fn mesh_control_peer_matches(sender_user_id: u64, expected_sender_user_id: u64, sender_device_id: u64, expected_sender_device_id: u64, sender_key_fingerprint: u64, expected_key_fingerprint: u64) -> bool {
+        return sender_user_id == expected_sender_user_id &&
+               sender_device_id == expected_sender_device_id &&
+               sender_key_fingerprint == expected_key_fingerprint;
+    }
+
+    // A mesh control message is valid only for the exact call, destination,
+    // and peer device. The adapter verifies freshness, nonce uniqueness, and
+    // the sender's signature before invoking this policy.
+    fn mesh_control_is_authorized(route_matches: bool, peer_matches: bool, auth_valid: bool) -> bool {
+        return route_matches && peer_matches && auth_valid;
+    }
+
+    fn incoming_call_should_mark_reported(already_reported: bool, consumed_by_ui: bool) -> bool {
+        return !already_reported && consumed_by_ui;
+    }
+
+    fn incoming_call_should_retry_after_presentation(presentation_succeeded: bool) -> bool {
+        return !presentation_succeeded;
+    }
+
+    fn mesh_stop_should_notify_peer(has_outbound_control: bool, has_inbound_signed_call: bool) -> bool {
+        return has_outbound_control || has_inbound_signed_call;
+    }
+
+    // LiveKit rooms are one-to-one call rooms. When the remote participant
+    // leaves, the Internet call must return to idle instead of hanging active.
+    fn internet_remote_departure_should_end(active_route: u8) -> bool {
+        return active_route == ROUTE_INTERNET;
+    }
+
     // A private numeric address is tied to one LAN or tethering session. When
     // the build provides a stable Bonjour hostname, migrate the stale literal
     // instead of pinning the client to an unreachable previous network.
@@ -81,9 +170,11 @@ module InternetCall {
     }
 
     // Signed requests are short lived; the adapter must also reject reused nonces.
+    // A narrow future allowance covers normal device clock skew without granting
+    // the full past-validity window to a pre-dated request.
     fn request_signature_is_fresh(signed_at: u32, now: u32) -> bool {
-        if (now < signed_at) {
-            return false;
+        if (signed_at > now) {
+            return (signed_at - now) <= REQUEST_SIGNATURE_MAX_FUTURE_SKEW_SECONDS;
         }
         return (now - signed_at) <= REQUEST_SIGNATURE_TTL_SECONDS;
     }
@@ -104,8 +195,70 @@ module InternetCall {
         return supports_internet_call(callee_capabilities);
     }
 
-    fn call_target_is_available(caller_user_id: u64, caller_device_id: u64, callee_user_id: u64, callee_device_id: u64, callee_capabilities: u8, online: bool) -> bool {
-        return online && call_target_is_valid(caller_user_id, caller_device_id, callee_user_id, callee_device_id, callee_capabilities);
+    // Foreground presence is not required when the provider can wake the
+    // destination with a valid VoIP push. The adapter only sets
+    // `voip_push_reachable` when APNs is configured for that token's
+    // environment; merely having a stored token is not enough.
+    fn call_target_is_available(caller_user_id: u64, caller_device_id: u64, callee_user_id: u64, callee_device_id: u64, callee_capabilities: u8, online: bool, voip_push_reachable: bool) -> bool {
+        return (online || voip_push_reachable) &&
+               call_target_is_valid(caller_user_id, caller_device_id, callee_user_id, callee_device_id, callee_capabilities);
+    }
+
+    // A VoIP notification is an invitation transport, never a generic
+    // background wake-up. Only a fresh ringing call may produce one.
+    fn voip_push_may_be_sent(status: u8, invite_fresh: bool, token_valid: bool) -> bool {
+        return status == CALL_RINGING && invite_fresh && token_valid;
+    }
+
+    // An APNs authentication key is valid for both endpoints. A BadDeviceToken
+    // response therefore probes the alternate endpoint once before the stored
+    // token environment is considered wrong.
+    fn apns_should_try_alternate_environment(bad_device_token: bool, alternate_already_attempted: bool) -> bool {
+        return bad_device_token && !alternate_already_attempted;
+    }
+
+    // The environment is mutable delivery metadata, not device identity.
+    // Persist an alternate endpoint only after it accepts the exact token.
+    fn apns_environment_should_be_updated(alternate_succeeded: bool, token_matches: bool) -> bool {
+        return alternate_succeeded && token_matches;
+    }
+
+    // Network failures, throttling, and APNs server failures are retryable.
+    // Client and token errors are not retried on the same endpoint.
+    fn apns_delivery_failure_is_retryable(transport_failure: bool, status_code: u32) -> bool {
+        return transport_failure ||
+               status_code == 429 ||
+               (status_code >= 500 && status_code < 600);
+    }
+
+    fn apns_should_retry(transient_failure: bool, attempts_completed: u32) -> bool {
+        return transient_failure && attempts_completed < APNS_MAX_DELIVERY_ATTEMPTS;
+    }
+
+    fn apns_bounded_jitter_ms(jitter_ms: u32) -> u32 {
+        if (jitter_ms > APNS_RETRY_MAX_JITTER_MS) {
+            return APNS_RETRY_MAX_JITTER_MS;
+        }
+        return jitter_ms;
+    }
+
+    // Backoff is bounded for expiration-zero VoIP pushes. The adapter supplies
+    // random jitter; policy clamps it so delivery never waits without a limit.
+    fn apns_retry_delay_ms(attempts_completed: u32, jitter_ms: u32) -> u32 {
+        if (attempts_completed <= 1) {
+            return APNS_RETRY_BASE_DELAY_MS + apns_bounded_jitter_ms(jitter_ms);
+        }
+        return (APNS_RETRY_BASE_DELAY_MS * 2) + apns_bounded_jitter_ms(jitter_ms);
+    }
+
+    // Permanent token errors invalidate only the exact token used. A
+    // BadDeviceToken error is conclusive only after the alternate endpoint was
+    // attempted. Transient failures never invalidate stored tokens.
+    fn apns_token_should_be_invalidated(permanent_failure: bool, bad_device_token: bool, alternate_attempted: bool, token_matches: bool) -> bool {
+        if (!permanent_failure || !token_matches) {
+            return false;
+        }
+        return !bad_device_token || alternate_attempted;
     }
 
     // Any active destination device selected by the fan-out may accept the
@@ -114,6 +267,14 @@ module InternetCall {
         return request_user_id == callee_user_id &&
                request_device_id == callee_device_id &&
                may_answer(status, invite_fresh, device_valid);
+    }
+
+    // Only the exact device that created a call may cancel its invitation or
+    // end its active session. Repeating the authenticated request is harmless.
+    fn caller_may_end(request_user_id: u64, request_device_id: u64, caller_user_id: u64, caller_device_id: u64, status: u8) -> bool {
+        return request_user_id == caller_user_id &&
+               request_device_id == caller_device_id &&
+               (status == CALL_RINGING || status == CALL_ACTIVE || status == CALL_ENDED);
     }
 
     fn next_status(status: u8, accept: bool) -> u8 {
@@ -147,6 +308,69 @@ module InternetCall {
         assert(select_route(false, false) == ROUTE_NONE, "offline");
     }
 
+    test auto_falls_back_only_after_unconfirmed_nickname_probe {
+        assert(auto_mesh_should_fallback(true, false, false, false, false, true, false) == true, "unaccepted fallback");
+        assert(auto_mesh_should_fallback(false, false, false, false, false, true, false) == false, "explicit mesh");
+        assert(auto_mesh_should_fallback(true, true, false, false, false, true, false) == false, "raw mesh address");
+        assert(auto_mesh_should_fallback(true, false, true, false, false, true, true) == false, "secure mesh");
+        assert(auto_mesh_should_fallback(true, false, false, true, false, true, false) == false, "accepted grace");
+        assert(auto_mesh_should_fallback(true, false, false, true, false, true, true) == true, "accepted timeout");
+        assert(auto_mesh_should_fallback(true, false, false, false, true, true, true) == false, "cancelled");
+    }
+
+    test auto_mesh_prompt_expires_with_probe {
+        assert(auto_mesh_prompt_is_fresh(100, 108) == true, "probe boundary");
+        assert(auto_mesh_prompt_is_fresh(100, 109) == false, "fallback owns UI");
+        assert(auto_mesh_prompt_is_fresh(101, 100) == false, "future receipt");
+    }
+
+    test auto_mesh_fallback_leaves_control_transit_grace {
+        assert(auto_mesh_fallback_decision_is_due(100, 108) == false, "prompt boundary");
+        assert(auto_mesh_fallback_decision_is_due(100, 109) == true, "control grace elapsed");
+        assert(auto_mesh_fallback_decision_is_due(101, 100) == false, "future start");
+    }
+
+    test accepted_mesh_has_bounded_secure_deadline {
+        assert(auto_mesh_accepted_fallback_decision_is_due(100, 129) == false, "accepted mesh still connecting");
+        assert(auto_mesh_accepted_fallback_decision_is_due(100, 130) == true, "accepted mesh timeout");
+        assert(auto_mesh_accepted_fallback_decision_is_due(101, 100) == false, "future start");
+    }
+
+    test mesh_control_is_bound_to_call_and_devices {
+        let exact_route: bool = mesh_control_route_matches(7, 7, 20, 20);
+        let exact_peer: bool = mesh_control_peer_matches(25, 25, 30, 30, 40, 40);
+        assert(mesh_control_is_authorized(exact_route, exact_peer, true) == true, "exact signed control");
+        assert(mesh_control_route_matches(8, 7, 20, 20) == false, "wrong call");
+        assert(mesh_control_route_matches(7, 7, 21, 20) == false, "wrong recipient");
+        assert(mesh_control_peer_matches(26, 25, 30, 30, 40, 40) == false, "wrong user");
+        assert(mesh_control_peer_matches(25, 25, 31, 30, 40, 40) == false, "wrong sender");
+        assert(mesh_control_peer_matches(25, 25, 30, 30, 41, 40) == false, "wrong key");
+        assert(mesh_control_is_authorized(exact_route, exact_peer, false) == false, "invalid authentication");
+        assert(mesh_control_auth_is_valid(true, true) == true, "signed and fresh");
+        assert(mesh_control_auth_is_valid(false, true) == false, "bad signature");
+        assert(mesh_control_auth_is_valid(true, false) == false, "stale");
+    }
+
+    test busy_ui_does_not_consume_internet_invite {
+        assert(incoming_call_should_mark_reported(false, false) == false, "busy UI retries");
+        assert(incoming_call_should_mark_reported(false, true) == true, "idle UI consumes");
+        assert(incoming_call_should_mark_reported(true, true) == false, "already reported");
+        assert(incoming_call_should_retry_after_presentation(true) == false, "presentation succeeded");
+        assert(incoming_call_should_retry_after_presentation(false) == true, "presentation failed");
+    }
+
+    test mesh_stop_notifies_the_known_peer {
+        assert(mesh_stop_should_notify_peer(true, false) == true, "outgoing stop");
+        assert(mesh_stop_should_notify_peer(false, true) == true, "accepted incoming stop");
+        assert(mesh_stop_should_notify_peer(false, false) == false, "no signed peer");
+    }
+
+    test remote_departure_ends_only_internet_call {
+        assert(internet_remote_departure_should_end(ROUTE_INTERNET) == true, "internet peer left");
+        assert(internet_remote_departure_should_end(ROUTE_MESH) == false, "mesh lifecycle is separate");
+        assert(internet_remote_departure_should_end(ROUTE_NONE) == false, "idle route");
+    }
+
     test stale_private_api_endpoint_uses_stable_local_hostname {
         assert(should_migrate_private_api_endpoint(true, true) == true, "migrate stale LAN literal");
         assert(should_migrate_private_api_endpoint(false, true) == false, "keep public endpoint");
@@ -172,9 +396,11 @@ module InternetCall {
     }
 
     test stale_device_proof_is_rejected {
-        assert(request_signature_is_fresh(100, 160) == true, "boundary accepted");
+        assert(request_signature_is_fresh(100, 160) == true, "past boundary accepted");
         assert(request_signature_is_fresh(100, 161) == false, "stale proof");
-        assert(request_signature_is_fresh(101, 100) == false, "future proof");
+        assert(request_signature_is_fresh(106, 100) == true, "measured future skew accepted");
+        assert(request_signature_is_fresh(110, 100) == true, "future skew boundary accepted");
+        assert(request_signature_is_fresh(111, 100) == false, "excessive future proof");
     }
 
     test internet_target_must_be_a_different_routable_device {
@@ -184,17 +410,67 @@ module InternetCall {
         assert(call_target_is_valid(10, 20, 30, 40, CAP_AUDIO | CAP_WEBRTC) == true, "remote target");
     }
 
-    test nickname_call_requires_online_device {
+    test nickname_call_accepts_presence_or_voip_wakeup {
         assert(device_is_online(100, 190) == true, "presence boundary");
         assert(device_is_online(100, 191) == false, "stale device");
-        assert(call_target_is_available(10, 20, 30, 40, CAP_AUDIO | CAP_WEBRTC, true) == true, "online target");
-        assert(call_target_is_available(10, 20, 30, 40, CAP_AUDIO | CAP_WEBRTC, false) == false, "offline target");
+        assert(call_target_is_available(10, 20, 30, 40, CAP_AUDIO | CAP_WEBRTC, true, false) == true, "online target");
+        assert(call_target_is_available(10, 20, 30, 40, CAP_AUDIO | CAP_WEBRTC, false, true) == true, "suspended push target");
+        assert(call_target_is_available(10, 20, 30, 40, CAP_AUDIO | CAP_WEBRTC, false, false) == false, "unreachable target");
+        assert(call_target_is_available(10, 20, 30, 40, CAP_AUDIO, true, true) == false, "transport capability still required");
+    }
+
+    test voip_push_is_only_for_a_fresh_ringing_invitation {
+        assert(voip_push_may_be_sent(CALL_RINGING, true, true) == true, "fresh ringing call");
+        assert(voip_push_may_be_sent(CALL_ACTIVE, true, true) == false, "active call");
+        assert(voip_push_may_be_sent(CALL_RINGING, false, true) == false, "expired call");
+        assert(voip_push_may_be_sent(CALL_RINGING, true, false) == false, "invalid token");
+    }
+
+    test bad_device_token_probes_the_other_apns_endpoint_once {
+        assert(apns_should_try_alternate_environment(true, false) == true, "probe alternate");
+        assert(apns_should_try_alternate_environment(true, true) == false, "single alternate");
+        assert(apns_should_try_alternate_environment(false, false) == false, "other failure");
+        assert(apns_environment_should_be_updated(true, true) == true, "exact accepted token");
+        assert(apns_environment_should_be_updated(true, false) == false, "rotated token");
+    }
+
+    test apns_retry_is_bounded_and_transient_only {
+        assert(apns_delivery_failure_is_retryable(true, 0) == true, "network failure");
+        assert(apns_delivery_failure_is_retryable(false, 429) == true, "throttled");
+        assert(apns_delivery_failure_is_retryable(false, 503) == true, "server failure");
+        assert(apns_delivery_failure_is_retryable(false, 400) == false, "client failure");
+        assert(apns_should_retry(true, 1) == true, "second attempt");
+        assert(apns_should_retry(true, 2) == true, "third attempt");
+        assert(apns_should_retry(true, 3) == false, "bounded attempts");
+        assert(apns_should_retry(false, 1) == false, "permanent failure");
+        assert(apns_bounded_jitter_ms(10) == 10, "jitter unchanged");
+        assert(apns_bounded_jitter_ms(100) == 50, "jitter bounded");
+        assert(apns_retry_delay_ms(1, 10) == 110, "first backoff");
+        assert(apns_retry_delay_ms(2, 10) == 210, "second backoff");
+        assert(apns_retry_delay_ms(2, 100) == 250, "jitter clamp");
+    }
+
+    test only_conclusive_exact_apns_failure_invalidates_token {
+        assert(apns_token_should_be_invalidated(true, false, false, true) == true, "other permanent failure");
+        assert(apns_token_should_be_invalidated(true, true, false, true) == false, "alternate required");
+        assert(apns_token_should_be_invalidated(true, true, true, true) == true, "alternate rejected token");
+        assert(apns_token_should_be_invalidated(false, true, true, true) == false, "transient alternate");
+        assert(apns_token_should_be_invalidated(true, true, true, false) == false, "rotated token survives");
     }
 
     test only_fresh_destination_may_join {
         assert(join_is_authorized(30, 40, 30, 40, CALL_RINGING, true, true) == true, "callee joins");
         assert(join_is_authorized(10, 20, 30, 40, CALL_RINGING, true, true) == false, "caller cannot answer");
         assert(join_is_authorized(30, 40, 30, 40, CALL_RINGING, false, true) == false, "expired invite");
+    }
+
+    test only_originating_device_may_end_call {
+        assert(caller_may_end(10, 20, 10, 20, CALL_RINGING) == true, "caller cancels ringing call");
+        assert(caller_may_end(10, 20, 10, 20, CALL_ACTIVE) == true, "caller ends active call");
+        assert(caller_may_end(10, 20, 10, 20, CALL_ENDED) == true, "caller retry is idempotent");
+        assert(caller_may_end(10, 21, 10, 20, CALL_RINGING) == false, "linked device cannot cancel");
+        assert(caller_may_end(30, 40, 10, 20, CALL_RINGING) == false, "callee cannot cancel as caller");
+        assert(caller_may_end(10, 20, 10, 20, CALL_IDLE) == false, "uncreated call cannot end");
     }
 
     invariant route_values_are_distinct
@@ -206,14 +482,39 @@ module InternetCall {
     invariant access_token_outlives_invite
         assert TOKEN_TTL_SECONDS > INVITE_TTL_SECONDS
 
+    invariant auto_mesh_probe_finishes_before_invite_expiry
+        assert AUTO_MESH_PROBE_TIMEOUT_SECONDS + AUTO_MESH_CONTROL_GRACE_SECONDS < INVITE_TTL_SECONDS
+
+    invariant accepted_mesh_connect_is_bounded
+        assert AUTO_MESH_ACCEPTED_CONNECT_TIMEOUT_SECONDS >
+               AUTO_MESH_PROBE_TIMEOUT_SECONDS + AUTO_MESH_CONTROL_GRACE_SECONDS
+
+    invariant mesh_control_is_retried
+        assert MESH_CONTROL_SEND_ATTEMPTS >= 3
+
     invariant device_proof_is_short_lived
         assert REQUEST_SIGNATURE_TTL_SECONDS < TOKEN_TTL_SECONDS
+
+    invariant request_future_skew_is_smaller_than_ttl
+        assert REQUEST_SIGNATURE_MAX_FUTURE_SKEW_SECONDS < REQUEST_SIGNATURE_TTL_SECONDS
 
     invariant presence_outlives_poll_interval
         assert PRESENCE_TTL_SECONDS > INVITE_TTL_SECONDS
 
     invariant public_api_endpoint_is_never_migrated
         assert should_migrate_private_api_endpoint(false, true) == false
+
+    invariant ended_call_retry_remains_authorized
+        assert caller_may_end(10, 20, 10, 20, CALL_ENDED) == true
+
+    invariant active_call_never_emits_initial_voip_push
+        assert voip_push_may_be_sent(CALL_ACTIVE, true, true) == false
+
+    invariant apns_retry_is_bounded
+        assert APNS_MAX_DELIVERY_ATTEMPTS == 3
+
+    invariant apns_retry_delay_is_short
+        assert apns_retry_delay_ms(2, APNS_RETRY_MAX_JITTER_MS) <= 250
 
     bench route_selection_latency
         measure: nanoseconds to select_route(true, true)

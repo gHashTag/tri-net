@@ -14,6 +14,7 @@
 		8BE32CD40859109FC2A7C369 /* CallIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7212A08167551ACF6967F7D0 /* CallIdentity.swift */; };
 		93828957945393D93D1AE545 /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 919A6C8C4AE3FF1BEBC24E2D /* App.swift */; };
 		9E0CD413BCD9A696DA51DC24 /* VideoPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3ED271D273E3217E7CC3EE2 /* VideoPipeline.swift */; };
+		A9C49E34183343F8AB54D7E2 /* trinet-call.caf in Resources */ = {isa = PBXBuildFile; fileRef = 2EE1C0AC7508455AAEE13C9F /* trinet-call.caf */; };
 		C42AEF335F11DD33CC802C77 /* Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3E1BEB0E6D36884DC34BAF1 /* Views.swift */; };
 		D97D14140C893639F33F37D5 /* LiveKit in Frameworks */ = {isa = PBXBuildFile; productRef = C4D0DDD6535CFA404CBF8DAA /* LiveKit */; };
 		DCF621B6EAFBA584120600A9 /* NicknamePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E94DD97F9BCB86654BF8570F /* NicknamePolicyTests.swift */; };
@@ -33,6 +34,7 @@
 
 /* Begin PBXFileReference section */
 		1E0F86581AC710AC4AA81C5F /* TriNetVideo.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TriNetVideo.entitlements; sourceTree = "<group>"; };
+		2EE1C0AC7508455AAEE13C9F /* trinet-call.caf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "trinet-call.caf"; sourceTree = "<group>"; };
 		279CEAB4FFAA47773A21AE83 /* InternetCall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InternetCall.swift; sourceTree = "<group>"; };
 		30BC89191B19A3BEEC4154B1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		39BC2F38EBB30740C9BBE500 /* TriNetVideoTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TriNetVideoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -89,6 +91,7 @@
 				77C7B555729BF4950129B2B3 /* CallKitCoordinator.swift */,
 				B531BE39B4623AAA1D6E3823 /* Info.plist */,
 				A440834DBBB15D89B628F943 /* MeshMapView.swift */,
+				2EE1C0AC7508455AAEE13C9F /* trinet-call.caf */,
 				1E0F86581AC710AC4AA81C5F /* TriNetVideo.entitlements */,
 				C3ED271D273E3217E7CC3EE2 /* VideoPipeline.swift */,
 				67409F0DFE04304A7A386F76 /* ViewModel.swift */,
@@ -201,6 +204,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				46733E13DB201753378F9262 /* Assets.xcassets in Resources */,
+				A9C49E34183343F8AB54D7E2 /* trinet-call.caf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

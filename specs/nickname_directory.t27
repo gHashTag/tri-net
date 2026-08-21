@@ -5,6 +5,11 @@
 module NicknameDirectory {
     use base::types;
 
+    const RESULT_OFFLINE_INTERNET: u8 = 0;
+    const RESULT_CACHED_MESH: u8 = 1;
+    const RESULT_ONLINE_INTERNET: u8 = 2;
+    const RESULT_LIVE_MESH: u8 = 3;
+
     const NICKNAME_MIN_LENGTH: u8 = 3;
     const NICKNAME_MAX_LENGTH: u8 = 20;
     const MAX_EDIT_DISTANCE: u8 = 1;
@@ -61,13 +66,48 @@ module NicknameDirectory {
         return claim_account_id != 0 && claim_account_id == device_account_id;
     }
 
-    // A previously verified mesh address remains a usable fallback while the
-    // peer is temporarily suspended and cannot advertise over Bonjour.
+    // A previously verified private mesh address remains available for an
+    // explicit manual retry. Cache freshness does not prove live reachability,
+    // so Auto must require a current signed Bonjour advertisement.
     fn cached_mesh_route_is_fresh(last_seen: u32, now: u32) -> bool {
         if (now < last_seen) {
             return false;
         }
         return (now - last_seen) <= MESH_ROUTE_CACHE_TTL_SECONDS;
+    }
+
+    fn auto_route_may_use_mesh(live_advertisement: bool, cached_route_fresh: bool) -> bool {
+        if (cached_route_fresh) {
+            return live_advertisement;
+        }
+        return live_advertisement;
+    }
+
+    // A 169.254/16 route is scoped to one temporary interface session and must
+    // never survive Bonjour removal or an app restart.
+    fn mesh_route_may_be_cached(is_link_local: bool) -> bool {
+        return !is_link_local;
+    }
+
+    // Search keeps both discovery sources and selects one row per device.
+    // A live local advertisement is the strongest presence proof.
+    fn directory_result_rank(is_mesh: bool, online: bool) -> u8 {
+        if (is_mesh && online) {
+            return RESULT_LIVE_MESH;
+        }
+        if (!is_mesh && online) {
+            return RESULT_ONLINE_INTERNET;
+        }
+        if (is_mesh) {
+            return RESULT_CACHED_MESH;
+        }
+        return RESULT_OFFLINE_INTERNET;
+    }
+
+    // The current signed UDP adapter accepts numeric IPv4 only. Bonjour
+    // discovery resolves hostnames before they reach this policy.
+    fn direct_mesh_target_is_supported(is_numeric_ipv4: bool) -> bool {
+        return is_numeric_ipv4;
     }
 
     test nickname_shape_rules {
@@ -106,6 +146,27 @@ module NicknameDirectory {
         assert(cached_mesh_route_is_fresh(100, 604900) == true, "ttl boundary");
         assert(cached_mesh_route_is_fresh(100, 604901) == false, "expired route");
         assert(cached_mesh_route_is_fresh(101, 100) == false, "future observation");
+    }
+
+    test auto_route_requires_live_mesh_advertisement {
+        assert(auto_route_may_use_mesh(true, false) == true, "live route");
+        assert(auto_route_may_use_mesh(false, true) == false, "cache is not presence");
+    }
+
+    test link_local_mesh_route_is_ephemeral {
+        assert(mesh_route_may_be_cached(false) == true, "private route cache");
+        assert(mesh_route_may_be_cached(true) == false, "link local expires");
+    }
+
+    test directory_result_priority_is_stable {
+        assert(directory_result_rank(true, true) > directory_result_rank(false, true), "live mesh first");
+        assert(directory_result_rank(false, true) > directory_result_rank(true, false), "online Internet next");
+        assert(directory_result_rank(true, false) > directory_result_rank(false, false), "cache before offline");
+    }
+
+    test direct_mesh_target_requires_numeric_ipv4 {
+        assert(direct_mesh_target_is_supported(true) == true, "numeric target");
+        assert(direct_mesh_target_is_supported(false) == false, "hostname resolved by discovery");
     }
 
     invariant nickname_length_bounds

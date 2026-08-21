@@ -5,10 +5,11 @@
 //! participant-token generation.
 
 use std::{
-    env,
+    env, fs,
     net::SocketAddr,
+    path::PathBuf,
     sync::{Arc, Mutex, MutexGuard},
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use axum::{
@@ -21,20 +22,28 @@ use axum::{
 };
 use base64::{engine::general_purpose, Engine as _};
 use hmac::{Hmac, Mac};
-use p256::ecdsa::{signature::Verifier, Signature, VerifyingKey};
+use p256::{
+    ecdsa::{
+        signature::{Signer, Verifier},
+        Signature, SigningKey, VerifyingKey,
+    },
+    pkcs8::DecodePrivateKey,
+};
 use rand_core::{OsRng, RngCore};
+use reqwest::header::{HeaderMap as RequestHeaders, HeaderValue, AUTHORIZATION};
 use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use uuid::Uuid;
 
-#[path = "../../../gen/rust/internet_call.rs"]
-mod internet_call;
-#[path = "../../../gen/rust/nickname_directory.rs"]
-mod nickname_directory;
 #[path = "../../../gen/rust/account_identity.rs"]
 mod account_identity;
 #[path = "../../../gen/rust/group_chat.rs"]
 mod group_chat;
+#[path = "../../../gen/rust/internet_call.rs"]
+mod internet_call;
+#[path = "../../../gen/rust/nickname_directory.rs"]
+mod nickname_directory;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -50,6 +59,494 @@ struct Configuration {
     livekit_api_key: String,
     livekit_api_secret: String,
     service_access_token: Option<String>,
+    apns: Option<ApnsConfiguration>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ApnsEnvironment {
+    Sandbox,
+    Production,
+}
+
+impl ApnsEnvironment {
+    fn parse(value: &str) -> Result<Self, String> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "sandbox" | "development" => Ok(Self::Sandbox),
+            "production" => Ok(Self::Production),
+            _ => Err("APNs environment must be sandbox, development, or production".to_string()),
+        }
+    }
+
+    fn as_database_value(self) -> &'static str {
+        match self {
+            Self::Sandbox => "sandbox",
+            Self::Production => "production",
+        }
+    }
+
+    fn endpoint(self) -> &'static str {
+        match self {
+            Self::Sandbox => "https://api.sandbox.push.apple.com",
+            Self::Production => "https://api.push.apple.com",
+        }
+    }
+
+    fn alternate(self) -> Self {
+        match self {
+            Self::Sandbox => Self::Production,
+            Self::Production => Self::Sandbox,
+        }
+    }
+}
+
+#[derive(Clone)]
+struct ApnsConfiguration {
+    team_id: String,
+    key_id: String,
+    bundle_id: String,
+    fallback_environment: ApnsEnvironment,
+    signing_key: SigningKey,
+    client: reqwest::Client,
+    provider_token_cache: Arc<Mutex<Option<CachedProviderToken>>>,
+}
+
+struct CachedProviderToken {
+    value: String,
+    issued_at: i64,
+}
+
+#[derive(Debug)]
+struct ApnsDeliveryError {
+    status: Option<u16>,
+    permanent: bool,
+    bad_device_token: bool,
+    transient: bool,
+    alternate_attempted: bool,
+}
+
+struct ApnsDeliverySuccess {
+    environment: ApnsEnvironment,
+    environment_changed: bool,
+}
+
+impl std::fmt::Display for ApnsDeliveryError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.status {
+            Some(status) => write!(
+                formatter,
+                "APNs request failed (status {status}, permanent={}, transient={}, alternate_attempted={})",
+                self.permanent, self.transient, self.alternate_attempted
+            ),
+            None => write!(formatter, "APNs transport request failed"),
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct ApnsProviderHeader<'a> {
+    alg: &'static str,
+    kid: &'a str,
+}
+
+#[derive(Serialize)]
+struct ApnsProviderClaims<'a> {
+    iss: &'a str,
+    iat: i64,
+}
+
+#[derive(Serialize)]
+struct ApnsBackgroundContent {
+    #[serde(rename = "content-available")]
+    content_available: u8,
+}
+
+#[derive(Serialize)]
+struct VoipPushPayload<'a> {
+    aps: ApnsBackgroundContent,
+    call_id: &'a str,
+    call_uuid: &'a str,
+    caller: &'a str,
+    audio: bool,
+    video: bool,
+}
+
+#[derive(Serialize)]
+struct AlertPushAps<'a> {
+    alert: AlertPushText<'a>,
+    badge: u32,
+    sound: &'a str,
+    #[serde(rename = "thread-id", skip_serializing_if = "Option::is_none")]
+    thread_id: Option<&'a str>,
+}
+
+#[derive(Serialize)]
+struct AlertPushText<'a> {
+    title: &'a str,
+    body: &'a str,
+}
+
+#[derive(Serialize)]
+struct AlertPushPayload<'a> {
+    aps: AlertPushAps<'a>,
+    #[serde(flatten)]
+    data: serde_json::Value,
+}
+
+#[derive(Deserialize)]
+struct ApnsErrorResponse {
+    reason: Option<String>,
+}
+
+impl ApnsConfiguration {
+    fn load_from_environment() -> Result<Option<Self>, String> {
+        let team_id = optional_environment("TRINET_APNS_TEAM_ID");
+        let key_id = optional_environment("TRINET_APNS_KEY_ID");
+        let private_key_path = optional_environment("TRINET_APNS_PRIVATE_KEY_PATH");
+        let configured = team_id.is_some() || key_id.is_some() || private_key_path.is_some();
+        if !configured {
+            return Ok(None);
+        }
+        let team_id = team_id.ok_or_else(|| {
+            "missing required environment variable TRINET_APNS_TEAM_ID".to_string()
+        })?;
+        let key_id = key_id.ok_or_else(|| {
+            "missing required environment variable TRINET_APNS_KEY_ID".to_string()
+        })?;
+        let private_key_path = private_key_path.ok_or_else(|| {
+            "missing required environment variable TRINET_APNS_PRIVATE_KEY_PATH".to_string()
+        })?;
+        validate_apns_identifier("TRINET_APNS_TEAM_ID", &team_id)?;
+        validate_apns_identifier("TRINET_APNS_KEY_ID", &key_id)?;
+        let bundle_id =
+            env::var("TRINET_APNS_BUNDLE_ID").unwrap_or_else(|_| "com.trinet.video".to_string());
+        validate_bundle_id(&bundle_id)?;
+        let fallback_environment = ApnsEnvironment::parse(
+            &env::var("TRINET_APNS_ENVIRONMENT").unwrap_or_else(|_| "sandbox".to_string()),
+        )?;
+        let key_pem = fs::read_to_string(PathBuf::from(private_key_path))
+            .map_err(|_| "could not read TRINET_APNS_PRIVATE_KEY_PATH".to_string())?;
+        let signing_key = SigningKey::from_pkcs8_pem(&key_pem)
+            .map_err(|_| "TRINET_APNS_PRIVATE_KEY_PATH is not an ES256 .p8 key".to_string())?;
+        let client = reqwest::Client::builder()
+            .http2_adaptive_window(true)
+            .timeout(Duration::from_secs(10))
+            .build()
+            .map_err(|_| "could not initialize APNs HTTP client".to_string())?;
+        Ok(Some(Self {
+            team_id,
+            key_id,
+            bundle_id,
+            fallback_environment,
+            signing_key,
+            client,
+            provider_token_cache: Arc::new(Mutex::new(None)),
+        }))
+    }
+
+    fn provider_token(&self, issued_at: i64) -> Result<String, String> {
+        let mut cache = self
+            .provider_token_cache
+            .lock()
+            .map_err(|_| "APNs provider-token cache is unavailable".to_string())?;
+        if let Some(cached) = cache.as_ref() {
+            let age = issued_at.saturating_sub(cached.issued_at);
+            if (0..3000).contains(&age) {
+                return Ok(cached.value.clone());
+            }
+        }
+        let header = encode_json_url(&ApnsProviderHeader {
+            alg: "ES256",
+            kid: &self.key_id,
+        })?;
+        let claims = encode_json_url(&ApnsProviderClaims {
+            iss: &self.team_id,
+            iat: issued_at,
+        })?;
+        let unsigned = format!("{header}.{claims}");
+        let signature: Signature = self.signing_key.sign(unsigned.as_bytes());
+        let value = format!(
+            "{unsigned}.{}",
+            general_purpose::URL_SAFE_NO_PAD.encode(signature.to_bytes())
+        );
+        *cache = Some(CachedProviderToken {
+            value: value.clone(),
+            issued_at,
+        });
+        Ok(value)
+    }
+
+    fn can_route_environment(&self, value: &str) -> bool {
+        ApnsEnvironment::parse(value).is_ok()
+    }
+
+    async fn send_voip(
+        &self,
+        token: &str,
+        environment: ApnsEnvironment,
+        call_id: &str,
+        call_uuid: &str,
+        caller: &str,
+        audio: bool,
+        video: bool,
+    ) -> Result<ApnsDeliverySuccess, ApnsDeliveryError> {
+        let payload = VoipPushPayload {
+            aps: ApnsBackgroundContent {
+                content_available: 1,
+            },
+            call_id,
+            call_uuid,
+            caller,
+            audio,
+            video,
+        };
+        self.send_with_environment_fallback(
+            token,
+            environment,
+            &format!("{}.voip", self.bundle_id),
+            "voip",
+            "10",
+            "0",
+            Some(call_uuid),
+            &payload,
+        )
+        .await
+    }
+
+    #[allow(dead_code)]
+    async fn send_alert(
+        &self,
+        token: &str,
+        environment: ApnsEnvironment,
+        title: &str,
+        body: &str,
+        badge: u32,
+        sound: &str,
+        thread_id: Option<&str>,
+        data: serde_json::Value,
+    ) -> Result<ApnsDeliverySuccess, ApnsDeliveryError> {
+        let payload = AlertPushPayload {
+            aps: AlertPushAps {
+                alert: AlertPushText { title, body },
+                badge,
+                sound,
+                thread_id,
+            },
+            data,
+        };
+        self.send_with_environment_fallback(
+            token,
+            environment,
+            &self.bundle_id,
+            "alert",
+            "10",
+            &unix_time().saturating_add(3600).to_string(),
+            None,
+            &payload,
+        )
+        .await
+    }
+
+    async fn send_with_environment_fallback<T: Serialize + ?Sized>(
+        &self,
+        token: &str,
+        preferred_environment: ApnsEnvironment,
+        topic: &str,
+        push_type: &str,
+        priority: &str,
+        expiration: &str,
+        apns_id: Option<&str>,
+        payload: &T,
+    ) -> Result<ApnsDeliverySuccess, ApnsDeliveryError> {
+        match self
+            .send_with_retry(
+                token,
+                preferred_environment,
+                topic,
+                push_type,
+                priority,
+                expiration,
+                apns_id,
+                payload,
+            )
+            .await
+        {
+            Ok(()) => Ok(ApnsDeliverySuccess {
+                environment: preferred_environment,
+                environment_changed: false,
+            }),
+            Err(error)
+                if internet_call::apns_should_try_alternate_environment(
+                    error.bad_device_token,
+                    error.alternate_attempted,
+                ) =>
+            {
+                let alternate = preferred_environment.alternate();
+                match self
+                    .send_with_retry(
+                        token, alternate, topic, push_type, priority, expiration, apns_id, payload,
+                    )
+                    .await
+                {
+                    Ok(()) => Ok(ApnsDeliverySuccess {
+                        environment: alternate,
+                        environment_changed: true,
+                    }),
+                    Err(mut alternate_error) => {
+                        alternate_error.alternate_attempted = true;
+                        Err(alternate_error)
+                    }
+                }
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    async fn send_with_retry<T: Serialize + ?Sized>(
+        &self,
+        token: &str,
+        environment: ApnsEnvironment,
+        topic: &str,
+        push_type: &str,
+        priority: &str,
+        expiration: &str,
+        apns_id: Option<&str>,
+        payload: &T,
+    ) -> Result<(), ApnsDeliveryError> {
+        let mut attempts_completed = 0_u32;
+        loop {
+            attempts_completed = attempts_completed.saturating_add(1);
+            match self
+                .send_once(
+                    token,
+                    environment,
+                    topic,
+                    push_type,
+                    priority,
+                    expiration,
+                    apns_id,
+                    payload,
+                )
+                .await
+            {
+                Ok(()) => return Ok(()),
+                Err(error)
+                    if internet_call::apns_should_retry(error.transient, attempts_completed) =>
+                {
+                    let jitter = OsRng.next_u32() % (internet_call::APNS_RETRY_MAX_JITTER_MS + 1);
+                    let delay = internet_call::apns_retry_delay_ms(attempts_completed, jitter);
+                    tokio::time::sleep(Duration::from_millis(u64::from(delay))).await;
+                }
+                Err(error) => return Err(error),
+            }
+        }
+    }
+
+    async fn send_once<T: Serialize + ?Sized>(
+        &self,
+        token: &str,
+        environment: ApnsEnvironment,
+        topic: &str,
+        push_type: &str,
+        priority: &str,
+        expiration: &str,
+        apns_id: Option<&str>,
+        payload: &T,
+    ) -> Result<(), ApnsDeliveryError> {
+        if !valid_apns_token(token) {
+            return Err(ApnsDeliveryError {
+                status: None,
+                permanent: true,
+                bad_device_token: false,
+                transient: false,
+                alternate_attempted: false,
+            });
+        }
+        let provider_token = self
+            .provider_token(unix_time())
+            .map_err(|_| ApnsDeliveryError {
+                status: None,
+                permanent: false,
+                bad_device_token: false,
+                transient: false,
+                alternate_attempted: false,
+            })?;
+        let mut headers = RequestHeaders::new();
+        headers.insert(
+            AUTHORIZATION,
+            HeaderValue::from_str(&format!("bearer {provider_token}")).map_err(|_| {
+                ApnsDeliveryError {
+                    status: None,
+                    permanent: false,
+                    bad_device_token: false,
+                    transient: false,
+                    alternate_attempted: false,
+                }
+            })?,
+        );
+        for (name, value) in [
+            ("apns-topic", topic),
+            ("apns-push-type", push_type),
+            ("apns-priority", priority),
+            ("apns-expiration", expiration),
+        ] {
+            headers.insert(
+                reqwest::header::HeaderName::from_static(name),
+                HeaderValue::from_str(value).map_err(|_| ApnsDeliveryError {
+                    status: None,
+                    permanent: false,
+                    bad_device_token: false,
+                    transient: false,
+                    alternate_attempted: false,
+                })?,
+            );
+        }
+        if let Some(apns_id) = apns_id {
+            headers.insert(
+                reqwest::header::HeaderName::from_static("apns-id"),
+                HeaderValue::from_str(apns_id).map_err(|_| ApnsDeliveryError {
+                    status: None,
+                    permanent: false,
+                    bad_device_token: false,
+                    transient: false,
+                    alternate_attempted: false,
+                })?,
+            );
+        }
+        let response = self
+            .client
+            .post(format!("{}/3/device/{token}", environment.endpoint()))
+            .headers(headers)
+            .json(payload)
+            .send()
+            .await
+            .map_err(|_| ApnsDeliveryError {
+                status: None,
+                permanent: false,
+                bad_device_token: false,
+                transient: internet_call::apns_delivery_failure_is_retryable(true, 0),
+                alternate_attempted: false,
+            })?;
+        if response.status().is_success() {
+            return Ok(());
+        }
+        let status = response.status();
+        let reason = response
+            .json::<ApnsErrorResponse>()
+            .await
+            .ok()
+            .and_then(|body| body.reason)
+            .unwrap_or_else(|| "unknown".to_string());
+        let permanent = apns_failure_is_permanent(&reason);
+        let bad_device_token = reason == "BadDeviceToken";
+        let status_code = u32::from(status.as_u16());
+        Err(ApnsDeliveryError {
+            status: Some(status.as_u16()),
+            permanent,
+            bad_device_token,
+            transient: internet_call::apns_delivery_failure_is_retryable(false, status_code),
+            alternate_attempted: false,
+        })
+    }
 }
 
 impl Configuration {
@@ -66,6 +563,7 @@ impl Configuration {
         let service_access_token = env::var("TRINET_SERVICE_ACCESS_TOKEN")
             .ok()
             .filter(|value| !value.is_empty());
+        let apns = ApnsConfiguration::load_from_environment()?;
         Ok((
             Self {
                 bind,
@@ -73,6 +571,7 @@ impl Configuration {
                 livekit_api_key,
                 livekit_api_secret,
                 service_access_token,
+                apns,
             },
             database_path,
         ))
@@ -84,6 +583,57 @@ fn required_environment(name: &str) -> Result<String, String> {
         .ok()
         .filter(|value| !value.is_empty())
         .ok_or_else(|| format!("missing required environment variable {name}"))
+}
+
+fn optional_environment(name: &str) -> Option<String> {
+    env::var(name).ok().filter(|value| !value.is_empty())
+}
+
+fn validate_apns_identifier(name: &str, value: &str) -> Result<(), String> {
+    if value.len() > 64 || !value.bytes().all(|byte| byte.is_ascii_alphanumeric()) {
+        return Err(format!(
+            "{name} must contain only ASCII letters and numbers"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_bundle_id(value: &str) -> Result<(), String> {
+    if value.is_empty()
+        || value.len() > 255
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'.' || byte == b'-')
+    {
+        return Err("TRINET_APNS_BUNDLE_ID must be a valid ASCII bundle identifier".to_string());
+    }
+    Ok(())
+}
+
+fn valid_apns_token(value: &str) -> bool {
+    (32..=256).contains(&value.len()) && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn apns_failure_is_permanent(reason: &str) -> bool {
+    matches!(
+        reason,
+        "BadDeviceToken" | "DeviceTokenNotForTopic" | "Unregistered"
+    )
+}
+
+fn normalize_apns_token(value: Option<&str>) -> Result<Option<String>, ApiError> {
+    let token = value.map(str::trim).filter(|value| !value.is_empty());
+    match token {
+        Some(value) if valid_apns_token(value) => Ok(Some(value.to_ascii_lowercase())),
+        Some(_) => Err(ApiError::bad_request("invalid APNs device token")),
+        None => Ok(None),
+    }
+}
+
+fn encode_json_url<T: Serialize + ?Sized>(value: &T) -> Result<String, String> {
+    serde_json::to_vec(value)
+        .map(|bytes| general_purpose::URL_SAFE_NO_PAD.encode(bytes))
+        .map_err(|_| "could not encode APNs provider token".to_string())
 }
 
 #[derive(Debug)]
@@ -158,6 +708,8 @@ struct DeviceRegistrationRequest {
     key_fingerprint: String,
     platform: String,
     voip_push_token: Option<String>,
+    alert_push_token: Option<String>,
+    push_environment: Option<String>,
     capabilities: Vec<String>,
 }
 
@@ -212,6 +764,13 @@ struct CreateCallRequest {
 #[derive(Deserialize)]
 #[serde(rename_all = "snake_case")]
 struct JoinCallRequest {
+    user_id: String,
+    device_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+struct EndCallRequest {
     user_id: String,
     device_id: String,
 }
@@ -277,10 +836,19 @@ struct IncomingCallsResponse {
 #[derive(Serialize)]
 struct IncomingCall {
     call_id: String,
+    call_uuid: String,
     caller: String,
     audio: bool,
     video: bool,
     created_at: i64,
+}
+
+struct CallTarget {
+    device_id: String,
+    capabilities: u8,
+    last_seen: i64,
+    voip_push_token: Option<String>,
+    push_environment: String,
 }
 
 #[derive(Deserialize)]
@@ -317,9 +885,18 @@ struct GroupMessagesRequest {
     limit: u16,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+struct MarkGroupChatReadRequest {
+    user_id: String,
+    device_id: String,
+    through_message_id: i64,
+}
+
 #[derive(Serialize)]
 struct GroupChatsResponse {
     chats: Vec<GroupChatSummary>,
+    total_unread_count: u32,
 }
 
 #[derive(Serialize)]
@@ -330,6 +907,7 @@ struct GroupChatSummary {
     created_at: i64,
     last_message: Option<String>,
     last_message_at: Option<i64>,
+    unread_count: u32,
 }
 
 #[derive(Serialize)]
@@ -427,16 +1005,15 @@ fn application(state: AppState) -> Router {
         .route("/v1/calls", post(create_call))
         .route("/v1/calls/incoming", post(incoming_calls))
         .route("/v1/calls/{call_id}/join", post(join_call))
+        .route("/v1/calls/{call_id}/cancel", post(cancel_call))
         .route("/v1/chats", post(create_group_chat))
         .route("/v1/chats/list", post(list_group_chats))
-        .route(
-            "/v1/chats/{chat_id}/messages",
-            post(send_group_message),
-        )
+        .route("/v1/chats/{chat_id}/messages", post(send_group_message))
         .route(
             "/v1/chats/{chat_id}/messages/list",
             post(list_group_messages),
         )
+        .route("/v1/chats/{chat_id}/read", post(mark_group_chat_read))
         .with_state(state)
 }
 
@@ -460,6 +1037,8 @@ fn initialize_database(connection: &Connection) -> rusqlite::Result<()> {
              key_fingerprint TEXT NOT NULL,
              platform TEXT NOT NULL,
              voip_push_token TEXT,
+             alert_push_token TEXT,
+             push_environment TEXT NOT NULL DEFAULT 'sandbox',
              capabilities INTEGER NOT NULL,
              last_seen INTEGER NOT NULL,
              linked_at INTEGER NOT NULL DEFAULT 0,
@@ -474,6 +1053,7 @@ fn initialize_database(connection: &Connection) -> rusqlite::Result<()> {
          );
          CREATE TABLE IF NOT EXISTS calls (
              call_id TEXT PRIMARY KEY,
+             call_uuid TEXT NOT NULL,
              room_id TEXT NOT NULL UNIQUE,
              caller_user_id TEXT NOT NULL,
              caller_device_id TEXT NOT NULL,
@@ -539,11 +1119,42 @@ fn initialize_database(connection: &Connection) -> rusqlite::Result<()> {
              UNIQUE(chat_id, sender_device_id, client_message_id)
          );
          CREATE INDEX IF NOT EXISTS group_chat_messages_chat
-             ON group_chat_messages(chat_id, message_id);",
+             ON group_chat_messages(chat_id, message_id);
+         CREATE TABLE IF NOT EXISTS group_chat_read_state (
+             chat_id TEXT NOT NULL REFERENCES group_chats(chat_id),
+             user_id TEXT NOT NULL,
+             last_read_message_id INTEGER NOT NULL DEFAULT 0,
+             PRIMARY KEY(chat_id, user_id)
+         );",
     )?;
-    ensure_column(connection, "devices", "linked_at", "INTEGER NOT NULL DEFAULT 0")?;
+    ensure_column(
+        connection,
+        "devices",
+        "linked_at",
+        "INTEGER NOT NULL DEFAULT 0",
+    )?;
     ensure_column(connection, "devices", "revoked_at", "INTEGER")?;
+    ensure_column(connection, "devices", "alert_push_token", "TEXT")?;
+    ensure_column(
+        connection,
+        "devices",
+        "push_environment",
+        "TEXT NOT NULL DEFAULT 'sandbox'",
+    )?;
     ensure_column(connection, "calls", "answered_device_id", "TEXT")?;
+    ensure_column(connection, "calls", "call_uuid", "TEXT")?;
+    connection.execute(
+        "UPDATE calls
+         SET call_uuid =
+             substr(call_id, 6, 8) || '-' ||
+             substr(call_id, 14, 4) || '-' ||
+             substr(call_id, 18, 4) || '-' ||
+             substr(call_id, 22, 4) || '-' ||
+             substr(call_id, 26, 12)
+         WHERE call_uuid IS NULL AND length(call_id) = 37
+           AND call_id LIKE 'call_%'",
+        [],
+    )?;
     connection.execute(
         "INSERT OR IGNORE INTO accounts(user_id, created_at)
          SELECT DISTINCT user_id, ?1 FROM devices",
@@ -585,6 +1196,17 @@ async fn register_device(
     body: Bytes,
 ) -> Result<StatusCode, ApiError> {
     let request: DeviceRegistrationRequest = decode_json(&body)?;
+    let voip_push_token = normalize_apns_token(request.voip_push_token.as_deref())?;
+    let alert_push_token = normalize_apns_token(request.alert_push_token.as_deref())?;
+    let push_environment = match request.push_environment.as_deref() {
+        Some(value) => ApnsEnvironment::parse(value).map_err(ApiError::bad_request)?,
+        None => state
+            .configuration
+            .apns
+            .as_ref()
+            .map(|configuration| configuration.fallback_environment)
+            .unwrap_or(ApnsEnvironment::Sandbox),
+    };
     let public_key = decode_public_key(&request.signing_public_key)?;
     let actual_fingerprint = fingerprint(&public_key);
     if actual_fingerprint != request.key_fingerprint {
@@ -612,7 +1234,9 @@ async fn register_device(
         Some((&request.user_id, &request.signing_public_key)),
     )?;
     if auth.device_id != request.device_id || auth.user_id != request.user_id {
-        return Err(ApiError::forbidden("device identity does not match request"));
+        return Err(ApiError::forbidden(
+            "device identity does not match request",
+        ));
     }
 
     let now = unix_time();
@@ -643,12 +1267,15 @@ async fn register_device(
     transaction.execute(
         "INSERT INTO devices
          (device_id, user_id, display_name, signing_public_key, key_fingerprint,
-          platform, voip_push_token, capabilities, last_seen, linked_at, revoked_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, NULL)
+          platform, voip_push_token, alert_push_token, push_environment,
+          capabilities, last_seen, linked_at, revoked_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11, NULL)
          ON CONFLICT(device_id) DO UPDATE SET
            display_name = excluded.display_name,
            platform = excluded.platform,
            voip_push_token = excluded.voip_push_token,
+           alert_push_token = excluded.alert_push_token,
+           push_environment = excluded.push_environment,
            capabilities = excluded.capabilities,
            last_seen = excluded.last_seen",
         params![
@@ -658,7 +1285,9 @@ async fn register_device(
             request.signing_public_key,
             request.key_fingerprint,
             request.platform,
-            request.voip_push_token,
+            voip_push_token,
+            alert_push_token,
+            push_environment.as_database_value(),
             capabilities,
             now,
         ],
@@ -724,14 +1353,7 @@ async fn link_device(
     body: Bytes,
 ) -> Result<Json<AccountSnapshotResponse>, ApiError> {
     let request: LinkDeviceRequest = decode_json(&body)?;
-    let auth = authenticate(
-        &state,
-        &headers,
-        "POST",
-        "/v1/account/link",
-        &body,
-        None,
-    )?;
+    let auth = authenticate(&state, &headers, "POST", "/v1/account/link", &body, None)?;
     require_identity(&auth, &request.user_id, &request.device_id)?;
     if request.link_code.len() != 37 || !request.link_code.starts_with("link_") {
         return Err(ApiError::bad_request("invalid link code"));
@@ -921,7 +1543,9 @@ async fn claim_nickname(
     let existing = {
         let mut statement = transaction.prepare("SELECT nickname, user_id FROM nicknames")?;
         let rows = statement
-            .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?
             .collect::<Result<Vec<_>, _>>()?;
         rows
     };
@@ -956,7 +1580,9 @@ async fn claim_nickname(
             stable_id(&auth.user_id),
         )
     {
-        return Err(ApiError::internal("generated nickname policy rejected claim"));
+        return Err(ApiError::internal(
+            "generated nickname policy rejected claim",
+        ));
     }
     transaction.execute(
         "DELETE FROM nicknames WHERE user_id = ?1",
@@ -1051,14 +1677,7 @@ async fn create_call(
     body: Bytes,
 ) -> Result<Json<InternetCallSession>, ApiError> {
     let request: CreateCallRequest = decode_json(&body)?;
-    let auth = authenticate(
-        &state,
-        &headers,
-        "POST",
-        "/v1/calls",
-        &body,
-        None,
-    )?;
+    let auth = authenticate(&state, &headers, "POST", "/v1/calls", &body, None)?;
     require_identity(&auth, &request.caller_user_id, &request.caller_device_id)?;
     let callee = normalize_nickname(&request.callee);
     if !nickname_shape_valid(&callee) {
@@ -1077,16 +1696,20 @@ async fn create_call(
         .ok_or_else(|| ApiError::not_found("nickname not found"))?;
     let targets = {
         let mut statement = transaction.prepare(
-            "SELECT device_id, capabilities, last_seen FROM devices
+            "SELECT device_id, capabilities, last_seen, voip_push_token,
+                    push_environment
+             FROM devices
              WHERE user_id = ?1 AND revoked_at IS NULL",
         )?;
         let rows = statement
             .query_map(params![target_user_id], |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, u8>(1)?,
-                    row.get::<_, i64>(2)?,
-                ))
+                Ok(CallTarget {
+                    device_id: row.get(0)?,
+                    capabilities: row.get(1)?,
+                    last_seen: row.get(2)?,
+                    voip_push_token: row.get(3)?,
+                    push_environment: row.get(4)?,
+                })
             })?
             .collect::<Result<Vec<_>, _>>()?;
         rows
@@ -1098,9 +1721,10 @@ async fn create_call(
                 stable_id(&auth.user_id),
                 stable_id(&auth.device_id),
                 stable_id(&target_user_id),
-                stable_id(&target.0),
-                target.1,
-                device_is_online(target.2, unix_time()),
+                stable_id(&target.device_id),
+                target.capabilities,
+                device_is_online(target.last_seen, unix_time()),
+                voip_push_is_reachable(&state.configuration, target),
             )
         })
         .collect::<Vec<_>>();
@@ -1118,20 +1742,22 @@ async fn create_call(
         .optional()?
         .unwrap_or_else(|| auth.display_name.clone());
     let call_id = random_id("call_");
+    let call_uuid = Uuid::new_v4().to_string();
     let room_id = random_id("room_");
     let status = internet_call::next_status(internet_call::CALL_IDLE, true);
     transaction.execute(
         "INSERT INTO calls
-         (call_id, room_id, caller_user_id, caller_device_id, callee_user_id,
+         (call_id, call_uuid, room_id, caller_user_id, caller_device_id, callee_user_id,
           callee_device_id, caller_name, audio, video, status, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
         params![
             call_id,
+            call_uuid,
             room_id,
             auth.user_id,
             auth.device_id,
             target_user_id,
-            targets[0].0,
+            targets[0].device_id,
             caller_name,
             request.audio,
             request.video,
@@ -1139,17 +1765,101 @@ async fn create_call(
             unix_time(),
         ],
     )?;
-    for (device_id, _, _) in &targets {
+    for target in &targets {
         transaction.execute(
             "INSERT INTO call_targets(call_id, device_id, state)
              VALUES (?1, ?2, ?3)",
-            params![call_id, device_id, internet_call::CALL_RINGING],
+            params![call_id, target.device_id, internet_call::CALL_RINGING],
         )?;
     }
     transaction.commit()?;
     drop(database);
-    session_for(&state.configuration, &call_id, &room_id, &auth, &caller_name)
-        .map(Json)
+    if let Some(apns) = state.configuration.apns.clone() {
+        for token in targets
+            .iter()
+            .filter(|target| {
+                internet_call::voip_push_may_be_sent(
+                    status,
+                    true,
+                    voip_push_is_reachable(&state.configuration, target),
+                )
+            })
+            .filter_map(|target| {
+                Some((
+                    target.device_id.clone(),
+                    target.voip_push_token.clone()?,
+                    ApnsEnvironment::parse(&target.push_environment).ok()?,
+                ))
+            })
+        {
+            let (device_id, token, environment) = token;
+            let apns = apns.clone();
+            let call_id = call_id.clone();
+            let call_uuid = call_uuid.clone();
+            let caller = caller_name.clone();
+            let database = state.database.clone();
+            tokio::spawn(async move {
+                let result = apns
+                    .send_voip(
+                        &token,
+                        environment,
+                        &call_id,
+                        &call_uuid,
+                        &caller,
+                        request.audio,
+                        request.video,
+                    )
+                    .await;
+                match result {
+                    Ok(delivery)
+                        if internet_call::apns_environment_should_be_updated(
+                            delivery.environment_changed,
+                            true,
+                        ) =>
+                    {
+                        if let Ok(database) = database.lock() {
+                            let _ = database.execute(
+                                "UPDATE devices SET push_environment = ?1
+                                 WHERE device_id = ?2 AND voip_push_token = ?3",
+                                params![delivery.environment.as_database_value(), device_id, token],
+                            );
+                        }
+                    }
+                    Err(error)
+                        if internet_call::apns_token_should_be_invalidated(
+                            error.permanent,
+                            error.bad_device_token,
+                            error.alternate_attempted,
+                            true,
+                        ) =>
+                    {
+                        if let Ok(database) = database.lock() {
+                            let _ = database.execute(
+                                "UPDATE devices SET voip_push_token = NULL
+                                 WHERE device_id = ?1 AND voip_push_token = ?2",
+                                params![device_id, token],
+                            );
+                        }
+                        eprintln!(
+                            "APNs VoIP delivery invalidated exact token for {call_id}: {error}"
+                        );
+                    }
+                    Err(error) => {
+                        eprintln!("APNs VoIP delivery failed for {call_id}: {error}");
+                    }
+                    Ok(_) => {}
+                }
+            });
+        }
+    }
+    session_for(
+        &state.configuration,
+        &call_id,
+        &room_id,
+        &auth,
+        &caller_name,
+    )
+    .map(Json)
 }
 
 async fn incoming_calls(
@@ -1158,19 +1868,12 @@ async fn incoming_calls(
     body: Bytes,
 ) -> Result<Json<IncomingCallsResponse>, ApiError> {
     let request: IncomingCallsRequest = decode_json(&body)?;
-    let auth = authenticate(
-        &state,
-        &headers,
-        "POST",
-        "/v1/calls/incoming",
-        &body,
-        None,
-    )?;
+    let auth = authenticate(&state, &headers, "POST", "/v1/calls/incoming", &body, None)?;
     require_identity(&auth, &request.user_id, &request.device_id)?;
     let minimum_created_at = unix_time() - i64::from(internet_call::INVITE_TTL_SECONDS);
     let database = lock_database(&state)?;
     let mut statement = database.prepare(
-        "SELECT c.call_id, c.caller_name, c.audio, c.video, c.created_at
+        "SELECT c.call_id, c.call_uuid, c.caller_name, c.audio, c.video, c.created_at
          FROM call_targets t JOIN calls c ON c.call_id = t.call_id
          WHERE t.device_id = ?1 AND t.state = ?2 AND c.status = ?2
            AND c.created_at >= ?3
@@ -1186,10 +1889,11 @@ async fn incoming_calls(
             |row| {
                 Ok(IncomingCall {
                     call_id: row.get(0)?,
-                    caller: row.get(1)?,
-                    audio: row.get(2)?,
-                    video: row.get(3)?,
-                    created_at: row.get(4)?,
+                    call_uuid: row.get(1)?,
+                    caller: row.get(2)?,
+                    audio: row.get(3)?,
+                    video: row.get(4)?,
+                    created_at: row.get(5)?,
                 })
             },
         )?
@@ -1230,9 +1934,8 @@ async fn join_call(
         .optional()?
         .ok_or_else(|| ApiError::forbidden("call is unavailable to this device"))?;
     let now = unix_time();
-    let invite_fresh = call.4 >= 0
-        && now >= 0
-        && internet_call::invite_is_fresh(call.4 as u32, now as u32);
+    let invite_fresh =
+        call.4 >= 0 && now >= 0 && internet_call::invite_is_fresh(call.4 as u32, now as u32);
     let device_valid = internet_call::device_is_valid(
         stable_id(&auth.user_id),
         stable_id(&auth.device_id),
@@ -1289,6 +1992,66 @@ async fn join_call(
     .map(Json)
 }
 
+async fn cancel_call(
+    State(state): State<AppState>,
+    Path(call_id): Path<String>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<StatusCode, ApiError> {
+    let request: EndCallRequest = decode_json(&body)?;
+    let path = format!("/v1/calls/{call_id}/cancel");
+    let auth = authenticate(&state, &headers, "POST", &path, &body, None)?;
+    require_identity(&auth, &request.user_id, &request.device_id)?;
+
+    let mut database = lock_database(&state)?;
+    let transaction = database.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let call = transaction
+        .query_row(
+            "SELECT caller_user_id, caller_device_id, status
+             FROM calls WHERE call_id = ?1",
+            params![call_id],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, u8>(2)?,
+                ))
+            },
+        )
+        .optional()?
+        .ok_or_else(|| ApiError::forbidden("call is unavailable to this device"))?;
+    let exact_originating_device = auth.user_id == call.0 && auth.device_id == call.1;
+    if !exact_originating_device
+        || !internet_call::caller_may_end(
+            stable_id(&auth.user_id),
+            stable_id(&auth.device_id),
+            stable_id(&call.0),
+            stable_id(&call.1),
+            call.2,
+        )
+    {
+        return Err(ApiError::forbidden(
+            "only the originating device may end this call",
+        ));
+    }
+    if call.2 != internet_call::CALL_ENDED {
+        let ended = transaction.execute(
+            "UPDATE calls SET status = ?1
+             WHERE call_id = ?2 AND status = ?3",
+            params![internet_call::next_status(call.2, false), call_id, call.2],
+        )?;
+        if ended != 1 {
+            return Err(ApiError::conflict("call state changed before cancellation"));
+        }
+        transaction.execute(
+            "UPDATE call_targets SET state = ?1 WHERE call_id = ?2",
+            params![internet_call::CALL_ENDED, call_id],
+        )?;
+    }
+    transaction.commit()?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 async fn create_group_chat(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -1296,11 +2059,7 @@ async fn create_group_chat(
 ) -> Result<Json<GroupChatSummary>, ApiError> {
     let request: CreateGroupChatRequest = decode_json(&body)?;
     let auth = authenticate(&state, &headers, "POST", "/v1/chats", &body, None)?;
-    require_identity(
-        &auth,
-        &request.creator_user_id,
-        &request.creator_device_id,
-    )?;
+    require_identity(&auth, &request.creator_user_id, &request.creator_device_id)?;
     if request.members.len() >= group_chat::MAX_GROUP_MEMBERS as usize {
         return Err(ApiError::bad_request("group has too many members"));
     }
@@ -1394,15 +2153,29 @@ async fn create_group_chat(
          VALUES (?1, ?2, ?3, ?4, NULL)",
         params![chat_id, auth.user_id, creator_nickname, now],
     )?;
+    transaction.execute(
+        "INSERT INTO group_chat_read_state(chat_id, user_id, last_read_message_id)
+         VALUES (?1, ?2, 0)",
+        params![chat_id, auth.user_id],
+    )?;
     for (user_id, nickname) in resolved_members {
         transaction.execute(
             "INSERT INTO group_chat_members(chat_id, user_id, nickname, joined_at, left_at)
              VALUES (?1, ?2, ?3, ?4, NULL)",
-            params![chat_id, user_id, nickname, now],
+            params![chat_id, &user_id, nickname, now],
+        )?;
+        transaction.execute(
+            "INSERT INTO group_chat_read_state(chat_id, user_id, last_read_message_id)
+             VALUES (?1, ?2, 0)",
+            params![chat_id, user_id],
         )?;
     }
     transaction.commit()?;
-    Ok(Json(load_group_chat_summary(&database, &chat_id)?))
+    Ok(Json(load_group_chat_summary(
+        &database,
+        &chat_id,
+        &auth.user_id,
+    )?))
 }
 
 async fn list_group_chats(
@@ -1434,9 +2207,15 @@ async fn list_group_chats(
     };
     let chats = chat_ids
         .iter()
-        .map(|chat_id| load_group_chat_summary(&database, chat_id))
+        .map(|chat_id| load_group_chat_summary(&database, chat_id, &auth.user_id))
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(Json(GroupChatsResponse { chats }))
+    let total_unread_count = chats
+        .iter()
+        .fold(0_u32, |total, chat| total.saturating_add(chat.unread_count));
+    Ok(Json(GroupChatsResponse {
+        chats,
+        total_unread_count,
+    }))
 }
 
 async fn send_group_message(
@@ -1477,7 +2256,7 @@ async fn send_group_message(
         .optional()?
         .unwrap_or_else(|| auth.display_name.clone());
     let now = unix_time();
-    transaction.execute(
+    let inserted = transaction.execute(
         "INSERT OR IGNORE INTO group_chat_messages
          (chat_id, sender_user_id, sender_device_id, sender_nickname,
           client_message_id, text, created_at)
@@ -1491,7 +2270,7 @@ async fn send_group_message(
             text,
             now
         ],
-    )?;
+    )? == 1;
     let message = transaction.query_row(
         "SELECT message_id, chat_id, sender_user_id, sender_nickname, text, created_at
          FROM group_chat_messages
@@ -1499,7 +2278,125 @@ async fn send_group_message(
         params![chat_id, auth.device_id, request.client_message_id],
         group_chat_message_from_row,
     )?;
+    let alert_jobs = if inserted && state.configuration.apns.is_some() {
+        let member_user_ids = {
+            let mut statement = transaction.prepare(
+                "SELECT user_id FROM group_chat_members
+                 WHERE chat_id = ?1 AND left_at IS NULL",
+            )?;
+            let members = statement
+                .query_map(params![chat_id], |row| row.get::<_, String>(0))?
+                .collect::<Result<Vec<_>, _>>()?;
+            members
+        };
+        let mut jobs = Vec::new();
+        for user_id in member_user_ids {
+            let sender_is_recipient = user_id == auth.user_id;
+            let badge = total_unread_count_for_user(&transaction, &user_id)?;
+            let devices = {
+                let mut statement = transaction.prepare(
+                    "SELECT device_id, alert_push_token, push_environment
+                     FROM devices
+                     WHERE user_id = ?1 AND revoked_at IS NULL
+                       AND alert_push_token IS NOT NULL",
+                )?;
+                let devices = statement
+                    .query_map(params![user_id], |row| {
+                        Ok((
+                            row.get::<_, String>(0)?,
+                            row.get::<_, String>(1)?,
+                            row.get::<_, String>(2)?,
+                        ))
+                    })?
+                    .collect::<Result<Vec<_>, _>>()?;
+                devices
+            };
+            jobs.extend(
+                devices
+                    .into_iter()
+                    .filter(|(_, token, environment)| {
+                        group_chat::push_alert_may_be_sent(
+                            sender_is_recipient,
+                            true,
+                            alert_push_is_reachable(&state.configuration, token, environment),
+                            inserted,
+                        )
+                    })
+                    .map(|(device_id, token, environment)| (device_id, token, environment, badge)),
+            );
+        }
+        jobs
+    } else {
+        Vec::new()
+    };
     transaction.commit()?;
+    drop(database);
+    if let Some(apns) = state.configuration.apns.clone() {
+        for (device_id, token, environment, badge) in alert_jobs {
+            let Ok(environment) = ApnsEnvironment::parse(&environment) else {
+                continue;
+            };
+            let apns = apns.clone();
+            let chat_id = chat_id.clone();
+            let sender = sender_nickname.clone();
+            let database = state.database.clone();
+            tokio::spawn(async move {
+                let data = serde_json::json!({
+                    "type": "group_chat_message",
+                    "chat_id": chat_id.clone()
+                });
+                let result = apns
+                    .send_alert(
+                        &token,
+                        environment,
+                        "TRI-NET",
+                        &format!("New message from @{sender}"),
+                        badge,
+                        "trinet-chat.caf",
+                        Some(&chat_id),
+                        data,
+                    )
+                    .await;
+                match result {
+                    Ok(delivery)
+                        if internet_call::apns_environment_should_be_updated(
+                            delivery.environment_changed,
+                            true,
+                        ) =>
+                    {
+                        if let Ok(database) = database.lock() {
+                            let _ = database.execute(
+                                "UPDATE devices SET push_environment = ?1
+                                 WHERE device_id = ?2 AND alert_push_token = ?3",
+                                params![delivery.environment.as_database_value(), device_id, token],
+                            );
+                        }
+                    }
+                    Err(error)
+                        if internet_call::apns_token_should_be_invalidated(
+                            error.permanent,
+                            error.bad_device_token,
+                            error.alternate_attempted,
+                            true,
+                        ) =>
+                    {
+                        if let Ok(database) = database.lock() {
+                            let _ = database.execute(
+                                "UPDATE devices SET alert_push_token = NULL
+                                 WHERE device_id = ?1 AND alert_push_token = ?2",
+                                params![device_id, token],
+                            );
+                        }
+                        eprintln!("APNs chat alert invalidated exact token for {chat_id}: {error}");
+                    }
+                    Err(error) => {
+                        eprintln!("APNs chat alert delivery failed for {chat_id}: {error}");
+                    }
+                    Ok(_) => {}
+                }
+            });
+        }
+    }
     Ok(Json(message))
 }
 
@@ -1540,6 +2437,59 @@ async fn list_group_messages(
     Ok(Json(GroupMessagesResponse { messages }))
 }
 
+async fn mark_group_chat_read(
+    State(state): State<AppState>,
+    Path(chat_id): Path<String>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<StatusCode, ApiError> {
+    let request: MarkGroupChatReadRequest = decode_json(&body)?;
+    let path = format!("/v1/chats/{chat_id}/read");
+    let auth = authenticate(&state, &headers, "POST", &path, &body, None)?;
+    require_identity(&auth, &request.user_id, &request.device_id)?;
+    if request.through_message_id < 0 {
+        return Err(ApiError::bad_request(
+            "through_message_id must not be negative",
+        ));
+    }
+
+    let mut database = lock_database(&state)?;
+    let transaction = database.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    if !active_group_member(&transaction, &chat_id, &auth.user_id)? {
+        return Err(ApiError::forbidden(
+            "device account is not a member of this group",
+        ));
+    }
+    let current = transaction
+        .query_row(
+            "SELECT last_read_message_id FROM group_chat_read_state
+             WHERE chat_id = ?1 AND user_id = ?2",
+            params![chat_id, auth.user_id],
+            |row| row.get::<_, i64>(0),
+        )
+        .optional()?
+        .unwrap_or(0)
+        .max(0);
+    let observed = transaction.query_row(
+        "SELECT COALESCE(MAX(message_id), 0)
+         FROM group_chat_messages
+         WHERE chat_id = ?1 AND message_id <= ?2",
+        params![chat_id, request.through_message_id],
+        |row| row.get::<_, i64>(0),
+    )?;
+    let next = group_chat::advance_read_cursor(current as u64, observed.max(0) as u64)
+        .min(i64::MAX as u64) as i64;
+    transaction.execute(
+        "INSERT INTO group_chat_read_state(chat_id, user_id, last_read_message_id)
+         VALUES (?1, ?2, ?3)
+         ON CONFLICT(chat_id, user_id) DO UPDATE SET
+           last_read_message_id = excluded.last_read_message_id",
+        params![chat_id, auth.user_id, next],
+    )?;
+    transaction.commit()?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 fn active_group_member(
     database: &Connection,
     chat_id: &str,
@@ -1558,6 +2508,7 @@ fn active_group_member(
 fn load_group_chat_summary(
     database: &Connection,
     chat_id: &str,
+    user_id: &str,
 ) -> Result<GroupChatSummary, ApiError> {
     let (title, created_at) = database
         .query_row(
@@ -1597,7 +2548,72 @@ fn load_group_chat_summary(
         created_at,
         last_message: last_message.as_ref().map(|message| message.0.clone()),
         last_message_at: last_message.map(|message| message.1),
+        unread_count: unread_count_for_chat(database, chat_id, user_id)?,
     })
+}
+
+fn unread_count_for_chat(
+    database: &Connection,
+    chat_id: &str,
+    user_id: &str,
+) -> Result<u32, ApiError> {
+    let read_cursor = database
+        .query_row(
+            "SELECT last_read_message_id FROM group_chat_read_state
+             WHERE chat_id = ?1 AND user_id = ?2",
+            params![chat_id, user_id],
+            |row| row.get::<_, i64>(0),
+        )
+        .optional()?
+        .unwrap_or(0)
+        .max(0) as u64;
+    let mut statement = database.prepare(
+        "SELECT message_id, sender_user_id
+         FROM group_chat_messages
+         WHERE chat_id = ?1 AND message_id > ?2
+         ORDER BY message_id",
+    )?;
+    let messages = statement
+        .query_map(
+            params![chat_id, read_cursor.min(i64::MAX as u64) as i64],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
+        )?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(messages.iter().fold(0_u32, |count, (message_id, sender)| {
+        if group_chat::message_counts_as_unread(
+            (*message_id).max(0) as u64,
+            read_cursor,
+            sender == user_id,
+        ) {
+            count.saturating_add(1)
+        } else {
+            count
+        }
+    }))
+}
+
+fn total_unread_count_for_user(database: &Connection, user_id: &str) -> Result<u32, ApiError> {
+    let chat_ids = {
+        let mut statement = database.prepare(
+            "SELECT chat_id FROM group_chat_members
+             WHERE user_id = ?1 AND left_at IS NULL",
+        )?;
+        let chat_ids = statement
+            .query_map(params![user_id], |row| row.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        chat_ids
+    };
+    chat_ids.iter().try_fold(0_u32, |total, chat_id| {
+        unread_count_for_chat(database, chat_id, user_id).map(|count| total.saturating_add(count))
+    })
+}
+
+fn alert_push_is_reachable(configuration: &Configuration, token: &str, environment: &str) -> bool {
+    valid_apns_token(token)
+        && configuration
+            .apns
+            .as_ref()
+            .is_some_and(|apns| apns.can_route_environment(environment))
 }
 
 fn group_chat_message_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<GroupChatMessage> {
@@ -1615,9 +2631,7 @@ fn default_group_title(creator: &str, members: &[String]) -> String {
     let mut title = format!("@{creator}");
     for member in members {
         let fragment = format!(", @{member}");
-        if title.len() + fragment.len()
-            > group_chat::MAX_GROUP_TITLE_BYTES as usize - "...".len()
-        {
+        if title.len() + fragment.len() > group_chat::MAX_GROUP_TITLE_BYTES as usize - "...".len() {
             title.push_str("...");
             break;
         }
@@ -1643,10 +2657,11 @@ fn authenticate(
         .parse()
         .map_err(|_| ApiError::unauthorized("invalid request timestamp"))?;
     let now = unix_time();
-    if timestamp < 0
-        || now < 0
-        || !internet_call::request_signature_is_fresh(timestamp as u32, now as u32)
-    {
+    let signed_at = u32::try_from(timestamp)
+        .map_err(|_| ApiError::unauthorized("request signature is stale"))?;
+    let current_time = u32::try_from(now)
+        .map_err(|_| ApiError::unauthorized("request signature is stale"))?;
+    if !internet_call::request_signature_is_fresh(signed_at, current_time) {
         return Err(ApiError::unauthorized("request signature is stale"));
     }
     if nonce.len() < 16 || nonce.len() > 64 || !nonce.is_ascii() {
@@ -1687,8 +2702,8 @@ fn authenticate(
             (record.0, record.1, record.2, record.3)
         }
         None => {
-            let (bootstrap_user_id, bootstrap_public_key) = bootstrap
-                .ok_or_else(|| ApiError::unauthorized("device is not registered"))?;
+            let (bootstrap_user_id, bootstrap_public_key) =
+                bootstrap.ok_or_else(|| ApiError::unauthorized("device is not registered"))?;
             (
                 bootstrap_user_id.to_string(),
                 bootstrap_user_id.to_string(),
@@ -1725,7 +2740,7 @@ fn authenticate(
         params![
             device_id,
             nonce,
-            now + i64::from(internet_call::REQUEST_SIGNATURE_TTL_SECONDS)
+            i64::from(signed_at) + i64::from(internet_call::REQUEST_SIGNATURE_TTL_SECONDS)
         ],
     )?;
     if inserted != 1 {
@@ -1851,7 +2866,9 @@ fn require_identity(
     device_id: &str,
 ) -> Result<(), ApiError> {
     if auth.user_id != user_id || auth.device_id != device_id {
-        return Err(ApiError::forbidden("signed device does not match request body"));
+        return Err(ApiError::forbidden(
+            "signed device does not match request body",
+        ));
     }
     Ok(())
 }
@@ -1903,16 +2920,20 @@ fn lowercase_hex(bytes: &[u8]) -> String {
 }
 
 fn normalize_nickname(value: &str) -> String {
-    value
-        .trim()
-        .trim_start_matches('@')
-        .to_ascii_lowercase()
+    value.trim().trim_start_matches('@').to_ascii_lowercase()
 }
 
 fn device_is_online(last_seen: i64, now: i64) -> bool {
-    last_seen >= 0
-        && now >= 0
-        && internet_call::device_is_online(last_seen as u32, now as u32)
+    last_seen >= 0 && now >= 0 && internet_call::device_is_online(last_seen as u32, now as u32)
+}
+
+fn voip_push_is_reachable(configuration: &Configuration, target: &CallTarget) -> bool {
+    target
+        .voip_push_token
+        .as_deref()
+        .filter(|token| valid_apns_token(token))
+        .zip(configuration.apns.as_ref())
+        .is_some_and(|(_, apns)| apns.can_route_environment(&target.push_environment))
 }
 
 fn nickname_shape_valid(nickname: &str) -> bool {
@@ -1933,18 +2954,15 @@ fn nickname_shape_valid(nickname: &str) -> bool {
 }
 
 fn nicknames_are_confusing(candidate: &str, existing: &str) -> bool {
-    let distance = edit_distance(candidate.as_bytes(), existing.as_bytes()).min(u8::MAX as usize) as u8;
+    let distance =
+        edit_distance(candidate.as_bytes(), existing.as_bytes()).min(u8::MAX as usize) as u8;
     let shared_prefix = candidate
         .bytes()
         .zip(existing.bytes())
         .take_while(|(left, right)| left == right)
         .count()
         .min(u8::MAX as usize) as u8;
-    nickname_directory::nickname_is_confusing(
-        candidate == existing,
-        distance,
-        shared_prefix,
-    )
+    nickname_directory::nickname_is_confusing(candidate == existing, distance, shared_prefix)
 }
 
 fn edit_distance(left: &[u8], right: &[u8]) -> usize {
@@ -2071,7 +3089,20 @@ mod tests {
                 livekit_api_key: "devkey".to_string(),
                 livekit_api_secret: "secret".to_string(),
                 service_access_token: None,
+                apns: None,
             }),
+        }
+    }
+
+    fn test_apns_configuration() -> ApnsConfiguration {
+        ApnsConfiguration {
+            team_id: "TEAM123456".to_string(),
+            key_id: "KEY1234567".to_string(),
+            bundle_id: "com.trinet.video".to_string(),
+            fallback_environment: ApnsEnvironment::Sandbox,
+            signing_key: SigningKey::random(&mut OsRng),
+            client: reqwest::Client::builder().build().unwrap(),
+            provider_token_cache: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -2081,9 +3112,27 @@ mod tests {
         body: Value,
         device: &TestDevice,
     ) -> (StatusCode, Option<Value>) {
+        signed_post_at(
+            application,
+            path,
+            body,
+            device,
+            unix_time(),
+            &random_id("nonce_"),
+        )
+        .await
+    }
+
+    async fn signed_post_at(
+        application: Router,
+        path: &str,
+        body: Value,
+        device: &TestDevice,
+        timestamp: i64,
+        nonce: &str,
+    ) -> (StatusCode, Option<Value>) {
         let body = serde_json::to_vec(&body).unwrap();
-        let timestamp = unix_time().to_string();
-        let nonce = random_id("nonce_");
+        let timestamp = timestamp.to_string();
         let body_hash = lowercase_hex(&Sha256::digest(&body));
         let canonical = format!("POST\n{path}\n{timestamp}\n{nonce}\n{body_hash}");
         let signature: p256::ecdsa::Signature = device.signing_key.sign(canonical.as_bytes());
@@ -2117,14 +3166,67 @@ mod tests {
     }
 
     #[test]
+    fn request_signature_future_skew_matches_generated_policy() {
+        assert!(internet_call::request_signature_is_fresh(100, 160));
+        assert!(!internet_call::request_signature_is_fresh(100, 161));
+        assert!(internet_call::request_signature_is_fresh(106, 100));
+        assert!(internet_call::request_signature_is_fresh(110, 100));
+        assert!(!internet_call::request_signature_is_fresh(111, 100));
+    }
+
+    #[tokio::test]
+    async fn request_signature_accepts_measured_clock_skew_and_retains_nonce() {
+        let state = test_state();
+        let device = TestDevice::new("user_skew", "device_skew", "Skewed Phone");
+        let signed_at = unix_time() + 6;
+        let nonce = "nonce_future_skew_accepted";
+        let (status, _) = signed_post_at(
+            application(state.clone()),
+            "/v1/devices/register",
+            device.registration(),
+            &device,
+            signed_at,
+            nonce,
+        )
+        .await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        let expires_at: i64 = state
+            .database
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT expires_at FROM request_nonces WHERE device_id = ?1 AND nonce = ?2",
+                params![device.device_id, nonce],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            expires_at,
+            signed_at + i64::from(internet_call::REQUEST_SIGNATURE_TTL_SECONDS)
+        );
+
+        let (status, _) = signed_post_at(
+            application(state),
+            "/v1/devices/register",
+            device.registration(),
+            &device,
+            unix_time() + 20,
+            "nonce_future_skew_rejected",
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+    }
+
+    #[test]
     fn suggestions_are_valid_and_distinct() {
         let existing = ["alice", "alice001"];
         let suggestions = nickname_suggestions("alice", "device", existing.into_iter());
         assert_eq!(suggestions.len(), 3);
         assert!(suggestions.iter().all(|value| nickname_shape_valid(value)));
-        assert!(suggestions
+        assert!(suggestions.iter().all(|value| existing
             .iter()
-            .all(|value| existing.iter().all(|item| !nicknames_are_confusing(value, item))));
+            .all(|item| !nicknames_are_confusing(value, item))));
     }
 
     #[test]
@@ -2135,6 +3237,7 @@ mod tests {
             livekit_api_key: "devkey".to_string(),
             livekit_api_secret: "secret".to_string(),
             service_access_token: None,
+            apns: None,
         };
         let token = livekit_token(&configuration, "room_one", "device_one", "Alice").unwrap();
         let payload = token.split('.').nth(1).unwrap();
@@ -2143,6 +3246,165 @@ mod tests {
         assert_eq!(value["video"]["room"], "room_one");
         assert_eq!(value["sub"], "device_one");
         assert_eq!(value["video"]["roomJoin"], true);
+    }
+
+    #[test]
+    fn apns_provider_token_is_signed_and_reused_for_fifty_minutes() {
+        let apns = test_apns_configuration();
+        let token = apns.provider_token(1_000).unwrap();
+        assert_eq!(apns.provider_token(3_999).unwrap(), token);
+        assert_ne!(apns.provider_token(4_000).unwrap(), token);
+
+        let parts = token.split('.').collect::<Vec<_>>();
+        assert_eq!(parts.len(), 3);
+        let header: Value =
+            serde_json::from_slice(&general_purpose::URL_SAFE_NO_PAD.decode(parts[0]).unwrap())
+                .unwrap();
+        let claims: Value =
+            serde_json::from_slice(&general_purpose::URL_SAFE_NO_PAD.decode(parts[1]).unwrap())
+                .unwrap();
+        assert_eq!(header["alg"], "ES256");
+        assert_eq!(header["kid"], "KEY1234567");
+        assert_eq!(claims["iss"], "TEAM123456");
+        assert_eq!(claims["iat"], 1_000);
+        let signature =
+            Signature::from_slice(&general_purpose::URL_SAFE_NO_PAD.decode(parts[2]).unwrap())
+                .unwrap();
+        apns.signing_key
+            .verifying_key()
+            .verify(format!("{}.{}", parts[0], parts[1]).as_bytes(), &signature)
+            .unwrap();
+    }
+
+    #[test]
+    fn voip_payload_contains_callkit_uuid_without_credentials() {
+        let payload = serde_json::to_value(VoipPushPayload {
+            aps: ApnsBackgroundContent {
+                content_available: 1,
+            },
+            call_id: "call_1234",
+            call_uuid: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+            caller: "alice_net",
+            audio: true,
+            video: true,
+        })
+        .unwrap();
+        assert_eq!(payload["aps"]["content-available"], 1);
+        assert_eq!(payload["call_uuid"], "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee");
+        assert_eq!(payload["caller"], "alice_net");
+        assert!(payload.get("token").is_none());
+    }
+
+    #[test]
+    fn chat_alert_payload_uses_absolute_badge_and_omits_message_text() {
+        let payload = serde_json::to_value(AlertPushPayload {
+            aps: AlertPushAps {
+                alert: AlertPushText {
+                    title: "TRI-NET",
+                    body: "New message from @alice_net",
+                },
+                badge: 7,
+                sound: "trinet-chat.caf",
+                thread_id: Some("chat_1234"),
+            },
+            data: json!({
+                "type": "group_chat_message",
+                "chat_id": "chat_1234"
+            }),
+        })
+        .unwrap();
+        assert_eq!(payload["aps"]["badge"], 7);
+        assert_eq!(payload["aps"]["sound"], "trinet-chat.caf");
+        assert_eq!(payload["aps"]["thread-id"], "chat_1234");
+        assert_eq!(payload["chat_id"], "chat_1234");
+        assert!(payload.to_string().find("Meet at point").is_none());
+    }
+
+    #[test]
+    fn apns_retry_and_environment_recovery_follow_generated_policy() {
+        assert!(internet_call::apns_delivery_failure_is_retryable(true, 0));
+        assert!(internet_call::apns_delivery_failure_is_retryable(
+            false, 429
+        ));
+        assert!(internet_call::apns_delivery_failure_is_retryable(
+            false, 503
+        ));
+        assert!(!internet_call::apns_delivery_failure_is_retryable(
+            false, 400
+        ));
+        assert!(internet_call::apns_should_retry(true, 1));
+        assert!(internet_call::apns_should_retry(true, 2));
+        assert!(!internet_call::apns_should_retry(true, 3));
+        assert!(internet_call::apns_should_try_alternate_environment(
+            true, false
+        ));
+        assert!(!internet_call::apns_should_try_alternate_environment(
+            true, true
+        ));
+
+        assert!(apns_failure_is_permanent("BadDeviceToken"));
+        assert!(!internet_call::apns_token_should_be_invalidated(
+            true, true, false, true,
+        ));
+        assert!(internet_call::apns_token_should_be_invalidated(
+            true, true, true, true,
+        ));
+        for reason in ["DeviceTokenNotForTopic", "Unregistered"] {
+            assert!(apns_failure_is_permanent(reason));
+            assert!(internet_call::apns_token_should_be_invalidated(
+                apns_failure_is_permanent(reason),
+                false,
+                false,
+                true,
+            ));
+        }
+        for reason in ["TooManyRequests", "InternalServerError", "Shutdown"] {
+            assert!(!apns_failure_is_permanent(reason));
+            assert!(!internet_call::apns_token_should_be_invalidated(
+                apns_failure_is_permanent(reason),
+                false,
+                false,
+                true,
+            ));
+        }
+        assert!(!internet_call::apns_token_should_be_invalidated(
+            true, true, true, false,
+        ));
+    }
+
+    #[test]
+    fn configured_provider_routes_both_apns_environments_per_token() {
+        let apns = test_apns_configuration();
+        let configuration = Configuration {
+            bind: "127.0.0.1:8080".parse().unwrap(),
+            livekit_url: "ws://127.0.0.1:7880".to_string(),
+            livekit_api_key: "devkey".to_string(),
+            livekit_api_secret: "secret".to_string(),
+            service_access_token: None,
+            apns: Some(apns),
+        };
+        let target = CallTarget {
+            device_id: "callee_device".to_string(),
+            capabilities: internet_call::CAP_AUDIO | internet_call::CAP_WEBRTC,
+            last_seen: 0,
+            voip_push_token: Some("ab".repeat(32)),
+            push_environment: "sandbox".to_string(),
+        };
+        assert!(voip_push_is_reachable(&configuration, &target));
+        assert!(internet_call::call_target_is_available(
+            1,
+            2,
+            3,
+            4,
+            target.capabilities,
+            false,
+            voip_push_is_reachable(&configuration, &target),
+        ));
+        let mismatched = CallTarget {
+            push_environment: "production".to_string(),
+            ..target
+        };
+        assert!(voip_push_is_reachable(&configuration, &mismatched));
     }
 
     #[tokio::test]
@@ -2215,7 +3477,9 @@ mod tests {
         )
         .await;
         assert_eq!(status, StatusCode::OK);
-        assert_eq!(response.unwrap()["calls"][0]["call_id"], call_id);
+        let incoming = response.unwrap();
+        assert_eq!(incoming["calls"][0]["call_id"], call_id);
+        Uuid::parse_str(incoming["calls"][0]["call_uuid"].as_str().unwrap()).unwrap();
 
         let join_path = format!("/v1/calls/{call_id}/join");
         let (status, _) = signed_post(
@@ -2236,6 +3500,186 @@ mod tests {
         .await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(response.unwrap()["room_id"], room_id);
+    }
+
+    #[tokio::test]
+    async fn device_registration_persists_separate_voip_and_alert_tokens() {
+        let state = test_state();
+        let device = TestDevice::new("user_push", "device_push", "Push Phone");
+        let voip_token = "ab".repeat(32);
+        let alert_token = "cd".repeat(32);
+        let mut registration = device.registration();
+        registration["voip_push_token"] = Value::String(voip_token.clone());
+        registration["alert_push_token"] = Value::String(alert_token.clone());
+        registration["push_environment"] = Value::String("development".to_string());
+        let (status, _) = signed_post(
+            application(state.clone()),
+            "/v1/devices/register",
+            registration,
+            &device,
+        )
+        .await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        let stored = state
+            .database
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT voip_push_token, alert_push_token, push_environment
+                 FROM devices WHERE device_id = ?1",
+                params![device.device_id],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                    ))
+                },
+            )
+            .unwrap();
+        assert_eq!(stored, (voip_token, alert_token, "sandbox".to_string()));
+
+        let invalid_device =
+            TestDevice::new("user_invalid_push", "device_invalid_push", "Invalid Push");
+        let mut invalid_registration = invalid_device.registration();
+        invalid_registration["voip_push_token"] = Value::String("not-a-token".to_string());
+        let (status, _) = signed_post(
+            application(state),
+            "/v1/devices/register",
+            invalid_registration,
+            &invalid_device,
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn originating_device_can_cancel_pending_call_idempotently() {
+        let state = test_state();
+        let caller = TestDevice::new("user_caller", "device_caller", "Caller Phone");
+        let caller_other_device = TestDevice::new(
+            "user_caller_temporary",
+            "device_caller_other",
+            "Caller Tablet",
+        );
+        let callee = TestDevice::new("user_callee", "device_callee", "Callee Phone");
+
+        for device in [&caller, &caller_other_device, &callee] {
+            let (status, _) = signed_post(
+                application(state.clone()),
+                "/v1/devices/register",
+                device.registration(),
+                device,
+            )
+            .await;
+            assert_eq!(status, StatusCode::NO_CONTENT);
+        }
+        for (device, nickname) in [(&caller, "caller_net"), (&callee, "receiver_net")] {
+            let (status, response) = signed_post(
+                application(state.clone()),
+                "/v1/directory/nicknames/claim",
+                json!({
+                    "nickname": nickname,
+                    "user_id": device.user_id,
+                    "device_id": device.device_id
+                }),
+                device,
+            )
+            .await;
+            assert_eq!(status, StatusCode::OK);
+            assert_eq!(response.unwrap()["claimed"], true);
+        }
+
+        let (status, response) = signed_post(
+            application(state.clone()),
+            "/v1/account/link-code",
+            json!({"user_id": caller.user_id, "device_id": caller.device_id}),
+            &caller,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let link_code = response.unwrap()["link_code"].as_str().unwrap().to_string();
+        let (status, _) = signed_post(
+            application(state.clone()),
+            "/v1/account/link",
+            json!({
+                "user_id": caller_other_device.user_id,
+                "device_id": caller_other_device.device_id,
+                "link_code": link_code
+            }),
+            &caller_other_device,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+
+        let (status, response) = signed_post(
+            application(state.clone()),
+            "/v1/calls",
+            json!({
+                "callee": "receiver_net",
+                "caller_user_id": caller.user_id,
+                "caller_device_id": caller.device_id,
+                "audio": true,
+                "video": true
+            }),
+            &caller,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let call_id = response.unwrap()["call_id"].as_str().unwrap().to_string();
+        let cancel_path = format!("/v1/calls/{call_id}/cancel");
+
+        let (status, _) = signed_post(
+            application(state.clone()),
+            &cancel_path,
+            json!({
+                "user_id": caller.user_id,
+                "device_id": caller_other_device.device_id
+            }),
+            &caller_other_device,
+        )
+        .await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+
+        let (status, _) = signed_post(
+            application(state.clone()),
+            &cancel_path,
+            json!({"user_id": callee.user_id, "device_id": callee.device_id}),
+            &callee,
+        )
+        .await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+
+        for _ in 0..2 {
+            let (status, _) = signed_post(
+                application(state.clone()),
+                &cancel_path,
+                json!({"user_id": caller.user_id, "device_id": caller.device_id}),
+                &caller,
+            )
+            .await;
+            assert_eq!(status, StatusCode::NO_CONTENT);
+        }
+
+        let (status, response) = signed_post(
+            application(state.clone()),
+            "/v1/calls/incoming",
+            json!({"user_id": callee.user_id, "device_id": callee.device_id}),
+            &callee,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(response.unwrap()["calls"].as_array().unwrap().is_empty());
+
+        let join_path = format!("/v1/calls/{call_id}/join");
+        let (status, _) = signed_post(
+            application(state),
+            &join_path,
+            json!({"user_id": callee.user_id, "device_id": callee.device_id}),
+            &callee,
+        )
+        .await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
     }
 
     #[tokio::test]
@@ -2444,6 +3888,51 @@ mod tests {
             first_message_id
         );
 
+        let (status, response) = signed_post(
+            application(state.clone()),
+            "/v1/chats/list",
+            json!({"user_id": bob.user_id, "device_id": bob.device_id}),
+            &bob,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let chats = response.unwrap();
+        assert_eq!(chats["chats"][0]["unread_count"], 1);
+        assert_eq!(chats["total_unread_count"], 1);
+
+        let (status, response) = signed_post(
+            application(state.clone()),
+            "/v1/chats/list",
+            json!({"user_id": alice.user_id, "device_id": alice.device_id}),
+            &alice,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(response.unwrap()["total_unread_count"], 0);
+
+        let read_path = format!("/v1/chats/{chat_id}/read");
+        let (status, _) = signed_post(
+            application(state.clone()),
+            &read_path,
+            json!({
+                "user_id": bob.user_id,
+                "device_id": bob.device_id,
+                "through_message_id": first_message_id
+            }),
+            &bob,
+        )
+        .await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        let (status, response) = signed_post(
+            application(state.clone()),
+            "/v1/chats/list",
+            json!({"user_id": bob.user_id, "device_id": bob.device_id}),
+            &bob,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(response.unwrap()["total_unread_count"], 0);
+
         let list_path = format!("/v1/chats/{chat_id}/messages/list");
         let (status, response) = signed_post(
             application(state.clone()),
@@ -2458,7 +3947,10 @@ mod tests {
         )
         .await;
         assert_eq!(status, StatusCode::OK);
-        assert_eq!(response.unwrap()["messages"][0]["text"], "Meet at point three");
+        assert_eq!(
+            response.unwrap()["messages"][0]["text"],
+            "Meet at point three"
+        );
 
         let (status, _) = signed_post(
             application(state),

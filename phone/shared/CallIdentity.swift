@@ -18,6 +18,42 @@ enum CallRoute: String, CaseIterable, Codable, Identifiable {
     }
 }
 
+enum CallRoutePolicy {
+    static let automaticMeshProbeTimeout: TimeInterval = 8
+    static let automaticMeshControlGrace: TimeInterval = 1
+    static let automaticAcceptedMeshTimeout: TimeInterval = 30
+
+    static func select(requested: CallRoute,
+                       targetIsMeshAddress: Bool,
+                       hasLiveMeshContact: Bool) -> CallRoute {
+        guard requested == .automatic else { return requested }
+        return targetIsMeshAddress || hasLiveMeshContact ? .mesh : .internet
+    }
+}
+
+enum MeshAddressPolicy {
+    static func isNumericIPv4(_ address: String) -> Bool {
+        let components = address.split(separator: ".", omittingEmptySubsequences: false)
+        guard components.count == 4 else { return false }
+        return components.allSatisfy {
+            !$0.isEmpty && $0.allSatisfy(\.isNumber) && UInt8($0) != nil
+        }
+    }
+
+    static func isLinkLocalIPv4(_ address: String) -> Bool {
+        let components = address.split(separator: ".", omittingEmptySubsequences: false)
+        guard components.count == 4,
+              components.allSatisfy({
+                  !$0.isEmpty && $0.allSatisfy(\.isNumber) && UInt8($0) != nil
+              }) else { return false }
+        return UInt8(components[0]) == 169 && UInt8(components[1]) == 254
+    }
+
+    static func canPersist(_ address: String) -> Bool {
+        !isLinkLocalIPv4(address)
+    }
+}
+
 struct DeviceIdentity: Codable, Equatable {
     var userID: String
     let deviceID: String
@@ -131,6 +167,9 @@ final class DeviceIdentityStore {
     private let service = "com.trinet.video.device-identity"
     private let identityAccount = "identity-v1"
     private let signingKeyAccount = "signing-key-v1"
+    private let textEncryptionKeyAccount = "text-encryption-key-v1"
+    private let textEncryptionKeyLock = NSLock()
+    private var cachedTextEncryptionKey: Curve25519.KeyAgreement.PrivateKey?
 
     private init() {}
 
@@ -191,6 +230,36 @@ final class DeviceIdentityStore {
             throw IdentityStoreError.invalidKey
         }
         return try privateKey.signature(for: message).derRepresentation.base64EncodedString()
+    }
+
+    func textEncryptionPrivateKey() throws -> Curve25519.KeyAgreement.PrivateKey {
+        textEncryptionKeyLock.lock()
+        defer { textEncryptionKeyLock.unlock() }
+        if let cachedTextEncryptionKey { return cachedTextEncryptionKey }
+        if let stored = try readData(account: textEncryptionKeyAccount) {
+            guard let privateKey = try? Curve25519.KeyAgreement.PrivateKey(rawRepresentation: stored) else {
+                throw IdentityStoreError.invalidKey
+            }
+            cachedTextEncryptionKey = privateKey
+            return privateKey
+        }
+        let privateKey = Curve25519.KeyAgreement.PrivateKey()
+        let status = addDataIfMissing(privateKey.rawRepresentation, account: textEncryptionKeyAccount)
+        if status == errSecSuccess {
+            cachedTextEncryptionKey = privateKey
+            return privateKey
+        }
+        if status == errSecDuplicateItem,
+           let winnerData = try readData(account: textEncryptionKeyAccount),
+           let winner = try? Curve25519.KeyAgreement.PrivateKey(rawRepresentation: winnerData) {
+            cachedTextEncryptionKey = winner
+            return winner
+        }
+        throw IdentityStoreError.keychain(status)
+    }
+
+    func textEncryptionPublicKey() throws -> Data {
+        try textEncryptionPrivateKey().publicKey.rawRepresentation
     }
 
     static func verifyMessage(_ message: Data,
@@ -288,5 +357,16 @@ final class DeviceIdentityStore {
         add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         let addStatus = SecItemAdd(add as CFDictionary, nil)
         guard addStatus == errSecSuccess else { throw IdentityStoreError.keychain(addStatus) }
+    }
+
+    private func addDataIfMissing(_ data: Data, account: String) -> OSStatus {
+        let add: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ]
+        return SecItemAdd(add as CFDictionary, nil)
     }
 }

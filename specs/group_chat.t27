@@ -49,6 +49,36 @@ module GroupChat {
         return requested;
     }
 
+    // Read progress is account-scoped and can only move forward. A delayed
+    // device must never make messages unread again on the user's other devices.
+    fn advance_read_cursor(current_message_id: u64, observed_message_id: u64) -> u64 {
+        if (observed_message_id > current_message_id) {
+            return observed_message_id;
+        }
+        return current_message_id;
+    }
+
+    // Messages sent by this account are already known to the sender and never
+    // contribute to its unread total.
+    fn message_counts_as_unread(message_id: u64, read_cursor: u64, sender_is_self: bool) -> bool {
+        return !sender_is_self && message_id > read_cursor;
+    }
+
+    // A foreground chat consumes its own updates. Local alerts are reserved for
+    // a real unread increase in another chat.
+    fn unread_alert_is_eligible(previous_unread: u32, current_unread: u32, chat_is_active: bool) -> bool {
+        return !chat_is_active && current_unread > previous_unread;
+    }
+
+    // Push fanout is only for a newly committed message, never for the sender,
+    // departed members, unregistered devices, or an idempotent retry.
+    fn push_alert_may_be_sent(sender_is_recipient: bool, active_member: bool, token_valid: bool, inserted_new_message: bool) -> bool {
+        return !sender_is_recipient &&
+               active_member &&
+               token_valid &&
+               inserted_new_message;
+    }
+
     test complete_unique_roster_is_required {
         assert(group_may_be_created(true, 2, 2, 2) == true, "creator plus two invitees");
         assert(group_may_be_created(true, 2, 1, 2) == false, "unresolved nickname");
@@ -75,6 +105,34 @@ module GroupChat {
         assert(message_page_size(500) == 100, "bounded page");
     }
 
+    test read_cursor_is_monotonic {
+        assert(advance_read_cursor(7, 12) == 12, "new progress advances");
+        assert(advance_read_cursor(12, 7) == 12, "delayed device cannot regress");
+        assert(advance_read_cursor(12, 12) == 12, "same progress is idempotent");
+    }
+
+    test own_messages_are_never_unread {
+        assert(message_counts_as_unread(12, 7, false) == true, "new remote message");
+        assert(message_counts_as_unread(12, 7, true) == false, "own message excluded");
+        assert(message_counts_as_unread(7, 7, false) == false, "read boundary excluded");
+        assert(message_counts_as_unread(6, 7, false) == false, "older message excluded");
+    }
+
+    test unread_alert_requires_inactive_increase {
+        assert(unread_alert_is_eligible(2, 3, false) == true, "new unread in background chat");
+        assert(unread_alert_is_eligible(2, 3, true) == false, "active chat consumes update");
+        assert(unread_alert_is_eligible(3, 3, false) == false, "same total does not repeat");
+        assert(unread_alert_is_eligible(3, 2, false) == false, "read progress is not an alert");
+    }
+
+    test push_alert_requires_new_remote_message {
+        assert(push_alert_may_be_sent(false, true, true, true) == true, "eligible recipient");
+        assert(push_alert_may_be_sent(true, true, true, true) == false, "sender excluded");
+        assert(push_alert_may_be_sent(false, false, true, true) == false, "departed member excluded");
+        assert(push_alert_may_be_sent(false, true, false, true) == false, "missing token excluded");
+        assert(push_alert_may_be_sent(false, true, true, false) == false, "retry excluded");
+    }
+
     invariant member_bounds_are_ordered
         assert MIN_GROUP_MEMBERS < MAX_GROUP_MEMBERS
 
@@ -83,6 +141,18 @@ module GroupChat {
 
     invariant page_fits_message_limit
         assert MAX_MESSAGE_PAGE < MAX_MESSAGE_BYTES
+
+    invariant read_cursor_never_regresses
+        assert advance_read_cursor(12, 7) >= 12
+
+    invariant own_message_is_not_unread
+        assert message_counts_as_unread(12, 7, true) == false
+
+    invariant active_chat_is_not_alerted
+        assert unread_alert_is_eligible(0, 1, true) == false
+
+    invariant sender_does_not_receive_push
+        assert push_alert_may_be_sent(true, true, true, true) == false
 
     bench message_policy_latency
         measure: nanoseconds to message_may_be_sent(true, true, 128)

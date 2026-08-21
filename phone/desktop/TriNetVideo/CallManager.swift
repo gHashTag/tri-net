@@ -49,7 +49,9 @@ class CallManager: ObservableObject {
     @Published var isStarting = false
     @Published var remoteIP = "192.168.1.103"
     @Published var callee = UserDefaults.standard.string(forKey: "internetCallee") ?? "ssd26"
-    @Published var route = CallRoute(rawValue: UserDefaults.standard.string(forKey: "callRoute") ?? "Auto") ?? .automatic
+    // Route overrides are session-scoped. Restoring a stale explicit Mesh
+    // selection makes a nickname call bypass Internet/APNs after relaunch.
+    @Published var route: CallRoute = .automatic
     @Published private(set) var activeRoute: CallRoute?
     @Published var identity: DeviceIdentity
     @Published var internetConfiguration: InternetCallConfiguration
@@ -83,6 +85,13 @@ class CallManager: ObservableObject {
     private var pliCount = 0
     private var abrTimer: Timer?
     private var meshAttemptID: UUID?
+    private var meshSessionID: UUID?
+    private var internetAttemptID: UUID?
+    private var internetCallTask: Task<Void, Never>?
+    private var outboundMeshControl: MeshCallControlExpectation?
+    private var outboundMeshControlPort: UInt16?
+    private var outboundMeshAccepted = false
+    private var acceptedIncomingMeshCall: IncomingMeshCall?
     // The node's verdict on the link, if one is relaying for us. Nil on a direct
     // peer-to-peer call: there is no node, so there is nothing to hear.
     private var linkAdvice: UInt8?
@@ -230,9 +239,32 @@ class CallManager: ObservableObject {
         internet.onReaction = { [weak self] value in
             self?.showReaction(value)
         }
+        internet.onRemoteEnded = { [weak self] in
+            guard let self,
+                  InternetCallLifecyclePolicy.shouldEndAfterRemoteDeparture(
+                    activeRoute: self.activeRoute
+                  ) else { return }
+            self.endCall()
+            self.error = nil
+            self.status = "Peer ended the call"
+        }
         internet.onIncomingCall = { [weak self] incoming in
-            guard let self, !self.isInCall, !self.isStarting else { return }
+            guard let self else { return false }
+            let caller = NicknamePolicy.normalize(incoming.caller)
+            let signedMatch = self.incomingMeshCall.map {
+                NicknamePolicy.normalize($0.invite.nickname) == caller
+            } ?? false
+            let legacyMatch = self.incomingCall.map {
+                NicknamePolicy.normalize($0.name) == caller
+            } ?? false
+            if signedMatch || legacyMatch {
+                self.incomingMeshCall = nil
+                self.incomingTimer?.invalidate()
+                self.incomingCall = nil
+            }
+            guard !self.isInCall, !self.isStarting else { return false }
             self.incomingInternetCall = incoming
+            return true
         }
         directory.onIdentityChanged = { [weak self] updatedIdentity in
             guard let self else { return }
@@ -252,7 +284,18 @@ class CallManager: ObservableObject {
         }
         directory.onIncomingMeshInvite = { [weak self] invite, address in
             guard let self, !self.isInCall, !self.isStarting else { return }
-            self.incomingMeshCall = IncomingMeshCall(invite: invite, sourceAddress: address)
+            let incoming = IncomingMeshCall(invite: invite, sourceAddress: address)
+            self.incomingMeshCall = incoming
+            let delay = max(0, Double(incoming.expiresAt) - Date().timeIntervalSince1970) + 0.1
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self,
+                      self.incomingMeshCall?.invite.callID == invite.callID,
+                      !incoming.isFresh() else { return }
+                self.incomingMeshCall = nil
+            }
+        }
+        directory.onMeshCallControl = { [weak self] control, address in
+            self?.handleMeshCallControl(control, sourceAddress: address)
         }
         internet.startIncomingPolling()
         account.sync()
@@ -968,63 +1011,140 @@ class CallManager: ObservableObject {
     }
 
     func startCall() {
+        guard !isStarting && !isInCall else { return }
         error = nil
         let typedTarget = directory.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         let target = NicknamePolicy.normalize(typedTarget.isEmpty ? callee : typedTarget)
         callee = target
         let meshContact = directory.meshContact(named: target)
-        let selected: CallRoute
-        if route == .automatic {
-            if isMeshAddress(target) {
-                remoteIP = target
-                selected = .mesh
-            } else if let address = meshContact?.meshAddress {
-                remoteIP = address
-                selected = .mesh
-            } else {
-                selected = .internet
-            }
-        } else {
-            selected = route
-        }
+        let targetIsMeshAddress = isMeshAddress(target)
+        let hasLiveMeshContact = meshContact?.online == true && meshContact?.meshAddress != nil
+        let selected = CallRoutePolicy.select(requested: route,
+                                              targetIsMeshAddress: targetIsMeshAddress,
+                                              hasLiveMeshContact: hasLiveMeshContact)
         if selected == .mesh {
-            if isMeshAddress(target) {
+            if targetIsMeshAddress {
                 remoteIP = target
-            } else if let address = meshContact?.meshAddress {
+            } else if let address = meshContact?.meshAddress,
+                      hasLiveMeshContact || (route == .mesh && MeshAddressPolicy.canPersist(address)) {
                 remoteIP = address
             } else {
-                error = "@\(target) is not visible in the current mesh."
+                error = meshContact == nil
+                    ? "@\(target) is not visible in the current mesh."
+                    : "@\(target) is remembered, but is not online in the current mesh. Use Auto or Internet."
                 activeRoute = nil
                 return
             }
         }
         activeRoute = selected
-        UserDefaults.standard.set(route.rawValue, forKey: "callRoute")
         if selected == .internet {
             startInternetCall()
         } else {
+            let fallbackTarget = route == .automatic && !targetIsMeshAddress ? target : nil
+            let sentInvite: MeshCallInvite
             do {
-                _ = try directory.sendMeshInvite(to: remoteIP, port: meshContact?.meshPort)
+                sentInvite = try directory.sendMeshInvite(to: remoteIP, port: meshContact?.meshPort)
             } catch {
+                if route == .automatic && !targetIsMeshAddress {
+                    NSLog("TRINET: local signaling to %@ failed; falling back to Internet: %@",
+                          target, error.localizedDescription)
+                    activeRoute = .internet
+                    startInternetCall()
+                    return
+                }
                 self.error = error.localizedDescription
                 activeRoute = nil
                 return
             }
-            startMeshCall()
+            let controlExpectation = meshContact.map {
+                MeshCallControlExpectation(callID: sentInvite.callID,
+                                           localDeviceID: identity.deviceID,
+                                           peerUserID: $0.userID,
+                                           peerDeviceID: $0.deviceID,
+                                           peerKeyFingerprint: $0.keyFingerprint,
+                                           peerAddress: remoteIP)
+            }
+            startMeshCall(internetFallbackTarget: fallbackTarget,
+                          sendLegacyInvite: fallbackTarget == nil,
+                          outboundControl: controlExpectation,
+                          outboundControlPort: meshContact?.meshPort)
         }
     }
 
     func acceptIncomingMeshCall() {
         guard let incoming = incomingMeshCall else { return }
         incomingMeshCall = nil
+        guard incoming.isFresh() else {
+            error = "The local invitation expired. Waiting for the Internet route."
+            return
+        }
         callee = incoming.invite.nickname
         remoteIP = incoming.sourceAddress
+        do {
+            try directory.sendMeshControl(.accepted,
+                                          callID: incoming.invite.callID,
+                                          recipientDeviceID: incoming.invite.deviceID,
+                                          to: incoming.sourceAddress)
+        } catch {
+            incomingMeshCall = incoming
+            self.error = "Cannot confirm the local call: \(error.localizedDescription)"
+            return
+        }
         activeRoute = .mesh
-        startMeshCall()
+        startMeshCall(acceptedIncoming: incoming)
     }
 
     func declineIncomingMeshCall() {
+        let cancellationTarget = MeshCallCancellationPolicy.target(
+            outbound: nil,
+            outboundPort: nil,
+            inbound: incomingMeshCall
+        )
+        sendMeshCancellation(cancellationTarget)
         incomingMeshCall = nil
+    }
+
+    private func handleMeshCallControl(_ control: MeshCallControl, sourceAddress: String) {
+        switch control.kind {
+        case .accepted:
+            guard let expected = outboundMeshControl,
+                  expected.matches(control, sourceAddress: sourceAddress),
+                  activeRoute == .mesh,
+                  meshSessionID != nil else { return }
+            outboundMeshAccepted = true
+            status = "Peer accepted. Securing local connection..."
+            NSLog("TRINET: peer accepted signed local call %@", control.callID)
+        case .cancelled:
+            if let expected = outboundMeshControl,
+               expected.matches(control, sourceAddress: sourceAddress),
+               activeRoute == .mesh,
+               meshSessionID != nil {
+                outboundMeshControl = nil
+                outboundMeshControlPort = nil
+                callStartedAt = nil
+                endCall()
+                error = "The peer declined the local call."
+                status = "Ready"
+                NSLog("TRINET: peer cancelled signed local call %@", control.callID)
+                return
+            }
+            if let incoming = incomingMeshCall,
+               incoming.controlExpectation(localDeviceID: identity.deviceID)
+                .matches(control, sourceAddress: sourceAddress) {
+                incomingMeshCall = nil
+            }
+            guard let accepted = acceptedIncomingMeshCall,
+                  accepted.controlExpectation(localDeviceID: identity.deviceID)
+                    .matches(control, sourceAddress: sourceAddress),
+                  activeRoute == .mesh,
+                  meshSessionID != nil else { return }
+            acceptedIncomingMeshCall = nil
+            callStartedAt = nil
+            endCall()
+            error = nil
+            status = "Waiting for Internet route..."
+            NSLog("TRINET: caller cancelled signed local call %@", control.callID)
+        }
     }
 
     func acceptIncomingInternetCall() {
@@ -1032,28 +1152,12 @@ class CallManager: ObservableObject {
         incomingInternetCall = nil
         callee = incoming.caller
         activeRoute = .internet
-        isStarting = true
-        status = "Joining Internet call..."
         internet.update(identity: identity, configuration: internetConfiguration)
-        Task { [weak self] in
-            guard let self else { return }
-            do {
-                try await self.internet.join(callID: incoming.callID,
-                                             audio: incoming.audio,
-                                             video: incoming.video)
-                await MainActor.run {
-                    self.isStarting = false
-                    self.isInCall = true
-                    self.status = "Connected via WebRTC"
-                }
-            } catch {
-                await MainActor.run {
-                    self.isStarting = false
-                    self.activeRoute = nil
-                    self.status = "Ready"
-                    self.error = error.localizedDescription
-                }
-            }
+        let controller = internet
+        beginInternetAttempt(status: "Joining Internet call...") {
+            try await controller.join(callID: incoming.callID,
+                                      audio: incoming.audio,
+                                      video: incoming.video)
         }
     }
 
@@ -1074,7 +1178,7 @@ class CallManager: ObservableObject {
     func selectContact(_ contact: DirectoryContact) {
         callee = contact.nickname
         directory.searchQuery = contact.nickname
-        if let address = contact.meshAddress { remoteIP = address }
+        if contact.online, let address = contact.meshAddress { remoteIP = address }
         route = .automatic
     }
 
@@ -1087,31 +1191,61 @@ class CallManager: ObservableObject {
         }
         UserDefaults.standard.set(target, forKey: "internetCallee")
         internet.update(identity: identity, configuration: internetConfiguration)
+        let controller = internet
+        beginInternetAttempt(status: "Connecting to \(target)...") {
+            try await controller.start(callee: target, audio: true, video: true)
+        }
+    }
+
+    private func beginInternetAttempt(status startingStatus: String,
+                                      operation: @escaping () async throws -> Void) {
+        internetCallTask?.cancel()
+        let attemptID = UUID()
+        internetAttemptID = attemptID
         isStarting = true
-        status = "Connecting to \(target)..."
-        Task { [weak self] in
-            guard let self else { return }
+        isInCall = false
+        status = startingStatus
+        internetCallTask = Task { [weak self] in
             do {
-                try await self.internet.start(callee: target, audio: true, video: true)
-                await MainActor.run {
+                try await operation()
+                await MainActor.run { [weak self] in
+                    guard let self else { return }
+                    guard self.internetAttemptID == attemptID else { return }
+                    self.internetAttemptID = nil
+                    self.internetCallTask = nil
                     self.isStarting = false
                     self.isInCall = true
                     self.status = "Connected via WebRTC"
                 }
             } catch {
-                await MainActor.run {
+                await MainActor.run { [weak self] in
+                    guard let self, self.internetAttemptID == attemptID else { return }
+                    self.internetAttemptID = nil
+                    self.internetCallTask = nil
                     self.isStarting = false
                     self.isInCall = false
                     self.activeRoute = nil
                     self.status = "Ready"
-                    self.error = error.localizedDescription
+                    if !(error is CancellationError) {
+                        self.error = error.localizedDescription
+                    }
                 }
             }
         }
     }
 
-    private func startMeshCall() {
+    private func startMeshCall(internetFallbackTarget: String? = nil,
+                               sendLegacyInvite: Bool = true,
+                               outboundControl: MeshCallControlExpectation? = nil,
+                               outboundControlPort: UInt16? = nil,
+                               acceptedIncoming: IncomingMeshCall? = nil) {
         guard let p = UInt16(port) else { NSLog("TRINET: invalid port"); return }
+        let sessionID = UUID()
+        meshSessionID = sessionID
+        self.outboundMeshControl = outboundControl
+        self.outboundMeshControlPort = outboundControlPort
+        outboundMeshAccepted = false
+        acceptedIncomingMeshCall = acceptedIncoming
         NSLog("TRINET: startCall to \(remoteIP):\(p)")
         isStarting = true
         status = "Connecting to \(remoteIP)..."
@@ -1129,21 +1263,27 @@ class CallManager: ObservableObject {
         // Camera → Encoder → Transport (suppressed while screen sharing). Camera-off keeps flowing: the
         // encoder now emits BLACK frames (blackout), so the peer sees black instead of a frozen last frame.
         camera.onNALUnit = { [weak self] nal in
-            guard let self = self, !self.isScreenSharing else { return }
+            guard let self,
+                  self.meshSessionID == sessionID,
+                  !self.isScreenSharing else { return }
             self.transport.send(nal)
-            DispatchQueue.main.async { self.framesSent += 1 }
+            DispatchQueue.main.async {
+                guard self.meshSessionID == sessionID else { return }
+                self.framesSent += 1
+            }
         }
 
         // Peer asks for a fresh keyframe after loss → force an IDR now
         decoder.onKeyframeNeeded = { [weak self] in
-            self?.transport.send(Data([0xFC, 0x00]))
+            guard let self, self.meshSessionID == sessionID else { return }
+            self.transport.send(Data([0xFC, 0x00]))
         }
 
         // Transport → audio / PLI / chat / reaction / Decoder → Display
         // The node tells us what the link is doing. Nothing else does: PLI only
         // arrives once the far end's decoder is already broken.
         transport.onLinkFeedback = { [weak self] advice, util, drop, rate in
-            guard let self = self else { return }
+            guard let self, self.meshSessionID == sessionID else { return }
             self.linkAdvice = advice
             self.linkUtil = util
             self.linkDrop = drop
@@ -1158,7 +1298,7 @@ class CallManager: ObservableObject {
         }
 
         transport.onReceive = { [weak self] data in
-            guard let self = self else { return }
+            guard let self, self.meshSessionID == sessionID else { return }
             if data.count == 2, data[0] == 0xFC { // Picture Loss Indication
                 self.camera.forceKeyframe()
                 self.pliCount += 1   // adaptive bitrate: PLI = loss signal
@@ -1174,12 +1314,20 @@ class CallManager: ObservableObject {
             }
             if data.count > 2, data[0] == 0xFB, data[1] == 0xCA { // chat text
                 let msg = String(decoding: data.subdata(in: 2..<data.count), as: UTF8.self)
-                DispatchQueue.main.async { self.chat.append(ChatLine(who: .them, text: msg)); self.chatChime.play(); if !self.chatOpen { self.unreadChat += 1 } }
+                DispatchQueue.main.async {
+                    guard self.meshSessionID == sessionID else { return }
+                    self.chat.append(ChatLine(who: .them, text: msg))
+                    self.chatChime.play()
+                    if !self.chatOpen { self.unreadChat += 1 }
+                }
                 return
             }
             if data.count > 2, data[0] == 0xFE, data[1] == 0xAC { // reaction emoji
                 let emoji = String(decoding: data.subdata(in: 2..<data.count), as: UTF8.self)
-                DispatchQueue.main.async { self.showReaction(emoji) }
+                DispatchQueue.main.async {
+                    guard self.meshSessionID == sessionID else { return }
+                    self.showReaction(emoji)
+                }
                 return
             }
             if data.count == 6, data[0] == 0xFD, data[1] == 0xBE { // BWE receiver report
@@ -1199,6 +1347,7 @@ class CallManager: ObservableObject {
             self.noteVideoArrival()
             self.decoder.feed(data)
             DispatchQueue.main.async {
+                guard self.meshSessionID == sessionID, self.activeRoute == .mesh else { return }
                 self.framesReceived = self.decoder.frameCount
                 if self.framesReceived > 0 { self.status = "Connected" }
             }
@@ -1206,7 +1355,7 @@ class CallManager: ObservableObject {
 
         // Per-source routing (roster in both modes; group video decode).
         transport.onReceiveFrom = { [weak self] data, ip in
-            guard let self = self else { return }
+            guard let self, self.meshSessionID == sessionID else { return }
             self.noteSender(ip)
             guard self.isGroup else { return }  // 1-1 already handled in onReceive
             // Control packets are broadcast to all — handle once
@@ -1219,12 +1368,20 @@ class CallManager: ObservableObject {
             }                                                        // always on, group calls were SILENT.
             if data.count > 2, data[0] == 0xFB, data[1] == 0xCA {
                 let msg = String(decoding: data.subdata(in: 2..<data.count), as: UTF8.self)
-                DispatchQueue.main.async { self.chat.append(ChatLine(who: .them, text: msg)); self.chatChime.play(); if !self.chatOpen { self.unreadChat += 1 } }
+                DispatchQueue.main.async {
+                    guard self.meshSessionID == sessionID else { return }
+                    self.chat.append(ChatLine(who: .them, text: msg))
+                    self.chatChime.play()
+                    if !self.chatOpen { self.unreadChat += 1 }
+                }
                 return
             }
             if data.count > 2, data[0] == 0xFE, data[1] == 0xAC {
                 let emoji = String(decoding: data.subdata(in: 2..<data.count), as: UTF8.self)
-                DispatchQueue.main.async { self.showReaction(emoji) }
+                DispatchQueue.main.async {
+                    guard self.meshSessionID == sessionID else { return }
+                    self.showReaction(emoji)
+                }
                 return
             }
             if data.count == 6, data[0] == 0xFD, data[1] == 0xBE { self.handleBWEReport(data); return }
@@ -1235,7 +1392,10 @@ class CallManager: ObservableObject {
             let dec = self.groupDecoders[ip] ?? {
                 let d = VideoDecoder(); self.groupDecoders[ip] = d
                 NSLog("TRINET: GROUP video from \(ip) — now \(self.groupDecoders.count) source(s)")
-                DispatchQueue.main.async { self.objectWillChange.send() }
+                DispatchQueue.main.async {
+                    guard self.meshSessionID == sessionID else { return }
+                    self.objectWillChange.send()
+                }
                 return d
             }()
             dec.feed(data)
@@ -1243,25 +1403,37 @@ class CallManager: ObservableObject {
 
         // Outgoing audio: mic → 16k PCM → UDP (mute drops packets at source)
         audio.onPacket = { [weak self] pkt in
-            guard let self = self, !self.isMuted else { return }
+            guard let self,
+                  self.meshSessionID == sessionID,
+                  !self.isMuted else { return }
             self.transport.sendAudio(pkt)
         }
         // Audio levels -> meters (peak-hold with decay so bars don't flicker)
         audio.onTxLevel = { [weak self] lvl in
-            DispatchQueue.main.async { self?.txLevel = max(lvl, (self?.txLevel ?? 0) * 0.8) }
+            DispatchQueue.main.async {
+                guard let self, self.meshSessionID == sessionID else { return }
+                self.txLevel = max(lvl, self.txLevel * 0.8)
+            }
         }
         audio.onRxLevel = { [weak self] lvl in
-            DispatchQueue.main.async { self?.rxLevel = max(lvl, (self?.rxLevel ?? 0) * 0.8) }
+            DispatchQueue.main.async {
+                guard let self, self.meshSessionID == sessionID else { return }
+                self.rxLevel = max(lvl, self.rxLevel * 0.8)
+            }
         }
         // Incoming PCM → recorder audio track while recording
         audio.onRxPCM = { [weak self] pcm in
-            guard let self = self, self.isRecording else { return }
+            guard let self,
+                  self.meshSessionID == sessionID,
+                  self.isRecording else { return }
             self.recorder.appendAudio(pcm)
         }
         // Outgoing (local mic) PCM → buffered and mixed into the recording so it
         // captures both sides of the call.
         audio.onTxPCM = { [weak self] pcm in
-            guard let self = self, self.isRecording else { return }
+            guard let self,
+                  self.meshSessionID == sessionID,
+                  self.isRecording else { return }
             self.recorder.pushLocalAudio(pcm)
         }
         // Off the main path: first touch of the mic can block ~60s on TCC
@@ -1287,7 +1459,9 @@ class CallManager: ObservableObject {
         } else {
             isGroup = false
             transport.onSecureSessionReady = { [weak self] in
-                guard let self, self.meshAttemptID == attemptID else { return }
+                guard let self,
+                      self.meshSessionID == sessionID,
+                      self.meshAttemptID == attemptID else { return }
                 self.meshAttemptID = nil
                 self.isInCall = true
                 self.isStarting = false
@@ -1297,14 +1471,42 @@ class CallManager: ObservableObject {
             transport.connect(peerHost: remoteIP, peerPort: p, listenPort: listenP, adoptFd: punchedFd)
             punchedFd = nil                     // ownership moved to the transport (or never existed)
             autoListenPort = nil
-            DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
-                guard let self, self.meshAttemptID == attemptID, self.isStarting else { return }
+            let timeout = internetFallbackTarget == nil
+                ? 30
+                : CallRoutePolicy.automaticMeshProbeTimeout +
+                    CallRoutePolicy.automaticMeshControlGrace
+            DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
+                guard let self,
+                      self.meshSessionID == sessionID,
+                      self.meshAttemptID == attemptID,
+                      self.isStarting else { return }
+                if let target = internetFallbackTarget {
+                    if self.outboundMeshAccepted {
+                        let remaining = max(0,
+                            CallRoutePolicy.automaticAcceptedMeshTimeout - timeout)
+                        self.status = "Peer accepted. Securing local connection..."
+                        NSLog("TRINET: peer accepted signed local call; allowing %.0fs for secure session",
+                              remaining)
+                        DispatchQueue.main.asyncAfter(deadline: .now() + remaining) { [weak self] in
+                            self?.fallbackAutomaticMeshCall(target: target,
+                                                            sessionID: sessionID,
+                                                            attemptID: attemptID)
+                        }
+                        return
+                    }
+                    self.fallbackAutomaticMeshCall(target: target,
+                                                   sessionID: sessionID,
+                                                   attemptID: attemptID)
+                    return
+                }
                 self.error = "The local peer did not accept the call within 30 seconds."
                 self.endCall()
             }
         }
         let hostStrs = hosts.map { String($0) }
-        sendInvite(to: hostStrs, participants: [localIP] + hostStrs)   // ring the callee(s); carry the full roster
+        if sendLegacyInvite {
+            sendInvite(to: hostStrs, participants: [localIP] + hostStrs)
+        }
 
         callStartedAt = Date()     // for the recent-call journal duration
         callStalls = 0
@@ -1314,6 +1516,7 @@ class CallManager: ObservableObject {
         noAnswerTimer?.invalidate()
         noAnswerTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: false) { [weak self] _ in
             guard let self = self,
+                  self.meshSessionID == sessionID,
                   self.activeRoute == .mesh,
                   (self.isStarting || self.isInCall),
                   self.framesReceived == 0 else { return }
@@ -1325,7 +1528,52 @@ class CallManager: ObservableObject {
         link.begin(peer: hosts.first ?? remoteIP)
     }
 
+    private func fallbackAutomaticMeshCall(target: String,
+                                           sessionID: UUID,
+                                           attemptID: UUID) {
+        guard meshSessionID == sessionID,
+              meshAttemptID == attemptID,
+              isStarting else { return }
+        NSLog("TRINET: local secure session to %@ was not established; falling back to Internet",
+              target)
+        callee = target
+        callStartedAt = nil
+        endCall()
+        error = nil
+        activeRoute = .internet
+        startInternetCall()
+    }
+
+    private func sendMeshCancellation(_ target: MeshCallCancellationTarget?) {
+        guard let target else { return }
+        do {
+            try directory.sendMeshControl(.cancelled,
+                                          callID: target.callID,
+                                          recipientDeviceID: target.recipientDeviceID,
+                                          to: target.address,
+                                          port: target.port)
+        } catch {
+            NSLog("TRINET: local route cancellation failed: %@",
+                  error.localizedDescription)
+        }
+    }
+
     func endCall() {
+        let cancellationTarget = MeshCallCancellationPolicy.target(
+            outbound: outboundMeshControl,
+            outboundPort: outboundMeshControlPort,
+            inbound: acceptedIncomingMeshCall
+        )
+        sendMeshCancellation(cancellationTarget)
+        internetAttemptID = nil
+        internetCallTask?.cancel()
+        internetCallTask = nil
+        meshSessionID = nil
+        meshAttemptID = nil
+        outboundMeshControl = nil
+        outboundMeshControlPort = nil
+        outboundMeshAccepted = false
+        acceptedIncomingMeshCall = nil
         if activeRoute == .internet {
             internet.disconnect()
             isInCall = false
@@ -1360,6 +1608,7 @@ class CallManager: ObservableObject {
         transport.disconnect()
         meshAttemptID = nil
         isInCall = false
+        isStarting = false
         discovery.inCall = false
         isGroup = false
         roster = []
@@ -1374,9 +1623,17 @@ class CallManager: ObservableObject {
         startIdleListener()   // resume listening for incoming mesh calls
     }
 
+    func cancelPendingCall() {
+        guard isStarting else { return }
+        NSLog("TRINET: call attempt cancelled by user")
+        callStartedAt = nil
+        endCall()
+        error = nil
+        status = "Ready"
+    }
+
     func saveInternetSettings() {
         internetConfiguration.save()
-        UserDefaults.standard.set(route.rawValue, forKey: "callRoute")
         internet.update(identity: identity, configuration: internetConfiguration)
         directory.update(identity: identity, configuration: internetConfiguration)
         account.update(identity: identity, configuration: internetConfiguration)
@@ -1409,8 +1666,6 @@ class CallManager: ObservableObject {
 
     private func isMeshAddress(_ value: String) -> Bool {
         let address = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        if address.hasSuffix(".local") { return true }
-        let parts = address.split(separator: ".")
-        return parts.count == 4 && parts.allSatisfy { Int($0).map { (0...255).contains($0) } ?? false }
+        return MeshAddressPolicy.isNumericIPv4(address)
     }
 }
