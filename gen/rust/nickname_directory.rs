@@ -25,11 +25,7 @@ pub const CLAIM_MESH_LOCAL: u8 = 1;
 
 pub const CLAIM_VERIFIED: u8 = 2;
 
-pub fn nickname_shape_is_valid(
-    length: u8,
-    starts_with_letter: bool,
-    invalid_characters: u8,
-) -> bool {
+pub fn nickname_shape_is_valid(length: u8, starts_with_letter: bool, invalid_characters: u8) -> bool {
     if ((length < NICKNAME_MIN_LENGTH) || (length > NICKNAME_MAX_LENGTH)) {
         return false;
     }
@@ -46,12 +42,7 @@ pub fn nickname_is_confusing(exact_match: bool, edit_distance: u8, shared_prefix
     return ((shared_prefix >= MIN_CONFUSING_PREFIX) && (edit_distance == 2));
 }
 
-pub fn claim_status(
-    shape_valid: bool,
-    confusing: bool,
-    registry_reachable: bool,
-    registry_accepts: bool,
-) -> u8 {
+pub fn claim_status(shape_valid: bool, confusing: bool, registry_reachable: bool, registry_accepts: bool) -> u8 {
     if (!(shape_valid) || confusing) {
         return CLAIM_REJECTED;
     }
@@ -70,6 +61,10 @@ pub fn may_route_by_nickname(claim: u8, signature_valid: bool) -> bool {
 
 pub fn nickname_owner_matches(claim_account_id: u64, device_account_id: u64) -> bool {
     return ((claim_account_id != 0) && (claim_account_id == device_account_id));
+}
+
+pub fn exact_lookup_may_return(query_shape_valid: bool, exact_match: bool, active_devices: u16) -> bool {
+    return ((query_shape_valid && exact_match) && (active_devices > 0));
 }
 
 pub fn cached_mesh_route_is_fresh(last_seen: u32, now: u32) -> bool {
@@ -106,3 +101,4 @@ pub fn directory_result_rank(is_mesh: bool, online: bool) -> u8 {
 pub fn direct_mesh_target_is_supported(is_numeric_ipv4: bool) -> bool {
     return is_numeric_ipv4;
 }
+

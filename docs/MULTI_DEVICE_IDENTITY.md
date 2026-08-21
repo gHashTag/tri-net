@@ -45,6 +45,9 @@ Primary references:
 - Calls target an account and fan out to every active WebRTC device. The first
   device to accept wins an immediate SQLite transaction; all other targets are
   marked ended and cannot join the room.
+- The direct-message server contract resolves every active recipient device by
+  exact nickname and requires one signed, X25519-keyed encrypted envelope per
+  device. Linked devices keep independent text-encryption private keys.
 - Search returns one account result even when that account has several devices.
 - Revoked devices cannot authenticate, receive new call targets, or retain a
   PushKit token. The final active device cannot be revoked through this flow.
@@ -78,12 +81,16 @@ simulated by the client:
   revocation endpoints.
 - APNs VoIP signing credentials. PushKit must store a separate token for every
   device and CallKit must be notified immediately for each incoming VoIP push.
-- Durable asynchronous chat. The current chat channel is call-scoped. A future
-  durable store should use client-generated message IDs, idempotent submission,
-  server sequence numbers, per-device acknowledgements, and encrypted envelopes
-  for every active device. MLS (RFC 9420) is the preferred standards direction
-  for multi-device group encryption, forward secrecy, and post-compromise
-  security.
+- Apple-client integration and physical-device validation for durable
+  asynchronous one-to-one chat. The server envelope API provides durable
+  ciphertext storage, idempotent client message IDs, server sequence IDs,
+  monotonic account read cursors, and per-device encrypted fan-out. Completion
+  requires X25519 key lifecycle, local encryption/decryption, and
+  sender-signature verification in every compatible client. See
+  [E2EE_DIRECT_MESSAGES.md](E2EE_DIRECT_MESSAGES.md).
+- End-to-end encrypted durable group chat. MLS (RFC 9420) remains the preferred
+  standards direction for multi-device group encryption, forward secrecy, and
+  post-compromise security.
 
 ## Why not a shared login and password
 

@@ -63,6 +63,391 @@ final class NicknamePolicyTests: XCTestCase {
                               })
     }
 
+    private func internetTextFixture() -> (sender: DeviceIdentity,
+                                           senderKey: P256.Signing.PrivateKey,
+                                           recipientKey: Curve25519.KeyAgreement.PrivateKey,
+                                           recipient: InternetDirectMessageRecipientKey) {
+        let senderKey = P256.Signing.PrivateKey()
+        let senderPublicKey = senderKey.publicKey.x963Representation
+        let sender = DeviceIdentity(
+            userID: "sender-user",
+            deviceID: "sender-device",
+            displayName: "Alice",
+            nickname: "alice",
+            signingPublicKey: senderPublicKey.base64EncodedString(),
+            keyFingerprint: SHA256.hash(data: senderPublicKey).prefix(12).map {
+                String(format: "%02x", $0)
+            }.joined())
+        let recipientKey = Curve25519.KeyAgreement.PrivateKey()
+        let recipientPublicKey = recipientKey.publicKey.rawRepresentation
+        let recipient = InternetDirectMessageRecipientKey(
+            deviceID: "recipient-device",
+            publicKeyBase64: recipientPublicKey.base64EncodedString(),
+            keyFingerprint: SHA256.hash(data: recipientPublicKey).prefix(12).map {
+                String(format: "%02x", $0)
+            }.joined())
+        return (sender, senderKey, recipientKey, recipient)
+    }
+
+    private func backendDirectMessageSignaturePayload(
+        senderUserID: String,
+        senderDeviceID: String,
+        recipientNickname: String,
+        cryptoVersion: UInt8,
+        recipientDeviceID: String,
+        recipientKeyFingerprint: String,
+        clientMessageID: String,
+        ephemeralPublicKey: Data,
+        nonce: Data,
+        ciphertext: Data
+    ) -> Data {
+        func append(_ field: Data, to result: inout Data) {
+            let length = UInt32(field.count)
+            result.append(UInt8((length >> 24) & 0xff))
+            result.append(UInt8((length >> 16) & 0xff))
+            result.append(UInt8((length >> 8) & 0xff))
+            result.append(UInt8(length & 0xff))
+            result.append(field)
+        }
+        var result = Data("TRINET-DIRECT-MESSAGE-V1".utf8)
+        for field in [Data(senderUserID.utf8),
+                      Data(senderDeviceID.utf8),
+                      Data(recipientNickname.utf8),
+                      Data([cryptoVersion]),
+                      Data(recipientDeviceID.utf8),
+                      Data(recipientKeyFingerprint.utf8),
+                      Data(clientMessageID.utf8),
+                      ephemeralPublicKey,
+                      nonce,
+                      ciphertext] {
+            append(field, to: &result)
+        }
+        return result
+    }
+
+    private func replacingInternetEnvelope(
+        _ envelope: InternetDirectMessageSealedEnvelope,
+        recipientDeviceID: String? = nil,
+        recipientKeyFingerprint: String? = nil,
+        ephemeralPublicKey: String? = nil,
+        nonce: String? = nil,
+        ciphertext: String? = nil,
+        senderSignature: String? = nil,
+        cryptoVersion: UInt8? = nil
+    ) -> InternetDirectMessageSealedEnvelope {
+        InternetDirectMessageSealedEnvelope(
+            recipientDeviceID: recipientDeviceID ?? envelope.recipientDeviceID,
+            recipientKeyFingerprint: recipientKeyFingerprint ?? envelope.recipientKeyFingerprint,
+            ephemeralPublicKey: ephemeralPublicKey ?? envelope.ephemeralPublicKey,
+            nonce: nonce ?? envelope.nonce,
+            ciphertext: ciphertext ?? envelope.ciphertext,
+            senderSignature: senderSignature ?? envelope.senderSignature,
+            cryptoVersion: cryptoVersion ?? envelope.cryptoVersion)
+    }
+
+    private func data(_ haystack: Data, contains needle: Data) -> Bool {
+        guard !needle.isEmpty, needle.count <= haystack.count else { return false }
+        for start in 0...(haystack.count - needle.count) {
+            if Data(haystack[start..<(start + needle.count)]) == needle { return true }
+        }
+        return false
+    }
+
+    func testInternetDirectMessageRoundTripMatchesBackendSignatureContract() throws {
+        let fixture = internetTextFixture()
+        let clientMessageID = "b3541665-3f5d-487b-9264-06af42d46210"
+        let plaintext = InternetDirectMessagePlaintext(
+            clientMessageID: clientMessageID,
+            senderNickname: "Alice",
+            recipientNickname: "BOB",
+            text: "line one\nline two",
+            createdAtMilliseconds: 1_800_000_000_123)
+        let ephemeralPrivateKey = Curve25519.KeyAgreement.PrivateKey()
+        let nonce = Data(0..<12)
+        var capturedSignaturePayload: Data?
+        let envelope = try InternetDirectMessageCrypto.seal(
+            plaintext,
+            senderUserID: fixture.sender.userID,
+            senderDeviceID: fixture.sender.deviceID,
+            recipient: fixture.recipient,
+            ephemeralPrivateKey: ephemeralPrivateKey,
+            nonceData: nonce,
+            sign: { payload in
+                capturedSignaturePayload = payload
+                return try fixture.senderKey.signature(for: payload)
+                    .derRepresentation.base64EncodedString()
+            })
+
+        let ciphertext = try XCTUnwrap(Data(base64Encoded: envelope.ciphertext))
+        let expectedSignaturePayload = backendDirectMessageSignaturePayload(
+            senderUserID: fixture.sender.userID,
+            senderDeviceID: fixture.sender.deviceID,
+            recipientNickname: "bob",
+            cryptoVersion: 1,
+            recipientDeviceID: fixture.recipient.deviceID,
+            recipientKeyFingerprint: fixture.recipient.keyFingerprint,
+            clientMessageID: clientMessageID,
+            ephemeralPublicKey: ephemeralPrivateKey.publicKey.rawRepresentation,
+            nonce: nonce,
+            ciphertext: ciphertext)
+        XCTAssertEqual(capturedSignaturePayload, expectedSignaturePayload)
+        XCTAssertEqual(envelope.cryptoVersion, 1)
+        XCTAssertEqual(Data(base64Encoded: envelope.ephemeralPublicKey)?.count, 32)
+        XCTAssertEqual(Data(base64Encoded: envelope.nonce)?.count, 12)
+        XCTAssertLessThanOrEqual(ciphertext.count, InternetDirectMessageCrypto.maximumCiphertextBytes)
+        XCTAssertFalse(data(ciphertext, contains: Data(plaintext.text.utf8)))
+
+        let opened = try InternetDirectMessageCrypto.open(
+            envelope,
+            senderUserID: fixture.sender.userID,
+            senderDeviceID: fixture.sender.deviceID,
+            senderSigningPublicKey: fixture.sender.signingPublicKey,
+            senderKeyFingerprint: fixture.sender.keyFingerprint,
+            recipientDeviceID: fixture.recipient.deviceID,
+            recipientPrivateKey: fixture.recipientKey,
+            expectedClientMessageID: clientMessageID,
+            expectedSenderNickname: "alice",
+            expectedRecipientNickname: "bob")
+        XCTAssertEqual(opened,
+                       InternetDirectMessagePlaintext(
+                        clientMessageID: clientMessageID,
+                        senderNickname: "alice",
+                        recipientNickname: "bob",
+                        text: plaintext.text,
+                        createdAtMilliseconds: plaintext.createdAtMilliseconds))
+    }
+
+    func testInternetDirectMessageV1DeterministicInteropVector() throws {
+        let senderKey = P256.Signing.PrivateKey()
+        let recipientPrivateKey = try Curve25519.KeyAgreement.PrivateKey(
+            rawRepresentation: Data(1...32))
+        let ephemeralPrivateKey = try Curve25519.KeyAgreement.PrivateKey(
+            rawRepresentation: Data(33...64))
+        let recipient = InternetDirectMessageRecipientKey(
+            deviceID: "recipient-device",
+            publicKeyBase64: "B6N8vBQgk8i3VdwbEOhstCY3StFqqFPtC9/AsrhtHHw=",
+            keyFingerprint: "aaa8fff703b50b2297f4f6e1")
+        let plaintext = InternetDirectMessagePlaintext(
+            clientMessageID: "b3541665-3f5d-487b-9264-06af42d46210",
+            senderNickname: "alice",
+            recipientNickname: "bob",
+            text: "interop vector",
+            createdAtMilliseconds: 1_800_000_000_123)
+        let envelope = try InternetDirectMessageCrypto.seal(
+            plaintext,
+            senderUserID: "sender-user",
+            senderDeviceID: "sender-device",
+            recipient: recipient,
+            ephemeralPrivateKey: ephemeralPrivateKey,
+            nonceData: Data(0..<12),
+            sign: { payload in
+                try senderKey.signature(for: payload).derRepresentation.base64EncodedString()
+            })
+        XCTAssertEqual(envelope.ephemeralPublicKey,
+                       "WGmv9FBUlzLLqu1eXfmzCm2jHLDldCutWtShp2jxpns=")
+        XCTAssertEqual(envelope.nonce, "AAECAwQFBgcICQoL")
+        XCTAssertEqual(
+            envelope.ciphertext,
+            "CxnpyCKt8T7MjkugcB7TVOk/ofplegOEb58v1C0ErdNz3vE8082CtJySYHf2N7YWMzYfbzgaAP5kzB7KmKfTkapu11y1W4RnCa7RexoMmMAuxQOF8dJ60lUkV1Q7QZS1YpayHBVSTimBGG61BSwOgeJz84A00qcpgALc9tP6mITE1yeg")
+        let senderPublicKey = senderKey.publicKey.x963Representation
+        let opened = try InternetDirectMessageCrypto.open(
+            envelope,
+            senderUserID: "sender-user",
+            senderDeviceID: "sender-device",
+            senderSigningPublicKey: senderPublicKey.base64EncodedString(),
+            senderKeyFingerprint: SHA256.hash(data: senderPublicKey).prefix(12).map {
+                String(format: "%02x", $0)
+            }.joined(),
+            recipientDeviceID: recipient.deviceID,
+            recipientPrivateKey: recipientPrivateKey,
+            expectedClientMessageID: plaintext.clientMessageID,
+            expectedSenderNickname: plaintext.senderNickname,
+            expectedRecipientNickname: plaintext.recipientNickname)
+        XCTAssertEqual(opened, plaintext)
+    }
+
+    func testInternetDirectMessageRejectsTamperingAndWrongRecipientKey() throws {
+        let fixture = internetTextFixture()
+        let plaintext = InternetDirectMessagePlaintext(
+            clientMessageID: "81e5a2dd-457c-45d1-864e-d901ad1272df",
+            senderNickname: "alice",
+            recipientNickname: "bob",
+            text: "authenticated text",
+            createdAtMilliseconds: 1_800_000_000_124)
+        let envelope = try InternetDirectMessageCrypto.seal(
+            plaintext,
+            senderUserID: fixture.sender.userID,
+            senderDeviceID: fixture.sender.deviceID,
+            recipient: fixture.recipient,
+            sign: { payload in
+                try fixture.senderKey.signature(for: payload)
+                    .derRepresentation.base64EncodedString()
+            })
+
+        var tamperedCiphertext = try XCTUnwrap(Data(base64Encoded: envelope.ciphertext))
+        tamperedCiphertext[0] ^= 0x01
+        let unsignedTamper = replacingInternetEnvelope(
+            envelope,
+            ciphertext: tamperedCiphertext.base64EncodedString())
+        XCTAssertThrowsError(try InternetDirectMessageCrypto.open(
+            unsignedTamper,
+            senderUserID: fixture.sender.userID,
+            senderDeviceID: fixture.sender.deviceID,
+            senderSigningPublicKey: fixture.sender.signingPublicKey,
+            senderKeyFingerprint: fixture.sender.keyFingerprint,
+            recipientDeviceID: fixture.recipient.deviceID,
+            recipientPrivateKey: fixture.recipientKey,
+            expectedClientMessageID: plaintext.clientMessageID,
+            expectedSenderNickname: plaintext.senderNickname,
+            expectedRecipientNickname: plaintext.recipientNickname)) { error in
+                XCTAssertEqual(error as? InternetDirectMessageCryptoError,
+                               .invalidSenderSignature)
+        }
+
+        let tamperedPayload = backendDirectMessageSignaturePayload(
+            senderUserID: fixture.sender.userID,
+            senderDeviceID: fixture.sender.deviceID,
+            recipientNickname: plaintext.recipientNickname,
+            cryptoVersion: envelope.cryptoVersion,
+            recipientDeviceID: envelope.recipientDeviceID,
+            recipientKeyFingerprint: envelope.recipientKeyFingerprint,
+            clientMessageID: plaintext.clientMessageID,
+            ephemeralPublicKey: try XCTUnwrap(Data(base64Encoded: envelope.ephemeralPublicKey)),
+            nonce: try XCTUnwrap(Data(base64Encoded: envelope.nonce)),
+            ciphertext: tamperedCiphertext)
+        let resignedTamper = replacingInternetEnvelope(
+            unsignedTamper,
+            senderSignature: try fixture.senderKey.signature(for: tamperedPayload)
+                .derRepresentation.base64EncodedString())
+        XCTAssertThrowsError(try InternetDirectMessageCrypto.open(
+            resignedTamper,
+            senderUserID: fixture.sender.userID,
+            senderDeviceID: fixture.sender.deviceID,
+            senderSigningPublicKey: fixture.sender.signingPublicKey,
+            senderKeyFingerprint: fixture.sender.keyFingerprint,
+            recipientDeviceID: fixture.recipient.deviceID,
+            recipientPrivateKey: fixture.recipientKey,
+            expectedClientMessageID: plaintext.clientMessageID,
+            expectedSenderNickname: plaintext.senderNickname,
+            expectedRecipientNickname: plaintext.recipientNickname)) { error in
+                XCTAssertEqual(error as? InternetDirectMessageCryptoError,
+                               .authenticationFailed)
+        }
+
+        XCTAssertThrowsError(try InternetDirectMessageCrypto.open(
+            envelope,
+            senderUserID: fixture.sender.userID,
+            senderDeviceID: fixture.sender.deviceID,
+            senderSigningPublicKey: fixture.sender.signingPublicKey,
+            senderKeyFingerprint: fixture.sender.keyFingerprint,
+            recipientDeviceID: fixture.recipient.deviceID,
+            recipientPrivateKey: Curve25519.KeyAgreement.PrivateKey(),
+            expectedClientMessageID: plaintext.clientMessageID,
+            expectedSenderNickname: plaintext.senderNickname,
+            expectedRecipientNickname: plaintext.recipientNickname)) { error in
+                XCTAssertEqual(error as? InternetDirectMessageCryptoError,
+                               .wrongRecipientKey)
+        }
+        XCTAssertThrowsError(try InternetDirectMessageCrypto.open(
+            envelope,
+            senderUserID: fixture.sender.userID,
+            senderDeviceID: fixture.sender.deviceID,
+            senderSigningPublicKey: fixture.sender.signingPublicKey,
+            senderKeyFingerprint: fixture.sender.keyFingerprint,
+            recipientDeviceID: fixture.recipient.deviceID,
+            recipientPrivateKey: fixture.recipientKey,
+            expectedClientMessageID: plaintext.clientMessageID,
+            expectedSenderNickname: "mallory",
+            expectedRecipientNickname: plaintext.recipientNickname)) { error in
+                XCTAssertEqual(error as? InternetDirectMessageCryptoError,
+                               .messageMetadataMismatch)
+        }
+    }
+
+    func testInternetDirectMessageFanoutUsesFreshKeyAndNoncePerDevice() throws {
+        let fixture = internetTextFixture()
+        let secondPrivateKey = Curve25519.KeyAgreement.PrivateKey()
+        let secondPublicKey = secondPrivateKey.publicKey.rawRepresentation
+        let secondRecipient = InternetDirectMessageRecipientKey(
+            deviceID: "recipient-device-two",
+            publicKeyBase64: secondPublicKey.base64EncodedString(),
+            keyFingerprint: SHA256.hash(data: secondPublicKey).prefix(12).map {
+                String(format: "%02x", $0)
+            }.joined())
+        let plaintext = InternetDirectMessagePlaintext(
+            clientMessageID: "635994ef-eed5-433d-a481-9d726d003e73",
+            senderNickname: "alice",
+            recipientNickname: "bob",
+            text: "one plaintext, one envelope per device",
+            createdAtMilliseconds: 1_800_000_000_125)
+        let envelopes = try InternetDirectMessageCrypto.seal(
+            plaintext,
+            sender: fixture.sender,
+            recipients: [fixture.recipient, secondRecipient],
+            sign: { payload in
+                try fixture.senderKey.signature(for: payload)
+                    .derRepresentation.base64EncodedString()
+            })
+        XCTAssertEqual(envelopes.count, 2)
+        XCTAssertEqual(Set(envelopes.map { $0.recipientDeviceID }).count, 2)
+        XCTAssertEqual(Set(envelopes.map { $0.ephemeralPublicKey }).count, 2)
+        XCTAssertEqual(Set(envelopes.map { $0.nonce }).count, 2)
+        let openedSecond = try InternetDirectMessageCrypto.open(
+            envelopes[1],
+            senderUserID: fixture.sender.userID,
+            senderDeviceID: fixture.sender.deviceID,
+            senderSigningPublicKey: fixture.sender.signingPublicKey,
+            senderKeyFingerprint: fixture.sender.keyFingerprint,
+            recipientDeviceID: secondRecipient.deviceID,
+            recipientPrivateKey: secondPrivateKey,
+            expectedClientMessageID: plaintext.clientMessageID,
+            expectedSenderNickname: plaintext.senderNickname,
+            expectedRecipientNickname: plaintext.recipientNickname)
+        XCTAssertEqual(openedSecond, plaintext)
+    }
+
+    func testInternetDirectMessageRejectsInvalidClientNicknameAndTextBounds() throws {
+        let fixture = internetTextFixture()
+        func seal(_ plaintext: InternetDirectMessagePlaintext) throws {
+            _ = try InternetDirectMessageCrypto.seal(
+                plaintext,
+                senderUserID: fixture.sender.userID,
+                senderDeviceID: fixture.sender.deviceID,
+                recipient: fixture.recipient,
+                sign: { payload in
+                    try fixture.senderKey.signature(for: payload)
+                        .derRepresentation.base64EncodedString()
+                })
+        }
+        XCTAssertThrowsError(try seal(InternetDirectMessagePlaintext(
+            clientMessageID: "not-a-uuid",
+            senderNickname: "alice",
+            recipientNickname: "bob",
+            text: "text",
+            createdAtMilliseconds: 1))) { error in
+                XCTAssertEqual(error as? InternetDirectMessageCryptoError,
+                               .invalidClientMessageID)
+        }
+        XCTAssertThrowsError(try seal(InternetDirectMessagePlaintext(
+            clientMessageID: UUID().uuidString,
+            senderNickname: "alice",
+            recipientNickname: "invalid nickname",
+            text: "text",
+            createdAtMilliseconds: 1))) { error in
+                XCTAssertEqual(error as? InternetDirectMessageCryptoError,
+                               .invalidNickname)
+        }
+        XCTAssertThrowsError(try seal(InternetDirectMessagePlaintext(
+            clientMessageID: UUID().uuidString,
+            senderNickname: "alice",
+            recipientNickname: "bob",
+            text: String(repeating: "x", count: InternetDirectMessageCrypto.maximumTextBytes + 1),
+            createdAtMilliseconds: 1))) { error in
+                XCTAssertEqual(error as? InternetDirectMessageCryptoError,
+                               .invalidText)
+        }
+    }
+
     func testMeshTextEnvelopeRoundTripPreservesUnicodeNewlinesAndIdentity() throws {
         let fixture = meshTextFixture()
         let now: Int64 = 1_800_000_000_000
@@ -202,7 +587,7 @@ final class NicknamePolicyTests: XCTestCase {
                                                      sourceAddress: "192.168.1.10"))
     }
 
-    func testMeshInviteIdentityMustMatchLiveSignedContactKeyAndAddress() {
+    func testMeshInviteIdentityMustMatchPinnedSignedContactKeyAndAddress() {
         let key = P256.Signing.PrivateKey()
         let publicKey = key.publicKey.x963Representation
         let fingerprint = SHA256.hash(data: publicKey).prefix(12).map {
@@ -234,6 +619,20 @@ final class NicknamePolicyTests: XCTestCase {
                                         .publicKey.rawRepresentation.base64EncodedString())
         XCTAssertTrue(MeshInviteIdentityPolicy.matches(invite,
                                                        contact: contact,
+                                                       sourceAddress: "192.168.1.10"))
+        let cachedContact = DirectoryContact(userID: contact.userID,
+                                             deviceID: contact.deviceID,
+                                             nickname: contact.nickname,
+                                             displayName: contact.displayName,
+                                             keyFingerprint: contact.keyFingerprint,
+                                             source: .mesh,
+                                             online: false,
+                                             meshAddress: contact.meshAddress,
+                                             meshPort: contact.meshPort,
+                                             signingPublicKey: contact.signingPublicKey,
+                                             textEncryptionPublicKey: contact.textEncryptionPublicKey)
+        XCTAssertTrue(MeshInviteIdentityPolicy.matches(invite,
+                                                       contact: cachedContact,
                                                        sourceAddress: "192.168.1.10"))
         XCTAssertFalse(MeshInviteIdentityPolicy.matches(invite,
                                                         contact: contact,
@@ -426,10 +825,15 @@ final class NicknamePolicyTests: XCTestCase {
         XCTAssertTrue(actionFirst.isReady)
     }
 
-    func testForegroundGroupChatPushDoesNotPlayDuplicateSystemSound() {
+    func testForegroundChatPushDoesNotPlayDuplicateSystemSound() {
         XCTAssertFalse(
             AlertPresentationPolicy.shouldPlaySystemSound(
                 userInfo: ["type": "group_chat_message"]
+            )
+        )
+        XCTAssertFalse(
+            AlertPresentationPolicy.shouldPlaySystemSound(
+                userInfo: ["type": "direct_message"]
             )
         )
         XCTAssertTrue(
@@ -495,6 +899,67 @@ final class NicknamePolicyTests: XCTestCase {
         )
     }
 
+    func testPublicRouteRequiresPublicHTTPSAndBuildsHealthURL() {
+        func configuration(_ api: String) -> InternetCallConfiguration {
+            InternetCallConfiguration(apiBaseURL: api,
+                                      liveKitURL: "",
+                                      accessToken: "",
+                                      developmentRoomToken: "")
+        }
+
+        XCTAssertTrue(configuration("https://calls.example.com").isPublicHTTPSAPI)
+        XCTAssertEqual(configuration("https://calls.example.com").healthURL?.absoluteString,
+                       "https://calls.example.com/healthz")
+        XCTAssertEqual(configuration("https://calls.example.com/api").healthURL?.absoluteString,
+                       "https://calls.example.com/api/healthz")
+        XCTAssertEqual(
+            configuration("https://calls.example.com/api").endpointURL(path: "/v1/calls")?.absoluteString,
+            "https://calls.example.com/api/v1/calls"
+        )
+        XCTAssertFalse(configuration("http://calls.example.com").isPublicHTTPSAPI)
+        XCTAssertFalse(configuration("https://SSDs-MacBook-Pro.local:8080").isPublicHTTPSAPI)
+        XCTAssertFalse(configuration("https://192.168.1.20:8080").isPublicHTTPSAPI)
+        XCTAssertFalse(configuration("https://[fd00::1]:8080").isPublicHTTPSAPI)
+    }
+
+    func testInternetCallCreationRetriesOnlyAmbiguousFailures() {
+        XCTAssertTrue(InternetCallCreateRetryPolicy.shouldRetryHTTP(statusCode: 408))
+        XCTAssertTrue(InternetCallCreateRetryPolicy.shouldRetryHTTP(statusCode: 429))
+        XCTAssertTrue(InternetCallCreateRetryPolicy.shouldRetryHTTP(statusCode: 500))
+        XCTAssertTrue(InternetCallCreateRetryPolicy.shouldRetryHTTP(statusCode: 599))
+        XCTAssertFalse(InternetCallCreateRetryPolicy.shouldRetryHTTP(statusCode: 400))
+        XCTAssertFalse(InternetCallCreateRetryPolicy.shouldRetryHTTP(statusCode: 409))
+        XCTAssertFalse(InternetCallCreateRetryPolicy.shouldRetryHTTP(statusCode: 600))
+        XCTAssertEqual(
+            InternetCallCreateRetryPolicy.retryDelayNanoseconds(afterFailedAttempt: 1),
+            350_000_000
+        )
+        XCTAssertEqual(
+            InternetCallCreateRetryPolicy.retryDelayNanoseconds(afterFailedAttempt: 2),
+            700_000_000
+        )
+    }
+
+    func testPushEnvironmentComesFromSigningConfigurationValue() {
+        XCTAssertEqual(PushEnvironmentPolicy.normalizedBackendValue("development"), "sandbox")
+        XCTAssertEqual(PushEnvironmentPolicy.normalizedBackendValue("sandbox"), "sandbox")
+        XCTAssertEqual(PushEnvironmentPolicy.normalizedBackendValue("production"), "production")
+        XCTAssertNil(PushEnvironmentPolicy.normalizedBackendValue("DEBUG"))
+        XCTAssertNil(PushEnvironmentPolicy.normalizedBackendValue(nil))
+    }
+
+    func testUDPSourcePolicyRequiresExactAddressAndPort() {
+        let expected = UDPSourceEndpoint(ipv4NetworkOrder: 0x0101A8C0,
+                                         portNetworkOrder: UInt16(7000).bigEndian)
+        let wrongPort = UDPSourceEndpoint(ipv4NetworkOrder: 0x0101A8C0,
+                                          portNetworkOrder: UInt16(7001).bigEndian)
+        let wrongAddress = UDPSourceEndpoint(ipv4NetworkOrder: 0x0201A8C0,
+                                             portNetworkOrder: UInt16(7000).bigEndian)
+        XCTAssertTrue(UDPSourcePolicy.allows(expected, expected: [expected]))
+        XCTAssertFalse(UDPSourcePolicy.allows(wrongPort, expected: [expected]))
+        XCTAssertFalse(UDPSourcePolicy.allows(wrongAddress, expected: [expected]))
+    }
+
     func testAutomaticRouteUsesOnlyLiveMeshContacts() {
         XCTAssertEqual(
             CallRoutePolicy.select(
@@ -540,6 +1005,18 @@ final class NicknamePolicyTests: XCTestCase {
         XCTAssertFalse(MeshAddressPolicy.canPersist("169.254.77.118"))
         XCTAssertTrue(MeshAddressPolicy.canPersist("192.168.1.105"))
         XCTAssertTrue(MeshAddressPolicy.canPersist("10.27.0.4"))
+    }
+
+    func testDeviceDisplayNamePolicyHidesRawNetworkAddresses() {
+        XCTAssertTrue(DeviceDisplayNamePolicy.isRawIPAddress("192.168.1.20"))
+        XCTAssertTrue(DeviceDisplayNamePolicy.isRawIPAddress("@192.168.1.20:7000"))
+        XCTAssertTrue(DeviceDisplayNamePolicy.isRawIPAddress("[fe80::1%en0]:7000"))
+        XCTAssertFalse(DeviceDisplayNamePolicy.isRawIPAddress("iphone13"))
+        XCTAssertEqual(
+            DeviceDisplayNamePolicy.safe("192.168.1.20", fallback: "Local TRI-NET peer"),
+            "Local TRI-NET peer"
+        )
+        XCTAssertEqual(DeviceDisplayNamePolicy.safe(" Alice ", fallback: "peer"), "Alice")
     }
 
     func testDirectoryResultsSurviveBonjourUpdatesWithCorrectPriority() {
@@ -593,6 +1070,10 @@ final class NicknamePolicyTests: XCTestCase {
         merged = DirectoryResultPolicy.merge(mesh: [unrelatedBonjourPeer],
                                              internet: [distinctInternet],
                                              query: "zames")
+        XCTAssertTrue(merged.isEmpty)
+        merged = DirectoryResultPolicy.merge(mesh: [unrelatedBonjourPeer],
+                                             internet: [distinctInternet],
+                                             query: "zames_two")
         XCTAssertEqual(merged, [distinctInternet])
 
         let migratedLocal = DirectoryContact(userID: "user-migrated",
@@ -607,6 +1088,10 @@ final class NicknamePolicyTests: XCTestCase {
         merged = DirectoryResultPolicy.merge(mesh: [migratedLocal],
                                              internet: [],
                                              query: "iphone13")
+        XCTAssertTrue(merged.isEmpty)
+        merged = DirectoryResultPolicy.merge(mesh: [migratedLocal],
+                                             internet: [],
+                                             query: "stable_1c50a2")
         XCTAssertEqual(merged, [migratedLocal])
     }
 
@@ -686,8 +1171,8 @@ final class NicknamePolicyTests: XCTestCase {
         let incoming = IncomingMeshCall(invite: invite,
                                         sourceAddress: "192.168.1.105",
                                         receivedAt: timestamp)
-        XCTAssertTrue(incoming.isFresh(at: timestamp + 8))
-        XCTAssertFalse(incoming.isFresh(at: timestamp + 9))
+        XCTAssertTrue(incoming.isFresh(at: timestamp + 30))
+        XCTAssertFalse(incoming.isFresh(at: timestamp + 31))
     }
 
     func testLegacyMeshInviteDefaultsToVideoAndIgnoresUnsignedMediaInjection() throws {
@@ -849,7 +1334,7 @@ final class NicknamePolicyTests: XCTestCase {
                                      now: 1_000, maximumSkew: 60))
     }
 
-    func testBusyUILeavesInternetInvitePendingForRetry() {
+    func testIncomingPresentationDeliveryPolicyMarksOnlyConsumedInvites() {
         XCTAssertFalse(
             IncomingCallDeliveryPolicy.shouldMarkReported(
                 alreadyReported: false,
@@ -895,6 +1380,33 @@ final class NicknamePolicyTests: XCTestCase {
             InternetCallLifecyclePolicy.shouldEndAfterRemoteDeparture(
                 activeRoute: nil
             )
+        )
+    }
+
+    func testOutgoingDisconnectCancelsRingingAndEndsAnsweredCall() {
+        XCTAssertFalse(
+            InternetCallLifecyclePolicy.shouldEndOutgoingOnDisconnect(
+                hasRemoteParticipant: false,
+                lastServerStatus: "ringing",
+                state: .ringing)
+        )
+        XCTAssertTrue(
+            InternetCallLifecyclePolicy.shouldEndOutgoingOnDisconnect(
+                hasRemoteParticipant: false,
+                lastServerStatus: "active",
+                state: .ringing)
+        )
+        XCTAssertTrue(
+            InternetCallLifecyclePolicy.shouldEndOutgoingOnDisconnect(
+                hasRemoteParticipant: true,
+                lastServerStatus: nil,
+                state: .connected)
+        )
+        XCTAssertTrue(
+            InternetCallLifecyclePolicy.shouldEndOutgoingOnDisconnect(
+                hasRemoteParticipant: false,
+                lastServerStatus: nil,
+                state: .reconnecting)
         )
     }
 

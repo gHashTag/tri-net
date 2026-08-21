@@ -199,8 +199,7 @@ enum DirectoryResultPolicy {
         let normalizedQuery = NicknamePolicy.normalize(query)
         func matches(_ contact: DirectoryContact) -> Bool {
             normalizedQuery.isEmpty ||
-                NicknamePolicy.normalize(contact.nickname).contains(normalizedQuery) ||
-                NicknamePolicy.normalize(contact.displayName).contains(normalizedQuery)
+                NicknamePolicy.normalize(contact.nickname) == normalizedQuery
         }
 
         let matchingMesh = mesh.filter(matches)
@@ -436,7 +435,7 @@ struct IncomingMeshCall: Identifiable, Equatable {
          receivedAt: Int64 = Int64(Date().timeIntervalSince1970)) {
         self.invite = invite
         self.sourceAddress = sourceAddress
-        expiresAt = receivedAt + Int64(CallRoutePolicy.automaticMeshProbeTimeout)
+        expiresAt = receivedAt + Int64(CallRoutePolicy.automaticAcceptedMeshTimeout)
     }
 
     var id: String { invite.callID }
@@ -486,8 +485,7 @@ enum MeshInviteIdentityPolicy {
     static func matches(_ invite: MeshCallInvite,
                         contact: DirectoryContact,
                         sourceAddress: String) -> Bool {
-        contact.online &&
-            contact.source == .mesh &&
+        contact.source == .mesh &&
             contact.deviceID == invite.deviceID &&
             contact.userID == invite.userID &&
             NicknamePolicy.normalize(contact.nickname) == NicknamePolicy.normalize(invite.nickname) &&
@@ -602,6 +600,627 @@ enum MeshContactSelectionPolicy {
                  NicknamePolicy.normalize($0.displayName) == target)
         }
         return matches.count == 1 ? matches[0] : nil
+    }
+}
+
+struct InternetDirectMessageRecipientKey: Equatable {
+    let deviceID: String
+    let publicKeyBase64: String
+    let keyFingerprint: String
+}
+
+struct InternetDirectMessageSealedEnvelope: Codable, Equatable {
+    let cryptoVersion: UInt8
+    let recipientDeviceID: String
+    let recipientKeyFingerprint: String
+    let ephemeralPublicKey: String
+    let nonce: String
+    let ciphertext: String
+    let senderSignature: String
+
+    init(recipientDeviceID: String,
+         recipientKeyFingerprint: String,
+         ephemeralPublicKey: String,
+         nonce: String,
+         ciphertext: String,
+         senderSignature: String,
+         cryptoVersion: UInt8 = InternetDirectMessageCrypto.cryptoVersion) {
+        self.cryptoVersion = cryptoVersion
+        self.recipientDeviceID = recipientDeviceID
+        self.recipientKeyFingerprint = recipientKeyFingerprint
+        self.ephemeralPublicKey = ephemeralPublicKey
+        self.nonce = nonce
+        self.ciphertext = ciphertext
+        self.senderSignature = senderSignature
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case cryptoVersion = "crypto_version"
+        case recipientDeviceID = "recipient_device_id"
+        case recipientKeyFingerprint = "recipient_key_fingerprint"
+        case ephemeralPublicKey = "ephemeral_public_key"
+        case nonce
+        case ciphertext
+        case senderSignature = "sender_signature"
+    }
+}
+
+struct InternetDirectMessagePlaintext: Equatable {
+    let clientMessageID: String
+    let senderNickname: String
+    let recipientNickname: String
+    let text: String
+    let createdAtMilliseconds: Int64
+}
+
+enum InternetDirectMessageCryptoError: LocalizedError, Equatable {
+    case emptyRecipientSet
+    case tooManyRecipients
+    case duplicateRecipientDevice
+    case invalidSenderIdentity
+    case invalidRecipientDevice
+    case invalidRecipientKey
+    case invalidClientMessageID
+    case invalidNickname
+    case invalidText
+    case invalidTimestamp
+    case unsupportedCryptoVersion
+    case invalidEnvelopeField(String)
+    case wrongRecipientDevice
+    case wrongRecipientKey
+    case senderIdentityMismatch
+    case invalidSenderSignature
+    case authenticationFailed
+    case malformedPlaintext
+    case messageMetadataMismatch
+
+    var errorDescription: String? {
+        switch self {
+        case .emptyRecipientSet:
+            return "The recipient has no encrypted-message devices."
+        case .tooManyRecipients:
+            return "The recipient has too many encrypted-message devices."
+        case .duplicateRecipientDevice:
+            return "The recipient device list contains a duplicate."
+        case .invalidSenderIdentity:
+            return "The sender device identity is invalid."
+        case .invalidRecipientDevice:
+            return "The recipient device identity is invalid."
+        case .invalidRecipientKey:
+            return "The recipient encryption key is invalid."
+        case .invalidClientMessageID:
+            return "The direct-message ID is not a valid UUID."
+        case .invalidNickname:
+            return "The direct-message nickname is invalid."
+        case .invalidText:
+            return "The direct-message text is empty or too long."
+        case .invalidTimestamp:
+            return "The direct-message timestamp is invalid."
+        case .unsupportedCryptoVersion:
+            return "The direct-message encryption version is not supported."
+        case let .invalidEnvelopeField(field):
+            return "The encrypted direct-message \(field) is invalid."
+        case .wrongRecipientDevice:
+            return "The encrypted message belongs to another device."
+        case .wrongRecipientKey:
+            return "The encrypted message does not match this device key."
+        case .senderIdentityMismatch:
+            return "The encrypted-message sender identity does not match its signing key."
+        case .invalidSenderSignature:
+            return "The encrypted-message sender signature is invalid."
+        case .authenticationFailed:
+            return "The encrypted message could not be authenticated."
+        case .malformedPlaintext:
+            return "The encrypted-message contents are malformed."
+        case .messageMetadataMismatch:
+            return "The encrypted-message contents do not match the server metadata."
+        }
+    }
+}
+
+enum InternetDirectMessageCrypto {
+    static let cryptoVersion: UInt8 = 1
+    static let maximumRecipientDevices = 32
+    static let maximumPlaintextBytes = 4_096
+    static let maximumCiphertextBytes = 4_112
+    static let maximumTextBytes = 3_840
+
+    private static let x25519KeyBytes = 32
+    private static let nonceBytes = 12
+    private static let authenticationTagBytes = 16
+    private static let signatureDomain = Data("TRINET-DIRECT-MESSAGE-V1".utf8)
+    private static let plaintextDomain = Data("TRINET-DIRECT-MESSAGE-PLAINTEXT-V1".utf8)
+    private static let hkdfDomain = Data("TRINET-DIRECT-MESSAGE-KEY-V1".utf8)
+    private static let aeadDomain = Data("TRINET-DIRECT-MESSAGE-AAD-V1".utf8)
+
+    static func seal(_ plaintext: InternetDirectMessagePlaintext,
+                     sender: DeviceIdentity,
+                     recipients: [InternetDirectMessageRecipientKey],
+                     sign: (Data) throws -> String = DeviceIdentityStore.shared.signMessage)
+    throws -> [InternetDirectMessageSealedEnvelope] {
+        guard validIdentifier(sender.userID),
+              validIdentifier(sender.deviceID),
+              DeviceIdentityStore.fingerprint(for: sender.signingPublicKey) == sender.keyFingerprint,
+              let senderNickname = sender.nickname.map(NicknamePolicy.normalize),
+              NicknamePolicy.validationError(senderNickname) == nil,
+              senderNickname == NicknamePolicy.normalize(plaintext.senderNickname) else {
+            throw InternetDirectMessageCryptoError.invalidSenderIdentity
+        }
+        guard !recipients.isEmpty else {
+            throw InternetDirectMessageCryptoError.emptyRecipientSet
+        }
+        guard recipients.count <= maximumRecipientDevices else {
+            throw InternetDirectMessageCryptoError.tooManyRecipients
+        }
+        guard Set(recipients.map { $0.deviceID }).count == recipients.count else {
+            throw InternetDirectMessageCryptoError.duplicateRecipientDevice
+        }
+        return try recipients.map { recipient in
+            try seal(plaintext,
+                     senderUserID: sender.userID,
+                     senderDeviceID: sender.deviceID,
+                     recipient: recipient,
+                     ephemeralPrivateKey: .init(),
+                     nonceData: nil,
+                     sign: sign)
+        }
+    }
+
+    static func seal(_ plaintext: InternetDirectMessagePlaintext,
+                     sender: DeviceIdentity,
+                     recipient: InternetDirectMessageRecipientKey,
+                     sign: (Data) throws -> String = DeviceIdentityStore.shared.signMessage)
+    throws -> InternetDirectMessageSealedEnvelope {
+        try seal(plaintext, sender: sender, recipients: [recipient], sign: sign)[0]
+    }
+
+    static func seal(_ plaintext: InternetDirectMessagePlaintext,
+                     senderUserID: String,
+                     senderDeviceID: String,
+                     recipient: InternetDirectMessageRecipientKey,
+                     ephemeralPrivateKey: Curve25519.KeyAgreement.PrivateKey = .init(),
+                     nonceData: Data? = nil,
+                     sign: (Data) throws -> String = DeviceIdentityStore.shared.signMessage)
+    throws -> InternetDirectMessageSealedEnvelope {
+        guard validIdentifier(senderUserID), validIdentifier(senderDeviceID) else {
+            throw InternetDirectMessageCryptoError.invalidSenderIdentity
+        }
+        let recipientDeviceID = recipient.deviceID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard validIdentifier(recipientDeviceID) else {
+            throw InternetDirectMessageCryptoError.invalidRecipientDevice
+        }
+        guard let recipientFingerprint = normalizedFingerprint(recipient.keyFingerprint),
+              let recipientPublicKeyData = decodeBase64(recipient.publicKeyBase64,
+                                                        exactBytes: x25519KeyBytes),
+              !recipientPublicKeyData.allSatisfy({ $0 == 0 }),
+              fingerprint(recipientPublicKeyData) == recipientFingerprint,
+              let recipientPublicKey = try? Curve25519.KeyAgreement.PublicKey(
+                rawRepresentation: recipientPublicKeyData),
+              let sharedSecret = try? ephemeralPrivateKey.sharedSecretFromKeyAgreement(
+                with: recipientPublicKey),
+              !sharedSecretIsAllZero(sharedSecret) else {
+            throw InternetDirectMessageCryptoError.invalidRecipientKey
+        }
+        let normalizedPlaintext = try validatedPlaintext(plaintext, requireCanonical: false)
+        let ephemeralPublicKey = ephemeralPrivateKey.publicKey.rawRepresentation
+        guard ephemeralPublicKey.count == x25519KeyBytes,
+              !ephemeralPublicKey.allSatisfy({ $0 == 0 }) else {
+            throw InternetDirectMessageCryptoError.invalidRecipientKey
+        }
+        let nonce: ChaChaPoly.Nonce
+        if let nonceData {
+            guard nonceData.count == nonceBytes,
+                  let suppliedNonce = try? ChaChaPoly.Nonce(data: nonceData) else {
+                throw InternetDirectMessageCryptoError.invalidEnvelopeField("nonce")
+            }
+            nonce = suppliedNonce
+        } else {
+            nonce = ChaChaPoly.Nonce()
+        }
+        let canonicalNonce = Data(nonce)
+        let context = MessageContext(senderUserID: senderUserID,
+                                     senderDeviceID: senderDeviceID,
+                                     recipientNickname: normalizedPlaintext.recipientNickname,
+                                     recipientDeviceID: recipientDeviceID,
+                                     recipientKeyFingerprint: recipientFingerprint,
+                                     clientMessageID: normalizedPlaintext.clientMessageID,
+                                     ephemeralPublicKey: ephemeralPublicKey,
+                                     nonce: canonicalNonce)
+        let body = try encodePlaintext(normalizedPlaintext)
+        let key = deriveKey(sharedSecret: sharedSecret,
+                            context: context)
+        let aad = authenticatedData(context)
+        let sealedBox: ChaChaPoly.SealedBox
+        do {
+            sealedBox = try ChaChaPoly.seal(body,
+                                            using: key,
+                                            nonce: nonce,
+                                            authenticating: aad)
+        } catch {
+            throw InternetDirectMessageCryptoError.authenticationFailed
+        }
+        var ciphertext = sealedBox.ciphertext
+        ciphertext.append(sealedBox.tag)
+        guard ciphertext.count > authenticationTagBytes,
+              ciphertext.count <= maximumCiphertextBytes else {
+            throw InternetDirectMessageCryptoError.invalidText
+        }
+        let signaturePayload = senderSignaturePayload(context: context,
+                                                      ciphertext: ciphertext,
+                                                      cryptoVersion: cryptoVersion)
+        let signatureText = try sign(signaturePayload)
+        guard let signature = Data(base64Encoded: signatureText),
+              !signature.isEmpty,
+              signature.count <= 128,
+              (try? P256.Signing.ECDSASignature(derRepresentation: signature)) != nil else {
+            throw InternetDirectMessageCryptoError.invalidSenderSignature
+        }
+        return InternetDirectMessageSealedEnvelope(
+            recipientDeviceID: recipientDeviceID,
+            recipientKeyFingerprint: recipientFingerprint,
+            ephemeralPublicKey: ephemeralPublicKey.base64EncodedString(),
+            nonce: canonicalNonce.base64EncodedString(),
+            ciphertext: ciphertext.base64EncodedString(),
+            senderSignature: signature.base64EncodedString())
+    }
+
+    static func open(_ envelope: InternetDirectMessageSealedEnvelope,
+                     senderUserID: String,
+                     senderDeviceID: String,
+                     senderSigningPublicKey: String,
+                     senderKeyFingerprint: String,
+                     recipient: DeviceIdentity,
+                     expectedClientMessageID: String,
+                     expectedSenderNickname: String,
+                     expectedRecipientNickname: String)
+    throws -> InternetDirectMessagePlaintext {
+        let recipientPrivateKey = try DeviceIdentityStore.shared.textEncryptionPrivateKey()
+        return try open(envelope,
+                        senderUserID: senderUserID,
+                        senderDeviceID: senderDeviceID,
+                        senderSigningPublicKey: senderSigningPublicKey,
+                        senderKeyFingerprint: senderKeyFingerprint,
+                        recipientDeviceID: recipient.deviceID,
+                        recipientPrivateKey: recipientPrivateKey,
+                        expectedClientMessageID: expectedClientMessageID,
+                        expectedSenderNickname: expectedSenderNickname,
+                        expectedRecipientNickname: expectedRecipientNickname)
+    }
+
+    static func open(_ envelope: InternetDirectMessageSealedEnvelope,
+                     senderUserID: String,
+                     senderDeviceID: String,
+                     senderSigningPublicKey: String,
+                     senderKeyFingerprint: String,
+                     recipientDeviceID: String,
+                     recipientPrivateKey: Curve25519.KeyAgreement.PrivateKey,
+                     expectedClientMessageID: String,
+                     expectedSenderNickname: String,
+                     expectedRecipientNickname: String)
+    throws -> InternetDirectMessagePlaintext {
+        guard envelope.cryptoVersion == cryptoVersion else {
+            throw InternetDirectMessageCryptoError.unsupportedCryptoVersion
+        }
+        guard validIdentifier(senderUserID), validIdentifier(senderDeviceID),
+              validIdentifier(recipientDeviceID) else {
+            throw InternetDirectMessageCryptoError.invalidSenderIdentity
+        }
+        guard envelope.recipientDeviceID == recipientDeviceID else {
+            throw InternetDirectMessageCryptoError.wrongRecipientDevice
+        }
+        guard let expectedClientID = normalizedUUID(expectedClientMessageID) else {
+            throw InternetDirectMessageCryptoError.invalidClientMessageID
+        }
+        let expectedSender = NicknamePolicy.normalize(expectedSenderNickname)
+        let expectedRecipient = NicknamePolicy.normalize(expectedRecipientNickname)
+        guard NicknamePolicy.validationError(expectedSender) == nil,
+              NicknamePolicy.validationError(expectedRecipient) == nil else {
+            throw InternetDirectMessageCryptoError.invalidNickname
+        }
+        guard let senderFingerprint = normalizedFingerprint(senderKeyFingerprint),
+              DeviceIdentityStore.fingerprint(for: senderSigningPublicKey) == senderFingerprint else {
+            throw InternetDirectMessageCryptoError.senderIdentityMismatch
+        }
+        let localRecipientPublicKey = recipientPrivateKey.publicKey.rawRepresentation
+        let localRecipientFingerprint = fingerprint(localRecipientPublicKey)
+        guard let envelopeRecipientFingerprint = normalizedFingerprint(
+                envelope.recipientKeyFingerprint),
+              envelopeRecipientFingerprint == localRecipientFingerprint else {
+            throw InternetDirectMessageCryptoError.wrongRecipientKey
+        }
+        guard let ephemeralPublicKeyData = decodeBase64(envelope.ephemeralPublicKey,
+                                                       exactBytes: x25519KeyBytes),
+              !ephemeralPublicKeyData.allSatisfy({ $0 == 0 }),
+              let ephemeralPublicKey = try? Curve25519.KeyAgreement.PublicKey(
+                rawRepresentation: ephemeralPublicKeyData) else {
+            throw InternetDirectMessageCryptoError.invalidEnvelopeField("ephemeral key")
+        }
+        guard let nonceData = decodeBase64(envelope.nonce, exactBytes: nonceBytes),
+              let nonce = try? ChaChaPoly.Nonce(data: nonceData) else {
+            throw InternetDirectMessageCryptoError.invalidEnvelopeField("nonce")
+        }
+        guard let ciphertext = Data(base64Encoded: envelope.ciphertext),
+              ciphertext.count > authenticationTagBytes,
+              ciphertext.count <= maximumCiphertextBytes else {
+            throw InternetDirectMessageCryptoError.invalidEnvelopeField("ciphertext")
+        }
+        guard let signature = Data(base64Encoded: envelope.senderSignature),
+              !signature.isEmpty,
+              signature.count <= 128,
+              (try? P256.Signing.ECDSASignature(derRepresentation: signature)) != nil else {
+            throw InternetDirectMessageCryptoError.invalidSenderSignature
+        }
+        let context = MessageContext(senderUserID: senderUserID,
+                                     senderDeviceID: senderDeviceID,
+                                     recipientNickname: expectedRecipient,
+                                     recipientDeviceID: recipientDeviceID,
+                                     recipientKeyFingerprint: envelopeRecipientFingerprint,
+                                     clientMessageID: expectedClientID,
+                                     ephemeralPublicKey: ephemeralPublicKeyData,
+                                     nonce: nonceData)
+        let signaturePayload = senderSignaturePayload(context: context,
+                                                      ciphertext: ciphertext,
+                                                      cryptoVersion: envelope.cryptoVersion)
+        guard DeviceIdentityStore.verifyMessage(signaturePayload,
+                                                signature: envelope.senderSignature,
+                                                publicKey: senderSigningPublicKey) else {
+            throw InternetDirectMessageCryptoError.invalidSenderSignature
+        }
+        guard let sharedSecret = try? recipientPrivateKey.sharedSecretFromKeyAgreement(
+                with: ephemeralPublicKey),
+              !sharedSecretIsAllZero(sharedSecret) else {
+            throw InternetDirectMessageCryptoError.authenticationFailed
+        }
+        let key = deriveKey(sharedSecret: sharedSecret,
+                            context: context)
+        let split = ciphertext.count - authenticationTagBytes
+        let sealedBox: ChaChaPoly.SealedBox
+        do {
+            sealedBox = try ChaChaPoly.SealedBox(nonce: nonce,
+                                                 ciphertext: ciphertext.prefix(split),
+                                                 tag: ciphertext.suffix(authenticationTagBytes))
+        } catch {
+            throw InternetDirectMessageCryptoError.invalidEnvelopeField("ciphertext")
+        }
+        let body: Data
+        do {
+            body = try ChaChaPoly.open(sealedBox,
+                                       using: key,
+                                       authenticating: authenticatedData(context))
+        } catch {
+            throw InternetDirectMessageCryptoError.authenticationFailed
+        }
+        let plaintext = try decodePlaintext(body)
+        guard plaintext.clientMessageID == expectedClientID,
+              plaintext.senderNickname == expectedSender,
+              plaintext.recipientNickname == expectedRecipient else {
+            throw InternetDirectMessageCryptoError.messageMetadataMismatch
+        }
+        return plaintext
+    }
+
+    static func textKeyFingerprint(for publicKeyBase64: String) -> String? {
+        guard let key = decodeBase64(publicKeyBase64, exactBytes: x25519KeyBytes),
+              !key.allSatisfy({ $0 == 0 }) else { return nil }
+        return fingerprint(key)
+    }
+
+    private struct MessageContext {
+        let senderUserID: String
+        let senderDeviceID: String
+        let recipientNickname: String
+        let recipientDeviceID: String
+        let recipientKeyFingerprint: String
+        let clientMessageID: String
+        let ephemeralPublicKey: Data
+        let nonce: Data
+    }
+
+    private static func validatedPlaintext(_ value: InternetDirectMessagePlaintext,
+                                           requireCanonical: Bool)
+    throws -> InternetDirectMessagePlaintext {
+        guard let clientMessageID = normalizedUUID(value.clientMessageID) else {
+            throw InternetDirectMessageCryptoError.invalidClientMessageID
+        }
+        let senderNickname = NicknamePolicy.normalize(value.senderNickname)
+        let recipientNickname = NicknamePolicy.normalize(value.recipientNickname)
+        guard NicknamePolicy.validationError(senderNickname) == nil,
+              NicknamePolicy.validationError(recipientNickname) == nil else {
+            throw InternetDirectMessageCryptoError.invalidNickname
+        }
+        if requireCanonical,
+           (value.clientMessageID != clientMessageID ||
+            value.senderNickname != senderNickname ||
+            value.recipientNickname != recipientNickname) {
+            throw InternetDirectMessageCryptoError.malformedPlaintext
+        }
+        guard !value.text.isEmpty,
+              value.text.utf8.count <= maximumTextBytes else {
+            throw InternetDirectMessageCryptoError.invalidText
+        }
+        guard value.createdAtMilliseconds > 0 else {
+            throw InternetDirectMessageCryptoError.invalidTimestamp
+        }
+        return InternetDirectMessagePlaintext(clientMessageID: clientMessageID,
+                                              senderNickname: senderNickname,
+                                              recipientNickname: recipientNickname,
+                                              text: value.text,
+                                              createdAtMilliseconds: value.createdAtMilliseconds)
+    }
+
+    private static func encodePlaintext(_ value: InternetDirectMessagePlaintext) throws -> Data {
+        var result = plaintextDomain
+        appendLengthPrefixed(Data(value.clientMessageID.utf8), to: &result)
+        appendLengthPrefixed(Data(value.senderNickname.utf8), to: &result)
+        appendLengthPrefixed(Data(value.recipientNickname.utf8), to: &result)
+        appendLengthPrefixed(Data(value.text.utf8), to: &result)
+        appendInt64(value.createdAtMilliseconds, to: &result)
+        guard result.count <= maximumPlaintextBytes else {
+            throw InternetDirectMessageCryptoError.invalidText
+        }
+        return result
+    }
+
+    private static func decodePlaintext(_ data: Data) throws -> InternetDirectMessagePlaintext {
+        guard data.count <= maximumPlaintextBytes,
+              data.starts(with: plaintextDomain) else {
+            throw InternetDirectMessageCryptoError.malformedPlaintext
+        }
+        var offset = plaintextDomain.count
+        guard let clientMessageID = readString(data, offset: &offset),
+              let senderNickname = readString(data, offset: &offset),
+              let recipientNickname = readString(data, offset: &offset),
+              let text = readString(data, offset: &offset),
+              let createdAtMilliseconds = readInt64(data, offset: &offset),
+              offset == data.count else {
+            throw InternetDirectMessageCryptoError.malformedPlaintext
+        }
+        do {
+            return try validatedPlaintext(
+                InternetDirectMessagePlaintext(clientMessageID: clientMessageID,
+                                               senderNickname: senderNickname,
+                                               recipientNickname: recipientNickname,
+                                               text: text,
+                                               createdAtMilliseconds: createdAtMilliseconds),
+                requireCanonical: true)
+        } catch {
+            throw InternetDirectMessageCryptoError.malformedPlaintext
+        }
+    }
+
+    private static func deriveKey(sharedSecret: SharedSecret,
+                                  context: MessageContext) -> SymmetricKey {
+        let info = canonicalMetadata(domain: hkdfDomain,
+                                     context: context,
+                                     includeNonce: false)
+        return sharedSecret.hkdfDerivedSymmetricKey(using: SHA256.self,
+                                                    salt: Data(),
+                                                    sharedInfo: info,
+                                                    outputByteCount: 32)
+    }
+
+    private static func authenticatedData(_ context: MessageContext) -> Data {
+        canonicalMetadata(domain: aeadDomain,
+                          context: context,
+                          includeNonce: true)
+    }
+
+    private static func canonicalMetadata(domain: Data,
+                                          context: MessageContext,
+                                          includeNonce: Bool) -> Data {
+        var result = domain
+        var fields = [Data(context.senderUserID.utf8),
+                      Data(context.senderDeviceID.utf8),
+                      Data(context.recipientNickname.utf8),
+                      Data([cryptoVersion]),
+                      Data(context.recipientDeviceID.utf8),
+                      Data(context.recipientKeyFingerprint.utf8),
+                      Data(context.clientMessageID.utf8),
+                      context.ephemeralPublicKey]
+        if includeNonce { fields.append(context.nonce) }
+        for field in fields {
+            appendLengthPrefixed(field, to: &result)
+        }
+        return result
+    }
+
+    private static func senderSignaturePayload(context: MessageContext,
+                                               ciphertext: Data,
+                                               cryptoVersion: UInt8) -> Data {
+        var result = signatureDomain
+        for field in [Data(context.senderUserID.utf8),
+                      Data(context.senderDeviceID.utf8),
+                      Data(context.recipientNickname.utf8),
+                      Data([cryptoVersion]),
+                      Data(context.recipientDeviceID.utf8),
+                      Data(context.recipientKeyFingerprint.utf8),
+                      Data(context.clientMessageID.utf8),
+                      context.ephemeralPublicKey,
+                      context.nonce,
+                      ciphertext] {
+            appendLengthPrefixed(field, to: &result)
+        }
+        return result
+    }
+
+    private static func normalizedUUID(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return UUID(uuidString: trimmed)?.uuidString.lowercased()
+    }
+
+    private static func validIdentifier(_ value: String) -> Bool {
+        !value.isEmpty && value.count <= 128 && value.utf8.allSatisfy({ $0 < 0x80 }) &&
+            value == value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func normalizedFingerprint(_ value: String) -> String? {
+        let result = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard result.count == 24,
+              result.utf8.allSatisfy({ byte in
+                  (0x30...0x39).contains(byte) || (0x61...0x66).contains(byte)
+              }) else { return nil }
+        return result
+    }
+
+    private static func fingerprint(_ data: Data) -> String {
+        SHA256.hash(data: data).prefix(12).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func sharedSecretIsAllZero(_ secret: SharedSecret) -> Bool {
+        secret.withUnsafeBytes { bytes in bytes.allSatisfy { $0 == 0 } }
+    }
+
+    private static func decodeBase64(_ value: String, exactBytes: Int) -> Data? {
+        guard let decoded = Data(base64Encoded: value), decoded.count == exactBytes else {
+            return nil
+        }
+        return decoded
+    }
+
+    private static func appendLengthPrefixed(_ value: Data, to data: inout Data) {
+        let length = UInt32(value.count)
+        data.append(UInt8((length >> 24) & 0xff))
+        data.append(UInt8((length >> 16) & 0xff))
+        data.append(UInt8((length >> 8) & 0xff))
+        data.append(UInt8(length & 0xff))
+        data.append(value)
+    }
+
+    private static func appendInt64(_ value: Int64, to data: inout Data) {
+        let bits = UInt64(bitPattern: value)
+        for shift in stride(from: 56, through: 0, by: -8) {
+            data.append(UInt8((bits >> UInt64(shift)) & 0xff))
+        }
+    }
+
+    private static func readUInt32(_ data: Data, offset: inout Int) -> UInt32? {
+        guard offset <= data.count - 4 else { return nil }
+        let value = (UInt32(data[offset]) << 24) |
+            (UInt32(data[offset + 1]) << 16) |
+            (UInt32(data[offset + 2]) << 8) |
+            UInt32(data[offset + 3])
+        offset += 4
+        return value
+    }
+
+    private static func readString(_ data: Data, offset: inout Int) -> String? {
+        guard let length = readUInt32(data, offset: &offset),
+              length <= UInt32(maximumPlaintextBytes),
+              offset <= data.count - Int(length) else { return nil }
+        let end = offset + Int(length)
+        let result = String(data: data[offset..<end], encoding: .utf8)
+        offset = end
+        return result
+    }
+
+    private static func readInt64(_ data: Data, offset: inout Int) -> Int64? {
+        guard offset <= data.count - 8 else { return nil }
+        var bits: UInt64 = 0
+        for byte in data[offset..<(offset + 8)] {
+            bits = (bits << 8) | UInt64(byte)
+        }
+        offset += 8
+        return Int64(bitPattern: bits)
     }
 }
 
@@ -1468,12 +2087,16 @@ final class MeshNicknameDirectory: NSObject, NetServiceBrowserDelegate, NetServi
         guard NicknamePolicy.validationError(nickname) == nil,
               DeviceIdentityStore.fingerprint(for: publicKey) == fingerprint,
               DeviceIdentityStore.verifyMessage(payload, signature: signature, publicKey: publicKey) else { return }
+        let safeDisplayName = DeviceDisplayNamePolicy.safe(
+            text(record["name"]) ?? "",
+            fallback: "@\(nickname)"
+        )
         peersByService[sender.name] = MeshPeer(
             serviceName: sender.name,
             userID: userID,
             deviceID: deviceID,
             nickname: nickname,
-            displayName: text(record["name"]) ?? nickname,
+            displayName: safeDisplayName,
             keyFingerprint: fingerprint,
             signingPublicKey: publicKey,
             textEncryptionPublicKey: textKey,
@@ -1485,7 +2108,7 @@ final class MeshNicknameDirectory: NSObject, NetServiceBrowserDelegate, NetServi
             cachedPeersByDevice[deviceID] = CachedMeshPeer(userID: userID,
                                                            deviceID: deviceID,
                                                            nickname: nickname,
-                                                           displayName: text(record["name"]) ?? nickname,
+                                                           displayName: safeDisplayName,
                                                            keyFingerprint: fingerprint,
                                                            signingPublicKey: publicKey,
                                                            textEncryptionPublicKey: textKey,
@@ -1500,10 +2123,14 @@ final class MeshNicknameDirectory: NSObject, NetServiceBrowserDelegate, NetServi
     }
 
     private func contact(_ peer: MeshPeer) -> DirectoryContact {
-        DirectoryContact(userID: peer.userID,
+        let safeDisplayName = DeviceDisplayNamePolicy.safe(
+            peer.displayName,
+            fallback: "@\(peer.nickname)"
+        )
+        return DirectoryContact(userID: peer.userID,
                          deviceID: peer.deviceID,
                          nickname: peer.nickname,
-                         displayName: peer.displayName,
+                         displayName: safeDisplayName,
                          keyFingerprint: peer.keyFingerprint,
                          source: .mesh,
                          online: true,
@@ -1525,10 +2152,14 @@ final class MeshNicknameDirectory: NSObject, NetServiceBrowserDelegate, NetServi
     }
 
     private func cachedContact(_ peer: CachedMeshPeer) -> DirectoryContact {
-        DirectoryContact(userID: peer.userID,
+        let safeDisplayName = DeviceDisplayNamePolicy.safe(
+            peer.displayName,
+            fallback: "@\(peer.nickname)"
+        )
+        return DirectoryContact(userID: peer.userID,
                          deviceID: peer.deviceID,
                          nickname: peer.nickname,
-                         displayName: peer.displayName,
+                         displayName: safeDisplayName,
                          keyFingerprint: peer.keyFingerprint,
                          source: .mesh,
                          online: false,
@@ -1622,6 +2253,7 @@ final class NicknameDirectoryController: ObservableObject {
             searchGeneration = nil
             internetResults = []
             internetResultsQuery = ""
+            searchStatusMessage = nil
             isWorking = false
             rebuildResults()
         }
@@ -1633,6 +2265,7 @@ final class NicknameDirectoryController: ObservableObject {
     @Published private(set) var meshPeers: [DirectoryContact] = []
     @Published private(set) var isWorking = false
     @Published private(set) var statusMessage: String?
+    @Published private(set) var searchStatusMessage: String?
 
     var onIdentityChanged: ((DeviceIdentity) -> Void)?
     var onIncomingMeshInvite: ((MeshCallInvite, String) -> Void)?
@@ -1689,6 +2322,7 @@ final class NicknameDirectoryController: ObservableObject {
         internetResults = []
         internetResultsQuery = ""
         searchGeneration = nil
+        searchStatusMessage = nil
         isWorking = false
         rebuildResults()
         signaling.update(identity: identity)
@@ -1718,11 +2352,18 @@ final class NicknameDirectoryController: ObservableObject {
     }
 
     @discardableResult
-    func sendMeshText(_ text: String, to contact: DirectoryContact) throws -> String {
+    func sendMeshText(_ text: String,
+                      to contact: DirectoryContact,
+                      clientMessageID: UUID = UUID(),
+                      createdAt: Date = Date()) throws -> String {
         guard textIdentityPins.accept(contact) else {
             throw MeshCallSignalingError.textIdentityChanged
         }
-        return try signaling.sendText(text, to: contact)
+        return try signaling.sendText(
+            text,
+            to: contact,
+            timestamp: Int64(createdAt.timeIntervalSince1970 * 1_000),
+            nonce: clientMessageID)
     }
 
     func verifiedMeshTextSender(_ message: MeshTextMessage,
@@ -1799,6 +2440,7 @@ final class NicknameDirectoryController: ObservableObject {
         searchGeneration = generation
         internetResults = []
         internetResultsQuery = query
+        searchStatusMessage = nil
         isWorking = false
         rebuildResults()
         guard !query.isEmpty else { return }
@@ -1812,10 +2454,14 @@ final class NicknameDirectoryController: ObservableObject {
             }
             do {
                 let remote = try await api.searchNicknames(query, identity: identity).results.map {
-                    DirectoryContact(userID: $0.userID,
+                    let safeDisplayName = DeviceDisplayNamePolicy.safe(
+                        $0.displayName ?? "",
+                        fallback: "@\($0.nickname)"
+                    )
+                    return DirectoryContact(userID: $0.userID,
                                      deviceID: $0.deviceID,
                                      nickname: $0.nickname,
-                                     displayName: $0.displayName ?? $0.nickname,
+                                     displayName: safeDisplayName,
                                      keyFingerprint: $0.keyFingerprint,
                                      source: .internet,
                                      online: $0.online,
@@ -1826,12 +2472,21 @@ final class NicknameDirectoryController: ObservableObject {
                       NicknamePolicy.normalize(searchQuery) == query else { return }
                 internetResults = remote
                 internetResultsQuery = query
+                searchStatusMessage = nil
                 rebuildResults()
             } catch {
                 guard searchGeneration == generation else { return }
-                statusMessage = error.localizedDescription
+                searchStatusMessage = error.localizedDescription
             }
         }
+    }
+
+    var hasCompletedExactSearch: Bool {
+        let query = NicknamePolicy.normalize(searchQuery)
+        return !query.isEmpty &&
+            internetResultsQuery == query &&
+            searchGeneration != nil &&
+            !isWorking
     }
 
     func meshContact(named nickname: String) -> DirectoryContact? {

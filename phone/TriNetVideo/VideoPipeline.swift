@@ -651,6 +651,28 @@ class H264Decoder: ObservableObject {
 // bound to :recvPort receives and sends reliably, and the peer sees our
 // source port = recvPort (symmetric UDP).
 
+struct UDPSourceEndpoint: Hashable {
+    let ipv4NetworkOrder: UInt32
+    let portNetworkOrder: UInt16
+
+    init(ipv4NetworkOrder: UInt32, portNetworkOrder: UInt16) {
+        self.ipv4NetworkOrder = ipv4NetworkOrder
+        self.portNetworkOrder = portNetworkOrder
+    }
+
+    init(_ source: sockaddr_in) {
+        self.init(ipv4NetworkOrder: source.sin_addr.s_addr,
+                  portNetworkOrder: source.sin_port)
+    }
+}
+
+enum UDPSourcePolicy {
+    static func allows(_ source: UDPSourceEndpoint,
+                       expected: Set<UDPSourceEndpoint>) -> Bool {
+        expected.contains(source)
+    }
+}
+
 class BSDTransport {
     private var fd: Int32 = -1
     private var peer = sockaddr_in()
@@ -814,7 +836,8 @@ class BSDTransport {
         handshakeTimer = timer
         timer.resume()
 
-        startRx(fd)
+        let expectedSources: Set<UDPSourceEndpoint> = [UDPSourceEndpoint(peer)]
+        startRx(fd, expectedSources: expectedSources)
     }
 
     // Group / conference call: full-mesh to 2-4 peers under the shared conference key, no handshake.
@@ -843,16 +866,20 @@ class BSDTransport {
         }
         running = true; isReady = true
         NSLog("TRINET: GROUP transport up — listen :\(recvPort), \(peers.count) peers: \(hosts.joined(separator: ","))")
-        startRx(fd)
+        let expectedSources = Set(peers.map { UDPSourceEndpoint($0) })
+        startRx(fd, expectedSources: expectedSources)
     }
 
     // recvfrom-based receive loop shared by 1-1 and group. In group mode datagrams are sealed under the
     // conference key and routed by SOURCE IP (per-source reassembly -> onDataFrom -> that sender's tile).
-    private func startRx(_ sock: Int32) {
+    // The allowlist is captured by value for this exact socket/call. A stale receive loop therefore cannot
+    // start trusting endpoints from a later call after disconnect/connect replaces the transport state.
+    private func startRx(_ sock: Int32, expectedSources: Set<UDPSourceEndpoint>) {
         rxQueue.async { [weak self] in
             var buf = [UInt8](repeating: 0, count: 65536)
             var from = sockaddr_in()
             var count = 0
+            var rejectedBySource: [UDPSourceEndpoint: Int] = [:]
             while true {
                 guard let self = self, self.running else { break }
                 var fromLen = socklen_t(MemoryLayout<sockaddr_in>.size)
@@ -868,8 +895,18 @@ class BSDTransport {
                     break
                 }
                 if n == 0 { continue }   // zero-length UDP datagram (no EOF in UDP) -> ignore
-                let pkt = Data(bytes: buf, count: n)
+                let source = UDPSourceEndpoint(from)
                 let src = String(cString: inet_ntoa(from.sin_addr))
+                guard UDPSourcePolicy.allows(source, expected: expectedSources) else {
+                    rejectedBySource[source, default: 0] += 1
+                    let rejected = rejectedBySource[source]!
+                    if rejected <= 3 || rejected % 500 == 0 {
+                        NSLog("%@", "TRINET: DROP unexpected UDP source \(src):\(UInt16(bigEndian: from.sin_port)) " +
+                              "(#\(rejected) from this endpoint)")
+                    }
+                    continue
+                }
+                let pkt = Data(bytes: buf, count: n)
                 if self.groupMode {
                     guard let box = try? ChaChaPoly.SealedBox(combined: pkt),
                           let plain = try? ChaChaPoly.open(box, using: self.groupKey),
@@ -2224,6 +2261,9 @@ final class PeerDiscovery: ObservableObject {
         var status: String          // "idle" | "call"
         let endpoint: NWEndpoint
         var id: String { uid }
+        var displayName: String {
+            DeviceDisplayNamePolicy.safe(name, fallback: "Nearby TRI-NET peer")
+        }
         static func == (a: Peer, b: Peer) -> Bool {
             a.uid == b.uid && a.name == b.name && a.status == b.status && a.room == b.room
         }
@@ -2312,10 +2352,10 @@ final class PeerDiscovery: ObservableObject {
                 list.append(Peer(uid: uid, name: txt["name"] ?? "TRI-NET", room: peerRoom,
                                  status: txt["status"] ?? "idle", endpoint: r.endpoint))
             }
-            let sorted = list.sorted { $0.name.lowercased() < $1.name.lowercased() }
+            let sorted = list.sorted { $0.displayName.lowercased() < $1.displayName.lowercased() }
             DispatchQueue.main.async {
                 self.peers = sorted
-                NSLog("TRINET: roster \(sorted.count) peer(s): \(sorted.map { $0.name }.joined(separator: ", "))")
+                NSLog("TRINET: roster \(sorted.count) peer(s): \(sorted.map { $0.displayName }.joined(separator: ", "))")
             }
         }
         b.stateUpdateHandler = { st in if case .failed(let e) = st { NSLog("TRINET: discovery browse failed: \(e)") } }

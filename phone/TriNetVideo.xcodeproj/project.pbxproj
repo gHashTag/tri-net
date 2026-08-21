@@ -347,6 +347,8 @@
 				PRODUCT_NAME = TriNetVideo;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
+				TRINET_APS_ENVIRONMENT = development;
+				TRINET_PUSH_ENVIRONMENT = sandbox;
 			};
 			name = Debug;
 		};
@@ -414,7 +416,6 @@
 				CODE_SIGNING_ALLOWED = YES;
 				CODE_SIGNING_REQUIRED = YES;
 				CODE_SIGN_ENTITLEMENTS = TriNetVideo/TriNetVideo.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 5EM4M85VSQ;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -427,6 +428,8 @@
 				PRODUCT_NAME = TriNetVideo;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
+				TRINET_APS_ENVIRONMENT = production;
+				TRINET_PUSH_ENVIRONMENT = production;
 			};
 			name = Release;
 		};

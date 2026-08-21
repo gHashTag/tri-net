@@ -4,7 +4,7 @@ import LiveKit
 
 enum InternetCallState: String {
     case idle = "Idle"
-    case registering = "Registering device"
+    case registering = "Calling"
     case ringing = "Ringing"
     case connecting = "Connecting"
     case connected = "Connected"
@@ -30,11 +30,54 @@ enum InternetCallError: LocalizedError {
     }
 }
 
+enum InternetCallCreateRetryPolicy {
+    static let maximumAttempts = 3
+
+    static func shouldRetryHTTP(statusCode: Int) -> Bool {
+        statusCode == 408 || statusCode == 429 || (500 ... 599).contains(statusCode)
+    }
+
+    static func shouldRetry(_ error: Error) -> Bool {
+        if error is CancellationError { return false }
+        if let callError = error as? InternetCallError {
+            switch callError {
+            case .notConfigured:
+                return false
+            case .invalidResponse:
+                return true
+            case let .server(statusCode, _):
+                return shouldRetryHTTP(statusCode: statusCode)
+            }
+        }
+        if let urlError = error as? URLError {
+            return urlError.code != .cancelled && urlError.code != .badURL &&
+                urlError.code != .unsupportedURL
+        }
+        return error is DecodingError
+    }
+
+    static func retryDelayNanoseconds(afterFailedAttempt attempt: Int) -> UInt64 {
+        UInt64(max(1, attempt)) * 350_000_000
+    }
+}
+
+enum InternetDirectMessageDeliveryError: LocalizedError {
+    case unconfirmed
+
+    var errorDescription: String? {
+        switch self {
+        case .unconfirmed:
+            return "The service did not confirm delivery. Check the conversation before sending again."
+        }
+    }
+}
+
 struct DeviceRegistrationRequest: Encodable {
     let userID: String
     let deviceID: String
     let displayName: String
     let signingPublicKey: String
+    let textEncryptionPublicKey: String?
     let keyFingerprint: String
     let platform: String
     let voipPushToken: String?
@@ -44,11 +87,40 @@ struct DeviceRegistrationRequest: Encodable {
 }
 
 struct CreateInternetCallRequest: Encodable {
+    let clientCallID: String
     let callee: String
     let callerUserID: String
     let callerDeviceID: String
     let audio: Bool
     let video: Bool
+}
+
+struct InternetCallStatus: Decodable, Equatable {
+    let callID: String
+    let callUUID: String
+    let status: String
+    let role: String
+    let targetStatus: String?
+    let answeredHere: Bool
+    let createdAt: Int64
+    let answeredAt: Int64?
+    let endedAt: Int64?
+
+    enum CodingKeys: String, CodingKey {
+        case callID = "call_id"
+        case callUUID = "call_uuid"
+        case status
+        case role
+        case targetStatus = "target_status"
+        case answeredHere = "answered_here"
+        case createdAt = "created_at"
+        case answeredAt = "answered_at"
+        case endedAt = "ended_at"
+    }
+
+    var isTerminal: Bool {
+        ["ended", "declined", "cancelled", "missed"].contains(status)
+    }
 }
 
 struct InternetCallMedia: Codable, Equatable {
@@ -187,6 +259,122 @@ private struct IncomingInternetCallsResponse: Decodable {
     let calls: [IncomingInternetCall]
 }
 
+struct DirectMessageRecipientAPIResponse: Decodable {
+    let cryptoVersion: UInt8
+    let nickname: String
+    let userID: String
+    let devices: [DirectMessageRecipientAPIDevice]
+
+    enum CodingKeys: String, CodingKey {
+        case cryptoVersion = "crypto_version"
+        case nickname
+        case userID = "user_id"
+        case devices
+    }
+}
+
+struct DirectMessageRecipientAPIDevice: Decodable {
+    let deviceID: String
+    let textEncryptionPublicKey: String
+    let textEncryptionKeyFingerprint: String
+    let keyFingerprint: String
+
+    enum CodingKeys: String, CodingKey {
+        case deviceID = "device_id"
+        case textEncryptionPublicKey = "text_encryption_public_key"
+        case textEncryptionKeyFingerprint = "text_encryption_key_fingerprint"
+        case keyFingerprint = "key_fingerprint"
+    }
+}
+
+struct DirectMessageAPIEnvelope: Encodable {
+    let cryptoVersion: UInt8
+    let recipientDeviceID: String
+    let recipientKeyFingerprint: String
+    let ephemeralPublicKey: String
+    let nonce: String
+    let ciphertext: String
+    let senderSignature: String
+}
+
+struct DirectMessageSendAPIResponse: Decodable {
+    let messageID: Int64
+    let clientMessageID: String
+    let recipientUserID: String
+    let recipientNickname: String
+    let createdAt: Int64
+    let inserted: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case messageID = "message_id"
+        case clientMessageID = "client_message_id"
+        case recipientUserID = "recipient_user_id"
+        case recipientNickname = "recipient_nickname"
+        case createdAt = "created_at"
+        case inserted
+    }
+}
+
+struct DirectMessageInboxAPIResponse: Decodable {
+    let messages: [DirectMessageInboxAPIMessage]
+    let totalUnreadCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case messages
+        case totalUnreadCount = "total_unread_count"
+    }
+}
+
+struct DirectMessageInboxAPIMessage: Decodable {
+    let messageID: Int64
+    let clientMessageID: String
+    let senderUserID: String
+    let senderDeviceID: String
+    let senderNickname: String
+    let senderSigningPublicKey: String
+    let senderKeyFingerprint: String
+    let recipientNickname: String
+    let cryptoVersion: UInt8
+    let recipientDeviceID: String
+    let recipientKeyFingerprint: String
+    let ephemeralPublicKey: String
+    let nonce: String
+    let ciphertext: String
+    let senderSignature: String
+    let createdAt: Int64
+    let read: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case messageID = "message_id"
+        case clientMessageID = "client_message_id"
+        case senderUserID = "sender_user_id"
+        case senderDeviceID = "sender_device_id"
+        case senderNickname = "sender_nickname"
+        case senderSigningPublicKey = "sender_signing_public_key"
+        case senderKeyFingerprint = "sender_key_fingerprint"
+        case recipientNickname = "recipient_nickname"
+        case cryptoVersion = "crypto_version"
+        case recipientDeviceID = "recipient_device_id"
+        case recipientKeyFingerprint = "recipient_key_fingerprint"
+        case ephemeralPublicKey = "ephemeral_public_key"
+        case nonce
+        case ciphertext
+        case senderSignature = "sender_signature"
+        case createdAt = "created_at"
+        case read
+    }
+}
+
+struct DirectMessageReadAPIResponse: Decodable {
+    let lastReadMessageID: Int64
+    let totalUnreadCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case lastReadMessageID = "last_read_message_id"
+        case totalUnreadCount = "total_unread_count"
+    }
+}
+
 struct GroupChatsResponse: Decodable {
     let chats: [GroupChatSummary]
     let totalUnreadCount: Int
@@ -226,23 +414,28 @@ final class InternetCallAPI {
     func register(identity: DeviceIdentity, voipToken: String?) async throws {
         guard !configuration.isDevelopmentDirect else { return }
         let defaults = UserDefaults.standard
+        let textEncryptionPublicKey = try? DeviceIdentityStore.shared
+            .textEncryptionPublicKey()
+            .base64EncodedString()
         let body = DeviceRegistrationRequest(
             userID: identity.userID,
             deviceID: identity.deviceID,
             displayName: identity.displayName,
             signingPublicKey: identity.signingPublicKey,
+            textEncryptionPublicKey: textEncryptionPublicKey,
             keyFingerprint: identity.keyFingerprint,
             platform: platformName,
             voipPushToken: voipToken,
             alertPushToken: defaults.string(forKey: "alertPushToken"),
             pushEnvironment: defaults.string(forKey: "pushEnvironment"),
-            capabilities: ["audio", "video", "mesh", "webrtc"]
+            capabilities: ["audio", "video", "mesh", "webrtc", "e2ee-direct-message"]
         )
         let _: EmptyResponse = try await request(path: "/v1/devices/register", method: "POST", body: body, identity: identity)
     }
 
     func createCall(callee: String,
                     identity: DeviceIdentity,
+                    clientCallID: String,
                     audio: Bool,
                     video: Bool) async throws -> InternetCallSession {
         if configuration.isDevelopmentDirect {
@@ -255,6 +448,7 @@ final class InternetCallAPI {
             )
         }
         let body = CreateInternetCallRequest(
+            clientCallID: clientCallID,
             callee: callee,
             callerUserID: identity.userID,
             callerDeviceID: identity.deviceID,
@@ -288,6 +482,42 @@ final class InternetCallAPI {
         )
     }
 
+    func declineCall(callID: String, identity: DeviceIdentity) async throws -> InternetCallStatus {
+        let body = CallParticipantRequest(userID: identity.userID,
+                                          deviceID: identity.deviceID)
+        guard !configuration.isDevelopmentDirect else {
+            return developmentStatus(callID: callID, status: "declined", role: "callee")
+        }
+        return try await request(path: "/v1/calls/\(callID)/decline",
+                                 method: "POST",
+                                 body: body,
+                                 identity: identity)
+    }
+
+    func callStatus(callID: String, identity: DeviceIdentity) async throws -> InternetCallStatus {
+        let body = CallParticipantRequest(userID: identity.userID,
+                                          deviceID: identity.deviceID)
+        guard !configuration.isDevelopmentDirect else {
+            return developmentStatus(callID: callID, status: "active", role: "caller")
+        }
+        return try await request(path: "/v1/calls/\(callID)/status",
+                                 method: "POST",
+                                 body: body,
+                                 identity: identity)
+    }
+
+    func endCall(callID: String, identity: DeviceIdentity) async throws -> InternetCallStatus {
+        let body = CallParticipantRequest(userID: identity.userID,
+                                          deviceID: identity.deviceID)
+        guard !configuration.isDevelopmentDirect else {
+            return developmentStatus(callID: callID, status: "ended", role: "caller")
+        }
+        return try await request(path: "/v1/calls/\(callID)/end",
+                                 method: "POST",
+                                 body: body,
+                                 identity: identity)
+    }
+
     func incomingCalls(identity: DeviceIdentity) async throws -> [IncomingInternetCall] {
         struct IncomingRequest: Encodable {
             let userID: String
@@ -319,6 +549,95 @@ final class InternetCallAPI {
                          identity: DeviceIdentity) async throws -> NicknameSearchResponse {
         let body = NicknameSearchRequest(query: query, limit: 20)
         return try await request(path: "/v1/directory/search",
+                                 method: "POST",
+                                 body: body,
+                                 identity: identity)
+    }
+
+    func directMessageRecipient(nickname: String,
+                                identity: DeviceIdentity) async throws
+    -> DirectMessageRecipientAPIResponse {
+        struct RecipientRequest: Encodable {
+            let userID: String
+            let deviceID: String
+            let nickname: String
+        }
+        let body = RecipientRequest(userID: identity.userID,
+                                    deviceID: identity.deviceID,
+                                    nickname: nickname)
+        return try await request(path: "/v1/direct-messages/recipients",
+                                 method: "POST",
+                                 body: body,
+                                 identity: identity)
+    }
+
+    func sendDirectMessage(recipient: String,
+                           clientMessageID: String,
+                           envelopes: [InternetDirectMessageSealedEnvelope],
+                           identity: DeviceIdentity) async throws
+    -> DirectMessageSendAPIResponse {
+        struct SendRequest: Encodable {
+            let userID: String
+            let deviceID: String
+            let recipient: String
+            let clientMessageID: String
+            let envelopes: [DirectMessageAPIEnvelope]
+        }
+        let apiEnvelopes = envelopes.map {
+            DirectMessageAPIEnvelope(cryptoVersion: $0.cryptoVersion,
+                                     recipientDeviceID: $0.recipientDeviceID,
+                                     recipientKeyFingerprint: $0.recipientKeyFingerprint,
+                                     ephemeralPublicKey: $0.ephemeralPublicKey,
+                                     nonce: $0.nonce,
+                                     ciphertext: $0.ciphertext,
+                                     senderSignature: $0.senderSignature)
+        }
+        let body = SendRequest(userID: identity.userID,
+                               deviceID: identity.deviceID,
+                               recipient: recipient,
+                               clientMessageID: clientMessageID,
+                               envelopes: apiEnvelopes)
+        return try await request(path: "/v1/direct-messages",
+                                 method: "POST",
+                                 body: body,
+                                 identity: identity)
+    }
+
+    func directMessageInbox(afterMessageID: Int64,
+                            limit: UInt16 = 100,
+                            identity: DeviceIdentity) async throws
+    -> DirectMessageInboxAPIResponse {
+        struct InboxRequest: Encodable {
+            let userID: String
+            let deviceID: String
+            let afterMessageID: Int64
+            let limit: UInt16
+        }
+        let body = InboxRequest(userID: identity.userID,
+                                deviceID: identity.deviceID,
+                                afterMessageID: afterMessageID,
+                                limit: limit)
+        return try await request(path: "/v1/direct-messages/inbox",
+                                 method: "POST",
+                                 body: body,
+                                 identity: identity)
+    }
+
+    func markDirectMessagesRead(senderUserID: String,
+                                throughMessageID: Int64,
+                                identity: DeviceIdentity) async throws
+    -> DirectMessageReadAPIResponse {
+        struct ReadRequest: Encodable {
+            let userID: String
+            let deviceID: String
+            let senderUserID: String
+            let throughMessageID: Int64
+        }
+        let body = ReadRequest(userID: identity.userID,
+                               deviceID: identity.deviceID,
+                               senderUserID: senderUserID,
+                               throughMessageID: throughMessageID)
+        return try await request(path: "/v1/direct-messages/read",
                                  method: "POST",
                                  body: body,
                                  identity: identity)
@@ -465,8 +784,7 @@ final class InternetCallAPI {
                                                                 method: String,
                                                                 body: Body,
                                                                 identity: DeviceIdentity) async throws -> Response {
-        guard let base = URL(string: configuration.apiBaseURL),
-              let url = URL(string: path, relativeTo: base)?.absoluteURL else {
+        guard let url = configuration.endpointURL(path: path) else {
             throw InternetCallError.notConfigured
         }
         var request = URLRequest(url: url)
@@ -508,6 +826,26 @@ final class InternetCallAPI {
         return "apple"
 #endif
     }
+
+    private func developmentStatus(callID: String,
+                                   status: String,
+                                   role: String) -> InternetCallStatus {
+        InternetCallStatus(callID: callID,
+                           callUUID: callID,
+                           status: status,
+                           role: role,
+                           targetStatus: nil,
+                           answeredHere: role == "callee" && status == "active",
+                           createdAt: Int64(Date().timeIntervalSince1970),
+                           answeredAt: status == "active" ? Int64(Date().timeIntervalSince1970) : nil,
+                           endedAt: ["ended", "declined", "cancelled", "missed"].contains(status)
+                               ? Int64(Date().timeIntervalSince1970) : nil)
+    }
+}
+
+private struct CallParticipantRequest: Encodable {
+    let userID: String
+    let deviceID: String
 }
 
 private struct EmptyResponse: Codable {}
@@ -652,6 +990,351 @@ final class AccountDeviceController: ObservableObject {
         nickname = snapshot.nickname
         devices = snapshot.devices
         onIdentityChanged?(updated)
+    }
+}
+
+struct ReceivedInternetDirectMessage: Identifiable, Equatable {
+    let serverMessageID: Int64
+    let clientMessageID: String
+    let senderUserID: String
+    let senderNickname: String
+    let recipientNickname: String
+    let text: String
+    let createdAt: Date
+    let serverCreatedAt: Date
+    let read: Bool
+
+    var id: String { clientMessageID }
+}
+
+private struct DirectMessageReadTarget: Codable {
+    let senderUserID: String
+    let throughMessageID: Int64
+}
+
+final class InternetDirectMessageController: ObservableObject {
+    @Published private(set) var totalUnreadCount = 0
+    @Published private(set) var statusMessage: String?
+
+    var onMessage: ((ReceivedInternetDirectMessage) -> Void)?
+
+    private var identity: DeviceIdentity
+    private var configuration: InternetCallConfiguration
+    private var api: InternetCallAPI
+    private var pollTimer: Timer?
+    private var refreshInFlight = false
+    private var generation = UUID()
+    private var cursor: Int64 = 0
+    private var readTargets: [String: DirectMessageReadTarget] = [:]
+
+    init(identity: DeviceIdentity, configuration: InternetCallConfiguration) {
+        self.identity = identity
+        self.configuration = configuration
+        api = InternetCallAPI(configuration: configuration)
+        totalUnreadCount = 0
+        statusMessage = nil
+        loadPersistentState()
+    }
+
+    deinit {
+        pollTimer?.invalidate()
+    }
+
+    func update(identity: DeviceIdentity, configuration: InternetCallConfiguration) {
+        stopPolling()
+        generation = UUID()
+        refreshInFlight = false
+        self.identity = identity
+        self.configuration = configuration
+        api = InternetCallAPI(configuration: configuration)
+        totalUnreadCount = 0
+        statusMessage = nil
+        loadPersistentState()
+    }
+
+    func startPolling() {
+        stopPolling()
+        guard configuration.hasDirectoryAPI, !configuration.isDevelopmentDirect else { return }
+        refresh()
+        pollTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
+            self?.refresh()
+        }
+    }
+
+    func stopPolling() {
+        pollTimer?.invalidate()
+        pollTimer = nil
+    }
+
+    func send(text: String,
+              to recipient: String,
+              clientMessageID: UUID,
+              createdAt: Date = Date()) async throws -> DirectMessageSendAPIResponse {
+        guard configuration.hasDirectoryAPI, !configuration.isDevelopmentDirect else {
+            throw InternetCallError.notConfigured
+        }
+        let senderNickname = NicknamePolicy.normalize(identity.nickname ?? "")
+        let recipientNickname = NicknamePolicy.normalize(recipient)
+        guard NicknamePolicy.validationError(senderNickname) == nil,
+              NicknamePolicy.validationError(recipientNickname) == nil,
+              senderNickname != recipientNickname else {
+            throw InternetDirectMessageCryptoError.invalidNickname
+        }
+
+        let identity = self.identity
+        let api = self.api
+        try await api.register(identity: identity,
+                               voipToken: UserDefaults.standard.string(forKey: "voipPushToken"))
+        let canonicalClientID = clientMessageID.uuidString.lowercased()
+        let plaintext = InternetDirectMessagePlaintext(
+            clientMessageID: canonicalClientID,
+            senderNickname: senderNickname,
+            recipientNickname: recipientNickname,
+            text: text,
+            createdAtMilliseconds: Int64(createdAt.timeIntervalSince1970 * 1_000)
+        )
+
+        func resolveAndSeal() async throws -> [InternetDirectMessageSealedEnvelope] {
+            let resolved = try await api.directMessageRecipient(nickname: recipientNickname,
+                                                                identity: identity)
+            guard resolved.cryptoVersion == InternetDirectMessageCrypto.cryptoVersion,
+                  NicknamePolicy.normalize(resolved.nickname) == recipientNickname,
+                  resolved.userID != identity.userID else {
+                throw InternetDirectMessageCryptoError.invalidRecipientKey
+            }
+            let recipientKeys = resolved.devices.map {
+                InternetDirectMessageRecipientKey(deviceID: $0.deviceID,
+                                                  publicKeyBase64: $0.textEncryptionPublicKey,
+                                                  keyFingerprint: $0.textEncryptionKeyFingerprint)
+            }
+            return try InternetDirectMessageCrypto.seal(plaintext,
+                                                         sender: identity,
+                                                         recipients: recipientKeys)
+        }
+
+        func deliver(_ envelopes: [InternetDirectMessageSealedEnvelope]) async throws
+        -> DirectMessageSendAPIResponse {
+            try await api.sendDirectMessage(recipient: recipientNickname,
+                                            clientMessageID: canonicalClientID,
+                                            envelopes: envelopes,
+                                            identity: identity)
+        }
+
+        func deliverWithExactRetry(_ envelopes: [InternetDirectMessageSealedEnvelope]) async throws
+        -> DirectMessageSendAPIResponse {
+            do {
+                return try await deliver(envelopes)
+            } catch let error as InternetCallError {
+                switch error {
+                case let .server(code, _):
+                    guard code == 408 || (500...599).contains(code) else {
+                        throw error
+                    }
+                case .notConfigured:
+                    throw error
+                case .invalidResponse:
+                    break
+                }
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                // A transport or decoding failure can happen after the service commits.
+                // Retry only the identical idempotency key and sealed envelopes.
+            }
+
+            try await Task.sleep(nanoseconds: 250_000_000)
+            do {
+                return try await deliver(envelopes)
+            } catch let error as InternetCallError {
+                switch error {
+                case let .server(code, _):
+                    guard code == 408 || (500...599).contains(code) else {
+                        throw error
+                    }
+                    throw InternetDirectMessageDeliveryError.unconfirmed
+                case .notConfigured:
+                    throw error
+                case .invalidResponse:
+                    throw InternetDirectMessageDeliveryError.unconfirmed
+                }
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                throw InternetDirectMessageDeliveryError.unconfirmed
+            }
+        }
+
+        let envelopes = try await resolveAndSeal()
+        do {
+            return try await deliverWithExactRetry(envelopes)
+        } catch let error as InternetCallError {
+            if case let .server(code, message) = error {
+                guard code == 409,
+                      message.contains("encrypted envelopes must match every current recipient device and key") else {
+                    throw error
+                }
+                let refreshedEnvelopes = try await resolveAndSeal()
+                return try await deliverWithExactRetry(refreshedEnvelopes)
+            }
+            throw error
+        }
+    }
+
+    func refresh() {
+        guard configuration.hasDirectoryAPI,
+              !configuration.isDevelopmentDirect,
+              !refreshInFlight else { return }
+        refreshInFlight = true
+        let identity = self.identity
+        let api = self.api
+        let startingCursor = cursor
+        let generation = self.generation
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                if self.generation == generation {
+                    self.refreshInFlight = false
+                }
+            }
+            do {
+                try await api.register(identity: identity,
+                                       voipToken: UserDefaults.standard.string(forKey: "voipPushToken"))
+                let response = try await api.directMessageInbox(afterMessageID: startingCursor,
+                                                                identity: identity)
+                guard self.generation == generation else { return }
+                var processedCursor = startingCursor
+                var unreadCount = response.totalUnreadCount
+                for message in response.messages.sorted(by: { $0.messageID < $1.messageID }) {
+                    guard message.messageID > processedCursor else { continue }
+                    do {
+                        let envelope = InternetDirectMessageSealedEnvelope(
+                            recipientDeviceID: message.recipientDeviceID,
+                            recipientKeyFingerprint: message.recipientKeyFingerprint,
+                            ephemeralPublicKey: message.ephemeralPublicKey,
+                            nonce: message.nonce,
+                            ciphertext: message.ciphertext,
+                            senderSignature: message.senderSignature,
+                            cryptoVersion: message.cryptoVersion)
+                        let plaintext = try InternetDirectMessageCrypto.open(
+                            envelope,
+                            senderUserID: message.senderUserID,
+                            senderDeviceID: message.senderDeviceID,
+                            senderSigningPublicKey: message.senderSigningPublicKey,
+                            senderKeyFingerprint: message.senderKeyFingerprint,
+                            recipient: identity,
+                            expectedClientMessageID: message.clientMessageID,
+                            expectedSenderNickname: message.senderNickname,
+                            expectedRecipientNickname: message.recipientNickname)
+                        let senderNickname = NicknamePolicy.normalize(message.senderNickname)
+                        guard plaintext.senderNickname == senderNickname,
+                              plaintext.recipientNickname == NicknamePolicy.normalize(
+                                message.recipientNickname) else {
+                            throw InternetDirectMessageCryptoError.messageMetadataMismatch
+                        }
+                        self.recordReadTarget(nickname: senderNickname,
+                                              senderUserID: message.senderUserID,
+                                              throughMessageID: message.messageID)
+                        self.onMessage?(ReceivedInternetDirectMessage(
+                            serverMessageID: message.messageID,
+                            clientMessageID: plaintext.clientMessageID,
+                            senderUserID: message.senderUserID,
+                            senderNickname: senderNickname,
+                            recipientNickname: plaintext.recipientNickname,
+                            text: plaintext.text,
+                            createdAt: Date(timeIntervalSince1970:
+                                Double(plaintext.createdAtMilliseconds) / 1_000),
+                            serverCreatedAt: Date(timeIntervalSince1970:
+                                Double(message.createdAt)),
+                            read: message.read))
+                        processedCursor = message.messageID
+                    } catch is InternetDirectMessageCryptoError {
+                        NSLog("TRINET TEXT: rejected unauthenticated Internet message id=%lld",
+                              message.messageID)
+                        let readResponse = try await api.markDirectMessagesRead(
+                            senderUserID: message.senderUserID,
+                            throughMessageID: message.messageID,
+                            identity: identity)
+                        unreadCount = readResponse.totalUnreadCount
+                        processedCursor = message.messageID
+                    }
+                }
+                self.cursor = max(self.cursor, processedCursor)
+                self.totalUnreadCount = unreadCount
+                self.statusMessage = nil
+                self.persistState()
+            } catch {
+                guard self.generation == generation else { return }
+                self.statusMessage = error.localizedDescription
+            }
+        }
+    }
+
+    func markRead(nickname: String) {
+        let normalized = NicknamePolicy.normalize(nickname)
+        guard let target = readTargets[normalized],
+              configuration.hasDirectoryAPI,
+              !configuration.isDevelopmentDirect else { return }
+        let identity = self.identity
+        let api = self.api
+        let generation = self.generation
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let response = try await api.markDirectMessagesRead(
+                    senderUserID: target.senderUserID,
+                    throughMessageID: target.throughMessageID,
+                    identity: identity)
+                guard self.generation == generation else { return }
+                self.totalUnreadCount = response.totalUnreadCount
+                self.statusMessage = nil
+            } catch {
+                guard self.generation == generation else { return }
+                self.statusMessage = error.localizedDescription
+            }
+        }
+    }
+
+    func verifiedNickname(senderUserID: String, nicknameHint: String?) -> String? {
+        let matches = readTargets.compactMap { nickname, target in
+            target.senderUserID == senderUserID ? nickname : nil
+        }
+        if let hint = nicknameHint.map(NicknamePolicy.normalize) {
+            return matches.contains(hint) ? hint : nil
+        }
+        return matches.count == 1 ? matches[0] : nil
+    }
+
+    private var persistentPrefix: String {
+        "trinet.direct-message.\(identity.userID).\(identity.deviceID).\(configuration.apiBaseURL)"
+    }
+
+    private func loadPersistentState() {
+        let defaults = UserDefaults.standard
+        cursor = (defaults.object(forKey: persistentPrefix + ".cursor") as? NSNumber)?.int64Value ?? 0
+        guard let data = defaults.data(forKey: persistentPrefix + ".read-targets"),
+              let saved = try? JSONDecoder().decode([String: DirectMessageReadTarget].self,
+                                                     from: data) else {
+            readTargets = [:]
+            return
+        }
+        readTargets = saved
+    }
+
+    private func persistState() {
+        let defaults = UserDefaults.standard
+        defaults.set(cursor, forKey: persistentPrefix + ".cursor")
+        if let data = try? JSONEncoder().encode(readTargets) {
+            defaults.set(data, forKey: persistentPrefix + ".read-targets")
+        }
+    }
+
+    private func recordReadTarget(nickname: String,
+                                  senderUserID: String,
+                                  throughMessageID: Int64) {
+        let current = readTargets[nickname]
+        guard current == nil || throughMessageID > current!.throughMessageID else { return }
+        readTargets[nickname] = DirectMessageReadTarget(senderUserID: senderUserID,
+                                                        throughMessageID: throughMessageID)
     }
 }
 
@@ -937,6 +1620,15 @@ enum InternetCallLifecyclePolicy {
     static func shouldEndAfterRemoteDeparture(activeRoute: CallRoute?) -> Bool {
         activeRoute == .internet
     }
+
+    static func shouldEndOutgoingOnDisconnect(hasRemoteParticipant: Bool,
+                                               lastServerStatus: String?,
+                                               state: InternetCallState) -> Bool {
+        hasRemoteParticipant ||
+            lastServerStatus == "active" ||
+            state == .connected ||
+            state == .reconnecting
+    }
 }
 
 final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @unchecked Sendable {
@@ -954,6 +1646,7 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
     var onReaction: ((String) -> Void)?
     var onIncomingCall: ((IncomingInternetCall) -> Bool)?
     var onRemoteEnded: (() -> Void)?
+    var onCallStatus: ((InternetCallStatus) -> Void)?
 
     private(set) var identity: DeviceIdentity
     private var configuration: InternetCallConfiguration
@@ -963,6 +1656,9 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
     private var room: Room?
     private var roomAttemptID: UUID?
     private var outgoingCallID: String?
+    private var incomingCallID: String?
+    private var statusPollTask: Task<Void, Never>?
+    private var lastCallStatus: InternetCallStatus?
     private var incomingPollTimer: Timer?
     private var reportedIncomingCallIDs = Set<String>()
     private var registeredVoipToken = UserDefaults.standard.string(forKey: "voipPushToken")
@@ -1050,15 +1746,34 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
         // Keep creation independent from the UI task cancellation. If Stop
         // arrives while POST /v1/calls is in flight, its response still gives us
         // the call ID required to retract the server-side invitation.
+        let clientCallID = UUID().uuidString.lowercased()
         let creation = Task {
-            try await requestAPI.createCall(callee: callee,
-                                            identity: requestIdentity,
-                                            audio: audio,
-                                            video: video)
+            var attempt = 1
+            while true {
+                do {
+                    return try await requestAPI.createCall(callee: callee,
+                                                           identity: requestIdentity,
+                                                           clientCallID: clientCallID,
+                                                           audio: audio,
+                                                           video: video)
+                } catch {
+                    guard attempt < InternetCallCreateRetryPolicy.maximumAttempts,
+                          InternetCallCreateRetryPolicy.shouldRetry(error) else { throw error }
+                    try await Task.sleep(nanoseconds:
+                        InternetCallCreateRetryPolicy.retryDelayNanoseconds(
+                            afterFailedAttempt: attempt
+                        )
+                    )
+                    attempt += 1
+                }
+            }
         }
         let session = try await creation.value
         do {
             try await retainOutgoingCallID(session.callID, attemptID: attemptID)
+            startStatusPolling(callID: session.callID,
+                               api: requestAPI,
+                               identity: requestIdentity)
             try Task.checkCancellation()
             try await connect(session: session, audio: audio, video: video, attemptID: attemptID)
         } catch {
@@ -1072,9 +1787,44 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
         guard configuration.isConfigured else { throw InternetCallError.notConfigured }
         let attemptID = try await beginRoomAttempt()
         try await setAttemptState(.connecting, attemptID: attemptID)
-        let session = try await api.joinCall(callID: callID, identity: identity)
-        try Task.checkCancellation()
-        try await connect(session: session, audio: audio, video: video, attemptID: attemptID)
+        let requestAPI = api
+        let requestIdentity = identity
+        do {
+            let session = try await requestAPI.joinCall(callID: callID, identity: requestIdentity)
+            try await MainActor.run {
+                guard self.roomAttemptID == attemptID else { throw CancellationError() }
+                self.incomingCallID = callID
+            }
+            try Task.checkCancellation()
+            try await connect(session: session, audio: audio, video: video, attemptID: attemptID)
+        } catch {
+            endCallBestEffort(callID, api: requestAPI, identity: requestIdentity)
+            setMain {
+                if self.incomingCallID == callID { self.incomingCallID = nil }
+            }
+            throw error
+        }
+    }
+
+    func status(callID: String) async throws -> InternetCallStatus {
+        try await api.callStatus(callID: callID, identity: identity)
+    }
+
+    func authenticatedIncoming(callID: String) async throws -> IncomingInternetCall? {
+        let calls = try await api.incomingCalls(identity: identity)
+        return calls.first { $0.callID == callID }
+    }
+
+    @discardableResult
+    func decline(callID: String) async throws -> InternetCallStatus {
+        let result = try await api.declineCall(callID: callID, identity: identity)
+        setMain { self.reportedIncomingCallIDs.insert(callID) }
+        return result
+    }
+
+    @discardableResult
+    func end(callID: String) async throws -> InternetCallStatus {
+        try await api.endCall(callID: callID, identity: identity)
     }
 
     private func beginRoomAttempt() async throws -> UUID {
@@ -1137,6 +1887,50 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
         }
     }
 
+    private func endCallBestEffort(_ callID: String,
+                                   api: InternetCallAPI,
+                                   identity: DeviceIdentity) {
+        Task {
+            do {
+                _ = try await api.endCall(callID: callID, identity: identity)
+                NSLog("TRINET: Internet call participant ended call=%@", callID)
+            } catch {
+                NSLog("TRINET: Internet participant end failed call=%@ error=%@",
+                      callID, error.localizedDescription)
+            }
+        }
+    }
+
+    private func startStatusPolling(callID: String,
+                                    api: InternetCallAPI,
+                                    identity: DeviceIdentity) {
+        statusPollTask?.cancel()
+        lastCallStatus = nil
+        statusPollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do {
+                    let status = try await api.callStatus(callID: callID, identity: identity)
+                    guard !Task.isCancelled else { return }
+                    self?.setMain {
+                        guard self?.outgoingCallID == callID else { return }
+                        if self?.lastCallStatus != status {
+                            self?.lastCallStatus = status
+                            self?.onCallStatus?(status)
+                        }
+                    }
+                    if status.isTerminal { return }
+                } catch is CancellationError {
+                    return
+                } catch {
+                    // A transient status failure must not tear down working media.
+                    NSLog("TRINET: call status poll failed call=%@ error=%@",
+                          callID, error.localizedDescription)
+                }
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+            }
+        }
+    }
+
     private func connect(session: InternetCallSession,
                          audio: Bool,
                          video: Bool,
@@ -1188,7 +1982,7 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
                 if let existingVideo { self.remoteVideoTrack = existingVideo }
                 self.isCameraEnabled = video
                 self.isMuted = !audio
-                self.state = .connected
+                self.state = existingParticipant == nil ? .ringing : .connected
                 return true
             }
             guard accepted else { throw CancellationError() }
@@ -1269,23 +2063,44 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
         let disconnected = mainSync {
             let oldRoom = self.room
             let outgoingCallID = self.outgoingCallID
+            let incomingCallID = self.incomingCallID
+            let shouldEndOutgoing = outgoingCallID != nil &&
+                InternetCallLifecyclePolicy.shouldEndOutgoingOnDisconnect(
+                    hasRemoteParticipant: self.hasRemoteParticipant,
+                    lastServerStatus: self.lastCallStatus?.status,
+                    state: self.state)
             let api = self.api
             let identity = self.identity
+            self.statusPollTask?.cancel()
+            self.statusPollTask = nil
+            self.lastCallStatus = nil
             self.roomAttemptID = nil
             self.room = nil
             self.outgoingCallID = nil
+            self.incomingCallID = nil
             self.state = .ended
             self.callID = nil
             self.participantName = ""
             self.hasRemoteParticipant = false
             self.localVideoTrack = nil
             self.remoteVideoTrack = nil
-            return (oldRoom, outgoingCallID, api, identity)
+            return (room: oldRoom,
+                    outgoingCallID: outgoingCallID,
+                    incomingCallID: incomingCallID,
+                    shouldEndOutgoing: shouldEndOutgoing,
+                    api: api,
+                    identity: identity)
         }
-        if let callID = disconnected.1 {
-            cancelCallBestEffort(callID, api: disconnected.2, identity: disconnected.3)
+        if let callID = disconnected.outgoingCallID {
+            if disconnected.shouldEndOutgoing {
+                endCallBestEffort(callID, api: disconnected.api, identity: disconnected.identity)
+            } else {
+                cancelCallBestEffort(callID, api: disconnected.api, identity: disconnected.identity)
+            }
+        } else if let callID = disconnected.incomingCallID {
+            endCallBestEffort(callID, api: disconnected.api, identity: disconnected.identity)
         }
-        Task { await disconnected.0?.disconnect() }
+        Task { await disconnected.room?.disconnect() }
     }
 
     func room(_ room: Room,
@@ -1296,7 +2111,7 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
             switch connectionState {
             case .connected:
                 NSLog("TRINET: LiveKit state connected")
-                self.applyState(.connected)
+                self.applyState(self.hasRemoteParticipant ? .connected : .ringing)
             case .reconnecting:
                 NSLog("TRINET: LiveKit state reconnecting")
                 self.applyState(.reconnecting)
@@ -1316,6 +2131,7 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
             guard self.room === room else { return }
             self.participantName = label
             self.hasRemoteParticipant = true
+            self.applyState(.connected)
         }
     }
 
@@ -1403,8 +2219,10 @@ final class InternetCallController: NSObject, ObservableObject, RoomDelegate, @u
     }
 
     private func participantLabel(_ participant: Participant) -> String {
-        if let name = participant.name, !name.isEmpty { return name }
-        return participant.identity?.stringValue ?? "Peer"
+        let candidate = participant.name.flatMap { $0.isEmpty ? nil : $0 }
+            ?? participant.identity?.stringValue
+            ?? ""
+        return DeviceDisplayNamePolicy.safe(candidate, fallback: "TRI-NET peer")
     }
 
     private func setFailure(_ error: Error, for expectedRoom: Room? = nil) {

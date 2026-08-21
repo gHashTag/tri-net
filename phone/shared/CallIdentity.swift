@@ -1,4 +1,5 @@
 import CryptoKit
+import Darwin
 import Foundation
 import Security
 
@@ -28,6 +29,35 @@ enum CallRoutePolicy {
                        hasLiveMeshContact: Bool) -> CallRoute {
         guard requested == .automatic else { return requested }
         return targetIsMeshAddress || hasLiveMeshContact ? .mesh : .internet
+    }
+}
+
+enum DeviceDisplayNamePolicy {
+    static func isRawIPAddress(_ candidate: String) -> Bool {
+        var value = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+        if value.hasPrefix("@") { value.removeFirst() }
+        if value.hasPrefix("[") {
+            guard let closing = value.firstIndex(of: "]") else { return false }
+            value = String(value[value.index(after: value.startIndex)..<closing])
+        } else if value.filter({ $0 == ":" }).count == 1,
+                  let separator = value.lastIndex(of: ":"),
+                  value[value.index(after: separator)...].allSatisfy(\.isNumber) {
+            value = String(value[..<separator])
+        }
+        if let zone = value.firstIndex(of: "%") {
+            value = String(value[..<zone])
+        }
+
+        var ipv4 = in_addr()
+        if value.withCString({ inet_pton(AF_INET, $0, &ipv4) }) == 1 { return true }
+        var ipv6 = in6_addr()
+        return value.withCString({ inet_pton(AF_INET6, $0, &ipv6) }) == 1
+    }
+
+    static func safe(_ candidate: String, fallback: String) -> String {
+        let clean = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty, !isRawIPAddress(clean) else { return fallback }
+        return clean
     }
 }
 
@@ -145,6 +175,41 @@ struct InternetCallConfiguration: Equatable {
               let scheme = url.scheme?.lowercased() else { return false }
         return scheme == "https" || scheme == "http"
     }
+
+    var isPublicHTTPSAPI: Bool {
+        guard let url = URL(string: apiBaseURL),
+              url.scheme?.lowercased() == "https",
+              let host = url.host?.lowercased(),
+              !host.isEmpty else { return false }
+        let privateIPv6 = host.contains(":") &&
+            (host == "::1" || host.hasPrefix("fc") || host.hasPrefix("fd") ||
+             host.hasPrefix("fe80:"))
+        if host == "localhost" || host == "0.0.0.0" ||
+            host.hasSuffix(".local") || host.hasSuffix(".lan") ||
+            privateIPv6 || Self.isPrivateIPv4(host) {
+            return false
+        }
+        return true
+    }
+
+    var healthURL: URL? {
+        endpointURL(path: "/healthz")
+    }
+
+    func endpointURL(path: String) -> URL? {
+        guard var components = URLComponents(string: apiBaseURL),
+              components.scheme != nil,
+              components.host != nil else { return nil }
+        let basePath = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let endpointPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard !endpointPath.isEmpty else { return nil }
+        components.path = basePath.isEmpty
+            ? "/\(endpointPath)"
+            : "/\(basePath)/\(endpointPath)"
+        components.query = nil
+        components.fragment = nil
+        return components.url
+    }
 }
 
 enum IdentityStoreError: LocalizedError {
@@ -174,7 +239,8 @@ final class DeviceIdentityStore {
     private init() {}
 
     func loadOrCreate(defaultName: String = "ssd26") throws -> DeviceIdentity {
-        let requestedName = UserDefaults.standard.string(forKey: "deviceDisplayName") ?? defaultName
+        let storedName = UserDefaults.standard.string(forKey: "deviceDisplayName") ?? defaultName
+        let requestedName = DeviceDisplayNamePolicy.safe(storedName, fallback: defaultName)
         if var identity: DeviceIdentity = try readCodable(account: identityAccount) {
             if identity.displayName != requestedName {
                 identity.displayName = requestedName
@@ -199,8 +265,8 @@ final class DeviceIdentityStore {
     }
 
     func rename(_ displayName: String) throws -> DeviceIdentity {
-        let clean = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        UserDefaults.standard.set(clean.isEmpty ? "ssd26" : clean, forKey: "deviceDisplayName")
+        let clean = DeviceDisplayNamePolicy.safe(displayName, fallback: "ssd26")
+        UserDefaults.standard.set(clean, forKey: "deviceDisplayName")
         return try loadOrCreate(defaultName: "ssd26")
     }
 

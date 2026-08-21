@@ -66,6 +66,12 @@ module NicknameDirectory {
         return claim_account_id != 0 && claim_account_id == device_account_id;
     }
 
+    // Public Internet discovery is an exact-address operation, not a people
+    // catalog. A normalized query may reveal at most the one matching account.
+    fn exact_lookup_may_return(query_shape_valid: bool, exact_match: bool, active_devices: u16) -> bool {
+        return query_shape_valid && exact_match && active_devices > 0;
+    }
+
     // A previously verified private mesh address remains available for an
     // explicit manual retry. Cache freshness does not prove live reachability,
     // so Auto must require a current signed Bonjour advertisement.
@@ -142,6 +148,13 @@ module NicknameDirectory {
         assert(nickname_owner_matches(0, 0) == false, "missing identity");
     }
 
+    test public_lookup_requires_exact_normalized_nickname {
+        assert(exact_lookup_may_return(true, true, 2) == true, "exact account summary");
+        assert(exact_lookup_may_return(true, false, 2) == false, "substring is private");
+        assert(exact_lookup_may_return(false, true, 2) == false, "invalid query");
+        assert(exact_lookup_may_return(true, true, 0) == false, "inactive account hidden");
+    }
+
     test cached_mesh_route_expiry {
         assert(cached_mesh_route_is_fresh(100, 604900) == true, "ttl boundary");
         assert(cached_mesh_route_is_fresh(100, 604901) == false, "expired route");
@@ -177,6 +190,9 @@ module NicknameDirectory {
 
     invariant confusing_distance_is_small
         assert MAX_EDIT_DISTANCE < NICKNAME_MIN_LENGTH
+
+    invariant substring_lookup_never_returns_public_account
+        assert exact_lookup_may_return(true, false, 1) == false
 
     invariant mesh_route_cache_is_bounded
         assert MESH_ROUTE_CACHE_TTL_SECONDS <= 604800

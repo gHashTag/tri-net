@@ -13,6 +13,9 @@ module InternetCall {
     const CALL_RINGING: u8 = 1;
     const CALL_ACTIVE: u8 = 2;
     const CALL_ENDED: u8 = 3;
+    const CALL_DECLINED: u8 = 4;
+    const CALL_CANCELLED: u8 = 5;
+    const CALL_MISSED: u8 = 6;
 
     const CAP_AUDIO: u8 = 1;
     const CAP_VIDEO: u8 = 2;
@@ -25,12 +28,25 @@ module InternetCall {
     const AUTO_MESH_ACCEPTED_CONNECT_TIMEOUT_SECONDS: u32 = 30;
     const MESH_CONTROL_SEND_ATTEMPTS: u32 = 3;
     const TOKEN_TTL_SECONDS: u32 = 300;
+    const LIVEKIT_ROOM_SERVICE_TOKEN_TTL_SECONDS: u32 = 60;
     const REQUEST_SIGNATURE_TTL_SECONDS: u32 = 60;
     const REQUEST_SIGNATURE_MAX_FUTURE_SKEW_SECONDS: u32 = 10;
     const PRESENCE_TTL_SECONDS: u32 = 90;
     const APNS_MAX_DELIVERY_ATTEMPTS: u32 = 3;
     const APNS_RETRY_BASE_DELAY_MS: u32 = 100;
     const APNS_RETRY_MAX_JITTER_MS: u32 = 50;
+    const APNS_VOIP_OUTBOX_WORKERS: u32 = 8;
+    const APNS_OUTBOX_HTTP_ATTEMPTS_PER_CLAIM: u32 = 1;
+    const CALL_RATE_WINDOW_SECONDS: u32 = 60;
+    const MAX_NEW_CALLS_PER_DEVICE_WINDOW: u32 = 6;
+    const MAX_PENDING_CALLS_PER_DEVICE: u32 = 2;
+    // A process generation owns each in-flight claim. A restarted single
+    // SQLite-backed replica gets a new owner and may reclaim immediately;
+    // this lease only recovers a stuck worker inside the same process.
+    const APNS_OUTBOX_CLAIM_LEASE_SECONDS: u32 = 120;
+    const APNS_OUTBOX_RETRY_BASE_SECONDS: u32 = 2;
+    const APNS_OUTBOX_RETRY_MAX_SECONDS: u32 = 300;
+    const APNS_OUTBOX_RETRY_MAX_JITTER_SECONDS: u32 = 5;
 
     // A routable device must have stable opaque identifiers and a public key.
     // Display names and IP addresses are deliberately excluded from identity.
@@ -47,6 +63,19 @@ module InternetCall {
 
     fn supports_video_call(capabilities: u8) -> bool {
         return supports_internet_call(capabilities) && ((capabilities & CAP_VIDEO) != 0);
+    }
+
+    fn call_media_request_is_valid(audio_requested: bool, video_requested: bool, caller_capabilities: u8) -> bool {
+        return (audio_requested || video_requested) &&
+               supports_internet_call(caller_capabilities) &&
+               (!video_requested || supports_video_call(caller_capabilities));
+    }
+
+    fn call_target_supports_media(video_requested: bool, target_capabilities: u8) -> bool {
+        if (video_requested) {
+            return supports_video_call(target_capabilities);
+        }
+        return supports_internet_call(target_capabilities);
     }
 
     fn device_is_online(last_seen: u32, now: u32) -> bool {
@@ -210,6 +239,12 @@ module InternetCall {
         return status == CALL_RINGING && invite_fresh && token_valid;
     }
 
+    // The initial invitation and one per-target outbox row commit atomically.
+    // API retries never enqueue a second row for the same call and device.
+    fn voip_outbox_event_may_enqueue(status: u8, invite_fresh: bool, token_valid: bool, inserted_new_call: bool) -> bool {
+        return inserted_new_call && voip_push_may_be_sent(status, invite_fresh, token_valid);
+    }
+
     // An APNs authentication key is valid for both endpoints. A BadDeviceToken
     // response therefore probes the alternate endpoint once before the stored
     // token environment is considered wrong.
@@ -251,11 +286,90 @@ module InternetCall {
         return (APNS_RETRY_BASE_DELAY_MS * 2) + apns_bounded_jitter_ms(jitter_ms);
     }
 
-    // Permanent token errors invalidate only the exact token used. A
+    fn apns_outbox_bounded_jitter_seconds(jitter_seconds: u32) -> u32 {
+        if (jitter_seconds > APNS_OUTBOX_RETRY_MAX_JITTER_SECONDS) {
+            return APNS_OUTBOX_RETRY_MAX_JITTER_SECONDS;
+        }
+        return jitter_seconds;
+    }
+
+    // Each outbox claim performs at most one APNs HTTP request. A transient
+    // failure returns to durable storage with capped exponential backoff, so
+    // the next request is preceded by a fresh call/message state check.
+    fn apns_outbox_retry_delay_seconds(attempts_completed: u32, jitter_seconds: u32) -> u32 {
+        let jitter: u32 = apns_outbox_bounded_jitter_seconds(jitter_seconds);
+        if (attempts_completed <= 1) {
+            return APNS_OUTBOX_RETRY_BASE_SECONDS + jitter;
+        }
+        if (attempts_completed == 2) {
+            return 4 + jitter;
+        }
+        if (attempts_completed == 3) {
+            return 8 + jitter;
+        }
+        if (attempts_completed == 4) {
+            return 16 + jitter;
+        }
+        if (attempts_completed == 5) {
+            return 32 + jitter;
+        }
+        if (attempts_completed == 6) {
+            return 64 + jitter;
+        }
+        if (attempts_completed == 7) {
+            return 128 + jitter;
+        }
+        return APNS_OUTBOX_RETRY_MAX_SECONDS;
+    }
+
+    fn apns_outbox_claim_is_recoverable(same_process_owner: bool, claimed_at: u32, now: u32) -> bool {
+        if (!same_process_owner) {
+            return true;
+        }
+        if (now < claimed_at) {
+            return false;
+        }
+        return (now - claimed_at) >= APNS_OUTBOX_CLAIM_LEASE_SECONDS;
+    }
+
+    fn apns_outbox_should_retry(permanent_failure: bool, transient_failure: bool) -> bool {
+        return !permanent_failure && transient_failure;
+    }
+
+    // A non-transient provider/configuration failure remains durable but is
+    // blocked for this process generation. A restart/configuration reload gets
+    // a new owner and may try it once again without a tight retry loop.
+    fn apns_outbox_should_block(permanent_failure: bool, transient_failure: bool) -> bool {
+        return !permanent_failure && !transient_failure;
+    }
+
+    fn apns_outbox_block_is_recoverable(same_process_owner: bool) -> bool {
+        return !same_process_owner;
+    }
+
+    // Idempotent retries are resolved before admission. New calls are bounded
+    // per authenticated device, and a configured APNs provider never admits
+    // more fresh VoIP target events than the bounded worker pool can start.
+    fn new_call_admission_is_allowed(recent_device_calls: u32, pending_device_calls: u32, pending_voip_events: u32, new_voip_events: u32, apns_enabled: bool) -> bool {
+        if (recent_device_calls >= MAX_NEW_CALLS_PER_DEVICE_WINDOW ||
+            pending_device_calls >= MAX_PENDING_CALLS_PER_DEVICE) {
+            return false;
+        }
+        if (!apns_enabled) {
+            return true;
+        }
+        if (pending_voip_events > APNS_VOIP_OUTBOX_WORKERS) {
+            return false;
+        }
+        return new_voip_events <= APNS_VOIP_OUTBOX_WORKERS - pending_voip_events;
+    }
+
+    // Token-specific terminal errors invalidate only the exact token used. A
     // BadDeviceToken error is conclusive only after the alternate endpoint was
-    // attempted. Transient failures never invalidate stored tokens.
-    fn apns_token_should_be_invalidated(permanent_failure: bool, bad_device_token: bool, alternate_attempted: bool, token_matches: bool) -> bool {
-        if (!permanent_failure || !token_matches) {
+    // attempted. Other terminal provider errors and transient failures never
+    // invalidate stored device tokens.
+    fn apns_token_should_be_invalidated(token_failure: bool, bad_device_token: bool, alternate_attempted: bool, token_matches: bool) -> bool {
+        if (!token_failure || !token_matches) {
             return false;
         }
         return !bad_device_token || alternate_attempted;
@@ -263,10 +377,115 @@ module InternetCall {
 
     // Any active destination device selected by the fan-out may accept the
     // short-lived invitation. The adapter atomically records the first answer.
-    fn join_is_authorized(request_user_id: u64, request_device_id: u64, callee_user_id: u64, callee_device_id: u64, status: u8, invite_fresh: bool, device_valid: bool) -> bool {
+    fn join_is_authorized(request_user_id: u64, request_device_id: u64, callee_user_id: u64, callee_device_id: u64, status: u8, target_status: u8, invite_fresh: bool, device_valid: bool) -> bool {
         return request_user_id == callee_user_id &&
                request_device_id == callee_device_id &&
+               target_status == CALL_RINGING &&
                may_answer(status, invite_fresh, device_valid);
+    }
+
+    // Retrying the exact successful answer is idempotent and may receive a new
+    // short-lived token for the same room. No other device may reuse it.
+    fn join_retry_is_authorized(request_user_id: u64, request_device_id: u64, callee_user_id: u64, answered_device_id: u64, status: u8, device_valid: bool) -> bool {
+        return request_user_id == callee_user_id &&
+               request_device_id == answered_device_id &&
+               status == CALL_ACTIVE &&
+               device_valid;
+    }
+
+    // A decline belongs to one exact destination device. One linked device
+    // cannot decline on behalf of another, and a repeated exact decline is a
+    // harmless retry.
+    fn callee_may_decline(request_user_id: u64, request_device_id: u64, callee_user_id: u64, target_device_id: u64, call_status: u8, target_status: u8) -> bool {
+        if (request_user_id != callee_user_id || request_device_id != target_device_id) {
+            return false;
+        }
+        if (target_status == CALL_DECLINED) {
+            return true;
+        }
+        return call_status == CALL_RINGING && target_status == CALL_RINGING;
+    }
+
+    // A nickname call fans out to every active device. Declining one target
+    // leaves the call ringing while another target can still answer.
+    fn status_after_decline(call_status: u8, remaining_ringing_targets: u16) -> u8 {
+        if (call_status == CALL_RINGING && remaining_ringing_targets == 0) {
+            return CALL_DECLINED;
+        }
+        return call_status;
+    }
+
+    // Status is private to the exact originating device and the exact callee
+    // devices that were included in the fanout transaction.
+    fn participant_may_read_status(request_user_id: u64, request_device_id: u64, caller_user_id: u64, caller_device_id: u64, callee_user_id: u64, is_call_target: bool) -> bool {
+        let exact_caller: bool = request_user_id == caller_user_id &&
+                                 request_device_id == caller_device_id;
+        let exact_callee: bool = request_user_id == callee_user_id && is_call_target;
+        return exact_caller || exact_callee;
+    }
+
+    fn call_should_expire(status: u8, invite_fresh: bool) -> bool {
+        return status == CALL_RINGING && !invite_fresh;
+    }
+
+    fn status_after_expiry(status: u8, invite_fresh: bool) -> u8 {
+        if (call_should_expire(status, invite_fresh)) {
+            return CALL_MISSED;
+        }
+        return status;
+    }
+
+    // Caller cancellation and active hangup are distinct terminal outcomes so
+    // every participant can render an honest status.
+    fn status_after_caller_end(status: u8) -> u8 {
+        if (status == CALL_RINGING) {
+            return CALL_CANCELLED;
+        }
+        if (status == CALL_ACTIVE) {
+            return CALL_ENDED;
+        }
+        return status;
+    }
+
+    fn call_is_terminal(status: u8) -> bool {
+        return status == CALL_ENDED ||
+               status == CALL_DECLINED ||
+               status == CALL_CANCELLED ||
+               status == CALL_MISSED;
+    }
+
+    // The call state is authoritative. RoomService cleanup starts only after
+    // a terminal transaction commits, and cleanup failure never rolls that
+    // state back or converts the endpoint response into a call failure.
+    fn livekit_room_cleanup_should_start(status: u8, terminal_state_committed: bool) -> bool {
+        return terminal_state_committed && call_is_terminal(status);
+    }
+
+    fn terminal_response_is_allowed(terminal_state_committed: bool, cleanup_succeeded: bool) -> bool {
+        if (cleanup_succeeded) {
+            return terminal_state_committed;
+        }
+        return terminal_state_committed;
+    }
+
+    // A caller-generated UUID makes POST /v1/calls retryable. Reuse is valid
+    // only when the destination and media intent are byte-for-byte equivalent.
+    fn create_retry_matches(callee_matches: bool, audio_matches: bool, video_matches: bool) -> bool {
+        return callee_matches && audio_matches && video_matches;
+    }
+
+    // Idempotency prevents duplicate signaling but never becomes a permanent
+    // LiveKit credential mint. Only the same caller may reissue a session for
+    // a fresh ringing call or an active call; terminal and expired calls must
+    // be inspected through the status endpoint.
+    fn create_retry_may_issue_session(exact_caller: bool, status: u8, invite_fresh: bool) -> bool {
+        if (!exact_caller) {
+            return false;
+        }
+        if (status == CALL_ACTIVE) {
+            return true;
+        }
+        return status == CALL_RINGING && invite_fresh;
     }
 
     // Only the exact device that created a call may cancel its invitation or
@@ -274,7 +493,19 @@ module InternetCall {
     fn caller_may_end(request_user_id: u64, request_device_id: u64, caller_user_id: u64, caller_device_id: u64, status: u8) -> bool {
         return request_user_id == caller_user_id &&
                request_device_id == caller_device_id &&
-               (status == CALL_RINGING || status == CALL_ACTIVE || status == CALL_ENDED);
+               (status == CALL_RINGING || status == CALL_ACTIVE || call_is_terminal(status));
+    }
+
+    // POST /end is for an established session. The exact originating device
+    // and the exact destination device that won the first-answer race may end
+    // it. The same two devices may retry after CALL_ENDED without changing it.
+    fn active_participant_may_end(request_user_id: u64, request_device_id: u64, caller_user_id: u64, caller_device_id: u64, callee_user_id: u64, answered_device_id: u64, status: u8) -> bool {
+        let exact_caller: bool = request_user_id == caller_user_id &&
+                                 request_device_id == caller_device_id;
+        let exact_answerer: bool = request_user_id == callee_user_id &&
+                                   request_device_id == answered_device_id;
+        return (exact_caller || exact_answerer) &&
+               (status == CALL_ACTIVE || status == CALL_ENDED);
     }
 
     fn next_status(status: u8, accept: bool) -> u8 {
@@ -393,6 +624,11 @@ module InternetCall {
     test video_requires_webrtc {
         assert(supports_video_call(CAP_AUDIO | CAP_VIDEO) == false, "no internet transport");
         assert(supports_video_call(CAP_AUDIO | CAP_VIDEO | CAP_WEBRTC) == true, "video enabled");
+        assert(call_media_request_is_valid(false, false, CAP_AUDIO | CAP_WEBRTC) == false, "empty media rejected");
+        assert(call_media_request_is_valid(true, false, CAP_AUDIO | CAP_WEBRTC) == true, "audio request");
+        assert(call_media_request_is_valid(true, true, CAP_AUDIO | CAP_WEBRTC) == false, "caller lacks video");
+        assert(call_target_supports_media(true, CAP_AUDIO | CAP_WEBRTC) == false, "audio target cannot receive video");
+        assert(call_target_supports_media(false, CAP_AUDIO | CAP_WEBRTC) == true, "audio target receives audio");
     }
 
     test stale_device_proof_is_rejected {
@@ -424,6 +660,8 @@ module InternetCall {
         assert(voip_push_may_be_sent(CALL_ACTIVE, true, true) == false, "active call");
         assert(voip_push_may_be_sent(CALL_RINGING, false, true) == false, "expired call");
         assert(voip_push_may_be_sent(CALL_RINGING, true, false) == false, "invalid token");
+        assert(voip_outbox_event_may_enqueue(CALL_RINGING, true, true, true) == true, "new invitation persists");
+        assert(voip_outbox_event_may_enqueue(CALL_RINGING, true, true, false) == false, "API retry does not enqueue");
     }
 
     test bad_device_token_probes_the_other_apns_endpoint_once {
@@ -448,6 +686,22 @@ module InternetCall {
         assert(apns_retry_delay_ms(1, 10) == 110, "first backoff");
         assert(apns_retry_delay_ms(2, 10) == 210, "second backoff");
         assert(apns_retry_delay_ms(2, 100) == 250, "jitter clamp");
+        assert(apns_outbox_retry_delay_seconds(1, 3) == 5, "first durable retry");
+        assert(apns_outbox_retry_delay_seconds(7, 5) == 133, "bounded exponential retry");
+        assert(apns_outbox_retry_delay_seconds(1000, 5) == 300, "durable retry cap");
+        assert(APNS_OUTBOX_HTTP_ATTEMPTS_PER_CLAIM == 1, "state recheck before every request");
+        assert(apns_outbox_should_retry(false, true) == true, "transient event remains durable");
+        assert(apns_outbox_should_retry(true, false) == false, "permanent event is discarded");
+        assert(apns_outbox_should_block(false, false) == true, "configuration failure blocks");
+        assert(apns_outbox_should_block(false, true) == false, "transient failure does not block");
+        assert(apns_outbox_block_is_recoverable(true) == false, "same process does not spin");
+        assert(apns_outbox_block_is_recoverable(false) == true, "restart may retry once");
+        assert(apns_outbox_claim_is_recoverable(true, 100, 219) == false, "live same-process claim remains leased");
+        assert(apns_outbox_claim_is_recoverable(true, 100, 220) == true, "stuck same-process worker eventually recovers");
+        assert(apns_outbox_claim_is_recoverable(false, 100, 101) == true, "new process generation reclaims immediately");
+        assert(new_call_admission_is_allowed(0, 0, 0, 2, true) == true, "bounded call fanout admitted");
+        assert(new_call_admission_is_allowed(0, 0, 7, 2, true) == false, "VoIP queue capacity protected");
+        assert(new_call_admission_is_allowed(6, 0, 0, 0, false) == false, "per-device rate applies without APNs");
     }
 
     test only_conclusive_exact_apns_failure_invalidates_token {
@@ -459,9 +713,54 @@ module InternetCall {
     }
 
     test only_fresh_destination_may_join {
-        assert(join_is_authorized(30, 40, 30, 40, CALL_RINGING, true, true) == true, "callee joins");
-        assert(join_is_authorized(10, 20, 30, 40, CALL_RINGING, true, true) == false, "caller cannot answer");
-        assert(join_is_authorized(30, 40, 30, 40, CALL_RINGING, false, true) == false, "expired invite");
+        assert(join_is_authorized(30, 40, 30, 40, CALL_RINGING, CALL_RINGING, true, true) == true, "callee joins");
+        assert(join_is_authorized(10, 20, 30, 40, CALL_RINGING, CALL_RINGING, true, true) == false, "caller cannot answer");
+        assert(join_is_authorized(30, 40, 30, 40, CALL_RINGING, CALL_DECLINED, true, true) == false, "declined target cannot answer");
+        assert(join_is_authorized(30, 40, 30, 40, CALL_RINGING, CALL_RINGING, false, true) == false, "expired invite");
+        assert(join_retry_is_authorized(30, 40, 30, 40, CALL_ACTIVE, true) == true, "same answer retries");
+        assert(join_retry_is_authorized(30, 41, 30, 40, CALL_ACTIVE, true) == false, "other device cannot reuse answer");
+    }
+
+    test linked_device_decline_preserves_first_answer {
+        assert(callee_may_decline(30, 40, 30, 40, CALL_RINGING, CALL_RINGING) == true, "exact target declines");
+        assert(callee_may_decline(30, 41, 30, 40, CALL_RINGING, CALL_RINGING) == false, "linked device mismatch");
+        assert(callee_may_decline(30, 40, 30, 40, CALL_DECLINED, CALL_DECLINED) == true, "decline retry");
+        assert(status_after_decline(CALL_RINGING, 1) == CALL_RINGING, "another device can answer");
+        assert(status_after_decline(CALL_RINGING, 0) == CALL_DECLINED, "last decline terminates");
+        assert(status_after_decline(CALL_ACTIVE, 0) == CALL_ACTIVE, "decline never defeats answer");
+    }
+
+    test call_status_is_private_and_terminal_causes_are_distinct {
+        assert(participant_may_read_status(10, 20, 10, 20, 30, false) == true, "originating device reads");
+        assert(participant_may_read_status(30, 40, 10, 20, 30, true) == true, "target device reads");
+        assert(participant_may_read_status(10, 21, 10, 20, 30, false) == false, "other caller device rejected");
+        assert(participant_may_read_status(30, 41, 10, 20, 30, false) == false, "untargeted callee rejected");
+        assert(status_after_caller_end(CALL_RINGING) == CALL_CANCELLED, "ringing cancellation");
+        assert(status_after_caller_end(CALL_ACTIVE) == CALL_ENDED, "active hangup");
+        assert(status_after_expiry(CALL_RINGING, false) == CALL_MISSED, "ring timeout");
+        assert(call_is_terminal(CALL_DECLINED) == true, "decline terminal");
+        assert(call_is_terminal(CALL_ACTIVE) == false, "active not terminal");
+    }
+
+    test livekit_cleanup_is_after_commit_and_best_effort {
+        assert(livekit_room_cleanup_should_start(CALL_ENDED, true) == true, "ended room cleanup");
+        assert(livekit_room_cleanup_should_start(CALL_CANCELLED, true) == true, "cancelled room cleanup");
+        assert(livekit_room_cleanup_should_start(CALL_ACTIVE, true) == false, "active room retained");
+        assert(livekit_room_cleanup_should_start(CALL_ENDED, false) == false, "no cleanup before commit");
+        assert(terminal_response_is_allowed(true, false) == true, "cleanup failure does not roll back");
+        assert(terminal_response_is_allowed(false, true) == false, "cleanup cannot replace commit");
+    }
+
+    test create_retry_requires_identical_intent {
+        assert(create_retry_matches(true, true, true) == true, "same request");
+        assert(create_retry_matches(false, true, true) == false, "different callee");
+        assert(create_retry_matches(true, false, true) == false, "different audio");
+        assert(create_retry_matches(true, true, false) == false, "different video");
+        assert(create_retry_may_issue_session(true, CALL_RINGING, true) == true, "fresh retry");
+        assert(create_retry_may_issue_session(true, CALL_ACTIVE, false) == true, "active reconnect");
+        assert(create_retry_may_issue_session(true, CALL_RINGING, false) == false, "expired retry");
+        assert(create_retry_may_issue_session(true, CALL_ENDED, true) == false, "ended retry has no token");
+        assert(create_retry_may_issue_session(false, CALL_RINGING, true) == false, "relinked account rejected");
     }
 
     test only_originating_device_may_end_call {
@@ -473,11 +772,36 @@ module InternetCall {
         assert(caller_may_end(10, 20, 10, 20, CALL_IDLE) == false, "uncreated call cannot end");
     }
 
+    test only_exact_active_participants_may_hang_up {
+        assert(active_participant_may_end(10, 20, 10, 20, 30, 40, CALL_ACTIVE) == true, "originating caller ends active call");
+        assert(active_participant_may_end(30, 40, 10, 20, 30, 40, CALL_ACTIVE) == true, "answering callee ends active call");
+        assert(active_participant_may_end(30, 41, 10, 20, 30, 40, CALL_ACTIVE) == false, "other target cannot hang up");
+        assert(active_participant_may_end(10, 21, 10, 20, 30, 40, CALL_ACTIVE) == false, "other caller device cannot hang up");
+        assert(active_participant_may_end(10, 20, 10, 20, 30, 40, CALL_RINGING) == false, "ringing uses cancel or decline");
+        assert(active_participant_may_end(10, 20, 10, 20, 30, 40, CALL_ENDED) == true, "caller retry is idempotent");
+        assert(active_participant_may_end(30, 40, 10, 20, 30, 40, CALL_ENDED) == true, "answerer retry is idempotent");
+        assert(active_participant_may_end(10, 20, 10, 20, 30, 40, CALL_CANCELLED) == false, "never-active cancellation is not a hangup");
+    }
+
     invariant route_values_are_distinct
         assert ROUTE_MESH != ROUTE_INTERNET
 
     invariant active_and_ended_are_distinct
         assert CALL_ACTIVE != CALL_ENDED
+
+    invariant terminal_call_states_are_distinct
+        assert CALL_ENDED != CALL_DECLINED &&
+               CALL_DECLINED != CALL_CANCELLED &&
+               CALL_CANCELLED != CALL_MISSED
+
+    invariant non_answering_target_never_ends_active_call
+        assert active_participant_may_end(30, 41, 10, 20, 30, 40, CALL_ACTIVE) == false
+
+    invariant terminal_create_retry_never_mints_session
+        assert create_retry_may_issue_session(true, CALL_ENDED, true) == false
+
+    invariant video_never_targets_audio_only_device
+        assert call_target_supports_media(true, CAP_AUDIO | CAP_WEBRTC) == false
 
     invariant access_token_outlives_invite
         assert TOKEN_TTL_SECONDS > INVITE_TTL_SECONDS
@@ -507,6 +831,12 @@ module InternetCall {
     invariant ended_call_retry_remains_authorized
         assert caller_may_end(10, 20, 10, 20, CALL_ENDED) == true
 
+    invariant livekit_cleanup_failure_never_rolls_back_terminal_state
+        assert terminal_response_is_allowed(true, false) == true
+
+    invariant first_answer_wins_over_late_decline
+        assert status_after_decline(CALL_ACTIVE, 0) == CALL_ACTIVE
+
     invariant active_call_never_emits_initial_voip_push
         assert voip_push_may_be_sent(CALL_ACTIVE, true, true) == false
 
@@ -515,6 +845,28 @@ module InternetCall {
 
     invariant apns_retry_delay_is_short
         assert apns_retry_delay_ms(2, APNS_RETRY_MAX_JITTER_MS) <= 250
+
+    invariant apns_outbox_retry_delay_is_bounded
+        assert apns_outbox_retry_delay_seconds(1000, APNS_OUTBOX_RETRY_MAX_JITTER_SECONDS) <= APNS_OUTBOX_RETRY_MAX_SECONDS
+
+    invariant apns_outbox_new_process_reclaims_before_invite_expiry
+        assert apns_outbox_claim_is_recoverable(false, 100, 100) == true
+
+    invariant apns_outbox_configuration_failure_never_spins_in_process
+        assert apns_outbox_should_block(false, false) == true && apns_outbox_block_is_recoverable(true) == false
+
+    invariant apns_outbox_revalidates_before_every_http_request
+        assert APNS_OUTBOX_HTTP_ATTEMPTS_PER_CLAIM == 1
+
+    invariant apns_voip_outbox_has_bounded_parallel_delivery
+        assert APNS_VOIP_OUTBOX_WORKERS > 1 && APNS_VOIP_OUTBOX_WORKERS <= 16
+
+    invariant voip_admission_never_exceeds_worker_capacity
+        forall pending_voip_events: u32
+        assert new_call_admission_is_allowed(0, 0, pending_voip_events, APNS_VOIP_OUTBOX_WORKERS + 1, true) == false
+
+    invariant idempotent_call_retry_never_enqueues_another_voip_event
+        assert voip_outbox_event_may_enqueue(CALL_RINGING, true, true, false) == false
 
     bench route_selection_latency
         measure: nanoseconds to select_route(true, true)

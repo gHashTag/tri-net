@@ -42,6 +42,8 @@
 	<string></string>
 	<key>TRINET_LIVEKIT_URL</key>
 	<string></string>
+	<key>TRINET_PUSH_ENVIRONMENT</key>
+	<string>$(TRINET_PUSH_ENVIRONMENT)</string>
 	<key>TRINET_SERVICE_ACCESS_TOKEN</key>
 	<string></string>
 	<key>UIBackgroundModes</key>

@@ -115,7 +115,29 @@ struct DirectChatMessage: Identifiable, Codable, Equatable {
 enum DirectChatDelivery: String, Codable {
     case sent
     case failed
+    case uncertain
     case received
+}
+
+enum CallPermissionError: LocalizedError {
+    case microphoneRequired
+    case cameraRequired
+
+    var errorDescription: String? {
+        switch self {
+        case .microphoneRequired:
+            return "Microphone access is required for calls. Enable it in iOS Settings."
+        case .cameraRequired:
+            return "Camera access is required for video calls. Enable it in iOS Settings, or start an audio call."
+        }
+    }
+}
+
+enum PublicRouteHealth: Equatable {
+    case notConfigured
+    case checking
+    case live
+    case unavailable
 }
 
 enum DirectChatTimestampPolicy {
@@ -322,34 +344,43 @@ struct RecFile: Identifiable {
 class StreamViewModel: ObservableObject {
     @Published var phase: CallPhase = .idle {
         didSet {
-            if phase == .connecting {
-                ringbackSynth.start()
-            } else {
-                ringbackSynth.stop()
+            syncLegacyRingback()
+            if phase == .live {
+                callStatusText = "Connected"
+                showEndedCallState = false
             }
         }
     }
     @Published var remoteIP: String = UserDefaults.standard.string(forKey: "remoteIP") ?? "192.168.1.105"
     @Published var callee: String = UserDefaults.standard.string(forKey: "internetCallee") ?? "ssd26"
     @Published var route: CallRoute = .automatic
-    @Published private(set) var activeRoute: CallRoute?
+    @Published private(set) var activeRoute: CallRoute? {
+        didSet { syncLegacyRingback() }
+    }
     @Published var callError: String?
     @Published var identity: DeviceIdentity
     @Published var internetConfiguration: InternetCallConfiguration
+    @Published private(set) var publicRouteHealth: PublicRouteHealth = .notConfigured
+    @Published private(set) var callStatusText = "Idle"
+    @Published private(set) var showEndedCallState = false
     @Published var incomingMeshCall: IncomingMeshCall?
     @Published var myIP: String = ""
     @Published var framesSent: Int = 0
     @Published var framesReceived: Int = 0
     @Published var txKBps: Double = 0
     @Published var rxKBps: Double = 0
-    @Published var cameraAuthorized = false
+    @Published var cameraAuthorized =
+        AVCaptureDevice.authorizationStatus(for: .video) == .authorized
+    @Published var microphoneAuthorized =
+        AVAudioSession.sharedInstance().recordPermission == .granted
     @Published var isMuted = false
     @Published var cameraOff = false { didSet { camera.blackout = cameraOff } }
     @Published private(set) var activeMeshMedia: InternetCallMedia = .audioVideo
     @Published var unreadChat = 0
-    var chatOpen = false { didSet { if chatOpen { unreadChat = 0 } } }
+    var chatOpen = false
     private let chatChime = ChatChime()
     private let ringbackSynth = OutgoingRingbackSynth()
+    private var meshRingbackEnabled = false
     private var seenInviteMACs: [Data: Date] = [:]
     @Published var recentIPs: [String] = []
     @Published var txLevel: Float = 0
@@ -363,7 +394,7 @@ class StreamViewModel: ObservableObject {
 
     // Profile & Avatar state
     @Published var avatarData: Data? = UserDefaults.standard.data(forKey: "userAvatarData")
-    @Published var avatarColorHex: String = UserDefaults.standard.string(forKey: "userAvatarColorHex") ?? "#4CD972"
+    @Published var avatarColorHex: String = UserDefaults.standard.string(forKey: "userAvatarColorHex") ?? "#15846E"
 
     func saveAvatar(data: Data?, colorHex: String) {
         self.avatarData = data
@@ -378,7 +409,9 @@ class StreamViewModel: ObservableObject {
 
     // Per-contact direct chat storage
     @Published var directChats: [String: [DirectChatMessage]] = StreamViewModel.loadDirectChats()
-    @Published var activeChatContact: String? = nil
+    @Published var activeChatContact: String? = nil {
+        didSet { chatOpen = activeChatContact != nil }
+    }
 
     private static let directChatsKey = "trinetDirectChats"
     private static func loadDirectChats() -> [String: [DirectChatMessage]] {
@@ -400,11 +433,17 @@ class StreamViewModel: ObservableObject {
     }
 
     func markChatAsRead(_ contact: String) {
+        directMessages.markRead(nickname: contact)
         guard var list = directChats[contact] else { return }
+        let localNickname = NicknamePolicy.normalize(directory.currentNickname ?? identity.displayName)
+        let cleared = list.filter {
+            !$0.isRead && NicknamePolicy.normalize($0.sender) != localNickname
+        }.count
         for i in 0..<list.count {
             list[i].isRead = true
         }
         directChats[contact] = list
+        unreadChat = max(0, unreadChat - cleared)
         StreamViewModel.saveDirectChats(directChats)
     }
 
@@ -412,7 +451,10 @@ class StreamViewModel: ObservableObject {
         let key = NicknamePolicy.normalize(contact)
         let target = key.isEmpty ? contact : key
         let list = directChats[target] ?? []
-        return list.filter { !$0.isRead && $0.sender != (directory.currentNickname ?? identity.displayName) }.count
+        let localNickname = NicknamePolicy.normalize(directory.currentNickname ?? identity.displayName)
+        return list.filter {
+            !$0.isRead && NicknamePolicy.normalize($0.sender) != localNickname
+        }.count
     }
 
     // AI Speech Transcription Agent
@@ -442,6 +484,11 @@ class StreamViewModel: ObservableObject {
     }
 
     func startVideoCall(to target: String) {
+        guard cameraAuthorized else {
+            callError = CallPermissionError.cameraRequired.localizedDescription
+            activeRoute = nil
+            return
+        }
         callee = target
         cameraOff = false
         initiateCallToContact(target)
@@ -452,57 +499,137 @@ class StreamViewModel: ObservableObject {
         if let peer = discovery.peers.first(where: { NicknamePolicy.normalize($0.name) == norm || $0.name == target }) {
             discovery.resolveIP(peer) { [weak self] ip in
                 guard let self = self, let ip = ip, !ip.isEmpty else {
-                    self?.startCall()
+                    self?.startCall(targetOverride: target)
                     return
                 }
                 self.remoteIP = ip
-                self.startCall()
+                self.startCall(targetOverride: target)
             }
         } else {
-            startCall()
+            startCall(targetOverride: target)
+        }
+    }
+
+    private func syncLegacyRingback() {
+        if phase == .connecting, activeRoute == .mesh, meshRingbackEnabled {
+            ringbackSynth.start()
+        } else {
+            ringbackSynth.stop()
         }
     }
 
     func sendDirectText(to contact: String, text: String) {
-        let trimmed = MeshTextEnvelope.clamp(
-            text.trimmingCharacters(in: .whitespacesAndNewlines)
-        )
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         let key = NicknamePolicy.normalize(contact).isEmpty ? contact : NicknamePolicy.normalize(contact)
         let senderName = directory.currentNickname ?? identity.displayName
-        var msg = DirectChatMessage(sender: senderName,
-                                    recipient: key,
-                                    text: trimmed,
-                                    timestamp: Date(),
-                                    isRead: true,
-                                    delivery: .failed)
-        guard let signedContact = directory.meshContact(named: key),
-              signedContact.online,
-              signedContact.source == .mesh,
-              signedContact.meshAddress != nil,
-              signedContact.meshPort == MeshCallSignaling.port,
-              signedContact.signingPublicKey != nil,
-              signedContact.textEncryptionPublicKey != nil else {
-            if directChats[key] == nil { directChats[key] = [] }
-            directChats[key]?.append(msg)
-            StreamViewModel.saveDirectChats(directChats)
-            callError = "@\(key) has no live signed encrypted-chat route. Message was not sent."
+        let messageID = UUID()
+        let createdAt = Date()
+        var meshFailure: Error?
+        var meshDispatched = false
+        if let signedContact = directory.meshContact(named: key),
+           signedContact.online,
+           signedContact.source == .mesh,
+           signedContact.meshAddress != nil,
+           signedContact.meshPort == MeshCallSignaling.port,
+           signedContact.signingPublicKey != nil,
+           signedContact.textEncryptionPublicKey != nil,
+           trimmed.utf8.count <= MeshTextEnvelope.maximumTextBytes {
+            do {
+                _ = try directory.sendMeshText(trimmed,
+                                               to: signedContact,
+                                               clientMessageID: messageID,
+                                               createdAt: createdAt)
+                meshDispatched = true
+            } catch {
+                meshFailure = error
+            }
+        }
+
+        var pending = DirectChatMessage(id: messageID,
+                                        sender: senderName,
+                                        recipient: key,
+                                        text: trimmed,
+                                        timestamp: createdAt,
+                                        isRead: true,
+                                        delivery: nil)
+        let hasInternetRoute = trimmed.utf8.count <= InternetDirectMessageCrypto.maximumTextBytes &&
+            internetConfiguration.hasDirectoryAPI &&
+            !internetConfiguration.isDevelopmentDirect
+        guard hasInternetRoute else {
+            pending.delivery = meshDispatched ? .uncertain : .failed
+            appendDirectMessage(pending, contact: key)
+            if meshDispatched {
+                chatChime.play()
+                AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+                callError = "Nearby delivery has no receipt. Delivery to @\(key) could not be confirmed."
+            } else if trimmed.utf8.count > InternetDirectMessageCrypto.maximumTextBytes {
+                callError = "Message is too long for encrypted Internet delivery."
+            } else if let meshFailure {
+                callError = "Nearby delivery failed and no Internet route is configured: \(meshFailure.localizedDescription)"
+            } else if trimmed.utf8.count > MeshTextEnvelope.maximumTextBytes {
+                callError = "This message needs the encrypted Internet route because it is too long for nearby delivery."
+            } else {
+                callError = "@\(key) has no encrypted Internet or nearby route. Message was not sent."
+            }
             return
         }
-        do {
-            _ = try directory.sendMeshText(trimmed, to: signedContact)
-            msg.delivery = .sent
-        } catch {
-            callError = "Encrypted message to @\(key) was not sent: \(error.localizedDescription)"
-        }
-        if directChats[key] == nil { directChats[key] = [] }
-        directChats[key]?.append(msg)
-        StreamViewModel.saveDirectChats(directChats)
-
-        // Play sound chime + vibration locally
+        appendDirectMessage(pending, contact: key)
         chatChime.play()
         AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                _ = try await self.directMessages.send(text: trimmed,
+                                                       to: key,
+                                                       clientMessageID: messageID,
+                                                       createdAt: createdAt)
+                self.updateDirectMessageDelivery(contact: key,
+                                                 id: messageID,
+                                                 delivery: .sent)
+            } catch {
+                let delivery: DirectChatDelivery = meshDispatched ||
+                    error is InternetDirectMessageDeliveryError
+                    ? .uncertain
+                    : .failed
+                self.updateDirectMessageDelivery(contact: key,
+                                                 id: messageID,
+                                                 delivery: delivery)
+                if delivery == .uncertain {
+                    self.callError = "Delivery to @\(key) could not be confirmed. Check the conversation before sending again."
+                } else {
+                    self.callError = "Encrypted message to @\(key) was not sent: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
 
+    private func appendDirectMessage(_ message: DirectChatMessage, contact: String) {
+        if directChats[contact] == nil { directChats[contact] = [] }
+        directChats[contact]?.append(message)
+        StreamViewModel.saveDirectChats(directChats)
+    }
+
+    private func updateDirectMessageDelivery(contact: String,
+                                             id: UUID,
+                                             delivery: DirectChatDelivery) {
+        guard var messages = directChats[contact],
+              let index = messages.firstIndex(where: { $0.id == id }) else { return }
+        messages[index].delivery = delivery
+        directChats[contact] = messages
+        StreamViewModel.saveDirectChats(directChats)
+    }
+
+    func retryDirectMessage(_ message: DirectChatMessage, to contact: String) {
+        guard message.delivery == .failed else { return }
+        let key = NicknamePolicy.normalize(contact)
+        let target = key.isEmpty ? contact : key
+        if var messages = directChats[target] {
+            messages.removeAll { $0.id == message.id }
+            directChats[target] = messages
+            StreamViewModel.saveDirectChats(directChats)
+        }
+        sendDirectText(to: target, text: message.text)
     }
 
     func toggleBlur() {
@@ -644,6 +771,7 @@ class StreamViewModel: ObservableObject {
     let directory: NicknameDirectoryController
     let account: AccountDeviceController
     let groupChat: GroupChatController
+    let directMessages: InternetDirectMessageController
 
     // Group call: enter several IPs (comma/space separated) -> full-mesh conference. Each remote
     // sender decodes into its OWN tile (per-source decoder), so 2 iPhones + a Mac = a 3-way group.
@@ -678,7 +806,8 @@ class StreamViewModel: ObservableObject {
                 NSLog("TRINET: refusing self-call — '\(peer.name)' resolved to our own IP \(ip)")
                 return
             }
-            self.remoteIP = ip; self.startCall()
+            self.remoteIP = ip
+            self.startCall(targetOverride: ip)
         }
     }
     func callEveryone() { selectedUIDs = Set(discovery.peers.map { $0.uid }); startGroupFromSelection() }
@@ -702,12 +831,17 @@ class StreamViewModel: ObservableObject {
     private var meshSessionID: UUID?
     private var internetAttemptID: UUID?
     private var internetCallTask: Task<Void, Never>?
+    private var publicRouteHealthTask: Task<Void, Never>?
+    private var callStatusResetWorkItem: DispatchWorkItem?
     private var internetParticipantObserver: AnyCancellable?
     private var groupUnreadObserver: AnyCancellable?
+    private var directUnreadObserver: AnyCancellable?
     private var internetAnswerTimer: Timer?
     private var outgoingInternetAwaitingRemote = false
     private var pendingInternetVideo = false
     private var appBecameActiveObserver: AnyCancellable?
+    private var pendingNotificationSenderUserID: String?
+    private var pendingNotificationSenderNickname: String?
     private var outboundMeshControl: MeshCallControlExpectation?
     private var outboundMeshControlPort: UInt16?
     private var outboundMeshAccepted = false
@@ -744,6 +878,15 @@ class StreamViewModel: ObservableObject {
         directory = NicknameDirectoryController(identity: loadedIdentity, configuration: loadedConfiguration)
         account = AccountDeviceController(identity: loadedIdentity, configuration: loadedConfiguration)
         groupChat = GroupChatController(identity: loadedIdentity, configuration: loadedConfiguration)
+        directMessages = InternetDirectMessageController(identity: loadedIdentity,
+                                                          configuration: loadedConfiguration)
+        let localNickname = NicknamePolicy.normalize(
+            loadedIdentity.nickname ?? loadedIdentity.displayName)
+        unreadChat = directChats.values.reduce(into: 0) { count, messages in
+            count += messages.filter {
+                !$0.isRead && NicknamePolicy.normalize($0.sender) != localNickname
+            }.count
+        }
         myIP = getLocalIP()
         if let saved = UserDefaults.standard.array(forKey: "recentCallIPs") as? [String] {
             recentIPs = saved
@@ -768,16 +911,58 @@ class StreamViewModel: ObservableObject {
             guard let self, newUnread > 0 else { return }
             self.chatChime.play()
         }
+        directMessages.onMessage = { [weak self] message in
+            guard let self else { return }
+            let senderKey = NicknamePolicy.normalize(message.senderNickname)
+            guard !senderKey.isEmpty else { return }
+            let pendingNickname = self.pendingNotificationSenderNickname.map(
+                NicknamePolicy.normalize)
+            if self.pendingNotificationSenderUserID == message.senderUserID,
+               pendingNickname == nil || pendingNickname == senderKey {
+                self.pendingNotificationSenderUserID = nil
+                self.pendingNotificationSenderNickname = nil
+                self.openChat(with: senderKey)
+            }
+            let messageID = UUID(uuidString: message.clientMessageID) ?? UUID()
+            if self.directChats[senderKey]?.contains(where: { $0.id == messageID }) == true {
+                if self.activeChatContact == senderKey {
+                    self.directMessages.markRead(nickname: senderKey)
+                }
+                return
+            }
+            let isCurrentChat = self.activeChatContact == senderKey
+            let incoming = DirectChatMessage(id: messageID,
+                                             sender: senderKey,
+                                             recipient: message.recipientNickname,
+                                             text: message.text,
+                                             timestamp: message.createdAt,
+                                             isRead: isCurrentChat || message.read,
+                                             delivery: .received)
+            self.appendDirectMessage(incoming, contact: senderKey)
+            if isCurrentChat {
+                self.directMessages.markRead(nickname: senderKey)
+            } else if !message.read {
+                self.unreadChat += 1
+            }
+            let age = abs(Date().timeIntervalSince(message.serverCreatedAt))
+            if !message.read, !isCurrentChat, age <= 60 {
+                self.chatChime.play()
+                AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+            }
+        }
         groupUnreadObserver = groupChat.$totalUnreadCount
             .removeDuplicates()
             .dropFirst()
             .receive(on: RunLoop.main)
-            .sink { count in
-                if #available(iOS 16.0, *) {
-                    UNUserNotificationCenter.current().setBadgeCount(max(0, count))
-                } else {
-                    UIApplication.shared.applicationIconBadgeNumber = max(0, count)
-                }
+            .sink { [weak self] _ in
+                self?.updateApplicationBadge()
+            }
+        directUnreadObserver = directMessages.$totalUnreadCount
+            .removeDuplicates()
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.updateApplicationBadge()
             }
         internet.onRemoteEnded = { [weak self] in
             guard let self,
@@ -787,9 +972,29 @@ class StreamViewModel: ObservableObject {
             self.stopCall()
             self.callError = "The peer ended the call."
         }
+        internet.onCallStatus = { [weak self] status in
+            guard let self,
+                  status.isTerminal,
+                  self.activeRoute == .internet else { return }
+            let message: String
+            switch status.status {
+            case "declined": message = "Call declined."
+            case "missed": message = "No answer."
+            case "cancelled": message = "Call cancelled."
+            default: message = "The peer ended the call."
+            }
+            CallKitCoordinator.shared.reportCurrentEnded(serverStatus: status.status)
+            self.callKitUUID = nil
+            self.stopCall()
+            self.callError = message
+        }
         internet.onIncomingCall = { [weak self] incoming in
             guard let self else { return false }
-            let caller = NicknamePolicy.normalize(incoming.caller)
+            let safeCaller = DeviceDisplayNamePolicy.safe(
+                incoming.caller,
+                fallback: "TRI-NET peer"
+            )
+            let caller = NicknamePolicy.normalize(safeCaller)
             let signedMatch = self.incomingMeshCall.map {
                 NicknamePolicy.normalize($0.invite.nickname) == caller
             } ?? false
@@ -801,16 +1006,14 @@ class StreamViewModel: ObservableObject {
                 self.incomingTimer?.invalidate()
                 self.incomingCall = nil
             }
-            guard self.phase == .idle else { return false }
-            CallKitCoordinator.shared.reportIncoming(callID: incoming.callID,
-                                                     caller: incoming.caller,
-                                                     audio: incoming.audio,
-                                                     video: incoming.video) { [weak self] succeeded in
-                guard IncomingCallDeliveryPolicy.shouldRetryAfterPresentation(
-                    succeeded: succeeded
-                ) else { return }
-                self?.internet.allowIncomingRetry(callID: incoming.callID)
+            guard self.phase == .idle, self.activeRoute == nil else {
+                CallKitCoordinator.shared.declineIncomingAsBusy(callID: incoming.callID)
+                return true
             }
+            CallKitCoordinator.shared.reportIncoming(callID: incoming.callID,
+                                                     caller: safeCaller,
+                                                     audio: incoming.audio,
+                                                     video: incoming.video)
             return true
         }
         directory.onIdentityChanged = { [weak self] updatedIdentity in
@@ -819,7 +1022,10 @@ class StreamViewModel: ObservableObject {
             self.internet.update(identity: updatedIdentity, configuration: self.internetConfiguration)
             self.account.update(identity: updatedIdentity, configuration: self.internetConfiguration)
             self.groupChat.update(identity: updatedIdentity, configuration: self.internetConfiguration)
+            self.directMessages.update(identity: updatedIdentity,
+                                       configuration: self.internetConfiguration)
             self.internet.startIncomingPolling(voipToken: UserDefaults.standard.string(forKey: "voipPushToken"))
+            self.directMessages.startPolling()
             self.account.sync()
         }
         if let migratedNickname = NicknameMigrationPolicy.candidate(
@@ -836,16 +1042,22 @@ class StreamViewModel: ObservableObject {
             self.internet.update(identity: updatedIdentity, configuration: self.internetConfiguration)
             self.directory.update(identity: updatedIdentity, configuration: self.internetConfiguration)
             self.groupChat.update(identity: updatedIdentity, configuration: self.internetConfiguration)
+            self.directMessages.update(identity: updatedIdentity,
+                                       configuration: self.internetConfiguration)
+            self.directMessages.startPolling()
         }
         directory.onIncomingMeshInvite = { [weak self] invite, address in
             guard let self,
                   self.phase == .idle,
                   self.directory.verifiedMeshInviteSender(invite,
                                                           sourceAddress: address) != nil else {
-                NSLog("TRINET CALL: rejected signed invite without a matching live signed contact")
+                NSLog("TRINET CALL: rejected signed invite without a matching pinned mesh identity and address")
                 return
             }
             let incoming = IncomingMeshCall(invite: invite, sourceAddress: address)
+            self.incomingTimer?.invalidate()
+            self.incomingTimer = nil
+            self.incomingCall = nil
             self.incomingMeshCall = incoming
             #if DEBUG
             self.debugE2EHandleVerifiedInvite(incoming)
@@ -896,13 +1108,17 @@ class StreamViewModel: ObservableObject {
         )
         .receive(on: RunLoop.main)
         .sink { [weak self] _ in
+            self?.checkPermission()
             self?.enablePendingInternetVideoIfPossible()
+            self?.checkPublicRouteHealth()
         }
         account.sync()
+        directMessages.startPolling()
         groupChat.startPolling()
         discovery.start()   // advertise + browse from launch
         startIdleListener() // listen on :7000 for incoming mesh calls while idle
         autoConnectViaRendezvousIfConfigured()   // NAT-traversal path (no-op unless configured)
+        checkPublicRouteHealth()
     }
 
     #if DEBUG
@@ -1048,7 +1264,7 @@ class StreamViewModel: ObservableObject {
         debugE2EStage = "call_start"
         debugE2ELog("CALL_START",
                     "peer=\(NicknamePolicy.normalize(plan.peer)) address=\(remoteIP) media=\(plan.mediaName)")
-        startCall()
+        startCall(targetOverride: plan.peer)
         guard activeRoute == .mesh, phase != .idle else {
             debugE2EFail("call_not_started")
             return
@@ -1225,8 +1441,73 @@ class StreamViewModel: ObservableObject {
         directory.update(identity: identity, configuration: internetConfiguration)
         account.update(identity: identity, configuration: internetConfiguration)
         groupChat.update(identity: identity, configuration: internetConfiguration)
+        directMessages.update(identity: identity, configuration: internetConfiguration)
         internet.startIncomingPolling(voipToken: UserDefaults.standard.string(forKey: "voipPushToken"))
+        directMessages.startPolling()
         account.sync()
+        checkPublicRouteHealth()
+    }
+
+    func checkPublicRouteHealth() {
+        publicRouteHealthTask?.cancel()
+        guard internetConfiguration.isPublicHTTPSAPI,
+              let healthURL = internetConfiguration.healthURL else {
+            publicRouteHealth = .notConfigured
+            return
+        }
+        let expectedAPIBaseURL = internetConfiguration.apiBaseURL
+        publicRouteHealth = .checking
+        publicRouteHealthTask = Task { [weak self] in
+            var request = URLRequest(url: healthURL)
+            request.httpMethod = "GET"
+            request.timeoutInterval = 5
+            do {
+                let (_, response) = try await URLSession.shared.data(for: request)
+                try Task.checkCancellation()
+                let healthy = (response as? HTTPURLResponse)?.statusCode == 200
+                await MainActor.run {
+                    guard let self,
+                          self.internetConfiguration.apiBaseURL == expectedAPIBaseURL else { return }
+                    self.publicRouteHealth = healthy ? .live : .unavailable
+                    self.publicRouteHealthTask = nil
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                await MainActor.run {
+                    guard let self,
+                          self.internetConfiguration.apiBaseURL == expectedAPIBaseURL else { return }
+                    self.publicRouteHealth = .unavailable
+                    self.publicRouteHealthTask = nil
+                }
+            }
+        }
+    }
+
+    private func setCallStatus(_ status: String) {
+        callStatusResetWorkItem?.cancel()
+        callStatusResetWorkItem = nil
+        showEndedCallState = false
+        callStatusText = status
+    }
+
+    private func presentEndedCallStatus(if needed: Bool) {
+        guard needed else {
+            callStatusText = "Idle"
+            showEndedCallState = false
+            return
+        }
+        callStatusResetWorkItem?.cancel()
+        callStatusText = "Ended"
+        showEndedCallState = true
+        let reset = DispatchWorkItem { [weak self] in
+            guard let self, self.phase == .idle else { return }
+            self.showEndedCallState = false
+            self.callStatusText = "Idle"
+            self.callStatusResetWorkItem = nil
+        }
+        callStatusResetWorkItem = reset
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1, execute: reset)
     }
 
     func renameDevice(_ name: String) {
@@ -1236,6 +1517,8 @@ class StreamViewModel: ObservableObject {
             directory.update(identity: identity, configuration: internetConfiguration)
             account.update(identity: identity, configuration: internetConfiguration)
             groupChat.update(identity: identity, configuration: internetConfiguration)
+            directMessages.update(identity: identity, configuration: internetConfiguration)
+            directMessages.startPolling()
         } catch {
             callError = error.localizedDescription
         }
@@ -1600,7 +1883,7 @@ class StreamViewModel: ObservableObject {
     private static let inviteMagic: [UInt8] = [0xFD, 0x11]   // "someone is calling you"
     // AUTH: authenticate the plaintext INVITE with an 8-byte HMAC. The key is now bound to the room
     // passphrase (empty room == the legacy PSK-only key), so with a room set only a peer that knows the
-    // room secret can ring or auto-join. Wire: [FD 11][mac:8][payload]. MUST match the Mac derivation.
+    // room secret can ring. Wire: [FD 11][mac:8][payload]. MUST match the Mac derivation.
     static func inviteMAC(_ payload: Data) -> [UInt8] {
         Array(HMAC<SHA256>.authenticationCode(for: payload, using: MeshCrypto.inviteAuthKey(room: PeerDiscovery.myRoom)).prefix(8))
     }
@@ -1651,7 +1934,7 @@ class StreamViewModel: ObservableObject {
 
                 guard buf[0] == StreamViewModel.inviteMagic[0], buf[1] == StreamViewModel.inviteMagic[1] else { continue }
                 // AUTH FIRST: [FD 11][mac:8][payload]. Reject anything without a valid PSK-keyed HMAC so an
-                // unauthenticated LAN packet can never ring us or force an auto-join (the forced-camera vuln).
+                // unauthenticated LAN packet can never ring us or enter call handling.
                 guard n >= 10 else { continue }
                 let payloadData = n > 10 ? Data(buf[10..<Int(n)]) : Data()
                 guard Array(buf[2..<10]) == StreamViewModel.inviteMAC(payloadData) else { continue }
@@ -1664,7 +1947,8 @@ class StreamViewModel: ObservableObject {
                 // A payload with no participants (a 2-byte magic-only or empty-field datagram) can't be a call
                 // -- reject it so any LAN host can't pop the incoming-call UI (and block real INVITEs for 40s).
                 guard !participants.isEmpty else { continue }
-                let room = parts.count > 2 ? parts[2] : ""
+                // Field 2 is the legacy room value. It remains covered by the HMAC and on the wire for
+                // compatibility, but it never grants permission to answer a call automatically.
                 // ANTI-REPLAY: reject a stale (or timestamp-less) INVITE. A valid HMAC only proves the sender
                 // knew the PSK once; the freshness window stops a captured INVITE from being replayed later.
                 let tsMs = parts.count > 3 ? (Int64(parts[3]) ?? 0) : 0
@@ -1673,21 +1957,21 @@ class StreamViewModel: ObservableObject {
                 let ip = String(cString: inet_ntoa(from.sin_addr))
                 let macKey = Data(buf[2..<10])   // 8-byte auth tag, used as the replay-dedup key
                 DispatchQueue.main.async {
-                    guard let self = self, self.phase == .idle, self.incomingCall == nil else { return }  // don't ring mid-call / twice
+                    guard let self = self,
+                          self.phase == .idle,
+                          self.incomingMeshCall == nil,
+                          self.incomingCall == nil else { return }  // don't ring mid-call / twice
                     // SEEN-MAC dedup closes the immediate-replay gap inside the 15s freshness window (the 4x UDP
                     // re-sends share a tag and are already ignored above, so dropping duplicates is safe).
                     self.seenInviteMACs = self.seenInviteMACs.filter { Date().timeIntervalSince($0.value) < 30 }
                     guard self.seenInviteMACs[macKey] == nil else { return }
                     self.seenInviteMACs[macKey] = Date()
-                    self.incomingCall = IncomingCall(name: name, ip: ip, participants: participants)
-                    // AUTO-ACCEPT a GROUP call (>2 participants = caller + me + others) or a same-room caller,
-                    // so "call from the Mac -> both iPhones just join" works with no manual Accept. A plain
-                    // 1-1 (participants == {caller, me}) still rings so you can pick up the handset.
-                    if participants.count > 2 || (!room.isEmpty && room == PeerDiscovery.myRoom) {
-                        NSLog("TRINET: auto-joining group from \(name) — \(participants.count) participants, room '\(room)'")
-                        self.acceptIncoming()
-                        return
-                    }
+                    // The legacy shared-room HMAC proves room membership, not
+                    // ownership of the caller-supplied display name. Keep that
+                    // unverified value out of trusted incoming-call UI.
+                    self.incomingCall = IncomingCall(name: "Local TRI-NET peer",
+                                                     ip: ip,
+                                                     participants: participants)
                     NSLog("TRINET: INCOMING call from \(name) (\(ip))")
                     self.incomingTimer?.invalidate()
                     self.incomingTimer = Timer.scheduledTimer(withTimeInterval: 40, repeats: false) { [weak self] _ in
@@ -1745,7 +2029,13 @@ class StreamViewModel: ObservableObject {
     }
 
     func acceptIncoming() {
+        guard microphoneAuthorized else {
+            callError = CallPermissionError.microphoneRequired.localizedDescription
+            declineIncoming()
+            return
+        }
         guard let inc = incomingCall else { return }
+        setMuted(false)
         incomingTimer?.invalidate(); incomingCall = nil
         // Rebuild the exact call: caller + every other participant, minus myself. For a 1-1 invite the
         // participant list is just {caller, me}, so this collapses to a plain 1-1 back to the caller.
@@ -1754,24 +2044,57 @@ class StreamViewModel: ObservableObject {
         remoteIP = hosts.isEmpty ? inc.ip : hosts.joined(separator: ",")
         NSLog("TRINET: accepting call -> mesh back to \(remoteIP)")
         activeRoute = .mesh
-        startMeshCall()
+        let media: InternetCallMedia
+        if cameraAuthorized {
+            media = .audioVideo
+        } else {
+            media = .audioOnly
+            callError = "Camera access is unavailable. Answered with audio only."
+        }
+        startMeshCall(isIncomingLegacy: true, media: media)
     }
     func declineIncoming() { incomingTimer?.invalidate(); incomingCall = nil }
 
     func checkPermission() {
-        let s = AVCaptureDevice.authorizationStatus(for: .video)
-        cameraAuthorized = (s == .authorized)
-        if s == .notDetermined {
+        let cameraStatus = AVCaptureDevice.authorizationStatus(for: .video)
+        cameraAuthorized = cameraStatus == .authorized
+        if cameraStatus == .notDetermined {
             AVCaptureDevice.requestAccess(for: .video) { granted in
-                DispatchQueue.main.async { self.cameraAuthorized = granted }
+                DispatchQueue.main.async {
+                    self.cameraAuthorized = granted
+                    if granted { self.enablePendingInternetVideoIfPossible() }
+                }
+            }
+        }
+
+        let audioSession = AVAudioSession.sharedInstance()
+        microphoneAuthorized = audioSession.recordPermission == .granted
+        if audioSession.recordPermission == .undetermined {
+            audioSession.requestRecordPermission { granted in
+                DispatchQueue.main.async { self.microphoneAuthorized = granted }
             }
         }
     }
 
-    func startCall() {
+    func startCall(targetOverride: String? = nil) {
         callError = nil
+        guard microphoneAuthorized else {
+            callError = CallPermissionError.microphoneRequired.localizedDescription
+            activeRoute = nil
+            return
+        }
+        setMuted(false)
+        guard cameraOff || cameraAuthorized else {
+            callError = CallPermissionError.cameraRequired.localizedDescription
+            activeRoute = nil
+            return
+        }
+        let explicitTarget = targetOverride?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let typedTarget = directory.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        let target = NicknamePolicy.normalize(typedTarget.isEmpty ? callee : typedTarget)
+        let selectedTarget = explicitTarget.isEmpty
+            ? (typedTarget.isEmpty ? callee : typedTarget)
+            : explicitTarget
+        let target = NicknamePolicy.normalize(selectedTarget)
         callee = target
         let meshContact = directory.meshContact(named: target)
         let targetIsMeshAddress = isMeshAddress(target)
@@ -1797,6 +2120,7 @@ class StreamViewModel: ObservableObject {
         if selected == .internet {
             startInternetCall()
         } else {
+            setCallStatus("Calling")
             let fallbackTarget = route == .automatic && !targetIsMeshAddress ? target : nil
             let media = InternetCallMedia.outgoing(cameraOff: cameraOff)
             let sentInvite: MeshCallInvite
@@ -1825,7 +2149,7 @@ class StreamViewModel: ObservableObject {
                                            peerAddress: remoteIP)
             }
             startMeshCall(internetFallbackTarget: fallbackTarget,
-                          sendLegacyInvite: fallbackTarget == nil,
+                          sendLegacyInvite: controlExpectation == nil && fallbackTarget == nil,
                           outboundControl: controlExpectation,
                           outboundControlPort: meshContact?.meshPort,
                           media: media)
@@ -1833,12 +2157,32 @@ class StreamViewModel: ObservableObject {
     }
 
     func acceptIncomingMeshCall() {
+        guard microphoneAuthorized else {
+            callError = CallPermissionError.microphoneRequired.localizedDescription
+            declineIncomingMeshCall()
+            return
+        }
         guard let incoming = incomingMeshCall else { return }
-        incomingMeshCall = nil
+        setMuted(false)
         guard incoming.isFresh() else {
+            incomingMeshCall = nil
             callError = "The local invitation expired. Waiting for the Internet route."
             return
         }
+        var acceptedMedia = incoming.invite.media
+        if incoming.invite.media.video, !cameraAuthorized {
+            guard incoming.invite.media.audio else {
+                callError = CallPermissionError.cameraRequired.localizedDescription
+                declineIncomingMeshCall()
+                return
+            }
+            acceptedMedia = .audioOnly
+            callError = "Camera access is unavailable. Answered with audio only."
+        }
+        incomingMeshCall = nil
+        incomingTimer?.invalidate()
+        incomingTimer = nil
+        incomingCall = nil
         callee = incoming.invite.nickname
         remoteIP = incoming.sourceAddress
         do {
@@ -1851,9 +2195,9 @@ class StreamViewModel: ObservableObject {
             callError = "Cannot confirm the local call: \(error.localizedDescription)"
             return
         }
-        cameraOff = !incoming.invite.media.video
+        cameraOff = !acceptedMedia.video
         activeRoute = .mesh
-        startMeshCall(acceptedIncoming: incoming, media: incoming.invite.media)
+        startMeshCall(acceptedIncoming: incoming, media: acceptedMedia)
     }
 
     func declineIncomingMeshCall() {
@@ -1874,6 +2218,7 @@ class StreamViewModel: ObservableObject {
                   activeRoute == .mesh,
                   meshSessionID != nil else { return }
             outboundMeshAccepted = true
+            setCallStatus("Connecting")
             NSLog("TRINET: peer accepted signed local call %@", control.callID)
             #if DEBUG
             debugE2EHandleVerifiedAcceptance(control)
@@ -1883,11 +2228,14 @@ class StreamViewModel: ObservableObject {
                expected.matches(control, sourceAddress: sourceAddress),
                activeRoute == .mesh,
                meshSessionID != nil {
+                let wasLive = phase == .live
                 outboundMeshControl = nil
                 outboundMeshControlPort = nil
                 callStartedAt = nil
                 stopCall()
-                callError = "The peer declined the local call."
+                callError = wasLive
+                    ? "The peer ended the local call."
+                    : "The peer declined the local call."
                 NSLog("TRINET: peer cancelled signed local call %@", control.callID)
                 return
             }
@@ -1938,6 +2286,7 @@ class StreamViewModel: ObservableObject {
         let media = InternetCallMedia.outgoing(cameraOff: cameraOff)
         UserDefaults.standard.set(target, forKey: "internetCallee")
         internet.update(identity: identity, configuration: internetConfiguration)
+        setCallStatus("Calling")
         phase = .connecting
         let controller = internet
         callKitUUID = CallKitCoordinator.shared.startOutgoing(
@@ -1983,11 +2332,30 @@ class StreamViewModel: ObservableObject {
     }
 
     func answerInternetCall(callID: String,
+                            caller: String,
                             media: InternetCallMedia,
                             completion: @escaping (Result<Void, Error>) -> Void = { _ in }) {
+        guard !media.audio || microphoneAuthorized else {
+            completion(.failure(CallPermissionError.microphoneRequired))
+            return
+        }
+        setMuted(false)
+        let callerNickname = NicknamePolicy.normalize(caller)
+        callee = NicknamePolicy.validationError(callerNickname) == nil
+            ? callerNickname
+            : DeviceDisplayNamePolicy.safe(caller, fallback: "TRI-NET peer")
+        var acceptedMedia = media
+        if media.video, !cameraAuthorized {
+            guard media.audio else {
+                completion(.failure(CallPermissionError.cameraRequired))
+                return
+            }
+            acceptedMedia = .audioOnly
+            callError = "Camera access is unavailable. Answered with audio only."
+        }
         activeRoute = .internet
-        cameraOff = !media.video
-        pendingInternetVideo = media.video
+        cameraOff = !acceptedMedia.video
+        pendingInternetVideo = acceptedMedia.video
         internet.update(identity: identity, configuration: internetConfiguration)
         let controller = internet
         beginInternetAttempt(markOutgoingConnected: false, completion: { [weak self] result in
@@ -2002,7 +2370,7 @@ class StreamViewModel: ObservableObject {
             // capture is unavailable. Establish signaling and microphone first;
             // publish video as soon as the app becomes active after Answer.
             try await controller.join(callID: callID,
-                                      audio: media.audio,
+                                      audio: acceptedMedia.audio,
                                       video: false)
         }
     }
@@ -2065,26 +2433,43 @@ class StreamViewModel: ObservableObject {
         }
     }
 
-    func receiveAlertNotification(unreadCount: Int?) {
-        guard !chatOpen else { return }
-        if let unreadCount {
-            unreadChat = max(unreadChat, unreadCount)
-        } else {
-            unreadChat += 1
+    func receiveAlertNotification(unreadCount _: Int?,
+                                  openSenderUserID: String?,
+                                  openSenderNickname: String?) {
+        if let senderUserID = openSenderUserID?.trimmingCharacters(
+            in: .whitespacesAndNewlines), !senderUserID.isEmpty {
+            if let knownNickname = directMessages.verifiedNickname(
+                senderUserID: senderUserID,
+                nicknameHint: openSenderNickname) {
+                pendingNotificationSenderUserID = nil
+                pendingNotificationSenderNickname = nil
+                openChat(with: knownNickname)
+            } else {
+                pendingNotificationSenderUserID = senderUserID
+                pendingNotificationSenderNickname = openSenderNickname
+            }
         }
+        directMessages.refresh()
+        groupChat.refresh()
     }
 
     func markChatNotificationsRead() {
         unreadChat = 0
+        updateApplicationBadge()
+    }
+
+    private func updateApplicationBadge() {
+        let count = max(0, groupChat.totalUnreadCount + directMessages.totalUnreadCount)
         if #available(iOS 16.0, *) {
-            UNUserNotificationCenter.current().setBadgeCount(0)
+            UNUserNotificationCenter.current().setBadgeCount(count)
         } else {
-            UIApplication.shared.applicationIconBadgeNumber = 0
+            UIApplication.shared.applicationIconBadgeNumber = count
         }
     }
 
     private func enablePendingInternetVideoIfPossible() {
         guard pendingInternetVideo,
+              cameraAuthorized,
               activeRoute == .internet,
               phase == .live,
               UIApplication.shared.applicationState == .active else { return }
@@ -2097,6 +2482,7 @@ class StreamViewModel: ObservableObject {
                                outboundControl: MeshCallControlExpectation? = nil,
                                outboundControlPort: UInt16? = nil,
                                acceptedIncoming: IncomingMeshCall? = nil,
+                               isIncomingLegacy: Bool = false,
                                media requestedMedia: InternetCallMedia? = nil) {
         let media = requestedMedia ?? .outgoing(cameraOff: cameraOff)
         activeMeshMedia = media
@@ -2114,7 +2500,18 @@ class StreamViewModel: ObservableObject {
             UserDefaults.standard.set(recentIPs, forKey: "recentCallIPs")
         }
 
+        let isIncoming = acceptedIncoming != nil || isIncomingLegacy
+        meshRingbackEnabled = !isIncoming
         phase = .connecting
+        setCallStatus(isIncoming ? "Connecting" : "Calling")
+        if !isIncoming {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) { [weak self] in
+                guard let self,
+                      self.phase == .connecting,
+                      self.callStatusText == "Calling" else { return }
+                self.setCallStatus("Ringing")
+            }
+        }
         callStartedAt = Date()    // for the recent-call journal duration
         callStalls = 0
         discovery.inCall = true   // advertise "in call" in the roster
@@ -2477,6 +2874,7 @@ class StreamViewModel: ObservableObject {
     }
 
     func stopCall() {
+        let shouldPresentEnded = activeRoute != nil || phase != .idle
         let completedMeshCall = activeRoute == .mesh && phase == .live
         let cancellationTarget = MeshCallCancellationPolicy.target(
             outbound: outboundMeshControl,
@@ -2491,6 +2889,8 @@ class StreamViewModel: ObservableObject {
         internetAnswerTimer?.invalidate()
         internetAnswerTimer = nil
         pendingInternetVideo = false
+        meshRingbackEnabled = false
+        syncLegacyRingback()
         meshSessionID = nil
         meshAttemptID = nil
         outboundMeshControl = nil
@@ -2503,8 +2903,10 @@ class StreamViewModel: ObservableObject {
             callKitUUID = nil
             phase = .idle
             activeRoute = nil
+            isMuted = false
             framesSent = 0
             framesReceived = 0
+            presentEndedCallStatus(if: shouldPresentEnded)
             return
         }
         // A secure audio-only call has no video frames, so the authenticated
@@ -2547,15 +2949,25 @@ class StreamViewModel: ObservableObject {
         bytesSent = 0; bytesRecv = 0
         txKBps = 0; rxKBps = 0
         activeRoute = nil
+        isMuted = false
+        presentEndedCallStatus(if: shouldPresentEnded)
         startIdleListener()   // resume listening for incoming mesh calls
     }
 
     func toggleMute() {
-        isMuted.toggle()
-        if activeRoute == .internet { internet.setMuted(isMuted) }
+        setMuted(!isMuted)
+    }
+
+    func setMuted(_ muted: Bool) {
+        isMuted = muted
+        if activeRoute == .internet { internet.setMuted(muted) }
     }
 
     func toggleCamera() {
+        if cameraOff, !cameraAuthorized {
+            callError = CallPermissionError.cameraRequired.localizedDescription
+            return
+        }
         cameraOff.toggle()
         if activeRoute == .internet { internet.setCamera(enabled: !cameraOff) }
     }
