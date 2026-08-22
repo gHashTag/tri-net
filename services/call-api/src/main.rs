@@ -5994,16 +5994,16 @@ mod tests {
     fn request_signature_future_skew_matches_generated_policy() {
         assert!(internet_call::request_signature_is_fresh(100, 160));
         assert!(!internet_call::request_signature_is_fresh(100, 161));
-        assert!(internet_call::request_signature_is_fresh(106, 100));
-        assert!(internet_call::request_signature_is_fresh(110, 100));
-        assert!(!internet_call::request_signature_is_fresh(111, 100));
+        assert!(internet_call::request_signature_is_fresh(111, 100));
+        assert!(internet_call::request_signature_is_fresh(115, 100));
+        assert!(!internet_call::request_signature_is_fresh(116, 100));
     }
 
     #[tokio::test]
     async fn request_signature_accepts_measured_clock_skew_and_retains_nonce() {
         let state = test_state();
         let device = TestDevice::new("user_skew", "device_skew", "Skewed Phone");
-        let signed_at = unix_time() + 6;
+        let signed_at = unix_time() + 11;
         let nonce = "nonce_future_skew_accepted";
         let (status, _) = signed_post_at(
             application(state.clone()),

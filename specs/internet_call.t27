@@ -30,7 +30,7 @@ module InternetCall {
     const TOKEN_TTL_SECONDS: u32 = 300;
     const LIVEKIT_ROOM_SERVICE_TOKEN_TTL_SECONDS: u32 = 60;
     const REQUEST_SIGNATURE_TTL_SECONDS: u32 = 60;
-    const REQUEST_SIGNATURE_MAX_FUTURE_SKEW_SECONDS: u32 = 10;
+    const REQUEST_SIGNATURE_MAX_FUTURE_SKEW_SECONDS: u32 = 15;
     const PRESENCE_TTL_SECONDS: u32 = 90;
     const APNS_MAX_DELIVERY_ATTEMPTS: u32 = 3;
     const APNS_RETRY_BASE_DELAY_MS: u32 = 100;
@@ -634,9 +634,9 @@ module InternetCall {
     test stale_device_proof_is_rejected {
         assert(request_signature_is_fresh(100, 160) == true, "past boundary accepted");
         assert(request_signature_is_fresh(100, 161) == false, "stale proof");
-        assert(request_signature_is_fresh(106, 100) == true, "measured future skew accepted");
-        assert(request_signature_is_fresh(110, 100) == true, "future skew boundary accepted");
-        assert(request_signature_is_fresh(111, 100) == false, "excessive future proof");
+        assert(request_signature_is_fresh(111, 100) == true, "measured future skew accepted");
+        assert(request_signature_is_fresh(115, 100) == true, "future skew boundary accepted");
+        assert(request_signature_is_fresh(116, 100) == false, "excessive future proof");
     }
 
     test internet_target_must_be_a_different_routable_device {
