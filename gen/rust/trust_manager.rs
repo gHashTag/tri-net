@@ -52,29 +52,129 @@ pub fn get_trust_verified(rel: u32) -> u32 {
 }
 
 pub fn create_trust_array(t0: u32, t1: u32, t2: u32, t3: u32, t4: u32, t5: u32, t6: u32, t7: u32) -> u64 {
-    return ((((((() << 56) | (() << 48)) | (() << 40)) | (() << 32)) | (() << 24)) || (((() << 16) | (() << 8)) | ()));
+    return (((((((((t0 as u64) << 56) | ((t1 as u64) << 48)) | ((t2 as u64) << 40)) | ((t3 as u64) << 32)) | ((t4 as u64) << 24)) | ((t5 as u64) << 16)) | ((t6 as u64) << 8)) | (t7 as u64));
 }
 
 pub fn get_trust_score(array: u64, index: u32) -> u32 {
     if (index == 0) {
-        return ();
+        return (((array >> 56) & 0xFFFFFFFF) as u32);
     }
     if (index == 1) {
-        return ();
+        return (((array >> 48) & 0xFFFFFFFF) as u32);
     }
     if (index == 2) {
-        return ();
+        return (((array >> 40) & 0xFFFFFFFF) as u32);
     }
     if (index == 3) {
-        return ();
+        return (((array >> 32) & 0xFFFFFFFF) as u32);
     }
     if (index == 4) {
-        return ();
+        return (((array >> 24) & 0xFFFFFFFF) as u32);
     }
     if (index == 5) {
-        return ();
+        return (((array >> 16) & 0xFFFFFFFF) as u32);
     }
     if (index == 6) {
+        return (((array >> 8) & 0xFFFFFFFF) as u32);
     }
+    return ((array & 0xFFFFFFFF) as u32);
+}
+
+pub fn calculate_trust_score(positive: u32, negative: u32) -> u32 {
+    let total = (positive + negative);
+    if (total == 0) {
+        return 50;
+    }
+    let mut score = ((positive * 100) / total);
+    if (score > MAX_TRUST_SCORE) {
+        score = MAX_TRUST_SCORE;
+    }
+    return score;
+}
+
+pub fn update_trust_score(current_score: u32, positive: u32, negative: u32) -> u32 {
+    let current_positive = get_positive_interactions(current_score);
+    let current_negative = get_negative_interactions(current_score);
+    let node_id = get_trust_node_id(current_score);
+    let new_positive = (current_positive + positive);
+    let new_negative = (current_negative + negative);
+    let new_score = calculate_trust_score(new_positive, new_negative);
+    return create_trust_score(node_id, new_score, new_positive, new_negative);
+}
+
+pub fn is_node_trusted(score: u32) -> bool {
+    return (get_trust_score_value(score) >= TRUST_THRESHOLD);
+}
+
+pub fn is_node_highly_trusted(score: u32) -> bool {
+    return (get_trust_score_value(score) >= TRUST_HIGH);
+}
+
+pub fn is_node_low_trusted(score: u32) -> u32 {
+    return ((get_trust_score_value(score) <= TRUST_LOW)) as u32;
+}
+
+pub fn find_most_trusted(trust_array: u64) -> u32 {
+    let mut highest_score = 0;
+    let mut most_trusted = 0xFF;
+    if (get_trust_score_value(get_trust_score(trust_array, 0)) > highest_score) {
+        highest_score = get_trust_score_value(get_trust_score(trust_array, 0));
+        most_trusted = 0;
+    }
+    if (get_trust_score_value(get_trust_score(trust_array, 1)) > highest_score) {
+        highest_score = get_trust_score_value(get_trust_score(trust_array, 1));
+        most_trusted = 1;
+    }
+    if (get_trust_score_value(get_trust_score(trust_array, 2)) > highest_score) {
+        highest_score = get_trust_score_value(get_trust_score(trust_array, 2));
+        most_trusted = 2;
+    }
+    if (get_trust_score_value(get_trust_score(trust_array, 3)) > highest_score) {
+        highest_score = get_trust_score_value(get_trust_score(trust_array, 3));
+        most_trusted = 3;
+    }
+    if (get_trust_score_value(get_trust_score(trust_array, 4)) > highest_score) {
+        highest_score = get_trust_score_value(get_trust_score(trust_array, 4));
+        most_trusted = 4;
+    }
+    if (get_trust_score_value(get_trust_score(trust_array, 5)) > highest_score) {
+        highest_score = get_trust_score_value(get_trust_score(trust_array, 5));
+        most_trusted = 5;
+    }
+    if (get_trust_score_value(get_trust_score(trust_array, 6)) > highest_score) {
+        highest_score = get_trust_score_value(get_trust_score(trust_array, 6));
+        most_trusted = 6;
+    }
+    if (get_trust_score_value(get_trust_score(trust_array, 7)) > highest_score) {
+        highest_score = get_trust_score_value(get_trust_score(trust_array, 7));
+        most_trusted = 7;
+    }
+    return most_trusted;
+}
+
+pub fn should_route_via_node(trust_array: u64, node_index: u32, min_trust: u32) -> bool {
+    if (node_index >= MAX_NODES) {
+        return false;
+    }
+    let score = get_trust_score(trust_array, node_index);
+    return (get_trust_score_value(score) >= min_trust);
+}
+
+pub fn penalize_node(current_score: u32, penalty: u32) -> u32 {
+    let node_id = get_trust_node_id(current_score);
+    let positive = get_positive_interactions(current_score);
+    let negative = get_negative_interactions(current_score);
+    let new_negative = (negative + penalty);
+    let new_score = calculate_trust_score(positive, new_negative);
+    return create_trust_score(node_id, new_score, positive, new_negative);
+}
+
+pub fn reward_node(current_score: u32, reward: u32) -> u32 {
+    let node_id = get_trust_node_id(current_score);
+    let positive = get_positive_interactions(current_score);
+    let negative = get_negative_interactions(current_score);
+    let new_positive = (positive + reward);
+    let new_score = calculate_trust_score(new_positive, negative);
+    return create_trust_score(node_id, new_score, new_positive, negative);
 }
 
