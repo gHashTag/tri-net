@@ -58,34 +58,41 @@ module trust_manager {
         return (rel & 0xFF);
     }
 
-    // 8-node trust storage
+    // 8-node trust storage: one 8-bit lane per slot, slot 0 in the high byte.
+    // Each argument is a bare trust score value in 0..=100 - a
+    // get_trust_score_value result, NOT a packed create_trust_score word. A
+    // 32-bit packed word does not survive an 8-bit lane: only its low byte,
+    // the negative-interaction count, would reach the slot.
     // The t8 slots are combined with bitwise or '|'. A logical or '||' here
     // would be a type error, and would also make t27c lower the whole chain
     // as a boolean; every slot uses the same operator.
     fn create_trust_array(t0: u32, t1: u32, t2: u32, t3: u32, t4: u32, t5: u32, t6: u32, t7: u32) -> u64 {
-        return (((t0 as u64) << 56) |
-                ((t1 as u64) << 48) |
-                ((t2 as u64) << 40) |
-                ((t3 as u64) << 32) |
-                ((t4 as u64) << 24) |
-                ((t5 as u64) << 16) |
-                ((t6 as u64) << 8) |
-                (t7 as u64));
+        return ((((t0 as u64) & 0xFF) << 56) |
+                (((t1 as u64) & 0xFF) << 48) |
+                (((t2 as u64) & 0xFF) << 40) |
+                (((t3 as u64) & 0xFF) << 32) |
+                (((t4 as u64) & 0xFF) << 24) |
+                (((t5 as u64) & 0xFF) << 16) |
+                (((t6 as u64) & 0xFF) << 8) |
+                ((t7 as u64) & 0xFF));
     }
 
+    // Returns the bare 8-bit trust score value held in the slot, so the mask
+    // matches the lane width create_trust_array packs. A wider mask splices
+    // neighbouring slots into the result instead of isolating one.
     // Every arm is a parenthesised condition with an explicit return, and the
     // braces are balanced. An unbalanced brace here does not raise an error:
     // t27c's parser recovers by discarding statements to the next boundary,
     // which silently deletes every function declared after this one.
     fn get_trust_score(array: u64, index: u32) -> u32 {
-        if (index == 0) { return ((array >> 56) & 0xFFFFFFFF) as u32; }
-        if (index == 1) { return ((array >> 48) & 0xFFFFFFFF) as u32; }
-        if (index == 2) { return ((array >> 40) & 0xFFFFFFFF) as u32; }
-        if (index == 3) { return ((array >> 32) & 0xFFFFFFFF) as u32; }
-        if (index == 4) { return ((array >> 24) & 0xFFFFFFFF) as u32; }
-        if (index == 5) { return ((array >> 16) & 0xFFFFFFFF) as u32; }
-        if (index == 6) { return ((array >> 8) & 0xFFFFFFFF) as u32; }
-        return (array & 0xFFFFFFFF) as u32;
+        if (index == 0) { return ((array >> 56) & 0xFF) as u32; }
+        if (index == 1) { return ((array >> 48) & 0xFF) as u32; }
+        if (index == 2) { return ((array >> 40) & 0xFF) as u32; }
+        if (index == 3) { return ((array >> 32) & 0xFF) as u32; }
+        if (index == 4) { return ((array >> 24) & 0xFF) as u32; }
+        if (index == 5) { return ((array >> 16) & 0xFF) as u32; }
+        if (index == 6) { return ((array >> 8) & 0xFF) as u32; }
+        return (array & 0xFF) as u32;
     }
 
     // Calculate trust score from interactions
@@ -129,50 +136,53 @@ module trust_manager {
     }
 
     // Find most trusted node
+    // get_trust_score already yields the bare score value for a slot, so it is
+    // used directly. Wrapping it in get_trust_score_value would shift a value
+    // that is at most 8 bits wide right by 16 and always read zero.
     fn find_most_trusted(trust_array: u64) -> u32 {
         let highest_score = 0;
         let most_trusted = 0xFF;
-        
-        if (get_trust_score_value(get_trust_score(trust_array, 0)) > highest_score) {
-            highest_score = get_trust_score_value(get_trust_score(trust_array, 0));
+
+        if (get_trust_score(trust_array, 0) > highest_score) {
+            highest_score = get_trust_score(trust_array, 0);
             most_trusted = 0;
         }
-        
-        if (get_trust_score_value(get_trust_score(trust_array, 1)) > highest_score) {
-            highest_score = get_trust_score_value(get_trust_score(trust_array, 1));
+
+        if (get_trust_score(trust_array, 1) > highest_score) {
+            highest_score = get_trust_score(trust_array, 1);
             most_trusted = 1;
         }
-        
-        if (get_trust_score_value(get_trust_score(trust_array, 2)) > highest_score) {
-            highest_score = get_trust_score_value(get_trust_score(trust_array, 2));
+
+        if (get_trust_score(trust_array, 2) > highest_score) {
+            highest_score = get_trust_score(trust_array, 2);
             most_trusted = 2;
         }
-        
-        if (get_trust_score_value(get_trust_score(trust_array, 3)) > highest_score) {
-            highest_score = get_trust_score_value(get_trust_score(trust_array, 3));
+
+        if (get_trust_score(trust_array, 3) > highest_score) {
+            highest_score = get_trust_score(trust_array, 3);
             most_trusted = 3;
         }
-        
-        if (get_trust_score_value(get_trust_score(trust_array, 4)) > highest_score) {
-            highest_score = get_trust_score_value(get_trust_score(trust_array, 4));
+
+        if (get_trust_score(trust_array, 4) > highest_score) {
+            highest_score = get_trust_score(trust_array, 4);
             most_trusted = 4;
         }
-        
-        if (get_trust_score_value(get_trust_score(trust_array, 5)) > highest_score) {
-            highest_score = get_trust_score_value(get_trust_score(trust_array, 5));
+
+        if (get_trust_score(trust_array, 5) > highest_score) {
+            highest_score = get_trust_score(trust_array, 5);
             most_trusted = 5;
         }
-        
-        if (get_trust_score_value(get_trust_score(trust_array, 6)) > highest_score) {
-            highest_score = get_trust_score_value(get_trust_score(trust_array, 6));
+
+        if (get_trust_score(trust_array, 6) > highest_score) {
+            highest_score = get_trust_score(trust_array, 6);
             most_trusted = 6;
         }
-        
-        if (get_trust_score_value(get_trust_score(trust_array, 7)) > highest_score) {
-            highest_score = get_trust_score_value(get_trust_score(trust_array, 7));
+
+        if (get_trust_score(trust_array, 7) > highest_score) {
+            highest_score = get_trust_score(trust_array, 7);
             most_trusted = 7;
         }
-        
+
         return most_trusted;
     }
 
@@ -181,7 +191,7 @@ module trust_manager {
         if (node_index >= MAX_NODES) { return false; }
         
         let score = get_trust_score(trust_array, node_index);
-        return (get_trust_score_value(score) >= min_trust);
+        return (score >= min_trust);
     }
 
     // Penalize node for bad behavior
@@ -217,11 +227,13 @@ module trust_manager {
     }
 
     test create_trust_relationship_basic {
-        rel = create_trust_relationship(1, 2, 80, 1000);
+        // verified occupies the low 8 bits, so the witness must fit in 8 bits.
+        // The former value 1000 was stored as 1000 & 0xFF = 232.
+        rel = create_trust_relationship(1, 2, 80, 200);
         assert(get_trust_source(rel) == 1, "source");
         assert(get_trust_destination(rel) == 2, "destination");
         assert(get_trust_level(rel) == 80, "trust level");
-        assert(get_trust_verified(rel) == 1000, "verified time");
+        assert(get_trust_verified(rel) == 200, "verified time");
     }
 
     test calculate_trust_score_balanced {
@@ -244,9 +256,13 @@ module trust_manager {
     }
 
     test update_trust_score_increases {
+        // 5 positive and 5 negative give a starting score of 50; adding 3
+        // positive and 1 negative gives 8 of 14, i.e. 57. The bound is the
+        // starting score, mirroring update_trust_score_decreases below. The
+        // former bound of 60 was unreachable from these interaction counts.
         current = create_trust_score(5, 50, 5, 5);
         updated = update_trust_score(current, 3, 1);
-        assert(get_trust_score_value(updated) >= 60, "trust increased");
+        assert(get_trust_score_value(updated) > 50, "trust increased");
     }
 
     test update_trust_score_decreases {
@@ -276,36 +292,23 @@ module trust_manager {
     }
 
     test find_most_trusted_middle {
-        array = create_trust_array(
-            create_trust_score(1, 60, 6, 4),
-            create_trust_score(2, 90, 9, 1),  // Most trusted
-            create_trust_score(3, 45, 5, 5),
-            create_trust_score(4, 75, 8, 2),
-            0, 0, 0, 0
-        );
-        assert(find_most_trusted(array) == 1, "node 1 most trusted");
+        // One bare trust score value per slot. Passing a packed
+        // create_trust_score word here would store only its low byte.
+        //                            s0  s1  s2  s3
+        //                                ^^ most trusted
+        array = create_trust_array(60, 90, 45, 75, 0, 0, 0, 0);
+        assert(find_most_trusted(array) == 1, "slot 1 most trusted");
     }
 
     test should_route_via_node_true {
-        array = create_trust_array(
-            create_trust_score(1, 80, 8, 2),
-            create_trust_score(2, 60, 6, 4),
-            create_trust_score(3, 75, 7, 3),
-            create_trust_score(4, 70, 7, 3),
-            0, 0, 0, 0
-        );
-        assert(should_route_via_node(array, 0, 70) == true, "can route via node 0");
+        // One bare trust score value per slot, as in find_most_trusted_middle.
+        array = create_trust_array(80, 60, 75, 70, 0, 0, 0, 0);
+        assert(should_route_via_node(array, 0, 70) == true, "can route via slot 0");
     }
 
     test should_route_via_node_false {
-        array = create_trust_array(
-            create_trust_score(1, 80, 8, 2),
-            create_trust_score(2, 60, 6, 4),
-            create_trust_score(3, 75, 7, 3),
-            create_trust_score(4, 70, 7, 3),
-            0, 0, 0, 0
-        );
-        assert(should_route_via_node(array, 2, 90) == false, "cannot route via node 2");
+        array = create_trust_array(80, 60, 75, 70, 0, 0, 0, 0);
+        assert(should_route_via_node(array, 2, 90) == false, "cannot route via slot 2");
     }
 
     test penalize_node_reduces_trust {
