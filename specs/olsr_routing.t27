@@ -93,10 +93,10 @@ module OlsrRouting {
     // Get best neighbor
     fn get_best_neighbor(table: u32) -> u32 {
         if ((get_quality(get_entry(table, 0)) >= get_quality(get_entry(table, 1))) &&
-            (get_quality(get_entry(table, 0)) >= get_quality(get_entry(table, 2))) {
+            (get_quality(get_entry(table, 0)) >= get_quality(get_entry(table, 2)))) {
             return get_id(get_entry(table, 0));
         } else if ((get_quality(get_entry(table, 1)) >= get_quality(get_entry(table, 0))) &&
-                 (get_quality(get_entry(table, 1)) >= get_quality(get_entry(table, 2))) {
+                 (get_quality(get_entry(table, 1)) >= get_quality(get_entry(table, 2)))) {
             return get_id(get_entry(table, 1));
         } else {
             return get_id(get_entry(table, 2));
@@ -107,19 +107,19 @@ module OlsrRouting {
     fn get_second_best(table: u32, best_id: u32) -> u32 {
         if (best_id == get_id(get_entry(table, 0))) {
             // Exclude n0
-            if ((get_quality(get_entry(table, 1)) >= get_quality(get_entry(table, 2))) {
+            if ((get_quality(get_entry(table, 1)) >= get_quality(get_entry(table, 2)))) {
                 return get_id(get_entry(table, 1));
             }
             return get_id(get_entry(table, 2));
         } else if (best_id == get_id(get_entry(table, 1))) {
             // Exclude n1
-            if ((get_quality(get_entry(table, 0)) >= get_quality(get_entry(table, 2))) {
+            if ((get_quality(get_entry(table, 0)) >= get_quality(get_entry(table, 2)))) {
                 return get_id(get_entry(table, 0));
             }
             return get_id(get_entry(table, 2));
         } else {
             // Exclude n2 or n3
-            if ((get_quality(get_entry(table, 0)) >= get_quality(get_entry(table, 1))) {
+            if ((get_quality(get_entry(table, 0)) >= get_quality(get_entry(table, 1)))) {
                 return get_id(get_entry(table, 0));
             }
             return get_id(get_entry(table, 1));
@@ -135,10 +135,13 @@ module OlsrRouting {
 
     // Count neighbors
     fn count_neighbors(table: u32) -> u32 {
-        return (if get_id_at(table, 0) != 0xFF { 1 } else { 0 }) +
-               (if get_id_at(table, 1) != 0xFF { 1 } else { 0 }) +
-               (if get_id_at(table, 2) != 0xFF { 1 } else { 0 }) +
-               (if get_id_at(table, 3) != 0xFF { 1 } else { 0 });
+        // Same value as the four-way sum of "1 if occupied else 0": a bool
+        // cast to u32 is 1 when true and 0 when false, so each term is
+        // identical to the if-expression it replaces.
+        return (((get_id_at(table, 0) != 0xFF) as u32) +
+                ((get_id_at(table, 1) != 0xFF) as u32) +
+                ((get_id_at(table, 2) != 0xFF) as u32) +
+                ((get_id_at(table, 3) != 0xFF) as u32));
     }
 
     // ---- Tests ----

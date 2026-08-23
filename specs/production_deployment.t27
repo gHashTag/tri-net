@@ -85,12 +85,21 @@ module ProductionDeployment {
         return (config & 0xFFFF);
     }
 
+    // Convert a bool to its 0/1 bit value
+    fn bool_to_bit(b: bool) -> u32 {
+        if (b) {
+            return 1;
+        } else {
+            return 0;
+        }
+    }
+
     // Field deployment checklist
     fn create_checklist(power: bool, cooling: bool, network: bool, monitoring: bool) -> u32 {
-        return ((if power { 1u32 } else { 0u32 }) << 3) |
-               ((if cooling { 1u32 } else { 0u32 }) << 2) |
-               ((if network { 1u32 } else { 0u32 }) << 1) |
-               (if monitoring { 1u32 } else { 0u32 });
+        return ((bool_to_bit(power) << 3) |
+                (bool_to_bit(cooling) << 2) |
+                (bool_to_bit(network) << 1) |
+                bool_to_bit(monitoring));
     }
 
     fn checklist_power(checklist: u32) -> bool {
@@ -164,9 +173,31 @@ module ProductionDeployment {
         assert(extract_metrics_enabled(config) == 0xFF, "metrics");
     }
 
+    test bool_to_bit_values {
+        assert(bool_to_bit(true) == 1, "true is 1");
+        assert(bool_to_bit(false) == 0, "false is 0");
+    }
+
     test create_checklist_all_true {
         checklist = create_checklist(true, true, true, true);
         assert(checklist_complete(checklist) == true, "all items");
+        assert(checklist == 0xF, "packed value");
+    }
+
+    test create_checklist_none {
+        checklist = create_checklist(false, false, false, false);
+        assert(checklist == 0, "empty checklist");
+        assert(checklist_power(checklist) == false, "no power");
+        assert(checklist_cooling(checklist) == false, "no cooling");
+        assert(checklist_network(checklist) == false, "no network");
+        assert(checklist_monitoring(checklist) == false, "no monitoring");
+    }
+
+    test create_checklist_bit_weights {
+        assert(create_checklist(true, false, false, false) == 8, "power weight");
+        assert(create_checklist(false, true, false, false) == 4, "cooling weight");
+        assert(create_checklist(false, false, true, false) == 2, "network weight");
+        assert(create_checklist(false, false, false, true) == 1, "monitoring weight");
     }
 
     test checklist_power_true {

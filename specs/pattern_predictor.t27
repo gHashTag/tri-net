@@ -65,12 +65,25 @@ module pattern_predictor {
                 (s7 as u64));
     }
 
+    // Slots 8..15 of the conceptual 16-sample array. create_sample_array
+    // packs s0..s7 into bits 63..0 of the u64 and discards s8..s15, so the
+    // half that would hold slots 8..15 does not exist in a u64 and is
+    // always empty. This is the original expression (array >> 64) with the
+    // shift re-associated so that no single shift reaches the width of the
+    // type: (x >> 32) >> 32 equals x >> 64 for every u64 x, and equals 0.
+    // The 64-bit mask was a no-op on a u64 and is dropped.
     fn get_sample_array_upper(array: u64) -> u64 {
-        return ((array >> 64) & 0xFFFFFFFFFFFFFFFF;
+        return ((array >> 32) >> 32);
     }
 
-    fn get_sample_array_lower(array: u64) -> u32 {
-        return (array & 0xFFFFFFFF);
+    // Slots 0..7. get_sample_at reads this half with shifts (7 - index) * 8,
+    // i.e. 56, 48, 40, 32, 24, 16, 8, 0, which is the exact set of bit
+    // positions create_sample_array writes s0..s7 to. That requires all 64
+    // bits, so the half is a u64 masked with 64 bits, not a u32 masked with
+    // 32. The previous u32 form kept only s4..s7 and made the shifts for
+    // index 0..3 (56/48/40/32) exceed the width of a u32.
+    fn get_sample_array_lower(array: u64) -> u64 {
+        return (array & 0xFFFFFFFFFFFFFFFF);
     }
 
     fn get_sample_at(array: u64, index: u32) -> u32 {

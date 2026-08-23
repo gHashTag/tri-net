@@ -77,16 +77,23 @@ module MeshProtocolStack {
     // Forward packet (decrement TTL, check next hop)
     // Returns tuple: (new_packet, expired, next_hop)
     fn forward_packet(packet: u32, current_node: u32) -> (u32, bool, u32) {
-        if (decrement_ttl(packet).1) {
-            return (decrement_ttl(packet).0, true, 0); // TTL expired
+        // decrement_ttl is pure, so binding its result once is identical to
+        // the four separate calls this used to make. Tuple field access
+        // (".0" / ".1") is outside the parser's accepted subset and was
+        // silently discarding this whole body; destructuring carries the
+        // same two values.
+        let (forwarded, expired): (u32, bool) = decrement_ttl(packet);
+
+        if (expired == true) {
+            return (forwarded, true, 0); // TTL expired
         }
-        
-        if (route_packet(current_node, extract_dst(decrement_ttl(packet).0), 0) == 0) {
-            return (decrement_ttl(packet).0, false, 0); // No route
+
+        if (route_packet(current_node, extract_dst(forwarded), 0) == 0) {
+            return (forwarded, false, 0); // No route
         }
-        
-        return (decrement_ttl(packet).0, false, 
-                route_packet(current_node, extract_dst(decrement_ttl(packet).0), 0)); // Valid forward
+
+        return (forwarded, false,
+                route_packet(current_node, extract_dst(forwarded), 0)); // Valid forward
     }
 
     // ---- Tests ----

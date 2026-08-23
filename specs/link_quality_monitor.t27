@@ -16,23 +16,27 @@ module LinkQualityMonitor {
     const TREND_THRESHOLD: u8 = 0x05;  // Small positive trend
     
     // Calculate EWMA (Exponentially Weighted Moving Average)
-    // Formula: est = α·sample + (1-α)·est
+    // Formula: est = alpha*sample + (1-alpha)*est
     fn update_ewma(current: u8, sample: u8) -> u8 {
         // Fixed-point Q8 calculation
-        // term1 = α * sample
+        // term1 = alpha * sample
         let term1: u16 = ((ALPHA_Q8 as u16) * (sample as u16)) >> 8;
-        
-        // term2 = (1-α) * current  
+
+        // term2 = (1-alpha) * current
         let term2: u16 = ((ONE_MINUS_ALPHA_Q8 as u16) * (current as u16)) >> 8;
-        
+
         let new_estimate: u16 = term1 + term2;
-        
-        // Cap at reasonable maximum (10.0 in Q8 = 0x280)
-        if new_estimate > 0x280 {
-            0x280
-        } else {
-            new_estimate as u8
+
+        // Cap at reasonable maximum (10.0 in Q8 = 0x280).
+        // DEAD BRANCH: term1 <= (0x20 * 0xFF) >> 8 = 31 and
+        // term2 <= (0xE0 * 0xFF) >> 8 = 223, so new_estimate <= 254 < 0x280.
+        // Verified by enumerating all 65536 (current, sample) pairs: 0 hits.
+        // 0x280 is not representable in the u8 return type, so the cap
+        // saturates to the u8 maximum; unreachable, so no input is affected.
+        if (new_estimate > 0x280) {
+            return 0xFF;
         }
+        return new_estimate as u8;
     }
     
     // Calculate trend based on historical data
@@ -45,11 +49,10 @@ module LinkQualityMonitor {
                               history[1] as u16 + history[0] as u16) >> 2) as u8;
         
         // Trend = recent - older (positive = worsening)
-        if recent_avg > older_avg {
-            (recent_avg - older_avg) as i8
-        } else {
-            -((older_avg - recent_avg) as i8)
+        if (recent_avg > older_avg) {
+            return (recent_avg - older_avg) as i8;
         }
+        return -((older_avg - recent_avg) as i8);
     }
     
     // Predict next ETX value based on trend
@@ -57,19 +60,23 @@ module LinkQualityMonitor {
         let prediction: i16 = (current as i16) + (trend as i16);
         
         // Ensure reasonable bounds (1.0 to 10.0 in Q8 = 0x40 to 0x280)
-        if prediction < 0x40 {
-            0x40  // Minimum ETX of 1.0
-        } else if prediction > 0x280 {
-            0x280  // Maximum ETX of 10.0
-        } else {
-            prediction as u8
+        if (prediction < 0x40) {
+            return 0x40;  // Minimum ETX of 1.0
         }
+        // DEAD BRANCH: prediction <= 0xFF + 0x7F = 382 < 0x280 (640).
+        // Verified by enumerating all 65536 (current, trend) pairs: 0 hits.
+        // 0x280 is not representable in the u8 return type, so the cap
+        // saturates to the u8 maximum; unreachable, so no input is affected.
+        if (prediction > 0x280) {
+            return 0xFF;  // Maximum ETX of 10.0
+        }
+        return prediction as u8;
     }
     
     // Determine if link quality is degrading
     fn is_degrading(current_etx: u8, trend: i8) -> bool {
         // Degradation criteria: ETX is poor AND trend is positive (worsening)
-        (current_etx > QUALITY_POOR) && (trend > TREND_THRESHOLD)
+        return (current_etx > QUALITY_POOR) && (trend > TREND_THRESHOLD);
     }
     
     // Calculate quality score (0-255, lower is better)
@@ -80,23 +87,28 @@ module LinkQualityMonitor {
         
         let combined: u16 = etx_component + latency_component;
         
-        // Cap at 255
-        if combined > 255 { 255 } else { combined as u8 }
+        // Cap at 255 (reachable: combined can reach 833)
+        if (combined > 255) {
+            return 255;
+        }
+        return combined as u8;
     }
     
     // Convert quality score to classification
     fn classify_quality(score: u8) -> u8 {
-        if score <= 50 {
-            0  // Excellent
-        } else if score <= 100 {
-            1  // Good
-        } else if score <= 150 {
-            2  // Fair
-        } else if score <= 200 {
-            3  // Poor
-        } else {
-            4  // Very Poor
+        if (score <= 50) {
+            return 0;  // Excellent
         }
+        if (score <= 100) {
+            return 1;  // Good
+        }
+        if (score <= 150) {
+            return 2;  // Fair
+        }
+        if (score <= 200) {
+            return 3;  // Poor
+        }
+        return 4;  // Very Poor
     }
 }
 
