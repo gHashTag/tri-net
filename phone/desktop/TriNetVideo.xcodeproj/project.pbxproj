@@ -7,25 +7,33 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		04CD15FB173B0DA5942C761E /* StunClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C7266EA57914708FEF0520 /* StunClient.swift */; };
 		094B0FDEEEA876B04E5C3700 /* CallIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C404DA930B30CD012F62D59 /* CallIdentity.swift */; };
 		0FD4749EFC9F8923DD0BCB49 /* MeshCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = A95B320DB85BD9CA34441F97 /* MeshCrypto.swift */; };
 		111558B34260E5B694D543EE /* AudioController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61BC88F2C76B79E6716BD918 /* AudioController.swift */; };
+		11A7D9E4F2B84C6A9035D711 /* AudioRED.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71C5E8A3D9044B2F8E6A1190 /* AudioRED.swift */; };
 		12E514050EC8F765A8DC3472 /* OpusCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96DB9356EBB9897CE6C906D7 /* OpusCodec.swift */; };
 		131244A5A527881519B0BB77 /* LinkStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BCD15FBEAF2379CE2C75DC1 /* LinkStatus.swift */; };
 		1410A21A73E9E82F0622FFE1 /* BackgroundBlur.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AA628378284C43ABC50D020 /* BackgroundBlur.swift */; };
+		26F4606369FB400B071CEDA9 /* IceSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56D2F65F27B61DFB55A39F8F /* IceSession.swift */; };
 		40F017DE28896B7D0177AC7B /* CameraCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05D79458F799679566EA2F11 /* CameraCapture.swift */; };
+		50B501BEC14154398B226C9F /* CandidateOffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F88988FE101B40E5B5EDF73 /* CandidateOffer.swift */; };
 		520A5853F1324286B7C9D328 /* CallRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4EA56245810CECD0C202FFE /* CallRecorder.swift */; };
 		66CCD9FFAD828B288E427269 /* MeshTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201CD1EE7B29F77025DA7005 /* MeshTransport.swift */; };
 		6D338808E3FCAF91BE192590 /* PeerDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA75ECF67764B6EAF235CAE1 /* PeerDiscovery.swift */; };
 		7059B12C50899D17431177A1 /* CallManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 915D7663B5CD3BA6B725865A /* CallManager.swift */; };
+		862D38921269544DF68D6EDC /* Rendezvous.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE3C2CA7D393D208C02C855D /* Rendezvous.swift */; };
 		925424B00856474500875967 /* ScreenCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E0D7BDA34C051DCC9477E0 /* ScreenCapture.swift */; };
 		93828957945393D93D1AE545 /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 919A6C8C4AE3FF1BEBC24E2D /* App.swift */; };
 		C42AEF335F11DD33CC802C77 /* Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3E1BEB0E6D36884DC34BAF1 /* Views.swift */; };
 		D97D14140C893639F33F37D5 /* LiveKit in Frameworks */ = {isa = PBXBuildFile; productRef = C4D0DDD6535CFA404CBF8DAA /* LiveKit */; };
 		E00B31F6C88D6223CF93B32F /* VideoEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7467C86E81673925398E7CA /* VideoEncoder.swift */; };
+		E19A4C7D520B438FA6D91230 /* VideoFEC.swift in Sources */ = {isa = PBXBuildFile; fileRef = F283B5D6814E49C0A7F13692 /* VideoFEC.swift */; };
+		E7ED3316AAE18857AAB40D9C /* NatDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1850921832DAC906FC971A0 /* NatDiagnostics.swift */; };
 		EDE8E8CA5000C63D274F4D54 /* NicknameDirectory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27976511C5B03FA14DBE15C6 /* NicknameDirectory.swift */; };
 		F6CB4CE6A1336FEBE77BA83B /* InternetCall.swift in Sources */ = {isa = PBXBuildFile; fileRef = 338452C9348505CF2B20ED39 /* InternetCall.swift */; };
 		F909D84E94FAA98C4929B709 /* VideoDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC9E1456FC3042E3A277409E /* VideoDecoder.swift */; };
+		FFECD56EFD6D466A56431C40 /* HolePunch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 618EB4397DAA24EFFC282BDB /* HolePunch.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -35,20 +43,28 @@
 		27976511C5B03FA14DBE15C6 /* NicknameDirectory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NicknameDirectory.swift; sourceTree = "<group>"; };
 		338452C9348505CF2B20ED39 /* InternetCall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InternetCall.swift; sourceTree = "<group>"; };
 		5235533C9F22E43B48C7BE18 /* TriNetVideo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TriNetVideo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		56D2F65F27B61DFB55A39F8F /* IceSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IceSession.swift; sourceTree = "<group>"; };
 		5BCD15FBEAF2379CE2C75DC1 /* LinkStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkStatus.swift; sourceTree = "<group>"; };
 		61BC88F2C76B79E6716BD918 /* AudioController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioController.swift; sourceTree = "<group>"; };
+		618EB4397DAA24EFFC282BDB /* HolePunch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HolePunch.swift; sourceTree = "<group>"; };
+		6F88988FE101B40E5B5EDF73 /* CandidateOffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateOffer.swift; sourceTree = "<group>"; };
+		71C5E8A3D9044B2F8E6A1190 /* AudioRED.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRED.swift; sourceTree = "<group>"; };
 		915D7663B5CD3BA6B725865A /* CallManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallManager.swift; sourceTree = "<group>"; };
 		919A6C8C4AE3FF1BEBC24E2D /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
 		96DB9356EBB9897CE6C906D7 /* OpusCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpusCodec.swift; sourceTree = "<group>"; };
 		9C404DA930B30CD012F62D59 /* CallIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallIdentity.swift; sourceTree = "<group>"; };
 		A5E0D7BDA34C051DCC9477E0 /* ScreenCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCapture.swift; sourceTree = "<group>"; };
+		A5C7266EA57914708FEF0520 /* StunClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StunClient.swift; sourceTree = "<group>"; };
 		A95B320DB85BD9CA34441F97 /* MeshCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshCrypto.swift; sourceTree = "<group>"; };
 		AA75ECF67764B6EAF235CAE1 /* PeerDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerDiscovery.swift; sourceTree = "<group>"; };
 		B4EA56245810CECD0C202FFE /* CallRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallRecorder.swift; sourceTree = "<group>"; };
 		B531BE39B4623AAA1D6E3823 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		BE3C2CA7D393D208C02C855D /* Rendezvous.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Rendezvous.swift; sourceTree = "<group>"; };
 		C3E1BEB0E6D36884DC34BAF1 /* Views.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views.swift; sourceTree = "<group>"; };
 		DC9E1456FC3042E3A277409E /* VideoDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoDecoder.swift; sourceTree = "<group>"; };
 		E7467C86E81673925398E7CA /* VideoEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEncoder.swift; sourceTree = "<group>"; };
+		F283B5D6814E49C0A7F13692 /* VideoFEC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoFEC.swift; sourceTree = "<group>"; };
+		F1850921832DAC906FC971A0 /* NatDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NatDiagnostics.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -87,19 +103,27 @@
 			children = (
 				919A6C8C4AE3FF1BEBC24E2D /* App.swift */,
 				61BC88F2C76B79E6716BD918 /* AudioController.swift */,
+				71C5E8A3D9044B2F8E6A1190 /* AudioRED.swift */,
 				0AA628378284C43ABC50D020 /* BackgroundBlur.swift */,
 				915D7663B5CD3BA6B725865A /* CallManager.swift */,
 				B4EA56245810CECD0C202FFE /* CallRecorder.swift */,
 				05D79458F799679566EA2F11 /* CameraCapture.swift */,
+				6F88988FE101B40E5B5EDF73 /* CandidateOffer.swift */,
+				618EB4397DAA24EFFC282BDB /* HolePunch.swift */,
+				56D2F65F27B61DFB55A39F8F /* IceSession.swift */,
 				B531BE39B4623AAA1D6E3823 /* Info.plist */,
 				5BCD15FBEAF2379CE2C75DC1 /* LinkStatus.swift */,
 				A95B320DB85BD9CA34441F97 /* MeshCrypto.swift */,
 				201CD1EE7B29F77025DA7005 /* MeshTransport.swift */,
+				F1850921832DAC906FC971A0 /* NatDiagnostics.swift */,
 				96DB9356EBB9897CE6C906D7 /* OpusCodec.swift */,
 				AA75ECF67764B6EAF235CAE1 /* PeerDiscovery.swift */,
+				BE3C2CA7D393D208C02C855D /* Rendezvous.swift */,
 				A5E0D7BDA34C051DCC9477E0 /* ScreenCapture.swift */,
+				A5C7266EA57914708FEF0520 /* StunClient.swift */,
 				DC9E1456FC3042E3A277409E /* VideoDecoder.swift */,
 				E7467C86E81673925398E7CA /* VideoEncoder.swift */,
+				F283B5D6814E49C0A7F13692 /* VideoFEC.swift */,
 				C3E1BEB0E6D36884DC34BAF1 /* Views.swift */,
 			);
 			path = TriNetVideo;
@@ -184,21 +208,29 @@
 			files = (
 				93828957945393D93D1AE545 /* App.swift in Sources */,
 				111558B34260E5B694D543EE /* AudioController.swift in Sources */,
+				11A7D9E4F2B84C6A9035D711 /* AudioRED.swift in Sources */,
 				1410A21A73E9E82F0622FFE1 /* BackgroundBlur.swift in Sources */,
 				094B0FDEEEA876B04E5C3700 /* CallIdentity.swift in Sources */,
 				7059B12C50899D17431177A1 /* CallManager.swift in Sources */,
 				520A5853F1324286B7C9D328 /* CallRecorder.swift in Sources */,
 				40F017DE28896B7D0177AC7B /* CameraCapture.swift in Sources */,
+				50B501BEC14154398B226C9F /* CandidateOffer.swift in Sources */,
+				FFECD56EFD6D466A56431C40 /* HolePunch.swift in Sources */,
+				26F4606369FB400B071CEDA9 /* IceSession.swift in Sources */,
 				F6CB4CE6A1336FEBE77BA83B /* InternetCall.swift in Sources */,
 				131244A5A527881519B0BB77 /* LinkStatus.swift in Sources */,
 				0FD4749EFC9F8923DD0BCB49 /* MeshCrypto.swift in Sources */,
 				66CCD9FFAD828B288E427269 /* MeshTransport.swift in Sources */,
+				E7ED3316AAE18857AAB40D9C /* NatDiagnostics.swift in Sources */,
 				EDE8E8CA5000C63D274F4D54 /* NicknameDirectory.swift in Sources */,
 				12E514050EC8F765A8DC3472 /* OpusCodec.swift in Sources */,
 				6D338808E3FCAF91BE192590 /* PeerDiscovery.swift in Sources */,
+				862D38921269544DF68D6EDC /* Rendezvous.swift in Sources */,
 				925424B00856474500875967 /* ScreenCapture.swift in Sources */,
+				04CD15FB173B0DA5942C761E /* StunClient.swift in Sources */,
 				F909D84E94FAA98C4929B709 /* VideoDecoder.swift in Sources */,
 				E00B31F6C88D6223CF93B32F /* VideoEncoder.swift in Sources */,
+				E19A4C7D520B438FA6D91230 /* VideoFEC.swift in Sources */,
 				C42AEF335F11DD33CC802C77 /* Views.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
