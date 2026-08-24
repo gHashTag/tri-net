@@ -225,6 +225,10 @@ class CallManager: ObservableObject {
         directory = NicknameDirectoryController(identity: loadedIdentity, configuration: loadedConfiguration)
         account = AccountDeviceController(identity: loadedIdentity, configuration: loadedConfiguration)
         groupChat = GroupChatController(identity: loadedIdentity, configuration: loadedConfiguration)
+        groupChat.onNewUnread = { [weak self] newUnread in
+            guard let self, newUnread > 0 else { return }
+            self.chatChime.play()
+        }
         LogBus.shared.start()   // tee stderr (where every NSLog lands) into the UI
         localIP = MeshTransport.getLocalIP()
         // Load recent IPs from UserDefaults
