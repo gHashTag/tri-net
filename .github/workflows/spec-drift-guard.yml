@@ -104,6 +104,7 @@ jobs:
             fi
           done <<'WARNBASE'
           access_control 0
+          account_identity 0
           adaptive_retry 0
           adaptive_routing 14
           anomaly_detector 30
@@ -119,6 +120,7 @@ jobs:
           cross_layer_optimizer 14
           crypto_frame 0
           discovery 0
+          direct_message 0
           docs_generator 15
           energy_aware_routing 25
           etx 0
@@ -128,12 +130,14 @@ jobs:
           fpga_synthesis_report 0
           frame_buffer 0
           gf16_format 0
+          group_chat 0
           hardware_validation 0
           health_dashboard 30
           health_monitoring 56
           hello 0
           integration_framework 32
           integration_tests 0
+          internet_call 0
           key_management 16
           link_quality_monitor 0
           link_statistics 0
@@ -141,6 +145,7 @@ jobs:
           load_predictor 25
           local_processing 26
           m3_multihop 0
+          mesh_call_signaling 0
           mesh_node_sim 0
           mesh_protocol_stack 0
           mesh_routing 0
@@ -152,6 +157,7 @@ jobs:
           network_metrics 0
           network_orchestrator 12
           network_simulator 6
+          nickname_directory 0
           olsr_routing 0
           packet_loss_injection 0
           packet_queue 0
