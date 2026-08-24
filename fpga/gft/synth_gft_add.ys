@@ -1,0 +1,5 @@
+# Synthesis of the GF-T adder (yosys, NO Vivado).  yosys fpga/gft/synth_gft_add.ys
+read_verilog fpga/gft/gft_add.v
+hierarchy -top gft_add
+synth_xilinx -flatten
+stat

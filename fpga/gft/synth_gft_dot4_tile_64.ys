@@ -1,0 +1,8 @@
+# Per-tile utilization of the GF-T64 4-lane MAC tile (yosys, NO Vivado).
+#   yosys fpga/gft/synth_gft_dot4_tile_64.ys
+# Four gft_mul64 (256-bit datapath, DSP-mapped) + a 3-adder gft_add64 (128-bit) tree.
+# Emits a stat report so a systolic array of these tiles can be sized against XC7A200T.
+read_verilog fpga/gft/gft_dot4_tile_64.v fpga/gft/gft_mul64.v fpga/gft/gft_add64.v
+hierarchy -top gft_dot4_tile_64
+synth_xilinx -flatten
+stat

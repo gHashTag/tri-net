@@ -127,8 +127,8 @@ module traffic_animator {
     }
 
     // Packet color [type][priority][size][color_code]
-    fn create_packet_color(type: u32, priority: u32, size: u32, color: u32) -> u32 {
-        return (((type & 0xF) << 28) |
+    fn create_packet_color(ptype: u32, priority: u32, size: u32, color: u32) -> u32 {
+        return (((ptype & 0xF) << 28) |
                 ((priority & 0xF) << 24) |
                 ((size & 0xFF) << 16) |
                 (color & 0xFFFF));
@@ -258,9 +258,20 @@ module traffic_animator {
 
     // Calculate packet position
     fn calculate_packet_position(source_x: u32, source_y: u32, dest_x: u32, dest_y: u32, progress: u32) -> u32 {
-        // Linear interpolation
-        let current_x: u32 = source_x + ((dest_x - source_x) * progress) / 100;
-        let current_y: u32 = source_y + ((dest_y - source_y) * progress) / 100;
+        // Linear interpolation, direction-aware: the unsigned subtraction
+        // (dest - source) wrapped whenever the packet moved left or up.
+        let current_x: u32 = source_x;
+        if (dest_x >= source_x) {
+            current_x = source_x + ((dest_x - source_x) * progress) / 100;
+        } else {
+            current_x = source_x - ((source_x - dest_x) * progress) / 100;
+        }
+        let current_y: u32 = source_y;
+        if (dest_y >= source_y) {
+            current_y = source_y + ((dest_y - source_y) * progress) / 100;
+        } else {
+            current_y = source_y - ((source_y - dest_y) * progress) / 100;
+        }
         
         // Return position: [x][y][0][0]
         return (((current_x & 0xFF) << 24) |
@@ -458,5 +469,27 @@ module traffic_animator {
         }
         
         return create_traffic_stats(total_packets, total_bytes, 0, avg_latency);
+    }
+
+    // ---- Tests ----
+
+    test anim_packet_roundtrip_and_progress {
+        p = create_anim_packet(5, 1, 2, 40);
+        assert(get_anim_packet_id(p) == 5, "packet id");
+        assert(get_anim_packet_progress(p) == 40, "progress");
+        p = update_packet_progress(p, 30);
+        assert(get_anim_packet_progress(p) == 70, "advanced");
+        p = update_packet_progress(p, 90);
+        assert(get_anim_packet_progress(p) == 100, "caps at 100");
+    }
+
+    test packet_position_interpolates_both_directions {
+        // Rightward: 10 -> 90 at 50% is 50.
+        pos = calculate_packet_position(10, 20, 90, 20, 50);
+        assert(((pos >> 24) & 0xFF) == 50, "x midpoint rightward");
+        // Leftward: 90 -> 10 at 50% is also 50 (used to wrap the u32).
+        pos = calculate_packet_position(90, 20, 10, 20, 50);
+        assert(((pos >> 24) & 0xFF) == 50, "x midpoint leftward");
+        assert(((pos >> 16) & 0xFF) == 20, "y unchanged");
     }
 }

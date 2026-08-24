@@ -34,13 +34,13 @@ pub fn extract_slack(path: u32) -> u32 {
 }
 
 pub fn grade_timing(slack: u32) -> u32 {
-    if (slack >= 100) {
-        return TIMING_PASS;
+    if (slack > 0x7FFFFFFF) {
+        return TIMING_FAIL;
     } else {
-        if (slack >= 0) {
-            return TIMING_MARGINAL;
+        if (slack >= 100) {
+            return TIMING_PASS;
         } else {
-            return TIMING_FAIL;
+            return TIMING_MARGINAL;
         }
     }
 }
@@ -66,7 +66,7 @@ pub fn retiming_needed(current_slack: u32, threshold: u32) -> bool {
 }
 
 pub fn balance_registers(stage_delay: u32, target_period: u32) -> bool {
-    return (stage_delay > (target_period << 1));
+    return (stage_delay > (target_period * 2));
 }
 
 pub fn compare_critical_paths(path1: u32, path2: u32) -> u32 {

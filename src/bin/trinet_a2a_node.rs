@@ -1,0 +1,282 @@
+//! trinet_a2a_node -- A2A-over-mesh path, composed from the generated spec modules.
+//!
+//! Moves the (previously Python-prototyped, then spec-composed) A2A-over-mesh flow
+//! into the repo as a real binary: an A2A message rides KIND_DATA on A2A_PORT,
+//! sealed (crypto_frame), routed by TTL (router_ttl); a relay forwards without
+//! parsing (payload is ciphertext), the endpoint parses the fixed wire header
+//! (tri_a2a_wire) and enforces the format family (tri_a2a) before the receipt /
+//! settle path (tri_compute_receipt / tri_compute_settle). All business logic is
+//! generated from specs/*.t27 (Golden Pipeline); this binary is thin wiring.
+#![allow(dead_code, unused)]
+
+//! An A2A message rides KIND_DATA on A2A_PORT, sealed (crypto_frame), routed by TTL
+//! (router_ttl); a relay forwards without parsing (payload is ciphertext), the
+//! endpoint parses the fixed wire header (tri_a2a_wire) and enforces the format
+//! family (tri_a2a). The endpoint then runs the HARDENED settle path: it recomputes
+//! the receipt's 256-bit digest (tri_compute_receipt.digest_pre + tri_sha256),
+//! verifies the executor's Ed25519 signature over it, settles ONLY on a valid
+//! signature (settle_signed), and advances the 256-bit audited ledger head
+//! (ledger_entry_pre + sha256_compress). All business logic is generated from
+//! specs/*.t27 (Golden Pipeline); this binary is thin wiring.
+#![allow(dead_code, unused)]
+
+use ed25519_dalek::{Signer, SigningKey, Verifier, VerifyingKey, Signature};
+
+#[path = "../../gen/rust/tri_a2a.rs"]
+mod a2a;
+#[path = "../../gen/rust/tri_a2a_wire.rs"]
+mod wire;
+#[path = "../../gen/rust/router_ttl.rs"]
+mod router;
+#[path = "../../gen/rust/crypto_frame.rs"]
+mod crypto;
+#[path = "../../gen/rust/tri_sha256.rs"]
+mod sha;
+#[path = "../../gen/rust/tri_compute_receipt.rs"]
+mod receipt;
+#[path = "../../gen/rust/tri_compute_settle.rs"]
+mod settle;
+#[path = "../../gen/rust/tri_gft_arith.rs"]
+mod gmul;
+#[path = "../../gen/rust/tri_gft_add.rs"]
+mod gadd;
+#[path = "../../gen/rust/tri_gft_sub.rs"]
+mod gsub;
+#[path = "../../gen/rust/tri_gft_ladder.rs"]
+mod lad;
+#[path = "../../gen/rust/tri_receipt_verify.rs"]
+mod rv;
+
+/// Recompute the claimed GF-T result from the assigned operands and the op: the
+/// endpoint checks the compute itself, not just the signature. Returns 1 if the
+/// claimed (offset, mant) recomputes for the op, else 0.
+fn compute_ok(gf_op: u32, width: u32, sign_a: u32, sign_b: u32, oa: u32, ma: u32, ob: u32, mb: u32, claimed_off: u32, claimed_mant: u32) -> u32 {
+    // Rung-aware: pick the GF-T geometry for the receipt's width (tri_gft_ladder), so
+    // GF-T4/8/16 results verify each with their own bias / offset_max / mantissa scale.
+    let et = lad::width_to_et(width);
+    let bias = lad::gft_bias(et);
+    let omax = lad::gft_offset_max(et);
+    let mant_one = lad::gft_mant_one(et);
+    let mant_bits = lad::gft_mant_bits(et);
+    let sig_bits = mant_bits + 1;
+    // GF-T4/8/16 are u32-safe; GF-T32's 25-bit mantissa overflows u32 in multiply and
+    // subtract, so it uses the u64 verifies (ADD stays u32-safe). ALIGN_CAP_U64 = 38.
+    let (mul, add) = if width == 32 {
+        let m = gmul::verify_gft_mul_full_u64(oa, ma as u64, ob, mb as u64, claimed_off, claimed_mant, bias, omax, mant_one as u64);
+        let a = if sign_a == sign_b {
+            gadd::verify_gft_add_p(oa, ob, ma, mb, claimed_off, claimed_mant, omax, mant_one, sig_bits)
+        } else {
+            gsub::verify_gft_sub_u64(oa, ob, ma as u64, mb as u64, claimed_off, claimed_mant, mant_one as u64, mant_bits, 38)
+        };
+        (if m { 1u32 } else { 0 }, if a { 1u32 } else { 0 })
+    } else {
+        let m = if gmul::verify_gft_mul_full_p(oa, ma, ob, mb, claimed_off, claimed_mant, bias, omax, mant_one) { 1u32 } else { 0 };
+        let a = if sign_a == sign_b {
+            if gadd::verify_gft_add_p(oa, ob, ma, mb, claimed_off, claimed_mant, omax, mant_one, sig_bits) { 1u32 } else { 0 }
+        } else {
+            if gsub::verify_gft_sub_p(oa, ob, ma, mb, claimed_off, claimed_mant, mant_one, mant_bits) { 1u32 } else { 0 }
+        };
+        (m, a)
+    };
+    rv::compute_ok_for_op(gf_op, mul, add)
+}
+
+/// The FULL 256-bit operand hash (all 8 words), used for the input-bound digest so
+/// the signature binds the operands at ~2^128 (not the 32-bit operand_inhash slice).
+fn operand_hash256(op: u32, a_off: u32, a_mant: u32, b_off: u32, b_mant: u32) -> [u32; 8] {
+    let w = |i: u32| wire::operand_pre(i, op, a_off, a_mant, b_off, b_mant);
+    let mut h = [0u32; 8];
+    let mut k = 0u32;
+    while k < 8 { h[k as usize] = sha::sha256_word(w(0), w(1), w(2), w(3), w(4), w(5), w(6), w(7), w(8), w(9), w(10), w(11), w(12), w(13), w(14), w(15), k); k += 1; }
+    h
+}
+
+/// The 256-bit INPUT-BOUND receipt digest (two-block SHA-256 over input_digest_pre,
+/// which commits the full operand hash instead of a 32-bit in_hash).
+fn input_digest(req: u32, dev: u32, exe: u32, task: u32, oh: &[u32; 8], out: u32, epoch: u32, prev: u32) -> [u32; 8] {
+    let w = |i: u32| receipt::input_digest_pre(i, req, dev, exe, task, oh[0], oh[1], oh[2], oh[3], oh[4], oh[5], oh[6], oh[7], out, epoch, prev);
+    let mut s1 = [0u32; 8];
+    let mut k = 0u32;
+    while k < 8 { s1[k as usize] = sha::sha256_word(w(0), w(1), w(2), w(3), w(4), w(5), w(6), w(7), w(8), w(9), w(10), w(11), w(12), w(13), w(14), w(15), k); k += 1; }
+    let mut d = [0u32; 8];
+    let mut j = 0u32;
+    while j < 8 { d[j as usize] = sha::sha256_compress(s1[0], s1[1], s1[2], s1[3], s1[4], s1[5], s1[6], s1[7], w(16), w(17), w(18), w(19), w(20), w(21), w(22), w(23), w(24), w(25), w(26), w(27), w(28), w(29), w(30), w(31), j); j += 1; }
+    d
+}
+
+fn digest256(req: u32, dev: u32, exe: u32, task: u32, inh: u32, out: u32, epoch: u32, prev: u32) -> [u32; 8] {
+    let w = |i: u32| receipt::digest_pre(i, req, dev, exe, task, inh, out, epoch, prev);
+    let mut d = [0u32; 8];
+    let mut j = 0u32;
+    while j < 8 {
+        d[j as usize] = sha::sha256_word(
+            w(0), w(1), w(2), w(3), w(4), w(5), w(6), w(7),
+            w(8), w(9), w(10), w(11), w(12), w(13), w(14), w(15), j,
+        );
+        j += 1;
+    }
+    d
+}
+
+fn ledger_head256(prev: &[u32; 8], dg: &[u32; 8], balance: u32, epoch: u32) -> [u32; 8] {
+    let w = |i: u32| receipt::ledger_entry_pre(
+        i, prev[0], prev[1], prev[2], prev[3], prev[4], prev[5], prev[6], prev[7],
+        dg[0], dg[1], dg[2], dg[3], dg[4], dg[5], dg[6], dg[7], balance, epoch,
+    );
+    let mut s1 = [0u32; 8];
+    let mut k = 0u32;
+    while k < 8 {
+        s1[k as usize] = sha::sha256_word(w(0), w(1), w(2), w(3), w(4), w(5), w(6), w(7), w(8), w(9), w(10), w(11), w(12), w(13), w(14), w(15), k);
+        k += 1;
+    }
+    let mut head = [0u32; 8];
+    let mut j = 0u32;
+    while j < 8 {
+        head[j as usize] = sha::sha256_compress(s1[0], s1[1], s1[2], s1[3], s1[4], s1[5], s1[6], s1[7], w(16), w(17), w(18), w(19), w(20), w(21), w(22), w(23), w(24), w(25), w(26), w(27), w(28), w(29), w(30), w(31), j);
+        j += 1;
+    }
+    head
+}
+
+fn digest_bytes(d: &[u32; 8]) -> [u8; 32] {
+    let mut b = [0u8; 32];
+    for i in 0..8 { b[i * 4..i * 4 + 4].copy_from_slice(&d[i].to_be_bytes()); }
+    b
+}
+fn sig_ok(vk: &VerifyingKey, msg: &[u8; 32], sig: &Signature) -> u32 {
+    if vk.verify(msg, sig).is_ok() { 1 } else { 0 }
+}
+
+fn main() {
+    let (me, dst, from) = (0x0Au32, 0x0Cu32, 0x08u32);
+    let (kind_data, ttl) = (1u32, 8u32);
+
+    // 1. Demux by PORT: A2A rides KIND_DATA on A2A_PORT (relay & endpoint).
+    assert!(a2a::is_a2a(kind_data, a2a::A2A_PORT));
+    assert!(!a2a::is_a2a(0, a2a::A2A_PORT));
+
+    // 2. RELAY forwards toward dst WITHOUT parsing (payload is sealed ciphertext).
+    let relay = router::forward_decision(dst, me, ttl, 1, 0x0B, from);
+    assert_eq!(relay, router::DECIDE_FORWARD);
+    let sealed_len = crypto::HEADER_LEN + (wire::HDR_LEN as usize) + 9 + crypto::TAG_LEN;
+    let receipt_body = 36usize; // 9 x u32 digest-preimage fields
+    let sealed_len = crypto::HEADER_LEN + (wire::signed_result_len(receipt_body as u32) as usize) + crypto::TAG_LEN;
+    assert!(crypto::frame_len_ok(sealed_len));
+
+    // 3. ENDPOINT (dst == me): hand up locally, decrypt, parse the wire header.
+    let endpoint = router::forward_decision(me, me, ttl, 1, 0x0B, from);
+    assert_eq!(endpoint, router::DECIDE_LOCAL);
+    let task = wire::task_id(0x00, 0x00, 0x20, 0x01);
+    let skill = wire::skill_id(0xA6, 0x11); // GF-T16 mul
+    assert!(wire::class_valid(wire::MSG_TASK_RESULT) && wire::body_has_receipt(wire::MSG_TASK_RESULT));
+
+    // 4. Enforce format family, then bind + settle the compute receipt.
+    assert_eq!(a2a::skill_family(skill), a2a::FMT_GFT);
+    assert_eq!(a2a::skill_op(skill), 0x11); // op agrees with receipt GF_MUL
+    let leaf = receipt::receipt_leaf_gf_fmt(
+        receipt::FMT_GFT, receipt::GF16, receipt::GF_MUL,
+        0x3F00, 0x4000, 0x4100, 0xC0FFEE01, 0xE0E0, 1,
+    );
+    let bal = settle::settle_full(1000, 16, 1, 0x4100, 6, 9, 0);
+
+    println!("A2A-over-mesh node: demux(port) OK  relay=FORWARD  endpoint=LOCAL  sealed_len={}", sealed_len);
+    println!("  parse: task={:#06x} skill={:#06x}(GF-T16 mul) taskResult+receipt family=GF-T", task, skill);
+    println!("  receipt leaf={:#010x}  settle balance 1000 -> {}", leaf, bal);
+    println!("OK: composed from generated specs (tri_a2a, tri_a2a_wire, router_ttl, crypto_frame, tri_compute_receipt, tri_compute_settle)");
+    assert!(wire::class_valid(wire::MSG_TASK_RESULT));
+    assert!(wire::body_has_receipt(wire::MSG_TASK_RESULT) && wire::body_has_signature(wire::MSG_TASK_RESULT));
+
+    // 4. Enforce format family; VERIFY the executor's Ed25519 signature over the
+    //    256-bit receipt digest; settle ONLY on a valid signature; advance the
+    //    256-bit audited ledger head that commits the settled balance.
+    assert_eq!(a2a::skill_family(skill), a2a::FMT_GFT);
+    assert_eq!(a2a::skill_op(skill), 0x11); // op agrees with receipt GF_MUL
+
+    // GF-T16 mul phi^1 * phi^1 = phi^2: operands (41,0) & (41,0), result (42,0). The
+    // digest is the 256-bit INPUT-BOUND digest: it commits the FULL operand hash
+    // (input_digest_pre over SHA-256(op,a,b)), so the signature binds the exact inputs
+    // at ~2^128 -- not the 32-bit in_hash slice.
+    let (dev, exe, gfop, out, epoch) = (0xC0FFEE01u32, 0xE0E0u32, 0x11u32, 0x4100u32, 1u32);
+    let (a_off, a_mant, b_off, b_mant) = (41u32, 0u32, 41u32, 0u32);
+    let oh = operand_hash256(gfop, a_off, a_mant, b_off, b_mant);
+    let d = input_digest(task, dev, exe, gfop, &oh, out, epoch, receipt::RECEIPT_GENESIS);
+
+    // The executor signs the digest; the endpoint verifies before settling.
+    let sk = SigningKey::from_bytes(&[7u8; 32]);
+    let vk = sk.verifying_key();
+    let sig = sk.sign(&digest_bytes(&d));
+    let ok = sig_ok(&vk, &digest_bytes(&d), &sig);
+    assert_eq!(ok, 1, "honest result verifies");
+
+    // INPUT BINDING (256-bit): recompute the operand hash from the assigned operands;
+    // the signature only matches if the receipt committed THESE inputs. A different
+    // assigned operand set yields a different 256-bit operand hash -> different digest
+    // -> the signature no longer verifies.
+    let oh_wrong = operand_hash256(gfop, 40, 0, 41, 0); // requester assigned a=(40,0), not (41,0)
+    let d_wrong_inputs = input_digest(task, dev, exe, gfop, &oh_wrong, out, epoch, receipt::RECEIPT_GENESIS);
+    let input_ok = sig_ok(&vk, &digest_bytes(&d_wrong_inputs), &sig);
+    assert_eq!(input_ok, 0, "a receipt signed for other operands fails input binding");
+
+    // The endpoint RECOMPUTES the compute from the assigned GF-T operands and only
+    // settles if the claimed result recomputes -- a valid signature over a WRONG
+    // result is not enough.
+    let (claimed_off, claimed_mant) = (42u32, 0u32);
+    let width = 16u32; // GF-T16 (skill 0xA6xx); the verify picks this rung's geometry
+    let cok = compute_ok(gfop, width, 0, 0, a_off, a_mant, b_off, b_mant, claimed_off, claimed_mant);
+    assert_eq!(cok, 1, "the claimed GF-T product recomputes");
+
+    // Rung-aware: the SAME endpoint verifies a GF-T8 result with GF-T8 geometry.
+    // GF-T8 mul 1.5*1.5 (offsets 13, mantissas 8) -> exp 14, mant 2.
+    let cok_gft8 = compute_ok(gfop, 8, 0, 0, 13, 8, 13, 8, 14, 2);
+    assert_eq!(cok_gft8, 1, "a GF-T8 result verifies under GF-T8 geometry at the node");
+    // And a GF-T8 result mis-checked as GF-T16 (wrong width) would NOT recompute:
+    let cok_wrongwidth = compute_ok(gfop, 16, 0, 0, 13, 8, 13, 8, 14, 2);
+    assert_eq!(cok_wrongwidth, 0, "GF-T8 result under GF-T16 geometry is rejected (wrong rung)");
+
+    // GF-T32 too (the u64 path): mul 1.5*1.5 -> exp 365, mant 2^22 (offsets 364, M 2^24).
+    let cok_gft32 = compute_ok(gfop, 32, 0, 0, 364, 16777216, 364, 16777216, 365, 4194304);
+    assert_eq!(cok_gft32, 1, "a GF-T32 result verifies under GF-T32 (u64) geometry at the node");
+    let cok_gft32_bad = compute_ok(gfop, 32, 0, 0, 364, 16777216, 364, 16777216, 364, 4194304);
+    assert_eq!(cok_gft32_bad, 0, "a GF-T32 result with the wrong exponent is rejected");
+
+    // FRESHNESS (anti-replay): the node keeps a high-water mark of the last settled
+    // task_id; a taskResult settles only if its id is strictly newer (tri_a2a.is_fresh).
+    let watermark = 0x2000u32; // last settled id before this result
+    let fresh = if a2a::is_fresh(task, watermark) { 1u32 } else { 0 };
+    assert_eq!(fresh, 1, "task 0x2001 is newer than the watermark");
+    let bal = settle::settle_signed(1000, 16, 1, out, 6, 9, 0, ok & cok & fresh);
+    assert_eq!(bal, 1016, "fresh + signed + correct-compute settles");
+    let watermark = a2a::next_watermark(task, watermark); // advance to 0x2001
+
+    // REPLAY: the SAME taskResult arrives again (task id 0x2001, now == watermark).
+    // is_fresh is false -> no second payout, so a replay cannot double-settle.
+    let replay_fresh = if a2a::is_fresh(task, watermark) { 1u32 } else { 0 };
+    let bal_replay = settle::settle_signed(bal, 16, 1, out, 6, 9, 0, ok & cok & replay_fresh);
+    assert_eq!((replay_fresh, bal_replay), (0, bal), "a replayed result does not pay twice");
+
+    let genesis = [receipt::LEDGER_GENESIS, 0, 0, 0, 0, 0, 0, 0];
+    let head = ledger_head256(&genesis, &d, bal, epoch);
+
+    // A forged result (tampered output, executor's old signature) is rejected here,
+    // at the endpoint, before any payout -- the composed node enforces authenticity.
+    let d_forge = input_digest(task, dev, exe, gfop, &oh, 0x9999, epoch, receipt::RECEIPT_GENESIS);
+    let ok_forge = sig_ok(&vk, &digest_bytes(&d_forge), &sig);
+    let bal_forge = settle::settle_signed(1000, 16, 1, 0x9999, 6, 9, 0, ok_forge);
+    assert_eq!(bal_forge, 1000, "a forged result earns nothing at the endpoint");
+
+    // A WRONG-COMPUTE result that is correctly signed: the operands are honest and
+    // the signature verifies, but the claimed product exponent is wrong (43 not 42).
+    // The recompute catches it -- signature is not correctness.
+    let cok_bad = compute_ok(gfop, width, 0, 0, a_off, a_mant, b_off, b_mant, 43, 0);
+    let bal_badcompute = settle::settle_signed(1000, 16, 1, out, 6, 9, 0, ok & cok_bad);
+    assert_eq!((cok_bad, bal_badcompute), (0, 1000), "a signed but miscomputed result earns nothing");
+
+    println!("A2A-over-mesh node (hardened + recompute): demux(port) OK  relay=FORWARD  endpoint=LOCAL  sealed_len={}", sealed_len);
+    println!("  parse: task={:#06x} skill={:#06x}(GF-T16 mul) taskResult+receipt+signature family=GF-T", task, skill);
+    println!("  digest={:08x}..{:08x}  sig_ok={}  compute_ok={}  settle 1000 -> {}", d[0], d[7], ok, cok, bal);
+    println!("  ledger head={:08x}..{:08x} (256-bit, commits the balance)", head[0], head[7]);
+    println!("  forged result:     sig_ok={} -> settle stays 1000 (rejected at endpoint)", ok_forge);
+    println!("  signed but WRONG compute (claims phi^2=43): compute_ok={} -> settle stays 1000", cok_bad);
+    println!("  REPLAY same task 0x2001: fresh={} -> balance stays {} (no double-pay)", replay_fresh, bal_replay);
+    println!("OK: endpoint enforces FRESHNESS (anti-replay) + WHO (Ed25519) + CORRECTNESS (recompute) before settling");
+}

@@ -42,7 +42,8 @@ module MeshEtx {
         if (est == 255 && sample == 255) {
             return 255;
         }
-        return fp_mul(alpha, sample) + fp_mul(256 - alpha, est);
+        // 256 does not fit in u8: the complement of alpha in Q0.8 is 255 - alpha.
+        return fp_mul(alpha, sample) + fp_mul(255 - alpha, est);
     }
 
     // Check if delivery ratio is dead
@@ -89,8 +90,10 @@ module MeshEtx {
 
     test test_dead_direction {
         // Reverse decays to 0 → dead link → ETX = ∞
+        // Three zero samples needed: 230 → 114 → 56 → 27 (< DEAD_EPS=38).
+        // Two are not enough even in the float original (0.9 → 0.45 → 0.225 vs eps 0.15).
         fwd = ewma_update(ewma_update(OPTIMISTIC, 255, ALPHA_HALF), 255, ALPHA_HALF);
-        rev = ewma_update(ewma_update(OPTIMISTIC, 0, ALPHA_HALF), 0, ALPHA_HALF);
+        rev = ewma_update(ewma_update(ewma_update(OPTIMISTIC, 0, ALPHA_HALF), 0, ALPHA_HALF), 0, ALPHA_HALF);
         etx = calc_etx(fwd, rev);
         assert(etx == 0xFFFF, "dead link should be infinite");
     }

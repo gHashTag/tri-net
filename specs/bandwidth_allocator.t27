@@ -8,6 +8,11 @@ module BandwidthAllocator {
     const TOTAL_BANDWIDTH: u32 = 1000; // Units per tick
     const MIN_BANDWIDTH: u32 = 10;
     const MAX_BANDWIDTH: u32 = 500;
+    // Priority levels used by the flow-requirement tests (were referenced but
+    // never declared -- the generated code could not compile in any backend).
+    const PRIORITY_LOW: u32 = 1;
+    const PRIORITY_MEDIUM: u32 = 2;
+    const PRIORITY_HIGH: u32 = 3;
 
     // Flow requirements [flow_id][priority][min_bw][current_bw]
     fn create_flow_requirement(flow_id: u32, priority: u32, min_bw: u32, current_bw: u32) -> u32 {
@@ -57,27 +62,18 @@ module BandwidthAllocator {
         return (state & 0xF);
     }
 
-    // 8-flow storage
-    fn create_flow_array(f0: u32, f1: u32, f2: u32, f3: u32, f4: u32, f5: u32, f6: u32, f7: u32) -> u64 {
-        return (((f0 as u64) << 56) |
-                ((f1 as u64) << 48) |
-                ((f2 as u64) << 40) |
-                ((f3 as u64) << 32) |
-                ((f4 as u64) << 24) |
-                ((f5 as u64) << 16) |
-                ((f6 as u64) << 8) |
-                (f7 as u64));
+    // 8-flow storage. Eight 32-bit flow requirements need 256 bits: the old
+    // u64 container packed them at 8-bit strides, so every 32-bit read
+    // overlapped its neighbors and returned garbage. A real array holds them.
+    fn create_flow_array(f0: u32, f1: u32, f2: u32, f3: u32, f4: u32, f5: u32, f6: u32, f7: u32) -> [u32; 8] {
+        return [f0, f1, f2, f3, f4, f5, f6, f7];
     }
 
-    fn get_flow_req(array: u64, index: u32) -> u32 {
-        if (index == 0) { return ((array >> 56) & 0xFFFFFFFF) as u32; }
-        if (index == 1) { return ((array >> 48) & 0xFFFFFFFF) as u32; }
-        if (index == 2) { return ((array >> 40) & 0xFFFFFFFF) as u32; }
-        if (index == 3) { return ((array >> 32) & 0xFFFFFFFF) as u32; }
-        if (index == 4) { return ((array >> 24) & 0xFFFFFFFF) as u32; }
-        if (index == 5) { return ((array >> 16) & 0xFFFFFFFF) as u32; }
-        if (index == 6) { return ((array >> 8) & 0xFFFFFFFF) as u32; }
-        return (array & 0xFFFFFFFF) as u32;
+    fn get_flow_req(array: [u32; 8], index: u32) -> u32 {
+        if (index < 8) {
+            return array[index];
+        }
+        return 0;
     }
 
     // Calculate fair share bandwidth
@@ -94,13 +90,15 @@ module BandwidthAllocator {
         let min_bw = get_min_bandwidth(flow_req);
         let allocated = get_allocated_bw(state);
         
-        // Priority 0 = high, Priority 2 = low
+        // Branch on the declared priority constants (HIGH=3, MEDIUM=2, LOW=1).
+        // The old branches keyed on 0/1, which no constant produces -- every
+        // caller using PRIORITY_HIGH fell into the low-priority arm.
         let allocation = 0;
         
-        if (priority == 0) {
+        if (priority == PRIORITY_HIGH) {
             // High priority: allocate up to max bandwidth
             allocation = min_bw + ((available_bw * 7) / 10);
-        } else if (priority == 1) {
+        } else if (priority == PRIORITY_MEDIUM) {
             // Medium priority: allocate based on fair share
             allocation = calculate_fair_share(available_bw, 2);
         } else {
@@ -141,7 +139,7 @@ module BandwidthAllocator {
     }
 
     // Count active flows (flows with allocated bandwidth)
-    fn count_active_flows(flow_array: u64) -> u32 {
+    fn count_active_flows(flow_array: [u32; 8]) -> u32 {
         let count = 0;
         
         if (get_current_bandwidth(get_flow_req(flow_array, 0)) > 0) { count = count + 1; }
@@ -157,7 +155,7 @@ module BandwidthAllocator {
     }
 
     // Find underutilized bandwidth (available bandwidth that can be reclaimed)
-    fn find_reclaimable_bandwidth(state: u32, flow_array: u64) -> u32 {
+    fn find_reclaimable_bandwidth(state: u32, flow_array: [u32; 8]) -> u32 {
         let allocated = get_allocated_bw(state);
         let total_used = 0;
         
@@ -193,7 +191,7 @@ module BandwidthAllocator {
     }
 
     // Priority-based bandwidth allocation
-    fn prioritize_bandwidth(flow_array: u64, available_bw: u32) -> u64 {
+    fn prioritize_bandwidth(flow_array: [u32; 8], available_bw: u32) -> [u32; 8] {
         // Allocate to high priority flows first
         let remaining_bw = available_bw;
         

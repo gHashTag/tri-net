@@ -10,7 +10,7 @@ pub const CONFIG_VERSION: u32 = 1;
 pub const AUTO_DISCOVERY_INTERVAL: u32 = 1000;
 
 pub fn create_config_param(param_id: u32, value: u32, scope: u32, status: u32) -> u32 {
-    return (((((param_id & 0xFF) << 24) | ((value & 0xFF) << 16)) | ((scope & 0xF) << 12)) | (status & 0xFFF));
+    return (((((param_id & 0xFF) << 24) | ((value & 0xFFFF) << 8)) | ((scope & 0xF) << 4)) | (status & 0xF));
 }
 
 pub fn get_param_id(param: u32) -> u32 {
@@ -18,15 +18,15 @@ pub fn get_param_id(param: u32) -> u32 {
 }
 
 pub fn get_param_value(param: u32) -> u32 {
-    return ((param >> 16) & 0xFF);
+    return ((param >> 8) & 0xFFFF);
 }
 
 pub fn get_param_scope(param: u32) -> u32 {
-    return ((param >> 12) & 0xF);
+    return ((param >> 4) & 0xF);
 }
 
 pub fn get_param_status(param: u32) -> u32 {
-    return (param & 0xFFF);
+    return (param & 0xF);
 }
 
 pub const SCOPE_NODE: u32 = 0;
@@ -61,31 +61,54 @@ pub const PARAM_QOS_ENABLED: u32 = 6;
 
 pub const PARAM_SECURITY_LEVEL: u32 = 7;
 
-pub fn create_default_config() -> Vec<> {
-    let config: Vec<> = vec![];
-    return config;
+pub fn default_config_at(index: u32) -> u32 {
+    if (index == 0) {
+        return create_config_param(PARAM_TX_POWER, 50, SCOPE_NODE, STATUS_PENDING);
+    }
+    if (index == 1) {
+        return create_config_param(PARAM_CHANNEL, 0, SCOPE_LINK, STATUS_PENDING);
+    }
+    if (index == 2) {
+        return create_config_param(PARAM_DATA_RATE, 2, SCOPE_LINK, STATUS_PENDING);
+    }
+    if (index == 3) {
+        return create_config_param(PARAM_RETRY_LIMIT, 3, SCOPE_NETWORK, STATUS_PENDING);
+    }
+    if (index == 4) {
+        return create_config_param(PARAM_HELLO_INTERVAL, 2000, SCOPE_NETWORK, STATUS_PENDING);
+    }
+    if (index == 5) {
+        return create_config_param(PARAM_ROUTE_TIMEOUT, 10000, SCOPE_NETWORK, STATUS_PENDING);
+    }
+    if (index == 6) {
+        return create_config_param(PARAM_QOS_ENABLED, 1, SCOPE_GLOBAL, STATUS_PENDING);
+    }
+    if (index == 7) {
+        return create_config_param(PARAM_SECURITY_LEVEL, 2, SCOPE_GLOBAL, STATUS_PENDING);
+    }
+    return 0;
 }
 
-pub fn get_config_value(config: Vec<>, param_id: u32) -> u32 {
+pub fn get_config_value(config: [u32; MAX_PARAMS as usize], param_id: u32) -> u32 {
     let mut i: u32 = 0;
     while (i < MAX_PARAMS) {
-        let current_param_id: u32 = get_param_id(config[i]);
+        let current_param_id: u32 = get_param_id(config[(i) as usize]);
         if (current_param_id == param_id) {
-            return get_param_value(config[i]);
+            return get_param_value(config[(i) as usize]);
         }
         i = (i + 1);
     }
     return 0;
 }
 
-pub fn set_config_value(config: Vec<>, param_id: u32, new_value: u32) -> u32 {
+pub fn set_config_value(config: [u32; MAX_PARAMS as usize], param_id: u32, new_value: u32) -> u32 {
     let mut i: u32 = 0;
     while (i < MAX_PARAMS) {
-        let current_param_id: u32 = get_param_id(config[i]);
+        let current_param_id: u32 = get_param_id(config[(i) as usize]);
         if (current_param_id == param_id) {
-            let scope: u32 = get_param_scope(config[i]);
+            let scope: u32 = get_param_scope(config[(i) as usize]);
             let status: u32 = STATUS_PENDING;
-            config[i] = create_config_param(param_id, new_value, scope, status);
+            config[(i) as usize] = create_config_param(param_id, new_value, scope, status);
             return 1;
         }
         i = (i + 1);
@@ -94,7 +117,7 @@ pub fn set_config_value(config: Vec<>, param_id: u32, new_value: u32) -> u32 {
 }
 
 pub fn discover_network_params(node_count: u32, interference_level: u32) -> u32 {
-    let config: Vec<> = create_default_config();
+    let config: [u32; MAX_PARAMS as usize] = [default_config_at(0),default_config_at(1),default_config_at(2),default_config_at(3),default_config_at(4),default_config_at(5),default_config_at(6),default_config_at(7),0,0,0,0,0,0,0,0];
     let mut tx_power: u32 = 50;
     if (node_count < 4) {
         tx_power = 30;
@@ -125,15 +148,15 @@ pub fn discover_network_params(node_count: u32, interference_level: u32) -> u32 
     return 1;
 }
 
-pub fn apply_config(config: Vec<>, param_id: u32) -> u32 {
+pub fn apply_config(config: [u32; MAX_PARAMS as usize], param_id: u32) -> u32 {
     let mut i: u32 = 0;
     while (i < MAX_PARAMS) {
-        let current_param_id: u32 = get_param_id(config[i]);
+        let current_param_id: u32 = get_param_id(config[(i) as usize]);
         if (current_param_id == param_id) {
-            let value: u32 = get_param_value(config[i]);
-            let scope: u32 = get_param_scope(config[i]);
+            let value: u32 = get_param_value(config[(i) as usize]);
+            let scope: u32 = get_param_scope(config[(i) as usize]);
             let success: u32 = 1;
-            config[i] = create_config_param(param_id, value, scope, STATUS_APPLIED);
+            config[(i) as usize] = create_config_param(param_id, value, scope, STATUS_APPLIED);
             return success;
         }
         i = (i + 1);
@@ -141,13 +164,13 @@ pub fn apply_config(config: Vec<>, param_id: u32) -> u32 {
     return 0;
 }
 
-pub fn apply_all_pending(config: Vec<>) -> u32 {
+pub fn apply_all_pending(config: [u32; MAX_PARAMS as usize]) -> u32 {
     let mut applied_count: u32 = 0;
     let mut i: u32 = 0;
     while (i < MAX_PARAMS) {
-        let status: u32 = get_param_status(config[i]);
+        let status: u32 = get_param_status(config[(i) as usize]);
         if (status == STATUS_PENDING) {
-            let param_id: u32 = get_param_id(config[i]);
+            let param_id: u32 = get_param_id(config[(i) as usize]);
             if (apply_config(config, param_id) == 1) {
                 applied_count = (applied_count + 1);
             }
@@ -157,7 +180,7 @@ pub fn apply_all_pending(config: Vec<>) -> u32 {
     return applied_count;
 }
 
-pub fn validate_config(config: Vec<>, param_id: u32) -> u32 {
+pub fn validate_config(config: [u32; MAX_PARAMS as usize], param_id: u32) -> u32 {
     let value: u32 = get_config_value(config, param_id);
     if (param_id == PARAM_TX_POWER) {
         if ((value >= 0) && (value <= 100)) {
@@ -209,7 +232,7 @@ pub fn validate_config(config: Vec<>, param_id: u32) -> u32 {
     return 0;
 }
 
-pub fn optimize_config(config: Vec<>, network_load: u32, error_rate: u32) -> u32 {
+pub fn optimize_config(config: [u32; MAX_PARAMS as usize], network_load: u32, error_rate: u32) -> u32 {
     let mut optimizations: u32 = 0;
     if (network_load > 80) {
         let current_retries: u32 = get_config_value(config, PARAM_RETRY_LIMIT);
@@ -235,19 +258,19 @@ pub fn optimize_config(config: Vec<>, network_load: u32, error_rate: u32) -> u32
     return optimizations;
 }
 
-pub fn sync_config(local_config: Vec<>, remote_config: Vec<>) -> u32 {
+pub fn sync_config(local_config: [u32; MAX_PARAMS as usize], remote_config: [u32; MAX_PARAMS as usize]) -> u32 {
     let mut synced_count: u32 = 0;
     let mut i: u32 = 0;
     while (i < MAX_PARAMS) {
-        let local_param_id: u32 = get_param_id(local_config[i]);
-        let local_value: u32 = get_param_value(local_config[i]);
-        let local_scope: u32 = get_param_scope(local_config[i]);
+        let local_param_id: u32 = get_param_id(local_config[(i) as usize]);
+        let local_value: u32 = get_param_value(local_config[(i) as usize]);
+        let local_scope: u32 = get_param_scope(local_config[(i) as usize]);
         let mut j: u32 = 0;
         while (j < MAX_PARAMS) {
-            let remote_param_id: u32 = get_param_id(remote_config[j]);
+            let remote_param_id: u32 = get_param_id(remote_config[(j) as usize]);
             if (remote_param_id == local_param_id) {
-                let remote_value: u32 = get_param_value(remote_config[j]);
-                let remote_scope: u32 = get_param_scope(remote_config[j]);
+                let remote_value: u32 = get_param_value(remote_config[(j) as usize]);
+                let remote_scope: u32 = get_param_scope(remote_config[(j) as usize]);
                 if ((remote_scope == SCOPE_NETWORK) || (remote_scope == SCOPE_GLOBAL)) {
                     if (remote_value != local_value) {
                         set_config_value(local_config, local_param_id, remote_value);
@@ -263,18 +286,18 @@ pub fn sync_config(local_config: Vec<>, remote_config: Vec<>) -> u32 {
     return synced_count;
 }
 
-pub fn rollback_config(config: Vec<>, backup_config: Vec<>) -> u32 {
+pub fn rollback_config(config: [u32; MAX_PARAMS as usize], backup_config: [u32; MAX_PARAMS as usize]) -> u32 {
     let mut rolled_back: u32 = 0;
     let mut i: u32 = 0;
     while (i < MAX_PARAMS) {
-        let backup_param_id: u32 = get_param_id(backup_config[i]);
-        let backup_value: u32 = get_param_value(backup_config[i]);
-        let backup_scope: u32 = get_param_scope(backup_config[i]);
+        let backup_param_id: u32 = get_param_id(backup_config[(i) as usize]);
+        let backup_value: u32 = get_param_value(backup_config[(i) as usize]);
+        let backup_scope: u32 = get_param_scope(backup_config[(i) as usize]);
         let mut j: u32 = 0;
         while (j < MAX_PARAMS) {
-            let local_param_id: u32 = get_param_id(config[j]);
+            let local_param_id: u32 = get_param_id(config[(j) as usize]);
             if (local_param_id == backup_param_id) {
-                config[j] = create_config_param(backup_param_id, backup_value, backup_scope, STATUS_PENDING);
+                config[(j) as usize] = create_config_param(backup_param_id, backup_value, backup_scope, STATUS_PENDING);
                 rolled_back = (rolled_back + 1);
                 break;
             }
@@ -285,28 +308,22 @@ pub fn rollback_config(config: Vec<>, backup_config: Vec<>) -> u32 {
     return rolled_back;
 }
 
-pub fn create_backup(config: Vec<>) -> Vec<> {
-    let mut backup: Vec<>;
-    let mut i: u32 = 0;
-    while (i < MAX_PARAMS) {
-        backup[i] = config[i];
-        i = (i + 1);
-    }
-    return backup;
+pub fn backup_element(config: [u32; MAX_PARAMS as usize], index: u32) -> u32 {
+    return config[((index as usize)) as usize];
 }
 
-pub fn calculate_config_drift(config1: Vec<>, config2: Vec<>) -> u32 {
+pub fn calculate_config_drift(config1: [u32; MAX_PARAMS as usize], config2: [u32; MAX_PARAMS as usize]) -> u32 {
     let mut drift_count: u32 = 0;
     let mut total_params: u32 = 0;
     let mut i: u32 = 0;
     while (i < MAX_PARAMS) {
-        let param1_id: u32 = get_param_id(config1[i]);
-        let param1_value: u32 = get_param_value(config1[i]);
+        let param1_id: u32 = get_param_id(config1[(i) as usize]);
+        let param1_value: u32 = get_param_value(config1[(i) as usize]);
         let mut j: u32 = 0;
         while (j < MAX_PARAMS) {
-            let param2_id: u32 = get_param_id(config2[j]);
+            let param2_id: u32 = get_param_id(config2[(j) as usize]);
             if (param1_id == param2_id) {
-                let param2_value: u32 = get_param_value(config2[j]);
+                let param2_value: u32 = get_param_value(config2[(j) as usize]);
                 if (param1_value != param2_value) {
                     drift_count = (drift_count + 1);
                 }
@@ -336,13 +353,13 @@ pub fn discover_neighbors(node_id: u32, scan_count: u32) -> u32 {
 
 pub fn assign_node_role(node_id: u32, capabilities: u32) -> u32 {
     let mut role: u32 = 0;
-    if (capabilities & 0x1) {
+    if ((capabilities & 0x1) != 0) {
         role = 1;
     } else {
-        if (capabilities & 0x2) {
+        if ((capabilities & 0x2) != 0) {
             role = 2;
         } else {
-            if (capabilities & 0x4) {
+            if ((capabilities & 0x4) != 0) {
                 role = 3;
             }
         }

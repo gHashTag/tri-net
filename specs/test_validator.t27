@@ -17,20 +17,20 @@ module test_validator {
                 (severity & 0xFFF));
     }
 
-    fn get_error_id(error: u32) -> u32 {
-        return ((error >> 24) & 0xFF);
+    fn get_error_id(err_word: u32) -> u32 {
+        return ((err_word >> 24) & 0xFF);
     }
 
-    fn get_error_type(error: u32) -> u32 {
-        return ((error >> 20) & 0xF);
+    fn get_error_type(err_word: u32) -> u32 {
+        return ((err_word >> 20) & 0xF);
     }
 
-    fn get_error_line(error: u32) -> u32 {
-        return ((error >> 12) & 0xFF);
+    fn get_error_line(err_word: u32) -> u32 {
+        return ((err_word >> 12) & 0xFF);
     }
 
-    fn get_error_severity(error: u32) -> u32 {
-        return (error & 0xFFF);
+    fn get_error_severity(err_word: u32) -> u32 {
+        return (err_word & 0xFFF);
     }
 
     // Error types
@@ -366,5 +366,26 @@ module test_validator {
                 ((errors & 0xFF) << 20) |
                 ((warnings & 0xFF) << 12) |
                 (quality_ok & 0xFFF));
+    }
+
+    // ---- Tests ----
+
+    test validation_error_roundtrip {
+        e = create_validation_error(7, ERROR_TYPE_MISMATCH, 199, 3000);
+        assert(get_error_id(e) == 7, "error id");
+        assert(get_error_type(e) == ERROR_TYPE_MISMATCH, "error type");
+        assert(get_error_line(e) == 199, "line");
+        assert(get_error_severity(e) == 3000, "severity");
+    }
+
+    test signature_validation_paths {
+        ok_sig = create_function_signature(5, 4, 2, 1);
+        assert(validate_function_signature(ok_sig) == 0, "4 params bool return is valid");
+        many = create_function_signature(5, 12, 2, 1);
+        e1 = validate_function_signature(many);
+        assert(get_error_type(e1) == ERROR_CONSTRAINT_VIOLATION, "12 params violates the constraint");
+        badret = create_function_signature(5, 4, 9, 1);
+        e2 = validate_function_signature(badret);
+        assert(get_error_type(e2) == ERROR_TYPE_MISMATCH, "return type 9 is invalid");
     }
 }

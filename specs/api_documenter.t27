@@ -352,7 +352,11 @@ module api_documenter {
     // Generate documentation report
     fn generate_documentation_report(func_docs: [u32; MAX_FUNCTIONS], func_count: u32,
                                      xrefs: [u32; MAX_FUNCTIONS], xref_count: u32) -> u32 {
-        let doc_summary: u32 = generate_api_documentation(func_docs, func_count, func_docs, 0);
+        // The old call passed func_docs ([u32; MAX_FUNCTIONS]) where a
+        // [u32; MAX_PARAMETERS] belongs -- a type mismatch the C backend's
+        // nominal array structs surfaced. No parameter docs exist here.
+        let empty_params: [u32; MAX_PARAMETERS] = [0; MAX_PARAMETERS];
+        let doc_summary: u32 = generate_api_documentation(func_docs, func_count, empty_params, 0);
         let documented_funcs: u32 = (doc_summary >> 24) & 0xFF;
         let coverage: u32 = calculate_documentation_coverage(documented_funcs, func_count);
         
@@ -368,5 +372,23 @@ module api_documenter {
                 ((quality_score & 0xFF) << 16) |
                 ((doc_complexity & 0xFF) << 8) |
                 (xref_count & 0xFF));
+    }
+
+    // ---- Tests ----
+
+    test function_doc_roundtrip {
+        d = create_function_doc(8, 4, 2, 40000);
+        assert(get_doc_function_id(d) == 8, "function id");
+        assert(get_doc_param_count(d) == 4, "param count");
+        assert(get_doc_return_type(d) == 2, "return type");
+        assert(get_doc_complexity(d) == 40000, "complexity");
+    }
+
+    test param_doc_roundtrip {
+        p = create_param_doc(3, 5, 2, 100000);
+        assert(get_param_doc_id(p) == 3, "param id");
+        assert(get_param_doc_type(p) == 5, "param type");
+        assert(get_param_direction(p) == 2, "direction");
+        assert(get_param_description_id(p) == 100000, "description id");
     }
 }

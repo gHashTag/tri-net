@@ -13,9 +13,10 @@ module MeshProtocolStack {
 
     // Packet structure (simplified, all inline)
     fn build_packet(src: u32, dst: u32, ttl: u8, payload: u8) -> u32 {
-        // Layout: [src:8][dst:8][ttl:4][payload:4][reserved:8]
-        return (((src & 0xFF) << 24) | ((dst & 0xFF) << 16) | 
-                (((ttl as u32) & 0xF) << 12) | ((payload as u32) & 0xF));
+        // Layout: [src:8][dst:8][ttl:4][reserved:4][payload:8]
+        // payload is a u8 and gets the full 8 bits (was 4, which truncated values > 15).
+        return (((src & 0xFF) << 24) | ((dst & 0xFF) << 16) |
+                (((ttl as u32) & 0xF) << 12) | ((payload as u32) & 0xFF));
     }
 
     fn extract_src(packet: u32) -> u32 {
@@ -31,15 +32,16 @@ module MeshProtocolStack {
     }
 
     fn extract_payload(packet: u32) -> u8 {
-        return ((packet & 0xF) as u8);
+        return ((packet & 0xFF) as u8);
     }
 
     // Decrement TTL (returns tuple: (packet, expired))
     fn decrement_ttl(packet: u32) -> (u32, bool) {
         if (extract_ttl(packet) > 0) {
-            return ((((packet & 0xFFFF0FFF) | 
+            // Expired the moment TTL reaches 0: a packet decremented to 0 must not be forwarded.
+            return ((((packet & 0xFFFF0FFF) |
                     ((((extract_ttl(packet) - 1) as u32) & 0xF) << 12))),
-                    false);
+                    extract_ttl(packet) == 1);
         } else {
             return (packet, true);
         }
@@ -77,16 +79,20 @@ module MeshProtocolStack {
     // Forward packet (decrement TTL, check next hop)
     // Returns tuple: (new_packet, expired, next_hop)
     fn forward_packet(packet: u32, current_node: u32) -> (u32, bool, u32) {
-        if (decrement_ttl(packet).1) {
-            return (decrement_ttl(packet).0, true, 0); // TTL expired
+        // Hoist the TTL decrement once: a tuple-INDEX on a call expression has
+        // no direct Verilog lowering (a call is not part-selectable), so
+        // destructure the tuple into locals first.
+        let (new_pkt, expired) = decrement_ttl(packet);
+        if (expired) {
+            return (new_pkt, true, 0); // TTL expired
         }
         
-        if (route_packet(current_node, extract_dst(decrement_ttl(packet).0), 0) == 0) {
-            return (decrement_ttl(packet).0, false, 0); // No route
+        if (route_packet(current_node, extract_dst(new_pkt), 0) == 0) {
+            return (new_pkt, false, 0); // No route
         }
         
-        return (decrement_ttl(packet).0, false, 
-                route_packet(current_node, extract_dst(decrement_ttl(packet).0), 0)); // Valid forward
+        return (new_pkt, false,
+                route_packet(current_node, extract_dst(new_pkt), 0)); // Valid forward
     }
 
     // ---- Tests ----
@@ -114,24 +120,21 @@ module MeshProtocolStack {
 
     test decrement_ttl_reduces {
         pkt = build_packet(NODE_A, NODE_B, 3, 5);
-        new_pkt = decrement_ttl(pkt).0;
-        expired = decrement_ttl(pkt).1;
+        (new_pkt, expired) = decrement_ttl(pkt);
         assert(extract_ttl(new_pkt) == 2, "ttl decremented");
         assert(expired == false, "not expired");
     }
 
     test decrement_ttl_zero_expires {
         pkt = build_packet(NODE_A, NODE_B, 1, 5);
-        new_pkt = decrement_ttl(pkt).0;
-        expired = decrement_ttl(pkt).1;
+        (new_pkt, expired) = decrement_ttl(pkt);
         assert(extract_ttl(new_pkt) == 0, "ttl zero");
         assert(expired == true, "expired");
     }
 
     test decrement_ttl_already_expired {
         pkt = build_packet(NODE_A, NODE_B, 0, 5);
-        new_pkt = decrement_ttl(pkt).0;
-        expired = decrement_ttl(pkt).1;
+        (new_pkt, expired) = decrement_ttl(pkt);
         assert(extract_ttl(new_pkt) == 0, "ttl zero");
         assert(expired == true, "expired");
     }
@@ -153,28 +156,43 @@ module MeshProtocolStack {
 
     test forward_packet_decrements_ttl {
         pkt = build_packet(NODE_A, NODE_B, 3, 5);
-        new_pkt = forward_packet(pkt, NODE_A).0;
-        expired = forward_packet(pkt, NODE_A).1;
-        next_hop = forward_packet(pkt, NODE_A).2;
+        (new_pkt, expired, next_hop) = forward_packet(pkt, NODE_A);
         assert(extract_ttl(new_pkt) == 2, "ttl decreased");
         assert(expired == false, "not expired");
         assert(next_hop == NODE_B, "next hop B");
     }
 
+    // Forwarding is PAYLOAD-TRANSPARENT: a hop changes ONLY the TTL nibble; src, dst and
+    // the payload arrive unchanged, so a carried A2A datagram's receipt survives every hop
+    // intact. This is the spec-level form of the a2a_over_mesh_integrity oracle's core
+    // transparency property (previously proven only in Rust). Transparency is per-hop, so
+    // it composes over N hops (each forward touches only the TTL).
+    test forward_packet_preserves_payload {
+        pkt = build_packet(NODE_A, NODE_B, 3, 5);
+        (fwd, _, _) = forward_packet(pkt, NODE_A);
+        assert(extract_ttl(fwd) == 2, "only the TTL changes (3 -> 2)");
+        assert(extract_src(fwd) == NODE_A, "src preserved across the hop");
+        assert(extract_dst(fwd) == NODE_B, "dst preserved across the hop");
+        assert(extract_payload(fwd) == 5, "payload preserved across the hop");
+        // A second hop still preserves the payload and only touches the TTL -> transparency
+        // holds for the whole path, not just one hop.
+        (fwd2, _, _) = forward_packet(fwd, NODE_A);
+        assert(extract_payload(fwd2) == 5, "payload preserved after a second hop");
+        assert(extract_src(fwd2) == NODE_A, "src still preserved");
+        assert(extract_dst(fwd2) == NODE_B, "dst still preserved");
+        assert(extract_ttl(fwd2) == 1, "TTL 2 -> 1 on the second hop");
+    }
+
     test forward_packet_ttl_expired {
         pkt = build_packet(NODE_A, NODE_B, 1, 5);
-        pkt1 = forward_packet(pkt, NODE_A).0;
-        exp1 = forward_packet(pkt, NODE_A).1;
-        pkt2 = forward_packet(pkt1, NODE_B).0;
-        exp2 = forward_packet(pkt1, NODE_B).1;
+        (pkt1, exp1, _) = forward_packet(pkt, NODE_A);
+        (pkt2, exp2, _) = forward_packet(pkt1, NODE_B);
         assert(exp2 == true, "expired after 2 hops");
     }
 
     test forward_packet_no_route {
         pkt = build_packet(NODE_A, 99, 3, 5);
-        new_pkt = forward_packet(pkt, NODE_A).0;
-        expired = forward_packet(pkt, NODE_A).1;
-        next_hop = forward_packet(pkt, NODE_A).2;
+        (new_pkt, expired, next_hop) = forward_packet(pkt, NODE_A);
         assert(next_hop == 0, "no route");
         assert(expired == false, "ttl not expired yet");
     }
@@ -189,16 +207,12 @@ module MeshProtocolStack {
         pkt = tx_path(NODE_A, NODE_C, 7);
         
         // First hop (A → B)
-        pkt1 = forward_packet(pkt, NODE_A).0;
-        exp1 = forward_packet(pkt, NODE_A).1;
-        hop1 = forward_packet(pkt, NODE_A).2;
+        (pkt1, exp1, hop1) = forward_packet(pkt, NODE_A);
         assert(hop1 == NODE_B, "first hop to B");
         assert(exp1 == false, "not expired");
         
         // Second hop (B → C)
-        pkt2 = forward_packet(pkt1, NODE_B).0;
-        exp2 = forward_packet(pkt1, NODE_B).1;
-        hop2 = forward_packet(pkt1, NODE_B).2;
+        (pkt2, exp2, hop2) = forward_packet(pkt1, NODE_B);
         assert(hop2 == NODE_C, "second hop to C");
         assert(exp2 == false, "not expired");
         

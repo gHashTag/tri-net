@@ -1,0 +1,476 @@
+$date
+	Sun Aug  9 05:56:32 2026
+$end
+$version
+	Icarus Verilog
+$end
+$timescale
+	1ps
+$end
+$scope module SwarmCoordinator $end
+$var wire 1 ! clk $end
+$var wire 1 " en $end
+$var wire 1 # ready $end
+$var wire 1 $ rst_n $end
+$var parameter 32 % MAX_NODES $end
+$var parameter 32 & PROPOSAL_TIMEOUT $end
+$var parameter 32 ' QUORUM_THRESHOLD $end
+$var parameter 32 ( VOTE_ABSTAIN $end
+$var parameter 32 ) VOTE_NO $end
+$var parameter 32 * VOTE_YES $end
+$scope function __mul_noop $end
+$var reg 64 + a [63:0] $end
+$var reg 128 , acc [127:0] $end
+$var reg 64 - b [63:0] $end
+$var integer 32 . i [31:0] $end
+$upscope $end
+$scope function calculate_consensus_value $end
+$var reg 32 / proposal_id [31:0] $end
+$var reg 256 0 vote_array [255:0] $end
+$scope begin calculate_consensus_value_body $end
+$var reg 1 1 __t27_ret $end
+$var reg 32 2 count [31:0] $end
+$var reg 32 3 sum [31:0] $end
+$upscope $end
+$upscope $end
+$scope function cooperative_decision $end
+$var reg 32 4 my_value [31:0] $end
+$var reg 32 5 neighbor_values [31:0] $end
+$var reg 32 6 weight_neighbors [31:0] $end
+$scope begin cooperative_decision_body $end
+$var reg 1 7 __t27_ret $end
+$var reg 32 8 neighbor_avg [31:0] $end
+$var reg 32 9 weighted_neighbors [31:0] $end
+$var reg 32 : weighted_self [31:0] $end
+$upscope $end
+$upscope $end
+$scope function count_votes $end
+$var reg 32 ; proposal_id [31:0] $end
+$var reg 256 < vote_array [255:0] $end
+$scope begin count_votes_body $end
+$var reg 1 = __t27_ret $end
+$var reg 32 > abstain_count [31:0] $end
+$var reg 32 ? no_count [31:0] $end
+$var reg 32 @ yes_count [31:0] $end
+$upscope $end
+$upscope $end
+$scope function create_proposal $end
+$var reg 32 A node_id [31:0] $end
+$var reg 32 B proposal_id [31:0] $end
+$var reg 32 C timestamp [31:0] $end
+$var reg 32 D value [31:0] $end
+$scope begin create_proposal_body $end
+$var reg 1 E __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function create_vote $end
+$var reg 32 F node_id [31:0] $end
+$var reg 32 G proposal_id [31:0] $end
+$var reg 32 H timestamp [31:0] $end
+$var reg 32 I vote [31:0] $end
+$scope begin create_vote_body $end
+$var reg 1 J __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function create_vote_array $end
+$var reg 32 K v0 [31:0] $end
+$var reg 32 L v1 [31:0] $end
+$var reg 32 M v2 [31:0] $end
+$var reg 32 N v3 [31:0] $end
+$var reg 32 O v4 [31:0] $end
+$var reg 32 P v5 [31:0] $end
+$var reg 32 Q v6 [31:0] $end
+$var reg 32 R v7 [31:0] $end
+$scope begin create_vote_array_body $end
+$var reg 1 S __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_proposal_id $end
+$var reg 32 T proposal [31:0] $end
+$scope begin get_proposal_id_body $end
+$var reg 1 U __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_proposal_node $end
+$var reg 32 V proposal [31:0] $end
+$scope begin get_proposal_node_body $end
+$var reg 1 W __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_proposal_timestamp $end
+$var reg 32 X proposal [31:0] $end
+$scope begin get_proposal_timestamp_body $end
+$var reg 1 Y __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_proposal_value $end
+$var reg 32 Z proposal [31:0] $end
+$scope begin get_proposal_value_body $end
+$var reg 1 [ __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_vote $end
+$var reg 256 \ array [255:0] $end
+$var reg 32 ] index [31:0] $end
+$scope begin get_vote_body $end
+$var reg 1 ^ __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_vote_node $end
+$var reg 32 _ vote [31:0] $end
+$scope begin get_vote_node_body $end
+$var reg 1 ` __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_vote_proposal_id $end
+$var reg 32 a vote [31:0] $end
+$scope begin get_vote_proposal_id_body $end
+$var reg 1 b __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_vote_timestamp $end
+$var reg 32 c vote [31:0] $end
+$scope begin get_vote_timestamp_body $end
+$var reg 1 d __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function get_vote_value $end
+$var reg 32 e vote [31:0] $end
+$scope begin get_vote_value_body $end
+$var reg 1 f __t27_ret $end
+$upscope $end
+$upscope $end
+$scope function has_quorum $end
+$var reg 32 g abstain_count [31:0] $end
+$var reg 32 h no_count [31:0] $end
+$var reg 32 i yes_count [31:0] $end
+$scope begin has_quorum_body $end
+$var reg 1 j __t27_ret $end
+$var reg 32 k total_voting [31:0] $end
+$upscope $end
+$upscope $end
+$scope function proposal_passes $end
+$var reg 32 l no_count [31:0] $end
+$var reg 32 m yes_count [31:0] $end
+$scope begin proposal_passes_body $end
+$var reg 1 n __t27_ret $end
+$upscope $end
+$upscope $end
+$scope begin calculate_consensus_value_average_test $end
+$var reg 256 o _t27_call_tmp_calculate_consensus_value_average_0 [255:0] $end
+$var reg 32 p _t27_call_tmp_calculate_consensus_value_average_1 [31:0] $end
+$var reg 32 q _t27_call_tmp_calculate_consensus_value_average_2 [31:0] $end
+$var reg 32 r _t27_call_tmp_calculate_consensus_value_average_3 [31:0] $end
+$var reg 32 s _t27_call_tmp_calculate_consensus_value_average_4 [31:0] $end
+$var reg 32 t _t27_call_tmp_calculate_consensus_value_average_5 [31:0] $end
+$var reg 32 u _t27_call_tmp_calculate_consensus_value_average_6 [31:0] $end
+$var reg 32 v _t27_call_tmp_calculate_consensus_value_average_7 [31:0] $end
+$var reg 32 w _t27_call_tmp_calculate_consensus_value_average_8 [31:0] $end
+$var reg 32 x _t27_call_tmp_calculate_consensus_value_average_9 [31:0] $end
+$var reg 32 y consensus [31:0] $end
+$var reg 256 z vote_array [255:0] $end
+$upscope $end
+$scope begin calculate_consensus_value_empty_test $end
+$var reg 256 { _t27_call_tmp_calculate_consensus_value_empty_0 [255:0] $end
+$var reg 32 | _t27_call_tmp_calculate_consensus_value_empty_1 [31:0] $end
+$var reg 32 } _t27_call_tmp_calculate_consensus_value_empty_2 [31:0] $end
+$var reg 32 ~ _t27_call_tmp_calculate_consensus_value_empty_3 [31:0] $end
+$var reg 32 !" _t27_call_tmp_calculate_consensus_value_empty_4 [31:0] $end
+$var reg 32 "" _t27_call_tmp_calculate_consensus_value_empty_5 [31:0] $end
+$var reg 32 #" _t27_call_tmp_calculate_consensus_value_empty_6 [31:0] $end
+$var reg 32 $" _t27_call_tmp_calculate_consensus_value_empty_7 [31:0] $end
+$var reg 32 %" _t27_call_tmp_calculate_consensus_value_empty_8 [31:0] $end
+$var reg 32 &" _t27_call_tmp_calculate_consensus_value_empty_9 [31:0] $end
+$var reg 32 '" consensus [31:0] $end
+$var reg 256 (" vote_array [255:0] $end
+$upscope $end
+$scope begin cooperative_decision_equal_weight_test $end
+$var reg 32 )" _t27_call_tmp_cooperative_decision_equal_weight_0 [31:0] $end
+$var reg 32 *" result [31:0] $end
+$upscope $end
+$scope begin cooperative_decision_neighbor_heavy_test $end
+$var reg 32 +" _t27_call_tmp_cooperative_decision_neighbor_heavy_0 [31:0] $end
+$var reg 32 ," result [31:0] $end
+$upscope $end
+$scope begin cooperative_decision_self_heavy_test $end
+$var reg 32 -" _t27_call_tmp_cooperative_decision_self_heavy_0 [31:0] $end
+$var reg 32 ." result [31:0] $end
+$upscope $end
+$scope begin count_votes_mixed_test $end
+$var reg 96 /" __tup_l264 [95:0] $end
+$var reg 256 0" _t27_call_tmp_count_votes_mixed_0 [255:0] $end
+$var reg 32 1" _t27_call_tmp_count_votes_mixed_1 [31:0] $end
+$var reg 32 2" _t27_call_tmp_count_votes_mixed_2 [31:0] $end
+$var reg 32 3" _t27_call_tmp_count_votes_mixed_3 [31:0] $end
+$var reg 32 4" _t27_call_tmp_count_votes_mixed_4 [31:0] $end
+$var reg 32 5" _t27_call_tmp_count_votes_mixed_5 [31:0] $end
+$var reg 32 6" _t27_call_tmp_count_votes_mixed_6 [31:0] $end
+$var reg 32 7" _t27_call_tmp_count_votes_mixed_7 [31:0] $end
+$var reg 32 8" _t27_call_tmp_count_votes_mixed_8 [31:0] $end
+$var reg 32 9" abstain [31:0] $end
+$var reg 32 :" no [31:0] $end
+$var reg 256 ;" vote_array [255:0] $end
+$var reg 32 <" yes [31:0] $end
+$upscope $end
+$scope begin count_votes_unanimous_yes_test $end
+$var reg 96 =" __tup_l247 [95:0] $end
+$var reg 256 >" _t27_call_tmp_count_votes_unanimous_yes_0 [255:0] $end
+$var reg 32 ?" _t27_call_tmp_count_votes_unanimous_yes_1 [31:0] $end
+$var reg 32 @" _t27_call_tmp_count_votes_unanimous_yes_2 [31:0] $end
+$var reg 32 A" _t27_call_tmp_count_votes_unanimous_yes_3 [31:0] $end
+$var reg 32 B" _t27_call_tmp_count_votes_unanimous_yes_4 [31:0] $end
+$var reg 32 C" _t27_call_tmp_count_votes_unanimous_yes_5 [31:0] $end
+$var reg 32 D" _t27_call_tmp_count_votes_unanimous_yes_6 [31:0] $end
+$var reg 32 E" _t27_call_tmp_count_votes_unanimous_yes_7 [31:0] $end
+$var reg 32 F" _t27_call_tmp_count_votes_unanimous_yes_8 [31:0] $end
+$var reg 32 G" abstain [31:0] $end
+$var reg 32 H" no [31:0] $end
+$var reg 256 I" vote_array [255:0] $end
+$var reg 32 J" yes [31:0] $end
+$upscope $end
+$scope begin create_proposal_basic_test $end
+$var reg 32 K" _t27_call_tmp_create_proposal_basic_0 [31:0] $end
+$var reg 32 L" _t27_call_tmp_create_proposal_basic_1 [31:0] $end
+$var reg 32 M" _t27_call_tmp_create_proposal_basic_2 [31:0] $end
+$var reg 32 N" _t27_call_tmp_create_proposal_basic_3 [31:0] $end
+$var reg 32 O" _t27_call_tmp_create_proposal_basic_4 [31:0] $end
+$var reg 32 P" proposal [31:0] $end
+$upscope $end
+$scope begin create_vote_abstain_test $end
+$var reg 32 Q" _t27_call_tmp_create_vote_abstain_0 [31:0] $end
+$var reg 32 R" _t27_call_tmp_create_vote_abstain_1 [31:0] $end
+$var reg 32 S" vote [31:0] $end
+$upscope $end
+$scope begin create_vote_no_test $end
+$var reg 32 T" _t27_call_tmp_create_vote_no_0 [31:0] $end
+$var reg 32 U" _t27_call_tmp_create_vote_no_1 [31:0] $end
+$var reg 32 V" vote [31:0] $end
+$upscope $end
+$scope begin create_vote_yes_test $end
+$var reg 32 W" _t27_call_tmp_create_vote_yes_0 [31:0] $end
+$var reg 32 X" _t27_call_tmp_create_vote_yes_1 [31:0] $end
+$var reg 32 Y" _t27_call_tmp_create_vote_yes_2 [31:0] $end
+$var reg 32 Z" _t27_call_tmp_create_vote_yes_3 [31:0] $end
+$var reg 32 [" vote [31:0] $end
+$upscope $end
+$scope begin has_quorum_false_test $end
+$var reg 96 \" __tup_l276 [95:0] $end
+$var reg 1 ]" _t27_call_tmp_has_quorum_false_0 $end
+$var reg 32 ^" abstain [31:0] $end
+$var reg 32 _" no [31:0] $end
+$var reg 32 `" yes [31:0] $end
+$upscope $end
+$scope begin has_quorum_true_test $end
+$var reg 96 a" __tup_l271 [95:0] $end
+$var reg 1 b" _t27_call_tmp_has_quorum_true_0 $end
+$var reg 32 c" abstain [31:0] $end
+$var reg 32 d" no [31:0] $end
+$var reg 32 e" yes [31:0] $end
+$upscope $end
+$scope begin proposal_passes_no_test $end
+$var reg 96 f" __tup_l286 [95:0] $end
+$var reg 1 g" _t27_call_tmp_proposal_passes_no_0 $end
+$var reg 32 h" abstain [31:0] $end
+$var reg 32 i" no [31:0] $end
+$var reg 32 j" yes [31:0] $end
+$upscope $end
+$scope begin proposal_passes_tie_test $end
+$var reg 96 k" __tup_l291 [95:0] $end
+$var reg 1 l" _t27_call_tmp_proposal_passes_tie_0 $end
+$var reg 32 m" abstain [31:0] $end
+$var reg 32 n" no [31:0] $end
+$var reg 32 o" yes [31:0] $end
+$upscope $end
+$scope begin proposal_passes_yes_test $end
+$var reg 96 p" __tup_l281 [95:0] $end
+$var reg 1 q" _t27_call_tmp_proposal_passes_yes_0 $end
+$var reg 32 r" abstain [31:0] $end
+$var reg 32 s" no [31:0] $end
+$var reg 32 t" yes [31:0] $end
+$upscope $end
+$upscope $end
+$enddefinitions $end
+$comment Show the parameter values. $end
+$dumpall
+b1 *
+b0 )
+b10 (
+b101 '
+b10011100010000 &
+b1000 %
+$end
+#0
+$dumpvars
+b101 t"
+b11 s"
+b1 r"
+1q"
+b10000000000000000000000000000001100000000000000000000000000000101 p"
+b100 o"
+b100 n"
+b1 m"
+0l"
+b10000000000000000000000000000010000000000000000000000000000000100 k"
+b11 j"
+b101 i"
+b1 h"
+0g"
+b10000000000000000000000000000010100000000000000000000000000000011 f"
+b100 e"
+b11 d"
+b1 c"
+1b"
+b10000000000000000000000000000001100000000000000000000000000000100 a"
+b10 `"
+b10 _"
+b0 ^"
+0]"
+b1000000000000000000000000000000010 \"
+b101010000101000001111101000 ["
+b1010 Z"
+b1 Y"
+b101 X"
+b101010000101000001111101000 W"
+b101000000101000001111101000 V"
+b0 U"
+b101000000101000001111101000 T"
+b101100000101000001111101000 S"
+b10 R"
+b101100000101000001111101000 Q"
+b10100101001100100001111101000 P"
+b1111101000 O"
+b1100100 N"
+b1010 M"
+b101 L"
+b10100101001100100001111101000 K"
+b1000 J"
+b100001000010100000111110100000000111010000101000001111101000000001100100001010000011111010000000010101000010100000111110100000000100010000101000001111101000000000110100001010000011111010000000001001000010100000111110100000000001010000101000001111101000 I"
+b0 H"
+b0 G"
+b1000010000101000001111101000 F"
+b111010000101000001111101000 E"
+b110010000101000001111101000 D"
+b101010000101000001111101000 C"
+b100010000101000001111101000 B"
+b11010000101000001111101000 A"
+b10010000101000001111101000 @"
+b1010000101000001111101000 ?"
+b100001000010100000111110100000000111010000101000001111101000000001100100001010000011111010000000010101000010100000111110100000000100010000101000001111101000000000110100001010000011111010000000001001000010100000111110100000000001010000101000001111101000 >"
+b1000 ="
+b100 <"
+b100010000010100000111110100000000111010000101000001111101000000001100000001010000011111010000000010101000010100000111110100000000100100000101000001111101000000000110100001010000011111010000000001000000010100000111110100000000001010000101000001111101000 ;"
+b10 :"
+b10 9"
+b1000100000101000001111101000 8"
+b111010000101000001111101000 7"
+b110000000101000001111101000 6"
+b101010000101000001111101000 5"
+b100100000101000001111101000 4"
+b11010000101000001111101000 3"
+b10000000101000001111101000 2"
+b1010000101000001111101000 1"
+b100010000010100000111110100000000111010000101000001111101000000001100000001010000011111010000000010101000010100000111110100000000100100000101000001111101000000000110100001010000011111010000000001000000010100000111110100000000001010000101000001111101000 0"
+b100000000000000000000000000000001000000000000000000000000000000100 /"
+b1011010 ."
+b1011010 -"
+b1011010 ,"
+b1011010 +"
+b1000110 *"
+b1000110 )"
+b10000010100000000000000000000000011100101000000000000000000000000110001010000000000000000000000001010010100000000000000000000000010000101000000000000000000000000011001010000000000000000000000000101000111100100000111110100000000110001101100100001111101000 ("
+b0 '"
+b0 &"
+b100000101000000000000000000000 %"
+b11100101000000000000000000000 $"
+b11000101000000000000000000000 #"
+b10100101000000000000000000000 ""
+b10000101000000000000000000000 !"
+b1100101000000000000000000000 ~
+b1010001111001000001111101000 }
+b110001101100100001111101000 |
+b10000010100000000000000000000000011100101000000000000000000000000110001010000000000000000000000001010010100000000000000000000000010000101000000000000000000000000011001010000000000000000000000000101000111100100000111110100000000110001101100100001111101000 {
+b10000010100000000000000000000000011100101000000000000000000000000110001010000000000000000000000001010010100000000000000000000000010000101011111010001111101000000011001010100101100011111010000000100010101100100000111110100000000100101001100100001111101000 z
+b10101111 y
+b10101111 x
+b100000101000000000000000000000 w
+b11100101000000000000000000000 v
+b11000101000000000000000000000 u
+b10100101000000000000000000000 t
+b10000101011111010001111101000 s
+b1100101010010110001111101000 r
+b1000101011001000001111101000 q
+b100101001100100001111101000 p
+b10000010100000000000000000000000011100101000000000000000000000000110001010000000000000000000000001010010100000000000000000000000010000101011111010001111101000000011001010100101100011111010000000100010101100100000111110100000000100101001100100001111101000 o
+1n
+b100 m
+b100 l
+b100 k
+1j
+b10 i
+b10 h
+b0 g
+1f
+b1000100000101000001111101000 e
+xd
+bx c
+1b
+b1000100000101000001111101000 a
+1`
+b101010000101000001111101000 _
+1^
+b111 ]
+b10000010100000000000000000000000011100101000000000000000000000000110001010000000000000000000000001010010100000000000000000000000010000101000000000000000000000000011001010000000000000000000000000101000111100100000111110100000000110001101100100001111101000 \
+1[
+b10000101011111010001111101000 Z
+1Y
+b100000101000000000000000000000 X
+1W
+b100000101000000000000000000000 V
+1U
+b10100101001100100001111101000 T
+1S
+b100000101000000000000000000000 R
+b11100101000000000000000000000 Q
+b11000101000000000000000000000 P
+b10100101000000000000000000000 O
+b10000101000000000000000000000 N
+b1100101000000000000000000000 M
+b1010001111001000001111101000 L
+b110001101100100001111101000 K
+1J
+b10 I
+b1111101000 H
+b1010 G
+b1000 F
+1E
+b0 D
+b0 C
+b1000 B
+b1010 A
+b100 @
+b10 ?
+b10 >
+1=
+b100010000010100000111110100000000111010000101000001111101000000001100000001010000011111010000000010101000010100000111110100000000100100000101000001111101000000000110100001010000011111010000000001000000010100000111110100000000001010000101000001111101000 <
+b1010 ;
+b1010000 :
+b1010 9
+b110010 8
+17
+b10100 6
+b110010 5
+b1100100 4
+b0 3
+b0 2
+11
+b10000010100000000000000000000000011100101000000000000000000000000110001010000000000000000000000001010010100000000000000000000000010000101000000000000000000000000011001010000000000000000000000000101000111100100000111110100000000110001101100100001111101000 0
+b1010 /
+b1000000 .
+b1010000 -
+b1111101000000 ,
+b1100100 +
+z$
+1#
+z"
+z!
+$end

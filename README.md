@@ -1,11 +1,14 @@
 # tri-net
 
-**TRI-NET drone-mesh + DePIN node** — encrypted, self-routing IP-over-radio on the
+**TRI-NET mesh + DePIN node** — encrypted, self-routing IP-over-radio on the
 P201/P203 **Zynq-7020 Mini**, doubling as a Helium-style DePIN-node with four
 supply-side arms (transport / compute / coverage / sensor).
 Part of the Trinity Project. Anchor: **φ² + φ⁻² = 3**.
 
-> Naming: this is the **drone-mesh internet-delivery** track plus the DePIN economic
+> 🌍 **Civilian connectivity.** tri-net is built for peaceful, civilian use — rural & remote internet access, disaster-relief communications, and community-owned mesh networks. Open-source, encrypted, self-healing.
+
+
+> Naming: this is the **mesh internet-delivery** track plus the DePIN economic
 > layer on top. Distinct from the ternary-computing "TRI-NET" silicon-node work in
 > `gHashTag/trinity`, `gHashTag/tt-trinity-*`.
 
@@ -23,7 +26,7 @@ Part of the Trinity Project. Anchor: **φ² + φ⁻² = 3**.
 | M4 3-node triangle, shared uplink (P2 DEMO GATE) | `-sim` | Not run |
 | M5 self-healing convergence measured | undefined | B11 not landed |
 | trinity-contracts deployment (Base L2) | Sepolia only | Mainnet Genesis Day not reached |
-| TT SKY26b Trinity silicon (1 GOPS @ 50 MHz @ 1 W) | projected | Tape-out 2026-12-16 |
+| Trinity silicon (1 GOPS @ 50 MHz @ 1 W) | NO ROUTE | no die exists, none is scheduled; the earlier shuttle route is closed |
 
 Every unverified performance number keeps its `-sim` marker. On-device evidence
 lives under `smoke/` and `radio/`. All Trinity silicon-anchored DePIN claims
@@ -37,7 +40,7 @@ BitNet-ternary benchmark on returned silicon, publish the raw log.
 Одна коробка (`P203 Mini` = Zynq-7020 + AD9361 SDR + GPS/PPS) выполняет две
 роли одновременно:
 
-1. **Drone-mesh internet-delivery** — "Starlink без спутников": сеть реле-дронов
+1. **Mesh internet-delivery** — "Starlink без спутников": сеть мобильных реле
    и наземных узлов, разделяющих один uplink через самомаршрутизируемый mesh.
 2. **DePIN-узел** (Helium-style + edge compute) — оператор получает TRI-токены
    за реальный вклад в четыре arm'а сети, каждый защищён криптографической
@@ -158,13 +161,13 @@ cargo build --release --target armv7-unknown-linux-musleabihf
 - **P0 — bring-up** — toolchain, first flash, Mini boots ARM-Linux + AD9361/GPS/PPS; AX7203 sanity.
   «Первая проводка и первое дыхание платы.»
 - **P1 — radio + M1 → M3** — AD9361 5.8 GHz + OFDM PHY; `trios-mesh` M1 crypto-on-ARM (уже `hw`) → M2 TUN/ETX → M3 iperf3 over 2 hops (bench attenuators).
-  «Два дрона слышат друг друга и делятся одним каналом.»
+  «Два узла слышат друг друга и делятся одним каналом.»
 - **P2 — DEMO GATE (3-node triangle)** — M4 shared uplink over 3-node mesh + M5 self-healing convergence measured. Deliverable: video + metrics + Apache-2.0 + Zenodo DOI. **Одновременно — первый двойной demo**: mesh-transport + DePIN-node (transport-proof + coverage-proof живые).
   «Треугольник, который сам себя чинит.»
-- **P3 — video-radio + drone C2 (MAVLink)** — один радиоканал несёт mesh + телеметрию + видео.
-- **P4 — tethered drone (Flying-COW analog)** — постоянно висящий узел над точкой интереса.
+- **P3 — video-radio + node control (telemetry)** — один радиоканал несёт mesh + телеметрию + видео.
+- **P4 — tethered aerial node (elevated relay)** — постоянно висящий узел над точкой интереса.
 - **P5 — свободный swarm** — self-organizing swarm без tether'а, каждый узел это operator, каждый operator получает TRI.
-- **P6 — Trinity silicon back** — tape-out 2026-12-16 → returned silicon → BitNet benchmark на кристалле → `[Open conjecture]` компонентов compute-anchor'а закрывается.
+- **P6 — Trinity silicon (BLOCKED, маршрута нет)** — изготовленного кристалла не существует, изготовление не запланировано, прежний маршрут закрыт. До выбора нового маршрута BitNet benchmark на кристалле невыполним, `[Open conjecture]` компонентов compute-anchor'а закрывается.
 - **P7 — Genesis Day** — mainnet deployment `trinity-contracts` на Base L2, `EmissionController.renounceOwnership()`, первый public proof-of-inference за TRI.
 - **P8 — Hub71+ AI Cohort 20 (deadline 2026-08-02)** — подача через `golden-chain-international` (UAE ADGM/DIFC, Армения-резерв).
 

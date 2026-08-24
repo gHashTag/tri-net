@@ -1,20 +1,19 @@
 name: spec-drift-guard
+# No pull_request paths filter: this check is REQUIRED by the main-branch ruleset,
+# and a path-filtered required check never reports on PRs outside its paths --
+# GitHub then blocks the merge waiting for it forever. Running on every PR
+# (~4-5 min) is the price of requiring it.
 on:
   push:
     branches: [main]
   pull_request:
-    paths:
-      - "specs/**"
-      - "gen/**"
-      - "build.rs"
-      - ".github/workflows/spec-drift-guard.yml"
 
 # Rebuild t27c from upstream master and regenerate every committed backend
 # under gen/<target>/<spec>.<ext> from specs/<spec>.t27. If any committed
 # output disagrees with the freshly generated output, the job fails with a
 # diff so drift between the SSOT and generated code cannot land silently.
 #
-# Covered specs (68) × backends (3) = 204 drift checks:
+# Covered specs: 68 x Rust (diffs rustfmt-normalized on both sides).
 #   wire.t27  → gen/{rust,wire.rs}  gen/{zig,wire.zig}  gen/{c,wire.c}
 #   hello.t27 → gen/{rust,hello.rs} gen/{zig,hello.zig} gen/{c,hello.c}
 #   etx.t27   → gen/{rust,etx.rs}   gen/{zig,etx.zig}   gen/{c,etx.c}
@@ -40,6 +39,15 @@ jobs:
           ref: master
           path: t27
 
+      - name: Install Zig
+        run: |
+          # setup-zig actions 404 on this release; fetch the official tarball.
+          curl -fsSL -o /tmp/zig.tar.xz https://ziglang.org/download/0.15.2/zig-x86_64-linux-0.15.2.tar.xz \
+            || curl -fsSL -o /tmp/zig.tar.xz https://ziglang.org/download/0.15.2/zig-linux-x86_64-0.15.2.tar.xz
+          mkdir -p "$HOME/zig" && tar -xJf /tmp/zig.tar.xz -C "$HOME/zig" --strip-components=1
+          echo "$HOME/zig" >> "$GITHUB_PATH"
+          "$HOME/zig/zig" version
+
       - name: Install stable Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
@@ -47,53 +55,337 @@ jobs:
         working-directory: t27
         run: cargo build --release --manifest-path bootstrap/Cargo.toml --bin t27c
 
-      - name: Drift check — Rust (all specs)
+      - name: Typecheck — all specs
         working-directory: tri-net
         run: |
+          # Full-corpus typecheck (not just staged files like the local hook):
+          # arity mismatches are hard errors since t27#1922, literal inference
+          # is context-polymorphic since t27#1924, and W456 is scoped to const
+          # ROM since t27#1926 -- the whole corpus is expected clean.
           T27C=../t27/target/release/t27c
           STATUS=0
-          for spec in wire hello etx crc16 byte_utils mesh_routing key_management frame_buffer packet_queue congestion_control flow_control self_healing trust_manager timer transport_tx_fsm redundancy_management fault_detection lite_crypto network_metrics m3_multihop link_statistics access_control bandwidth_allocator cache_management compression_engine cross_layer_optimizer energy_aware_routing adaptive_retry link_quality_monitor multipath_router auto_config adaptive_routing anomaly_detector api_documenter area_optimization docs_generator fpga_synthesis_report health_dashboard health_monitoring integration_tests load_predictor local_processing mesh_node_sim mesh_protocol_stack multipath_routing network_coding network_orchestrator network_simulator olsr_routing pattern_predictor performance_benchmarks performance_profiler power_monitoring production_deployment production_scenarios quarantine_manager resource_scheduler swarm_coordinator test_framework timing_closure topology_visualizer traffic_animator failure_predictor hardware_validation integration_framework network_analytics packet_loss_injection test_validator; do
-            $T27C gen-rust specs/${spec}.t27 > /tmp/${spec}_regen.rs
-            if ! diff -u gen/rust/${spec}.rs /tmp/${spec}_regen.rs; then
-              echo "::error file=gen/rust/${spec}.rs::DRIFT: gen/rust/${spec}.rs != t27c gen-rust specs/${spec}.t27"
-              echo "Fix: t27c gen-rust specs/${spec}.t27 > gen/rust/${spec}.rs"
+          WARN_BASE_N=0
+          # Same pipe-swallowing class as the icarus gate: without pipefail the
+          # status of `t27c ... | grep` is grep's alone. Verified over all specs:
+          # exit code and the grep verdict never diverge, so this is safe.
+          set -o pipefail
+          # WARNING RATCHET. 'Typecheck OK' is printed even when the spec has
+          # warnings, and t27c downgrades a call to an UNDEFINED function to a
+          # warning -- so grepping for OK alone let that through silently
+          # (demonstrated: an injected `undefined_function_xyz(...)` still gave
+          # "Typecheck OK (0 errors, 1 warnings)" and a green gate).
+          # 47 of 107 specs carry pre-existing warnings, so failing on any
+          # warning is not yet possible; instead pin each spec's CURRENT count
+          # and fail when it GROWS. A newly introduced undefined call, anywhere,
+          # now reddens this gate. Counts are deterministic (verified across
+          # repeated runs). Lower a number whenever a spec's warnings are fixed;
+          # never raise one.
+          while read -r spec_name want; do
+            [ -z "$spec_name" ] && continue
+            WARN_BASE_N=$((WARN_BASE_N + 1))
+            spec="specs/${spec_name}.t27"
+            if [ ! -f "$spec" ]; then
+              echo "::error::warning-ratchet baseline lists ${spec_name}, but ${spec} does not exist"
               STATUS=1
-            else
-              echo "gen/rust/${spec}.rs matches specs/${spec}.t27"
+              continue
             fi
-          done
+            out=$($T27C typecheck "$spec" 2>&1)
+            if ! printf '%s' "$out" | grep -q "Typecheck OK"; then
+              echo "::error file=${spec}::typecheck failed"
+              printf '%s' "$out" | grep '^  - ' | head -5
+              STATUS=1
+              continue
+            fi
+            got=$(printf '%s' "$out" | grep -oE '[0-9]+ warnings' | grep -oE '^[0-9]+')
+            got=${got:-0}
+            if [ "$got" -gt "$want" ]; then
+              echo "::error file=${spec}::warning ratchet: ${got} warnings > pinned ${want}. A new warning (e.g. a call to an undefined function) was introduced."
+              STATUS=1
+            fi
+          done <<'WARNBASE'
+          access_control 0
+          adaptive_retry 0
+          adaptive_routing 14
+          anomaly_detector 30
+          api_documenter 18
+          area_optimization 0
+          auto_config 29
+          bandwidth_allocator 22
+          byte_utils 0
+          cache_management 18
+          compression_engine 33
+          congestion_control 27
+          crc16 0
+          cross_layer_optimizer 14
+          crypto_frame 0
+          discovery 0
+          docs_generator 15
+          energy_aware_routing 25
+          etx 0
+          failure_predictor 17
+          fault_detection 8
+          flow_control 9
+          fpga_synthesis_report 0
+          frame_buffer 0
+          gf16_format 0
+          hardware_validation 0
+          health_dashboard 30
+          health_monitoring 56
+          hello 0
+          integration_framework 32
+          integration_tests 0
+          key_management 16
+          link_quality_monitor 0
+          link_statistics 0
+          lite_crypto 0
+          load_predictor 25
+          local_processing 26
+          m3_multihop 0
+          mesh_node_sim 0
+          mesh_protocol_stack 0
+          mesh_routing 0
+          modem_frame 0
+          multipath_router 2
+          multipath_routing 20
+          network_analytics 0
+          network_coding 6
+          network_metrics 0
+          network_orchestrator 12
+          network_simulator 6
+          olsr_routing 0
+          packet_loss_injection 0
+          packet_queue 0
+          pattern_predictor 31
+          performance_benchmarks 0
+          performance_profiler 21
+          power_monitoring 6
+          production_deployment 4
+          production_scenarios 0
+          quarantine_manager 3
+          redundancy_management 19
+          resource_scheduler 25
+          routing_etx 0
+          rti_alert 0
+          rti_security 0
+          self_healing 0
+          swarm_coordinator 40
+          test_framework 14
+          test_validator 11
+          timer 0
+          timing_closure 0
+          topology_visualizer 27
+          traffic_animator 28
+          transport_tx_fsm 0
+          tri_a2a 5
+          tri_a2a_card 0
+          tri_a2a_wire 0
+          tri_challenge 0
+          tri_compute_account 0
+          tri_compute_bitnet 0
+          tri_compute_bond 0
+          tri_compute_challenge 8
+          tri_compute_gfvalid 0
+          tri_compute_optimistic 0
+          tri_compute_payout 0
+          tri_compute_pool 0
+          tri_compute_receipt 6
+          tri_compute_reputation 0
+          tri_compute_safety 0
+          tri_compute_settle 2
+          tri_depin 0
+          tri_fec 0
+          tri_gft_add 5
+          tri_gft_arith 2
+          tri_gft_ladder 0
+          tri_gft_sub 1
+          tri_ilv 0
+          tri_ledger 0
+          tri_merkle 0
+          tri_node_identity 1
+          tri_receipt_verify 0
+          tri_settle 0
+          tri_sha256 2
+          tri_slash 0
+          trust_manager 17
+          twr_timestamp 0
+          video_bridge 0
+          wire 0
+          WARNBASE
+          # Every spec must be pinned: a new spec that skipped the baseline would
+          # otherwise be unratcheted.
+          CORPUS_N=$(ls specs/*.t27 | wc -l | tr -d ' ')
+          echo "warning ratchet: ${WARN_BASE_N} specs pinned, corpus has ${CORPUS_N}"
+          if [ "$WARN_BASE_N" -ne "$CORPUS_N" ]; then
+            echo "::error::warning-ratchet baseline covers ${WARN_BASE_N} specs but the corpus has ${CORPUS_N}; add the new spec(s) to the WARNBASE table"
+            STATUS=1
+          fi
           exit $STATUS
 
-      - name: Drift check — Zig (all specs)
+      - name: Cargo test targets — every tests/*.rs must be declared
         working-directory: tri-net
         run: |
-          T27C=../t27/target/release/t27c
+          # Cargo.toml sets `autotests = false`, so a test file is compiled ONLY
+          # if it has an explicit [[test]] block. A file dropped into tests/ is
+          # therefore silently never run -- it LOOKS like coverage and is not.
+          # That is how tests/compute_ring_invariants.rs (18 load-bearing
+          # invariants, written precisely because spec test blocks are not
+          # executed) sat dead in the repo. Fail loudly on any undeclared file.
           STATUS=0
-          for spec in wire hello etx crc16 byte_utils mesh_routing key_management frame_buffer packet_queue congestion_control flow_control self_healing trust_manager timer transport_tx_fsm redundancy_management fault_detection lite_crypto network_metrics m3_multihop link_statistics access_control bandwidth_allocator cache_management compression_engine cross_layer_optimizer energy_aware_routing adaptive_retry link_quality_monitor multipath_router auto_config adaptive_routing anomaly_detector api_documenter area_optimization docs_generator fpga_synthesis_report health_dashboard health_monitoring integration_tests load_predictor local_processing mesh_node_sim mesh_protocol_stack multipath_routing network_coding network_orchestrator network_simulator olsr_routing pattern_predictor performance_benchmarks performance_profiler power_monitoring production_deployment production_scenarios quarantine_manager resource_scheduler swarm_coordinator test_framework timing_closure topology_visualizer traffic_animator failure_predictor hardware_validation integration_framework network_analytics packet_loss_injection test_validator; do
-            $T27C gen specs/${spec}.t27 > /tmp/${spec}_regen.zig
-            if ! diff -u gen/zig/${spec}.zig /tmp/${spec}_regen.zig; then
-              echo "::error file=gen/zig/${spec}.zig::DRIFT: gen/zig/${spec}.zig != t27c gen specs/${spec}.t27"
-              echo "Fix: t27c gen specs/${spec}.t27 > gen/zig/${spec}.zig"
-              STATUS=1
-            else
-              echo "gen/zig/${spec}.zig matches specs/${spec}.t27"
-            fi
+          declared=$(grep -oE 'tests/[a-z0-9_]+\.rs' Cargo.toml | sort -u)
+          present=$(ls tests/*.rs | sort)
+          missing=$(comm -13 <(printf '%s\n' "$declared") <(printf '%s\n' "$present"))
+          if [ -n "$missing" ]; then
+            echo "::error::these test files are NOT declared in Cargo.toml and never run:"
+            echo "$missing" | sed 's/^/  - /'
+            echo "Add a [[test]] block (name + path) for each, or delete the file."
+            STATUS=1
+          fi
+          n_decl=$(printf '%s\n' "$declared" | sed '/^$/d' | wc -l | tr -d ' ')
+          n_file=$(printf '%s\n' "$present" | sed '/^$/d' | wc -l | tr -d ' ')
+          echo "cargo test targets: ${n_file} files, ${n_decl} declared"
+
+          # Same trap on the binary side: Cargo.toml sets `autobins = false`, so a
+          # file in src/bin/ is compiled ONLY with an explicit [[bin]] block. 28 of
+          # 29 were undeclared -- never built, never type-checked, free to rot.
+          # Every src/bin/*.rs must now be declared, or listed here. Triage of the
+          # 28 (cargo check, one target at a time):
+          #   24 compile once the gen/rust modules they include by #[path] are
+          #      generated (7+2+1 were simply never committed; every spec exists).
+          #      They are NOT revived yet: those #[path] mods lack
+          #      #[allow(clippy::all, unused)], so `clippy --all-targets -D
+          #      warnings` reports 349 errors from the GENERATED code and would
+          #      redden the required build+test gate. Reviving them is attribute
+          #      surgery across 24 files -- its own change.
+          #    3 are genuinely rotted: tri_rti (unresolved import trios_mesh::rti),
+          #      trinet_a2a_node (needs gen/rust/router_ttl.rs -- no such spec),
+          #      trios_meshd (method `send` is not a member of trait `Transport`).
+          # Shrink this list; never grow it.
+          KNOWN_DEAD="tri_rti trinet_a2a_node trios_meshd gft16_vs_binary16 trinet_batch_over_mesh trinet_challenge trinet_challenge_over_mesh trinet_compute_lifecycle trinet_compute_over_mesh trinet_compute_verify trinet_discovery_over_mesh trinet_gft32_over_mesh trinet_heartbeat_over_mesh trinet_input_digest trinet_ledger_chain trinet_ledger_head trinet_ledger_over_mesh trinet_lifecycle_over_mesh trinet_merkle_batch trinet_node_identity trinet_optimistic_settle trinet_ratchet_over_mesh trinet_receipt_digest trinet_receipt_verify trinet_requester_verify trinet_rung_verify trinet_settle_signed trios_meshd_video"
+          # space-separated: the `case` glob below matches on " name " boundaries
+          bin_decl=$(grep -oE 'src/bin/[a-z0-9_]+\.rs' Cargo.toml | sed 's#src/bin/##; s#\.rs$##' | sort -u | tr '\n' ' ')
+          bin_pres=$(ls src/bin/*.rs | sed 's#src/bin/##; s#\.rs$##' | sort)
+          for b in $bin_pres; do
+            case " $bin_decl " in *" $b "*) continue;; esac
+            case " $KNOWN_DEAD " in *" $b "*) echo "known-dead bin (tracked): $b"; continue;; esac
+            echo "::error::src/bin/${b}.rs is neither declared as a [[bin]] nor listed in KNOWN_DEAD; with autobins = false it is never compiled"
+            STATUS=1
           done
+          n_bin_pres=$(printf '%s\n' "$bin_pres" | sed '/^$/d' | wc -l | tr -d ' ')
+          n_bin_decl=$(printf '%s' "$bin_decl" | wc -w | tr -d ' ')
+          echo "cargo bin targets: ${n_bin_pres} files, ${n_bin_decl} declared, $(printf '%s' "$KNOWN_DEAD" | wc -w | tr -d ' ') known-dead"
           exit $STATUS
 
-      - name: Drift check — C (all specs)
+      - name: Zig test — execute committed gens (passing set)
         working-directory: tri-net
         run: |
-          T27C=../t27/target/release/t27c
+          # EXECUTION level (above ast-check): compile and RUN each committed
+          # gen's test blocks. The whole committed set passes now (the t27
+          # saturation idiom that t27#1928 tracked is fixed in-spec via '+%'), so
+          # this is no longer a curated subset -- ratchet, do not regress.
           STATUS=0
-          for spec in wire hello etx crc16 byte_utils mesh_routing key_management frame_buffer packet_queue congestion_control flow_control self_healing trust_manager timer transport_tx_fsm redundancy_management fault_detection lite_crypto network_metrics m3_multihop link_statistics access_control bandwidth_allocator cache_management compression_engine cross_layer_optimizer energy_aware_routing adaptive_retry link_quality_monitor multipath_router auto_config adaptive_routing anomaly_detector api_documenter area_optimization docs_generator fpga_synthesis_report health_dashboard health_monitoring integration_tests load_predictor local_processing mesh_node_sim mesh_protocol_stack multipath_routing network_coding network_orchestrator network_simulator olsr_routing pattern_predictor performance_benchmarks performance_profiler power_monitoring production_deployment production_scenarios quarantine_manager resource_scheduler swarm_coordinator test_framework timing_closure topology_visualizer traffic_animator failure_predictor hardware_validation integration_framework network_analytics packet_loss_injection test_validator; do
-            $T27C gen-c specs/${spec}.t27 > /tmp/${spec}_regen.c
-            if ! diff -u gen/c/${spec}.c /tmp/${spec}_regen.c; then
-              echo "::error file=gen/c/${spec}.c::DRIFT: gen/c/${spec}.c != t27c gen-c specs/${spec}.t27"
-              echo "Fix: t27c gen-c specs/${spec}.t27 > gen/c/${spec}.c"
+          # gen/zig is the SSOT for EXECUTION too, not just drift: iterate the
+          # committed gens directly so a newly committed gen auto-joins this gate.
+          # The old hand-maintained list had drifted -- rti_security,
+          # tri_compute_account/bond/pool, tri_settle and twr_timestamp had
+          # committed, drift-checked gens that were never EXECUTED here.
+          ZT_N=0
+          for spec in $(ls gen/zig/*.zig | sed 's#^gen/zig/##; s#\.zig$##' | sort); do
+            ZT_N=$((ZT_N + 1))
+            if ! zig test gen/zig/${spec}.zig -femit-bin=/tmp/zt_bin > /tmp/zt.log 2>&1; then
+              echo "::error file=gen/zig/${spec}.zig::zig test failed"
+              tail -5 /tmp/zt.log
               STATUS=1
-            else
-              echo "gen/c/${spec}.c matches specs/${spec}.t27"
             fi
           done
+          # Ratchet + false-green guard: a loop that silently matched zero files
+          # would otherwise report green having executed nothing.
+          echo "zig test: executed ${ZT_N} gens (floor 107)"
+          if [ "$ZT_N" -lt 107 ]; then
+            echo "::error::zig execution coverage dropped to ${ZT_N}, below the 107 floor"
+            STATUS=1
+          fi
           exit $STATUS
+
+      - name: Drift check — all backends (gen/ is SSOT)
+        working-directory: tri-net
+        run: |
+          # One table-driven loop replaces three copy-pasted per-backend steps.
+          # gen/<dir> is the single source of truth (see #365/#366): every
+          # committed gen is regenerated from its spec and diffed, so a new gen
+          # auto-joins and none can be dropped from a list.
+          #
+          # Rust is normalized with rustfmt on BOTH sides: some gen/rust files are
+          # #[path]-included into src/, so the `build + test` gate's
+          # `cargo fmt --all --check` REQUIRES them rustfmt-formatted, while raw
+          # t27c output is not. A byte-exact diff against raw t27c output made the
+          # two gates mutually contradictory (the historic permanent red of this
+          # leg). C and Zig have no formatter, so they diff byte-exact.
+          T27C=../t27/target/release/t27c
+          STATUS=0
+          # dir ext t27c-subcommand expected-minimum-count
+          while read -r dir ext sub floor; do
+            [ -z "$dir" ] && continue
+            n=0
+            for spec in $(ls gen/${dir}/*.${ext} | sed "s#^gen/${dir}/##; s#\.${ext}\$##" | sort); do
+              n=$((n + 1))
+              if [ "$dir" = "rust" ]; then
+                $T27C $sub specs/${spec}.t27 | rustfmt --edition 2021 > /tmp/drift_regen.${ext}
+                rustfmt --edition 2021 < gen/${dir}/${spec}.${ext} > /tmp/drift_committed.${ext}
+              else
+                $T27C $sub specs/${spec}.t27 > /tmp/drift_regen.${ext}
+                cp gen/${dir}/${spec}.${ext} /tmp/drift_committed.${ext}
+              fi
+              if ! diff -u /tmp/drift_committed.${ext} /tmp/drift_regen.${ext}; then
+                echo "::error file=gen/${dir}/${spec}.${ext}::DRIFT: gen/${dir}/${spec}.${ext} != t27c ${sub} specs/${spec}.t27"
+                echo "Fix: t27c ${sub} specs/${spec}.t27 > gen/${dir}/${spec}.${ext}"
+                STATUS=1
+              else
+                echo "gen/${dir}/${spec}.${ext} matches specs/${spec}.t27"
+              fi
+            done
+            # Ratchet: a refactor that made a backend silently match zero files
+            # would otherwise report a FALSE GREEN. Fail if coverage drops.
+            echo "${dir}: checked ${n} gens (floor ${floor})"
+            if [ "$n" -lt "$floor" ]; then
+              echo "::error::drift coverage for ${dir} dropped to ${n}, below the ${floor} floor"
+              STATUS=1
+            fi
+          done <<'BACKENDS'
+          rust rs gen-rust 96
+          zig zig gen 107
+          c c gen-c 75
+          BACKENDS
+          exit $STATUS
+      - name: C test — compile and run committed gens (passing set)
+        working-directory: tri-net
+        run: |
+          # C EXECUTION level (mirror of the zig-test step): compile each
+          # committed C gen with its guarded runner and RUN it. FULL corpus
+          # since t27#1947 ([T; N] by-value struct lowering) -- ratchet, do
+          # not regress.
+          STATUS=0
+          # Iterate the committed gen/c directory directly: gen/ is the SSOT,
+          # so every committed gen is executed/checked and none can be silently
+          # dropped from a hand-maintained list (the orphan gap that hid a broken
+          # rti_security until wave 51). A new gen/c/*.c auto-joins here.
+          CT_N=0
+          for spec in $(ls gen/c/*.c | sed 's#^gen/c/##; s#\.c$##' | sort); do
+            CT_N=$((CT_N + 1))
+            if ! gcc -DT27_TEST_MAIN -o /tmp/ct_bin gen/c/${spec}.c > /tmp/ct.log 2>&1; then
+              echo "::error::C test COMPILE failed for ${spec}"; tail -20 /tmp/ct.log; STATUS=1; continue
+            fi
+            if ! /tmp/ct_bin > /tmp/ct_run.log 2>&1; then
+              echo "::error::C test RUN failed for ${spec}"; tail -20 /tmp/ct_run.log; STATUS=1
+            fi
+          done
+          echo "C test: executed ${CT_N} gens (floor 75)"
+          if [ "$CT_N" -lt 75 ]; then
+            echo "::error::C execution coverage dropped to ${CT_N}, below the 75 floor"
+            STATUS=1
+          fi
+          exit $STATUS
+
+      # The Zig leg RETURNED 2026-08-08: the gen-zig validity campaign (t27#1910,
+      # closed) took the backend from 66/68-invalid to 0/68, and gen/zig/ is
+      # committed again -- all 68 files zig-ast-check clean. Byte-exact diff
+      # against `t27c gen` (no formatter in the Zig path).

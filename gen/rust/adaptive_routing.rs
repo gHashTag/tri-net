@@ -58,21 +58,15 @@ pub fn get_last_update(state: u32) -> u32 {
     return (state & 0xFFFFFF);
 }
 
-pub fn create_path_metrics_array(m0: u32, m1: u32, m2: u32, m3: u32) -> u64 {
-    return (((((m0 as u64) << 48) | ((m1 as u64) << 32)) | ((m2 as u64) << 16)) | (m3 as u64));
+pub fn create_path_metrics_array(m0: u32, m1: u32, m2: u32, m3: u32) -> [u32; 4] {
+    return [m0, m1, m2, m3];
 }
 
-pub fn get_path_metrics(array: u64, index: u32) -> u32 {
-    if (index == 0) {
-        return (((array >> 48) & 0xFFFFFFFF) as u32);
+pub fn get_path_metrics(array: [u32; 4], index: u32) -> u32 {
+    if (index < 4) {
+        return array[(index) as usize];
     }
-    if (index == 1) {
-        return (((array >> 32) & 0xFFFFFFFF) as u32);
-    }
-    if (index == 2) {
-        return (((array >> 16) & 0xFFFFFFFF) as u32);
-    }
-    return ((array & 0xFFFFFFFF) as u32);
+    return 0;
 }
 
 pub fn calculate_score(metrics: u32, metric_type: u32) -> u32 {
@@ -98,7 +92,7 @@ pub fn calculate_score(metrics: u32, metric_type: u32) -> u32 {
     return 0;
 }
 
-pub fn find_best_path(metrics_array: u64, metric_type: u32) -> u32 {
+pub fn find_best_path(metrics_array: [u32; 4], metric_type: u32) -> u32 {
     let mut best_path = 0xFF;
     let mut best_score = 0;
     if (calculate_score(get_path_metrics(metrics_array, 0), metric_type) > best_score) {
@@ -142,7 +136,7 @@ pub fn is_path_congested(metrics: u32) -> bool {
     return (get_load(metrics) > 80);
 }
 
-pub fn find_least_congested(metrics_array: u64) -> u32 {
+pub fn find_least_congested(metrics_array: [u32; 4]) -> u32 {
     let mut best_path = 0;
     let mut best_load = get_load(get_path_metrics(metrics_array, 0));
     if (get_load(get_path_metrics(metrics_array, 1)) < best_load) {

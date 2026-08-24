@@ -1,0 +1,89 @@
+# What makes GF-T unique (measured)
+
+GF-T (GoldenFloat-ternary) is the numeric format of the TRI-NET compute ring:
+`[sign | balanced-ternary exponent trits | mantissa]`, value `(1 + M/2^mant) * 2^e`,
+with the exponent in **balanced-ternary trits** (the golden identity `φ² + φ⁻² = 3`).
+
+## 1. The 16-bit float shoot-out (measured)
+
+`src/bin/gft16_vs_binary16.rs` round-trips real values through **four** 16-bit floats
+over a 2^-40..2^40 sweep and prints these numbers (no claims):
+
+| format | worst rel. error (whole range) | covers the sweep | dynamic range | character |
+|---|---|---|---|---|
+| **GF-T16** | **0.075% UNIFORM** | **100%** | ~2^81 (9e-13..2.2e12) | ternary exp, no subnormals/taper |
+| binary16 | 0.031% normals / **94%** subnormals | 51% | ~2^40 (6e-8..6.6e4) | precise but narrow |
+| bfloat16 | 0.224% (~3x coarser) | 100% | ~2^253 (widest) | wide but coarse (7-bit mant) |
+| posit16 | 0.023% near 1 / **9.8%** at extremes | 100% | ~2^112 | great-near-1 but tapered + costly decode |
+
+**GF-T16 owns the Pareto corner none of the others do: wide range AND uniform relative
+precision AND cheap fixed-field decode.** binary16 is precise but narrow (fails on ~half
+the sweep, subnormal collapse); bfloat16 is wide but ~3x coarser; posit16 is superb near 1
+but tapers to ~9.8% at the extremes and needs a variable-length regime decode. GF-T16
+holds ~0.075% *everywhere* across 2^81 of range -- the profile radio DSP and ternary/
+BitNet-class compute (both dynamic-range-limited) actually need. Price: one mantissa bit
+vs binary16 in the narrow band where binary16 works.
+
+```bash
+rustc -O --edition 2021 src/bin/gft16_vs_binary16.rs -o /tmp/gftbench && /tmp/gftbench
+```
+
+## 1b. The top rung: GF-T32 vs fp32 / tf32 (measured)
+
+The ladder's widest rung, GF-T32, stores a 10-bit exponent offset (729 codes) + 25-bit
+mantissa + sign = **36 bits** — honestly WIDER than fp32's 32. Over a 2^-360..2^360 sweep
+(`gft16_vs_binary16.rs`, fp32 = native Rust f32, tf32 = 8 exp / 10 mant):
+
+| format | stored width | worst rel. error | covers sweep | dynamic range |
+|---|---|---|---|---|
+| **GF-T32** | 36b (6 trits + 25 mant) | **0.000001% uniform** | **100%** | ~2^728 |
+| fp32 | 32b (8 exp + 23 mant) | 0.000004% normals | 39% | ~2^277 |
+| tf32 | 19b (8 exp + 10 mant) | 0.024% | 35% | ~2^277 |
+
+For its ~4 extra bits over fp32, GF-T32 buys ~2.6x the exponent range (2^728 vs 2^277),
+2 more mantissa bits (25 vs 23), and uniform precision (fp32 collapses in subnormals).
+fp32 overflows past ~3.4e38 / underflows ~1e-45 where GF-T32 stays finite; tf32 has fp32's
+range but ~500x coarser mantissa. Same harness, same honesty — the numbers are its output.
+
+## 2. No regime/tapered decode -> cheap silicon
+
+Unlike posit/tapered formats (variable-length regime bits, costly decode), GF-T has
+**fixed-width fields** -- decode is a plain field split. Measured: one GF-T16 multiply
+synthesizes to **1 DSP48E1 + ~47 LUT** (`fpga/gft/gft16_mul.v`, `SYNTH.md`); a 4-lane
+MAC tile is 4 DSP48E1, so an xc7a200t fits ~180 tiles.
+
+## 3. One ladder, one spec, both targets
+
+GF-T4/8/16/32 are one family with per-rung geometry (`tri_gft_ladder.t27`), and one
+`.t27` generates BOTH the Rust A2A over-wire verifier AND synthesizable Verilog, proven
+to agree (`fpga/gft/gft_*_gen_kat_tb.v`). All four rungs verify end-to-end over the
+sealed mesh (`trinet_gft32_over_mesh` closes the u64 rung), each against an exact oracle.
+
+## Honest boundaries
+
+**Bit budget.** GF-T16 stores `offset<<9 | mant`: a 7-bit exponent offset (covering the
+81 codes `0..80`) + a 9-bit mantissa = a **16-bit magnitude**; the sign is a separate bit,
+so signed GF-T16 is **17 bits** vs binary16's 16 bits signed. GF-T16 therefore spends
+~1 extra bit on the exponent (or, on ternary hardware, **4 native trits** = exactly 81
+codes, no waste). The range + uniform-precision win costs ~1 bit, not zero — the "same
+16 bits" framing holds for the *magnitude* field only. GF-T is designed for a ternary
+substrate, where the exponent trits are the native unit.
+
+**Precision.** binary16 is more precise **within its narrow range** (2x finer normals);
+GF-T trades that for range + uniformity + cheap decode. All numbers above are the measured
+output of the harness, not claims.
+
+**Task-level: GF-T16 wins range-bound accumulation, loses mass-concentrated softmax.**
+Per-number error (above) is not the whole story — what matters is the *answer*. Two measured
+task tests draw the boundary:
+- `tests/gft_task_accuracy.rs` — a 4096-term dot product (the matmul atom). On a wide
+  2^±20 operand band GF-T16 stays at 0.00067% while **binary16 overflows entirely**; on a
+  narrow 2^±6 band the two are task-level peers (~0.0017%). GF-T16 beats bf16 in both. **Win
+  where dynamic range matters.**
+- `tests/gft_softmax_accuracy.rs` — softmax over 256 logits (the attention atom). **binary16
+  wins** total-variation in both bands (its 10th mantissa bit pays off at the peak). In the
+  wide band binary16 flushes 100/256 tail keys to zero and *still* wins — softmax normalizes
+  mass toward the peak, so the range GF-T16 spends bits on is worthless here. GF-T16 stays
+  ~3-4x ahead of bf16. **Loss where the task concentrates mass and rewards mantissa bits.**
+
+Net: GF-T16 is the format for wide-dynamic-range linear algebra, not a universal winner.

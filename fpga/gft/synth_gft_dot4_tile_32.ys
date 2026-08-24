@@ -1,0 +1,8 @@
+# Per-tile utilization of the GF-T32 4-lane MAC tile (yosys, NO Vivado).
+#   yosys fpga/gft/synth_gft_dot4_tile_32.ys
+# Four gft_mul32 (DSP-mapped) + a 3-adder gft_add tree. Emits a stat report so a
+# systolic array of these tiles can be sized against the XC7A200T (740 DSP48E1).
+read_verilog fpga/gft/gft_dot4_tile_32.v fpga/gft/gft_mul32.v fpga/gft/gft_add.v
+hierarchy -top gft_dot4_tile_32
+synth_xilinx -flatten
+stat

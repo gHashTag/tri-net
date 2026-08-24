@@ -1,0 +1,52 @@
+name: sha256-gen-check
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "specs/tri_sha256.t27"
+      - "gen/rust/tri_sha256.rs"
+      - ".github/workflows/sha256-gen-check.yml"
+
+# The crypto root of the ring: every receipt digest, input-operand binding, and
+# settle signature hashes through the tri_sha256 spec's generated code. This job
+# rebuilds t27c from upstream master and regenerates gen/rust/tri_sha256.rs from
+# specs/tri_sha256.t27 -- if the committed gen drifts from the spec (as it once
+# did: the committed gen was missing sha256_compress while production bins
+# already called it), the job fails with a diff. Narrow on purpose: one spec,
+# one backend, so this stays green and meaningful while the broad
+# spec-drift-guard is being repaired.
+
+jobs:
+  sha256-drift:
+    name: tri_sha256 gen-rust drift check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tri-net
+        uses: actions/checkout@v4
+        with:
+          path: tri-net
+
+      - name: Checkout t27 (SSOT compiler source)
+        uses: actions/checkout@v4
+        with:
+          repository: gHashTag/t27
+          ref: master
+          path: t27
+
+      - name: Install stable Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build t27c (release)
+        working-directory: t27
+        run: cargo build --release --manifest-path bootstrap/Cargo.toml --bin t27c
+
+      - name: Regenerate and diff tri_sha256 (Rust)
+        working-directory: tri-net
+        run: |
+          ../t27/target/release/t27c gen-rust specs/tri_sha256.t27 > /tmp/tri_sha256_regen.rs
+          if ! diff -u gen/rust/tri_sha256.rs /tmp/tri_sha256_regen.rs; then
+            echo "::error file=gen/rust/tri_sha256.rs::DRIFT: gen/rust/tri_sha256.rs != t27c gen-rust specs/tri_sha256.t27"
+            echo "Fix: t27c gen-rust specs/tri_sha256.t27 > gen/rust/tri_sha256.rs"
+            exit 1
+          fi

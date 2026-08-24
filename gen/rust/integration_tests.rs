@@ -16,7 +16,7 @@ pub fn header_byte(kind: u8, src: u32, dst: u32, ttl: u8, idx: usize) -> u8 {
                 return (((src >> (24 - (8 * (idx - 2)))) & 255) as u8);
             } else {
                 if (idx <= 9) {
-                    return (((dst >> (48 - (8 * (idx - 6)))) & 255) as u8);
+                    return (((dst >> (24 - (8 * (idx - 6)))) & 255) as u8);
                 } else {
                     return ttl;
                 }
@@ -30,4 +30,13 @@ pub const MESH_NET_A: u8 = 10;
 pub const MESH_NET_B: u8 = 42;
 
 pub const MESH_NET_C: u8 = 0;
+
+pub fn mesh_ip(id: u32) -> (u8, u8, u8, u8) {
+    let node_octet = ((id & 0xFF) as u8);
+    return (MESH_NET_A, MESH_NET_B, MESH_NET_C, node_octet);
+}
+
+pub const ST_IDLE: u8 = 0;
+
+pub const ST_TX_WAIT: u8 = 3;
 

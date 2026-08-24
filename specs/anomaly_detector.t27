@@ -375,4 +375,52 @@ module anomaly_detector {
             return weighted_confidence;
         }
     }
+
+    // ---- Tests ----
+
+    test metric_reading_roundtrip {
+        r = create_metric_reading(7, 200, 99, 55);
+        assert(get_metric_id(r) == 7, "metric id");
+        assert(get_metric_value(r) == 200, "metric value");
+        assert(get_timestamp(r) == 99, "timestamp");
+        assert(get_confidence(r) == 55, "confidence");
+    }
+
+    test anomaly_report_roundtrip {
+        rep = create_anomaly_report(9, 90, TYPE_PATTERN, 12345);
+        assert(get_anomaly_metric_id(rep) == 9, "report metric id");
+        assert(get_severity(rep) == 90, "severity");
+        assert(get_anomaly_type(rep) == TYPE_PATTERN, "anomaly type");
+        assert(get_anomaly_confidence(rep) == 12345, "report confidence");
+    }
+
+    test baseline_and_variance {
+        // Eight readings with values 100 and 120 alternating: baseline 110,
+        // mean absolute deviation 10.
+        let h: [u32; 16] = [
+            create_metric_reading(1, 100, 0, 50), create_metric_reading(1, 120, 1, 50),
+            create_metric_reading(1, 100, 2, 50), create_metric_reading(1, 120, 3, 50),
+            create_metric_reading(1, 100, 4, 50), create_metric_reading(1, 120, 5, 50),
+            create_metric_reading(1, 100, 6, 50), create_metric_reading(1, 120, 7, 50),
+            0, 0, 0, 0, 0, 0, 0, 0
+        ];
+        b = calculate_baseline(h, 8);
+        assert(b == 110, "baseline is the mean");
+        v = calculate_variance(h, 8, b);
+        assert(v == 10, "variance is the mean absolute deviation");
+    }
+
+    test spike_and_drop_detection {
+        // Variance 10 -> spike threshold is 3*10 above baseline 110.
+        assert(detect_spike(150, 110, 10) == 1, "40 above baseline is a spike");
+        assert(detect_spike(130, 110, 10) == 0, "20 above baseline is noise");
+        assert(detect_drop(70, 110, 10) == 1, "40 below baseline is a drop");
+        assert(detect_drop(95, 110, 10) == 0, "15 below baseline is noise");
+    }
+
+    test severity_bands {
+        assert(calculate_severity(250, 100) == 90, "diff 150 is high severity");
+        assert(calculate_severity(170, 100) == 60, "diff 70 is medium severity");
+        assert(calculate_severity(120, 100) == 30, "diff 20 is low severity");
+    }
 }

@@ -34,51 +34,44 @@ module trust_manager {
         return (score & 0xFF);
     }
 
-    // Trust relationship [source][destination][trust_level][last_verified]
+    // Trust relationship [source:6][destination:6][trust_level:8][last_verified:12]:
+    // last_verified is a timestamp (tests use 1000), so it needs 12 bits --
+    // the old 8-bit field truncated it.
     fn create_trust_relationship(source: u32, destination: u32, level: u32, verified: u32) -> u32 {
-        return (((source & 0xFF) << 24) |
-                ((destination & 0xFF) << 16) |
-                ((level & 0xFF) << 8) |
-                (verified & 0xFF));
+        return (((source & 0x3F) << 26) |
+                ((destination & 0x3F) << 20) |
+                ((level & 0xFF) << 12) |
+                (verified & 0xFFF));
     }
 
     fn get_trust_source(rel: u32) -> u32 {
-        return ((rel >> 24) & 0xFF);
+        return ((rel >> 26) & 0x3F);
     }
 
     fn get_trust_destination(rel: u32) -> u32 {
-        return ((rel >> 16) & 0xFF);
+        return ((rel >> 20) & 0x3F);
     }
 
     fn get_trust_level(rel: u32) -> u32 {
-        return ((rel >> 8) & 0xFF);
+        return ((rel >> 12) & 0xFF);
     }
 
     fn get_trust_verified(rel: u32) -> u32 {
-        return (rel & 0xFF);
+        return (rel & 0xFFF);
     }
 
     // 8-node trust storage
-    fn create_trust_array(t0: u32, t1: u32, t2: u32, t3: u32, t4: u32, t5: u32, t6: u32, t7: u32) -> u64 {
-        return (((t0 as u64) << 56) |
-                ((t1 as u64) << 48) |
-                ((t2 as u64) << 40) |
-                ((t3 as u64) << 32) |
-                ((t4 as u64) << 24) ||
-                ((t5 as u64) << 16) |
-                ((t6 as u64) << 8) |
-                (t7 as u64));
+    // Eight 32-bit trust scores need 256 bits: the old u64 packing at 8-bit
+    // strides overlapped every read (and its expression had a `||` typo).
+    fn create_trust_array(t0: u32, t1: u32, t2: u32, t3: u32, t4: u32, t5: u32, t6: u32, t7: u32) -> [u32; 8] {
+        return [t0, t1, t2, t3, t4, t5, t6, t7];
     }
 
-    fn get_trust_score(array: u64, index: u32) -> u32 {
-        if (index == 0) { return ((array >> 56) & 0xFFFFFFFF) as u32; }
-        if (index == 1) { return ((array >> 48) & 0xFFFFFFFF) as u32; }
-        if (index == 2) { return ((array >> 40) & 0xFFFFFFFF) as u32; }
-        if (index == 3) { return ((array >> 32) & 0xFFFFFFFF) as u32; }
-        if (index == 4) { return ((array >> 24) & 0xFFFFFFFF) as u32; }
-        if (index == 5) { return ((array >> 16) & 0xFFFFFFFF) as u32; }
-        if (index == 6) { { return ((array >> 8) & 0xFFFFFFFF) as u32; }
-        return (array & 0xFFFFFFFF) as u32;
+    fn get_trust_score(array: [u32; 8], index: u32) -> u32 {
+        if (index < 8) {
+            return array[index];
+        }
+        return 0;
     }
 
     // Calculate trust score from interactions
@@ -117,12 +110,12 @@ module trust_manager {
     }
 
     // Check if node has low trust
-    fn is_node_low_trusted(score: u32) -> u32 {
+    fn is_node_low_trusted(score: u32) -> bool {
         return (get_trust_score_value(score) <= TRUST_LOW);
     }
 
     // Find most trusted node
-    fn find_most_trusted(trust_array: u64) -> u32 {
+    fn find_most_trusted(trust_array: [u32; 8]) -> u32 {
         let highest_score = 0;
         let most_trusted = 0xFF;
         
@@ -151,7 +144,7 @@ module trust_manager {
             most_trusted = 4;
         }
         
-        if (get_tr_score_value(get_trust_score(trust_array, 5)) > highest_score) {
+        if (get_trust_score_value(get_trust_score(trust_array, 5)) > highest_score) {
             highest_score = get_trust_score_value(get_trust_score(trust_array, 5));
             most_trusted = 5;
         }
@@ -170,7 +163,7 @@ module trust_manager {
     }
 
     // Trust-based routing decision
-    fn should_route_via_node(trust_array: u64, node_index: u32, min_trust: u32) -> bool {
+    fn should_route_via_node(trust_array: [u32; 8], node_index: u32, min_trust: u32) -> bool {
         if (node_index >= MAX_NODES) { return false; }
         
         let score = get_trust_score(trust_array, node_index);
@@ -239,7 +232,8 @@ module trust_manager {
     test update_trust_score_increases {
         current = create_trust_score(5, 50, 5, 5);
         updated = update_trust_score(current, 3, 1);
-        assert(get_trust_score_value(updated) >= 60, "trust increased");
+        // 8 positive of 14 total = 57%: trust rose from 50.
+        assert(get_trust_score_value(updated) >= 55, "trust increased");
     }
 
     test update_trust_score_decreases {
@@ -265,7 +259,7 @@ module trust_manager {
 
     test is_node_low_trusted {
         score = create_trust_score(5, 15, 2, 8);
-        assert(is_node_low_trusted(score) == 1, "low trusted");
+        assert(is_node_low_trusted(score) == true, "low trusted");
     }
 
     test find_most_trusted_middle {

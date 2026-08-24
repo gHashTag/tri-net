@@ -87,7 +87,10 @@ module PowerMonitoring {
         let current_consumption = get_consumption(state);
         let uptime = get_uptime(state);
         
-        let new_consumption = current_consumption - reduction;
+        let new_consumption: u32 = 1;
+        if (reduction < current_consumption) {
+            new_consumption = current_consumption - reduction;
+        }
         if (new_consumption < 1) {
             new_consumption = 1; // Minimum consumption
         }
@@ -102,8 +105,11 @@ module PowerMonitoring {
         let consumption = get_consumption(state);
         let uptime = get_uptime(state);
         
-        let new_battery = battery - amount;
-        if (new_battery < 0) {
+        let new_battery: u32 = 0;
+        if (amount < battery) {
+            new_battery = battery - amount;
+        }
+        if (new_battery < 1) {
             new_battery = 0; // Battery empty
         }
         

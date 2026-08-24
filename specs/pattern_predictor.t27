@@ -52,39 +52,24 @@ module pattern_predictor {
         return (storage & 0x3);
     }
 
-    // 16-sample storage
+    // 16-sample storage. Sixteen samples cannot live in a u64: the old
+    // packer silently DROPPED s8..s15 and the upper-half getter shifted a
+    // u64 by 64 (with an unbalanced paren the parser swallowed whole).
+    // A real array holds all sixteen.
     fn create_sample_array(s0: u32, s1: u32, s2: u32, s3: u32, s4: u32, s5: u32, s6: u32, s7: u32,
-                            s8: u32, s9: u32, s10: u32, s11: u32, s12: u32, s13: u32, s14: u32, s15: u32) -> u64 {
-        return (((s0 as u64) << 56) |
-                ((s1 as u64) << 48) |
-                ((s2 as u64) << 40) |
-                ((s3 as u64) << 32) |
-                ((s4 as u64) << 24) |
-                ((s5 as u64) << 16) |
-                ((s6 as u64) << 8) |
-                (s7 as u64));
+                            s8: u32, s9: u32, s10: u32, s11: u32, s12: u32, s13: u32, s14: u32, s15: u32) -> [u32; 16] {
+        return [s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s14, s15];
     }
 
-    fn get_sample_array_upper(array: u64) -> u64 {
-        return ((array >> 64) & 0xFFFFFFFFFFFFFFFF;
-    }
-
-    fn get_sample_array_lower(array: u64) -> u32 {
-        return (array & 0xFFFFFFFF);
-    }
-
-    fn get_sample_at(array: u64, index: u32) -> u32 {
-        if (index < 8) {
-            let lower = get_sample_array_lower(array);
-            return ((lower >> ((7 - index) * 8)) & 0xFF) as u32;
-        } else {
-            let upper = get_sample_array_upper(array);
-            return ((upper >> ((15 - index) * 8)) & 0xFF) as u32;
+    fn get_sample_at(array: [u32; 16], index: u32) -> u32 {
+        if (index < 16) {
+            return array[index];
         }
+        return 0;
     }
 
     // Calculate simple moving average
-    fn calculate_moving_average(array: u64, window: u32) -> u32 {
+    fn calculate_moving_average(array: [u32; 16], window: u32) -> u32 {
         let sum = 0;
         let count = window;
         
@@ -120,7 +105,7 @@ module pattern_predictor {
     }
 
     // Detect trend direction (0=stable, 1=increasing, 2=decreasing)
-    fn detect_trend(array: u64, samples: u32) -> u32 {
+    fn detect_trend(array: [u32; 16], samples: u32) -> u32 {
         if (samples < 2) { return 0; }
         
         let first = get_sample_value(get_sample_at(array, 0));
@@ -136,7 +121,7 @@ module pattern_predictor {
     }
 
     // Predict next value based on trend
-    fn predict_next_value(array: u64, samples: u32) -> u32 {
+    fn predict_next_value(array: [u32; 16], samples: u32) -> u32 {
         let trend = detect_trend(array, samples);
         let current = get_sample_value(get_sample_at(array, samples - 1));
         
@@ -155,7 +140,7 @@ module pattern_predictor {
     }
 
     // Check if current value is anomalous
-    fn is_anomalous(array: u64, samples: u32, current_value: u32) -> u32 {
+    fn is_anomalous(array: [u32; 16], samples: u32, current_value: u32) -> u32 {
         let predicted = predict_next_value(array, samples);
         
         if (predicted > current_value) {
@@ -166,7 +151,7 @@ module pattern_predictor {
     }
 
     // Simple pattern matching (repeating sequence)
-    fn detect_repeating_pattern(array: u64, samples: u32) -> u32 {
+    fn detect_repeating_pattern(array: [u32; 16], samples: u32) -> u32 {
         if (samples < 4) { return 0; }
         
         let v0 = get_sample_value(get_sample_at(array, 0));
@@ -193,29 +178,45 @@ module pattern_predictor {
     }
 
     // Calculate variance (simple measure of variability)
-    fn calculate_variance(array: u64, samples: u32) -> u32 {
+    fn calculate_variance(array: [u32; 16], samples: u32) -> u32 {
         if (samples < 2) { return 0; }
         
         let avg = calculate_moving_average(array, samples);
         let sum_sq_diff = 0;
         
         if (samples >= 1) {
-            let diff = get_sample_value(get_sample_at(array, 0)) - avg;
+            // |sample - avg|: unsigned subtraction underflows when the sample is below
+            // the mean, and the square only needs the magnitude.
+            let v0: u32 = get_sample_value(get_sample_at(array, 0));
+            let diff: u32 = 0;
+            if (v0 >= avg) { diff = v0 - avg; } else { diff = avg - v0; }
             sum_sq_diff = sum_sq_diff + (diff * diff);
         }
         
         if (samples >= 2) {
-            let diff = get_sample_value(get_sample_at(array, 1)) - avg;
+            // |sample - avg|: unsigned subtraction underflows when the sample is below
+            // the mean, and the square only needs the magnitude.
+            let v1: u32 = get_sample_value(get_sample_at(array, 1));
+            let diff: u32 = 0;
+            if (v1 >= avg) { diff = v1 - avg; } else { diff = avg - v1; }
             sum_sq_diff = sum_sq_diff + (diff * diff);
         }
         
         if (samples >= 3) {
-            let diff = get_sample_value(get_sample_at(array, 2)) - avg;
+            // |sample - avg|: unsigned subtraction underflows when the sample is below
+            // the mean, and the square only needs the magnitude.
+            let v2: u32 = get_sample_value(get_sample_at(array, 2));
+            let diff: u32 = 0;
+            if (v2 >= avg) { diff = v2 - avg; } else { diff = avg - v2; }
             sum_sq_diff = sum_sq_diff + (diff * diff);
         }
         
         if (samples >= 4) {
-            let diff = get_sample_value(get_sample_at(array, 3)) - avg;
+            // |sample - avg|: unsigned subtraction underflows when the sample is below
+            // the mean, and the square only needs the magnitude.
+            let v3: u32 = get_sample_value(get_sample_at(array, 3));
+            let diff: u32 = 0;
+            if (v3 >= avg) { diff = v3 - avg; } else { diff = avg - v3; }
             sum_sq_diff = sum_sq_diff + (diff * diff);
         }
         
@@ -247,7 +248,7 @@ module pattern_predictor {
             create_sample(70, 3, 3, 1),
             create_sample(80, 4, 4, 1),
             0, 0, 0, 0, 0, 0, 0, 0
-        );
+        , 0, 0, 0, 0);
         let avg = calculate_moving_average(array, 4);
         assert(avg == 65, "average of 50,60,70,80");
     }
@@ -275,7 +276,7 @@ module pattern_predictor {
             create_sample(30, 3, 3, 1),
             create_sample(40, 4, 4, 1),
             0, 0, 0, 0, 0, 0, 0, 0
-        );
+        , 0, 0, 0, 0);
         assert(detect_trend(array, 4) == 1, "increasing trend");
     }
 
@@ -286,7 +287,7 @@ module pattern_predictor {
             create_sample(40, 3, 3, 1),
             create_sample(20, 4, 4, 1),
             0, 0, 0, 0, 0, 0, 0, 0
-        );
+        , 0, 0, 0, 0);
         assert(detect_trend(array, 4) == 2, "decreasing trend");
     }
 
@@ -297,7 +298,7 @@ module pattern_predictor {
             create_sample(48, 3, 3, 1),
             create_sample(51, 4, 4, 1),
             0, 0, 0, 0, 0, 0, 0, 0
-        );
+        , 0, 0, 0, 0);
         assert(detect_trend(array, 4) == 0, "stable trend");
     }
 
@@ -308,7 +309,7 @@ module pattern_predictor {
             create_sample(70, 3, 3, 1),
             create_sample(80, 4, 4, 1),
             0, 0, 0, 0, 0, 0, 0, 0
-        );
+        , 0, 0, 0, 0);
         let predicted = predict_next_value(array, 4);
         assert(predicted == 90, "predict 90 (80 + 10)");
     }
@@ -320,7 +321,7 @@ module pattern_predictor {
             create_sample(40, 3, 3, 1),
             create_sample(20, 4, 4, 1),
             0, 0, 0, 0, 0, 0, 0, 0
-        );
+        , 0, 0, 0, 0);
         let predicted = predict_next_value(array, 4);
         assert(predicted == 10, "predict 10 (20 - 10)");
     }
@@ -332,7 +333,7 @@ module pattern_predictor {
             create_sample(48, 3, 3, 1),
             create_sample(51, 4, 4, 1),
             0, 0, 0, 0, 0, 0, 0, 0
-        );
+        , 0, 0, 0, 0);
         let predicted = predict_next_value(array, 4);
         assert(predicted == 51, "predict 51 (stable)");
     }
@@ -344,7 +345,7 @@ module pattern_predictor {
             create_sample(70, 3, 3, 1),
             create_sample(80, 4, 4, 1),
             0, 0, 0, 0, 0, 0, 0, 0
-        );
+        , 0, 0, 0, 0);
         let anomaly = is_anomalous(array, 4, 120);
         assert(anomaly > 20, "large deviation");
     }
@@ -356,7 +357,7 @@ module pattern_predictor {
             create_sample(70, 3, 3, 1),
             create_sample(80, 4, 4, 1),
             0, 0, 0, 0, 0, 0, 0, 0
-        );
+        , 0, 0, 0, 0);
         let anomaly = is_anomalous(array, 4, 85);
         assert(anomaly <= 5, "normal deviation");
     }
@@ -368,7 +369,7 @@ module pattern_predictor {
             create_sample(10, 3, 3, 1),
             create_sample(20, 4, 4, 1),
             0, 0, 0, 0, 0, 0, 0, 0
-        );
+        , 0, 0, 0, 0);
         assert(detect_repeating_pattern(array, 4) == 1, "pattern found");
     }
 
@@ -379,7 +380,7 @@ module pattern_predictor {
             create_sample(30, 3, 3, 1),
             create_sample(40, 4, 4, 1),
             0, 0, 0, 0, 0, 0, 0, 0
-        );
+        , 0, 0, 0, 0);
         assert(detect_repeating_pattern(array, 4) == 0, "no pattern");
     }
 
@@ -390,7 +391,7 @@ module pattern_predictor {
             create_sample(48, 3, 3, 1),
             create_sample(51, 4, 4, 1),
             0, 0, 0, 0, 0, 0, 0, 0
-        );
+        , 0, 0, 0, 0);
         let variance = calculate_variance(array, 4);
         assert(variance < 10, "low variance");
     }
@@ -402,7 +403,7 @@ module pattern_predictor {
             create_sample(20, 3, 3, 1),
             create_sample(90, 4, 4, 1),
             0, 0, 0, 0, 0, 0, 0, 0
-        );
+        , 0, 0, 0, 0);
         let variance = calculate_variance(array, 4);
         assert(variance > 1000, "high variance");
     }

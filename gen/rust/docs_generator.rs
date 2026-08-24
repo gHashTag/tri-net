@@ -231,14 +231,15 @@ pub fn get_margin_right(layout: u32) -> u32 {
     return (layout & 0xFF);
 }
 
-pub fn calculate_document_stats(sections: Vec<>, section_count: u32) -> u32 {
+pub fn calculate_document_stats(sections: [u32; MAX_SECTIONS as usize], section_count: u32) -> u32 {
     let mut total_pages: u32 = 0;
     let mut total_words: u32 = 0;
     let mut total_tables: u32 = 0;
+    let total_figures: u32 = 0;
     let mut i: u32 = 0;
     while (i < section_count) {
-        let content_len: u32 = get_section_content_length(sections[i]);
-        let subsections: u32 = get_section_subsection_count(sections[i]);
+        let content_len: u32 = get_section_content_length(sections[(i) as usize]);
+        let subsections: u32 = get_section_subsection_count(sections[(i) as usize]);
         total_words = (total_words + (content_len / 5));
         total_pages = (total_pages + (content_len / 300));
         if (subsections > 0) {
@@ -246,7 +247,7 @@ pub fn calculate_document_stats(sections: Vec<>, section_count: u32) -> u32 {
         }
         i = (i + 1);
     }
-    return (((((total_pages & 0xFF) << 24) | ((total_words & 0xFF) << 16)) | ((total_tables & 0xFF) << 8)) | 0);
+    return (((((total_pages & 0xFF) << 24) | ((total_words & 0xFF) << 16)) | ((total_tables & 0xFF) << 8)) | (total_figures & 0xFF));
 }
 
 pub fn generate_document_metadata(title_id: u32, author_id: u32, date: u32, version: u32) -> u32 {
@@ -269,11 +270,11 @@ pub fn get_metadata_version(metadata: u32) -> u32 {
     return (metadata & 0xFF);
 }
 
-pub fn format_document(sections: Vec<>, section_count: u32, format: u32, layout: u32) -> u32 {
+pub fn format_document(sections: [u32; MAX_SECTIONS as usize], section_count: u32, format: u32, layout: u32) -> u32 {
     let mut formatted_size: u32 = 0;
     let mut i: u32 = 0;
     while (i < section_count) {
-        let content_len: u32 = get_section_content_length(sections[i]);
+        let content_len: u32 = get_section_content_length(sections[(i) as usize]);
         formatted_size = (formatted_size + content_len);
         i = (i + 1);
     }
@@ -290,7 +291,8 @@ pub fn format_document(sections: Vec<>, section_count: u32, format: u32, layout:
     return formatted_size;
 }
 
-pub fn generate_complete_document(func_docs: Vec<>, func_count: u32, sections: Vec<>, section_count: u32, format: u32) -> u32 {
+pub fn generate_complete_document(func_docs: [u32; 64], func_count: u32, sections: [u32; MAX_SECTIONS as usize], section_count: u32, format: u32) -> u32 {
+    let metadata: u32 = generate_document_metadata(1, 1, 20260703, 1);
     let layout: u32 = generate_page_layout(20, 20, 15, 15);
     let toc_size: u32 = (section_count * 10);
     let body_size: u32 = format_document(sections, section_count, format, layout);

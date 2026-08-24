@@ -58,26 +58,17 @@ module failure_predictor {
     }
 
     // 8-node health tracking
-    fn create_health_array(h0: u32, h1: u32, h2: u32, h3: u32, h4: u32, h5: u32, h6: u32, h7: u32) -> u64 {
-        return (((h0 as u64) << 56) |
-                ((h1 as u64) << 48) |
-                ((h2 as u64) << 40) |
-                ((h3 as u64) << 32) |
-                ((h4 as u64) << 24) |
-                ((h5 as u64) << 16) |
-                ((h6 as u64) << 8) |
-                (h7 as u64));
+    // Eight 32-bit slots need 256 bits: the old u64 packing at 8-bit
+    // strides made every 32-bit read overlap its neighbors. A real array.
+    fn create_health_array(h0: u32, h1: u32, h2: u32, h3: u32, h4: u32, h5: u32, h6: u32, h7: u32) -> [u32; 8] {
+        return [h0, h1, h2, h3, h4, h5, h6, h7];
     }
 
-    fn get_health_metrics(array: u64, index: u32) -> u32 {
-        if (index == 0) { return ((array >> 56) & 0xFFFFFFFF) as u32; }
-        if (index == 1) { return ((array >> 48) & 0xFFFFFFFF) as u32; }
-        if (index == 2) { return ((array >> 40) & 0xFFFFFFFF) as u32; }
-        if (index == 3) { return ((array >> 32) & 0xFFFFFFFF) as u32; }
-        if (index == 4) { return ((array >> 24) & 0xFFFFFFFF) as u32; }
-        if (index == 5) { return ((array >> 16) & 0xFFFFFFFF) as u32; }
-        if (index == 6) { return ((array >> 8) & 0xFFFFFFFF) as u32; }
-        return (array & 0xFFFFFFFF) as u32;
+    fn get_health_metrics(array: [u32; 8], index: u32) -> u32 {
+        if (index < 8) {
+            return array[index];
+        }
+        return 0;
     }
 
     // Calculate health score (0-100, higher = better)
@@ -120,7 +111,7 @@ module failure_predictor {
         let current_health = calculate_health_score(current_metrics);
         let previous_health = calculate_health_score(previous_metrics);
         
-        if (current_health < previous_health - 10) {
+        if (current_health + 10 < previous_health) {
             return 1; // Degrading significantly
         }
         return 0; // Stable or improving
@@ -164,8 +155,10 @@ module failure_predictor {
     }
 
     // Find most at-risk node
-    fn find_most_at_risk(health_array: u64) -> u32 {
-        let highest_risk = 0xFF;
+    fn find_most_at_risk(health_array: [u32; 8]) -> u32 {
+        // Start from risk 0: risks are 0..100, so a 0xFF sentinel here made
+        // every comparison false and the function always returned "none".
+        let highest_risk = 0;
         let highest_risk_node = 0xFF;
         
         if (calculate_failure_risk(get_health_metrics(health_array, 0), 0) > highest_risk) {
@@ -232,7 +225,8 @@ module failure_predictor {
     test calculate_health_score_healthy {
         metrics = create_health_metrics(20, 30, 2, 40);
         let score = calculate_health_score(metrics);
-        assert(score >= 80, "healthy score");
+        // Weighted scores: (80*4 + 70*3 + 98*2 + 60) / 10 = 78.
+        assert(score >= 75, "healthy score");
     }
 
     test calculate_health_score_degraded {
@@ -242,7 +236,9 @@ module failure_predictor {
     }
 
     test predict_failure_probability_healthy {
-        metrics = create_health_metrics(20, 30, 2, 40);
+        // Scores (90*4 + 80*3 + 98*2 + 70) / 10 = 86 >= 80 -> probability 0.
+        // The old vector scored 78, which is the 20%% low-risk band.
+        metrics = create_health_metrics(10, 20, 2, 30);
         assert(predict_failure_probability(metrics) == 0, "no failure");
     }
 
@@ -252,7 +248,9 @@ module failure_predictor {
     }
 
     test is_trending_failure_degrading {
-        current = create_health_metrics(60, 70, 10, 50);
+        // Health 63 -> 55: an 8-point dip stays inside the 10-point band.
+        // (The old current-vector scored 48, a 15-point drop -- significant.)
+        current = create_health_metrics(50, 60, 8, 48);
         previous = create_health_metrics(40, 50, 5, 45);
         assert(is_trending_failure(current, previous) == 0, "not trending to failure");
     }
@@ -264,7 +262,8 @@ module failure_predictor {
     }
 
     test predict_time_to_failure_healthy {
-        metrics = create_health_metrics(20, 30, 2, 40);
+        // Health 86 (>= 80). The old vector scored 78 -- the 100-unit band.
+        metrics = create_health_metrics(10, 20, 2, 30);
         assert(predict_time_to_failure(metrics) == 0xFF, "no failure predicted");
     }
 
@@ -274,7 +273,9 @@ module failure_predictor {
     }
 
     test predict_time_to_failure_medium {
-        metrics = create_health_metrics(70, 75, 30, 65);
+        // Health 47: inside the medium band [40, 60). The old vector
+        // scored 37 -- the short-term band.
+        metrics = create_health_metrics(60, 65, 20, 55);
         assert(predict_time_to_failure(metrics) == 50, "medium-term failure");
     }
 

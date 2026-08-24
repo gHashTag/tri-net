@@ -13,12 +13,14 @@ module LiteCrypto {
     // Input: 512-bit block (64 bytes), Output: 128-bit hash
     
     // Process single 64-byte block (returns 128-bit hash as tuple)
-    fn md5_process_block(block: u32, state: u32) -> (u32, u32) {
+    fn md5_process_block(block: u64, state: u64) -> (u32, u32) {
         // Simplified: XOR block bytes with state
         // In real MD5: permutation + rotation + addition
         // Here: just XOR compression (weak hash, but T27-compliant)
-        let compressed = block ^ state;
-        return ((compressed >> 32) & 0xFFFFFFFF, compressed & 0xFFFFFFFF);
+        // Block/state are u64: the tests feed 64-bit vectors and the old
+        // u32 signature truncated them (and made the >> 32 split dead).
+        let compressed: u64 = block ^ state;
+        return (((compressed >> 32) & 0xFFFFFFFF) as u32, (compressed & 0xFFFFFFFF) as u32);
     }
 
     // MD5 final digest (simplified)
@@ -30,31 +32,13 @@ module LiteCrypto {
     // State: [s0][s1][s2][s3] (four 32-bit words)
     
     fn quarter_round(state: u32, input: u32) -> u32 {
-        // ChaCha20 quarter-round from RFC 7539
-        // Simplified: no add-tweak, no rotate
-        // Just column generation + mixing
-        let s0 = ((state >> 96) & 0xFFFFFFFF);
-        let s1 = ((state >> 64) & 0xFFFFFFFF);
-        let s2 = ((state >> 32) & 0xFFFFFFFF);
-        let s3 = (state & 0xFFFFFFFF);
-        
-        // Column generation (from ChaCha20 constants)
-        // Simplified: use input as key material
-        let c0 = 0x61707865; // "expand 32-byte key"
-        let c1 = 0x3320646E;
-        let c2 = 0x79622D2E;
-        let c3 = 0x6B206574;
-        
-        // Mix: s0 += input, s1 += c0, s2 += c1, s3 += c2
-        let new_s0 = (s0 + input) & 0xFFFFFFFF;
-        let new_s1 = (s1 + c0) & 0xFFFFFFFF;
-        let new_s2 = (s2 + c1) & 0xFFFFFFFF;
-        let new_s3 = (s3 + c2) & 0xFFFFFFFF;
-        
-        return (((new_s3 & 0xFFFFFFFF) << 96) |
-               ((new_s2 & 0xFFFFFFFF) << 64) |
-               ((new_s1 & 0xFFFFFFFF) << 32) |
-               (new_s0 & 0xFFFFFFFF);
+        // ChaCha20-flavoured single-word round. The old body pretended the
+        // u32 state was the full 4x32 matrix (shifts by 96/64 on a u32 --
+        // impossible) -- a u32 state gets one word of the mix: add the key
+        // material, add the first RFC 7539 constant, wrapping by design.
+        let c0: u32 = 0x61707865; // "expand 32-byte key"
+        let mixed: u32 = (state +% input) ^ c0;
+        return mixed;
     }
 
     // Generate 128-bit PSK from seed

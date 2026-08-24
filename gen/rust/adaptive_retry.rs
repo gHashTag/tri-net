@@ -11,20 +11,59 @@ pub const QUALITY_HIGH: u8 = 0xCC;
 
 pub const QUALITY_MEDIUM: u8 = 0x80;
 
-pub fn backoff_delay_ms(attempt: u8) -> u16 { unimplemented!() }
+pub fn backoff_delay_ms(attempt: u8) -> u16 {
+    if (attempt == 0) {
+        return (BASE_DELAY_MS as u16);
+    }
+    if (attempt <= 5) {
+        let multiplier: u16 = ((1 << attempt) as u16);
+        let delay: u16 = ((BASE_DELAY_MS as u16) * multiplier);
+        if (delay > 5000) {
+            return 5000;
+        }
+        return delay;
+    }
+    return 5000;
+}
 
-pub fn max_retries_for_quality(quality_q8: u8) -> u8 { unimplemented!() }
+pub fn max_retries_for_quality(quality_q8: u8) -> u8 {
+    if (quality_q8 >= QUALITY_HIGH) {
+        return 5;
+    }
+    if (quality_q8 >= QUALITY_MEDIUM) {
+        return 3;
+    }
+    return 1;
+}
 
 pub fn should_retry(current_attempt: u8, link_quality_q8: u8) -> bool {
     let max_retries: u8 = max_retries_for_quality(link_quality_q8);
-    (current_attempt < max_retries);
+    return (current_attempt < max_retries);
 }
 
-pub fn base_probability(quality_q8: u8) -> u8 { unimplemented!() }
+pub fn base_probability(quality_q8: u8) -> u8 {
+    if (quality_q8 >= QUALITY_HIGH) {
+        return 200;
+    }
+    if (quality_q8 >= QUALITY_MEDIUM) {
+        return 150;
+    }
+    return 100;
+}
 
 pub fn retry_success_probability(attempt: u8, quality_q8: u8) -> u8 {
     let base_prob: u8 = base_probability(quality_q8);
+    let decay: u8 = ((base_prob / 4) * attempt);
+    if (base_prob > decay) {
+        return (base_prob - decay);
+    }
+    return 10;
 }
 
-pub fn total_retry_time(max_retries: u8) -> u16 { unimplemented!() }
+pub fn total_retry_time(max_retries: u8) -> u16 {
+    if (max_retries == 0) {
+        return 0;
+    }
+    return (backoff_delay_ms((max_retries - 1)) + total_retry_time((max_retries - 1)));
+}
 

@@ -24,37 +24,99 @@ pub fn iperf3_sequence(packet_byte: u8) -> u32 {
 }
 
 pub fn expected_loss_rate_p10(attenuation_db: u8) -> u8 {
+    let base_loss: u8 = 0x10;
     let att_factor: u8 = ((attenuation_db / 3) as u8);
     let add_loss: u8 = (att_factor * 0x10);
+    let total: u16 = ((base_loss as u16) + (add_loss as u16));
+    if (total > 0xC0) {
+        return 0xC0;
+    }
+    return (total as u8);
 }
 
 pub fn throughput_factor_p8(attenuation_db: u8) -> u8 {
     let loss_p10: u8 = expected_loss_rate_p10(attenuation_db);
     let loss_p8: u8 = (((loss_p10 as u16) / 10) as u8);
-    wrapping_sub(loss_p8);
+    return (((256 - (loss_p8 as u32)) & 0xFF) as u8);
 }
 
-pub fn signal_quality(attenuation_db: u8) -> u8 { unimplemented!() }
+pub fn signal_quality(attenuation_db: u8) -> u8 {
+    if (attenuation_db <= 5) {
+        return 0;
+    }
+    if (attenuation_db <= 10) {
+        return 1;
+    }
+    if (attenuation_db <= 15) {
+        return 2;
+    }
+    if (attenuation_db <= 20) {
+        return 3;
+    }
+    if (attenuation_db <= 25) {
+        return 4;
+    }
+    return 5;
+}
 
-pub fn total_attenuation(hop1_db: u8, hop2_db: u8) -> u8 { unimplemented!() }
+pub fn total_attenuation(hop1_db: u8, hop2_db: u8) -> u8 {
+    let sum: u16 = ((hop1_db as u16) + (hop2_db as u16));
+    if (sum > (ATTEN_MAX as u16)) {
+        return ATTEN_MAX;
+    }
+    return (sum as u8);
+}
 
 pub fn delivery_rate_p8(hop1_db: u8, hop2_db: u8) -> u8 {
     let factor1: u8 = throughput_factor_p8(hop1_db);
     let factor2: u8 = throughput_factor_p8(hop2_db);
     let product: u16 = ((factor1 as u16) * (factor2 as u16));
-    ((product >> 8) as u8);
+    return ((product >> 8) as u8);
 }
 
 pub fn simulate_hop(attenuation_db: u8, packet_seq: u8) -> bool {
     let success_p8: u8 = throughput_factor_p8(attenuation_db);
     let random_factor: u8 = (packet_seq % 100);
-    let random_threshold: u8 = ((((random_factor as u16) * 0x100_) / 100) as u8);
-    (random_threshold < success_p8);
+    let random_threshold: u8 = ((((random_factor as u16) * 256) / 100) as u8);
+    return (random_threshold < success_p8);
 }
 
-pub fn forward_packet(hop1_db: u8, hop2_db: u8, packet_seq: u8) -> bool { unimplemented!() }
+pub fn forward_packet(hop1_db: u8, hop2_db: u8, packet_seq: u8) -> bool {
+    if !(simulate_hop(hop1_db, packet_seq)) {
+        return false;
+    }
+    return simulate_hop(hop2_db, packet_seq);
+}
 
-pub fn tcp_packet_byte(seq: u32, byte_index: u8, data_byte: u8) -> u8 { unimplemented!() }
+pub fn tcp_packet_byte(seq: u32, byte_index: u8, data_byte: u8) -> u8 {
+    if (byte_index == 0) {
+        return (((seq >> 24) & 0xFF) as u8);
+    }
+    if (byte_index == 1) {
+        return (((seq >> 16) & 0xFF) as u8);
+    }
+    if (byte_index == 2) {
+        return (((seq >> 8) & 0xFF) as u8);
+    }
+    if (byte_index == 3) {
+        return ((seq & 0xFF) as u8);
+    }
+    if (byte_index <= 7) {
+        return 0x00;
+    }
+    return 0xAA;
+}
 
-pub fn udp_packet_byte(seq: u16, byte_index: u8, data_byte: u8) -> u8 { unimplemented!() }
+pub fn udp_packet_byte(seq: u16, byte_index: u8, data_byte: u8) -> u8 {
+    if (byte_index == 0) {
+        return (((seq >> 8) & 0xFF) as u8);
+    }
+    if (byte_index == 1) {
+        return ((seq & 0xFF) as u8);
+    }
+    if (byte_index <= 3) {
+        return 0x00;
+    }
+    return 0xBB;
+}
 

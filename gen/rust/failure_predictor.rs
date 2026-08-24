@@ -49,33 +49,15 @@ pub fn get_prediction_time(score: u32) -> u32 {
     return (score & 0x3FFF);
 }
 
-pub fn create_health_array(h0: u32, h1: u32, h2: u32, h3: u32, h4: u32, h5: u32, h6: u32, h7: u32) -> u64 {
-    return (((((((((h0 as u64) << 56) | ((h1 as u64) << 48)) | ((h2 as u64) << 40)) | ((h3 as u64) << 32)) | ((h4 as u64) << 24)) | ((h5 as u64) << 16)) | ((h6 as u64) << 8)) | (h7 as u64));
+pub fn create_health_array(h0: u32, h1: u32, h2: u32, h3: u32, h4: u32, h5: u32, h6: u32, h7: u32) -> [u32; 8] {
+    return [h0,h1,h2,h3,h4,h5,h6,h7];
 }
 
-pub fn get_health_metrics(array: u64, index: u32) -> u32 {
-    if (index == 0) {
-        return (((array >> 56) & 0xFFFFFFFF) as u32);
+pub fn get_health_metrics(array: [u32; 8], index: u32) -> u32 {
+    if (index < 8) {
+        return array[(index) as usize];
     }
-    if (index == 1) {
-        return (((array >> 48) & 0xFFFFFFFF) as u32);
-    }
-    if (index == 2) {
-        return (((array >> 40) & 0xFFFFFFFF) as u32);
-    }
-    if (index == 3) {
-        return (((array >> 32) & 0xFFFFFFFF) as u32);
-    }
-    if (index == 4) {
-        return (((array >> 24) & 0xFFFFFFFF) as u32);
-    }
-    if (index == 5) {
-        return (((array >> 16) & 0xFFFFFFFF) as u32);
-    }
-    if (index == 6) {
-        return (((array >> 8) & 0xFFFFFFFF) as u32);
-    }
-    return ((array & 0xFFFFFFFF) as u32);
+    return 0;
 }
 
 pub fn calculate_health_score(metrics: u32) -> u32 {
@@ -87,7 +69,7 @@ pub fn calculate_health_score(metrics: u32) -> u32 {
     let mem_score = (100 - memory);
     let error_score = (100 - errors);
     let temp_score = (100 - temp);
-    let total = (((((cpu_score << 2) + (mem_score * 3)) + (error_score << 1)) + temp_score) / 10);
+    let total = (((((cpu_score * 4) + (mem_score * 3)) + (error_score * 2)) + temp_score) / 10);
     return total;
 }
 
@@ -115,7 +97,7 @@ pub fn predict_failure_probability(metrics: u32) -> u32 {
 pub fn is_trending_failure(current_metrics: u32, previous_metrics: u32) -> u32 {
     let current_health = calculate_health_score(current_metrics);
     let previous_health = calculate_health_score(previous_metrics);
-    if (current_health < (previous_health - 10)) {
+    if ((current_health + 10) < previous_health) {
         return 1;
     }
     return 0;
@@ -158,8 +140,8 @@ pub fn needs_immediate_action(metrics: u32) -> bool {
     return (((cpu > 95) || (temp > 95)) || (errors > 50));
 }
 
-pub fn find_most_at_risk(health_array: u64) -> u32 {
-    let mut highest_risk = 0xFF;
+pub fn find_most_at_risk(health_array: [u32; 8]) -> u32 {
+    let mut highest_risk = 0;
     let mut highest_risk_node = 0xFF;
     if (calculate_failure_risk(get_health_metrics(health_array, 0), 0) > highest_risk) {
         highest_risk = calculate_failure_risk(get_health_metrics(health_array, 0), 0);

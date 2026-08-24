@@ -57,45 +57,109 @@ pub fn get_optimization_target(state: u32) -> u32 {
     return (state & 0xFFF);
 }
 
-pub fn create_layer_array(phy: u32, mac: u32, network: u32, transport: u32) -> u64 {
-    return (((((phy as u64) << 48) | ((mac as u64) << 32)) | ((network as u64) << 16)) | (transport as u64));
+pub fn create_layer_array(phy: u32, mac: u32, network: u32, transport: u32) -> [u32; 4] {
+    return [phy,mac,network,transport];
 }
 
-pub fn get_layer_params(array: u64, layer: u32) -> u32 {
-    if (layer == LAYER_PHY) {
-        return (((array >> 48) & 0xFFFFFFFF) as u32);
+pub fn set_slot4(array: [u32; 4], index: u32, value: u32) -> [u32; 4] {
+    let a0: u32 = array[0];
+    let a1: u32 = array[1];
+    let a2: u32 = array[2];
+    let a3: u32 = array[3];
+    if (index == 0) {
+        return [value,a1,a2,a3];
     }
-    if (layer == LAYER_MAC) {
-        return (((array >> 32) & 0xFFFFFFFF) as u32);
+    if (index == 1) {
+        return [a0,value,a2,a3];
     }
-    if (layer == LAYER_NETWORK) {
-        return (((array >> 16) & 0xFFFFFFFF) as u32);
+    if (index == 2) {
+        return [a0,a1,value,a3];
     }
-    return ((array & 0xFFFFFFFF) as u32);
+    return [a0,a1,a2,value];
 }
 
-pub fn update_layer_params(array: u64, layer: u32, new_params: u32) -> u64 {
-    if (layer == LAYER_PHY) {
-        return ((array & 0x0000FFFFFFFFFFFF) | ((new_params as u64) << 48));
-    } else {
-        if (layer == LAYER_MAC) {
-            return ((array & 0xFFFF0000FFFFFFFF) | ((new_params as u64) << 32));
-        } else {
-            if (layer == LAYER_NETWORK) {
-                return ((array & 0xFFFFFFFF0000FFFF) | ((new_params as u64) << 16));
-            } else {
-                return ((array & 0xFFFFFFFFFFFF0000) | (new_params as u64));
-            }
-        }
+pub fn get_layer_params(array: [u32; 4], layer: u32) -> u32 {
+    if (layer < 4) {
+        return array[(layer) as usize];
     }
+    return 0;
+}
+
+pub fn update_layer_params(array: [u32; 4], layer: u32, new_params: u32) -> [u32; 4] {
+    return set_slot4(array, layer, new_params);
 }
 
 pub fn calculate_joint_metric(phy_params: u32, mac_params: u32, net_params: u32) -> u32 {
     let power_eff = (255 - get_power(phy_params));
     let rate = get_rate(mac_params);
     let reliability = get_retries(net_params);
-    let metric = ((((power_eff * 5) / 10) + ((rate * 3) / 10)) + ((reliability << 1) / 10));
+    let metric = ((((power_eff * 5) / 10) + ((rate * 3) / 10)) + ((reliability * 2) / 10));
     return metric;
+}
+
+pub fn coordinate_power(state: u32, phy_params: u32, mac_params: u32) -> (u32, u32) {
+    let mode = get_mode(state);
+    let current_phy_power = get_power(phy_params);
+    let current_mac_power = get_power(mac_params);
+    if (mode == MODE_CONSERVATIVE) {
+        let mut new_phy = (current_phy_power - 10);
+        let mut new_mac = (current_mac_power - 5);
+        if (new_phy < 10) {
+            new_phy = 10;
+        }
+        if (new_mac < 10) {
+            new_mac = 10;
+        }
+        return (new_phy, new_mac);
+    } else {
+        if (mode == MODE_AGGRESSIVE) {
+            let mut new_phy = (current_phy_power + 10);
+            let mut new_mac = (current_mac_power + 5);
+            if (new_phy > 255) {
+                new_phy = 255;
+            }
+            if (new_mac > 255) {
+                new_mac = 255;
+            }
+            return (new_phy, new_mac);
+        } else {
+            return (current_phy_power, current_mac_power);
+        }
+    }
+}
+
+pub fn optimize_for_target(state: u32, phy_params: u32, mac_params: u32) -> (u32, u32) {
+    let target = get_optimization_target(state);
+    if (target == 0) {
+        let mut new_rate = (get_rate(mac_params) + 20);
+        let mut new_retries = (get_retries(phy_params) - 1);
+        if (new_rate > 255) {
+            new_rate = 255;
+        }
+        if (new_retries < 1) {
+            new_retries = 1;
+        }
+        return (new_rate, new_retries);
+    } else {
+        if (target == 1) {
+            let mut new_rate = 255;
+            let mut new_window = (get_window(mac_params) + 10);
+            if (new_window > 255) {
+                new_window = 255;
+            }
+            return (new_rate, new_window);
+        } else {
+            let mut new_retries = (get_retries(phy_params) + 3);
+            let mut new_power = (get_power(phy_params) + 15);
+            if (new_retries > 255) {
+                new_retries = 255;
+            }
+            if (new_power > 255) {
+                new_power = 255;
+            }
+            return (new_retries, new_power);
+        }
+    }
 }
 
 pub fn needs_synchronization(state: u32, current_time: u32) -> bool {

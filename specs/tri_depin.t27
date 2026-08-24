@@ -33,9 +33,9 @@ module TriDepin {
     // change flips ~half the output bits (verified by the avalanche tests).
     fn mix32(x: u32) -> u32 {
         let a: u32 = x ^ (x >> 16);
-        let b: u32 = a + (a << 3);   // a * 9, shift-add
+        let b: u32 = a +% (a << 3);   // a * 9, shift-add (wrapping by design)
         let c: u32 = b ^ (b >> 11);
-        let d: u32 = c + (c << 15);  // c * 32769, shift-add
+        let d: u32 = c +% (c << 15);  // c * 32769, shift-add (wrapping by design)
         return d ^ (d >> 16);
     }
 
@@ -63,7 +63,7 @@ module TriDepin {
     // Monotonic byte meter (the reward quantity). Saturating so an overflow can
     // never wrap the tally DOWNWARD and mint free tokens.
     fn bytes_add(total: u32, nbytes: u32) -> u32 {
-        let sum: u32 = total + nbytes;
+        let sum: u32 = total +% nbytes;
         if (sum < total) {
             return 0xFFFFFFFF; // saturate
         } else {
@@ -126,9 +126,9 @@ module TriDepin {
 
     // Size-binding at the accumulator: same digest, different byte count -> diff acc.
     test absorb_size_bound {
-        small = relay_absorb(TRI_GENESIS, 0xAAAA0001, 70);
+        small_acc = relay_absorb(TRI_GENESIS, 0xAAAA0001, 70);
         big   = relay_absorb(TRI_GENESIS, 0xAAAA0001, 1200);
-        assert(small != big, "bytes bound in acc");
+        assert(small_acc != big, "bytes bound in acc");
     }
 
     // Identity-binding: identical work, different node key -> different seal.

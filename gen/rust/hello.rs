@@ -53,6 +53,14 @@ pub fn parse_hello_seq(b4: u8, b5: u8, b6: u8, b7: u8) -> u32 {
     return u32_from_bytes(b4, b5, b6, b7);
 }
 
+pub fn parse_hello_n_valid(b8: u8) -> (u8, bool) {
+    if (b8 > MAX_HEARD) {
+        return (b8, false);
+    } else {
+        return (b8, true);
+    }
+}
+
 pub fn parse_hello_heard0(b9: u8, b10: u8, b11: u8, b12: u8) -> u32 {
     return u32_from_bytes(b9, b10, b11, b12);
 }

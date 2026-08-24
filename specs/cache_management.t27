@@ -151,8 +151,10 @@ module cache_management {
                 let access_count: u32 = get_access_count(entry);
                 let age: u32 = get_age(entry);
                 
-                // Score: prioritize low access count, then old age
-                let score: u32 = (access_count << 8) | age;
+                // Score: prioritize low access count, then OLD age. Age must
+                // be inverted: the raw \`| age\` made the YOUNGEST entry win
+                // among equal access counts, contradicting the policy.
+                let score: u32 = (access_count << 8) | (255 - age);
                 
                 if (score < worst_score) {
                     worst_score = score;
@@ -342,5 +344,40 @@ module cache_management {
         }
         
         return create_cache_stats(hits, misses, size, evictions);
+    }
+
+    // ---- Tests ----
+
+    test cache_entry_roundtrip {
+        e = create_cache_entry(9, 3, 40, 128);
+        assert(get_data_id(e) == 9, "data id");
+        assert(get_access_count(e) == 3, "access count");
+        assert(get_age(e) == 40, "age");
+        assert(get_entry_size(e) == 128, "size");
+    }
+
+    test access_count_saturates {
+        e = create_cache_entry(1, 254, 0, 8);
+        e2 = update_access_count(e);
+        assert(get_access_count(e2) == 255, "increments");
+        e3 = update_access_count(e2);
+        assert(get_access_count(e3) == 255, "saturates at 255");
+    }
+
+    test eviction_prefers_cold_then_old {
+        let cache: [u32; 16] = [
+            create_cache_entry(1, 5, 10, 8),
+            create_cache_entry(2, 1, 10, 8),
+            create_cache_entry(3, 1, 200, 8),
+            create_cache_entry(4, 9, 250, 8),
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        ];
+        // Entries 2 and 3 share the lowest access count; 3 is older.
+        assert(find_eviction_candidate(cache) == 2, "coldest then oldest wins");
+    }
+
+    test hit_rate_calculation {
+        assert(calculate_hit_rate(75, 100) == 75, "75 percent");
+        assert(calculate_hit_rate(0, 0) == 0, "no accesses is 0");
     }
 }

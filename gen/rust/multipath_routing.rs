@@ -53,24 +53,18 @@ pub fn get_multipath_last_update(state: u32) -> u32 {
     return (state & 0xFF);
 }
 
-pub fn create_path_array(p0: u32, p1: u32, p2: u32, p3: u32) -> u64 {
-    return (((((p0 as u64) << 48) | ((p1 as u64) << 32)) | ((p2 as u64) << 16)) | (p3 as u64));
+pub fn create_path_array(p0: u32, p1: u32, p2: u32, p3: u32) -> [u32; 4] {
+    return [p0, p1, p2, p3];
 }
 
-pub fn get_multipath(array: u64, index: u32) -> u32 {
-    if (index == 0) {
-        return (((array >> 48) & 0xFFFFFFFF) as u32);
+pub fn get_multipath(array: [u32; 4], index: u32) -> u32 {
+    if (index < 4) {
+        return array[(index) as usize];
     }
-    if (index == 1) {
-        return (((array >> 32) & 0xFFFFFFFF) as u32);
-    }
-    if (index == 2) {
-        return (((array >> 16) & 0xFFFFFFFF) as u32);
-    }
-    return ((array & 0xFFFFFFFF) as u32);
+    return 0;
 }
 
-pub fn count_valid_paths(path_array: u64) -> u32 {
+pub fn count_valid_paths(path_array: [u32; 4]) -> u32 {
     let mut count = 0;
     if (get_path_valid(get_multipath(path_array, 0)) == PATH_VALID) {
         count = (count + 1);
@@ -87,11 +81,11 @@ pub fn count_valid_paths(path_array: u64) -> u32 {
     return count;
 }
 
-pub fn is_multipath_viable(path_array: u64) -> u32 {
+pub fn is_multipath_viable(path_array: [u32; 4]) -> bool {
     return (count_valid_paths(path_array) >= MIN_PATHS);
 }
 
-pub fn select_primary_path(path_array: u64, quality_array: u64) -> u32 {
+pub fn select_primary_path(path_array: [u32; 4], quality_array: [u32; 4]) -> u32 {
     if !(is_multipath_viable(path_array)) {
         return 0xFF;
     }
@@ -110,7 +104,8 @@ pub fn select_primary_path(path_array: u64, quality_array: u64) -> u32 {
     }
 }
 
-pub fn calculate_path_diversity(path_array: u64) -> u32 {
+pub fn calculate_path_diversity(path_array: [u32; 4]) -> u32 {
+    let diversity_score = 0;
     let mut hop1_set = 0;
     if (get_path_valid(get_multipath(path_array, 0)) == PATH_VALID) {
         hop1_set = (hop1_set | (1 << get_multipath_hop1(get_multipath(path_array, 0))));
@@ -121,7 +116,7 @@ pub fn calculate_path_diversity(path_array: u64) -> u32 {
     if (get_path_valid(get_multipath(path_array, 2)) == PATH_VALID) {
         hop1_set = (hop1_set | (1 << get_multipath_hop1(get_multipath(path_array, 2))));
     }
-    if ((get_path_valid(get_multipath(path_array, 3)) == path_valid) == PATH_VALID) {
+    if (get_path_valid(get_multipath(path_array, 3)) == PATH_VALID) {
         hop1_set = (hop1_set | (1 << get_multipath_hop1(get_multipath(path_array, 3))));
     }
     let mut count = 0;
@@ -152,7 +147,7 @@ pub fn calculate_path_diversity(path_array: u64) -> u32 {
     return count;
 }
 
-pub fn distribute_load(path_array: u64, current_path: u32, load_ratio: u32) -> u32 {
+pub fn distribute_load(path_array: [u32; 4], current_path: u32, load_ratio: u32) -> u32 {
     let total_paths = count_valid_paths(path_array);
     if (total_paths < 2) {
         return current_path;
@@ -174,14 +169,14 @@ pub fn distribute_load(path_array: u64, current_path: u32, load_ratio: u32) -> u
     return current_path;
 }
 
-pub fn needs_failover(path_array: u64, current_path: u32) -> bool {
+pub fn needs_failover(path_array: [u32; 4], current_path: u32) -> bool {
     if (current_path >= 4) {
         return false;
     }
     return (get_path_valid(get_multipath(path_array, current_path)) == PATH_INVALID);
 }
 
-pub fn perform_failover(state: u32, path_array: u64, failed_path: u32) -> u32 {
+pub fn perform_failover(state: u32, path_array: [u32; 4], failed_path: u32) -> u32 {
     let active = get_active_paths(state);
     let current = get_current_path(state);
     let flow = get_flow_id(state);
@@ -194,7 +189,7 @@ pub fn perform_failover(state: u32, path_array: u64, failed_path: u32) -> u32 {
     return state;
 }
 
-pub fn calculate_multipath_gain(path_array: u64) -> u32 {
+pub fn calculate_multipath_gain(path_array: [u32; 4]) -> u32 {
     let valid_paths = count_valid_paths(path_array);
     if (valid_paths >= 2) {
         return (valid_paths * 30);

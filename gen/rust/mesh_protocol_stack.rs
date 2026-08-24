@@ -12,7 +12,7 @@ pub const NODE_B: u32 = 2;
 pub const NODE_C: u32 = 3;
 
 pub fn build_packet(src: u32, dst: u32, ttl: u8, payload: u8) -> u32 {
-    return (((((src & 0xFF) << 24) | ((dst & 0xFF) << 16)) | (((ttl as u32) & 0xF) << 12)) | ((payload as u32) & 0xF));
+    return (((((src & 0xFF) << 24) | ((dst & 0xFF) << 16)) | (((ttl as u32) & 0xF) << 12)) | ((payload as u32) & 0xFF));
 }
 
 pub fn extract_src(packet: u32) -> u32 {
@@ -28,7 +28,15 @@ pub fn extract_ttl(packet: u32) -> u8 {
 }
 
 pub fn extract_payload(packet: u32) -> u8 {
-    return ((packet & 0xF) as u8);
+    return ((packet & 0xFF) as u8);
+}
+
+pub fn decrement_ttl(packet: u32) -> (u32, bool) {
+    if (extract_ttl(packet) > 0) {
+        return (((packet & 0xFFFF0FFF) | ((((extract_ttl(packet) - 1) as u32) & 0xF) << 12)), (extract_ttl(packet) == 1));
+    } else {
+        return (packet, true);
+    }
 }
 
 pub fn route_packet(src: u32, dst: u32, next_hop: u32) -> u32 {
@@ -65,5 +73,16 @@ pub fn tx_path(src: u32, dst: u32, payload: u8) -> u32 {
 
 pub fn rx_path(packet: u32) -> u8 {
     return extract_payload(packet);
+}
+
+pub fn forward_packet(packet: u32, current_node: u32) -> (u32, bool, u32) {
+    let (new_pkt, expired) = decrement_ttl(packet);
+    if (expired) != 0 {
+        return (new_pkt, true, 0);
+    }
+    if (route_packet(current_node, extract_dst(new_pkt), 0) == 0) {
+        return (new_pkt, false, 0);
+    }
+    return (new_pkt, false, route_packet(current_node, extract_dst(new_pkt), 0));
 }
 

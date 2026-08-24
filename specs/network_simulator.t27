@@ -188,7 +188,7 @@ module network_simulator {
     }
 
     // Simulation state [current_time][event_count][node_count][packet_count]
-    fn create_sim_state(current_time: u32, event_count: u32, node_count: u32, packet_count: u32) -> u32 {
+    fn create_sim_state(current_time: u32, event_count: u32, node_count: u32) -> u32 {
         return (((current_time & 0xFFFF) << 16) |
                 ((event_count & 0xFF) << 8) |
                 (node_count & 0xFF));
@@ -352,5 +352,25 @@ module network_simulator {
                 ((avg_latency & 0xFF) << 16) |
                 ((duration & 0xFF) << 8) |
                 (node_count & 0xFF));
+    }
+
+    // ---- Tests ----
+
+    test sim_event_roundtrip {
+        e = create_sim_event(5, 40000, 9, 12);
+        assert(get_event_id(e) == 5, "event id");
+        assert(get_event_timestamp(e) == 40000, "timestamp");
+        assert(get_event_type(e) == 9, "event type");
+        assert(get_event_node_id(e) == 12, "node id");
+    }
+
+    test energy_drain_fails_node {
+        st = create_node_state(3, NODE_ACTIVE, 10, 7);
+        st = update_node_energy(st, 4);
+        assert(get_node_energy(st) == 6, "energy drained");
+        assert(get_node_status(st) == NODE_ACTIVE, "still active");
+        st = update_node_energy(st, 100);
+        assert(get_node_energy(st) == 0, "clamps at zero");
+        assert(get_node_status(st) == NODE_FAILED, "empty battery fails the node");
     }
 }

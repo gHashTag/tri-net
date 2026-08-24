@@ -46,6 +46,12 @@ pub fn calculate_resource_percentage(used: u32, max: u32) -> u32 {
     return ((used * 100) / max);
 }
 
+pub fn estimate_total_resources(module_count: u32, avg_lut: u32, avg_ff: u32) -> (u32, u32) {
+    let total_lut = (module_count * avg_lut);
+    let total_ff = (module_count * avg_ff);
+    return (total_lut, total_ff);
+}
+
 pub fn frequency_achievable(result: u32, target_freq: u32) -> bool {
     return (extract_achieved_freq(result) >= target_freq);
 }

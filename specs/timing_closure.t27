@@ -39,12 +39,13 @@ module TimingClosure {
 
     // Timing grade based on slack
     fn grade_timing(slack: u32) -> u32 {
-        if (slack >= 100) {
-            return TIMING_PASS;
-        } else if (slack >= 0) {
-            return TIMING_MARGINAL;
-        } else {
+        // slack carries a two's-complement value: MSB set means negative slack.
+        if (slack > 0x7FFFFFFF) {
             return TIMING_FAIL;
+        } else if (slack >= 100) {
+            return TIMING_PASS;
+        } else {
+            return TIMING_MARGINAL;
         }
     }
 
@@ -208,10 +209,9 @@ module TimingClosure {
     }
 
     test extract_slack_negative_handling {
-        // Slack is unsigned, so large value = negative
-        path = create_critical_path(500, 3, 0xFFFF00);
+        // Slack field is 8-bit; 0xFF is the two's-complement negative marker.
+        path = create_critical_path(500, 3, 0xFF);
         slack = extract_slack(path);
-        // Test that we can extract large values
         assert(slack == 0xFF, "extracted large slack");
     }
 }

@@ -12,52 +12,34 @@ pub const HEARTBEAT_TIMEOUT: u32 = 10000;
 pub const LINK_QUALITY_POOR: u32 = 30;
 
 pub fn create_node_state(is_alive: u32, failure_count: u32, last_heartbeat: u32, link_quality: u32) -> u32 {
-    return (((((is_alive & 0x1) << 24) | ((failure_count & 0xFF) << 16)) | ((last_heartbeat & 0xFF) << 8)) | (link_quality & 0xFF));
+    return (((((is_alive & 0x1) << 31) | ((failure_count & 0x7F) << 24)) | ((last_heartbeat & 0xFFFF) << 8)) | (link_quality & 0xFF));
 }
 
 pub fn get_is_alive(state: u32) -> u32 {
-    return ((state >> 24) & 0x1);
+    return ((state >> 31) & 0x1);
 }
 
 pub fn get_failure_count(state: u32) -> u32 {
-    return ((state >> 16) & 0xFF);
+    return ((state >> 24) & 0x7F);
 }
 
 pub fn get_last_heartbeat(state: u32) -> u32 {
-    return ((state >> 8) & 0xFF);
+    return ((state >> 8) & 0xFFFF);
 }
 
 pub fn get_link_quality(state: u32) -> u32 {
     return (state & 0xFF);
 }
 
-pub fn create_node_table(n0: u32, n1: u32, n2: u32, n3: u32, n4: u32, n5: u32, n6: u32, n7: u32) -> u64 {
-    return (((((((((n0 as u64) << 56) | ((n1 as u64) << 48)) | ((n2 as u64) << 40)) | ((n3 as u64) << 32)) | ((n4 as u64) << 24)) | ((n5 as u64) << 16)) | ((n6 as u64) << 8)) | (n7 as u64));
+pub fn create_node_table(n0: u32, n1: u32, n2: u32, n3: u32, n4: u32, n5: u32, n6: u32, n7: u32) -> [u32; 8] {
+    return [n0,n1,n2,n3,n4,n5,n6,n7];
 }
 
-pub fn get_node_state(table: u64, index: u32) -> u32 {
-    if (index == 0) {
-        return (((table >> 56) & 0xFF) as u32);
+pub fn get_node_state(table: [u32; 8], index: u32) -> u32 {
+    if (index < 8) {
+        return table[(index) as usize];
     }
-    if (index == 1) {
-        return (((table >> 48) & 0xFF) as u32);
-    }
-    if (index == 2) {
-        return (((table >> 40) & 0xFF) as u32);
-    }
-    if (index == 3) {
-        return (((table >> 32) & 0xFF) as u32);
-    }
-    if (index == 4) {
-        return (((table >> 24) & 0xFF) as u32);
-    }
-    if (index == 5) {
-        return (((table >> 16) & 0xFF) as u32);
-    }
-    if (index == 6) {
-        return (((table >> 8) & 0xFF) as u32);
-    }
-    return ((table & 0xFF) as u32);
+    return 0;
 }
 
 pub fn is_heartbeat_timeout(state: u32, current_time: u32) -> bool {
@@ -120,7 +102,7 @@ pub fn mark_node_alive(state: u32, current_time: u32) -> u32 {
     return create_node_state(1, 0, current_time, quality);
 }
 
-pub fn count_failed_nodes(table: u64) -> u32 {
+pub fn count_failed_nodes(table: [u32; 8]) -> u32 {
     let mut count = 0;
     if is_node_failed(get_node_state(table, 0)) {
         count = (count + 1);

@@ -266,4 +266,36 @@ module flow_control {
         
         return update_credits(flow, window);
     }
+
+    // ---- Tests ----
+
+    test flow_state_roundtrip {
+        f = create_flow_state(3, 7, 16, 9);
+        assert(get_sender_id(f) == 3, "sender");
+        assert(get_receiver_id(f) == 7, "receiver");
+        assert(get_window_size(f) == 16, "window");
+        assert(get_credits(f) == 9, "credits");
+    }
+
+    test credit_lifecycle {
+        f = create_flow_state(1, 2, 16, 1);
+        f = consume_credit(f);
+        assert(get_credits(f) == 0, "credit consumed");
+        f = consume_credit(f);
+        assert(get_credits(f) == 0, "no underflow at zero");
+        f = add_credits(f, 100);
+        assert(get_credits(f) == 16, "credits cap at the window");
+    }
+
+    test backpressure_levels {
+        // Window 16: used = window - credits.
+        f = create_flow_state(1, 2, 16, 2);
+        assert(is_under_backpressure(f) == 1, "14 used is backpressure");
+        assert(calculate_backpressure_level(f) == 2, "high level");
+        f = create_flow_state(1, 2, 16, 10);
+        assert(is_under_backpressure(f) == 0, "6 used is fine");
+        assert(calculate_backpressure_level(f) == 1, "moderate level");
+        f = create_flow_state(1, 2, 16, 14);
+        assert(calculate_backpressure_level(f) == 0, "2 used is no backpressure");
+    }
 }

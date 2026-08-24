@@ -41,6 +41,7 @@ pub fn calculate_pass_rate(passed: u32, total: u32) -> u8 {
     if (total == 0) {
         return 0;
     }
+    return (((passed * 100) / total) as u8);
 }
 
 pub fn test_passed(result: u32) -> bool {
@@ -48,7 +49,7 @@ pub fn test_passed(result: u32) -> bool {
 }
 
 pub fn bit_accurate(reference: u32, implementation: u32, tolerance_mask: u32) -> bool {
-    return (((reference ^ implementation) & tolerance_mask) == 0);
+    return (((reference ^ implementation) & (0xFFFFFFFF ^ tolerance_mask)) == 0);
 }
 
 pub fn fpga_board_ready(result: u32) -> bool {
@@ -76,11 +77,11 @@ pub fn extract_capture_timestamp(capture: u32) -> u32 {
 }
 
 pub fn create_performance_metric(metric_type: u32, value: u32, unit: u32) -> u32 {
-    return ((((metric_type & 0xF) << 24) | ((value & 0xFFFFFF) << 4)) | (unit & 0xF));
+    return ((((metric_type & 0xF) << 28) | ((value & 0xFFFFFF) << 4)) | (unit & 0xF));
 }
 
 pub fn extract_metric_type(metric: u32) -> u32 {
-    return ((metric >> 24) & 0xF);
+    return ((metric >> 28) & 0xF);
 }
 
 pub fn extract_metric_value(metric: u32) -> u32 {
