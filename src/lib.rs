@@ -22,49 +22,67 @@ pub mod wire;
 // explicit returns, parenthesised expressions and unread initialisers by design,
 // and rewriting them in gen/rust/ would break the spec-first invariant.
 #[allow(clippy::all, unused)]
+#[rustfmt::skip]
 #[path = "../gen/rust/mesh_routing.rs"]
 pub mod mesh_routing;
 
 #[allow(clippy::all, unused)]
+#[rustfmt::skip]
 #[path = "../gen/rust/etx.rs"]
 pub mod etx;
 
 #[allow(clippy::all, unused)]
+#[rustfmt::skip]
 #[path = "../gen/rust/adaptive_routing.rs"]
 pub mod adaptive_routing;
 
 #[allow(clippy::all, unused)]
+#[rustfmt::skip]
 #[path = "../gen/rust/multipath_routing.rs"]
 pub mod multipath_routing;
 
 #[allow(clippy::all, unused)]
+#[rustfmt::skip]
 #[path = "../gen/rust/frame_buffer.rs"]
 pub mod frame_buffer;
 
 #[allow(clippy::all, unused)]
+#[rustfmt::skip]
 #[path = "../gen/rust/flow_control.rs"]
 pub mod flow_control;
 
 #[allow(clippy::all, unused)]
+#[rustfmt::skip]
 #[path = "../gen/rust/health_dashboard.rs"]
 pub mod health_dashboard;
 
 #[allow(clippy::all, unused)]
+#[rustfmt::skip]
 #[path = "../gen/rust/anomaly_detector.rs"]
 pub mod anomaly_detector;
 
 #[allow(clippy::all, unused)]
+#[rustfmt::skip]
 #[path = "../gen/rust/quarantine_manager.rs"]
 pub mod quarantine_manager;
 
+#[allow(clippy::all, unused)]
+#[rustfmt::skip]
 #[path = "../gen/rust/internet_call.rs"]
 pub mod internet_call;
 
-#[path = "../gen/rust/nickname_directory.rs"]
-pub mod nickname_directory;
+#[allow(clippy::all, unused)]
+#[rustfmt::skip]
 #[path = "../gen/rust/mesh_call_signaling.rs"]
 pub mod mesh_call_signaling;
 
+#[allow(clippy::all, unused)]
+#[rustfmt::skip]
+#[path = "../gen/rust/nickname_directory.rs"]
+pub mod nickname_directory;
+
+#[allow(clippy::all, unused)]
+#[rustfmt::skip]
 #[path = "../gen/rust/group_chat.rs"]
 pub mod group_chat;
 
