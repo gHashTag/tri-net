@@ -257,7 +257,7 @@ pub fn apns_retry_delay_ms(attempts_completed: u32, jitter_ms: u32) -> u32 {
     if (attempts_completed <= 1) {
         return (APNS_RETRY_BASE_DELAY_MS + apns_bounded_jitter_ms(jitter_ms));
     }
-    return ((APNS_RETRY_BASE_DELAY_MS << 1) + apns_bounded_jitter_ms(jitter_ms));
+    return ((APNS_RETRY_BASE_DELAY_MS * 2) + apns_bounded_jitter_ms(jitter_ms));
 }
 
 pub fn apns_outbox_bounded_jitter_seconds(jitter_seconds: u32) -> u32 {
@@ -441,4 +441,3 @@ pub fn next_status(status: u8, accept: bool) -> u8 {
     }
     return status;
 }
-
