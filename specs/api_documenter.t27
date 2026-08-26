@@ -350,9 +350,15 @@ module api_documenter {
     }
 
     // Generate documentation report
+    // The report passes its parameter documentation through: the inner call
+    // used to reuse func_docs (64 slots) where param_docs (16) is expected -
+    // a size mismatch the generated Rust inherited whole. Threading the two
+    // parameters keeps every size honest; the function has no callers in
+    // this spec, so the widened signature breaks nothing.
     fn generate_documentation_report(func_docs: [u32; MAX_FUNCTIONS], func_count: u32,
-                                     xrefs: [u32; MAX_FUNCTIONS], xref_count: u32) -> u32 {
-        let doc_summary: u32 = generate_api_documentation(func_docs, func_count, func_docs, 0);
+                                     xrefs: [u32; MAX_FUNCTIONS], xref_count: u32,
+                                     param_docs: [u32; MAX_PARAMETERS], param_count: u32) -> u32 {
+        let doc_summary: u32 = generate_api_documentation(func_docs, func_count, param_docs, param_count);
         let documented_funcs: u32 = (doc_summary >> 24) & 0xFF;
         let coverage: u32 = calculate_documentation_coverage(documented_funcs, func_count);
         
