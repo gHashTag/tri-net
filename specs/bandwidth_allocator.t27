@@ -133,11 +133,15 @@ module BandwidthAllocator {
         let flow_id = get_flow_id(flow_req);
         let priority = get_flow_priority(flow_req);
         let min_bw = get_min_bandwidth(flow_req);
-        
-        if (new_bw < min_bw) { new_bw = min_bw; }
-        if (new_bw > MAX_BANDWIDTH) { new_bw = MAX_BANDWIDTH; }
-        
-        return create_flow_requirement(flow_id, priority, min_bw, new_bw);
+
+        // Parameters are immutable in the generated Rust (the language has
+        // no mut markers on arguments), so the clamp works on a local copy -
+        // the same pattern every accumulator in this corpus already uses.
+        let clamped_bw = new_bw;
+        if (clamped_bw < min_bw) { clamped_bw = min_bw; }
+        if (clamped_bw > MAX_BANDWIDTH) { clamped_bw = MAX_BANDWIDTH; }
+
+        return create_flow_requirement(flow_id, priority, min_bw, clamped_bw);
     }
 
     // Count active flows (flows with allocated bandwidth)
