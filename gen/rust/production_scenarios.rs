@@ -12,11 +12,11 @@ pub const STATE_PARTITIONED: u8 = 3;
 pub const STATE_RECOVERING: u8 = 4;
 
 pub fn create_node_state(state: u8, neighbors: u32, uptime: u32) -> u32 {
-    return ((((() & 0xFF) << 24) | ((neighbors & 0xFF) << 16)) | (uptime & 0xFFFF));
+    return (((((state as u32) & 0xFF) << 24) | ((neighbors & 0xFF) << 16)) | (uptime & 0xFFFF));
 }
 
 pub fn node_state(state: u32) -> u8 {
-    return ();
+    return (((state >> 24) & 0xFF) as u8);
 }
 
 pub fn node_neighbors(state: u32) -> u32 {
@@ -31,31 +31,31 @@ pub fn cold_start() -> u32 {
     return create_node_state(STATE_COLD_START, 0, 0);
 }
 
-pub fn discover_neighbor(node_state: u32) -> u32 {
-    if (node_state(node_state) == STATE_COLD_START) {
-        return create_node_state(STATE_DISCOVERING, 0, node_uptime(node_state));
+pub fn discover_neighbor(state: u32) -> u32 {
+    if (node_state(state) == STATE_COLD_START) {
+        return create_node_state(STATE_DISCOVERING, 0, node_uptime(state));
     } else {
-        if (node_state(node_state) == STATE_DISCOVERING) {
-            return create_node_state(STATE_CONNECTED, (node_neighbors(node_state) + 1), node_uptime(node_state));
+        if (node_state(state) == STATE_DISCOVERING) {
+            return create_node_state(STATE_CONNECTED, (node_neighbors(state) + 1), node_uptime(state));
         } else {
-            return node_state;
+            return state;
         }
     }
 }
 
-pub fn simulate_partition(node_state: u32) -> u32 {
-    if (node_state(node_state) == STATE_CONNECTED) {
-        return create_node_state(STATE_PARTITIONED, 0, node_uptime(node_state));
+pub fn simulate_partition(state: u32) -> u32 {
+    if (node_state(state) == STATE_CONNECTED) {
+        return create_node_state(STATE_PARTITIONED, 0, node_uptime(state));
     } else {
-        return node_state;
+        return state;
     }
 }
 
-pub fn recover_from_partition(node_state: u32) -> u32 {
-    if (node_state(node_state) == STATE_PARTITIONED) {
-        return create_node_state(STATE_RECOVERING, 0, node_uptime(node_state));
+pub fn recover_from_partition(state: u32) -> u32 {
+    if (node_state(state) == STATE_PARTITIONED) {
+        return create_node_state(STATE_RECOVERING, 0, node_uptime(state));
     } else {
-        return node_state;
+        return state;
     }
 }
 
@@ -71,11 +71,11 @@ pub fn node_leave(existing_node: u32) -> u32 {
     }
 }
 
-pub fn simulate_interference(node_state: u32, interference_level: u8) -> u32 {
+pub fn simulate_interference(state: u32, interference_level: u8) -> u32 {
     if (interference_level > 128) {
-        return create_node_state(node_state(node_state), 0, node_uptime(node_state));
+        return create_node_state(node_state(state), 0, node_uptime(state));
     } else {
-        return node_state;
+        return state;
     }
 }
 

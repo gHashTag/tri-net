@@ -46,17 +46,12 @@ pub fn calculate_compression_ratio(original: u32, compressed: u32) -> u32 {
 }
 
 pub fn compress_rle(data: u32, length: u32) -> u32 {
-    let;
-    compressed;
-    let;
-    count;
-    let;
-    current;
-    let;
-    i;
+    let mut compressed: u32 = 0;
+    let mut count: u32 = 0;
+    let mut current: u32 = (data & 0xF);
+    let mut i: u32 = 0;
     while ((i < length) && (i < 8)) {
-        let;
-        value;
+        let value: u32 = ((data >> (i * 4)) & 0xF);
         if (value == current) {
             count = (count + 1);
         } else {
@@ -73,17 +68,12 @@ pub fn compress_rle(data: u32, length: u32) -> u32 {
 }
 
 pub fn decompress_rle(compressed: u32) -> u32 {
-    let;
-    decompressed;
-    let;
-    pos;
+    let mut decompressed: u32 = 0;
+    let mut pos: u32 = 0;
     while (pos < 32) {
-        let;
-        count;
-        let;
-        value;
-        let;
-        i;
+        let count: u32 = ((compressed >> pos) & 0xF);
+        let value: u32 = ((compressed >> (pos + 4)) & 0xF);
+        let mut i: u32 = 0;
         while ((i < count) && (i < 8)) {
             decompressed = ((decompressed << 4) | value);
             i = (i + 1);
@@ -93,25 +83,17 @@ pub fn decompress_rle(compressed: u32) -> u32 {
     return decompressed;
 }
 
-pub fn compress_dictionary(data: u32, dictionary: Vec<>) -> u32 {
-    let;
-    best_match;
-    let;
-    best_score;
-    let;
-    i;
+pub fn compress_dictionary(data: u32, dictionary: [u32; DICTIONARY_SIZE as usize]) -> u32 {
+    let mut best_match: u32 = 0;
+    let mut best_score: u32 = 0;
+    let mut i: u32 = 0;
     while (i < DICTIONARY_SIZE) {
-        let;
-        dict_value;
-        let;
-        score;
-        let;
-        j;
+        let dict_value: u32 = dictionary[(i) as usize];
+        let mut score: u32 = 0;
+        let mut j: u32 = 0;
         while (j < 8) {
-            let;
-            data_nibble;
-            let;
-            dict_nibble;
+            let data_nibble: u32 = ((data >> (j * 4)) & 0xF);
+            let dict_nibble: u32 = ((dict_value >> (j * 4)) & 0xF);
             if (data_nibble == dict_nibble) {
                 score = (score + 1);
             }
@@ -126,17 +108,16 @@ pub fn compress_dictionary(data: u32, dictionary: Vec<>) -> u32 {
     return best_match;
 }
 
-pub fn decompress_dictionary(index: u32, dictionary: Vec<>) -> u32 {
+pub fn decompress_dictionary(index: u32, dictionary: [u32; DICTIONARY_SIZE as usize]) -> u32 {
     if (index < DICTIONARY_SIZE) {
-        return dictionary[index];
+        return dictionary[(index) as usize];
     } else {
         return 0;
     }
 }
 
 pub fn compress_delta(data: u32, previous: u32) -> u32 {
-    let;
-    delta;
+    let mut delta: u32 = 0;
     if (data > previous) {
         delta = (data - previous);
     } else {
@@ -154,10 +135,8 @@ pub fn compress_delta(data: u32, previous: u32) -> u32 {
 }
 
 pub fn decompress_delta(encoded: u32, previous: u32) -> u32 {
-    let;
-    encoding_type;
-    let;
-    value;
+    let encoding_type: u32 = ((encoded >> 4) & 0x3);
+    let value: u32 = (encoded & 0xF);
     if (encoding_type == 0) {
         if (previous > value) {
             return (previous - value);
@@ -166,16 +145,14 @@ pub fn decompress_delta(encoded: u32, previous: u32) -> u32 {
         }
     } else {
         if (encoding_type == 1) {
-            let;
-            delta;
+            let delta: u32 = (encoded & 0xFF);
             if (previous > delta) {
                 return (previous - delta);
             } else {
                 return (previous + delta);
             }
         } else {
-            let;
-            delta;
+            let delta: u32 = (encoded & 0xFFF);
             if (previous > delta) {
                 return (previous - delta);
             } else {
@@ -185,17 +162,12 @@ pub fn decompress_delta(encoded: u32, previous: u32) -> u32 {
     }
 }
 
-pub fn choose_compression_method(data: u32, previous: u32, dictionary: Vec<>) -> u32 {
-    let;
-    data_nibbles;
-    let;
-    rle_compressed;
-    let;
-    rle_ratio;
-    let;
-    delta_compressed;
-    let;
-    delta_size;
+pub fn choose_compression_method(data: u32, previous: u32, dictionary: [u32; DICTIONARY_SIZE as usize]) -> u32 {
+    let data_nibbles: u32 = 8;
+    let rle_compressed: u32 = compress_rle(data, data_nibbles);
+    let rle_ratio: u32 = calculate_compression_ratio(data_nibbles, rle_compressed);
+    let delta_compressed: u32 = compress_delta(data, previous);
+    let mut delta_size: u32 = 0;
     if (delta_compressed < 16) {
         delta_size = 1;
     } else {
@@ -205,8 +177,7 @@ pub fn choose_compression_method(data: u32, previous: u32, dictionary: Vec<>) ->
             delta_size = 3;
         }
     }
-    let;
-    delta_ratio;
+    let delta_ratio: u32 = calculate_compression_ratio(data_nibbles, delta_size);
     if ((rle_ratio > delta_ratio) && (rle_ratio > 120)) {
         return METHOD_RLE;
     } else {
@@ -218,13 +189,10 @@ pub fn choose_compression_method(data: u32, previous: u32, dictionary: Vec<>) ->
     }
 }
 
-pub fn compress_block(data: u32, previous: u32, dictionary: Vec<>) -> u32 {
-    let;
-    method;
-    let;
-    compressed;
-    let;
-    compressed_size;
+pub fn compress_block(data: u32, previous: u32, dictionary: [u32; DICTIONARY_SIZE as usize]) -> u32 {
+    let method: u32 = choose_compression_method(data, previous, dictionary);
+    let mut compressed: u32 = 0;
+    let mut compressed_size: u32 = 8;
     if (method == METHOD_RLE) {
         compressed = compress_rle(data, 8);
         compressed_size = 4;
@@ -248,7 +216,7 @@ pub fn compress_block(data: u32, previous: u32, dictionary: Vec<>) -> u32 {
     return create_block_info(8, compressed_size, method, compressed_size);
 }
 
-pub fn decompress_block(compressed_data: u32, method: u32, previous: u32, dictionary: Vec<>) -> u32 {
+pub fn decompress_block(compressed_data: u32, method: u32, previous: u32, dictionary: [u32; DICTIONARY_SIZE as usize]) -> u32 {
     if (method == METHOD_RLE) {
         return decompress_rle(compressed_data);
     } else {
@@ -264,16 +232,13 @@ pub fn decompress_block(compressed_data: u32, method: u32, previous: u32, dictio
     }
 }
 
-pub fn calculate_total_savings(blocks: Vec<>, count: u32) -> u32 {
-    let;
-    total_original;
-    let;
-    total_compressed;
-    let;
-    i;
+pub fn calculate_total_savings(blocks: [u32; MAX_BLOCKS as usize], count: u32) -> u32 {
+    let mut total_original: u32 = 0;
+    let mut total_compressed: u32 = 0;
+    let mut i: u32 = 0;
     while (i < count) {
-        total_original = (total_original + get_original_size(blocks[i]));
-        total_compressed = (total_compressed + get_compressed_size(blocks[i]));
+        total_original = (total_original + get_original_size(blocks[(i) as usize]));
+        total_compressed = (total_compressed + get_compressed_size(blocks[(i) as usize]));
         i = (i + 1);
     }
     if (total_compressed > 0) {
@@ -283,9 +248,9 @@ pub fn calculate_total_savings(blocks: Vec<>, count: u32) -> u32 {
     }
 }
 
-pub fn update_dictionary(dictionary: Vec<>, new_entry: u32, index: u32) -> u32 {
+pub fn update_dictionary(dictionary: [u32; DICTIONARY_SIZE as usize], new_entry: u32, index: u32) -> u32 {
     if (index < DICTIONARY_SIZE) {
-        dictionary[index] = new_entry;
+        dictionary[(index) as usize] = new_entry;
         return 1;
     } else {
         return 0;
@@ -293,13 +258,10 @@ pub fn update_dictionary(dictionary: Vec<>, new_entry: u32, index: u32) -> u32 {
 }
 
 pub fn find_pattern(data: u32, pattern: u32) -> u32 {
-    let;
-    mask;
-    let;
-    i;
+    let mask: u32 = 0xFFFFFFFF;
+    let mut i: u32 = 0;
     while (i < 32) {
-        let;
-        shifted;
+        let shifted: u32 = ((data >> i) & mask);
         if (shifted == pattern) {
             return i;
         }

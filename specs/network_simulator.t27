@@ -187,8 +187,10 @@ module network_simulator {
         return transmission_time;
     }
 
-    // Simulation state [current_time][event_count][node_count][packet_count]
-    fn create_sim_state(current_time: u32, event_count: u32, node_count: u32, packet_count: u32) -> u32 {
+    // Simulation state [current_time:16][event_count:8][node_count:8]
+    // The 32-bit word has no room for a packet count and no accessor reads one,
+    // so the state constructor takes exactly the three fields it packs.
+    fn create_sim_state(current_time: u32, event_count: u32, node_count: u32) -> u32 {
         return (((current_time & 0xFFFF) << 16) |
                 ((event_count & 0xFF) << 8) |
                 (node_count & 0xFF));

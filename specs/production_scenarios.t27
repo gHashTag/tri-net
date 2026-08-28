@@ -33,32 +33,32 @@ module ProductionScenarios {
         return create_node_state(STATE_COLD_START, 0, 0);
     }
 
-    fn discover_neighbor(node_state: u32) -> u32 {
-        if (node_state(node_state) == STATE_COLD_START) {
-            return create_node_state(STATE_DISCOVERING, 0, node_uptime(node_state));
-        } else if (node_state(node_state) == STATE_DISCOVERING) {
+    fn discover_neighbor(state: u32) -> u32 {
+        if (node_state(state) == STATE_COLD_START) {
+            return create_node_state(STATE_DISCOVERING, 0, node_uptime(state));
+        } else if (node_state(state) == STATE_DISCOVERING) {
             return create_node_state(STATE_CONNECTED,
-                                      (node_neighbors(node_state) + 1),
-                                      node_uptime(node_state));
+                                      (node_neighbors(state) + 1),
+                                      node_uptime(state));
         } else {
-            return node_state;
+            return state;
         }
     }
 
     // Network partition simulation
-    fn simulate_partition(node_state: u32) -> u32 {
-        if (node_state(node_state) == STATE_CONNECTED) {
-            return create_node_state(STATE_PARTITIONED, 0, node_uptime(node_state));
+    fn simulate_partition(state: u32) -> u32 {
+        if (node_state(state) == STATE_CONNECTED) {
+            return create_node_state(STATE_PARTITIONED, 0, node_uptime(state));
         } else {
-            return node_state;
+            return state;
         }
     }
 
-    fn recover_from_partition(node_state: u32) -> u32 {
-        if (node_state(node_state) == STATE_PARTITIONED) {
-            return create_node_state(STATE_RECOVERING, 0, node_uptime(node_state));
+    fn recover_from_partition(state: u32) -> u32 {
+        if (node_state(state) == STATE_PARTITIONED) {
+            return create_node_state(STATE_RECOVERING, 0, node_uptime(state));
         } else {
-            return node_state;
+            return state;
         }
     }
 
@@ -80,12 +80,12 @@ module ProductionScenarios {
     }
 
     // Radio interference simulation
-    fn simulate_interference(node_state: u32, interference_level: u8) -> u32 {
+    fn simulate_interference(state: u32, interference_level: u8) -> u32 {
         if (interference_level > 128) {
             // High interference - lose neighbors
-            return create_node_state(node_state(node_state), 0, node_uptime(node_state));
+            return create_node_state(node_state(state), 0, node_uptime(state));
         } else {
-            return node_state;
+            return state;
         }
     }
 

@@ -13,6 +13,11 @@ pub const MIN_NODE_ID: u8 = 1;
 
 pub const MAX_NODE_ID: u8 = 254;
 
+pub fn mesh_ip(id: u32) -> (u8, u8, u8, u8) {
+    let node_octet = ((id & 0xFF) as u8);
+    return (MESH_NET_A, MESH_NET_B, MESH_NET_C, node_octet);
+}
+
 pub fn is_mesh_subnet(a: u8, b: u8, c: u8) -> bool {
     if (a != MESH_NET_A) {
         return false;
@@ -29,7 +34,101 @@ pub fn is_mesh_subnet(a: u8, b: u8, c: u8) -> bool {
     }
 }
 
+pub fn node_of_ip(a: u8, b: u8, c: u8, d: u8) -> (u32, bool) {
+    if !(is_mesh_subnet(a, b, c)) {
+        return (0, false);
+    }
+    if ((d < MIN_NODE_ID) || (d > MAX_NODE_ID)) {
+        return (0, false);
+    }
+    let node_id = (d as u32);
+    return (node_id, true);
+}
+
+pub fn decrement_ttl(ttl: u8) -> (u8, bool) {
+    if (ttl == 0) {
+        return (0, true);
+    } else {
+        if (ttl == 1) {
+            return (0, true);
+        } else {
+            return ((ttl - 1), false);
+        }
+    }
+}
+
 pub fn is_ttl_expired(ttl: u8) -> bool {
     return (ttl == 0);
+}
+
+pub fn choose_next_hop(etx_n1: u16, etx_n2: u16, etx_n3: u16, has_n1: bool, has_n2: bool, has_n3: bool) -> (u8, bool) {
+    let n1_finite = (has_n1 && (etx_n1 != 0xFFFF));
+    let n2_finite = (has_n2 && (etx_n2 != 0xFFFF));
+    let n3_finite = (has_n3 && (etx_n3 != 0xFFFF));
+    if ((n1_finite && n2_finite) && n3_finite) {
+        if ((etx_n1 <= etx_n2) && (etx_n1 <= etx_n3)) {
+            return (1, true);
+        } else {
+            if ((etx_n2 <= etx_n1) && (etx_n2 <= etx_n3)) {
+                return (2, true);
+            } else {
+                return (3, true);
+            }
+        }
+    } else {
+        if (n1_finite && n2_finite) {
+            if (etx_n1 <= etx_n2) {
+                return (1, true);
+            } else {
+                return (2, true);
+            }
+        } else {
+            if (n1_finite && n3_finite) {
+                if (etx_n1 <= etx_n3) {
+                    return (1, true);
+                } else {
+                    return (3, true);
+                }
+            } else {
+                if (n2_finite && n3_finite) {
+                    if (etx_n2 <= etx_n3) {
+                        return (2, true);
+                    } else {
+                        return (3, true);
+                    }
+                } else {
+                    if (n1_finite) != 0 {
+                        return (1, true);
+                    } else {
+                        if (n2_finite) != 0 {
+                            return (2, true);
+                        } else {
+                            if (n3_finite) != 0 {
+                                return (3, true);
+                            } else {
+                                return (0, false);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub fn delivery_decision(is_local: bool, ttl_expired: bool, route_exists: bool, dest_id: u8) -> (u8, u8) {
+    if is_local {
+        return (0, 0);
+    } else {
+        if ttl_expired {
+            return (2, 0);
+        } else {
+            if !(route_exists) {
+                return (2, 0);
+            } else {
+                return (1, dest_id);
+            }
+        }
+    }
 }
 

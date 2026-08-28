@@ -41,6 +41,7 @@ pub fn calculate_pass_rate(passed: u32, total: u32) -> u8 {
     if (total == 0) {
         return 0;
     }
+    return (((passed * 100) / total) as u8);
 }
 
 pub fn test_passed(result: u32) -> bool {

@@ -13,12 +13,12 @@ module LiteCrypto {
     // Input: 512-bit block (64 bytes), Output: 128-bit hash
     
     // Process single 64-byte block (returns 128-bit hash as tuple)
-    fn md5_process_block(block: u32, state: u32) -> (u32, u32) {
+    fn md5_process_block(block: u64, state: u64) -> (u32, u32) {
         // Simplified: XOR block bytes with state
         // In real MD5: permutation + rotation + addition
         // Here: just XOR compression (weak hash, but T27-compliant)
         let compressed = block ^ state;
-        return ((compressed >> 32) & 0xFFFFFFFF, compressed & 0xFFFFFFFF);
+        return (((compressed >> 32) & 0xFFFFFFFF) as u32, (compressed & 0xFFFFFFFF) as u32);
     }
 
     // MD5 final digest (simplified)
@@ -29,7 +29,7 @@ module LiteCrypto {
     // ---- ChaCha20 Quarter-Round (simplified) ----
     // State: [s0][s1][s2][s3] (four 32-bit words)
     
-    fn quarter_round(state: u32, input: u32) -> u32 {
+    fn quarter_round(state: u128, input: u128) -> u128 {
         // ChaCha20 quarter-round from RFC 7539
         // Simplified: no add-tweak, no rotate
         // Just column generation + mixing
@@ -54,7 +54,7 @@ module LiteCrypto {
         return (((new_s3 & 0xFFFFFFFF) << 96) |
                ((new_s2 & 0xFFFFFFFF) << 64) |
                ((new_s1 & 0xFFFFFFFF) << 32) |
-               (new_s0 & 0xFFFFFFFF);
+               (new_s0 & 0xFFFFFFFF));
     }
 
     // Generate 128-bit PSK from seed

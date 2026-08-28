@@ -4,7 +4,7 @@
 pub const QUEUE_SIZE: u8 = 8;
 
 pub fn get_count(state: u32) -> u8 {
-    return ();
+    return (((state >> 6) & 255) as u8);
 }
 
 pub fn is_full(state: u32) -> bool {
@@ -27,12 +27,14 @@ pub fn enqueue(state: u32, data: u32) -> u32 {
     if is_full(state) {
         return state;
     }
+    return (((((state >> 0) & 7) << 0) | ((increment_index((((state >> 3) & 7) as u8)) as u32) << 3)) | (((get_count(state) + 1) as u32) << 6));
 }
 
 pub fn dequeue(state: u32) -> u32 {
     if is_empty(state) {
         return state;
     }
+    return ((((increment_index((((state >> 0) & 7) as u8)) as u32) << 0) | (((state >> 3) & 7) << 3)) | (((get_count(state) - 1) as u32) << 6));
 }
 
 pub fn size(state: u32) -> u8 {

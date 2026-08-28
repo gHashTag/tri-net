@@ -42,7 +42,9 @@ module MeshEtx {
         if (est == 255 && sample == 255) {
             return 255;
         }
-        return fp_mul(alpha, sample) + fp_mul(256 - alpha, est);
+        // (1 - alpha) in Q8.8 is 256 - alpha, which needs the u16 width of
+        // ONE_FP; fp_mul's arguments are u8, so narrow after the subtraction.
+        return fp_mul(alpha, sample) + fp_mul((ONE_FP - (alpha as u16)) as u8, est);
     }
 
     // Check if delivery ratio is dead
