@@ -35,55 +35,54 @@ BitNet-ternary benchmark on returned silicon, publish the raw log.
 
 ---
 
-## Что делает Tri-Net
+## What Tri-Net does
 
-Одна коробка (`P203 Mini` = Zynq-7020 + AD9361 SDR + GPS/PPS) выполняет две
-роли одновременно:
+A single box (`P203 Mini` = Zynq-7020 + AD9361 SDR + GPS/PPS) fills two roles
+at the same time:
 
-1. **Mesh internet-delivery** — "Starlink без спутников": сеть мобильных реле
-   и наземных узлов, разделяющих один uplink через самомаршрутизируемый mesh.
-2. **DePIN-узел** (Helium-style + edge compute) — оператор получает TRI-токены
-   за реальный вклад в четыре arm'а сети, каждый защищён криптографической
-   подписью чипа Trinity.
+1. **Mesh internet-delivery** — "Starlink without satellites": a network of
+   mobile relays and ground nodes sharing one uplink over a self-routing mesh.
+2. **DePIN node** (Helium-style + edge compute) — the operator earns TRI tokens
+   for real contribution to four arms of the network, each one secured by a
+   cryptographic signature from a Trinity chip.
 
-### Четыре плеча supply-side на одной P203 Mini
+### Four supply-side arms on one P203 Mini
 
-| Плечо | Что делает | proof-payload | chip sigs |
+| Arm | What it does | proof-payload | chip sigs |
 |---|---|---|---|
 | **Transport** | mesh-relay bandwidth | (from, to, bytes, ts_start, ts_end) | 2-of-3 Phi |
 | **Compute** | ternary edge inference (BitNet) | (model_hash, input_hash, output_hash, ops) | 3-of-3 Phi+Euler+Gamma |
 | **Coverage** | 5.8 GHz PoC beacon challenge-response | (challenger, responder, witness, rssi, tof) | 3-of-3 cross-die φ |
 | **Sensor** | RF spectrum atlas + GPS-jam detection | (snapshot_hash, gps_time, location_hash) | 1-of-3 any |
 
-Все четыре плеча оседают в один и тот же `MiningPool.claimReward()` — семь
-проверок, ни одна не обходится. Полное описание — `docs/WAVE_DEPIN_2026-07-04.md`.
+All four arms settle through the same `MiningPool.claimReward()` — seven
+checks, none of them bypassable. Full description in `docs/WAVE_DEPIN_2026-07-04.md`.
 
 ---
 
-## Три сетевые карты как база сети
+## Three boards as the base of the network
 
-Три `P203 Mini` собраны, запитаны и уже пропускают через себя проверенные
-криптоданные (см. `smoke/M1_RESULTS.md`). Это минимальная база для:
+Three `P203 Mini` boards are assembled, powered, and already carrying verified
+crypto traffic (see `smoke/M1_RESULTS.md`). That is the minimum base for:
 
-- **P2 DEMO GATE** (M4 + M5) — три-узловой треугольник, один общий uplink,
-  измеримое время самовосстановления mesh.
-- **Первый живой DePIN triad** — три чипа Trinity Phi/Euler/Gamma в
-  cross-die φ-anchor конфигурации могут выдавать все три типа proof'ов
-  (transport, coverage, sensor) уже сейчас на software-signed level. Compute
-  proof требует silicon back.
-- **PoC Genesis** — первые PoC-раунды 5.8 GHz beacon between-neighbors
-  можно гонять локально без RF-выхода в эфир (digital loopback уже
-  верифицирован).
+- **P2 DEMO GATE** (M4 + M5) — a three-node triangle, one shared uplink, and a
+  measurable mesh self-healing time.
+- **The first live DePIN triad** — three Trinity Phi/Euler/Gamma chips in a
+  cross-die φ-anchor configuration can already emit all three proof types
+  (transport, coverage, sensor) at the software-signed level. The compute
+  proof requires silicon back.
+- **PoC Genesis** — the first 5.8 GHz beacon PoC rounds between neighbours can
+  be run locally with no RF emission (digital loopback is already verified).
 
-Порядок разворачивания трёх узлов описан в [`docs/LOCAL_FLASH.md`](docs/LOCAL_FLASH.md).
+The bring-up order for the three nodes is described in [`docs/LOCAL_FLASH.md`](docs/LOCAL_FLASH.md).
 
 ---
 
-## Metrics (что уже измерено)
+## Metrics (what has been measured)
 
-Все числа — с on-device логов, без hearsay.
+Every number comes from on-device logs, no hearsay.
 
-| Метрика | Значение | Источник |
+| Metric | Value | Source |
 |---|---|---|
 | M1 static binary size (armv7l musleabihf) | 534 604 B | `smoke/M1_RESULTS.md` |
 | M1 binary sha256 | `e5abc335…7290a` | `smoke/M1_RESULTS.md` |
@@ -92,7 +91,7 @@ BitNet-ternary benchmark on returned silicon, publish the raw log.
 | Rust source lines | 10 350 | `find src -name '*.rs' \| xargs wc -l` |
 | AD9361 tune target | LO 5.8 GHz | `radio/README.md` |
 | AD9361 FFT peak (1 MHz tone, digital loopback) | +0.999 MHz | `radio/README.md` |
-| AD9361 SNR over noise floor | 108.6 dB (digital loopback only, not over-the-air) | `radio/README.md`; see [W7 finding #5](docs/W7_WEAK_POINTS_STRUCTURAL.md#находка-5) and [REGULATORY_STATUS](docs/REGULATORY_STATUS.md) |
+| AD9361 SNR over noise floor | 108.6 dB (digital loopback only, not over-the-air) | `radio/README.md`; see [W7 finding #5](docs/W7_WEAK_POINTS_STRUCTURAL.md) and [REGULATORY_STATUS](docs/REGULATORY_STATUS.md) |
 | AD9361 tuning range | 70 MHz … 6 GHz | `radio/README.md` |
 | Sample rate | 30.72 MHz | `radio/README.md` |
 | Capture length | 65 536 samples | `radio/README.md` |
@@ -101,14 +100,14 @@ BitNet-ternary benchmark on returned silicon, publish the raw log.
 
 ### DePIN tokenomics (contract source, `gHashTag/trinity-contracts`, not yet deployed to mainnet)
 
-| Параметр | Значение |
+| Parameter | Value |
 |---|---|
 | TRI max supply | 3²⁷ = 7 625 597 484 987 |
 | Decimals | 18 |
 | Premine | 0% |
 | VC allocation | 0% |
 | Treasury | 0% |
-| Halvings | 9 × 4 года (2026 → 2066) |
+| Halvings | 9 × 4 years (2026 → 2066) |
 | Era 0 (2026-2030) reward | 1000 TRI per proof |
 | Era 9 (2062-2066) reward | 1.953125 TRI per proof |
 | Anti-flood window | 24 h per chip |
@@ -116,28 +115,29 @@ BitNet-ternary benchmark on returned silicon, publish the raw log.
 
 ---
 
-## Локальная прошивка сейчас — приоритет
+## Local flashing is the current priority
 
-Мы прошиваем локально, все три `P203 Mini`. См. [`docs/LOCAL_FLASH.md`](docs/LOCAL_FLASH.md) — пошаговый чек-лист:
-0. Инвентаризация (три JTAG-адаптера, три USB-UART, три SD-карты, PC/линуксовая
-   рабочая станция, `openocd`, `openFPGALoader`).
-1. Boot ARM-Linux (BOOT.BIN + FSBL + kernel + rootfs) на каждой из трёх плат.
-2. AD9361 driver up + `iio:device0 name = ad9361` виден на всех трёх.
-3. Пересобрать `smoke-m1` под `armv7-unknown-linux-musleabihf`, залить на все
-   три платы, зафиксировать три RC=0 в `smoke/M1_RESULTS.md`.
-4. Первый three-way handshake между тремя узлами (M4 dry-run).
-5. AD9361 5.8 GHz digital loopback подтверждён на каждой из трёх (три записи
-   в `radio/README.md`).
-6. Первый ternary/PoC-beacon between-neighbors локально.
+We flash locally, all three `P203 Mini` boards. See [`docs/LOCAL_FLASH.md`](docs/LOCAL_FLASH.md) — a step-by-step checklist:
+0. Inventory (three JTAG adapters, three USB-UART cables, three SD cards, a
+   Linux PC / workstation, `openocd`, `openFPGALoader`).
+1. Boot ARM-Linux (BOOT.BIN + FSBL + kernel + rootfs) on each of the three boards.
+2. AD9361 driver up + `iio:device0 name = ad9361` visible on all three.
+3. Rebuild `smoke-m1` for `armv7-unknown-linux-musleabihf`, deploy it to all
+   three boards, and record three RC=0 results in `smoke/M1_RESULTS.md`.
+4. First three-way handshake between the three nodes (M4 dry run).
+5. AD9361 5.8 GHz digital loopback confirmed on each of the three (three
+   entries in `radio/README.md`).
+6. First ternary/PoC beacon between neighbours, locally.
 
-Всё в digital loopback, никакого излучения в эфир до внешнего PA+LNA + разрешения.
+Everything stays in digital loopback. Nothing is radiated over the air until an
+external PA+LNA and regulatory clearance are in place.
 
 ---
 
 ## Build & test (host)
 
 ```bash
-cargo test              # 20+ unit + 2 integration tests (см. Metrics — 110 test blocks в проекте)
+cargo test              # 20+ unit + 2 integration tests (see Metrics - 110 test blocks in the project)
 cargo run --bin smoke-m1
 ```
 
@@ -150,26 +150,26 @@ cargo build --release --target armv7-unknown-linux-musleabihf
 # append the result to smoke/M1_RESULTS.md
 ```
 
-Подробнее — [`docs/LOCAL_FLASH.md`](docs/LOCAL_FLASH.md).
+More detail in [`docs/LOCAL_FLASH.md`](docs/LOCAL_FLASH.md).
 
 ---
 
 ## Roadmap (2026 H2 → 2027)
 
-Каждый этап заявляется на английском (technical) и по-русски (метафора).
+Each stage is stated twice: technically, and as a metaphor.
 
 - **P0 — bring-up** — toolchain, first flash, Mini boots ARM-Linux + AD9361/GPS/PPS; AX7203 sanity.
-  «Первая проводка и первое дыхание платы.»
-- **P1 — radio + M1 → M3** — AD9361 5.8 GHz + OFDM PHY; `trios-mesh` M1 crypto-on-ARM (уже `hw`) → M2 TUN/ETX → M3 iperf3 over 2 hops (bench attenuators).
-  «Два узла слышат друг друга и делятся одним каналом.»
-- **P2 — DEMO GATE (3-node triangle)** — M4 shared uplink over 3-node mesh + M5 self-healing convergence measured. Deliverable: video + metrics + Apache-2.0 + Zenodo DOI. **Одновременно — первый двойной demo**: mesh-transport + DePIN-node (transport-proof + coverage-proof живые).
-  «Треугольник, который сам себя чинит.»
-- **P3 — video-radio + node control (telemetry)** — один радиоканал несёт mesh + телеметрию + видео.
-- **P4 — tethered aerial node (elevated relay)** — постоянно висящий узел над точкой интереса.
-- **P5 — свободный swarm** — self-organizing swarm без tether'а, каждый узел это operator, каждый operator получает TRI.
-- **P6 — Trinity silicon (BLOCKED, маршрута нет)** — изготовленного кристалла не существует, изготовление не запланировано, прежний маршрут закрыт. До выбора нового маршрута BitNet benchmark на кристалле невыполним, `[Open conjecture]` компонентов compute-anchor'а закрывается.
-- **P7 — Genesis Day** — mainnet deployment `trinity-contracts` на Base L2, `EmissionController.renounceOwnership()`, первый public proof-of-inference за TRI.
-- **P8 — Hub71+ AI Cohort 20 (deadline 2026-08-02)** — подача через `golden-chain-international` (UAE ADGM/DIFC, Армения-резерв).
+  "The first wiring, and the board's first breath."
+- **P1 — radio + M1 → M3** — AD9361 5.8 GHz + OFDM PHY; `trios-mesh` M1 crypto-on-ARM (already `hw`) → M2 TUN/ETX → M3 iperf3 over 2 hops (bench attenuators).
+  "Two nodes hear each other and share one channel."
+- **P2 — DEMO GATE (3-node triangle)** — M4 shared uplink over 3-node mesh + M5 self-healing convergence measured. Deliverable: video + metrics + Apache-2.0 + Zenodo DOI. **At the same time, the first dual demo**: mesh-transport + DePIN-node (transport-proof and coverage-proof both live).
+  "A triangle that repairs itself."
+- **P3 — video-radio + node control (telemetry)** — a single radio channel carries mesh + telemetry + video.
+- **P4 — tethered aerial node (elevated relay)** — a node hovering permanently over a point of interest.
+- **P5 — free swarm** — a self-organizing swarm with no tether; every node is an operator, and every operator earns TRI.
+- **P6 — Trinity silicon (BLOCKED, no route)** — no fabricated die exists, none is scheduled, and the previous route is closed. Until a new route is chosen the on-die BitNet benchmark cannot be run, and the `[Open conjecture]` on the compute-anchor components cannot be closed.
+- **P7 — Genesis Day** — mainnet deployment of `trinity-contracts` on Base L2, `EmissionController.renounceOwnership()`, first public proof-of-inference paid in TRI.
+- **P8 — Hub71+ AI Cohort 20 (deadline 2026-08-02)** — submitted via `golden-chain-international` (UAE ADGM/DIFC, Armenia as fallback).
 
 ## Boards
 
@@ -180,24 +180,24 @@ cargo build --release --target armv7-unknown-linux-musleabihf
 
 ---
 
-## Science base — Trinity papers RU (ВАК track)
+## Science base — Trinity papers RU (VAK track)
 
-Научный корпус, на который опирается mesh + DePIN-стек, публикуется в
+The scientific corpus the mesh + DePIN stack rests on is published in
 [`gHashTag/trinity-papers-ru`](https://github.com/gHashTag/trinity-papers-ru).
-Российский трек ВАК ведётся параллельно с международным препринт-каналом.
+The Russian VAK track runs in parallel with the international preprint channel.
 
-| Артефакт | Формат | Целевой журнал | Категория | Roadmap-slot |
+| Artefact | Format | Target journal | Category | Roadmap slot |
 |---|---|---|---|---|
-| GoldenFloat GF16 (arXiv:2606.05017) | LaTeX + PDF (22 стр.) | «Программирование» / Programming and Computer Software (ИСП РАН, Pleiades/Springer) | К-1 (Scopus) | базис `gf16` модуля (M2 `-sim`) |
-| Каталог 84 численных форматов | Word (20 стр.) | «Искусственный интеллект и принятие решений» (ФИЦ ИУ РАН) | К-1 | базис ternary-inference плеча |
-| «Россия 3.0 — Троица» (открытое обращение) | Markdown + LaTeX + PDF (12 стр.) | рецензируемый журнал ВАК | — | стратегическая рамка DePIN-развёртывания |
-| GoldenFloat + Сетунь (Habr) | Markdown + 5 иллюстраций | Habr | scipop | внешний нарратив |
+| GoldenFloat GF16 (arXiv:2606.05017) | LaTeX + PDF (22 pp.) | *Programmirovanie* / Programming and Computer Software (ISP RAS, Pleiades/Springer) | K-1 (Scopus) | basis of the `gf16` module (M2 `-sim`) |
+| Catalog of 84 numeric formats | Word (20 pp.) | *Artificial Intelligence and Decision Making* (FRC CSC RAS) | K-1 | basis of the ternary-inference arm |
+| *Russia 3.0 - Trinity* (open letter) | Markdown + LaTeX + PDF (12 pp.) | peer-reviewed VAK journal | — | strategic frame for the DePIN rollout |
+| GoldenFloat + Setun (Habr) | Markdown + 5 illustrations | Habr | scipop | external narrative |
 
-Требование ВАК (2026): ≥ 2 статьи, минимум одна К-1/К-2 («Белый список» РЦНИ / RSCI / Scopus). Обе профильные статьи выше — К-1, требование закрывается с запасом.
+VAK requirement (2026): at least 2 papers, of which at least one is K-1/K-2 (RCSI "White List" / RSCI / Scopus). Both subject-matter papers above are K-1, so the requirement is met with margin.
 
-Sister-репозитории: [`gHashTag/t27`](https://github.com/gHashTag/t27), [`gHashTag/goldenfloat-preprint`](https://github.com/gHashTag/goldenfloat-preprint), [`gHashTag/paper3-methodology`](https://github.com/gHashTag/paper3-methodology).
+Sister repositories: [`gHashTag/t27`](https://github.com/gHashTag/t27), [`gHashTag/goldenfloat-preprint`](https://github.com/gHashTag/goldenfloat-preprint), [`gHashTag/paper3-methodology`](https://github.com/gHashTag/paper3-methodology).
 
-Автор корпуса: Дмитрий Васильев · ORCID [0009-0008-4294-6159](https://orcid.org/0009-0008-4294-6159) · admin@t27.ai.
+Corpus author: Dmitrii Vasilev · ORCID [0009-0008-4294-6159](https://orcid.org/0009-0008-4294-6159) · admin@t27.ai.
 
 ---
 
@@ -217,21 +217,21 @@ Sister-репозитории: [`gHashTag/t27`](https://github.com/gHashTag/t27)
 
 - [`gHashTag/trinity-contracts`](https://github.com/gHashTag/trinity-contracts) — Base L2 mining contracts (TRI, MiningPool, EmissionController, ChipRegistry, JobProver, IGLALedger, BittensorSubnetAttest).
 - [`gHashTag/trinity-node`](https://github.com/gHashTag/trinity-node) — DePIN daemon (HAL / Attestation 2-of-3 / Consensus / Miner loop 12 s / Validator 30 s / PoRep / PoC Helium stub / JSON-RPC :9933).
-- [`gHashTag/trinity-sdk`](https://github.com/gHashTag/trinity-sdk) — Python API для DePIN AI devs.
-- [`gHashTag/trinity-papers-ru`](https://github.com/gHashTag/trinity-papers-ru) — русские версии Trinity-статей для ВАК.
+- [`gHashTag/trinity-sdk`](https://github.com/gHashTag/trinity-sdk) — Python API for DePIN AI devs.
+- [`gHashTag/trinity-papers-ru`](https://github.com/gHashTag/trinity-papers-ru) — Russian-language versions of the Trinity papers for VAK.
 - [`gHashTag/golden-chain-international`](https://github.com/gHashTag/golden-chain-international) — ASCII international edition (UAE ADGM/DIFC, Hub71+ AI Cohort 20).
 - [`gHashTag/paper3-methodology`](https://github.com/gHashTag/paper3-methodology) — 84-format numeric catalog.
 - [`gHashTag/t27`](https://github.com/gHashTag/t27), [`gHashTag/tt-trinity-phi`](https://github.com/gHashTag/tt-trinity-phi), [`gHashTag/tt-trinity-euler`](https://github.com/gHashTag/tt-trinity-euler), [`gHashTag/tt-trinity-gamma`](https://github.com/gHashTag/tt-trinity-gamma), [`gHashTag/trinity-clara`](https://github.com/gHashTag/trinity-clara).
 
 ## Key docs
 
-- [`docs/LOCAL_FLASH.md`](docs/LOCAL_FLASH.md) — пошаговая локальная прошивка трёх плат.
-- [`docs/WAVE_DEPIN_2026-07-04.md`](docs/WAVE_DEPIN_2026-07-04.md) — DePIN whitepaper (четыре плеча, tokenomics, positioning).
-- `docs/COMPETITOR_MATRIX_2026-07-04.md` — 10 MANET-конкурентов × 15 полей (в [PR #28](https://github.com/gHashTag/tri-net/pull/28)).
-- [`docs/_recon/DEPIN_COMPETITORS_2026-07-04.md`](docs/_recon/DEPIN_COMPETITORS_2026-07-04.md) — 12 DePIN-сетей × 12 полей.
+- [`docs/LOCAL_FLASH.md`](docs/LOCAL_FLASH.md) — step-by-step local flashing of the three boards.
+- [`docs/WAVE_DEPIN_2026-07-04.md`](docs/WAVE_DEPIN_2026-07-04.md) — DePIN whitepaper (the four arms, tokenomics, positioning).
+- `docs/COMPETITOR_MATRIX_2026-07-04.md` — 10 MANET competitors × 15 fields (in [PR #28](https://github.com/gHashTag/tri-net/pull/28)).
+- [`docs/_recon/DEPIN_COMPETITORS_2026-07-04.md`](docs/_recon/DEPIN_COMPETITORS_2026-07-04.md) — 12 DePIN networks × 12 fields.
 - [`docs/WAVE_N3_AUDITABILITY_GAP_2026-07-04.md`](docs/WAVE_N3_AUDITABILITY_GAP_2026-07-04.md) — auditability δ paper.
 - [`docs/STRENGTHEN.md`](docs/STRENGTHEN.md) — science-driven backlog.
-- [`docs/AUTONOMOUS.md`](docs/AUTONOMOUS.md) — human-merge only policy для agent PR's.
+- [`docs/AUTONOMOUS.md`](docs/AUTONOMOUS.md) — human-merge-only policy for agent PRs.
 
 ## License
 
