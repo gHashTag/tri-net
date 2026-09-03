@@ -16,6 +16,9 @@ class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     let session = AVCaptureSession()
     private let output = AVCaptureVideoDataOutput()
     private var encoder: H264Encoder?
+    private var rotationCoordinator: AnyObject?
+    private var rotationObservation: NSKeyValueObservation?
+    private var appliedRotationAngle: CGFloat?
     var onFrame: ((Data, Bool) -> Void)?
     var previewSession: AVCaptureSession { session }
 
@@ -27,7 +30,6 @@ class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
 
     private var position: AVCaptureDevice.Position = .front
     private var currentDevice: AVCaptureDevice?
-    private var rotCoord: Any?   // AVCaptureDevice.RotationCoordinator (iOS 17+); kept alive for KVO-free reads
 
     private func setupSession() {
         session.beginConfiguration()
@@ -48,7 +50,7 @@ class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         output.setSampleBufferDelegate(self, queue: DispatchQueue(label: "camera"))
         if session.canAddOutput(output) { session.addOutput(output) }
         session.commitConfiguration()
-        applyOrientation()
+        if let currentDevice { configureOrientation(for: currentDevice) }
     }
 
     func switchCamera() {
@@ -63,56 +65,99 @@ class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
             configureDevice(cam)
         }
         session.commitConfiguration()
-        // input swap re-creates the output connection — orientation must be re-applied
-        applyOrientation()
+        // An input swap re-creates the output connection and the front and back
+        // cameras can require different physical buffer rotations.
+        if let currentDevice { configureOrientation(for: currentDevice) }
         // restart the encoder so its lazy setup matches the new camera's frames
-        if encoder != nil {
-            let enc = H264Encoder()
-            enc.onFrame = { [weak self] data, isKey in self?.onFrame?(data, isKey) }
-        enc.meshMode = meshMode
-            encoder = enc
+        replaceEncoderIfRunning()
+    }
+
+    // Raw H.264 carries no orientation metadata, so the outgoing pixel buffers
+    // must be physically upright before VideoToolbox encodes them. A hardcoded
+    // 90 degrees is wrong for some front cameras. The system coordinator knows
+    // the correct angle for the active camera and physical device orientation.
+    private func configureOrientation(for camera: AVCaptureDevice) {
+        rotationObservation?.invalidate()
+        rotationObservation = nil
+        rotationCoordinator = nil
+        appliedRotationAngle = nil
+
+        if #available(iOS 17.0, *) {
+            let coordinator = AVCaptureDevice.RotationCoordinator(device: camera, previewLayer: nil)
+            rotationCoordinator = coordinator
+            rotationObservation = coordinator.observe(
+                \.videoRotationAngleForHorizonLevelCapture,
+                options: [.initial, .new]
+            ) { [weak self] coordinator, _ in
+                self?.applyRotation(coordinator.videoRotationAngleForHorizonLevelCapture)
+            }
+        } else {
+            guard let connection = output.connection(with: .video),
+                  connection.isVideoOrientationSupported else {
+                NSLog("TRINET: camera orientation is unsupported")
+                return
+            }
+            connection.videoOrientation = .portrait
+            NSLog("TRINET: camera capture orientation portrait")
         }
     }
 
-    // Lock the capture frame rate (min==max kills capture-interval jitter -> steadier video) and use
-    // continuous auto-exposure. Bracketed in lock/unlockForConfiguration as AVFoundation requires.
-    private func configureDevice(_ cam: AVCaptureDevice) {
-        guard (try? cam.lockForConfiguration()) != nil else { return }
+    // Lock the capture frame rate and keep exposure stable enough for the low-latency encoder.
+    private func configureDevice(_ camera: AVCaptureDevice) {
+        guard (try? camera.lockForConfiguration()) != nil else { return }
         let fps: Int32 = 24
-        if cam.activeFormat.videoSupportedFrameRateRanges.contains(where: { $0.minFrameRate <= Double(fps) && Double(fps) <= $0.maxFrameRate }) {
-            let d = CMTime(value: 1, timescale: fps)
-            cam.activeVideoMinFrameDuration = d
-            cam.activeVideoMaxFrameDuration = d          // min==max => hard-locked FPS
+        if camera.activeFormat.videoSupportedFrameRateRanges.contains(where: {
+            $0.minFrameRate <= Double(fps) && Double(fps) <= $0.maxFrameRate
+        }) {
+            let duration = CMTime(value: 1, timescale: fps)
+            camera.activeVideoMinFrameDuration = duration
+            camera.activeVideoMaxFrameDuration = duration
         }
-        if cam.isExposureModeSupported(.continuousAutoExposure) { cam.exposureMode = .continuousAutoExposure }
-        if cam.isLowLightBoostSupported { cam.automaticallyEnablesLowLightBoostWhenAvailable = true }
-        cam.unlockForConfiguration()
+        if camera.isExposureModeSupported(.continuousAutoExposure) {
+            camera.exposureMode = .continuousAutoExposure
+        }
+        if camera.isLowLightBoostSupported {
+            camera.automaticallyEnablesLowLightBoostWhenAvailable = true
+        }
+        camera.unlockForConfiguration()
     }
 
-    // Raw H.264 carries no orientation metadata, so the frame must be upright at CAPTURE. The data
-    // output delivers sensor-native LANDSCAPE buffers, so without this the (portrait) front camera is
-    // 90 deg off. Apple's RotationCoordinator is the gravity-aware source of truth for the correct
-    // angle PER CAMERA (front vs back differ) -- more robust than a hardcoded 90. Front camera is sent
-    // UN-mirrored so the remote reads text correctly. Also enable .standard stabilization (not
-    // cinematic -- that adds latency) to calm handheld shake.
-    private func applyOrientation() {
-        guard let conn = output.connection(with: .video) else { return }
-        if conn.isVideoMirroringSupported {
-            conn.automaticallyAdjustsVideoMirroring = false
-            conn.isVideoMirrored = false
+    @available(iOS 17.0, *)
+    private func applyRotation(_ angle: CGFloat) {
+        guard let connection = output.connection(with: .video) else {
+            NSLog("TRINET: camera video connection unavailable for rotation")
+            return
         }
-        if #available(iOS 17.0, *), let dev = currentDevice {
-            let rc = AVCaptureDevice.RotationCoordinator(device: dev, previewLayer: nil)
-            rotCoord = rc                                             // keep alive
-            let angle = rc.videoRotationAngleForHorizonLevelCapture
-            if conn.isVideoRotationAngleSupported(angle) { conn.videoRotationAngle = angle }
-            else if conn.isVideoRotationAngleSupported(90) { conn.videoRotationAngle = 90 }
-        } else if conn.isVideoOrientationSupported {
-            conn.videoOrientation = .portrait
+        guard connection.isVideoRotationAngleSupported(angle) else {
+            NSLog("TRINET: camera rotation angle \(Int(angle)) is unsupported")
+            return
         }
-        if let dev = currentDevice, dev.activeFormat.isVideoStabilizationModeSupported(.standard) {
-            conn.preferredVideoStabilizationMode = .standard   // .standard not .cinematic (cinematic adds latency)
+        guard appliedRotationAngle != angle else { return }
+        if connection.isVideoMirroringSupported {
+            connection.automaticallyAdjustsVideoMirroring = false
+            connection.isVideoMirrored = false
         }
+        connection.videoRotationAngle = angle
+        if let currentDevice,
+           currentDevice.activeFormat.isVideoStabilizationModeSupported(.standard) {
+            connection.preferredVideoStabilizationMode = .standard
+        }
+        appliedRotationAngle = angle
+        let cameraName = position == .front ? "front" : "back"
+        NSLog("TRINET: \(cameraName) camera capture rotation \(Int(angle)) degrees")
+        encoder?.forceKeyframe()
+    }
+
+    private func replaceEncoderIfRunning() {
+        guard encoder != nil else { return }
+        let enc = H264Encoder()
+        enc.onFrame = { [weak self] data, isKey in self?.onFrame?(data, isKey) }
+        enc.meshMode = meshMode
+        encoder = enc
+    }
+
+    deinit {
+        rotationObservation?.invalidate()
     }
 
     func start() {
@@ -606,6 +651,28 @@ class H264Decoder: ObservableObject {
 // bound to :recvPort receives and sends reliably, and the peer sees our
 // source port = recvPort (symmetric UDP).
 
+struct UDPSourceEndpoint: Hashable {
+    let ipv4NetworkOrder: UInt32
+    let portNetworkOrder: UInt16
+
+    init(ipv4NetworkOrder: UInt32, portNetworkOrder: UInt16) {
+        self.ipv4NetworkOrder = ipv4NetworkOrder
+        self.portNetworkOrder = portNetworkOrder
+    }
+
+    init(_ source: sockaddr_in) {
+        self.init(ipv4NetworkOrder: source.sin_addr.s_addr,
+                  portNetworkOrder: source.sin_port)
+    }
+}
+
+enum UDPSourcePolicy {
+    static func allows(_ source: UDPSourceEndpoint,
+                       expected: Set<UDPSourceEndpoint>) -> Bool {
+        expected.contains(source)
+    }
+}
+
 class BSDTransport {
     private var fd: Int32 = -1
     private var peer = sockaddr_in()
@@ -617,7 +684,9 @@ class BSDTransport {
     // timer scheduled on it would never fire.
     private let hsQueue = DispatchQueue(label: "mesh.hs", qos: .userInitiated)
     var onData: ((Data) -> Void)?
+    var onSecureSessionReady: (() -> Void)?
     var isReady = false
+    private var secureReadyEmitted = false
     // Conference (group) mode: >1 peers share ONE static conference key (HKDF of the PSK), full-mesh,
     // NO pairwise handshake -- mirrors the Mac (MeshTransport). recvfrom routes by SOURCE IP so each
     // sender decodes into its own tile. Kept ISOLATED from the working 1-1 path (own key, own reassembly).
@@ -706,6 +775,8 @@ class BSDTransport {
     // leave from the socket that did the punching. Mirrors desktop MeshTransport.connect.
     func connect(host: String, port: UInt16, recvPort: UInt16, adoptFd: Int32? = nil) {
         disconnect()
+        crypto = MeshCrypto()
+        secureReadyEmitted = false
         groupMode = false
         crypto.room = PeerDiscovery.myRoom   // bind the handshake to the room passphrase
         startFeedbackListener()
@@ -765,7 +836,8 @@ class BSDTransport {
         handshakeTimer = timer
         timer.resume()
 
-        startRx(fd)
+        let expectedSources: Set<UDPSourceEndpoint> = [UDPSourceEndpoint(peer)]
+        startRx(fd, expectedSources: expectedSources)
     }
 
     // Group / conference call: full-mesh to 2-4 peers under the shared conference key, no handshake.
@@ -794,16 +866,20 @@ class BSDTransport {
         }
         running = true; isReady = true
         NSLog("TRINET: GROUP transport up — listen :\(recvPort), \(peers.count) peers: \(hosts.joined(separator: ","))")
-        startRx(fd)
+        let expectedSources = Set(peers.map { UDPSourceEndpoint($0) })
+        startRx(fd, expectedSources: expectedSources)
     }
 
     // recvfrom-based receive loop shared by 1-1 and group. In group mode datagrams are sealed under the
     // conference key and routed by SOURCE IP (per-source reassembly -> onDataFrom -> that sender's tile).
-    private func startRx(_ sock: Int32) {
+    // The allowlist is captured by value for this exact socket/call. A stale receive loop therefore cannot
+    // start trusting endpoints from a later call after disconnect/connect replaces the transport state.
+    private func startRx(_ sock: Int32, expectedSources: Set<UDPSourceEndpoint>) {
         rxQueue.async { [weak self] in
             var buf = [UInt8](repeating: 0, count: 65536)
             var from = sockaddr_in()
             var count = 0
+            var rejectedBySource: [UDPSourceEndpoint: Int] = [:]
             while true {
                 guard let self = self, self.running else { break }
                 var fromLen = socklen_t(MemoryLayout<sockaddr_in>.size)
@@ -819,8 +895,18 @@ class BSDTransport {
                     break
                 }
                 if n == 0 { continue }   // zero-length UDP datagram (no EOF in UDP) -> ignore
-                let pkt = Data(bytes: buf, count: n)
+                let source = UDPSourceEndpoint(from)
                 let src = String(cString: inet_ntoa(from.sin_addr))
+                guard UDPSourcePolicy.allows(source, expected: expectedSources) else {
+                    rejectedBySource[source, default: 0] += 1
+                    let rejected = rejectedBySource[source]!
+                    if rejected <= 3 || rejected % 500 == 0 {
+                        NSLog("%@", "TRINET: DROP unexpected UDP source \(src):\(UInt16(bigEndian: from.sin_port)) " +
+                              "(#\(rejected) from this endpoint)")
+                    }
+                    continue
+                }
+                let pkt = Data(bytes: buf, count: n)
                 if self.groupMode {
                     guard let box = try? ChaChaPoly.SealedBox(combined: pkt),
                           let plain = try? ChaChaPoly.open(box, using: self.groupKey),
@@ -831,6 +917,7 @@ class BSDTransport {
                 }
                 if self.crypto.isHandshake(pkt) {
                     self.crypto.consumeHandshake(pkt, from: src)
+                    self.emitSecureReadyIfNeeded()
                     self.rawSendWire(self.crypto.handshakePacket())
                     continue
                 }
@@ -906,7 +993,7 @@ class BSDTransport {
     // MARK: forward-secret session (see MeshCrypto). Data is sealed under a
     // per-connection ephemeral session key; the static PSK only authenticates
     // the handshake, so a later PSK leak can't decrypt recorded traffic.
-    private let crypto = MeshCrypto()
+    private var crypto = MeshCrypto()
     // Security surface for the UI (1-1): safety number pairs our identity with the peer's.
     var peerSafetyNumber: String? {
         guard let peer = crypto.peerIdentity else { return nil }
@@ -914,6 +1001,12 @@ class BSDTransport {
     }
     var mitmDetected: Bool { crypto.mitmDetected }
     private var handshakeTimer: DispatchSourceTimer?
+
+    private func emitSecureReadyIfNeeded() {
+        guard crypto.established, !secureReadyEmitted else { return }
+        secureReadyEmitted = true
+        DispatchQueue.main.async { self.onSecureSessionReady?() }
+    }
 
     // MARK: application-level fragmentation
     // UDP datagrams are capped (~9KB default on Apple platforms) and anything
@@ -2168,6 +2261,9 @@ final class PeerDiscovery: ObservableObject {
         var status: String          // "idle" | "call"
         let endpoint: NWEndpoint
         var id: String { uid }
+        var displayName: String {
+            DeviceDisplayNamePolicy.safe(name, fallback: "Nearby TRI-NET peer")
+        }
         static func == (a: Peer, b: Peer) -> Bool {
             a.uid == b.uid && a.name == b.name && a.status == b.status && a.room == b.room
         }
@@ -2256,10 +2352,10 @@ final class PeerDiscovery: ObservableObject {
                 list.append(Peer(uid: uid, name: txt["name"] ?? "TRI-NET", room: peerRoom,
                                  status: txt["status"] ?? "idle", endpoint: r.endpoint))
             }
-            let sorted = list.sorted { $0.name.lowercased() < $1.name.lowercased() }
+            let sorted = list.sorted { $0.displayName.lowercased() < $1.displayName.lowercased() }
             DispatchQueue.main.async {
                 self.peers = sorted
-                NSLog("TRINET: roster \(sorted.count) peer(s): \(sorted.map { $0.name }.joined(separator: ", "))")
+                NSLog("TRINET: roster \(sorted.count) peer(s): \(sorted.map { $0.displayName }.joined(separator: ", "))")
             }
         }
         b.stateUpdateHandler = { st in if case .failed(let e) = st { NSLog("TRINET: discovery browse failed: \(e)") } }

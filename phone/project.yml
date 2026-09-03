@@ -8,21 +8,39 @@ settings:
   base:
     SWIFT_VERSION: "5.0"
     CODE_SIGN_STYLE: Automatic
+packages:
+  LiveKit:
+    url: https://github.com/livekit/client-sdk-swift.git
+    from: 2.15.2
 targets:
   TriNetVideo:
     type: application
     platform: iOS
     sources:
       - path: TriNetVideo
+      - path: shared
+    dependencies:
+      - package: LiveKit
     info:
       path: TriNetVideo/Info.plist
       properties:
         CFBundleDisplayName: TRI-NET Video
-        NSCameraUsageDescription: "TRI-NET needs camera to stream video over mesh radio"
+        NSCameraUsageDescription: "TRI-NET needs camera for secure local and internet video calls"
         NSMicrophoneUsageDescription: "TRI-NET needs microphone for video calls"
-        NSLocalNetworkUsageDescription: "Find TRI-NET people on your local network by name instead of typing IPs"
+        NSLocalNetworkUsageDescription: "TRI-NET discovers signed contacts and connects over local UDP or a routed radio mesh"
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
         NSBonjourServices:
+          - _trinet-call._udp
           - _trinet._udp
+        TRINET_API_BASE_URL: "http://SSDs-MacBook-Pro.local:8080"
+        TRINET_LIVEKIT_URL: ""
+        TRINET_SERVICE_ACCESS_TOKEN: ""
+        TRINET_DEVELOPMENT_ROOM_TOKEN: ""
+        UIBackgroundModes:
+          - audio
+          - voip
+          - remote-notification
         UILaunchScreen:
           UIColorName: ""
         UISupportedInterfaceOrientations:
@@ -38,4 +56,16 @@ targets:
         CODE_SIGNING_REQUIRED: YES
         CODE_SIGNING_ALLOWED: YES
         GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_ENTITLEMENTS: TriNetVideo/TriNetVideo.entitlements
         PRODUCT_NAME: TriNetVideo
+  TriNetVideoTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: TriNetVideoTests
+    dependencies:
+      - target: TriNetVideo
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.trinet.video.tests
+        GENERATE_INFOPLIST_FILE: YES

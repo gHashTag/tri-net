@@ -22,3 +22,8 @@ cwasm/target/
 phone/desktop/.dd/
 phone/desktop/build/
 phone/build-ios/
+
+# Build artifacts — never commit
+**/.spm/
+**/.dd-*/
+**/DerivedData/

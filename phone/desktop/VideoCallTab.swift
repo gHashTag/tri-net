@@ -12,6 +12,7 @@ import AVFoundation
 import CoreImage
 import CoreMedia
 import CoreVideo
+import LiveKit
 
 // Group the 11-digit safety number into readable blocks (e.g. 123 4567 8901) for reading aloud.
 func groupDigits(_ s: String) -> String {
@@ -31,6 +32,18 @@ struct VideoCallTab: View {
             } else {
                 StartCallView(call: call)
             }
+        }
+        .alert(item: $call.incomingMeshCall) { incoming in
+            Alert(title: Text("Incoming local call"),
+                  message: Text("@\(incoming.invite.nickname) wants to start an encrypted UDP call."),
+                  primaryButton: .default(Text("Accept"), action: call.acceptIncomingMeshCall),
+                  secondaryButton: .cancel(Text("Decline"), action: call.declineIncomingMeshCall))
+        }
+        .alert(item: $call.incomingInternetCall) { incoming in
+            Alert(title: Text("Incoming Internet call"),
+                  message: Text("@\(incoming.caller) is calling through WebRTC."),
+                  primaryButton: .default(Text("Accept"), action: call.acceptIncomingInternetCall),
+                  secondaryButton: .cancel(Text("Decline"), action: call.declineIncomingInternetCall))
         }
         // Incoming-call banner: macOS convention is a corner/top notification card,
         // not a full-screen takeover (a Mac is multi-window). Floats above either view.
@@ -200,29 +213,116 @@ private struct IncomingCallBanner: View {
 
 private struct StartCallView: View {
     @ObservedObject var call: CallManager
+    @ObservedObject private var groupChat: GroupChatController
+    @State private var showNickname = false
+    @State private var showInternetSettings = false
+    @State private var showGroupChats = false
+
+    init(call: CallManager) {
+        self.call = call
+        groupChat = call.groupChat
+    }
 
     var body: some View {
         VStack(spacing: 18) {
-            Text("Video Call").font(DS.display(28, .semibold)).tracking(-0.5)
-                .foregroundColor(DS.text)
+            HStack {
+                Spacer().frame(width: 76)
+                Spacer()
+                Text("Video Call").font(DS.display(28, .semibold)).tracking(-0.5)
+                    .foregroundColor(DS.text)
+                Spacer()
+                HStack(spacing: 4) {
+                    Button(action: { showGroupChats = true }) {
+                        Image(systemName: groupChat.chats.isEmpty ? "bubble.left.and.bubble.right" : "bubble.left.and.bubble.right.fill")
+                            .foregroundColor(DS.dim).frame(width: 36, height: 36)
+                    }.buttonStyle(.plain)
+                    Button(action: { showInternetSettings = true }) {
+                        Image(systemName: "gearshape").foregroundColor(DS.dim).frame(width: 36, height: 36)
+                    }.buttonStyle(.plain)
+                }
+            }
             // Say what this actually is. The call is direct UDP between two IP
             // peers over whatever interface the OS routes by (Wi-Fi today) — the
             // radio mesh is a separate subsystem and is NOT in this path. The old
             // "Encrypted mesh" line implied otherwise.
-            Text("Encrypted peer-to-peer · forward-secret")
+            Text("Encrypted local UDP | LiveKit WebRTC")
                 .font(DS.ui(13)).foregroundColor(DS.dim)
 
-            VStack(spacing: 12) {
+            Button(action: { showNickname = true }) {
                 HStack(spacing: 8) {
-                    SectionLabel(text: "Peer")
-                    TextField("IP", text: $call.remoteIP)
+                    Image(systemName: call.directory.currentNickname == nil ?
+                          "person.crop.circle.badge.plus" : "checkmark.seal.fill")
+                    Text(call.directory.currentNickname.map { "@\($0)" } ?? "Create your nickname")
+                        .font(DS.mono(12, .medium))
+                    Text(call.directory.claimKind == .verified ? "VERIFIED" :
+                         call.directory.claimKind == .meshLocal ? "MESH-LOCAL" : "NEW")
+                        .font(DS.mono(9, .bold))
+                        .foregroundColor(call.directory.claimKind == .verified ? DS.live : .orange)
+                }
+                .padding(.horizontal, 14).padding(.vertical, 8)
+                .dsCard(12)
+            }.buttonStyle(.plain)
+
+            VStack(spacing: 12) {
+                Picker("Route", selection: $call.route) {
+                    Text("Auto").tag(CallRoute.automatic)
+                    Text("Local/Mesh UDP").tag(CallRoute.mesh)
+                    Text("Internet").tag(CallRoute.internet)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 430)
+
+                HStack(spacing: 8) {
+                    SectionLabel(text: "Find")
+                    TextField(call.route == .mesh ? "nickname or IP" : "nickname",
+                              text: Binding(get: { call.directory.searchQuery },
+                                            set: { call.directory.searchQuery = $0 }))
                         .textFieldStyle(.plain).font(DS.mono(14)).foregroundColor(DS.text)
-                        .frame(width: 160)
+                        .frame(width: 250)
+                        .onSubmit { call.searchNicknames() }
+                    Button(action: { call.searchNicknames() }) {
+                        Image(systemName: "magnifyingglass").foregroundColor(DS.text)
+                    }.buttonStyle(.plain)
                 }
                 .padding(.horizontal, 16).padding(.vertical, 12).dsCard(12)
 
-                Text("SELF · \(call.localIP):\(call.port)")
+                if !call.directory.results.isEmpty {
+                    HStack(spacing: 8) {
+                        ForEach(call.directory.results.prefix(3)) { contact in
+                            Button("@\(contact.nickname) [\(contact.source == .mesh && !contact.online ? "LOCAL OFFLINE" : contact.source.rawValue)]") {
+                                call.selectContact(contact)
+                            }
+                            .buttonStyle(.plain).font(DS.mono(10, .medium))
+                            .foregroundColor(contact.online ? DS.text : DS.faint)
+                            .padding(.horizontal, 10).padding(.vertical, 6)
+                            .overlay(Capsule().stroke(DS.hairline, lineWidth: 1))
+                        }
+                    }
+                }
+
+                Text("SELF | \(call.directory.currentNickname.map { "@\($0)" } ?? call.identity.displayName) | \(call.localIP):\(call.port)")
                     .font(DS.mono(11)).foregroundColor(DS.faint)
+
+                if call.isStarting {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text(call.status).font(DS.ui(11)).foregroundColor(DS.dim)
+                        Button(action: call.cancelPendingCall) {
+                            Label("Stop", systemImage: "xmark")
+                                .font(DS.mono(10, .semibold))
+                                .foregroundColor(DS.danger)
+                                .padding(.horizontal, 10).padding(.vertical, 5)
+                                .overlay(Capsule().stroke(DS.danger.opacity(0.55), lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Stop connection attempt")
+                    }
+                }
+
+                if let error = call.error {
+                    Text(error).font(DS.ui(11)).foregroundColor(DS.danger)
+                        .multilineTextAlignment(.center)
+                }
 
                 // Missed calls — one-tap call back (newest first, capped at 5).
                 if !call.missedCalls.isEmpty {
@@ -303,8 +403,237 @@ private struct StartCallView: View {
 
             PillButton(title: "Start Call", icon: "phone.fill", filled: true) { call.startCall() }
                 .padding(.top, 6)
+                .disabled(call.isStarting)
+                .opacity(call.isStarting ? 0.45 : 1)
         }
         .padding(30)
+        .sheet(isPresented: $showNickname) { MonitorNicknamePanel(call: call) }
+        .sheet(isPresented: $showInternetSettings) { MonitorInternetSettingsPanel(call: call) }
+        .sheet(isPresented: $showGroupChats) { MonitorGroupChatPanel(call: call) }
+    }
+}
+
+private struct MonitorNicknamePanel: View {
+    @ObservedObject var call: CallManager
+    @ObservedObject private var directory: NicknameDirectoryController
+    @Environment(\.dismiss) private var dismiss
+
+    init(call: CallManager) {
+        self.call = call
+        directory = call.directory
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Your Nickname").font(DS.display(20, .semibold))
+                Spacer()
+                Button("Done") { dismiss() }
+            }
+            HStack {
+                Text("@").foregroundColor(DS.dim)
+                TextField("nickname", text: $directory.proposedNickname)
+                    .textFieldStyle(.roundedBorder)
+            }
+            Text("Use 3-20 lowercase letters, numbers, or underscore.")
+                .font(DS.ui(11)).foregroundColor(DS.dim)
+            Button(directory.isWorking ? "Checking..." : "Check and create") {
+                call.claimNickname()
+            }.disabled(directory.isWorking)
+            if let status = directory.statusMessage {
+                Text(status).font(DS.ui(11)).foregroundColor(DS.text)
+            }
+            if !directory.suggestions.isEmpty {
+                HStack {
+                    ForEach(directory.suggestions, id: \.self) { suggestion in
+                        Button("@\(suggestion)") {
+                            directory.proposedNickname = suggestion
+                            call.claimNickname()
+                        }
+                    }
+                }
+            }
+            Spacer()
+        }
+        .padding(24)
+        .frame(width: 480, height: 300)
+        .onChange(of: directory.currentNickname) { current in
+            if current != nil { dismiss() }
+        }
+    }
+}
+
+private struct MonitorInternetSettingsPanel: View {
+    @ObservedObject var call: CallManager
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Internet Calling").font(DS.display(20, .semibold))
+                Spacer()
+                Button("Cancel") { dismiss() }
+            }
+            TextField("https://api.example.com", text: $call.internetConfiguration.apiBaseURL)
+                .textFieldStyle(.roundedBorder)
+            TextField("wss://project.livekit.cloud", text: $call.internetConfiguration.liveKitURL)
+                .textFieldStyle(.roundedBorder)
+            SecureField("Service access token", text: $call.internetConfiguration.accessToken)
+                .textFieldStyle(.roundedBorder)
+            SecureField("Development room token", text: $call.internetConfiguration.developmentRoomToken)
+                .textFieldStyle(.roundedBorder)
+            Text("Production uses the signed API. Direct LiveKit mode is for development tests only.")
+                .font(DS.ui(11)).foregroundColor(DS.dim)
+            HStack {
+                Spacer()
+                Button("Save") {
+                    call.saveInternetSettings()
+                    dismiss()
+                }
+            }
+        }
+        .padding(24)
+        .frame(width: 560, height: 330)
+    }
+}
+
+private struct MonitorGroupChatPanel: View {
+    @ObservedObject var call: CallManager
+    @ObservedObject private var group: GroupChatController
+    @Environment(\.dismiss) private var dismiss
+
+    init(call: CallManager) {
+        self.call = call
+        group = call.groupChat
+    }
+
+    var body: some View {
+        VStack(spacing: 14) {
+            HStack {
+                Text("Group Chats").font(DS.display(22, .semibold)).foregroundColor(DS.text)
+                Spacer()
+                Button("Done") { dismiss() }
+            }
+
+            HStack(spacing: 14) {
+                VStack(alignment: .leading, spacing: 10) {
+                    SectionLabel(text: "New group")
+                    TextField("Title (optional)", text: $group.titleInput)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("@alice, @bob", text: $group.membersInput)
+                        .textFieldStyle(.roundedBorder)
+                    Text("Separate unique nicknames with commas or spaces.")
+                        .font(DS.ui(10)).foregroundColor(DS.dim)
+                    Button(group.isWorking ? "Creating..." : "Create group") {
+                        group.createGroup()
+                    }
+                    .disabled(group.isWorking)
+
+                    Hairline()
+                    SectionLabel(text: "Your chats")
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 7) {
+                            if group.chats.isEmpty {
+                                Text("No groups yet").font(DS.ui(11)).foregroundColor(DS.faint)
+                            }
+                            ForEach(group.chats) { chat in
+                                Button(action: { group.open(chat) }) {
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(chat.title).font(DS.ui(13, .medium)).foregroundColor(DS.text)
+                                        Text(chat.members.map { "@\($0)" }.joined(separator: ", "))
+                                            .font(DS.mono(9)).foregroundColor(DS.faint).lineLimit(1)
+                                        if let lastMessage = chat.lastMessage {
+                                            Text(lastMessage).font(DS.ui(10)).foregroundColor(DS.dim).lineLimit(1)
+                                        }
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(9)
+                                    .background(group.activeChatID == chat.chatID ? DS.surfaceHi : DS.surface,
+                                                in: RoundedRectangle(cornerRadius: 10))
+                                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(DS.hairline, lineWidth: 1))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+                .frame(width: 260)
+
+                VStack(spacing: 0) {
+                    if let chat = group.activeChat {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(chat.title).font(DS.ui(16, .semibold)).foregroundColor(DS.text)
+                                Text(chat.members.map { "@\($0)" }.joined(separator: ", "))
+                                    .font(DS.mono(9)).foregroundColor(DS.faint).lineLimit(1)
+                            }
+                            Spacer()
+                        }
+                        .padding(12)
+                        Hairline()
+                        ScrollViewReader { proxy in
+                            ScrollView {
+                                LazyVStack(spacing: 8) {
+                                    ForEach(group.messages) { message in
+                                        let mine = message.senderUserID == call.identity.userID
+                                        HStack {
+                                            if mine { Spacer(minLength: 70) }
+                                            VStack(alignment: .leading, spacing: 3) {
+                                                Text(mine ? "You" : "@\(message.senderNickname)")
+                                                    .font(DS.mono(9)).foregroundColor(DS.faint)
+                                                Text(message.text).font(DS.ui(12)).foregroundColor(DS.text)
+                                            }
+                                            .padding(.horizontal, 11).padding(.vertical, 7)
+                                            .background(mine ? Color.white.opacity(0.10) : DS.surfaceHi,
+                                                        in: RoundedRectangle(cornerRadius: 11))
+                                            if !mine { Spacer(minLength: 70) }
+                                        }
+                                        .id(message.messageID)
+                                    }
+                                }
+                                .padding(12)
+                            }
+                            .onChange(of: group.messages.count) { _ in
+                                if let last = group.messages.last {
+                                    proxy.scrollTo(last.messageID, anchor: .bottom)
+                                }
+                            }
+                        }
+                        Hairline()
+                        HStack(spacing: 8) {
+                            TextField("Message", text: $group.draft)
+                                .textFieldStyle(.roundedBorder)
+                                .onSubmit { group.send() }
+                            Button(action: { group.send() }) {
+                                Image(systemName: "arrow.up.circle.fill").font(.system(size: 24))
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(group.isWorking || group.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
+                        .padding(12)
+                    } else {
+                        VStack(spacing: 10) {
+                            Image(systemName: "bubble.left.and.bubble.right")
+                                .font(.system(size: 42)).foregroundColor(DS.faint)
+                            Text("Select a group or create one by nickname.")
+                                .font(DS.ui(13)).foregroundColor(DS.dim)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                }
+                .background(DS.surface, in: RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(DS.hairline, lineWidth: 1))
+            }
+
+            if let status = group.statusMessage {
+                Text(status).font(DS.ui(10)).foregroundColor(DS.dim)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(20)
+        .frame(width: 820, height: 600)
+        .background(DS.ink)
+        .onAppear { group.startPolling() }
     }
 }
 
@@ -373,11 +702,34 @@ private struct PeerRoster: View {
 
 private struct InCallView: View {
     @ObservedObject var call: CallManager
+    @ObservedObject private var internet: InternetCallController
     @State private var pipOffset: CGSize = .zero
     @State private var showChat = false
     @State private var showLinkStats = false
     @State private var draft = ""
     private let reactions = ["👍", "❤️", "😂", "👏", "🔥"]
+
+    init(call: CallManager) {
+        self.call = call
+        _internet = ObservedObject(wrappedValue: call.internet)
+    }
+
+    private var hasRemoteMedia: Bool {
+        if call.activeRoute == .internet {
+            return internet.hasRemoteParticipant
+        }
+        return call.framesReceived > 0 || !call.groupDecoders.isEmpty
+    }
+
+    private var internetStatusText: String {
+        if internet.hasRemoteParticipant {
+            return "WebRTC | peer connected"
+        }
+        if internet.state == .connected {
+            return "WebRTC | waiting for peer"
+        }
+        return "WebRTC | \(internet.state.rawValue)"
+    }
 
     var body: some View {
         VStack(spacing: 12) {
@@ -385,6 +737,10 @@ private struct InCallView: View {
                 // Group → adaptive grid of per-source decoders; 1-1 → single feed
                 if call.isGroup {
                     GroupGrid(call: call)
+                        .clipShape(RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: DS.radius, style: .continuous).stroke(DS.hairline, lineWidth: 1))
+                } else if call.activeRoute == .internet {
+                    MonitorInternetVideo(controller: internet, peer: call.callee)
                         .clipShape(RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
                         .overlay(RoundedRectangle(cornerRadius: DS.radius, style: .continuous).stroke(DS.hairline, lineWidth: 1))
                 } else {
@@ -403,27 +759,35 @@ private struct InCallView: View {
 
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 6) {
-                        StatusTag(text: call.framesReceived > 0 || !call.groupDecoders.isEmpty ? "Secure" : "Connecting",
-                                  live: call.framesReceived > 0 || !call.groupDecoders.isEmpty)
+                        StatusTag(text: hasRemoteMedia ? "Secure" : "Connecting",
+                                  live: hasRemoteMedia)
                             .background(DS.ink.opacity(0.5), in: Capsule())
-                        // MITM alarm: the peer's pinned identity changed. Loud + persistent.
-                        if call.mitmWarning {
-                            StatusTag(text: "⚠︎ IDENTITY CHANGED — POSSIBLE MITM", live: false)
-                                .background(DS.danger, in: Capsule())
-                        }
-                        // Safety number (1-1): read it aloud to your peer to confirm no MITM (Signal-style).
-                        if let sn = call.safetyNumber {
-                            StatusTag(text: "🔒 " + groupDigits(sn), live: false)
-                                .background(DS.ink.opacity(0.6), in: Capsule())
-                        }
-                        // Make link trouble visible instead of a silent freeze.
-                        if call.linkHealth != .good {
-                            StatusTag(text: call.linkHealth == .stalled ? "Reconnecting…" : "Weak connection", live: false)
-                                .background((call.linkHealth == .stalled ? DS.danger : Color.orange).opacity(0.9), in: Capsule())
-                        } else if call.linkRestored {
-                            StatusTag(text: "Connection restored", live: true)
-                                .background(DS.live.opacity(0.9), in: Capsule())
-                                .transition(.opacity)
+                        if call.activeRoute == .internet {
+                            StatusTag(
+                                text: internetStatusText,
+                                live: internet.hasRemoteParticipant
+                            )
+                            .background(DS.ink.opacity(0.5), in: Capsule())
+                        } else {
+                            // MITM alarm: the peer's pinned identity changed. Loud + persistent.
+                            if call.mitmWarning {
+                                StatusTag(text: "⚠︎ IDENTITY CHANGED — POSSIBLE MITM", live: false)
+                                    .background(DS.danger, in: Capsule())
+                            }
+                            // Safety number (1-1): read it aloud to your peer to confirm no MITM (Signal-style).
+                            if let sn = call.safetyNumber {
+                                StatusTag(text: "🔒 " + groupDigits(sn), live: false)
+                                    .background(DS.ink.opacity(0.6), in: Capsule())
+                            }
+                            // Make link trouble visible instead of a silent freeze.
+                            if call.linkHealth != .good {
+                                StatusTag(text: call.linkHealth == .stalled ? "Reconnecting…" : "Weak connection", live: false)
+                                    .background((call.linkHealth == .stalled ? DS.danger : Color.orange).opacity(0.9), in: Capsule())
+                            } else if call.linkRestored {
+                                StatusTag(text: "Connection restored", live: true)
+                                    .background(DS.live.opacity(0.9), in: Capsule())
+                                    .transition(.opacity)
+                            }
                         }
                         if call.roster.count > 1 {
                             StatusTag(text: "\(call.roster.count) in call", live: true).background(DS.ink.opacity(0.5), in: Capsule())
@@ -431,19 +795,21 @@ private struct InCallView: View {
                         if call.isScreenSharing {
                             StatusTag(text: "Sharing Screen", live: true).background(DS.ink.opacity(0.5), in: Capsule())
                         }
-                        LinkBadge(link: call.link)
-                        // Live BWE readout: what the PEER's receiver measures (jitter) + our encode rate.
-                        // Green under 40ms (the back-off threshold), red above — network health at a glance.
-                        Text("TX \(call.camera.activeHeight > 0 ? "\(call.camera.activeHeight)p · " : "")net \(call.peerJitterMs)ms · \(call.camera.bitrateKbps)k")
-                            .font(DS.mono(10)).foregroundColor(call.peerJitterMs > 40 ? DS.danger : DS.live)
-                            .padding(.horizontal, 8).padding(.vertical, 4)
-                            .background(DS.ink.opacity(0.5), in: Capsule())
-                        // Receive-side health: frames/sec + resolution DECODED from the peer. Red when 0 fps
-                        // (no video arriving) — the fastest read on the recurring "no video" complaint.
-                        Text("RX \(call.rxFps)fps\(call.isGroup ? " · \(call.rxSources) src" : (call.rxHeight > 0 ? " · \(call.rxHeight)p" : ""))")
-                            .font(DS.mono(10)).foregroundColor(call.rxFps > 0 ? DS.live : DS.danger)
-                            .padding(.horizontal, 8).padding(.vertical, 4)
-                            .background(DS.ink.opacity(0.5), in: Capsule())
+                        if call.activeRoute != .internet {
+                            LinkBadge(link: call.link)
+                            // Live BWE readout: what the PEER's receiver measures (jitter) + our encode rate.
+                            // Green under 40ms (the back-off threshold), red above — network health at a glance.
+                            Text("TX \(call.camera.activeHeight > 0 ? "\(call.camera.activeHeight)p · " : "")net \(call.peerJitterMs)ms · \(call.camera.bitrateKbps)k")
+                                .font(DS.mono(10)).foregroundColor(call.peerJitterMs > 40 ? DS.danger : DS.live)
+                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .background(DS.ink.opacity(0.5), in: Capsule())
+                            // Receive-side health: frames/sec + resolution DECODED from the peer. Red when 0 fps
+                            // (no video arriving) — the fastest read on the recurring "no video" complaint.
+                            Text("RX \(call.rxFps)fps\(call.isGroup ? " · \(call.rxSources) src" : (call.rxHeight > 0 ? " · \(call.rxHeight)p" : ""))")
+                                .font(DS.mono(10)).foregroundColor(call.rxFps > 0 ? DS.live : DS.danger)
+                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .background(DS.ink.opacity(0.5), in: Capsule())
+                        }
                     }
                     Spacer()
                     if let s = call.previewSession {
@@ -488,24 +854,34 @@ private struct InCallView: View {
 
             // Control bar
             HStack(spacing: 16) {
-                Meter(label: "Mic", level: call.txLevel, muted: call.isMuted)
-                Meter(label: "In", level: call.rxLevel, muted: false)
+                if call.activeRoute != .internet {
+                    Meter(label: "Mic", level: call.txLevel, muted: call.isMuted)
+                    Meter(label: "In", level: call.rxLevel, muted: false)
+                }
                 Spacer()
-                // Link-quality at a glance (what Zoom/Meet show as "bars"): encode bitrate + peer's jitter.
-                // Tap to expand a 60s sparkline of both.
-                Button { showLinkStats.toggle() } label: {
-                    Text("\(call.bitrateKbps)k · jit \(call.peerJitterMs)ms")
-                        .font(DS.mono(11)).foregroundColor(call.peerJitterMs > 40 ? DS.danger : DS.faint)
+                if call.activeRoute == .internet {
+                    Text(internetStatusText)
+                        .font(DS.mono(11))
+                        .foregroundColor(hasRemoteMedia ? DS.live : DS.faint)
+                } else {
+                    // Link-quality at a glance (what Zoom/Meet show as "bars"): encode bitrate + peer's jitter.
+                    // Tap to expand a 60s sparkline of both.
+                    Button { showLinkStats.toggle() } label: {
+                        Text("\(call.bitrateKbps)k · jit \(call.peerJitterMs)ms")
+                            .font(DS.mono(11)).foregroundColor(call.peerJitterMs > 40 ? DS.danger : DS.faint)
+                    }
+                    .buttonStyle(.plain)
+                    .popover(isPresented: $showLinkStats, arrowEdge: .top) {
+                        LinkStatsPanel(call: call).frame(width: 300)
+                    }
+                    Text("↑\(call.framesSent)  ↓\(call.framesReceived)")
+                        .font(DS.mono(11)).foregroundColor(DS.faint)
                 }
-                .buttonStyle(.plain)
-                .popover(isPresented: $showLinkStats, arrowEdge: .top) {
-                    LinkStatsPanel(call: call).frame(width: 300)
+                IconPill(system: call.isMuted ? "mic.slash.fill" : "mic.fill", active: call.isMuted, tint: DS.danger) { call.toggleMute() }
+                if call.activeRoute != .internet {
+                    IconPill(system: call.isScreenSharing ? "rectangle.inset.filled.on.rectangle" : "rectangle.on.rectangle",
+                             active: call.isScreenSharing, tint: DS.live) { call.toggleScreenShare() }
                 }
-                Text("↑\(call.framesSent)  ↓\(call.framesReceived)")
-                    .font(DS.mono(11)).foregroundColor(DS.faint)
-                IconPill(system: call.isMuted ? "mic.slash.fill" : "mic.fill", active: call.isMuted, tint: DS.danger) { call.isMuted.toggle() }
-                IconPill(system: call.isScreenSharing ? "rectangle.inset.filled.on.rectangle" : "rectangle.on.rectangle",
-                         active: call.isScreenSharing, tint: DS.live) { call.toggleScreenShare() }
                 ZStack(alignment: .topTrailing) {
                     IconPill(system: "bubble.left.and.bubble.right\(call.chat.isEmpty ? "" : ".fill")", active: showChat) {
                         showChat.toggle(); call.chatOpen = showChat
@@ -516,20 +892,24 @@ private struct InCallView: View {
                             .background(DS.danger, in: Capsule()).offset(x: 6, y: -6)
                     }
                 }
-                IconPill(system: call.isRecording ? "record.circle.fill" : "record.circle", active: call.isRecording, tint: DS.danger) { call.toggleRecording() }
-                IconPill(system: call.isBlurred ? "person.crop.rectangle.badge.plus.fill" : "person.crop.rectangle", active: call.isBlurred, tint: DS.live) { call.toggleBlur() }
-                IconPill(system: call.isMeshProfile ? "antenna.radiowaves.left.and.right.circle.fill" : "antenna.radiowaves.left.and.right",
-                         active: call.isMeshProfile, tint: DS.live) { call.toggleMeshProfile() }
-                Menu {
-                    ForEach(call.cameras, id: \.uniqueID) { cam in
-                        Button(cam.localizedName) { call.selectCamera(cam.uniqueID) }
+                if call.activeRoute != .internet {
+                    IconPill(system: call.isRecording ? "record.circle.fill" : "record.circle", active: call.isRecording, tint: DS.danger) { call.toggleRecording() }
+                    IconPill(system: call.isBlurred ? "person.crop.rectangle.badge.plus.fill" : "person.crop.rectangle", active: call.isBlurred, tint: DS.live) { call.toggleBlur() }
+                    IconPill(system: call.isMeshProfile ? "antenna.radiowaves.left.and.right.circle.fill" : "antenna.radiowaves.left.and.right",
+                             active: call.isMeshProfile, tint: DS.live) { call.toggleMeshProfile() }
+                    Menu {
+                        ForEach(call.cameras, id: \.uniqueID) { cam in
+                            Button(cam.localizedName) { call.selectCamera(cam.uniqueID) }
+                        }
+                    } label: {
+                        Image(systemName: "arrow.triangle.2.circlepath.camera")
+                            .font(.system(size: 14)).foregroundColor(DS.text)
+                            .frame(width: 40, height: 40).overlay(Circle().stroke(DS.hairlineStrong, lineWidth: 1))
                     }
-                } label: {
-                    Image(systemName: "arrow.triangle.2.circlepath.camera")
-                        .font(.system(size: 14)).foregroundColor(DS.text)
-                        .frame(width: 40, height: 40).overlay(Circle().stroke(DS.hairlineStrong, lineWidth: 1))
-                }.menuStyle(.borderlessButton).frame(width: 44)
-                IconPill(system: call.cameraOff ? "video.slash.fill" : "video.fill", active: call.cameraOff, tint: DS.danger) { call.cameraOff.toggle() }
+                    .menuStyle(.borderlessButton)
+                    .frame(width: 44)
+                }
+                IconPill(system: call.cameraOff ? "video.slash.fill" : "video.fill", active: call.cameraOff, tint: DS.danger) { call.toggleCamera() }
                 Button(action: { call.endCall() }) {
                     Image(systemName: "phone.down.fill").font(.system(size: 15)).foregroundColor(DS.onFill)
                         .frame(width: 56, height: 40).background(DS.danger, in: Capsule())
@@ -614,6 +994,31 @@ private struct Meter: View {
 
 // MARK: - Display helpers (self-contained: the Monitor target does not compile
 // the standalone app's Views.swift)
+
+private struct MonitorInternetVideo: View {
+    @ObservedObject var controller: InternetCallController
+    let peer: String
+
+    var body: some View {
+        ZStack {
+            DS.surface
+            if let track = controller.remoteVideoTrack {
+                SwiftUIVideoView(track, layoutMode: .fit)
+            } else {
+                VStack(spacing: 10) {
+                    ProgressView().controlSize(.small)
+                    Text(controller.state.rawValue.uppercased())
+                        .font(DS.mono(11, .medium))
+                        .tracking(1)
+                        .foregroundColor(DS.faint)
+                    Text(controller.participantName.isEmpty ? peer : controller.participantName)
+                        .font(DS.mono(10))
+                        .foregroundColor(DS.faint)
+                }
+            }
+        }
+    }
+}
 
 private struct MonitorRemoteVideo: View {
     @ObservedObject var decoder: VideoDecoder

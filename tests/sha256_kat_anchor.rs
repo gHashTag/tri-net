@@ -99,7 +99,7 @@ fn sha256(msg: &[u8]) -> [u8; 32] {
     }
     data.extend_from_slice(&bitlen.to_be_bytes());
 
-    for block in data.chunks_exact(64) {
+    for block in data.as_chunks::<64>().0 {
         let mut w = [0u32; 64];
         for (i, wi) in w.iter_mut().enumerate().take(16) {
             let b = i * 4;
@@ -181,7 +181,9 @@ fn the_abc_digest_words_equal_the_spec_tri_sha256_kat() {
     // SHA-256("abc") words -- so the spec's expected values are anchored to real SHA-256.
     let d = sha256(b"abc");
     let words: Vec<u32> = d
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .map(|c| u32::from_be_bytes([c[0], c[1], c[2], c[3]]))
         .collect();
     let spec_kat = [
