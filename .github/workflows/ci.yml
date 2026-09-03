@@ -10,7 +10,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      # Pinned, not floating. `@stable` means every new Rust release can turn
+      # a fresh clippy lint into a hard error here via `-D warnings`, with no
+      # commit to this repository -- which is exactly what happened: stable
+      # gained `clippy::chunks_exact_to_as_chunks` and this gate went red on
+      # tests/sha256_kat_anchor.rs, blocking every PR. Bump this deliberately.
+      - uses: dtolnay/rust-toolchain@1.96.0
         with:
           components: rustfmt, clippy
       - run: cargo fmt --all --check
