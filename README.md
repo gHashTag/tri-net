@@ -137,7 +137,7 @@ external PA+LNA and regulatory clearance are in place.
 ## Build & test (host)
 
 ```bash
-cargo test              # 20+ unit + 2 integration tests (see Metrics - 110 test blocks in the project)
+cargo test              # 20+ unit + 2 integration tests (see Metrics - 432 test blocks in the project)
 cargo run --bin smoke-m1
 ```
 
