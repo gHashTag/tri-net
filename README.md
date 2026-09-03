@@ -88,8 +88,8 @@ BitNet-ternary benchmark on returned silicon, publish the raw log.
 | M1 static binary size (armv7l musleabihf) | 534 604 B | `smoke/M1_RESULTS.md` |
 | M1 binary sha256 | `e5abc335…7290a` | `smoke/M1_RESULTS.md` |
 | M1 host tests | 20 unit + 2 integration, RC=0 | `cargo test` |
-| Rust `#[test]` blocks in repo | 110 | `grep -rE '^\s*#\[test\]' src tests` |
-| Rust source lines | 4 463 | `find src -name '*.rs' \| xargs wc -l` |
+| Rust `#[test]` blocks in repo | 432 | `grep -rE '^\s*#\[test\]' src tests` |
+| Rust source lines | 10 350 | `find src -name '*.rs' \| xargs wc -l` |
 | AD9361 tune target | LO 5.8 GHz | `radio/README.md` |
 | AD9361 FFT peak (1 MHz tone, digital loopback) | +0.999 MHz | `radio/README.md` |
 | AD9361 SNR over noise floor | 108.6 dB (digital loopback only, not over-the-air) | `radio/README.md`; see [W7 finding #5](docs/W7_WEAK_POINTS_STRUCTURAL.md#находка-5) and [REGULATORY_STATUS](docs/REGULATORY_STATUS.md) |
@@ -97,7 +97,7 @@ BitNet-ternary benchmark on returned silicon, publish the raw log.
 | Sample rate | 30.72 MHz | `radio/README.md` |
 | Capture length | 65 536 samples | `radio/README.md` |
 | Connected P203 Mini boards | 3 | User confirmation 2026-07-04 |
-| T27 spec files ported | 1 (`specs/wire.t27`) | `find specs -name '*.t27'` |
+| T27 spec files ported | 107 | `find specs -name '*.t27' \| wc -l` |
 
 ### DePIN tokenomics (contract source, `gHashTag/trinity-contracts`, not yet deployed to mainnet)
 
