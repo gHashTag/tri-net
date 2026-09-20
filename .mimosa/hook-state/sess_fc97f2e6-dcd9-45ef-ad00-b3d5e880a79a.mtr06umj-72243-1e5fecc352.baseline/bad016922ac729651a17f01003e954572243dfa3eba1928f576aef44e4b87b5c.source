@@ -1,0 +1,26 @@
+[package]
+name = "ternclass"
+version = "0.1.0"
+edition = "2021"
+[[bin]]
+name = "ternclass"
+path = "src/main.rs"
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+[[bin]]
+name = "ternnet"
+path = "src/bin/ternnet.rs"
+[[bin]]
+name = "csma"
+path = "src/bin/csma.rs"
+[[bin]]
+name = "xfmr"
+path = "src/bin/xfmr.rs"
+[[bin]]
+name = "lm"
+path = "src/bin/lm.rs"
+[[bin]]
+name = "lm2"
+path = "src/bin/lm2.rs"

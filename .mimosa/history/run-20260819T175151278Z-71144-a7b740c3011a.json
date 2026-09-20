@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "mimosa-finding-history/v1",
+  "runId": "20260819T175151278Z-71144-a7b740c3011a",
+  "runStatus": "inconclusive",
+  "errors": [
+    "scan:fpga/ternary/ps7/load_and_verify.sh: scanner_failed: spawnSync /Users/playra/.nvm/versions/node/v22.22.0/bin/node ETIMEDOUT",
+    "scan:fpga/ternary/ps7/quiesce_and_load.sh: scanner_failed: spawnSync /Users/playra/.nvm/versions/node/v22.22.0/bin/node ETIMEDOUT",
+    "supply-chain-check:.: stop_budget_exhausted: focused supply-chain check was not run before the gate budget"
+  ],
+  "target": ".",
+  "revision": "372ddae16b8373c273923a2dbe32f145efe8e390",
+  "diffHash": "fd049c0d8e36996454ebba5fa088b9149a1815207a5e1cfbd922b569ebc346b7",
+  "rulesVersion": "unavailable",
+  "recordedAt": "2026-08-19T17:51:51.278Z",
+  "timing": {
+    "startedAt": "2026-08-19T17:51:47.332Z",
+    "completedAt": "2026-08-19T17:51:51.278Z",
+    "durationMs": 3946
+  },
+  "tokens": {
+    "input": 0,
+    "output": 0,
+    "total": 0,
+    "modelCalls": 0,
+    "measurement": "known-zero"
+  },
+  "findings": {
+    "total": 0,
+    "bySeverity": {},
+    "byStatus": {}
+  },
+  "coverage": {
+    "status": "partial",
+    "reasonCounts": {
+      "scanner_failed": 2,
+      "stop_budget_exhausted": 1,
+      "project_check_failed": 3
+    }
+  },
+  "evidenceBoundary": "static_only",
+  "immutableReport": ".mimosa/reports/task-review-sess_4fa86108-9f8a-46aa-899a-7a8f139ad6ee-20260819T175151278Z-71144-a7b740c3011a.json"
+}

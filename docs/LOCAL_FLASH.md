@@ -296,7 +296,9 @@ for a persistent-ext4-rootfs image) see [`SERIAL_NET_FIX.md`](SERIAL_NET_FIX.md)
 # на плате (ssh или serial):
 sh /root/ad9361_loopback.sh                # LO=5.8 GHz, tone=1 MHz, digital loopback
 # на рабочей станции:
-scp root@<mini-ip>:/tmp/rx.dat rx_board<N>.dat
+# (платы не имеют /usr/libexec/sftp-server, поэтому scp идёт только с -O;
+#  без него scp молча уходит в sftp-протокол и вешается)
+scp -O root@<mini-ip>:/tmp/rx.dat rx_board<N>.dat
 python3 analyze_tone.py rx_board<N>.dat 30720000
 # ожидание: peak +0.999 MHz, SNR > 100 dB
 ```
@@ -323,7 +325,7 @@ sha256sum "$BIN"       # ожидаемо: 534604 B, sha256 e5abc335…7290a (20
 Для каждой платы (после применения политики §0.5 hostname/IP/MAC разные):
 ```bash
 for h in tri-mini-1 tri-mini-2 tri-mini-3; do
-  scp "$BIN" root@$h:/root/smoke-m1
+  scp -O "$BIN" root@$h:/root/smoke-m1   # -O: на платах нет sftp-server
   ssh root@$h 'chmod +x /root/smoke-m1 && /root/smoke-m1; echo RC=$?'
 done
 ```

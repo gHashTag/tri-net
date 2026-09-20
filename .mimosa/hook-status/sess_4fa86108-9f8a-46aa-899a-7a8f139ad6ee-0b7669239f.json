@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "mimosa-hook-status/v1",
+  "recordedAt": "2026-08-26T17:00:18.547Z",
+  "sessionId": "sess_4fa86108-9f8a-46aa-899a-7a8f139ad6ee",
+  "event": "PostToolUse",
+  "toolName": "Write",
+  "file": "/Users/playra/.zcode/cli/memories/projects/tri-net-75b6138df1ad568e/memory/t27c-bootstrap-build.md",
+  "outcome": "clear",
+  "coverage": "complete",
+  "findingCount": 0,
+  "durationMs": 2,
+  "hostState": "hook_complete",
+  "reportHint": ".mimosa/reports/"
+}

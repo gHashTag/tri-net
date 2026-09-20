@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "mimosa-hook-status/v1",
+  "recordedAt": "2026-09-01T01:24:07.311Z",
+  "sessionId": "sess_fc97f2e6-dcd9-45ef-ad00-b3d5e880a79a",
+  "event": "PostToolUse",
+  "toolName": "Edit",
+  "file": "/Users/playra/skills/_state/drafts/2026-09-01-ДЕНЬ-ЗВОНКА-ЦИКЛ-утро-00-23.md",
+  "outcome": "clear",
+  "coverage": "complete",
+  "findingCount": 0,
+  "durationMs": 3,
+  "hostState": "hook_complete",
+  "reportHint": ".mimosa/reports/"
+}

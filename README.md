@@ -176,6 +176,8 @@ cargo build --release --target armv7-unknown-linux-musleabihf
 | Board | Chip | Role |
 |---|---|---|
 | ALINX AX7203 | Artix-7 `xc7a200t` (IDCODE `0x13636093`) | bench compute + video-radio + 2×GbE mesh (proven on silicon via openXC7 + OpenOCD + AL321) |
+
+> The IDCODE is real but its evidence is not in this repo: `gHashTag/t27` `fpga/HARDWARE_SSOT.md` measured `0x13636093` (XC7A200T) over JTAG on three boards (QMTech Wukong V1, 2026-08-17). No JTAG log or `ax7203_al321.cfg` exists in tri-net, and the measured boards carry a different vendor name and package (QMTech Wukong FGG676 vs ALINX AX7203 FBG484) than this row claims.
 | **P201/P203 Mini** × 3 | Zynq-7020 `xc7z020` + AD9361 SDR + GPS/PPS | **flying MVP DePIN node** — M1 crypto `hw`, AD9361 PHY `hw`, three boards connected |
 
 ---

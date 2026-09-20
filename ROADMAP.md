@@ -28,6 +28,8 @@ DePIN на одной P203 Mini. Часть Trinity Project. Anchor: **φ² + φ
 | Board | Chip | Role |
 |---|---|---|
 | ALINX AX7203 | Artix-7 `xc7a200t` (IDCODE `0x13636093`) | bench compute + video-radio + 2×GbE mesh (proven silicon) |
+
+> IDCODE evidence lives in the sister repo, not here: `gHashTag/t27` `fpga/HARDWARE_SSOT.md` records `0x13636093` (XC7A200T) measured by JTAG on three boards (QMTech Wukong V1, `xc7a200tfgg676-1`, 2026-08-17), with a raw transcript in its `docs/theory/IGLA-FORMAL-RESULTS.md`. No JTAG scan log exists in tri-net, and the file this row previously implied as its source (`fpga/openxc7-synth/ax7203_al321.cfg`) does not exist in this tree. Naming gap, unresolved: the measured boards are QMTech Wukong V1 (FGG676); this row and `fpga/gft/RUN_ON_SILICON.md` say ALINX AX7203 (FBG484). Same silicon family, unproven same board.
 | **P201/P203 Mini** × 3 | Zynq-7020 `xc7z020` + AD9361 SDR + GPS/PPS | flying MVP DePIN node — M1 crypto `hw`, AD9361 PHY `hw` |
 
 ## Roadmap

@@ -43,10 +43,11 @@ On host (build already done in sandbox, sha256 recorded below):
 
 ```
 tar xzf w10-bringup-package.tar.gz
-# musl first (portable):
-scp trios_meshd.armv7-musl               root@<mini>:/tmp/trios_meshd
-scp m2_onboard_bringup.sh                root@<mini>:/tmp/
-scp m2_onboard_bringup_n_runs.sh         root@<mini>:/tmp/
+# musl first (portable). -O: the Minis have no /usr/libexec/sftp-server,
+# so plain scp hangs -- legacy protocol only (or `cat f | ssh root@<mini> 'cat > /tmp/f'`).
+scp -O trios_meshd.armv7-musl               root@<mini>:/tmp/trios_meshd
+scp -O m2_onboard_bringup.sh                root@<mini>:/tmp/
+scp -O m2_onboard_bringup_n_runs.sh         root@<mini>:/tmp/
 ```
 
 On the Mini:

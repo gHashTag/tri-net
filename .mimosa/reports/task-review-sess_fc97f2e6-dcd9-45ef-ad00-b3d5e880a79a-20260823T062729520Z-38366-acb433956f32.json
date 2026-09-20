@@ -1,0 +1,765 @@
+{
+  "schema_version": "mimosa-task-review/v2",
+  "run_id": "20260823T062729520Z-38366-acb433956f32",
+  "run_status": "inconclusive",
+  "errors": [
+    {
+      "stage": "baseline",
+      "target": ".",
+      "reason": "baseline_partial: baseline capture had enumeration or snapshot errors"
+    }
+  ],
+  "coverage": {
+    "schema_version": "mimosa-hook-coverage/v1",
+    "status": "partial",
+    "scope": "hook_observed_diff",
+    "baseline": {
+      "complete": false,
+      "captured_files": 336,
+      "candidate_limit": 5000,
+      "truncated": false,
+      "enumeration_error_count": 0,
+      "snapshot_error_count": 33,
+      "compensated_target_count": 0
+    },
+    "change_tracking": {
+      "touched_observed": 0,
+      "touched_retained": 0,
+      "truncated": false,
+      "bash_mutation": true,
+      "bash_discovered": 0,
+      "bash_discovery_limit": 80,
+      "bash_discovery_truncated": false
+    },
+    "candidates": {
+      "eligible_files": 0,
+      "selected_files": 0,
+      "limit": 20,
+      "truncated": false
+    },
+    "scanning": {
+      "required_files": 0,
+      "scanned_files": 0,
+      "skipped_files": 0,
+      "failed_files": 0,
+      "project_checks_required": 0,
+      "project_checks_completed": 0
+    },
+    "notification": {
+      "eligible_findings": 0,
+      "detailed_findings": 0,
+      "detail_limit": 3,
+      "truncated": false
+    },
+    "reason_counts": {
+      "baseline_partial": 1,
+      "project_check_failed": 1
+    },
+    "reasons": [
+      {
+        "code": "baseline_partial",
+        "stage": "baseline",
+        "target": ".",
+        "detail": "baseline capture had enumeration or snapshot errors",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "baseline",
+        "target": ".",
+        "detail": "baseline_partial: baseline capture had enumeration or snapshot errors",
+        "affects_completion": true
+      }
+    ],
+    "reasons_truncated": false
+  },
+  "generated_at": "2026-08-23T06:27:29.520Z",
+  "session_id": "sess_fc97f2e6-dcd9-45ef-ad00-b3d5e880a79a",
+  "target": ".",
+  "revision": "2e77a4554274f2d01914e9b7c7bb22aa55696b00",
+  "rules_version": "unavailable",
+  "diff_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "diff": {
+    "algorithm": "sha256",
+    "changed_file_count": 0,
+    "changed_files": []
+  },
+  "timing": {
+    "started_at": "2026-08-23T06:27:29.057Z",
+    "completed_at": "2026-08-23T06:27:29.520Z",
+    "duration_ms": 463,
+    "measurement": "hook_wall_clock"
+  },
+  "tokens": {
+    "input": 0,
+    "output": 0,
+    "total": 0,
+    "model_calls": 0,
+    "measurement": "known-zero"
+  },
+  "telemetry": {
+    "schemaVersion": "mimosa-gate-telemetry/v1",
+    "profile": "gate",
+    "operation": "Stop",
+    "outcome": "partial/INCONCLUSIVE",
+    "latencyMs": 463,
+    "peakMemoryBytes": 111951872,
+    "memoryMeasurement": "max-observed-process-rss",
+    "scannedFiles": 0,
+    "cache": {
+      "hits": 0,
+      "misses": 0,
+      "measurement": "not-applicable"
+    },
+    "denyCount": 0,
+    "tokens": {
+      "input": 0,
+      "output": 0,
+      "total": 0,
+      "modelCalls": 0,
+      "measurement": "known-zero"
+    }
+  },
+  "finding_count": 0,
+  "rewake_finding_count": 0,
+  "evidence_boundary": {
+    "scan": "candidate",
+    "static_fix_verification": "observed_static_only",
+    "runtime_verification": "not_performed"
+  },
+  "finding_events": [
+    {
+      "finding_id": "mimosa-959b99a6bd56901be9731e2e",
+      "file": "",
+      "line": 2,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:00:44.129Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "66aa9943c0133bc450ab349ee8dd559effe66a44aa11ba59bbdc617cd54c3577",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-1c3cfaa7cd0f9acb039b88dd",
+      "file": "",
+      "line": 2,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:01:29.371Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "66aa9943c0133bc450ab349ee8dd559effe66a44aa11ba59bbdc617cd54c3577",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-8b6a13ab3ebd7c6ed80e9303",
+      "file": "",
+      "line": 2,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:02:01.882Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "66aa9943c0133bc450ab349ee8dd559effe66a44aa11ba59bbdc617cd54c3577",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-40f66d686fa1fb81cd845602",
+      "file": "",
+      "line": 2,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:03:57.972Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "66aa9943c0133bc450ab349ee8dd559effe66a44aa11ba59bbdc617cd54c3577",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-c18b4cccb78e7941939085fb",
+      "file": "",
+      "line": 2,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:04:20.450Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "66aa9943c0133bc450ab349ee8dd559effe66a44aa11ba59bbdc617cd54c3577",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-072be60446b81ff228b4b0f9",
+      "file": "",
+      "line": 3,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:05:02.154Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "66aa9943c0133bc450ab349ee8dd559effe66a44aa11ba59bbdc617cd54c3577",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-1d0e9830e601d9be2b45dee8",
+      "file": "",
+      "line": 3,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:06:02.353Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "66aa9943c0133bc450ab349ee8dd559effe66a44aa11ba59bbdc617cd54c3577",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-4a73ceed190d196025e00549",
+      "file": "",
+      "line": 2,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:06:37.347Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "66aa9943c0133bc450ab349ee8dd559effe66a44aa11ba59bbdc617cd54c3577",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-27ca1df6fdee268daa03761f",
+      "file": "",
+      "line": 2,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:06:56.626Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "66aa9943c0133bc450ab349ee8dd559effe66a44aa11ba59bbdc617cd54c3577",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-485f46d3c1af5283edcbd0e7",
+      "file": "",
+      "line": 2,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:07:40.869Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "66aa9943c0133bc450ab349ee8dd559effe66a44aa11ba59bbdc617cd54c3577",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-72bb224fb13891eb526066d3",
+      "file": "",
+      "line": 2,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:08:42.519Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "66aa9943c0133bc450ab349ee8dd559effe66a44aa11ba59bbdc617cd54c3577",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-5b6ed98ae7be94362ff65c85",
+      "file": "",
+      "line": 2,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:10:04.931Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "7761882c9accd23499c22caee4b205a4837e857cd7c0bf22ab64ed8fcf7a7559",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-47b0d922afac46bfc40ef9c1",
+      "file": "",
+      "line": 2,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:10:59.433Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "7761882c9accd23499c22caee4b205a4837e857cd7c0bf22ab64ed8fcf7a7559",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-7c11bb9aaf1ca4bb305edba6",
+      "file": "",
+      "line": 3,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:11:25.167Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "7761882c9accd23499c22caee4b205a4837e857cd7c0bf22ab64ed8fcf7a7559",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-aba769f24a85a0ddad8dbb34",
+      "file": "",
+      "line": 2,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:11:58.673Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "7761882c9accd23499c22caee4b205a4837e857cd7c0bf22ab64ed8fcf7a7559",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-94eab36154730c0ea1dc1a36",
+      "file": "",
+      "line": 10,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:12:40.216Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "7761882c9accd23499c22caee4b205a4837e857cd7c0bf22ab64ed8fcf7a7559",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-72aabbe6347478a7bcc53f03",
+      "file": "",
+      "line": 2,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:14:14.097Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "7761882c9accd23499c22caee4b205a4837e857cd7c0bf22ab64ed8fcf7a7559",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-ce3d16195850d24e20ed1a67",
+      "file": "",
+      "line": 2,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:14:36.876Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "7761882c9accd23499c22caee4b205a4837e857cd7c0bf22ab64ed8fcf7a7559",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-bf7eede18c81de750d32ca04",
+      "file": "",
+      "line": 3,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:14:58.485Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "7761882c9accd23499c22caee4b205a4837e857cd7c0bf22ab64ed8fcf7a7559",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-751d8720c1945a7adbd7053b",
+      "file": "",
+      "line": 3,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:15:27.837Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "7761882c9accd23499c22caee4b205a4837e857cd7c0bf22ab64ed8fcf7a7559",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-66abfaec69513796e98922f1",
+      "file": "",
+      "line": 2,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:16:21.838Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "7761882c9accd23499c22caee4b205a4837e857cd7c0bf22ab64ed8fcf7a7559",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-aa47cd85685eff6598b97990",
+      "file": "",
+      "line": 2,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:16:53.214Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "7761882c9accd23499c22caee4b205a4837e857cd7c0bf22ab64ed8fcf7a7559",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-ae08fb3ca22b14f25516240d",
+      "file": "",
+      "line": 2,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:17:18.345Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "7761882c9accd23499c22caee4b205a4837e857cd7c0bf22ab64ed8fcf7a7559",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-e4276bd102abd96b897c7593",
+      "file": "",
+      "line": 2,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:17:36.614Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "7761882c9accd23499c22caee4b205a4837e857cd7c0bf22ab64ed8fcf7a7559",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-51a1936f09f33e02f53abbad",
+      "file": "",
+      "line": 2,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:18:06.489Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "7761882c9accd23499c22caee4b205a4837e857cd7c0bf22ab64ed8fcf7a7559",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-25695b8120d01d87f17afd3a",
+      "file": "",
+      "line": 3,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:19:26.991Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "7761882c9accd23499c22caee4b205a4837e857cd7c0bf22ab64ed8fcf7a7559",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-8e2d8651af42cc9b475f3cf3",
+      "file": "",
+      "line": 2,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:20:05.656Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "7761882c9accd23499c22caee4b205a4837e857cd7c0bf22ab64ed8fcf7a7559",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-99632143c4b18b8b652e2232",
+      "file": "",
+      "line": 2,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:20:32.576Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "7761882c9accd23499c22caee4b205a4837e857cd7c0bf22ab64ed8fcf7a7559",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-a6a6ba124c2502066310e4d8",
+      "file": "",
+      "line": 2,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:21:14.746Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "7761882c9accd23499c22caee4b205a4837e857cd7c0bf22ab64ed8fcf7a7559",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-e6e1473c052b93a0271267f3",
+      "file": "",
+      "line": 2,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:23:26.434Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "7761882c9accd23499c22caee4b205a4837e857cd7c0bf22ab64ed8fcf7a7559",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-45c9e5394c6813019b1a5adb",
+      "file": "",
+      "line": 2,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:24:35.171Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "7761882c9accd23499c22caee4b205a4837e857cd7c0bf22ab64ed8fcf7a7559",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-ca6e5605581291f34772b751",
+      "file": "",
+      "line": 10,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:25:00.592Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "7761882c9accd23499c22caee4b205a4837e857cd7c0bf22ab64ed8fcf7a7559",
+        "runtime_oracle": false
+      }
+    },
+    {
+      "finding_id": "mimosa-3eb93263ce244eb87be500d3",
+      "file": "",
+      "line": 2,
+      "rule_id": "security",
+      "severity": "medium",
+      "category": "临时文件不安全",
+      "status": "candidate",
+      "decision": "advisory",
+      "at": "2026-08-23T06:26:05.028Z",
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "source": "semgrep",
+        "evidence_hash": "7761882c9accd23499c22caee4b205a4837e857cd7c0bf22ab64ed8fcf7a7559",
+        "runtime_oracle": false
+      }
+    }
+  ],
+  "findings": [],
+  "artifacts": {
+    "immutable_report": ".mimosa/reports/task-review-sess_fc97f2e6-dcd9-45ef-ad00-b3d5e880a79a-20260823T062729520Z-38366-acb433956f32.json",
+    "latest_report": ".mimosa/reports/task-review-sess_fc97f2e6-dcd9-45ef-ad00-b3d5e880a79a.json",
+    "history_summary": ".mimosa/history/run-20260823T062729520Z-38366-acb433956f32.json"
+  }
+}
