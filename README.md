@@ -25,7 +25,7 @@ Part of the Trinity Project. Anchor: **φ² + φ⁻² = 3**.
 | M3 iperf3 over 2 hops (bench attenuators) | `-sim` | Not run |
 | M4 3-node triangle, shared uplink (P2 DEMO GATE) | `-sim` | Not run |
 | M5 self-healing convergence measured | undefined | B11 not landed |
-| trinity-contracts deployment (Base L2) | Sepolia only | Mainnet Genesis Day not reached |
+| trinity-contracts deployment (Base L2) | Sepolia only; superseded (see DePIN tokenomics below) | Mainnet Genesis Day not reached |
 | Trinity silicon (1 GOPS @ 50 MHz @ 1 W) | NO ROUTE | no die exists, none is scheduled; the earlier shuttle route is closed |
 
 Every unverified performance number keeps its `-sim` marker. On-device evidence
@@ -101,6 +101,26 @@ BitNet-ternary benchmark on returned silicon, publish the raw log.
 
 ### DePIN tokenomics (contract source, `gHashTag/trinity-contracts`, not yet deployed to mainnet)
 
+> **SUPERSEDED on 2026-09-24.** The table below (cap 3^27 = 7,625,597,484,987
+> TRI on Base L2, 9 halvings x 4 years, 1000 TRI per proof; added in `f8a182d3`,
+> 2026-07-22) is no longer the $TRI design. The design of record is in
+> [`gHashTag/trinity-fpga`](https://github.com/gHashTag/trinity-fpga) at commit
+> `d7e9718e9`:
+> [`specs/trinet/mint_on_acceptance.t27`](https://github.com/gHashTag/trinity-fpga/blob/main/specs/trinet/mint_on_acceptance.t27),
+> [`contracts/README.md`](https://github.com/gHashTag/trinity-fpga/blob/main/contracts/README.md),
+> [`docs/docs/depin/tokenomics.md`](https://github.com/gHashTag/trinity-fpga/blob/main/docs/docs/depin/tokenomics.md),
+> [`docs/docs/depin/principles.md`](https://github.com/gHashTag/trinity-fpga/blob/main/docs/docs/depin/principles.md).
+> There: 100% of TRI is mined by accepted work (mint-on-acceptance), zero
+> pre-mine, no allocation, no sale; cap 3^21 = 10,460,353,203 TRI; chains of
+> record TON and Solana (one supply, bridged), not Base L2; trust model V1 M-of-N attestor
+> quorum, then V2 optimistic challenge, then V3 zk receipt. Nothing is deployed.
+> The table is kept as history.
+>
+> The settlement specs in this repo (`specs/tri_settle.t27`,
+> `specs/tri_challenge.t27`, `specs/tri_compute_*.t27`, `specs/tri_slash.t27`)
+> are unchanged and remain valid modelling of the V2 optimistic-settlement
+> stage. They do not set the emission rule.
+
 | Параметр | Значение |
 |---|---|
 | TRI max supply | 3²⁷ = 7 625 597 484 987 |
@@ -168,7 +188,7 @@ cargo build --release --target armv7-unknown-linux-musleabihf
 - **P4 — tethered aerial node (elevated relay)** — постоянно висящий узел над точкой интереса.
 - **P5 — свободный swarm** — self-organizing swarm без tether'а, каждый узел это operator, каждый operator получает TRI.
 - **P6 — Trinity silicon (BLOCKED, маршрута нет)** — изготовленного кристалла не существует, изготовление не запланировано, прежний маршрут закрыт. До выбора нового маршрута BitNet benchmark на кристалле невыполним, `[Open conjecture]` компонентов compute-anchor'а закрывается.
-- **P7 — Genesis Day** — mainnet deployment `trinity-contracts` на Base L2, `EmissionController.renounceOwnership()`, первый public proof-of-inference за TRI.
+- **P7 — Genesis Day** *(superseded: Base L2 is no longer the target chain; see DePIN tokenomics above)* — mainnet deployment `trinity-contracts` на Base L2, `EmissionController.renounceOwnership()`, первый public proof-of-inference за TRI.
 - **P8 — Hub71+ AI Cohort 20 (deadline 2026-08-02)** — подача через `golden-chain-international` (UAE ADGM/DIFC, Армения-резерв).
 
 ## Boards
