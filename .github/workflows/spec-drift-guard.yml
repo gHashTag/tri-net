@@ -57,6 +57,82 @@ jobs:
         working-directory: t27
         run: cargo build --release --manifest-path bootstrap/Cargo.toml --bin t27c
 
+      - name: Staged generation checker controls
+        working-directory: tri-net
+        run: |
+          set -euo pipefail
+          export T27C="$(realpath ../t27/target/release/t27c)"
+          fixture=$(mktemp -d)
+          trap 'rm -rf "$fixture"' EXIT
+          checker="$fixture/checker"
+          rustc --edition=2021 -D warnings tools/regen.rs -o "$checker"
+          cd "$fixture"
+          git init -q
+          mkdir -p specs gen/rust gen/zig gen/c expected
+          cat > specs/gate_probe.t27 <<'SPEC'
+          module GateProbe {
+              const VALUE: u8 = 42;
+              fn probe() -> u8 { return VALUE; }
+              test value_is_42 { assert(probe() == 42, "value"); }
+          }
+          SPEC
+          cp specs/gate_probe.t27 expected/source.t27
+          "$T27C" gen-rust specs/gate_probe.t27 > gen/rust/gate_probe.rs
+          "$T27C" gen specs/gate_probe.t27 > gen/zig/gate_probe.zig
+          "$T27C" gen-c specs/gate_probe.t27 > gen/c/gate_probe.c
+          for backend in rust zig c; do
+            cp gen/"$backend"/* expected/
+          done
+          git add specs gen
+          accept() {
+            before=$(git hash-object .git/index)
+            "$@"
+            test "$before" = "$(git hash-object .git/index)"
+          }
+          reject() {
+            before=$(git hash-object .git/index)
+            if "$@"; then
+              echo '::error::staged generation control incorrectly succeeded'
+              exit 1
+            fi
+            test "$before" = "$(git hash-object .git/index)"
+          }
+          accept "$checker" --check-staged
+          while read -r backend ext; do
+            file="gen/$backend/gate_probe.$ext"
+            sed 's/42/43/g' "expected/gate_probe.$ext" > "$file"
+            git add "$file"
+            reject "$checker" --check-staged
+            cp "expected/gate_probe.$ext" "$file"
+            git add "$file"
+          done <<'BACKENDS'
+          rust rs
+          zig zig
+          c c
+          BACKENDS
+          rustfmt --edition 2021 < expected/gate_probe.rs > gen/rust/gate_probe.rs
+          git add gen/rust/gate_probe.rs
+          accept "$checker" --check-staged
+          sed 's/= 42/= 43/' expected/source.t27 > specs/gate_probe.t27
+          sed 's/42/44/g' expected/gate_probe.rs > gen/rust/gate_probe.rs
+          accept "$checker" --check-staged
+          git add specs/gate_probe.t27
+          cp expected/source.t27 specs/gate_probe.t27
+          cp expected/gate_probe.rs gen/rust/gate_probe.rs
+          git add gen/rust/gate_probe.rs
+          reject "$checker" --check-staged
+          git add specs/gate_probe.t27
+          reject env T27C="$fixture/missing" "$checker" --check-staged
+          reject env T27C=false "$checker" --check-staged
+          reject env T27C=true "$checker" --check-staged
+          reject env RUSTFMT=false "$checker" --check-staged
+          reject env RUSTFMT=true "$checker" --check-staged
+          git rm --cached specs/gate_probe.t27
+          reject "$checker" --check-staged
+          git add specs/gate_probe.t27
+          git rm --cached -r gen
+          accept env T27C="$fixture/missing" "$checker" --check-staged
+
       - name: Typecheck — all specs
         working-directory: tri-net
         run: |

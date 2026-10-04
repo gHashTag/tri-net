@@ -52,6 +52,10 @@ path = "src/bin/trios_meshd_video.rs"
 name = "trios_meshd"
 path = "src/bin/trios_meshd.rs"
 
+[[bin]]
+name = "trinet-regen"
+path = "tools/regen.rs"
+
 [[test]]
 name = "video_bridge_wire"
 path = "tests/video_bridge_wire.rs"
