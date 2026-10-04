@@ -109,8 +109,7 @@ pre-push:
 
     cargo-build:
       run: |
-        cargo build --release 2>&1 | tail -3
-        if [ $? -ne 0 ]; then
+        if ! cargo build --release; then
           echo "cargo build FAILED"
           exit 1
         fi
