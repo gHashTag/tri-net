@@ -151,8 +151,9 @@ uint32_t predict_next_value(t27_arr_uint32_t_16 array, uint32_t samples) {
     } else if ((trend == 2)) {
         if ((current < 10)) {
             return 0;
+        } else {
+            return (current - 10);
         }
-        return (current - 10);
     } else {
         return current;
     }

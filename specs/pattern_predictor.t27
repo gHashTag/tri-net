@@ -113,8 +113,11 @@ module pattern_predictor {
             return current + 10;
         } else if (trend == 2) {
             // Decreasing trend
-            if (current < 10) { return 0; }
-            return current - 10;
+            if (current < 10) {
+                return 0;
+            } else {
+                return current - 10;
+            }
         } else {
             // Stable trend
             return current;

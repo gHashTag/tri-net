@@ -18,8 +18,9 @@ Public function types, sample packing and repeating-pattern detection are
 unchanged.
 
 Four new source tests cover empty, partial, oversized and extreme windows.
-All sixteen existing source tests remain. Generated C and Zig each execute all
-twenty source tests. Rust integration tests compile the generated module and
+All sixteen existing source tests remain. Generated C, Zig and simulated
+Verilog each execute all twenty source tests. Rust integration tests compile
+the generated module and
 compare 65,536 endpoint pairs and 5632 vector-window cases to independent wide
 and signed arithmetic. Cargo declares the target explicitly because automatic
 test discovery is disabled.
@@ -29,6 +30,10 @@ Validation completed for this repair:
 - Cargo1.96 full suite:436 passed,0 failed,0 ignored across86 targets.
 - Cargo formatting and Clippy for all targets with denied warnings pass.
 - All284 committed backend artifacts reproduce under the unchanged compiler.
+- All113 root specifications pass native Icarus simulation with the existing
+  bench budgets. The predictor's floor uses exclusive branches because the
+  pinned Verilog emitter does not honor a nested early return followed by a
+  second return. The failing floor assertion is retained and now executes.
 - Five real source mutations regenerate and compile, then fail the reference
   tests: missing empty guard, unsigned trend subtraction, missing prediction
   floor, four-term variance and an incorrect window clamp.

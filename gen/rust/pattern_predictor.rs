@@ -134,8 +134,9 @@ pub fn predict_next_value(array: [u32; 16], samples: u32) -> u32 {
         if (trend == 2) {
             if (current < 10) {
                 return 0;
+            } else {
+                return (current - 10);
             }
-            return (current - 10);
         } else {
             return current;
         }
