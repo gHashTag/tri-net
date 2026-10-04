@@ -1,6 +1,6 @@
 [package]
 name = "trios-mesh"
-# Binary auto-discovery is off: tri_rti and trios_meshd remain excluded (#96).
+# Binary auto-discovery is off: tri_rti remains excluded (#96).
 # Working binary targets are declared explicitly below.
 autobins = false
 # Integration tests are declared explicitly below so normal Cargo runs include
@@ -47,6 +47,10 @@ path = "src/bin/smoke_m1.rs"
 [[bin]]
 name = "trios_meshd_video"
 path = "src/bin/trios_meshd_video.rs"
+
+[[bin]]
+name = "trios_meshd"
+path = "src/bin/trios_meshd.rs"
 
 [[test]]
 name = "video_bridge_wire"
