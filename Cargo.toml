@@ -382,3 +382,7 @@ path = "tests/witness_economics.rs"
 [[test]]
 name = "compute_ring_invariants"
 path = "tests/compute_ring_invariants.rs"
+
+[[test]]
+name = "mesh_protocol_stack_ttl"
+path = "tests/mesh_protocol_stack_ttl.rs"
