@@ -1,13 +1,13 @@
-//! trios-meshd — minimal TRI-NET mesh daemon over a UDP transport.
+//! trios-meshd -- minimal TRI-NET mesh daemon over a UDP transport.
 //!
 //! Runs on each node. Uses UDP-over-Ethernet as the link transport (stand-in
 //! for the 5.8 GHz radio, which swaps in later as a different `Transport`), so
-//! the full mesh stack — per-hop ChaCha20-Poly1305 crypto, ETX routing from
-//! HELLO beacons, and multi-hop forwarding — can be validated on real hardware
+//! the full mesh stack -- per-hop ChaCha20-Poly1305 crypto, ETX routing from
+//! HELLO beacons, and multi-hop forwarding -- can be validated on real hardware
 //! WITHOUT radiating anything (legally clean for development).
 //!
 //! Demo keys are derived deterministically from node id (a pre-shared-key mesh,
-//! an allow-list); real ephemeral auth is the Noise-XX path (tri-net#… / B01).
+//! an allow-list); real ephemeral auth is the Noise-XX path (tri-net#... / B01).
 //!
 //! Config file (one directive per line):
 //!   id 11
@@ -22,7 +22,11 @@ use std::net::{SocketAddr, UdpSocket};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
-use trios_mesh::{Delivery, Hello, MeshRouter, NodeId, StaticKey, Transport};
+use trios_mesh::crypto::StaticKey;
+use trios_mesh::daemon::Transport;
+use trios_mesh::discovery::Hello;
+use trios_mesh::router::{Delivery, MeshRouter};
+use trios_mesh::NodeId;
 
 const HELLO_MS: u64 = 300;
 const ETX_WINDOW: usize = 3;
@@ -144,7 +148,7 @@ fn main() {
     }
     let router = Arc::new(Mutex::new(router));
     let rx = Arc::new(Mutex::new(RxShared::default()));
-    // Peers whose link is simulated-failed (ids in /tmp/mesh.drop) — for M5 demo.
+    // Peers whose link is simulated-failed (ids in /tmp/mesh.drop) -- for M5 demo.
     let dropped: Arc<Mutex<HashSet<NodeId>>> = Arc::new(Mutex::new(HashSet::new()));
     let watch: Option<NodeId> = std::env::var("TRIOS_WATCH")
         .ok()
@@ -152,7 +156,7 @@ fn main() {
     // M4: this node has a real internet uplink and serves FETCH requests.
     let gateway = std::env::var("TRIOS_GATEWAY").is_ok();
     let started = Instant::now();
-    println!("[meshd] node {me} on {} — peers {peer_ids:?}", cfg.listen);
+    println!("[meshd] node {me} on {} -- peers {peer_ids:?}", cfg.listen);
 
     // Central RX: dispatch every datagram through the router.
     {
@@ -208,7 +212,7 @@ fn main() {
                             );
                         });
                     }
-                    // M4: the gateway's reply — internet reached us over the mesh.
+                    // M4: the gateway's reply -- internet reached us over the mesh.
                     Delivery::Local(p) if p.first() == Some(&FETCH_RESP) => {
                         println!(
                             "[meshd] INTERNET-VIA-MESH: {}",
@@ -296,7 +300,7 @@ fn main() {
                 }
             }
         }
-        // E2.2 — Use authenticated HELLO with MAC
+        // E2.2 -- Use authenticated HELLO with MAC
         // TODO: derive mac_key from session keys (E2.2 complete implementation)
         let mac_key = None; // Will be derived from per-peer session keys
         let hello = Hello::authenticated(me, seq, heard, &mac_key);
