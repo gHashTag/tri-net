@@ -32,7 +32,7 @@ fn fb_util_pct(spent: u16, rate: u16) u8 {
     if (rate == 0) {
         return 100;
     }
-    const scaled: u32 = spent;
+    const scaled: u32 = @as(u32, @intCast(spent));
     const pct: u32 = (scaled * 100) / rate;
     if (pct > 100) {
         return 100;
@@ -43,8 +43,8 @@ fn fb_drop_pct(dropped: u16, offered: u16) u8 {
     if (offered == 0) {
         return 0;
     }
-    const scaled: u32 = dropped;
-    const total: u32 = offered;
+    const scaled: u32 = @as(u32, @intCast(dropped));
+    const total: u32 = @as(u32, @intCast(offered));
     const pct: u32 = (scaled * 100) / total;
     return @as(u8, @truncate(pct));
 }
@@ -84,8 +84,8 @@ fn fb_effective_rate(sent: u16, delivered: u16, configured: u16) u16 {
     if (sent == 0) {
         return configured;
     }
-    const s: u32 = sent;
-    const d: u32 = delivered;
+    const s: u32 = @as(u32, @intCast(sent));
+    const d: u32 = @as(u32, @intCast(delivered));
     const threshold: u32 = (s * 9) / 10;
     if (d >= threshold) {
         return configured;
@@ -140,8 +140,8 @@ fn fec_packet_size() u8 {
     return FEC_HEADER_LEN + MAX_FRAG_DATA;
 }
 fn frag_seq(s_lo: u8, s_hi: u8) u16 {
-    const lo: u16 = s_lo;
-    const hi: u16 = s_hi;
+    const lo: u16 = @as(u16, @intCast(s_lo));
+    const hi: u16 = @as(u16, @intCast(s_hi));
     return lo + (hi << 8);
 }
 fn seq_lo(seq: u16) u8 {
@@ -381,51 +381,60 @@ test "chain_report_equal" {
 test "fec_packet_size_value" {
     if (!(fec_packet_size() == 76)) @panic("6 header + 70 data = 76");
 }
+test "util_pct_wide_product" {
+    if (!(fb_util_pct(32768, 65535) == 50)) @panic("u16 spent needs a wide product");
+}
+test "drop_pct_u16_boundary" {
+    if (!(fb_drop_pct(65535, 65535) == 100)) @panic("full-width drop counts do not overflow");
+}
+test "effective_rate_wide_threshold" {
+    if (!(fb_effective_rate(65535, 58980, 65535) == 58980)) @panic("full-width 90 percent threshold");
+}
 comptime {
     // invariant: frag_header_is_5_bytes
-    // invariant: frag_header_is_5_bytes verified (no statements)
+    if (!(FRAG_HEADER_LEN == 5)) @panic("frag_header_is_5_bytes");
 }
 comptime {
     // invariant: max_data_is_70
-    // invariant: max_data_is_70 verified (no statements)
+    if (!(MAX_FRAG_DATA == 70)) @panic("max_data_is_70");
 }
 comptime {
     // invariant: vstream_type_is_8
-    // invariant: vstream_type_is_8 verified (no statements)
+    if (!(VSTREAM_TYPE == 8)) @panic("vstream_type_is_8");
 }
 comptime {
     // invariant: fec_type_differs_from_data_type
-    // invariant: fec_type_differs_from_data_type verified (no statements)
+    if (!(VSTREAM_FEC_TYPE != VSTREAM_TYPE)) @panic("fec_type_differs_from_data_type");
 }
 comptime {
     // invariant: fec_header_is_one_longer
-    // invariant: fec_header_is_one_longer verified (no statements)
+    if (!(FEC_HEADER_LEN == 6)) @panic("fec_header_is_one_longer");
 }
 comptime {
     // invariant: audio_port_differs_from_video
-    // invariant: audio_port_differs_from_video verified (no statements)
+    if (!(AUDIO_IN_PORT != VIDEO_IN_PORT)) @panic("audio_port_differs_from_video");
 }
 comptime {
     // invariant: feedback_port_is_its_own
-    // invariant: feedback_port_is_its_own verified (no statements)
+    if (!(FEEDBACK_PORT != AUDIO_IN_PORT)) @panic("feedback_port_is_its_own");
 }
 comptime {
     // invariant: feedback_carries_advice
-    // invariant: feedback_carries_advice verified (no statements)
+    if (!(FEEDBACK_LEN == 6)) @panic("feedback_carries_advice");
 }
 comptime {
     // invariant: advice_values_are_distinct
-    // invariant: advice_values_are_distinct verified (no statements)
+    if (!(ADVICE_BACK_OFF != ADVICE_CLIMB)) @panic("advice_values_are_distinct");
 }
 comptime {
     // invariant: no_dead_zone
-    // invariant: no_dead_zone verified (no statements)
+    if (!(CLIMB_BELOW_PCT == BACK_OFF_AT_PCT)) @panic("no_dead_zone");
 }
 comptime {
     // invariant: rx_report_type_is_distinct
-    // invariant: rx_report_type_is_distinct verified (no statements)
+    if (!(RX_REPORT_TYPE != VSTREAM_TYPE)) @panic("rx_report_type_is_distinct");
 }
 comptime {
     // invariant: rx_report_differs_from_fec
-    // invariant: rx_report_differs_from_fec verified (no statements)
+    if (!(RX_REPORT_TYPE != VSTREAM_FEC_TYPE)) @panic("rx_report_differs_from_fec");
 }

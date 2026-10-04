@@ -51,7 +51,7 @@ pub fn fb_util_pct(spent: u16, rate: u16) -> u8 {
     if (rate == 0) {
         return 100;
     }
-    let scaled: u32 = spent;
+    let scaled: u32 = (spent as u32);
     let pct: u32 = ((scaled * 100) / (rate as u32));
     if (pct > 100) {
         return 100;
@@ -63,8 +63,8 @@ pub fn fb_drop_pct(dropped: u16, offered: u16) -> u8 {
     if (offered == 0) {
         return 0;
     }
-    let scaled: u32 = dropped;
-    let total: u32 = offered;
+    let scaled: u32 = (dropped as u32);
+    let total: u32 = (offered as u32);
     let pct: u32 = ((scaled * 100) / total);
     return (pct as u8);
 }
@@ -115,8 +115,8 @@ pub fn fb_effective_rate(sent: u16, delivered: u16, configured: u16) -> u16 {
     if (sent == 0) {
         return configured;
     }
-    let s: u32 = sent;
-    let d: u32 = delivered;
+    let s: u32 = (sent as u32);
+    let d: u32 = (delivered as u32);
     let threshold: u32 = ((s * 9) / 10);
     if (d >= threshold) {
         return configured;
@@ -186,8 +186,8 @@ pub fn fec_packet_size() -> u8 {
 }
 
 pub fn frag_seq(s_lo: u8, s_hi: u8) -> u16 {
-    let lo: u16 = s_lo;
-    let hi: u16 = s_hi;
+    let lo: u16 = (s_lo as u16);
+    let hi: u16 = (s_hi as u16);
     return (lo + (hi * 256));
 }
 
