@@ -33,10 +33,8 @@ pub fn fp_mul(a: u8, b: u8) -> u8 {
 }
 
 pub fn ewma_update(est: u8, sample: u8, alpha: u8) -> u8 {
-    if ((est == 255) && (sample == 255)) {
-        return 255;
-    }
-    return (fp_mul(alpha, sample) + fp_mul((255 - alpha), est));
+    let weight: u16 = (alpha as u16);
+    return ((((weight * (sample as u16)) + ((ONE_FP - weight) * (est as u16))) >> 8) as u8);
 }
 
 pub fn is_dead(ratio: u8) -> bool {

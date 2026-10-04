@@ -30,10 +30,8 @@ fn fp_mul(a: u8, b: u8) u8 {
     return @as(u8, @truncate((@as(u16, @intCast(a)) * @as(u16, @intCast(b))) >> 8));
 }
 fn ewma_update(est: u8, sample: u8, alpha: u8) u8 {
-    if ((est == 255) and (sample == 255)) {
-        return 255;
-    }
-    return fp_mul(alpha, sample) + fp_mul(255 - alpha, est);
+    const weight: u16 = @as(u16, @intCast(alpha));
+    return @as(u8, @intCast(((weight * @as(u16, @intCast(sample))) + ((ONE_FP - weight) * @as(u16, @intCast(est)))) >> 8));
 }
 fn is_dead(ratio: u8) bool {
     return ratio < DEAD_EPS;
@@ -97,4 +95,81 @@ test "test_ewma_convergence" {
     if (!(est1 > OPTIMISTIC)) @panic("EWMA should increase");
     const est2 = ewma_update(ewma_update(OPTIMISTIC, 0, ALPHA_HALF), 0, ALPHA_HALF);
     if (!(est2 < OPTIMISTIC)) @panic("EWMA should decrease");
+}
+test "test_ewma_stationary_midrange" {
+    if (!(ewma_update(230, 230, 128) == 230)) @panic("stationary half weight");
+    if (!(ewma_update(230, 230, 160) == 230)) @panic("stationary lookup weight");
+}
+test "test_ewma_stationary_small" {
+    if (!(ewma_update(1, 1, 128) == 1)) @panic("stationary odd value");
+    if (!(ewma_update(3, 3, 160) == 3)) @panic("small stationary estimate");
+    if (!(ewma_update(254, 254, 1) == 254)) @panic("stationary near maximum");
+}
+test "test_ewma_zero_alpha" {
+    if (!(ewma_update(230, 255, 0) == 230)) @panic("zero alpha ignores success");
+    if (!(ewma_update(230, 0, 0) == 230)) @panic("zero alpha ignores loss");
+    if (!(ewma_update(255, 0, 0) == 255)) @panic("zero alpha retains maximum");
+}
+test "test_ewma_extreme_stationary" {
+    if (!(ewma_update(0, 0, 0) == 0)) @panic("zero stationary minimum alpha");
+    if (!(ewma_update(0, 0, 255) == 0)) @panic("zero stationary maximum alpha");
+    if (!(ewma_update(255, 255, 0) == 255)) @panic("full stationary minimum alpha");
+    if (!(ewma_update(255, 255, 255) == 255)) @panic("full stationary maximum alpha");
+}
+test "test_ewma_single_rounding" {
+    if (!(ewma_update(1, 3, 128) == 2)) @panic("combine fractional products");
+    if (!(ewma_update(230, 255, 128) == 242)) @panic("half success rounds once");
+    if (!(ewma_update(230, 0, 128) == 115)) @panic("half loss uses exact complement");
+}
+test "test_ewma_zero_estimate" {
+    if (!(ewma_update(0, 255, 128) == 127)) @panic("half success from zero");
+    if (!(ewma_update(0, 255, 255) == 254)) @panic("maximum alpha is 255 over 256");
+}
+test "test_ewma_maximum_alpha" {
+    if (!(ewma_update(230, 17, 255) == 17)) @panic("retain residual estimate weight");
+    if (!(ewma_update(255, 0, 255) == 0)) @panic("maximum alpha loss rounds down");
+}
+test "test_ewma_dead_threshold_stationary" {
+    if (!(ewma_update(DEAD_EPS, DEAD_EPS, 128) == DEAD_EPS)) @panic("keep threshold");
+    if (!(!is_dead(ewma_update(DEAD_EPS, DEAD_EPS, 128)))) @panic("stationary stays alive");
+    if (!(calc_etx(ewma_update(DEAD_EPS, DEAD_EPS, 128), 230) != 0xFFFF)) @panic("finite ETX");
+}
+test "test_ewma_boundary_matrix" {
+    var all_match: bool = true;
+    _ = &all_match;
+    var weight: u64 = 0;
+    _ = &weight;
+    var expected: u64 = 0;
+    _ = &expected;
+    var sample_value: u64 = 0;
+    _ = &sample_value;
+    for (0..256) |alpha| {
+        for (0..256) |est| {
+            all_match = all_match and (@as(u64, @intCast(ewma_update(@as(u8, @intCast(est)), @as(u8, @intCast(est)), @as(u8, @intCast(alpha))))) == @as(u64, @intCast(est)));
+            all_match = all_match and (@as(u64, @intCast(ewma_update(@as(u8, @intCast(est)), @as(u8, @intCast(alpha)), 0))) == @as(u64, @intCast(est)));
+            for (0..8) |sample_index| {
+                if (sample_index == 0) {
+                    sample_value = 0;
+                } else if (sample_index == 1) {
+                    sample_value = 1;
+                } else if (sample_index == 2) {
+                    sample_value = 38;
+                } else if (sample_index == 3) {
+                    sample_value = 127;
+                } else if (sample_index == 4) {
+                    sample_value = 128;
+                } else if (sample_index == 5) {
+                    sample_value = 230;
+                } else if (sample_index == 6) {
+                    sample_value = 254;
+                } else {
+                    sample_value = 255;
+                }
+                weight = @as(u64, @intCast(alpha));
+                expected = ((weight * sample_value) + ((256 - weight) * @as(u64, @intCast(est)))) / 256;
+                all_match = all_match and (@as(u64, @intCast(ewma_update(@as(u8, @intCast(est)), @as(u8, @truncate(sample_value)), @as(u8, @intCast(alpha))))) == expected);
+            }
+        }
+    }
+    if (!(all_match)) @panic("EWMA boundary matrix, stationary and zero-alpha identities");
 }
