@@ -101,45 +101,35 @@ uint32_t get_sample_at(t27_arr_uint32_t_16 array, uint32_t index) {
 }
 
 uint32_t calculate_moving_average(t27_arr_uint32_t_16 array, uint32_t window) {
-    uint32_t sum = 0;
-    int count = window;
+    uint32_t count = window;
     if ((count > 16)) {
         count = 16;
     }
-    sum = (sum + get_sample_value(get_sample_at(array, 0)));
-    sum = (sum + get_sample_value(get_sample_at(array, 1)));
-    sum = (sum + get_sample_value(get_sample_at(array, 2)));
-    sum = (sum + get_sample_value(get_sample_at(array, 3)));
-    if ((count > 4)) {
-        sum = (sum + get_sample_value(get_sample_at(array, 4)));
-        sum = (sum + get_sample_value(get_sample_at(array, 5)));
-        sum = (sum + get_sample_value(get_sample_at(array, 6)));
-        sum = (sum + get_sample_value(get_sample_at(array, 7)));
+    if ((count == 0)) {
+        return 0;
     }
-    if ((count > 8)) {
-        sum = (sum + get_sample_value(get_sample_at(array, 8)));
-        sum = (sum + get_sample_value(get_sample_at(array, 9)));
-        sum = (sum + get_sample_value(get_sample_at(array, 10)));
-        sum = (sum + get_sample_value(get_sample_at(array, 11)));
-    }
-    if ((count > 12)) {
-        sum = (sum + get_sample_value(get_sample_at(array, 12)));
-        sum = (sum + get_sample_value(get_sample_at(array, 13)));
-        sum = (sum + get_sample_value(get_sample_at(array, 14)));
-        sum = (sum + get_sample_value(get_sample_at(array, 15)));
+    uint32_t sum = 0;
+    uint32_t index = 0;
+    while ((index < count)) {
+        sum = (sum + get_sample_value(get_sample_at(array, index)));
+        index = (index + 1);
     }
     return (sum / count);
 }
 
 uint32_t detect_trend(t27_arr_uint32_t_16 array, uint32_t samples) {
-    if ((samples < 2)) {
+    uint32_t count = samples;
+    if ((count > 16)) {
+        count = 16;
+    }
+    if ((count < 2)) {
         return 0;
     }
-    int first = get_sample_value(get_sample_at(array, 0));
-    int last = get_sample_value(get_sample_at(array, (samples - 1)));
+    uint32_t first = get_sample_value(get_sample_at(array, 0));
+    uint32_t last = get_sample_value(get_sample_at(array, (count - 1)));
     if ((last > (first + 5))) {
         return 1;
-    } else if ((last < (first - 5))) {
+    } else if ((first > (last + 5))) {
         return 2;
     } else {
         return 0;
@@ -147,23 +137,30 @@ uint32_t detect_trend(t27_arr_uint32_t_16 array, uint32_t samples) {
 }
 
 uint32_t predict_next_value(t27_arr_uint32_t_16 array, uint32_t samples) {
-    int trend = detect_trend(array, samples);
-    int current = get_sample_value(get_sample_at(array, (samples - 1)));
+    uint32_t count = samples;
+    if ((count > 16)) {
+        count = 16;
+    }
+    if ((count == 0)) {
+        return 0;
+    }
+    uint32_t trend = detect_trend(array, count);
+    uint32_t current = get_sample_value(get_sample_at(array, (count - 1)));
     if ((trend == 1)) {
         return (current + 10);
     } else if ((trend == 2)) {
-        int predicted = (current - 10);
-        if ((predicted < 0)) {
-            predicted = 0;
+        if ((current < 10)) {
+            return 0;
+        } else {
+            return (current - 10);
         }
-        return predicted;
     } else {
         return current;
     }
 }
 
 uint32_t is_anomalous(t27_arr_uint32_t_16 array, uint32_t samples, uint32_t current_value) {
-    int predicted = predict_next_value(array, samples);
+    uint32_t predicted = predict_next_value(array, samples);
     if ((predicted > current_value)) {
         return (predicted - current_value);
     } else {
@@ -193,60 +190,69 @@ uint32_t detect_repeating_pattern(t27_arr_uint32_t_16 array, uint32_t samples) {
 }
 
 uint32_t calculate_variance(t27_arr_uint32_t_16 array, uint32_t samples) {
-    if ((samples < 2)) {
+    uint32_t count = samples;
+    if ((count > 16)) {
+        count = 16;
+    }
+    if ((count < 2)) {
         return 0;
     }
-    int avg = calculate_moving_average(array, samples);
+    uint32_t avg = calculate_moving_average(array, count);
     uint32_t sum_sq_diff = 0;
-    if ((samples >= 1)) {
-        uint32_t v0 = get_sample_value(get_sample_at(array, 0));
-        uint32_t diff = 0;
-        if ((v0 >= avg)) {
-            diff = (v0 - avg);
+    uint32_t index = 0;
+    while ((index < count)) {
+        uint32_t value = get_sample_value(get_sample_at(array, index));
+        uint32_t diff = value;
+        if ((value >= avg)) {
+            diff = (diff - avg);
         } else {
-            diff = (avg - v0);
+            diff = (avg - diff);
         }
         sum_sq_diff = (sum_sq_diff + (diff * diff));
+        index = (index + 1);
     }
-    if ((samples >= 2)) {
-        uint32_t v1 = get_sample_value(get_sample_at(array, 1));
-        uint32_t diff = 0;
-        if ((v1 >= avg)) {
-            diff = (v1 - avg);
-        } else {
-            diff = (avg - v1);
-        }
-        sum_sq_diff = (sum_sq_diff + (diff * diff));
-    }
-    if ((samples >= 3)) {
-        uint32_t v2 = get_sample_value(get_sample_at(array, 2));
-        uint32_t diff = 0;
-        if ((v2 >= avg)) {
-            diff = (v2 - avg);
-        } else {
-            diff = (avg - v2);
-        }
-        sum_sq_diff = (sum_sq_diff + (diff * diff));
-    }
-    if ((samples >= 4)) {
-        uint32_t v3 = get_sample_value(get_sample_at(array, 3));
-        uint32_t diff = 0;
-        if ((v3 >= avg)) {
-            diff = (v3 - avg);
-        } else {
-            diff = (avg - v3);
-        }
-        sum_sq_diff = (sum_sq_diff + (diff * diff));
-    }
-    if ((samples < 2)) {
-        return 0;
-    }
-    return (sum_sq_diff / samples);
+    return (sum_sq_diff / count);
 }
 
 /* -------------------------------------------------------
    Tests
    ------------------------------------------------------- */
+
+void test_empty_windows_are_defined(void) {
+    t27_arr_uint32_t_16 array = create_sample_array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    t27_assert((calculate_moving_average(array, 0) == 0), "empty mean");
+    t27_assert((calculate_variance(array, 0) == 0), "empty variance");
+    t27_assert((predict_next_value(array, 0) == 0), "empty prediction");
+    t27_assert((detect_trend(array, 0) == 0), "empty trend");
+}
+
+void test_partial_and_oversized_windows_use_exact_samples(void) {
+    t27_arr_uint32_t_16 array = create_sample_array(0x02000001, 0x04000001, 0x06000001, 0x08000001, 0x0A000001, 0x0C000001, 0x0E000001, 0x10000001, 0x12000001, 0x14000001, 0x16000001, 0x18000001, 0x1A000001, 0x1C000001, 0x1E000001, 0x20000001);
+    t27_assert((calculate_moving_average(array, 1) == 2), "one sample");
+    t27_assert((calculate_moving_average(array, 5) == 6), "five samples");
+    t27_assert((calculate_moving_average(array, 9) == 10), "nine samples");
+    t27_assert((calculate_moving_average(array, 4294967295) == 17), "clamped mean");
+    t27_assert((predict_next_value(array, 4294967295) == 42), "clamped prediction");
+    t27_assert((calculate_variance(array, 5) == 8), "all five variance terms");
+    t27_assert((calculate_variance(array, 16) == 85), "all sixteen variance terms");
+    t27_assert((calculate_variance(array, 4294967295) == 85), "clamped variance");
+}
+
+void test_unsigned_trends_and_prediction_floor(void) {
+    t27_arr_uint32_t_16 low = create_sample_array(0x02000001, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    t27_arr_uint32_t_16 falling = create_sample_array(0x1E000001, 0x04000001, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    t27_arr_uint32_t_16 rising = create_sample_array(1, 0xFF000001, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    t27_assert((detect_trend(low, 2) == 0), "small stable trend");
+    t27_assert((predict_next_value(falling, 2) == 0), "decrease saturates at zero");
+    t27_assert((predict_next_value(rising, 2) == 265), "wide prediction remains unchanged");
+    t27_assert((calculate_variance(low, 1) == 0), "single sample variance");
+}
+
+void test_bounded_window_extrema(void) {
+    t27_arr_uint32_t_16 array = create_sample_array(0xFF000001, 0xFF000001, 0xFF000001, 0xFF000001, 0xFF000001, 0xFF000001, 0xFF000001, 0xFF000001, 0xFF000001, 0xFF000001, 0xFF000001, 0xFF000001, 0xFF000001, 0xFF000001, 0xFF000001, 0xFF000001);
+    t27_assert((calculate_moving_average(array, 16) == 255), "maximum byte mean");
+    t27_assert((calculate_variance(array, 16) == 0), "constant population variance");
+}
 
 void test_create_sample_basic(void) {
     uint64_t sample = create_sample(50, 100, 1, 1);
@@ -366,6 +372,10 @@ void test_calculate_variance_high(void) {
 #ifdef T27_TEST_MAIN
 #include <stdio.h>
 int main(void) {
+    test_empty_windows_are_defined();
+    test_partial_and_oversized_windows_use_exact_samples();
+    test_unsigned_trends_and_prediction_floor();
+    test_bounded_window_extrema();
     test_create_sample_basic();
     test_create_pattern_storage_basic();
     test_calculate_moving_average_4_samples();
@@ -382,7 +392,7 @@ int main(void) {
     test_detect_repeating_pattern_not_found();
     test_calculate_variance_low();
     test_calculate_variance_high();
-    printf("All %d tests passed.\n", 16);
+    printf("All %d tests passed.\n", 20);
     return 0;
 }
 #endif /* T27_TEST_MAIN */

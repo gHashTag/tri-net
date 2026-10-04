@@ -45,69 +45,68 @@ fn get_sample_at(array: [16]u32, index: u32) u32 {
     return 0;
 }
 fn calculate_moving_average(array: [16]u32, window: u32) u32 {
-    var sum: u32 = 0;
-    _ = &sum;
-    var count = window;
+    var count: u32 = window;
     _ = &count;
     if (count > 16) {
         count = 16;
     }
-    sum = sum + get_sample_value(get_sample_at(array, 0));
-    sum = sum + get_sample_value(get_sample_at(array, 1));
-    sum = sum + get_sample_value(get_sample_at(array, 2));
-    sum = sum + get_sample_value(get_sample_at(array, 3));
-    if (count > 4) {
-        sum = sum + get_sample_value(get_sample_at(array, 4));
-        sum = sum + get_sample_value(get_sample_at(array, 5));
-        sum = sum + get_sample_value(get_sample_at(array, 6));
-        sum = sum + get_sample_value(get_sample_at(array, 7));
+    if (count == 0) {
+        return 0;
     }
-    if (count > 8) {
-        sum = sum + get_sample_value(get_sample_at(array, 8));
-        sum = sum + get_sample_value(get_sample_at(array, 9));
-        sum = sum + get_sample_value(get_sample_at(array, 10));
-        sum = sum + get_sample_value(get_sample_at(array, 11));
-    }
-    if (count > 12) {
-        sum = sum + get_sample_value(get_sample_at(array, 12));
-        sum = sum + get_sample_value(get_sample_at(array, 13));
-        sum = sum + get_sample_value(get_sample_at(array, 14));
-        sum = sum + get_sample_value(get_sample_at(array, 15));
+    var sum: u32 = 0;
+    _ = &sum;
+    var index: u32 = 0;
+    _ = &index;
+    while (index < count) {
+        sum = sum + get_sample_value(get_sample_at(array, index));
+        index = index + 1;
     }
     return sum / count;
 }
 fn detect_trend(array: [16]u32, samples: u32) u32 {
-    if (samples < 2) {
+    var count: u32 = samples;
+    _ = &count;
+    if (count > 16) {
+        count = 16;
+    }
+    if (count < 2) {
         return 0;
     }
-    const first = get_sample_value(get_sample_at(array, 0));
-    const last = get_sample_value(get_sample_at(array, samples - 1));
+    const first: u32 = get_sample_value(get_sample_at(array, 0));
+    const last: u32 = get_sample_value(get_sample_at(array, count - 1));
     if (last > (first + 5)) {
         return 1;
-    } else if (last < (first - 5)) {
+    } else if (first > (last + 5)) {
         return 2;
     } else {
         return 0;
     }
 }
 fn predict_next_value(array: [16]u32, samples: u32) u32 {
-    const trend = detect_trend(array, samples);
-    const current = get_sample_value(get_sample_at(array, samples - 1));
+    var count: u32 = samples;
+    _ = &count;
+    if (count > 16) {
+        count = 16;
+    }
+    if (count == 0) {
+        return 0;
+    }
+    const trend: u32 = detect_trend(array, count);
+    const current: u32 = get_sample_value(get_sample_at(array, count - 1));
     if (trend == 1) {
         return current + 10;
     } else if (trend == 2) {
-        var predicted = current - 10;
-        _ = &predicted;
-        if (predicted < 0) {
-            predicted = 0;
+        if (current < 10) {
+            return 0;
+        } else {
+            return current - 10;
         }
-        return predicted;
     } else {
         return current;
     }
 }
 fn is_anomalous(array: [16]u32, samples: u32, current_value: u32) u32 {
-    const predicted = predict_next_value(array, samples);
+    const predicted: u32 = predict_next_value(array, samples);
     if (predicted > current_value) {
         return predicted - current_value;
     } else {
@@ -135,60 +134,64 @@ fn detect_repeating_pattern(array: [16]u32, samples: u32) u32 {
     return 0;
 }
 fn calculate_variance(array: [16]u32, samples: u32) u32 {
-    if (samples < 2) {
+    var count: u32 = samples;
+    _ = &count;
+    if (count > 16) {
+        count = 16;
+    }
+    if (count < 2) {
         return 0;
     }
-    const avg = calculate_moving_average(array, samples);
+    const avg: u32 = calculate_moving_average(array, count);
     var sum_sq_diff: u32 = 0;
     _ = &sum_sq_diff;
-    if (samples >= 1) {
-        const v0: u32 = get_sample_value(get_sample_at(array, 0));
-        var diff: u32 = 0;
+    var index: u32 = 0;
+    _ = &index;
+    while (index < count) {
+        const value: u32 = get_sample_value(get_sample_at(array, index));
+        var diff: u32 = value;
         _ = &diff;
-        if (v0 >= avg) {
-            diff = v0 - avg;
+        if (value >= avg) {
+            diff = diff - avg;
         } else {
-            diff = avg - v0;
+            diff = avg - diff;
         }
         sum_sq_diff = sum_sq_diff + (diff * diff);
+        index = index + 1;
     }
-    if (samples >= 2) {
-        const v1: u32 = get_sample_value(get_sample_at(array, 1));
-        var diff: u32 = 0;
-        _ = &diff;
-        if (v1 >= avg) {
-            diff = v1 - avg;
-        } else {
-            diff = avg - v1;
-        }
-        sum_sq_diff = sum_sq_diff + (diff * diff);
-    }
-    if (samples >= 3) {
-        const v2: u32 = get_sample_value(get_sample_at(array, 2));
-        var diff: u32 = 0;
-        _ = &diff;
-        if (v2 >= avg) {
-            diff = v2 - avg;
-        } else {
-            diff = avg - v2;
-        }
-        sum_sq_diff = sum_sq_diff + (diff * diff);
-    }
-    if (samples >= 4) {
-        const v3: u32 = get_sample_value(get_sample_at(array, 3));
-        var diff: u32 = 0;
-        _ = &diff;
-        if (v3 >= avg) {
-            diff = v3 - avg;
-        } else {
-            diff = avg - v3;
-        }
-        sum_sq_diff = sum_sq_diff + (diff * diff);
-    }
-    if (samples < 2) {
-        return 0;
-    }
-    return sum_sq_diff / samples;
+    return sum_sq_diff / count;
+}
+test "empty_windows_are_defined" {
+    const array = create_sample_array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    if (!(calculate_moving_average(array, 0) == 0)) @panic("empty mean");
+    if (!(calculate_variance(array, 0) == 0)) @panic("empty variance");
+    if (!(predict_next_value(array, 0) == 0)) @panic("empty prediction");
+    if (!(detect_trend(array, 0) == 0)) @panic("empty trend");
+}
+test "partial_and_oversized_windows_use_exact_samples" {
+    const array = create_sample_array(0x02000001, 0x04000001, 0x06000001, 0x08000001, 0x0A000001, 0x0C000001, 0x0E000001, 0x10000001, 0x12000001, 0x14000001, 0x16000001, 0x18000001, 0x1A000001, 0x1C000001, 0x1E000001, 0x20000001);
+    if (!(calculate_moving_average(array, 1) == 2)) @panic("one sample");
+    if (!(calculate_moving_average(array, 5) == 6)) @panic("five samples");
+    if (!(calculate_moving_average(array, 9) == 10)) @panic("nine samples");
+    if (!(calculate_moving_average(array, 4294967295) == 17)) @panic("clamped mean");
+    if (!(predict_next_value(array, 4294967295) == 42)) @panic("clamped prediction");
+    if (!(calculate_variance(array, 5) == 8)) @panic("all five variance terms");
+    if (!(calculate_variance(array, 16) == 85)) @panic("all sixteen variance terms");
+    if (!(calculate_variance(array, 4294967295) == 85)) @panic("clamped variance");
+}
+test "unsigned_trends_and_prediction_floor" {
+    const low = create_sample_array(0x02000001, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    const falling = create_sample_array(0x1E000001, 0x04000001, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    const rising = create_sample_array(1, 0xFF000001, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    if (!(detect_trend(low, 2) == 0)) @panic("small stable trend");
+    if (!(predict_next_value(falling, 2) == 0)) @panic("decrease saturates at zero");
+    if (!(predict_next_value(rising, 2) == 265)) @panic("wide prediction remains unchanged");
+    if (!(calculate_variance(low, 1) == 0)) @panic("single sample variance");
+}
+test "bounded_window_extrema" {
+    const array = create_sample_array(0xFF000001, 0xFF000001, 0xFF000001, 0xFF000001, 0xFF000001, 0xFF000001, 0xFF000001, 0xFF000001, 0xFF000001, 0xFF000001, 0xFF000001, 0xFF000001, 0xFF000001, 0xFF000001, 0xFF000001, 0xFF000001);
+    if (!(calculate_moving_average(array, 16) == 255)) @panic("maximum byte mean");
+    if (!(calculate_variance(array, 16) == 0)) @panic("constant population variance");
 }
 test "create_sample_basic" {
     const sample = create_sample(50, 100, 1, 1);
