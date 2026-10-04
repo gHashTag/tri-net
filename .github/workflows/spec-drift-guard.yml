@@ -125,6 +125,8 @@ jobs:
           reject env T27C="$fixture/missing" "$checker" --check-staged
           reject env T27C=false "$checker" --check-staged
           reject env T27C=true "$checker" --check-staged
+          reject env RUSTFMT=false "$checker" --check-staged
+          reject env RUSTFMT=true "$checker" --check-staged
           git rm --cached specs/gate_probe.t27
           reject "$checker" --check-staged
           git add specs/gate_probe.t27

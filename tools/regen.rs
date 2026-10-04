@@ -64,6 +64,9 @@ fn normalized_rust(bytes: &[u8]) -> Result<Vec<u8>> {
         )
         .into());
     }
+    if output.stdout.is_empty() {
+        return Err("empty rustfmt output".into());
+    }
     Ok(output.stdout)
 }
 

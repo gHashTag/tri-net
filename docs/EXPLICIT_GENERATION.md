@@ -76,7 +76,7 @@ tests, or the required full-corpus CI drift check.
   reproduced an automatic rewrite of a controlled generated-file marker.
 - The same build after removing the script retained the marker and all 284
   generated-file hashes, with the compiler still installed.
-- Sixteen real Git-index and hook controls passed, including all three backends,
+- Seventeen real Git-index and hook controls passed, including all three backends,
   manual corruption, formatting normalization, differing index/worktree inputs,
   missing tools/source, command failure, and empty compiler output.
 - Explicit generation produced byte-identical pinned Rust output.
