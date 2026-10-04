@@ -20,7 +20,7 @@ pub const ATTEN_MAX: u8 = 30;
 pub const IPERF3_HDR_LEN: u8 = 8;
 
 pub fn iperf3_sequence(packet_byte: u8) -> u32 {
-    (packet_byte as u32);
+    return (packet_byte as u32);
 }
 
 pub fn expected_loss_rate_p10(attenuation_db: u8) -> u8 {
@@ -119,4 +119,3 @@ pub fn udp_packet_byte(seq: u16, byte_index: u8, data_byte: u8) -> u8 {
     }
     return 0xBB;
 }
-

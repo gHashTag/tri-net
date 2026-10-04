@@ -47,7 +47,7 @@ uint8_t udp_packet_byte(uint16_t seq, uint8_t byte_index, uint8_t data_byte);
    ------------------------------------------------------- */
 
 uint32_t iperf3_sequence(uint8_t packet_byte) {
-    ((uint32_t)(packet_byte));
+    return ((uint32_t)(packet_byte));
 }
 
 uint8_t expected_loss_rate_p10(uint8_t attenuation_db) {
@@ -151,6 +151,12 @@ uint8_t udp_packet_byte(uint16_t seq, uint8_t byte_index, uint8_t data_byte) {
    Tests
    ------------------------------------------------------- */
 
+void test_sequence_byte_preserves_unsigned_value(void) {
+    t27_assert((iperf3_sequence(0) == 0), "zero byte sequence");
+    t27_assert((iperf3_sequence(128) == 128), "high-bit byte stays unsigned");
+    t27_assert((iperf3_sequence(255) == 255), "maximum byte sequence");
+}
+
 void test_expected_loss_rate_calculation(void) {
     t27_assert((expected_loss_rate_p10(0) == 0x10), "expected_loss_rate_p10 0 == 0x10");
     t27_assert((expected_loss_rate_p10(10) > 0x10), "expected_loss_rate_p10 10 > 0x10");
@@ -171,7 +177,7 @@ void test_throughput_factor_calculation(void) {
     t27_assert((factor0 > 0xF0), "factor0 > 0xF0");
     uint8_t factor10 = throughput_factor_p8(10);
     t27_assert((factor10 > 0xF0), "factor10 > 0xF0");
-    t27_assert((factor10 < 0x100), "factor10 < 0x100");
+    t27_assert((factor10 == 250), "ten dB model factor is exactly 250");
     uint8_t factor30 = throughput_factor_p8(30);
     t27_assert((factor30 > 0xD0), "factor30 > 0xD0");
     t27_assert((factor30 < 0xF0), "factor30 < 0xF0");
@@ -188,7 +194,7 @@ void test_delivery_rate_calculation(void) {
     t27_assert((rate0 > 0xF0), "rate0 > 0xF0");
     uint8_t rate10 = delivery_rate_p8(10, 10);
     t27_assert((rate10 > 0xF0), "rate10 > 0xF0");
-    t27_assert((rate10 < 0x100), "rate10 < 0x100");
+    t27_assert((rate10 == 244), "ten dB two-hop model rate is exactly 244");
 }
 
 void test_tcp_packet_generation(void) {
@@ -249,6 +255,7 @@ void test_two_hop_forwarding(void) {
 #ifdef T27_TEST_MAIN
 #include <stdio.h>
 int main(void) {
+    test_sequence_byte_preserves_unsigned_value();
     test_expected_loss_rate_calculation();
     test_signal_quality_classification();
     test_throughput_factor_calculation();
@@ -258,7 +265,7 @@ int main(void) {
     test_udp_packet_generation();
     test_hop_simulation();
     test_two_hop_forwarding();
-    printf("All %d tests passed.\n", 9);
+    printf("All %d tests passed.\n", 10);
     return 0;
 }
 #endif /* T27_TEST_MAIN */
