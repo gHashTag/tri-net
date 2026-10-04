@@ -14,7 +14,7 @@ const ATTEN_MIN: u8 = 0;
 const ATTEN_MAX: u8 = 30;
 const IPERF3_HDR_LEN: u8 = 8;
 fn iperf3_sequence(packet_byte: u8) u32 {
-    @as(u32, @intCast(packet_byte));
+    return @as(u32, @intCast(packet_byte));
 }
 fn expected_loss_rate_p10(attenuation_db: u8) u8 {
     const base_loss: u8 = 0x10;
@@ -107,6 +107,11 @@ fn udp_packet_byte(seq: u16, byte_index: u8, data_byte: u8) u8 {
     }
     return 0xBB;
 }
+test "sequence_byte_preserves_unsigned_value" {
+    if (!(iperf3_sequence(0) == 0)) @panic("zero byte sequence");
+    if (!(iperf3_sequence(128) == 128)) @panic("high-bit byte stays unsigned");
+    if (!(iperf3_sequence(255) == 255)) @panic("maximum byte sequence");
+}
 test "expected_loss_rate_calculation" {
     if (!(expected_loss_rate_p10(0) == 0x10)) @panic("expected_loss_rate_p10 0 == 0x10");
     if (!(expected_loss_rate_p10(10) > 0x10)) @panic("expected_loss_rate_p10 10 > 0x10");
@@ -125,7 +130,7 @@ test "throughput_factor_calculation" {
     if (!(factor0 > 0xF0)) @panic("factor0 > 0xF0");
     const factor10: u8 = throughput_factor_p8(10);
     if (!(factor10 > 0xF0)) @panic("factor10 > 0xF0");
-    if (!(factor10 < 0x100)) @panic("factor10 < 0x100");
+    if (!(factor10 == 250)) @panic("ten dB model factor is exactly 250");
     const factor30: u8 = throughput_factor_p8(30);
     if (!(factor30 > 0xD0)) @panic("factor30 > 0xD0");
     if (!(factor30 < 0xF0)) @panic("factor30 < 0xF0");
@@ -140,7 +145,7 @@ test "delivery_rate_calculation" {
     if (!(rate0 > 0xF0)) @panic("rate0 > 0xF0");
     const rate10: u8 = delivery_rate_p8(10, 10);
     if (!(rate10 > 0xF0)) @panic("rate10 > 0xF0");
-    if (!(rate10 < 0x100)) @panic("rate10 < 0x100");
+    if (!(rate10 == 244)) @panic("ten dB two-hop model rate is exactly 244");
 }
 test "tcp_packet_generation" {
     const seq: u32 = 0x12345678;
