@@ -107,7 +107,7 @@ t27_tuple_uint32_t_bool_uint32_t forward_packet(uint32_t packet, uint32_t curren
     t27_tuple_uint32_t_bool __t_c85 = decrement_ttl(packet);
     uint32_t new_pkt = __t_c85.f0;
     bool expired = __t_c85.f1;
-    if (expired) {
+    if ((expired == true)) {
         return (t27_tuple_uint32_t_bool_uint32_t){ new_pkt, true, 0 };
     }
     if ((route_packet(current_node, extract_dst(new_pkt), 0) == 0)) {
@@ -119,6 +119,42 @@ t27_tuple_uint32_t_bool_uint32_t forward_packet(uint32_t packet, uint32_t curren
 /* -------------------------------------------------------
    Tests
    ------------------------------------------------------- */
+
+void test_forward_packet_expires_at_zero_and_one(void) {
+    uint32_t zero = build_packet(NODE_A, NODE_B, 0, 255);
+    uint32_t one = build_packet(NODE_A, NODE_B, 1, 255);
+    t27_tuple_uint32_t_bool_uint32_t __t_c103 = forward_packet(zero, NODE_A);
+    uint32_t zero_packet = __t_c103.f0;
+    bool zero_expired = __t_c103.f1;
+    uint32_t zero_hop = __t_c103.f2;
+    t27_tuple_uint32_t_bool_uint32_t __t_c104 = forward_packet(one, NODE_A);
+    uint32_t one_packet = __t_c104.f0;
+    bool one_expired = __t_c104.f1;
+    uint32_t one_hop = __t_c104.f2;
+    t27_assert((zero_packet == zero), "zero TTL is unchanged");
+    t27_assert((zero_expired == true), "zero TTL expires");
+    t27_assert((zero_hop == 0), "zero TTL has no next hop");
+    t27_assert((extract_ttl(one_packet) == 0), "one TTL becomes zero");
+    t27_assert((one_expired == true), "one TTL expires immediately");
+    t27_assert((one_hop == 0), "one TTL is not routed");
+}
+
+void test_forwarding_preserves_reserved_bits(void) {
+    t27_tuple_uint32_t_bool_uint32_t __t_c114 = forward_packet(0x01021F7A, NODE_A);
+    uint32_t expired_packet = __t_c114.f0;
+    bool expired = __t_c114.f1;
+    uint32_t expired_hop = __t_c114.f2;
+    t27_tuple_uint32_t_bool_uint32_t __t_c115 = forward_packet(0x01023F7A, NODE_A);
+    uint32_t forwarded_packet = __t_c115.f0;
+    bool live_expired = __t_c115.f1;
+    uint32_t next_hop = __t_c115.f2;
+    t27_assert((expired_packet == 0x01020F7A), "expired packet retains reserved bits");
+    t27_assert((expired == true), "expired flag is boolean true");
+    t27_assert((expired_hop == 0), "expired packet has no route");
+    t27_assert((forwarded_packet == 0x01022F7A), "only the TTL nibble changes");
+    t27_assert((live_expired == false), "live packet remains live");
+    t27_assert((next_hop == NODE_B), "live packet takes its route");
+}
 
 void test_build_packet_correct_layout(void) {
     uint64_t pkt = build_packet(NODE_A, NODE_B, 3, 5);
@@ -184,19 +220,19 @@ void test_decrement_ttl_already_expired(void) {
 void test_route_packet_direct_a_to_b(void) {
     uint64_t next_hop = route_packet(NODE_A, NODE_B, 0);
     (void)next_hop;
-    t27_assert((next_hop == NODE_B), "direct route AâB");
+    t27_assert((next_hop == NODE_B), "direct route A->B");
 }
 
 void test_route_packet_via_b_a_to_c(void) {
     uint64_t next_hop = route_packet(NODE_A, NODE_C, 0);
     (void)next_hop;
-    t27_assert((next_hop == NODE_B), "route AâC via B");
+    t27_assert((next_hop == NODE_B), "route A->C via B");
 }
 
 void test_route_packet_direct_b_to_c(void) {
     uint64_t next_hop = route_packet(NODE_B, NODE_C, 0);
     (void)next_hop;
-    t27_assert((next_hop == NODE_C), "direct route BâC");
+    t27_assert((next_hop == NODE_C), "direct route B->C");
 }
 
 void test_forward_packet_decrements_ttl(void) {
@@ -305,6 +341,8 @@ void test_multi_hop_routing(void) {
 #ifdef T27_TEST_MAIN
 #include <stdio.h>
 int main(void) {
+    test_forward_packet_expires_at_zero_and_one();
+    test_forwarding_preserves_reserved_bits();
     test_build_packet_correct_layout();
     test_tx_path_produces_valid_packet();
     test_rx_path_extracts_payload();
@@ -320,7 +358,7 @@ int main(void) {
     test_forward_packet_no_route();
     test_end_to_end_tx_rx();
     test_multi_hop_routing();
-    printf("All %d tests passed.\n", 15);
+    printf("All %d tests passed.\n", 17);
     return 0;
 }
 #endif /* T27_TEST_MAIN */

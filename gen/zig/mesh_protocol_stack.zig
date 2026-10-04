@@ -58,13 +58,35 @@ fn rx_path(packet: u32) u8 {
 }
 fn forward_packet(packet: u32, current_node: u32) struct { u32, bool, u32 } {
     const new_pkt, const expired = decrement_ttl(packet);
-    if (expired) {
+    if (expired == true) {
         return .{ new_pkt, true, 0 };
     }
     if (route_packet(current_node, extract_dst(new_pkt), 0) == 0) {
         return .{ new_pkt, false, 0 };
     }
     return .{ new_pkt, false, route_packet(current_node, extract_dst(new_pkt), 0) };
+}
+test "forward_packet_expires_at_zero_and_one" {
+    const zero: u32 = build_packet(NODE_A, NODE_B, 0, 255);
+    const one: u32 = build_packet(NODE_A, NODE_B, 1, 255);
+    const zero_packet, const zero_expired, const zero_hop = forward_packet(zero, NODE_A);
+    const one_packet, const one_expired, const one_hop = forward_packet(one, NODE_A);
+    if (!(zero_packet == zero)) @panic("zero TTL is unchanged");
+    if (!(zero_expired == true)) @panic("zero TTL expires");
+    if (!(zero_hop == 0)) @panic("zero TTL has no next hop");
+    if (!(extract_ttl(one_packet) == 0)) @panic("one TTL becomes zero");
+    if (!(one_expired == true)) @panic("one TTL expires immediately");
+    if (!(one_hop == 0)) @panic("one TTL is not routed");
+}
+test "forwarding_preserves_reserved_bits" {
+    const expired_packet, const expired, const expired_hop = forward_packet(0x01021F7A, NODE_A);
+    const forwarded_packet, const live_expired, const next_hop = forward_packet(0x01023F7A, NODE_A);
+    if (!(expired_packet == 0x01020F7A)) @panic("expired packet retains reserved bits");
+    if (!(expired == true)) @panic("expired flag is boolean true");
+    if (!(expired_hop == 0)) @panic("expired packet has no route");
+    if (!(forwarded_packet == 0x01022F7A)) @panic("only the TTL nibble changes");
+    if (!(live_expired == false)) @panic("live packet remains live");
+    if (!(next_hop == NODE_B)) @panic("live packet takes its route");
 }
 test "build_packet_correct_layout" {
     const pkt = build_packet(NODE_A, NODE_B, 3, 5);
@@ -104,15 +126,15 @@ test "decrement_ttl_already_expired" {
 }
 test "route_packet_direct_a_to_b" {
     const next_hop = route_packet(NODE_A, NODE_B, 0);
-    if (!(next_hop == NODE_B)) @panic("direct route AâB");
+    if (!(next_hop == NODE_B)) @panic("direct route A->B");
 }
 test "route_packet_via_b_a_to_c" {
     const next_hop = route_packet(NODE_A, NODE_C, 0);
-    if (!(next_hop == NODE_B)) @panic("route AâC via B");
+    if (!(next_hop == NODE_B)) @panic("route A->C via B");
 }
 test "route_packet_direct_b_to_c" {
     const next_hop = route_packet(NODE_B, NODE_C, 0);
-    if (!(next_hop == NODE_C)) @panic("direct route BâC");
+    if (!(next_hop == NODE_C)) @panic("direct route B->C");
 }
 test "forward_packet_decrements_ttl" {
     const pkt = build_packet(NODE_A, NODE_B, 3, 5);
