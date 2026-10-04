@@ -60,6 +60,10 @@ path = "tools/regen.rs"
 name = "video_bridge_wire"
 path = "tests/video_bridge_wire.rs"
 
+[[test]]
+name = "etx_ewma"
+path = "tests/etx_ewma.rs"
+
 # autotests = false above, so integration tests are opt-in per target.
 [[test]]
 name = "gft_task_accuracy"

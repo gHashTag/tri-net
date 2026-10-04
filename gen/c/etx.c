@@ -61,10 +61,8 @@ uint8_t fp_mul(uint8_t a, uint8_t b) {
 }
 
 uint8_t ewma_update(uint8_t est, uint8_t sample, uint8_t alpha) {
-    if (((est == 255) && (sample == 255))) {
-        return 255;
-    }
-    return (fp_mul(alpha, sample) + fp_mul((255 - alpha), est));
+    uint16_t weight = ((uint16_t)(alpha));
+    return ((uint8_t)((((weight * ((uint16_t)(sample))) + ((ONE_FP - weight) * ((uint16_t)(est)))) >> 8)));
 }
 
 bool is_dead(uint8_t ratio) {
@@ -163,6 +161,64 @@ void test_test_ewma_convergence(void) {
     t27_assert((est2 < OPTIMISTIC), "EWMA should decrease");
 }
 
+void test_test_ewma_stationary_midrange(void) {
+    t27_assert((ewma_update(230, 230, 128) == 230), "stationary half weight");
+    t27_assert((ewma_update(230, 230, 160) == 230), "stationary lookup weight");
+}
+
+void test_test_ewma_stationary_small(void) {
+    t27_assert((ewma_update(1, 1, 128) == 1), "stationary odd value");
+    t27_assert((ewma_update(3, 3, 160) == 3), "small stationary estimate");
+    t27_assert((ewma_update(254, 254, 1) == 254), "stationary near maximum");
+}
+
+void test_test_ewma_zero_alpha(void) {
+    t27_assert((ewma_update(230, 255, 0) == 230), "zero alpha ignores success");
+    t27_assert((ewma_update(230, 0, 0) == 230), "zero alpha ignores loss");
+    t27_assert((ewma_update(255, 0, 0) == 255), "zero alpha retains maximum");
+}
+
+void test_test_ewma_extreme_stationary(void) {
+    t27_assert((ewma_update(0, 0, 0) == 0), "zero stationary minimum alpha");
+    t27_assert((ewma_update(0, 0, 255) == 0), "zero stationary maximum alpha");
+    t27_assert((ewma_update(255, 255, 0) == 255), "full stationary minimum alpha");
+    t27_assert((ewma_update(255, 255, 255) == 255), "full stationary maximum alpha");
+}
+
+void test_test_ewma_single_rounding(void) {
+    t27_assert((ewma_update(1, 3, 128) == 2), "combine fractional products");
+    t27_assert((ewma_update(230, 255, 128) == 242), "half success rounds once");
+    t27_assert((ewma_update(230, 0, 128) == 115), "half loss uses exact complement");
+}
+
+void test_test_ewma_zero_estimate(void) {
+    t27_assert((ewma_update(0, 255, 128) == 127), "half success from zero");
+    t27_assert((ewma_update(0, 255, 255) == 254), "maximum alpha is 255 over 256");
+}
+
+void test_test_ewma_maximum_alpha(void) {
+    t27_assert((ewma_update(230, 17, 255) == 17), "retain residual estimate weight");
+    t27_assert((ewma_update(255, 0, 255) == 0), "maximum alpha loss rounds down");
+}
+
+void test_test_ewma_dead_threshold_stationary(void) {
+    t27_assert((ewma_update(DEAD_EPS, DEAD_EPS, 128) == DEAD_EPS), "keep threshold");
+    t27_assert(!is_dead(ewma_update(DEAD_EPS, DEAD_EPS, 128)), "stationary stays alive");
+    t27_assert((calc_etx(ewma_update(DEAD_EPS, DEAD_EPS, 128), 230) != 0xFFFF), "finite ETX");
+}
+
+void test_test_ewma_every_u8_triple(void) {
+    for (int alpha = 0; alpha < 256; alpha++) {
+        for (int est = 0; est < 256; est++) {
+            for (int sample = 0; sample < 256; sample++) {
+                uint64_t weight = ((uint64_t)(alpha));
+                uint64_t expected = (((weight * ((uint64_t)(sample))) + ((256 - weight) * ((uint64_t)(est)))) / 256);
+                t27_assert((((uint64_t)(ewma_update(((uint8_t)(est)), ((uint8_t)(sample)), ((uint8_t)(alpha))))) == expected), "exact rational EWMA");
+            }
+        }
+    }
+}
+
 
 /* -------------------------------------------------------
    Test runner (compile with -DT27_TEST_MAIN to execute)
@@ -177,7 +233,16 @@ int main(void) {
     test_test_force_dead();
     test_test_etx_buckets();
     test_test_ewma_convergence();
-    printf("All %d tests passed.\n", 6);
+    test_test_ewma_stationary_midrange();
+    test_test_ewma_stationary_small();
+    test_test_ewma_zero_alpha();
+    test_test_ewma_extreme_stationary();
+    test_test_ewma_single_rounding();
+    test_test_ewma_zero_estimate();
+    test_test_ewma_maximum_alpha();
+    test_test_ewma_dead_threshold_stationary();
+    test_test_ewma_every_u8_triple();
+    printf("All %d tests passed.\n", 15);
     return 0;
 }
 #endif /* T27_TEST_MAIN */
