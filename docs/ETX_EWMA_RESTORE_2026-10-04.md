@@ -20,7 +20,7 @@ sum is at most `256 * 255 = 65280`, so u16 arithmetic is sufficient.
 - `fp_mul`, the alpha lookup, boolean samples, dead threshold, and ETX buckets
   retain their previous implementations.
 - The original six source tests retain their statements. Eight boundary tests
-  and one exhaustive rational-reference test bring the source total to 15.
+  and one rational-reference boundary matrix bring the source total to 15.
 - Rust, Zig, and C artifacts come from the unchanged CI compiler revision
   `eb8b4208168557b36dca3a771f6901a5b10d9ef0`. No artifact is hand-edited.
   Rust is normalized with rustfmt, matching CI; C and Zig remain byte-exact.
@@ -31,15 +31,28 @@ Before the fix, an independent u64 rational reference found 13,866,048 mismatche
 across all 16,777,216 u8 triples. There were 65,024 stationary failures and 65,279
 zero-alpha failures. The maximum error was two sample units.
 
-After the fix, each generated backend executes all 16,777,216 triples against
-the exact rational reference. There are zero mismatches. Actual generated Zig
-and C each pass all 15 source tests. Rust's generator does not emit source test
-blocks, so a declared Cargo integration test executes the generated Rust function
-against a separate wide rational oracle.
+After the fix, the declared Cargo integration oracle exhaustively executes the
+generated Rust function over all 16,777,216 triples against a separate u64
+rational reference, with zero mismatches. Rust codegen does not emit source tests.
+Earlier local Zig and C execution of a full-domain source oracle also passed;
+those mathematical results are recorded separately from the persistent CI tests.
+
+The final common source test checks all weights and estimates, all stationary
+cases, all zero-alpha estimate/sample pairs, and eight endpoint, threshold and
+rounding samples. This is 655,360 comparisons. Generated Zig, unoptimized C,
+and Icarus Verilog each execute all 15 source tests successfully. The actual
+Icarus run completes in about 64 seconds; its PASSED names match every expected
+source test. This is not an exhaustive full-domain RTL run.
+
+The pinned Verilog testbench emitter cannot lower typed declarations and assert
+calls inside nested loops. The source matrix keeps declarations and the final
+assertion at the test root, aggregates comparisons inside loops, and leaves the
+production arithmetic unchanged. No compiler pin or CI exclusion changes.
 
 Four source mutations independently restore the 255 complement, split rounding,
 swapped input weights, or a dropped alpha bit. Each typechecks with zero errors
-and warnings, compiles in all three backends, and then fails semantic execution.
+and warnings, compiles in all three backends, and then fails semantic execution. Four additional generated Icarus controls
+execute the boundary regressions and reject the same type-correct mutations.
 
 Rust 1.96.0 passes formatting, Clippy for all targets with warnings denied,
 debug/release builds, and all 433 Cargo tests with zero failures or ignored tests.

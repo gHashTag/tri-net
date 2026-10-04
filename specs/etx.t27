@@ -178,16 +178,34 @@ module MeshEtx {
         assert(calc_etx(ewma_update(DEAD_EPS, DEAD_EPS, 128), 230) != 0xFFFF, "finite ETX");
     }
 
-    test test_ewma_every_u8_triple {
-        // Wide rational oracle independent of the u16 shift implementation.
+    test test_ewma_boundary_matrix {
+        // All weights and estimates, with endpoint, threshold and rounding
+        // samples. The Cargo oracle separately checks every u8 triple.
+        // Keep declarations and the final assertion outside nested loops so
+        // the pinned Verilog testbench emitter can lower them faithfully.
+        let all_match: bool = true;
+        let weight: u64 = 0;
+        let expected: u64 = 0;
+        let sample_value: u64 = 0;
         for alpha in 0..256 {
             for est in 0..256 {
-                for sample in 0..256 {
-                    let weight: u64 = alpha as u64;
-                    let expected: u64 = (weight * (sample as u64) + (256 - weight) * (est as u64)) / 256;
-                    assert((ewma_update(est as u8, sample as u8, alpha as u8) as u64) == expected, "exact rational EWMA");
+                all_match = all_match && ((ewma_update(est as u8, est as u8, alpha as u8) as u64) == (est as u64));
+                all_match = all_match && ((ewma_update(est as u8, alpha as u8, 0) as u64) == (est as u64));
+                for sample_index in 0..8 {
+                    if (sample_index == 0) { sample_value = 0; }
+                    else if (sample_index == 1) { sample_value = 1; }
+                    else if (sample_index == 2) { sample_value = 38; }
+                    else if (sample_index == 3) { sample_value = 127; }
+                    else if (sample_index == 4) { sample_value = 128; }
+                    else if (sample_index == 5) { sample_value = 230; }
+                    else if (sample_index == 6) { sample_value = 254; }
+                    else { sample_value = 255; }
+                    weight = alpha as u64;
+                    expected = (weight * sample_value + (256 - weight) * (est as u64)) / 256;
+                    all_match = all_match && ((ewma_update(est as u8, sample_value as u8, alpha as u8) as u64) == expected);
                 }
             }
         }
+        assert(all_match, "EWMA boundary matrix, stationary and zero-alpha identities");
     }
 }

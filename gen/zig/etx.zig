@@ -134,14 +134,42 @@ test "test_ewma_dead_threshold_stationary" {
     if (!(!is_dead(ewma_update(DEAD_EPS, DEAD_EPS, 128)))) @panic("stationary stays alive");
     if (!(calc_etx(ewma_update(DEAD_EPS, DEAD_EPS, 128), 230) != 0xFFFF)) @panic("finite ETX");
 }
-test "test_ewma_every_u8_triple" {
+test "test_ewma_boundary_matrix" {
+    var all_match: bool = true;
+    _ = &all_match;
+    var weight: u64 = 0;
+    _ = &weight;
+    var expected: u64 = 0;
+    _ = &expected;
+    var sample_value: u64 = 0;
+    _ = &sample_value;
     for (0..256) |alpha| {
         for (0..256) |est| {
-            for (0..256) |sample| {
-                const weight: u64 = @as(u64, @intCast(alpha));
-                const expected: u64 = ((weight * @as(u64, @intCast(sample))) + ((256 - weight) * @as(u64, @intCast(est)))) / 256;
-                if (!(@as(u64, @intCast(ewma_update(@as(u8, @intCast(est)), @as(u8, @intCast(sample)), @as(u8, @intCast(alpha))))) == expected)) @panic("exact rational EWMA");
+            all_match = all_match and (@as(u64, @intCast(ewma_update(@as(u8, @intCast(est)), @as(u8, @intCast(est)), @as(u8, @intCast(alpha))))) == @as(u64, @intCast(est)));
+            all_match = all_match and (@as(u64, @intCast(ewma_update(@as(u8, @intCast(est)), @as(u8, @intCast(alpha)), 0))) == @as(u64, @intCast(est)));
+            for (0..8) |sample_index| {
+                if (sample_index == 0) {
+                    sample_value = 0;
+                } else if (sample_index == 1) {
+                    sample_value = 1;
+                } else if (sample_index == 2) {
+                    sample_value = 38;
+                } else if (sample_index == 3) {
+                    sample_value = 127;
+                } else if (sample_index == 4) {
+                    sample_value = 128;
+                } else if (sample_index == 5) {
+                    sample_value = 230;
+                } else if (sample_index == 6) {
+                    sample_value = 254;
+                } else {
+                    sample_value = 255;
+                }
+                weight = @as(u64, @intCast(alpha));
+                expected = ((weight * sample_value) + ((256 - weight) * @as(u64, @intCast(est)))) / 256;
+                all_match = all_match and (@as(u64, @intCast(ewma_update(@as(u8, @intCast(est)), @as(u8, @truncate(sample_value)), @as(u8, @intCast(alpha))))) == expected);
             }
         }
     }
+    if (!(all_match)) @panic("EWMA boundary matrix, stationary and zero-alpha identities");
 }

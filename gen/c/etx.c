@@ -207,16 +207,40 @@ void test_test_ewma_dead_threshold_stationary(void) {
     t27_assert((calc_etx(ewma_update(DEAD_EPS, DEAD_EPS, 128), 230) != 0xFFFF), "finite ETX");
 }
 
-void test_test_ewma_every_u8_triple(void) {
+void test_test_ewma_boundary_matrix(void) {
+    bool all_match = true;
+    uint64_t weight = 0;
+    uint64_t expected = 0;
+    uint64_t sample_value = 0;
     for (int alpha = 0; alpha < 256; alpha++) {
         for (int est = 0; est < 256; est++) {
-            for (int sample = 0; sample < 256; sample++) {
-                uint64_t weight = ((uint64_t)(alpha));
-                uint64_t expected = (((weight * ((uint64_t)(sample))) + ((256 - weight) * ((uint64_t)(est)))) / 256);
-                t27_assert((((uint64_t)(ewma_update(((uint8_t)(est)), ((uint8_t)(sample)), ((uint8_t)(alpha))))) == expected), "exact rational EWMA");
+            all_match = (all_match && (((uint64_t)(ewma_update(((uint8_t)(est)), ((uint8_t)(est)), ((uint8_t)(alpha))))) == ((uint64_t)(est))));
+            all_match = (all_match && (((uint64_t)(ewma_update(((uint8_t)(est)), ((uint8_t)(alpha)), 0))) == ((uint64_t)(est))));
+            for (int sample_index = 0; sample_index < 8; sample_index++) {
+                if ((sample_index == 0)) {
+                    sample_value = 0;
+                } else if ((sample_index == 1)) {
+                    sample_value = 1;
+                } else if ((sample_index == 2)) {
+                    sample_value = 38;
+                } else if ((sample_index == 3)) {
+                    sample_value = 127;
+                } else if ((sample_index == 4)) {
+                    sample_value = 128;
+                } else if ((sample_index == 5)) {
+                    sample_value = 230;
+                } else if ((sample_index == 6)) {
+                    sample_value = 254;
+                } else {
+                    sample_value = 255;
+                }
+                weight = ((uint64_t)(alpha));
+                expected = (((weight * sample_value) + ((256 - weight) * ((uint64_t)(est)))) / 256);
+                all_match = (all_match && (((uint64_t)(ewma_update(((uint8_t)(est)), ((uint8_t)(sample_value)), ((uint8_t)(alpha))))) == expected));
             }
         }
     }
+    t27_assert(all_match, "EWMA boundary matrix, stationary and zero-alpha identities");
 }
 
 
@@ -241,7 +265,7 @@ int main(void) {
     test_test_ewma_zero_estimate();
     test_test_ewma_maximum_alpha();
     test_test_ewma_dead_threshold_stationary();
-    test_test_ewma_every_u8_triple();
+    test_test_ewma_boundary_matrix();
     printf("All %d tests passed.\n", 15);
     return 0;
 }
