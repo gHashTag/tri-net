@@ -64,6 +64,10 @@ path = "tests/video_bridge_wire.rs"
 name = "etx_ewma"
 path = "tests/etx_ewma.rs"
 
+[[test]]
+name = "pattern_predictor_boundaries"
+path = "tests/pattern_predictor_boundaries.rs"
+
 # autotests = false above, so integration tests are opt-in per target.
 [[test]]
 name = "gft_task_accuracy"
