@@ -1,4 +1,4 @@
-//! trios-mesh library — re-export hub for generated code.
+//! trios-mesh library -- re-export hub for generated code.
 //!
 //! All business logic lives in gen/rust/ (generated from specs/*.t27).
 //! This file ONLY re-exports. No hand-written logic.
@@ -85,6 +85,11 @@ pub mod nickname_directory;
 #[rustfmt::skip]
 #[path = "../gen/rust/group_chat.rs"]
 pub mod group_chat;
+
+#[allow(clippy::all, unused)]
+#[rustfmt::skip]
+#[path = "../gen/rust/video_bridge.rs"]
+pub mod video_bridge;
 
 // Crate-root re-exports used by the binaries.
 pub use crypto::{Handshake, MeshError};

@@ -1,4 +1,4 @@
-//! trios_meshd_video — UDP datagram bridge for P203 mesh nodes.
+//! trios_meshd_video -- UDP datagram bridge for P203 mesh nodes.
 //!
 //! A node carries opaque datagrams between an attached device (phone/Mac) and a
 //! peer node. The payload is sealed end-to-end by the app, so this daemon can
@@ -6,14 +6,14 @@
 //! packets small enough for the radio, relays them, and reassembles on the far
 //! side.
 //!
-//! Two directions, two sockets, two ports — never one port with a magic byte
+//! Two directions, two sockets, two ports -- never one port with a magic byte
 //! (see PORTS below):
 //!
 //!   device --(VIDEO_IN_PORT 7000)--> [node] --(MESH_PORT 5000)--> [peer node]
 //!   [peer node] --(MESH_PORT 5000)--> [node] --(VIDEO_OUT_PORT 7001)--> device
 //!
 //! Wire format per fragment (from gen/rust/video_bridge.rs):
-//!   [VSTREAM_TYPE:1][seq_lo:1][seq_hi:1][frag_idx:1][frag_count:1][data:≤70]
+//!   [VSTREAM_TYPE:1][seq_lo:1][seq_hi:1][frag_idx:1][frag_count:1][data:<=70]
 //!
 //! Usage:
 //!   trios_meshd_video <listen_addr> <peer_addr> [device_addr]
@@ -24,8 +24,8 @@
 //!   device of its own (e.g. a test rig).
 //!
 //! Environment:
-//!   VIDEO_OUT_PORT (default 7001) — port on the device that receives payloads.
-//!   FRAG_RATE_PER_SEC (default 800) — fragments/sec ceiling, see RATE below.
+//!   VIDEO_OUT_PORT (default 7001) -- port on the device that receives payloads.
+//!   FRAG_RATE_PER_SEC (default 800) -- fragments/sec ceiling, see RATE below.
 //!
 //! phi^2 + phi^-2 = 3
 
@@ -41,8 +41,8 @@ use trios_mesh::video_bridge;
 /// buffer also receives INBOUND payloads from the device, and an I-frame is
 /// 3-10 KB. It used to be 1500, which silently truncated every payload above
 /// that: the log read "TX 1500B" for a 9000B frame and the peer reassembled a
-/// maimed I-frame. recv_from does not error on truncation — it just hands back
-/// a short read — so nothing anywhere reported it. Sized to MAX_NAL, which is
+/// maimed I-frame. recv_from does not error on truncation -- it just hands back
+/// a short read -- so nothing anywhere reported it. Sized to MAX_NAL, which is
 /// what the code already claimed to support.
 const MAX_NAL: usize = 65_535;
 const MAX_PACKET: usize = MAX_NAL;
@@ -65,13 +65,20 @@ const AUDIO_RATE_PER_SEC: u32 = 200;
 /// link exists; do not treat the default as a measurement.
 const DEFAULT_FRAG_RATE_PER_SEC: u32 = 800;
 
+/// Configuration passed to the outbound socket worker.
+struct UplinkConfig {
+    out_port: u16,
+    frag_rate: u32,
+    fec_enabled: bool,
+}
+
 /// Per-sequence reassembly state (loss-resistant: tracks which fragments came).
 struct ReassemblyState {
     expected_frags: u8,
     received: Vec<bool>,
     data: Vec<u8>,
     /// Byte length of the FINAL fragment. The total size is
-    /// (count-1)*MAX_FRAG_DATA + last_len — it cannot be inferred from the
+    /// (count-1)*MAX_FRAG_DATA + last_len -- it cannot be inferred from the
     /// buffer contents (see the emit path). Carried by the last fragment AND
     /// by every parity, so losing the last fragment does not cost the length.
     last_len: Option<usize>,
@@ -94,7 +101,7 @@ struct ReassemblyState {
 /// Repair every group that is missing exactly one fragment.
 ///
 /// Reassembly is all-or-nothing, so without this ONE lost 70-byte packet
-/// destroys a whole NAL — and an I-frame is 129 packets. The XOR is over cells
+/// destroys a whole NAL -- and an I-frame is 129 packets. The XOR is over cells
 /// padded to MAX_FRAG_DATA, which is why `data` is zero-initialised: a short
 /// final fragment leaves the same zero padding the sender XORed over.
 fn repair_groups(state: &mut ReassemblyState) -> u32 {
@@ -128,8 +135,8 @@ fn repair_groups(state: &mut ReassemblyState) -> u32 {
             if i == lost {
                 continue;
             }
-            for b in 0..max_data {
-                cell[b] ^= state.data[i * max_data + b];
+            for (b, byte) in cell[..max_data].iter_mut().enumerate() {
+                *byte ^= state.data[i * max_data + b];
             }
         }
         state.data[lost * max_data..lost * max_data + max_data].copy_from_slice(&cell);
@@ -145,7 +152,7 @@ fn main() {
         eprintln!("usage: {} <listen_addr> <peer_addr> [device_addr]", args[0]);
         eprintln!("  listen: 0.0.0.0:7000     (attached device sends payloads here)");
         eprintln!("  peer:   192.168.1.12     (next mesh hop; fragments go to its port 5000)");
-        eprintln!("  device: 192.168.1.105    (optional — learned from ingress if omitted)");
+        eprintln!("  device: 192.168.1.105    (optional -- learned from ingress if omitted)");
         std::process::exit(1);
     }
     let listen_addr = &args[1];
@@ -185,7 +192,7 @@ fn main() {
 
     // PORTS. The device's payload and the peer's fragments MUST arrive on
     // different ports. This used to be one socket that told them apart by
-    // `buf[0] == VSTREAM_TYPE` (8) — but the app seals every datagram with
+    // `buf[0] == VSTREAM_TYPE` (8) -- but the app seals every datagram with
     // ChaChaPoly, whose `.combined` layout is nonce||ciphertext||tag and whose
     // nonce is RANDOM. So one datagram in 256 starts with 0x08 and was
     // swallowed as a mesh fragment: at ~100 datagrams/sec, a corruption every
@@ -204,7 +211,7 @@ fn main() {
 
     // The attached device announces itself by sending. Pinning this to
     // 127.0.0.1 (as it once was) meant a reassembled payload never left the
-    // node and the attached phone could never receive anything — silently,
+    // node and the attached phone could never receive anything -- silently,
     // because send_to(127.0.0.1) succeeds.
     // What the uplink is actually doing, published for the reporter. The node
     // knows its load exactly; until now it had no way to say so, and the app
@@ -254,9 +261,11 @@ fn main() {
                 &app_sock,
                 peer_mesh,
                 &device,
-                out_port,
-                video_rate,
-                fec_enabled,
+                UplinkConfig {
+                    out_port,
+                    frag_rate: video_rate,
+                    fec_enabled,
+                },
                 &load,
                 started,
             )
@@ -287,12 +296,15 @@ fn uplink(
     app_sock: &UdpSocket,
     peer_mesh: SocketAddr,
     device: &Mutex<Option<SocketAddr>>,
-    out_port: u16,
-    frag_rate: u32,
-    fec_enabled: bool,
+    config: UplinkConfig,
     load: &(AtomicU32, AtomicU32, AtomicU32),
     started: Instant,
 ) {
+    let UplinkConfig {
+        out_port,
+        frag_rate,
+        fec_enabled,
+    } = config;
     let mut rx_buf = vec![0u8; MAX_PACKET];
     let mut seq: u16 = 0;
     let mut spent: u32 = 0;
@@ -352,7 +364,7 @@ fn uplink(
 
         // Admission is decided BEFORE looking at the size. Testing
         // `spent + nfrags > rate` makes the BIGGEST payload the one that never
-        // fits — and in H.264 the biggest NAL is the IDR keyframe, the one
+        // fits -- and in H.264 the biggest NAL is the IDR keyframe, the one
         // frame a decoder cannot resume without, while the small P-frames that
         // reference it sail through. Measured on hardware: at budget=680/800 a
         // 129-frag payload was dropped and a 1-frag payload 10ms later passed,
@@ -398,7 +410,7 @@ fn uplink(
         }
 
         // One XOR parity per group, so a single lost fragment does not destroy
-        // the NAL. The parity is over cells padded to max_data — the same
+        // the NAL. The parity is over cells padded to max_data -- the same
         // padding a receiver's zero-initialised buffer reproduces.
         let last_len = size - (nfrags as usize - 1) * max_data;
         let ngroups = if fec_enabled {
@@ -613,7 +625,7 @@ fn express(audio_sock: &UdpSocket, peer_mesh: SocketAddr, started: Instant) {
             spent += 1;
         }
         sent += 1;
-        if sent % 250 == 0 {
+        if sent.is_multiple_of(250) {
             println!(
                 "[audio] {sent} payloads relayed, {dropped} dropped, budget={spent}/{AUDIO_RATE_PER_SEC} \
                  t={:.1}s",
@@ -697,7 +709,7 @@ fn downlink(
             video_bridge::FRAG_HEADER_LEN as usize
         };
         // The mesh port carries VSTREAM only. An unknown type is dropped rather
-        // than guessed at — a peer running an older daemon simply ignores parity
+        // than guessed at -- a peer running an older daemon simply ignores parity
         // instead of feeding it to reassembly as data.
         if n < header || (!is_parity && rx_buf[0] != video_bridge::VSTREAM_TYPE) {
             continue;
@@ -769,7 +781,7 @@ fn downlink(
         //
         // This used to trim trailing zeros off the buffer as "a heuristic".
         // H.264 NALs routinely end in 0x00, so that silently truncated real
-        // frames — a corruption no test caught because the fixtures happened
+        // frames -- a corruption no test caught because the fixtures happened
         // not to end in zero. The length is knowable exactly; never guess it
         // from the payload.
         let max_data = video_bridge::MAX_FRAG_DATA as usize;
@@ -777,7 +789,7 @@ fn downlink(
         let total = match state.last_len {
             Some(last) => (count - 1) * max_data + last,
             // `all_received` cannot be true without the last fragment, so this
-            // is unreachable — but drop rather than emit a guessed length.
+            // is unreachable -- but drop rather than emit a guessed length.
             None => {
                 reassembly.remove(&frag_seq);
                 continue;

@@ -1,10 +1,10 @@
 [package]
 name = "trios-mesh"
-# Binary auto-discovery is off: three binaries in src/bin/ have never compiled
-# (see issue #96). Declare a [[bin]] here once its target builds.
+# Binary auto-discovery is off: tri_rti and trios_meshd remain excluded (#96).
+# Working binary targets are declared explicitly below.
 autobins = false
-# Same for tests: tests/video_bridge_wire.rs exercises a generated module that does
-# not compile (u16 arithmetic assigned to u32 results; overflow above spent=655).
+# Integration tests are declared explicitly below so normal Cargo runs include
+# every restored target, including video_bridge_wire.
 autotests = false
 version = "0.1.0"
 edition = "2021"
@@ -43,6 +43,14 @@ goldenfloat-ffi = []
 [[bin]]
 name = "smoke-m1"
 path = "src/bin/smoke_m1.rs"
+
+[[bin]]
+name = "trios_meshd_video"
+path = "src/bin/trios_meshd_video.rs"
+
+[[test]]
+name = "video_bridge_wire"
+path = "tests/video_bridge_wire.rs"
 
 # autotests = false above, so integration tests are opt-in per target.
 [[test]]
