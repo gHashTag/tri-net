@@ -18,8 +18,10 @@ pre-commit:
       run: |
         gen_files=$(git diff --cached --name-only --diff-filter=ACMR | grep '^gen/' || true)
         if [ -n "$gen_files" ]; then
-          echo "VIOLATION L2: Direct edit to gen/: $gen_files"
-          exit 1
+          check_bin=$(mktemp "${TMPDIR:-/tmp}/trinet-regen.XXXXXX") || exit 1
+          trap 'rm -f "$check_bin"' EXIT
+          rustc --edition=2021 tools/regen.rs -o "$check_bin" || exit 1
+          "$check_bin" --check-staged || exit 1
         fi
 
     no-handwritten-logic:
@@ -79,7 +81,7 @@ pre-commit:
 
     specs-typecheck:
       run: |
-        # A spec that fails typecheck ships a STALE gen file silently (build.rs skips failures).
+        # Typecheck source changes separately from staged artifact generation.
         # Sweep every staged spec so a broken .t27 can never live in the tree unnoticed.
         T27C=../t27/target/release/t27c
         if [ ! -f "$T27C" ]; then exit 0; fi

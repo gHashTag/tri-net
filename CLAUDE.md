@@ -216,28 +216,32 @@ real defect, and every one of them was silent.
   up at a time). `FRAG_RATE_PER_SEC` is a guess; treat it as one.
 
 ## Validation
-- `../t27/target/release/t27c parse <file>` — 0=ok (dumps the whole AST to
-  stdout; redirect it). This path is what `build.rs` uses; there is no
-  `bootstrap/` directory in this repo, the compiler lives in the sibling `t27`
-  repo.
-- `cargo build --release` — must compile. **`build.rs` regenerates `gen/` from
-  `specs/` whenever t27c is present, and silently skips when it is not.**
-- `cargo test` — all tests pass
-- Smoke on hardware: deploy + run on P201Mini
+- `cargo build --release` consumes committed generated artifacts. It does not
+  require t27c or regenerate files, even when a sibling compiler is installed.
+- `cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings`, and
+  `cargo test` must pass for the declared targets. `tri_rti` remains excluded;
+  a passing build does not prove that missing target works.
+- Source changes require explicit regeneration with the compiler revision pinned
+  in `.github/workflows/spec-drift-guard.yml`, then backend checks and execution.
+  Set `T27C` to that compiler; the default path is
+  `../t27/target/release/t27c`. There is no `bootstrap/` directory in this repo.
+- Smoke on hardware requires deployment and execution on an actual P201Mini.
+  Host tests do not replace that proof.
 
-### gen/ is a trap — do not "clean up" a dirty gen/
+### Generated artifacts are explicit compiler output
 
-The committed contents of `gen/` **do not compile**. The local t27c has drifted
-from whatever produced them (it now emits `as u32` casts), so `cargo build`
-rewrites 68 tracked files on every fresh checkout and the tree is permanently
-dirty. `git checkout -- gen/` looks like tidying and **breaks the build**;
-recover by touching `specs/*.t27` and rebuilding. The `no-gen-edits` hook then
-forbids committing the working versions, so the contradiction cannot be resolved
-from inside this repo.
+Edit `specs/*.t27`, regenerate the affected existing backends, and stage both the
+source and outputs. Do not hand-edit `gen/`. `cargo run --bin trinet-regen` is the
+existing explicit all-Rust generator; it does not generate Zig or C.
 
-16 of the 84 generated modules — including `video_bridge.rs`, which the whole
-mesh bridge depends on — are **untracked**, with no ignore rule. This repo builds
-only on a machine with the `t27` repo beside it.
+The `no-gen-edits` hook verifies each staged Rust, Zig, or C artifact against
+its corresponding staged spec using t27c. It reads both inputs from the Git
+index, ignores unstaged changes, and does not modify files or the index.
+Rust uses the same rustfmt normalization as CI; Zig and C remain byte-exact.
+Compiler failure, missing source, unsupported backend, and drift reject the
+commit. Commits without staged generated artifacts do not need the compiler.
+
+See `docs/EXPLICIT_GENERATION.md` for commands and verification boundaries.
 
 phi^2 + phi^-2 = 3 | TRINITY
 
