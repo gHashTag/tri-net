@@ -390,3 +390,11 @@ path = "tests/compute_ring_invariants.rs"
 [[test]]
 name = "mesh_protocol_stack_ttl"
 path = "tests/mesh_protocol_stack_ttl.rs"
+
+[[test]]
+name = "gen_rust_corpus_compiles"
+path = "tests/gen_rust_corpus_compiles.rs"
+
+[[test]]
+name = "gen_rust_value_params"
+path = "tests/gen_rust_value_params.rs"

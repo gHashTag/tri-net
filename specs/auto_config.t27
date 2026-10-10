@@ -91,14 +91,15 @@ module auto_config {
 
     // Set configuration value
     fn set_config_value(config: [u32; MAX_PARAMS], param_id: u32, new_value: u32) -> u32 {
+        var cfg: [u32; MAX_PARAMS] = config; // value parameter (#399)
         let i: u32 = 0;
         
         while (i < MAX_PARAMS) {
-            let current_param_id: u32 = get_param_id(config[i]);
+            let current_param_id: u32 = get_param_id(cfg[i]);
             if (current_param_id == param_id) {
-                let scope: u32 = get_param_scope(config[i]);
+                let scope: u32 = get_param_scope(cfg[i]);
                 let status: u32 = STATUS_PENDING;
-                config[i] = create_config_param(param_id, new_value, scope, status);
+                cfg[i] = create_config_param(param_id, new_value, scope, status);
                 return 1;
             }
             i = i + 1;
@@ -147,17 +148,18 @@ module auto_config {
 
     // Apply configuration
     fn apply_config(config: [u32; MAX_PARAMS], param_id: u32) -> u32 {
+        var cfg: [u32; MAX_PARAMS] = config; // value parameter (#399)
         let i: u32 = 0;
         
         while (i < MAX_PARAMS) {
-            let current_param_id: u32 = get_param_id(config[i]);
+            let current_param_id: u32 = get_param_id(cfg[i]);
             if (current_param_id == param_id) {
-                let value: u32 = get_param_value(config[i]);
-                let scope: u32 = get_param_scope(config[i]);
+                let value: u32 = get_param_value(cfg[i]);
+                let scope: u32 = get_param_scope(cfg[i]);
                 
                 // Apply configuration based on scope
                 let success: u32 = 1; // assume success
-                config[i] = create_config_param(param_id, value, scope, STATUS_APPLIED);
+                cfg[i] = create_config_param(param_id, value, scope, STATUS_APPLIED);
                 return success;
             }
             i = i + 1;
@@ -186,23 +188,24 @@ module auto_config {
     }
 
     // Validate configuration
+    // value is u32, so each lower bound of zero holds by type (#399).
     fn validate_config(config: [u32; MAX_PARAMS], param_id: u32) -> u32 {
         let value: u32 = get_config_value(config, param_id);
         
         if (param_id == PARAM_TX_POWER) {
-            if (value >= 0 && value <= 100) {
+            if (value <= 100) {
                 return 1;
             }
         } else if (param_id == PARAM_CHANNEL) {
-            if (value >= 0 && value <= 11) {
+            if (value <= 11) {
                 return 1;
             }
         } else if (param_id == PARAM_DATA_RATE) {
-            if (value >= 0 && value <= 3) {
+            if (value <= 3) {
                 return 1;
             }
         } else if (param_id == PARAM_RETRY_LIMIT) {
-            if (value >= 0 && value <= 7) {
+            if (value <= 7) {
                 return 1;
             }
         } else if (param_id == PARAM_HELLO_INTERVAL) {
@@ -218,7 +221,7 @@ module auto_config {
                 return 1;
             }
         } else if (param_id == PARAM_SECURITY_LEVEL) {
-            if (value >= 0 && value <= 3) {
+            if (value <= 3) {
                 return 1;
             }
         }
@@ -301,6 +304,7 @@ module auto_config {
 
     // Rollback configuration
     fn rollback_config(config: [u32; MAX_PARAMS], backup_config: [u32; MAX_PARAMS]) -> u32 {
+        var cfg: [u32; MAX_PARAMS] = config; // value parameter (#399)
         let rolled_back: u32 = 0;
         let i: u32 = 0;
         
@@ -312,9 +316,9 @@ module auto_config {
             // Restore from backup
             let j: u32 = 0;
             while (j < MAX_PARAMS) {
-                let local_param_id: u32 = get_param_id(config[j]);
+                let local_param_id: u32 = get_param_id(cfg[j]);
                 if (local_param_id == backup_param_id) {
-                    config[j] = create_config_param(backup_param_id, backup_value, backup_scope, STATUS_PENDING);
+                    cfg[j] = create_config_param(backup_param_id, backup_value, backup_scope, STATUS_PENDING);
                     rolled_back = rolled_back + 1;
                     break;
                 }
@@ -418,7 +422,7 @@ module auto_config {
     }
 
     test config_lookup_finds_param {
-        let cfg: [u32; 16] = [
+        var cfg: [u32; 16] = [
             default_config_at(0), default_config_at(1), default_config_at(2), default_config_at(3),
             default_config_at(4), default_config_at(5), default_config_at(6), default_config_at(7),
             0, 0, 0, 0, 0, 0, 0, 0

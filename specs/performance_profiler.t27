@@ -194,11 +194,12 @@ module performance_profiler {
 
     // Track memory allocation
     fn track_allocation(allocations: [u32; MAX_SAMPLES], alloc_id: u32, size: u32, pool: u32) -> u32 {
+        var allocs: [u32; MAX_SAMPLES] = allocations; // value parameter (#399)
         // Find empty slot
         let i: u32 = 0;
         while (i < MAX_SAMPLES) {
-            if (get_allocation_id(allocations[i]) == 0) {
-                allocations[i] = create_allocation(alloc_id, size, 255, pool);
+            if (get_allocation_id(allocs[i]) == 0) {
+                allocs[i] = create_allocation(alloc_id, size, 255, pool);
                 return 1;
             }
             i = i + 1;

@@ -90,18 +90,19 @@ fn needs_more_bandwidth(flow_req: u32) bool {
     const min_bw = get_min_bandwidth(flow_req);
     return current < min_bw;
 }
-fn update_flow_bandwidth(flow_req: u32, new_bw_arg: u32) u32 {
-    var new_bw = new_bw_arg;
+fn update_flow_bandwidth(flow_req: u32, new_bw: u32) u32 {
     const flow_id = get_flow_id(flow_req);
     const priority = get_flow_priority(flow_req);
     const min_bw = get_min_bandwidth(flow_req);
-    if (new_bw < min_bw) {
-        new_bw = min_bw;
+    var bw: u32 = new_bw;
+    _ = &bw;
+    if (bw < min_bw) {
+        bw = min_bw;
     }
-    if (new_bw > MAX_BANDWIDTH) {
-        new_bw = MAX_BANDWIDTH;
+    if (bw > MAX_BANDWIDTH) {
+        bw = MAX_BANDWIDTH;
     }
-    return create_flow_requirement(flow_id, priority, min_bw, new_bw);
+    return create_flow_requirement(flow_id, priority, min_bw, bw);
 }
 fn count_active_flows(flow_array: [8]u32) u32 {
     var count: u32 = 0;

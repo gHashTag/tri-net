@@ -23,7 +23,7 @@
 #define INTEGRATION_VERSION 1
 #define TYPE_NETWORK 0
 #define TYPE_TESTING 1
-#define type_documentation 2
+#define TYPE_DOCUMENTATION 2
 #define TYPE_VISUALIZATION 3
 #define TYPE_SIMULATION 4
 #define TYPE_PROFILING 5
@@ -208,11 +208,12 @@ uint32_t get_event_data(uint32_t event) {
 }
 
 uint32_t subscribe_to_event(uint32_t module_id, uint32_t event_type, t27_arr_uint32_t_64 subscriptions) {
+    t27_arr_uint32_t_64 subs = subscriptions;
     uint32_t subscription_id = ((module_id * 10) + event_type);
     uint32_t i = 0;
     while ((i < MAX_EVENTS)) {
-        if ((subscriptions.v[i] == 0)) {
-            subscriptions.v[i] = create_event(subscription_id, event_type, module_id, 0);
+        if ((subs.v[i] == 0)) {
+            subs.v[i] = create_event(subscription_id, event_type, module_id, 0);
             return 1;
         }
         i = (i + 1);
@@ -322,10 +323,11 @@ uint32_t propagate_error(uint32_t err_word, t27_arr_uint32_t_16 modules, uint32_
 }
 
 uint32_t load_module(uint32_t module_id, uint32_t module_type, uint32_t priority, t27_arr_uint32_t_16 modules) {
+    t27_arr_uint32_t_16 mods = modules;
     uint32_t i = 0;
     while ((i < MAX_MODULES)) {
-        if ((get_registered_module_id(modules.v[i]) == 0)) {
-            modules.v[i] = create_module_registration(module_id, module_type, priority, STATUS_IDLE);
+        if ((get_registered_module_id(mods.v[i]) == 0)) {
+            mods.v[i] = create_module_registration(module_id, module_type, priority, STATUS_IDLE);
             return 1;
         }
         i = (i + 1);
@@ -334,11 +336,12 @@ uint32_t load_module(uint32_t module_id, uint32_t module_type, uint32_t priority
 }
 
 uint32_t unload_module(uint32_t module_id, t27_arr_uint32_t_16 modules) {
+    t27_arr_uint32_t_16 mods = modules;
     uint32_t i = 0;
     while ((i < MAX_MODULES)) {
-        uint32_t registered_id = get_registered_module_id(modules.v[i]);
+        uint32_t registered_id = get_registered_module_id(mods.v[i]);
         if ((registered_id == module_id)) {
-            modules.v[i] = 0;
+            mods.v[i] = 0;
             return 1;
         }
         i = (i + 1);

@@ -277,8 +277,9 @@ uint32_t calculate_total_savings(t27_arr_uint32_t_16 blocks, uint32_t count) {
 }
 
 uint32_t update_dictionary(t27_arr_uint32_t_8 dictionary, uint32_t new_entry, uint32_t index) {
+    t27_arr_uint32_t_8 dict = dictionary;
     if ((index < DICTIONARY_SIZE)) {
-        dictionary.v[index] = new_entry;
+        dict.v[index] = new_entry;
         return 1;
     } else {
         return 0;

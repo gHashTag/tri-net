@@ -159,9 +159,10 @@ fn calculate_force_layout(nodes: [MAX_NODES]u32, edges: [MAX_EDGES]u32, node_cou
     }
     return placed_nodes;
 }
-fn calculate_circular_layout(nodes_arg: [MAX_NODES]u32, node_count: u32) u32 {
-    var nodes = nodes_arg;
+fn calculate_circular_layout(nodes: [MAX_NODES]u32, node_count: u32) u32 {
     const _cse1 = CANVAS_SIZE / 2;
+    var vnodes: [MAX_NODES]u32 = nodes;
+    _ = &vnodes;
     const center_x: u32 = CANVAS_SIZE / 2;
     const center_y: u32 = _cse1;
     const radius: u32 = CANVAS_SIZE / 3;
@@ -171,17 +172,18 @@ fn calculate_circular_layout(nodes_arg: [MAX_NODES]u32, node_count: u32) u32 {
         const angle: u32 = (i * 360) / node_count;
         const x: u32 = center_x + ((radius * angle) / 360);
         const y: u32 = center_y + ((radius * angle) / 360);
-        const node_id: u32 = get_viz_node_id(nodes[i]);
-        const status: u32 = get_node_visual_status(nodes[i]);
-        nodes[i] = create_visual_node(node_id, x, y, status);
+        const node_id: u32 = get_viz_node_id(vnodes[i]);
+        const status: u32 = get_node_visual_status(vnodes[i]);
+        vnodes[i] = create_visual_node(node_id, x, y, status);
         i = i + 1;
     }
     return node_count;
 }
-fn calculate_hierarchical_layout(nodes_arg: [MAX_NODES]u32, edges: [MAX_EDGES]u32, node_count: u32, edge_count: u32) u32 {
-    var nodes = nodes_arg;
+fn calculate_hierarchical_layout(nodes: [MAX_NODES]u32, edges: [MAX_EDGES]u32, node_count: u32, edge_count: u32) u32 {
     _ = edges; // unused by the spec body
     _ = edge_count; // unused by the spec body
+    var vnodes: [MAX_NODES]u32 = nodes;
+    _ = &vnodes;
     const level_count: u32 = 4;
     _ = level_count; // dead after const-inlining
     const nodes_per_level: u32 = node_count / 4;
@@ -194,9 +196,9 @@ fn calculate_hierarchical_layout(nodes_arg: [MAX_NODES]u32, edges: [MAX_EDGES]u3
     while (i < node_count) {
         const y: u32 = (current_level * CANVAS_SIZE) / 4;
         const x: u32 = (nodes_in_level * CANVAS_SIZE) / nodes_per_level;
-        const node_id: u32 = get_viz_node_id(nodes[i]);
-        const status: u32 = get_node_visual_status(nodes[i]);
-        nodes[i] = create_visual_node(node_id, x, y, status);
+        const node_id: u32 = get_viz_node_id(vnodes[i]);
+        const status: u32 = get_node_visual_status(vnodes[i]);
+        vnodes[i] = create_visual_node(node_id, x, y, status);
         nodes_in_level = nodes_in_level + 1;
         if (nodes_in_level >= nodes_per_level) {
             nodes_in_level = 0;

@@ -10,7 +10,8 @@ pub const COMPRESSION_THRESHOLD: u32 = 8;
 pub const DICTIONARY_SIZE: u32 = 8;
 
 pub fn create_block_info(orig_size: u32, comp_size: u32, method: u32, quality: u32) -> u32 {
-    return (((((orig_size & 0xFF) << 24) | ((comp_size & 0xFF) << 16)) | ((method & 0x3) << 14)) | (quality & 0x3FFF));
+    return (((((orig_size & 0xFF) << 24) | ((comp_size & 0xFF) << 16)) | ((method & 0x3) << 14))
+        | (quality & 0x3FFF));
 }
 
 pub fn get_original_size(info: u32) -> u32 {
@@ -162,7 +163,11 @@ pub fn decompress_delta(encoded: u32, previous: u32) -> u32 {
     }
 }
 
-pub fn choose_compression_method(data: u32, previous: u32, dictionary: [u32; DICTIONARY_SIZE as usize]) -> u32 {
+pub fn choose_compression_method(
+    data: u32,
+    previous: u32,
+    dictionary: [u32; DICTIONARY_SIZE as usize],
+) -> u32 {
     let data_nibbles: u32 = 8;
     let rle_compressed: u32 = compress_rle(data, data_nibbles);
     let rle_ratio: u32 = calculate_compression_ratio(data_nibbles, rle_compressed);
@@ -189,7 +194,11 @@ pub fn choose_compression_method(data: u32, previous: u32, dictionary: [u32; DIC
     }
 }
 
-pub fn compress_block(data: u32, previous: u32, dictionary: [u32; DICTIONARY_SIZE as usize]) -> u32 {
+pub fn compress_block(
+    data: u32,
+    previous: u32,
+    dictionary: [u32; DICTIONARY_SIZE as usize],
+) -> u32 {
     let method: u32 = choose_compression_method(data, previous, dictionary);
     let mut compressed: u32 = 0;
     let mut compressed_size: u32 = 8;
@@ -216,7 +225,12 @@ pub fn compress_block(data: u32, previous: u32, dictionary: [u32; DICTIONARY_SIZ
     return create_block_info(8, compressed_size, method, compressed_size);
 }
 
-pub fn decompress_block(compressed_data: u32, method: u32, previous: u32, dictionary: [u32; DICTIONARY_SIZE as usize]) -> u32 {
+pub fn decompress_block(
+    compressed_data: u32,
+    method: u32,
+    previous: u32,
+    dictionary: [u32; DICTIONARY_SIZE as usize],
+) -> u32 {
     if (method == METHOD_RLE) {
         return decompress_rle(compressed_data);
     } else {
@@ -248,9 +262,14 @@ pub fn calculate_total_savings(blocks: [u32; MAX_BLOCKS as usize], count: u32) -
     }
 }
 
-pub fn update_dictionary(dictionary: [u32; DICTIONARY_SIZE as usize], new_entry: u32, index: u32) -> u32 {
+pub fn update_dictionary(
+    dictionary: [u32; DICTIONARY_SIZE as usize],
+    new_entry: u32,
+    index: u32,
+) -> u32 {
+    let mut dict: [u32; DICTIONARY_SIZE as usize] = dictionary;
     if (index < DICTIONARY_SIZE) {
-        dictionary[(index) as usize] = new_entry;
+        dict[(index) as usize] = new_entry;
         return 1;
     } else {
         return 0;
@@ -277,4 +296,3 @@ pub fn calculate_compression_speed(original_size: u32, compressed_size: u32, tim
         return 0;
     }
 }
-

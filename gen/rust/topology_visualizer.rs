@@ -10,7 +10,8 @@ pub const MAX_LAYERS: u32 = 8;
 pub const CANVAS_SIZE: u32 = 1024;
 
 pub fn create_visual_node(node_id: u32, x: u32, y: u32, status: u32) -> u32 {
-    return (((((node_id & 0xFF) << 24) | ((x & 0xFF) << 16)) | ((y & 0xFF) << 8)) | (status & 0xFF));
+    return (((((node_id & 0xFF) << 24) | ((x & 0xFF) << 16)) | ((y & 0xFF) << 8))
+        | (status & 0xFF));
 }
 
 pub fn get_viz_node_id(node: u32) -> u32 {
@@ -38,7 +39,8 @@ pub const STATUS_FAILED: u32 = 2;
 pub const STATUS_WARNING: u32 = 3;
 
 pub fn create_visual_edge(source: u32, dest: u32, quality: u32, edge_type: u32) -> u32 {
-    return (((((source & 0xFF) << 24) | ((dest & 0xFF) << 16)) | ((quality & 0xFF) << 8)) | (edge_type & 0xFF));
+    return (((((source & 0xFF) << 24) | ((dest & 0xFF) << 16)) | ((quality & 0xFF) << 8))
+        | (edge_type & 0xFF));
 }
 
 pub fn get_viz_edge_source(edge: u32) -> u32 {
@@ -111,8 +113,15 @@ pub fn get_status_color(status: u32) -> u32 {
     }
 }
 
-pub fn create_layout_params(algorithm: u32, iterations: u32, temperature: u32, cooling: u32) -> u32 {
-    return (((((algorithm & 0xFF) << 24) | ((iterations & 0xFF) << 16)) | ((temperature & 0xFF) << 8)) | (cooling & 0xFF));
+pub fn create_layout_params(
+    algorithm: u32,
+    iterations: u32,
+    temperature: u32,
+    cooling: u32,
+) -> u32 {
+    return (((((algorithm & 0xFF) << 24) | ((iterations & 0xFF) << 16))
+        | ((temperature & 0xFF) << 8))
+        | (cooling & 0xFF));
 }
 
 pub fn get_layout_algorithm(params: u32) -> u32 {
@@ -139,7 +148,13 @@ pub const ALGORITHM_HIERARCHICAL: u32 = 2;
 
 pub const ALGORITHM_GRID: u32 = 3;
 
-pub fn calculate_force_layout(nodes: [u32; MAX_NODES as usize], edges: [u32; MAX_EDGES as usize], node_count: u32, edge_count: u32, params: u32) -> u32 {
+pub fn calculate_force_layout(
+    nodes: [u32; MAX_NODES as usize],
+    edges: [u32; MAX_EDGES as usize],
+    node_count: u32,
+    edge_count: u32,
+    params: u32,
+) -> u32 {
     let iterations: u32 = get_layout_iterations(params);
     let mut temperature: u32 = get_layout_temperature(params);
     let mut placed_nodes: u32 = 0;
@@ -178,8 +193,7 @@ pub fn calculate_force_layout(nodes: [u32; MAX_NODES as usize], edges: [u32; MAX
             while (l < edge_count) {
                 let source: u32 = get_viz_edge_source(edges[(l) as usize]);
                 let dest: u32 = get_viz_edge_dest(edges[(l) as usize]);
-                if ((source == node_id) || (dest == node_id)) {
-                }
+                if ((source == node_id) || (dest == node_id)) {}
                 l = (l + 1);
             }
             j = (j + 1);
@@ -194,6 +208,7 @@ pub fn calculate_force_layout(nodes: [u32; MAX_NODES as usize], edges: [u32; MAX
 }
 
 pub fn calculate_circular_layout(nodes: [u32; MAX_NODES as usize], node_count: u32) -> u32 {
+    let mut vnodes: [u32; MAX_NODES as usize] = nodes;
     let center_x: u32 = (CANVAS_SIZE / 2);
     let center_y: u32 = (CANVAS_SIZE / 2);
     let radius: u32 = (CANVAS_SIZE / 3);
@@ -202,15 +217,21 @@ pub fn calculate_circular_layout(nodes: [u32; MAX_NODES as usize], node_count: u
         let angle: u32 = ((i * 360) / node_count);
         let x: u32 = (center_x + ((radius * angle) / 360));
         let y: u32 = (center_y + ((radius * angle) / 360));
-        let node_id: u32 = get_viz_node_id(nodes[(i) as usize]);
-        let status: u32 = get_node_visual_status(nodes[(i) as usize]);
-        nodes[(i) as usize] = create_visual_node(node_id, x, y, status);
+        let node_id: u32 = get_viz_node_id(vnodes[(i) as usize]);
+        let status: u32 = get_node_visual_status(vnodes[(i) as usize]);
+        vnodes[(i) as usize] = create_visual_node(node_id, x, y, status);
         i = (i + 1);
     }
     return node_count;
 }
 
-pub fn calculate_hierarchical_layout(nodes: [u32; MAX_NODES as usize], edges: [u32; MAX_EDGES as usize], node_count: u32, edge_count: u32) -> u32 {
+pub fn calculate_hierarchical_layout(
+    nodes: [u32; MAX_NODES as usize],
+    edges: [u32; MAX_EDGES as usize],
+    node_count: u32,
+    edge_count: u32,
+) -> u32 {
+    let mut vnodes: [u32; MAX_NODES as usize] = nodes;
     let level_count: u32 = 4;
     let nodes_per_level: u32 = (node_count / level_count);
     let mut i: u32 = 0;
@@ -219,9 +240,9 @@ pub fn calculate_hierarchical_layout(nodes: [u32; MAX_NODES as usize], edges: [u
     while (i < node_count) {
         let y: u32 = ((current_level * CANVAS_SIZE) / level_count);
         let x: u32 = ((nodes_in_level * CANVAS_SIZE) / nodes_per_level);
-        let node_id: u32 = get_viz_node_id(nodes[(i) as usize]);
-        let status: u32 = get_node_visual_status(nodes[(i) as usize]);
-        nodes[(i) as usize] = create_visual_node(node_id, x, y, status);
+        let node_id: u32 = get_viz_node_id(vnodes[(i) as usize]);
+        let status: u32 = get_node_visual_status(vnodes[(i) as usize]);
+        vnodes[(i) as usize] = create_visual_node(node_id, x, y, status);
         nodes_in_level = (nodes_in_level + 1);
         if (nodes_in_level >= nodes_per_level) {
             nodes_in_level = 0;
@@ -232,7 +253,13 @@ pub fn calculate_hierarchical_layout(nodes: [u32; MAX_NODES as usize], edges: [u
     return node_count;
 }
 
-pub fn apply_layout(nodes: [u32; MAX_NODES as usize], edges: [u32; MAX_EDGES as usize], node_count: u32, edge_count: u32, params: u32) -> u32 {
+pub fn apply_layout(
+    nodes: [u32; MAX_NODES as usize],
+    edges: [u32; MAX_EDGES as usize],
+    node_count: u32,
+    edge_count: u32,
+    params: u32,
+) -> u32 {
     let algorithm: u32 = get_layout_algorithm(params);
     if (algorithm == ALGORITHM_FORCE_DIRECTED) {
         return calculate_force_layout(nodes, edges, node_count, edge_count, params);
@@ -254,7 +281,8 @@ pub fn render_node(node: u32, size: u32, color: u32) -> u32 {
     let y: u32 = get_node_y_position(node);
     let status: u32 = get_node_visual_status(node);
     let node_color: u32 = get_status_color(status);
-    return (((((x & 0xFF) << 24) | ((y & 0xFF) << 16)) | ((size & 0xFF) << 8)) | (node_color & 0xFF));
+    return (((((x & 0xFF) << 24) | ((y & 0xFF) << 16)) | ((size & 0xFF) << 8))
+        | (node_color & 0xFF));
 }
 
 pub fn render_edge(edge: u32, nodes: [u32; MAX_NODES as usize], thickness: u32) -> u32 {
@@ -288,10 +316,16 @@ pub fn render_edge(edge: u32, nodes: [u32; MAX_NODES as usize], thickness: u32) 
             edge_color = COLOR_RED;
         }
     }
-    return (((((source_x & 0xFF) << 24) | ((source_y & 0xFF) << 16)) | ((dest_x & 0xFF) << 8)) | (dest_y & 0xFF));
+    return (((((source_x & 0xFF) << 24) | ((source_y & 0xFF) << 16)) | ((dest_x & 0xFF) << 8))
+        | (dest_y & 0xFF));
 }
 
-pub fn create_visualization_frame(nodes: [u32; MAX_NODES as usize], edges: [u32; MAX_EDGES as usize], node_count: u32, edge_count: u32) -> u32 {
+pub fn create_visualization_frame(
+    nodes: [u32; MAX_NODES as usize],
+    edges: [u32; MAX_EDGES as usize],
+    node_count: u32,
+    edge_count: u32,
+) -> u32 {
     let mut frame_size: u32 = 0;
     let mut i: u32 = 0;
     while (i < node_count) {
@@ -325,12 +359,19 @@ pub fn optimize_rendering(node_count: u32, edge_count: u32, target_fps: u32) -> 
     }
 }
 
-pub fn generate_topology_visualization(nodes: [u32; MAX_NODES as usize], edges: [u32; MAX_EDGES as usize], node_count: u32, edge_count: u32, layout_params: u32) -> u32 {
+pub fn generate_topology_visualization(
+    nodes: [u32; MAX_NODES as usize],
+    edges: [u32; MAX_EDGES as usize],
+    node_count: u32,
+    edge_count: u32,
+    layout_params: u32,
+) -> u32 {
     let layout_result: u32 = apply_layout(nodes, edges, node_count, edge_count, layout_params);
     let frame: u32 = create_visualization_frame(nodes, edges, node_count, edge_count);
     let fps: u32 = 30;
     let detail_level: u32 = optimize_rendering(node_count, edge_count, fps);
     let complexity: u32 = calculate_viz_complexity(node_count, edge_count);
-    return (((((layout_result & 0xFF) << 24) | ((frame & 0xFF) << 16)) | ((detail_level & 0xFF) << 8)) | (complexity & 0xFF));
+    return (((((layout_result & 0xFF) << 24) | ((frame & 0xFF) << 16))
+        | ((detail_level & 0xFF) << 8))
+        | (complexity & 0xFF));
 }
-

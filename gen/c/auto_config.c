@@ -133,13 +133,14 @@ uint32_t get_config_value(t27_arr_uint32_t_16 config, uint32_t param_id) {
 }
 
 uint32_t set_config_value(t27_arr_uint32_t_16 config, uint32_t param_id, uint32_t new_value) {
+    t27_arr_uint32_t_16 cfg = config;
     uint32_t i = 0;
     while ((i < MAX_PARAMS)) {
-        uint32_t current_param_id = get_param_id(config.v[i]);
+        uint32_t current_param_id = get_param_id(cfg.v[i]);
         if ((current_param_id == param_id)) {
-            uint32_t scope = get_param_scope(config.v[i]);
+            uint32_t scope = get_param_scope(cfg.v[i]);
             uint32_t status = STATUS_PENDING;
-            config.v[i] = create_config_param(param_id, new_value, scope, status);
+            cfg.v[i] = create_config_param(param_id, new_value, scope, status);
             return 1;
         }
         i = (i + 1);
@@ -174,14 +175,15 @@ uint32_t discover_network_params(uint32_t node_count, uint32_t interference_leve
 }
 
 uint32_t apply_config(t27_arr_uint32_t_16 config, uint32_t param_id) {
+    t27_arr_uint32_t_16 cfg = config;
     uint32_t i = 0;
     while ((i < MAX_PARAMS)) {
-        uint32_t current_param_id = get_param_id(config.v[i]);
+        uint32_t current_param_id = get_param_id(cfg.v[i]);
         if ((current_param_id == param_id)) {
-            uint32_t value = get_param_value(config.v[i]);
-            uint32_t scope = get_param_scope(config.v[i]);
+            uint32_t value = get_param_value(cfg.v[i]);
+            uint32_t scope = get_param_scope(cfg.v[i]);
             uint32_t success = 1;
-            config.v[i] = create_config_param(param_id, value, scope, STATUS_APPLIED);
+            cfg.v[i] = create_config_param(param_id, value, scope, STATUS_APPLIED);
             return success;
         }
         i = (i + 1);
@@ -208,19 +210,19 @@ uint32_t apply_all_pending(t27_arr_uint32_t_16 config) {
 uint32_t validate_config(t27_arr_uint32_t_16 config, uint32_t param_id) {
     uint32_t value = get_config_value(config, param_id);
     if ((param_id == PARAM_TX_POWER)) {
-        if (((value >= 0) && (value <= 100))) {
+        if ((value <= 100)) {
             return 1;
         }
     } else if ((param_id == PARAM_CHANNEL)) {
-        if (((value >= 0) && (value <= 11))) {
+        if ((value <= 11)) {
             return 1;
         }
     } else if ((param_id == PARAM_DATA_RATE)) {
-        if (((value >= 0) && (value <= 3))) {
+        if ((value <= 3)) {
             return 1;
         }
     } else if ((param_id == PARAM_RETRY_LIMIT)) {
-        if (((value >= 0) && (value <= 7))) {
+        if ((value <= 7)) {
             return 1;
         }
     } else if ((param_id == PARAM_HELLO_INTERVAL)) {
@@ -236,7 +238,7 @@ uint32_t validate_config(t27_arr_uint32_t_16 config, uint32_t param_id) {
             return 1;
         }
     } else if ((param_id == PARAM_SECURITY_LEVEL)) {
-        if (((value >= 0) && (value <= 3))) {
+        if ((value <= 3)) {
             return 1;
         }
     }
@@ -298,6 +300,7 @@ break;
 }
 
 uint32_t rollback_config(t27_arr_uint32_t_16 config, t27_arr_uint32_t_16 backup_config) {
+    t27_arr_uint32_t_16 cfg = config;
     uint32_t rolled_back = 0;
     uint32_t i = 0;
     while ((i < MAX_PARAMS)) {
@@ -306,9 +309,9 @@ uint32_t rollback_config(t27_arr_uint32_t_16 config, t27_arr_uint32_t_16 backup_
         uint32_t backup_scope = get_param_scope(backup_config.v[i]);
         uint32_t j = 0;
         while ((j < MAX_PARAMS)) {
-            uint32_t local_param_id = get_param_id(config.v[j]);
+            uint32_t local_param_id = get_param_id(cfg.v[j]);
             if ((local_param_id == backup_param_id)) {
-                config.v[j] = create_config_param(backup_param_id, backup_value, backup_scope, STATUS_PENDING);
+                cfg.v[j] = create_config_param(backup_param_id, backup_value, backup_scope, STATUS_PENDING);
                 rolled_back = (rolled_back + 1);
 break;
             }

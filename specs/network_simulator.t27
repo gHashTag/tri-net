@@ -219,6 +219,7 @@ module network_simulator {
 
     // Process simulation event
     fn process_event(event: u32, node_states: [u32; MAX_NODES], link_states: [u32; MAX_NODES]) -> u32 {
+        var states: [u32; MAX_NODES] = node_states; // value parameter (#399)
         let event_type: u32 = get_event_type(event);
         let node_id: u32 = get_event_node_id(event);
         
@@ -230,8 +231,8 @@ module network_simulator {
             return 1;
         } else if (event_type == EVENT_NODE_FAILURE) {
             // Update node status to failed
-            let current_state: u32 = node_states[node_id];
-            node_states[node_id] = update_node_status(current_state, NODE_FAILED);
+            let current_state: u32 = states[node_id];
+            states[node_id] = update_node_status(current_state, NODE_FAILED);
             return 1;
         } else if (event_type == EVENT_LINK_FAILURE) {
             // Process link failure
@@ -306,9 +307,10 @@ module network_simulator {
 
     // Inject fault into simulation
     fn inject_fault(fault_type: u32, target_id: u32, node_states: [u32; MAX_NODES]) -> u32 {
+        var states: [u32; MAX_NODES] = node_states; // value parameter (#399)
         if (fault_type == EVENT_NODE_FAILURE) {
-            let current_state: u32 = node_states[target_id];
-            node_states[target_id] = update_node_status(current_state, NODE_FAILED);
+            let current_state: u32 = states[target_id];
+            states[target_id] = update_node_status(current_state, NODE_FAILED);
             return 1;
         } else if (fault_type == EVENT_LINK_FAILURE) {
             // Link failure injection would require link state modification

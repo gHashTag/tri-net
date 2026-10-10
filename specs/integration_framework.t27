@@ -36,7 +36,7 @@ module integration_framework {
     // Module types
     const TYPE_NETWORK: u32 = 0;
     const TYPE_TESTING: u32 = 1;
-    const type_documentation: u32 = 2;
+    const TYPE_DOCUMENTATION: u32 = 2;
     const TYPE_VISUALIZATION: u32 = 3;
     const TYPE_SIMULATION: u32 = 4;
     const TYPE_PROFILING: u32 = 5;
@@ -157,13 +157,14 @@ module integration_framework {
 
     // Subscribe to events
     fn subscribe_to_event(module_id: u32, event_type: u32, subscriptions: [u32; MAX_EVENTS]) -> u32 {
+        var subs: [u32; MAX_EVENTS] = subscriptions; // value parameter (#399)
         let subscription_id: u32 = module_id * 10 + event_type;
         
         // Create subscription record
         let i: u32 = 0;
         while (i < MAX_EVENTS) {
-            if (subscriptions[i] == 0) {
-                subscriptions[i] = create_event(subscription_id, event_type, module_id, 0);
+            if (subs[i] == 0) {
+                subs[i] = create_event(subscription_id, event_type, module_id, 0);
                 return 1; // subscription successful
             }
             i = i + 1;
@@ -312,11 +313,12 @@ module integration_framework {
 
     // Module lifecycle management
     fn load_module(module_id: u32, module_type: u32, priority: u32, modules: [u32; MAX_MODULES]) -> u32 {
+        var mods: [u32; MAX_MODULES] = modules; // value parameter (#399)
         // Find empty slot
         let i: u32 = 0;
         while (i < MAX_MODULES) {
-            if (get_registered_module_id(modules[i]) == 0) {
-                modules[i] = create_module_registration(module_id, module_type, priority, STATUS_IDLE);
+            if (get_registered_module_id(mods[i]) == 0) {
+                mods[i] = create_module_registration(module_id, module_type, priority, STATUS_IDLE);
                 return 1; // success
             }
             i = i + 1;
@@ -327,12 +329,13 @@ module integration_framework {
 
     // Unload module
     fn unload_module(module_id: u32, modules: [u32; MAX_MODULES]) -> u32 {
+        var mods: [u32; MAX_MODULES] = modules; // value parameter (#399)
         let i: u32 = 0;
         while (i < MAX_MODULES) {
-            let registered_id: u32 = get_registered_module_id(modules[i]);
+            let registered_id: u32 = get_registered_module_id(mods[i]);
             
             if (registered_id == module_id) {
-                modules[i] = 0; // clear slot
+                mods[i] = 0; // clear slot
                 return 1; // success
             }
             
@@ -553,7 +556,7 @@ module integration_framework {
     }
 
     test send_message_requires_active_destination {
-        let mods: [u32; 16] = [
+        var mods: [u32; 16] = [
             create_module_registration(1, 0, 1, STATUS_ACTIVE),
             create_module_registration(2, 0, 1, 0),
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0

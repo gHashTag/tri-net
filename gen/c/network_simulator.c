@@ -248,6 +248,7 @@ uint32_t advance_simulation(uint32_t state, uint32_t time_delta) {
 }
 
 uint32_t process_event(uint32_t event, t27_arr_uint32_t_32 node_states, t27_arr_uint32_t_32 link_states) {
+    t27_arr_uint32_t_32 states = node_states;
     uint32_t event_type = get_event_type(event);
     uint32_t node_id = get_event_node_id(event);
     if ((event_type == EVENT_PACKET_SEND)) {
@@ -255,8 +256,8 @@ uint32_t process_event(uint32_t event, t27_arr_uint32_t_32 node_states, t27_arr_
     } else if ((event_type == EVENT_PACKET_RECV)) {
         return 1;
     } else if ((event_type == EVENT_NODE_FAILURE)) {
-        uint32_t current_state = node_states.v[node_id];
-        node_states.v[node_id] = update_node_status(current_state, NODE_FAILED);
+        uint32_t current_state = states.v[node_id];
+        states.v[node_id] = update_node_status(current_state, NODE_FAILED);
         return 1;
     } else if ((event_type == EVENT_LINK_FAILURE)) {
         return 1;
@@ -316,9 +317,10 @@ uint32_t create_topology(uint32_t node_count, uint32_t density) {
 }
 
 uint32_t inject_fault(uint32_t fault_type, uint32_t target_id, t27_arr_uint32_t_32 node_states) {
+    t27_arr_uint32_t_32 states = node_states;
     if ((fault_type == EVENT_NODE_FAILURE)) {
-        uint32_t current_state = node_states.v[target_id];
-        node_states.v[target_id] = update_node_status(current_state, NODE_FAILED);
+        uint32_t current_state = states.v[target_id];
+        states.v[target_id] = update_node_status(current_state, NODE_FAILED);
         return 1;
     } else if ((fault_type == EVENT_LINK_FAILURE)) {
         return 1;

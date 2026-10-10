@@ -280,12 +280,13 @@ module traffic_animator {
 
     // Update all packets in animation
     fn update_animation_packets(packets: [u32; MAX_PACKETS], packet_count: u32, speed: u32) -> u32 {
+        var pkts: [u32; MAX_PACKETS] = packets; // value parameter (#399)
         let updated_count: u32 = 0;
         let completed_count: u32 = 0;
         let i: u32 = 0;
         
         while (i < packet_count) {
-            let progress: u32 = get_anim_packet_progress(packets[i]);
+            let progress: u32 = get_anim_packet_progress(pkts[i]);
             
             if (progress < 100) {
                 let new_progress: u32 = progress + speed;
@@ -293,11 +294,11 @@ module traffic_animator {
                     new_progress = 100;
                 }
                 
-                let packet_id: u32 = get_anim_packet_id(packets[i]);
-                let source: u32 = get_anim_packet_source(packets[i]);
-                let dest: u32 = get_anim_packet_dest(packets[i]);
+                let packet_id: u32 = get_anim_packet_id(pkts[i]);
+                let source: u32 = get_anim_packet_source(pkts[i]);
+                let dest: u32 = get_anim_packet_dest(pkts[i]);
                 
-                packets[i] = create_anim_packet(packet_id, source, dest, new_progress);
+                pkts[i] = create_anim_packet(packet_id, source, dest, new_progress);
                 updated_count = updated_count + 1;
             } else {
                 completed_count = completed_count + 1;

@@ -308,20 +308,21 @@ uint32_t calculate_packet_position(uint32_t source_x, uint32_t source_y, uint32_
 }
 
 uint32_t update_animation_packets(t27_arr_uint32_t_64 packets, uint32_t packet_count, uint32_t speed) {
+    t27_arr_uint32_t_64 pkts = packets;
     uint32_t updated_count = 0;
     uint32_t completed_count = 0;
     uint32_t i = 0;
     while ((i < packet_count)) {
-        uint32_t progress = get_anim_packet_progress(packets.v[i]);
+        uint32_t progress = get_anim_packet_progress(pkts.v[i]);
         if ((progress < 100)) {
             uint32_t new_progress = (progress + speed);
             if ((new_progress > 100)) {
                 new_progress = 100;
             }
-            uint32_t packet_id = get_anim_packet_id(packets.v[i]);
-            uint32_t source = get_anim_packet_source(packets.v[i]);
-            uint32_t dest = get_anim_packet_dest(packets.v[i]);
-            packets.v[i] = create_anim_packet(packet_id, source, dest, new_progress);
+            uint32_t packet_id = get_anim_packet_id(pkts.v[i]);
+            uint32_t source = get_anim_packet_source(pkts.v[i]);
+            uint32_t dest = get_anim_packet_dest(pkts.v[i]);
+            pkts.v[i] = create_anim_packet(packet_id, source, dest, new_progress);
             updated_count = (updated_count + 1);
         } else {
             completed_count = (completed_count + 1);

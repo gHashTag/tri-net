@@ -220,6 +220,7 @@ module topology_visualizer {
 
     // Calculate circular layout
     fn calculate_circular_layout(nodes: [u32; MAX_NODES], node_count: u32) -> u32 {
+        var vnodes: [u32; MAX_NODES] = nodes; // value parameter (#399)
         let center_x: u32 = CANVAS_SIZE / 2;
         let center_y: u32 = CANVAS_SIZE / 2;
         let radius: u32 = CANVAS_SIZE / 3;
@@ -233,9 +234,9 @@ module topology_visualizer {
             let y: u32 = center_y + ((radius * angle) / 360);
             
             // Update node position
-            let node_id: u32 = get_viz_node_id(nodes[i]);
-            let status: u32 = get_node_visual_status(nodes[i]);
-            nodes[i] = create_visual_node(node_id, x, y, status);
+            let node_id: u32 = get_viz_node_id(vnodes[i]);
+            let status: u32 = get_node_visual_status(vnodes[i]);
+            vnodes[i] = create_visual_node(node_id, x, y, status);
             
             i = i + 1;
         }
@@ -246,6 +247,7 @@ module topology_visualizer {
     // Calculate hierarchical layout
     fn calculate_hierarchical_layout(nodes: [u32; MAX_NODES], edges: [u32; MAX_EDGES],
                                    node_count: u32, edge_count: u32) -> u32 {
+        var vnodes: [u32; MAX_NODES] = nodes; // value parameter (#399)
         let level_count: u32 = 4;
         let nodes_per_level: u32 = node_count / level_count;
         
@@ -257,9 +259,9 @@ module topology_visualizer {
             let y: u32 = (current_level * CANVAS_SIZE) / level_count;
             let x: u32 = ((nodes_in_level * CANVAS_SIZE) / nodes_per_level);
             
-            let node_id: u32 = get_viz_node_id(nodes[i]);
-            let status: u32 = get_node_visual_status(nodes[i]);
-            nodes[i] = create_visual_node(node_id, x, y, status);
+            let node_id: u32 = get_viz_node_id(vnodes[i]);
+            let status: u32 = get_node_visual_status(vnodes[i]);
+            vnodes[i] = create_visual_node(node_id, x, y, status);
             
             nodes_in_level = nodes_in_level + 1;
             if (nodes_in_level >= nodes_per_level) {

@@ -155,13 +155,14 @@ uint32_t update_flow_bandwidth(uint32_t flow_req, uint32_t new_bw) {
     int flow_id = get_flow_id(flow_req);
     int priority = get_flow_priority(flow_req);
     int min_bw = get_min_bandwidth(flow_req);
-    if ((new_bw < min_bw)) {
-        new_bw = min_bw;
+    uint32_t bw = new_bw;
+    if ((bw < min_bw)) {
+        bw = min_bw;
     }
-    if ((new_bw > MAX_BANDWIDTH)) {
-        new_bw = MAX_BANDWIDTH;
+    if ((bw > MAX_BANDWIDTH)) {
+        bw = MAX_BANDWIDTH;
     }
-    return create_flow_requirement(flow_id, priority, min_bw, new_bw);
+    return create_flow_requirement(flow_id, priority, min_bw, bw);
 }
 
 uint32_t count_active_flows(t27_arr_uint32_t_8 flow_array) {

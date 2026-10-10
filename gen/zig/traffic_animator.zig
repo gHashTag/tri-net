@@ -195,8 +195,9 @@ fn calculate_packet_position(source_x: u32, source_y: u32, dest_x: u32, dest_y: 
     }
     return ((current_x & 0xFF) << 24) | ((current_y & 0xFF) << 16);
 }
-fn update_animation_packets(packets_arg: [MAX_PACKETS]u32, packet_count: u32, speed: u32) u32 {
-    var packets = packets_arg;
+fn update_animation_packets(packets: [MAX_PACKETS]u32, packet_count: u32, speed: u32) u32 {
+    var pkts: [MAX_PACKETS]u32 = packets;
+    _ = &pkts;
     var updated_count: u32 = 0;
     _ = &updated_count;
     var completed_count: u32 = 0;
@@ -204,17 +205,17 @@ fn update_animation_packets(packets_arg: [MAX_PACKETS]u32, packet_count: u32, sp
     var i: u32 = 0;
     _ = &i;
     while (i < packet_count) {
-        const progress: u32 = get_anim_packet_progress(packets[i]);
+        const progress: u32 = get_anim_packet_progress(pkts[i]);
         if (progress < 100) {
             var new_progress: u32 = progress + speed;
             _ = &new_progress;
             if (new_progress > 100) {
                 new_progress = 100;
             }
-            const packet_id: u32 = get_anim_packet_id(packets[i]);
-            const source: u32 = get_anim_packet_source(packets[i]);
-            const dest: u32 = get_anim_packet_dest(packets[i]);
-            packets[i] = create_anim_packet(packet_id, source, dest, new_progress);
+            const packet_id: u32 = get_anim_packet_id(pkts[i]);
+            const source: u32 = get_anim_packet_source(pkts[i]);
+            const dest: u32 = get_anim_packet_dest(pkts[i]);
+            pkts[i] = create_anim_packet(packet_id, source, dest, new_progress);
             updated_count = updated_count + 1;
         } else {
             completed_count = completed_count + 1;

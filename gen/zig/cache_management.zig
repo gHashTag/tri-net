@@ -69,37 +69,39 @@ fn get_entry(cache: [MAX_ENTRIES]u32, data_id: u32) u32 {
         return 0;
     }
 }
-fn add_entry(cache_arg: [MAX_ENTRIES]u32, current_size_arg: u32, data_id: u32, size: u32) u32 {
-    var cache = cache_arg;
-    var current_size = current_size_arg;
-    const existing_index: u32 = find_entry(cache, data_id);
+fn add_entry(cache: [MAX_ENTRIES]u32, current_size: u32, data_id: u32, size: u32) u32 {
+    var slots: [MAX_ENTRIES]u32 = cache;
+    _ = &slots;
+    var used: u32 = current_size;
+    _ = &used;
+    const existing_index: u32 = find_entry(slots, data_id);
     if (existing_index < MAX_ENTRIES) {
-        return current_size;
+        return used;
     }
     var empty_index: u32 = MAX_ENTRIES;
     _ = &empty_index;
     var i: u32 = 0;
     _ = &i;
     while (i < MAX_ENTRIES) {
-        if (get_data_id(cache[i]) == 0) {
+        if (get_data_id(slots[i]) == 0) {
             empty_index = i;
 break;
         }
         i = i + 1;
     }
     if (empty_index == MAX_ENTRIES) {
-        empty_index = find_eviction_candidate(cache);
+        empty_index = find_eviction_candidate(slots);
         if (empty_index == MAX_ENTRIES) {
-            return current_size;
+            return used;
         }
-        const evicted_size: u32 = get_entry_size(cache[empty_index]);
-        current_size = current_size - evicted_size;
+        const evicted_size: u32 = get_entry_size(slots[empty_index]);
+        used = used - evicted_size;
     }
-    if ((current_size + size) > MAX_CACHE_SIZE) {
-        return current_size;
+    if ((used + size) > MAX_CACHE_SIZE) {
+        return used;
     }
-    cache[empty_index] = create_cache_entry(data_id, 1, 0, size);
-    return current_size + size;
+    slots[empty_index] = create_cache_entry(data_id, 1, 0, size);
+    return used + size;
 }
 fn find_eviction_candidate(cache: [MAX_ENTRIES]u32) u32 {
     var worst_score: u32 = 0xFFFFFFFF;
@@ -124,37 +126,40 @@ fn find_eviction_candidate(cache: [MAX_ENTRIES]u32) u32 {
     }
     return candidate;
 }
-fn remove_entry(cache_arg: [MAX_ENTRIES]u32, current_size: u32, data_id: u32) u32 {
-    var cache = cache_arg;
-    const entry_index: u32 = find_entry(cache, data_id);
+fn remove_entry(cache: [MAX_ENTRIES]u32, current_size: u32, data_id: u32) u32 {
+    var slots: [MAX_ENTRIES]u32 = cache;
+    _ = &slots;
+    const entry_index: u32 = find_entry(slots, data_id);
     if (entry_index < MAX_ENTRIES) {
-        const entry_size: u32 = get_entry_size(cache[entry_index]);
-        cache[entry_index] = 0;
+        const entry_size: u32 = get_entry_size(slots[entry_index]);
+        slots[entry_index] = 0;
         return current_size - entry_size;
     } else {
         return current_size;
     }
 }
-fn access_cache(cache_arg: [MAX_ENTRIES]u32, data_id: u32) u32 {
-    var cache = cache_arg;
-    const entry_index: u32 = find_entry(cache, data_id);
+fn access_cache(cache: [MAX_ENTRIES]u32, data_id: u32) u32 {
+    var slots: [MAX_ENTRIES]u32 = cache;
+    _ = &slots;
+    const entry_index: u32 = find_entry(slots, data_id);
     if (entry_index < MAX_ENTRIES) {
-        cache[entry_index] = update_access_count(cache[entry_index]);
-        cache[entry_index] = update_age(cache[entry_index], 0);
+        slots[entry_index] = update_access_count(slots[entry_index]);
+        slots[entry_index] = update_age(slots[entry_index], 0);
         return 1;
     } else {
         return 0;
     }
 }
-fn age_cache(cache_arg: [MAX_ENTRIES]u32) void {
-    var cache = cache_arg;
+fn age_cache(cache: [MAX_ENTRIES]u32) void {
+    var slots: [MAX_ENTRIES]u32 = cache;
+    _ = &slots;
     var i: u32 = 0;
     _ = &i;
     while (i < MAX_ENTRIES) {
-        const entry: u32 = cache[i];
+        const entry: u32 = slots[i];
         const age: u32 = get_age(entry);
         if (age < 255) {
-            cache[i] = update_age(entry, age + 1);
+            slots[i] = update_age(entry, age + 1);
         }
         i = i + 1;
     }

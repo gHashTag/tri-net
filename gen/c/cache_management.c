@@ -133,32 +133,34 @@ uint32_t get_entry(t27_arr_uint32_t_16 cache, uint32_t data_id) {
 }
 
 uint32_t add_entry(t27_arr_uint32_t_16 cache, uint32_t current_size, uint32_t data_id, uint32_t size) {
-    uint32_t existing_index = find_entry(cache, data_id);
+    t27_arr_uint32_t_16 slots = cache;
+    uint32_t used = current_size;
+    uint32_t existing_index = find_entry(slots, data_id);
     if ((existing_index < MAX_ENTRIES)) {
-        return current_size;
+        return used;
     }
     uint32_t empty_index = MAX_ENTRIES;
     uint32_t i = 0;
     while ((i < MAX_ENTRIES)) {
-        if ((get_data_id(cache.v[i]) == 0)) {
+        if ((get_data_id(slots.v[i]) == 0)) {
             empty_index = i;
 break;
         }
         i = (i + 1);
     }
     if ((empty_index == MAX_ENTRIES)) {
-        empty_index = find_eviction_candidate(cache);
+        empty_index = find_eviction_candidate(slots);
         if ((empty_index == MAX_ENTRIES)) {
-            return current_size;
+            return used;
         }
-        uint32_t evicted_size = get_entry_size(cache.v[empty_index]);
-        current_size = (current_size - evicted_size);
+        uint32_t evicted_size = get_entry_size(slots.v[empty_index]);
+        used = (used - evicted_size);
     }
-    if (((current_size + size) > MAX_CACHE_SIZE)) {
-        return current_size;
+    if (((used + size) > MAX_CACHE_SIZE)) {
+        return used;
     }
-    cache.v[empty_index] = create_cache_entry(data_id, 1, 0, size);
-    return (current_size + size);
+    slots.v[empty_index] = create_cache_entry(data_id, 1, 0, size);
+    return (used + size);
 }
 
 uint32_t find_eviction_candidate(t27_arr_uint32_t_16 cache) {
@@ -183,10 +185,11 @@ uint32_t find_eviction_candidate(t27_arr_uint32_t_16 cache) {
 }
 
 uint32_t remove_entry(t27_arr_uint32_t_16 cache, uint32_t current_size, uint32_t data_id) {
-    uint32_t entry_index = find_entry(cache, data_id);
+    t27_arr_uint32_t_16 slots = cache;
+    uint32_t entry_index = find_entry(slots, data_id);
     if ((entry_index < MAX_ENTRIES)) {
-        uint32_t entry_size = get_entry_size(cache.v[entry_index]);
-        cache.v[entry_index] = 0;
+        uint32_t entry_size = get_entry_size(slots.v[entry_index]);
+        slots.v[entry_index] = 0;
         return (current_size - entry_size);
     } else {
         return current_size;
@@ -194,10 +197,11 @@ uint32_t remove_entry(t27_arr_uint32_t_16 cache, uint32_t current_size, uint32_t
 }
 
 uint32_t access_cache(t27_arr_uint32_t_16 cache, uint32_t data_id) {
-    uint32_t entry_index = find_entry(cache, data_id);
+    t27_arr_uint32_t_16 slots = cache;
+    uint32_t entry_index = find_entry(slots, data_id);
     if ((entry_index < MAX_ENTRIES)) {
-        cache.v[entry_index] = update_access_count(cache.v[entry_index]);
-        cache.v[entry_index] = update_age(cache.v[entry_index], 0);
+        slots.v[entry_index] = update_access_count(slots.v[entry_index]);
+        slots.v[entry_index] = update_age(slots.v[entry_index], 0);
         return 1;
     } else {
         return 0;
@@ -205,12 +209,13 @@ uint32_t access_cache(t27_arr_uint32_t_16 cache, uint32_t data_id) {
 }
 
 void age_cache(t27_arr_uint32_t_16 cache) {
+    t27_arr_uint32_t_16 slots = cache;
     uint32_t i = 0;
     while ((i < MAX_ENTRIES)) {
-        uint32_t entry = cache.v[i];
+        uint32_t entry = slots.v[i];
         uint32_t age = get_age(entry);
         if ((age < 255)) {
-            cache.v[i] = update_age(entry, (age + 1));
+            slots.v[i] = update_age(entry, (age + 1));
         }
         i = (i + 1);
     }
