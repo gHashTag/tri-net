@@ -230,10 +230,11 @@ uint32_t get_allocation_pool(uint32_t alloc) {
 }
 
 uint32_t track_allocation(t27_arr_uint32_t_64 allocations, uint32_t alloc_id, uint32_t size, uint32_t pool) {
+    t27_arr_uint32_t_64 allocs = allocations;
     uint32_t i = 0;
     while ((i < MAX_SAMPLES)) {
-        if ((get_allocation_id(allocations.v[i]) == 0)) {
-            allocations.v[i] = create_allocation(alloc_id, size, 255, pool);
+        if ((get_allocation_id(allocs.v[i]) == 0)) {
+            allocs.v[i] = create_allocation(alloc_id, size, 255, pool);
             return 1;
         }
         i = (i + 1);

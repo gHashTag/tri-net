@@ -219,6 +219,7 @@ module network_simulator {
 
     // Process simulation event
     fn process_event(event: u32, node_states: [u32; MAX_NODES], link_states: [u32; MAX_NODES]) -> u32 {
+        var states: [u32; MAX_NODES] = node_states; // value parameter (#399)
         let event_type: u32 = get_event_type(event);
         let node_id: u32 = get_event_node_id(event);
         
@@ -230,8 +231,8 @@ module network_simulator {
             return 1;
         } else if (event_type == EVENT_NODE_FAILURE) {
             // Update node status to failed
-            let current_state: u32 = node_states[node_id];
-            node_states[node_id] = update_node_status(current_state, NODE_FAILED);
+            let current_state: u32 = states[node_id];
+            states[node_id] = update_node_status(current_state, NODE_FAILED);
             return 1;
         } else if (event_type == EVENT_LINK_FAILURE) {
             // Process link failure
@@ -306,10 +307,19 @@ module network_simulator {
 
     // Inject fault into simulation
     fn inject_fault(fault_type: u32, target_id: u32, node_states: [u32; MAX_NODES]) -> u32 {
+        var states: [u32; MAX_NODES] = node_states; // value parameter (#399)
         if (fault_type == EVENT_NODE_FAILURE) {
-            let current_state: u32 = node_states[target_id];
-            node_states[target_id] = update_node_status(current_state, NODE_FAILED);
-            return 1;
+            // A target outside 0..MAX_NODES-1 names no node: report failure
+            // (0, as for an unknown fault type) instead of indexing past
+            // the array (#410). Written as if/else, not an early return, so
+            // every backend (including Verilog) skips the indexed write.
+            if (target_id < MAX_NODES) {
+                let current_state: u32 = states[target_id];
+                states[target_id] = update_node_status(current_state, NODE_FAILED);
+                return 1;
+            } else {
+                return 0;
+            }
         } else if (fault_type == EVENT_LINK_FAILURE) {
             // Link failure injection would require link state modification
             return 1;
@@ -372,5 +382,14 @@ module network_simulator {
         st = update_node_energy(st, 100);
         assert(get_node_energy(st) == 0, "clamps at zero");
         assert(get_node_status(st) == NODE_FAILED, "empty battery fails the node");
+    }
+
+    test inject_fault_rejects_out_of_range_target {
+        // #410: a node failure aimed past the last node reports failure (0)
+        // instead of indexing past the array.
+        let states: [u32; 32] = [0; 32];
+        assert(inject_fault(EVENT_NODE_FAILURE, 31, states) == 1, "last node");
+        assert(inject_fault(EVENT_NODE_FAILURE, 32, states) == 0, "first id past the array");
+        assert(inject_fault(EVENT_NODE_FAILURE, 4294967295, states) == 0, "largest id");
     }
 }

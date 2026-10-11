@@ -288,8 +288,9 @@ module compression_engine {
 
     // Update compression dictionary
     fn update_dictionary(dictionary: [u32; DICTIONARY_SIZE], new_entry: u32, index: u32) -> u32 {
+        var dict: [u32; DICTIONARY_SIZE] = dictionary; // value parameter (#399)
         if (index < DICTIONARY_SIZE) {
-            dictionary[index] = new_entry;
+            dict[index] = new_entry;
             return 1;
         } else {
             return 0;

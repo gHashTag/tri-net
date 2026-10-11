@@ -10,7 +10,8 @@ pub const CONFIG_VERSION: u32 = 1;
 pub const AUTO_DISCOVERY_INTERVAL: u32 = 1000;
 
 pub fn create_config_param(param_id: u32, value: u32, scope: u32, status: u32) -> u32 {
-    return (((((param_id & 0xFF) << 24) | ((value & 0xFFFF) << 8)) | ((scope & 0xF) << 4)) | (status & 0xF));
+    return (((((param_id & 0xFF) << 24) | ((value & 0xFFFF) << 8)) | ((scope & 0xF) << 4))
+        | (status & 0xF));
 }
 
 pub fn get_param_id(param: u32) -> u32 {
@@ -102,13 +103,14 @@ pub fn get_config_value(config: [u32; MAX_PARAMS as usize], param_id: u32) -> u3
 }
 
 pub fn set_config_value(config: [u32; MAX_PARAMS as usize], param_id: u32, new_value: u32) -> u32 {
+    let mut cfg: [u32; MAX_PARAMS as usize] = config;
     let mut i: u32 = 0;
     while (i < MAX_PARAMS) {
-        let current_param_id: u32 = get_param_id(config[(i) as usize]);
+        let current_param_id: u32 = get_param_id(cfg[(i) as usize]);
         if (current_param_id == param_id) {
-            let scope: u32 = get_param_scope(config[(i) as usize]);
+            let scope: u32 = get_param_scope(cfg[(i) as usize]);
             let status: u32 = STATUS_PENDING;
-            config[(i) as usize] = create_config_param(param_id, new_value, scope, status);
+            cfg[(i) as usize] = create_config_param(param_id, new_value, scope, status);
             return 1;
         }
         i = (i + 1);
@@ -117,7 +119,24 @@ pub fn set_config_value(config: [u32; MAX_PARAMS as usize], param_id: u32, new_v
 }
 
 pub fn discover_network_params(node_count: u32, interference_level: u32) -> u32 {
-    let config: [u32; MAX_PARAMS as usize] = [default_config_at(0),default_config_at(1),default_config_at(2),default_config_at(3),default_config_at(4),default_config_at(5),default_config_at(6),default_config_at(7),0,0,0,0,0,0,0,0];
+    let config: [u32; MAX_PARAMS as usize] = [
+        default_config_at(0),
+        default_config_at(1),
+        default_config_at(2),
+        default_config_at(3),
+        default_config_at(4),
+        default_config_at(5),
+        default_config_at(6),
+        default_config_at(7),
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    ];
     let mut tx_power: u32 = 50;
     if (node_count < 4) {
         tx_power = 30;
@@ -149,14 +168,15 @@ pub fn discover_network_params(node_count: u32, interference_level: u32) -> u32 
 }
 
 pub fn apply_config(config: [u32; MAX_PARAMS as usize], param_id: u32) -> u32 {
+    let mut cfg: [u32; MAX_PARAMS as usize] = config;
     let mut i: u32 = 0;
     while (i < MAX_PARAMS) {
-        let current_param_id: u32 = get_param_id(config[(i) as usize]);
+        let current_param_id: u32 = get_param_id(cfg[(i) as usize]);
         if (current_param_id == param_id) {
-            let value: u32 = get_param_value(config[(i) as usize]);
-            let scope: u32 = get_param_scope(config[(i) as usize]);
+            let value: u32 = get_param_value(cfg[(i) as usize]);
+            let scope: u32 = get_param_scope(cfg[(i) as usize]);
             let success: u32 = 1;
-            config[(i) as usize] = create_config_param(param_id, value, scope, STATUS_APPLIED);
+            cfg[(i) as usize] = create_config_param(param_id, value, scope, STATUS_APPLIED);
             return success;
         }
         i = (i + 1);
@@ -183,22 +203,22 @@ pub fn apply_all_pending(config: [u32; MAX_PARAMS as usize]) -> u32 {
 pub fn validate_config(config: [u32; MAX_PARAMS as usize], param_id: u32) -> u32 {
     let value: u32 = get_config_value(config, param_id);
     if (param_id == PARAM_TX_POWER) {
-        if ((value >= 0) && (value <= 100)) {
+        if (value <= 100) {
             return 1;
         }
     } else {
         if (param_id == PARAM_CHANNEL) {
-            if ((value >= 0) && (value <= 11)) {
+            if (value <= 11) {
                 return 1;
             }
         } else {
             if (param_id == PARAM_DATA_RATE) {
-                if ((value >= 0) && (value <= 3)) {
+                if (value <= 3) {
                     return 1;
                 }
             } else {
                 if (param_id == PARAM_RETRY_LIMIT) {
-                    if ((value >= 0) && (value <= 7)) {
+                    if (value <= 7) {
                         return 1;
                     }
                 } else {
@@ -218,7 +238,7 @@ pub fn validate_config(config: [u32; MAX_PARAMS as usize], param_id: u32) -> u32
                                 }
                             } else {
                                 if (param_id == PARAM_SECURITY_LEVEL) {
-                                    if ((value >= 0) && (value <= 3)) {
+                                    if (value <= 3) {
                                         return 1;
                                     }
                                 }
@@ -232,7 +252,11 @@ pub fn validate_config(config: [u32; MAX_PARAMS as usize], param_id: u32) -> u32
     return 0;
 }
 
-pub fn optimize_config(config: [u32; MAX_PARAMS as usize], network_load: u32, error_rate: u32) -> u32 {
+pub fn optimize_config(
+    config: [u32; MAX_PARAMS as usize],
+    network_load: u32,
+    error_rate: u32,
+) -> u32 {
     let mut optimizations: u32 = 0;
     if (network_load > 80) {
         let current_retries: u32 = get_config_value(config, PARAM_RETRY_LIMIT);
@@ -258,7 +282,10 @@ pub fn optimize_config(config: [u32; MAX_PARAMS as usize], network_load: u32, er
     return optimizations;
 }
 
-pub fn sync_config(local_config: [u32; MAX_PARAMS as usize], remote_config: [u32; MAX_PARAMS as usize]) -> u32 {
+pub fn sync_config(
+    local_config: [u32; MAX_PARAMS as usize],
+    remote_config: [u32; MAX_PARAMS as usize],
+) -> u32 {
     let mut synced_count: u32 = 0;
     let mut i: u32 = 0;
     while (i < MAX_PARAMS) {
@@ -286,7 +313,11 @@ pub fn sync_config(local_config: [u32; MAX_PARAMS as usize], remote_config: [u32
     return synced_count;
 }
 
-pub fn rollback_config(config: [u32; MAX_PARAMS as usize], backup_config: [u32; MAX_PARAMS as usize]) -> u32 {
+pub fn rollback_config(
+    config: [u32; MAX_PARAMS as usize],
+    backup_config: [u32; MAX_PARAMS as usize],
+) -> u32 {
+    let mut cfg: [u32; MAX_PARAMS as usize] = config;
     let mut rolled_back: u32 = 0;
     let mut i: u32 = 0;
     while (i < MAX_PARAMS) {
@@ -295,9 +326,14 @@ pub fn rollback_config(config: [u32; MAX_PARAMS as usize], backup_config: [u32; 
         let backup_scope: u32 = get_param_scope(backup_config[(i) as usize]);
         let mut j: u32 = 0;
         while (j < MAX_PARAMS) {
-            let local_param_id: u32 = get_param_id(config[(j) as usize]);
+            let local_param_id: u32 = get_param_id(cfg[(j) as usize]);
             if (local_param_id == backup_param_id) {
-                config[(j) as usize] = create_config_param(backup_param_id, backup_value, backup_scope, STATUS_PENDING);
+                cfg[(j) as usize] = create_config_param(
+                    backup_param_id,
+                    backup_value,
+                    backup_scope,
+                    STATUS_PENDING,
+                );
                 rolled_back = (rolled_back + 1);
                 break;
             }
@@ -309,10 +345,13 @@ pub fn rollback_config(config: [u32; MAX_PARAMS as usize], backup_config: [u32; 
 }
 
 pub fn backup_element(config: [u32; MAX_PARAMS as usize], index: u32) -> u32 {
-    return config[((index as usize)) as usize];
+    return config[(index as usize) as usize];
 }
 
-pub fn calculate_config_drift(config1: [u32; MAX_PARAMS as usize], config2: [u32; MAX_PARAMS as usize]) -> u32 {
+pub fn calculate_config_drift(
+    config1: [u32; MAX_PARAMS as usize],
+    config2: [u32; MAX_PARAMS as usize],
+) -> u32 {
     let mut drift_count: u32 = 0;
     let mut total_params: u32 = 0;
     let mut i: u32 = 0;
@@ -366,4 +405,3 @@ pub fn assign_node_role(node_id: u32, capabilities: u32) -> u32 {
     }
     return role;
 }
-

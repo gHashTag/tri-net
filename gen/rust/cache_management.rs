@@ -10,7 +10,8 @@ pub const CACHE_HIT_THRESHOLD: u32 = 2;
 pub const EVICTION_AGE: u32 = 1000;
 
 pub fn create_cache_entry(data_id: u32, access_count: u32, age: u32, size: u32) -> u32 {
-    return (((((data_id & 0xFF) << 24) | ((access_count & 0xFF) << 16)) | ((age & 0xFF) << 8)) | (size & 0xFF));
+    return (((((data_id & 0xFF) << 24) | ((access_count & 0xFF) << 16)) | ((age & 0xFF) << 8))
+        | (size & 0xFF));
 }
 
 pub fn get_data_id(entry: u32) -> u32 {
@@ -77,33 +78,40 @@ pub fn get_entry(cache: [u32; MAX_ENTRIES as usize], data_id: u32) -> u32 {
     }
 }
 
-pub fn add_entry(cache: [u32; MAX_ENTRIES as usize], current_size: u32, data_id: u32, size: u32) -> u32 {
-    let existing_index: u32 = find_entry(cache, data_id);
+pub fn add_entry(
+    cache: [u32; MAX_ENTRIES as usize],
+    current_size: u32,
+    data_id: u32,
+    size: u32,
+) -> u32 {
+    let mut slots: [u32; MAX_ENTRIES as usize] = cache;
+    let mut used: u32 = current_size;
+    let existing_index: u32 = find_entry(slots, data_id);
     if (existing_index < MAX_ENTRIES) {
-        return current_size;
+        return used;
     }
     let mut empty_index: u32 = MAX_ENTRIES;
     let mut i: u32 = 0;
     while (i < MAX_ENTRIES) {
-        if (get_data_id(cache[(i) as usize]) == 0) {
+        if (get_data_id(slots[(i) as usize]) == 0) {
             empty_index = i;
             break;
         }
         i = (i + 1);
     }
     if (empty_index == MAX_ENTRIES) {
-        empty_index = find_eviction_candidate(cache);
+        empty_index = find_eviction_candidate(slots);
         if (empty_index == MAX_ENTRIES) {
-            return current_size;
+            return used;
         }
-        let evicted_size: u32 = get_entry_size(cache[(empty_index) as usize]);
-        current_size = (current_size - evicted_size);
+        let evicted_size: u32 = get_entry_size(slots[(empty_index) as usize]);
+        used = (used - evicted_size);
     }
-    if ((current_size + size) > MAX_CACHE_SIZE) {
-        return current_size;
+    if ((used + size) > MAX_CACHE_SIZE) {
+        return used;
     }
-    cache[(empty_index) as usize] = create_cache_entry(data_id, 1, 0, size);
-    return (current_size + size);
+    slots[(empty_index) as usize] = create_cache_entry(data_id, 1, 0, size);
+    return (used + size);
 }
 
 pub fn find_eviction_candidate(cache: [u32; MAX_ENTRIES as usize]) -> u32 {
@@ -128,10 +136,11 @@ pub fn find_eviction_candidate(cache: [u32; MAX_ENTRIES as usize]) -> u32 {
 }
 
 pub fn remove_entry(cache: [u32; MAX_ENTRIES as usize], current_size: u32, data_id: u32) -> u32 {
-    let entry_index: u32 = find_entry(cache, data_id);
+    let mut slots: [u32; MAX_ENTRIES as usize] = cache;
+    let entry_index: u32 = find_entry(slots, data_id);
     if (entry_index < MAX_ENTRIES) {
-        let entry_size: u32 = get_entry_size(cache[(entry_index) as usize]);
-        cache[(entry_index) as usize] = 0;
+        let entry_size: u32 = get_entry_size(slots[(entry_index) as usize]);
+        slots[(entry_index) as usize] = 0;
         return (current_size - entry_size);
     } else {
         return current_size;
@@ -139,10 +148,11 @@ pub fn remove_entry(cache: [u32; MAX_ENTRIES as usize], current_size: u32, data_
 }
 
 pub fn access_cache(cache: [u32; MAX_ENTRIES as usize], data_id: u32) -> u32 {
-    let entry_index: u32 = find_entry(cache, data_id);
+    let mut slots: [u32; MAX_ENTRIES as usize] = cache;
+    let entry_index: u32 = find_entry(slots, data_id);
     if (entry_index < MAX_ENTRIES) {
-        cache[(entry_index) as usize] = update_access_count(cache[(entry_index) as usize]);
-        cache[(entry_index) as usize] = update_age(cache[(entry_index) as usize], 0);
+        slots[(entry_index) as usize] = update_access_count(slots[(entry_index) as usize]);
+        slots[(entry_index) as usize] = update_age(slots[(entry_index) as usize], 0);
         return 1;
     } else {
         return 0;
@@ -150,12 +160,13 @@ pub fn access_cache(cache: [u32; MAX_ENTRIES as usize], data_id: u32) -> u32 {
 }
 
 pub fn age_cache(cache: [u32; MAX_ENTRIES as usize]) -> () {
+    let mut slots: [u32; MAX_ENTRIES as usize] = cache;
     let mut i: u32 = 0;
     while (i < MAX_ENTRIES) {
-        let entry: u32 = cache[(i) as usize];
+        let entry: u32 = slots[(i) as usize];
         let age: u32 = get_age(entry);
         if (age < 255) {
-            cache[(i) as usize] = update_age(entry, (age + 1));
+            slots[(i) as usize] = update_age(entry, (age + 1));
         }
         i = (i + 1);
     }
@@ -231,7 +242,8 @@ pub fn calculate_efficiency(hits: u32, total_accesses: u32, current_size: u32) -
 }
 
 pub fn create_cache_stats(hits: u32, misses: u32, size: u32, evictions: u32) -> u32 {
-    return (((((hits & 0xFF) << 24) | ((misses & 0xFF) << 16)) | ((size & 0xFF) << 8)) | (evictions & 0xFF));
+    return (((((hits & 0xFF) << 24) | ((misses & 0xFF) << 16)) | ((size & 0xFF) << 8))
+        | (evictions & 0xFF));
 }
 
 pub fn get_hits(stats: u32) -> u32 {
@@ -265,4 +277,3 @@ pub fn update_stats(stats: u32, hit: u32, evicted: u32) -> u32 {
     }
     return create_cache_stats(hits, misses, size, evictions);
 }
-

@@ -308,27 +308,32 @@ uint32_t calculate_packet_position(uint32_t source_x, uint32_t source_y, uint32_
 }
 
 uint32_t update_animation_packets(t27_arr_uint32_t_64 packets, uint32_t packet_count, uint32_t speed) {
+    t27_arr_uint32_t_64 pkts = packets;
+    uint32_t count = packet_count;
+    if ((count > MAX_PACKETS)) {
+        count = MAX_PACKETS;
+    }
     uint32_t updated_count = 0;
     uint32_t completed_count = 0;
     uint32_t i = 0;
-    while ((i < packet_count)) {
-        uint32_t progress = get_anim_packet_progress(packets.v[i]);
+    while ((i < count)) {
+        uint32_t progress = get_anim_packet_progress(pkts.v[i]);
         if ((progress < 100)) {
             uint32_t new_progress = (progress + speed);
             if ((new_progress > 100)) {
                 new_progress = 100;
             }
-            uint32_t packet_id = get_anim_packet_id(packets.v[i]);
-            uint32_t source = get_anim_packet_source(packets.v[i]);
-            uint32_t dest = get_anim_packet_dest(packets.v[i]);
-            packets.v[i] = create_anim_packet(packet_id, source, dest, new_progress);
+            uint32_t packet_id = get_anim_packet_id(pkts.v[i]);
+            uint32_t source = get_anim_packet_source(pkts.v[i]);
+            uint32_t dest = get_anim_packet_dest(pkts.v[i]);
+            pkts.v[i] = create_anim_packet(packet_id, source, dest, new_progress);
             updated_count = (updated_count + 1);
         } else {
             completed_count = (completed_count + 1);
         }
         i = (i + 1);
     }
-    return ((((updated_count & 0xFF) << 24) | ((completed_count & 0xFF) << 16)) | ((packet_count & 0xFF) << 8));
+    return ((((updated_count & 0xFF) << 24) | ((completed_count & 0xFF) << 16)) | ((count & 0xFF) << 8));
 }
 
 uint32_t render_animation_frame(t27_arr_uint32_t_64 packets, uint32_t packet_count, t27_arr_uint32_t_16 paths, uint32_t path_count, uint32_t frame_id) {
@@ -462,6 +467,19 @@ void test_packet_position_interpolates_both_directions(void) {
     t27_assert((((pos >> 16) & 0xFF) == 20), "y unchanged");
 }
 
+void test_update_animation_packets_clamps_count(void) {
+    t27_arr_uint32_t_64 pkts = { .v = { [0 ... (64) - 1] = 0 } };
+    uint64_t r64 = update_animation_packets(pkts, 64, 10);
+    (void)r64;
+    t27_assert((r64 == ((64 << 24) | (64 << 8))), "full array");
+    uint64_t r65 = update_animation_packets(pkts, 65, 10);
+    (void)r65;
+    t27_assert((r65 == r64), "65 is clamped to 64");
+    uint64_t rmax = update_animation_packets(pkts, 4294967295, 10);
+    (void)rmax;
+    t27_assert((rmax == r64), "largest count is clamped to 64");
+}
+
 
 /* -------------------------------------------------------
    Test runner (compile with -DT27_TEST_MAIN to execute)
@@ -472,7 +490,8 @@ void test_packet_position_interpolates_both_directions(void) {
 int main(void) {
     test_anim_packet_roundtrip_and_progress();
     test_packet_position_interpolates_both_directions();
-    printf("All %d tests passed.\n", 2);
+    test_update_animation_packets_clamps_count();
+    printf("All %d tests passed.\n", 3);
     return 0;
 }
 #endif /* T27_TEST_MAIN */

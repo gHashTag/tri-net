@@ -233,10 +233,11 @@ fn calculate_total_savings(blocks: [MAX_BLOCKS]u32, count: u32) u32 {
         return 0;
     }
 }
-fn update_dictionary(dictionary_arg: [DICTIONARY_SIZE]u32, new_entry: u32, index: u32) u32 {
-    var dictionary = dictionary_arg;
+fn update_dictionary(dictionary: [DICTIONARY_SIZE]u32, new_entry: u32, index: u32) u32 {
+    var dict: [DICTIONARY_SIZE]u32 = dictionary;
+    _ = &dict;
     if (index < DICTIONARY_SIZE) {
-        dictionary[index] = new_entry;
+        dict[index] = new_entry;
         return 1;
     } else {
         return 0;

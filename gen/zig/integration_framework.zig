@@ -26,7 +26,7 @@ fn get_registered_module_status(registration: u32) u32 {
 }
 const TYPE_NETWORK: u32 = 0;
 const TYPE_TESTING: u32 = 1;
-const type_documentation: u32 = 2;
+const TYPE_DOCUMENTATION: u32 = 2;
 const TYPE_VISUALIZATION: u32 = 3;
 const TYPE_SIMULATION: u32 = 4;
 const TYPE_PROFILING: u32 = 5;
@@ -107,14 +107,15 @@ const EVENT_MODULE_UNLOADED: u32 = 1;
 const EVENT_TEST_COMPLETED: u32 = 2;
 const EVENT_SIMULATION_STEP: u32 = 3;
 const EVENT_VISUALIZATION_UPDATE: u32 = 4;
-fn subscribe_to_event(module_id: u32, event_type: u32, subscriptions_arg: [MAX_EVENTS]u32) u32 {
-    var subscriptions = subscriptions_arg;
+fn subscribe_to_event(module_id: u32, event_type: u32, subscriptions: [MAX_EVENTS]u32) u32 {
+    var subs: [MAX_EVENTS]u32 = subscriptions;
+    _ = &subs;
     const subscription_id: u32 = (module_id * 10) + event_type;
     var i: u32 = 0;
     _ = &i;
     while (i < MAX_EVENTS) {
-        if (subscriptions[i] == 0) {
-            subscriptions[i] = create_event(subscription_id, event_type, module_id, 0);
+        if (subs[i] == 0) {
+            subs[i] = create_event(subscription_id, event_type, module_id, 0);
             return 1;
         }
         i = i + 1;
@@ -220,27 +221,29 @@ fn propagate_error(err_word: u32, modules: [MAX_MODULES]u32, module_count: u32) 
     }
     return notified_count;
 }
-fn load_module(module_id: u32, module_type: u32, priority: u32, modules_arg: [MAX_MODULES]u32) u32 {
-    var modules = modules_arg;
+fn load_module(module_id: u32, module_type: u32, priority: u32, modules: [MAX_MODULES]u32) u32 {
+    var mods: [MAX_MODULES]u32 = modules;
+    _ = &mods;
     var i: u32 = 0;
     _ = &i;
     while (i < MAX_MODULES) {
-        if (get_registered_module_id(modules[i]) == 0) {
-            modules[i] = create_module_registration(module_id, module_type, priority, STATUS_IDLE);
+        if (get_registered_module_id(mods[i]) == 0) {
+            mods[i] = create_module_registration(module_id, module_type, priority, STATUS_IDLE);
             return 1;
         }
         i = i + 1;
     }
     return 0;
 }
-fn unload_module(module_id: u32, modules_arg: [MAX_MODULES]u32) u32 {
-    var modules = modules_arg;
+fn unload_module(module_id: u32, modules: [MAX_MODULES]u32) u32 {
+    var mods: [MAX_MODULES]u32 = modules;
+    _ = &mods;
     var i: u32 = 0;
     _ = &i;
     while (i < MAX_MODULES) {
-        const registered_id: u32 = get_registered_module_id(modules[i]);
+        const registered_id: u32 = get_registered_module_id(mods[i]);
         if (registered_id == module_id) {
-            modules[i] = 0;
+            mods[i] = 0;
             return 1;
         }
         i = i + 1;
@@ -412,7 +415,8 @@ test "module_registration_roundtrip" {
     if (!(get_registered_module_status(m) == 50000)) @panic("status");
 }
 test "send_message_requires_active_destination" {
-    const mods: [16]u32 = .{ create_module_registration(1,0,1,STATUS_ACTIVE), create_module_registration(2,0,1,0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    var mods: [16]u32 = .{ create_module_registration(1,0,1,STATUS_ACTIVE), create_module_registration(2,0,1,0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    _ = &mods;
     const msg_ok = create_integration_message(1, 5, 1, 0);
     if (!(send_message(mods, msg_ok) == 1)) @panic("active destination accepts");
     const msg_down = create_integration_message(2, 5, 2, 0);

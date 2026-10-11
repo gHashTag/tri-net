@@ -233,34 +233,47 @@ uint32_t calculate_force_layout(t27_arr_uint32_t_32 nodes, t27_arr_uint32_t_64 e
 }
 
 uint32_t calculate_circular_layout(t27_arr_uint32_t_32 nodes, uint32_t node_count) {
+    t27_arr_uint32_t_32 vnodes = nodes;
+    uint32_t count = node_count;
+    if ((count > MAX_NODES)) {
+        count = MAX_NODES;
+    }
     uint32_t center_x = (CANVAS_SIZE / 2);
     uint32_t center_y = (CANVAS_SIZE / 2);
     uint32_t radius = (CANVAS_SIZE / 3);
     uint32_t i = 0;
-    while ((i < node_count)) {
-        uint32_t angle = ((i * 360) / node_count);
+    while ((i < count)) {
+        uint32_t angle = ((i * 360) / count);
         uint32_t x = (center_x + ((radius * angle) / 360));
         uint32_t y = (center_y + ((radius * angle) / 360));
-        uint32_t node_id = get_viz_node_id(nodes.v[i]);
-        uint32_t status = get_node_visual_status(nodes.v[i]);
-        nodes.v[i] = create_visual_node(node_id, x, y, status);
+        uint32_t node_id = get_viz_node_id(vnodes.v[i]);
+        uint32_t status = get_node_visual_status(vnodes.v[i]);
+        vnodes.v[i] = create_visual_node(node_id, x, y, status);
         i = (i + 1);
     }
-    return node_count;
+    return count;
 }
 
 uint32_t calculate_hierarchical_layout(t27_arr_uint32_t_32 nodes, t27_arr_uint32_t_64 edges, uint32_t node_count, uint32_t edge_count) {
+    t27_arr_uint32_t_32 vnodes = nodes;
+    uint32_t count = node_count;
+    if ((count > MAX_NODES)) {
+        count = MAX_NODES;
+    }
     uint32_t level_count = 4;
-    uint32_t nodes_per_level = (node_count / level_count);
+    uint32_t nodes_per_level = (count / level_count);
+    if ((nodes_per_level == 0)) {
+        nodes_per_level = 1;
+    }
     uint32_t i = 0;
     uint32_t current_level = 0;
     uint32_t nodes_in_level = 0;
-    while ((i < node_count)) {
+    while ((i < count)) {
         uint32_t y = ((current_level * CANVAS_SIZE) / level_count);
         uint32_t x = ((nodes_in_level * CANVAS_SIZE) / nodes_per_level);
-        uint32_t node_id = get_viz_node_id(nodes.v[i]);
-        uint32_t status = get_node_visual_status(nodes.v[i]);
-        nodes.v[i] = create_visual_node(node_id, x, y, status);
+        uint32_t node_id = get_viz_node_id(vnodes.v[i]);
+        uint32_t status = get_node_visual_status(vnodes.v[i]);
+        vnodes.v[i] = create_visual_node(node_id, x, y, status);
         nodes_in_level = (nodes_in_level + 1);
         if ((nodes_in_level >= nodes_per_level)) {
             nodes_in_level = 0;
@@ -268,7 +281,7 @@ uint32_t calculate_hierarchical_layout(t27_arr_uint32_t_32 nodes, t27_arr_uint32
         }
         i = (i + 1);
     }
-    return node_count;
+    return count;
 }
 
 uint32_t apply_layout(t27_arr_uint32_t_32 nodes, t27_arr_uint32_t_64 edges, uint32_t node_count, uint32_t edge_count, uint32_t params) {
@@ -388,6 +401,19 @@ void test_visual_edge_roundtrip(void) {
     t27_assert((get_viz_edge_type(e) == 1), "type");
 }
 
+void test_layouts_clamp_count_and_never_divide_by_zero(void) {
+    t27_arr_uint32_t_32 nodes = { .v = { [0 ... (32) - 1] = 0 } };
+    t27_arr_uint32_t_64 edges = { .v = { [0 ... (64) - 1] = 0 } };
+    t27_assert((calculate_circular_layout(nodes, 32) == 32), "circular full array");
+    t27_assert((calculate_circular_layout(nodes, 33) == 32), "circular 33 clamped");
+    t27_assert((calculate_circular_layout(nodes, 0) == 0), "circular empty");
+    t27_assert((calculate_hierarchical_layout(nodes, edges, 0, 0) == 0), "hierarchical empty");
+    t27_assert((calculate_hierarchical_layout(nodes, edges, 1, 0) == 1), "hierarchical 1");
+    t27_assert((calculate_hierarchical_layout(nodes, edges, 3, 0) == 3), "hierarchical 3");
+    t27_assert((calculate_hierarchical_layout(nodes, edges, 4, 0) == 4), "hierarchical 4");
+    t27_assert((calculate_hierarchical_layout(nodes, edges, 33, 0) == 32), "hierarchical 33 clamped");
+}
+
 
 /* -------------------------------------------------------
    Test runner (compile with -DT27_TEST_MAIN to execute)
@@ -398,7 +424,8 @@ void test_visual_edge_roundtrip(void) {
 int main(void) {
     test_visual_node_roundtrip();
     test_visual_edge_roundtrip();
-    printf("All %d tests passed.\n", 2);
+    test_layouts_clamp_count_and_never_divide_by_zero();
+    printf("All %d tests passed.\n", 3);
     return 0;
 }
 #endif /* T27_TEST_MAIN */

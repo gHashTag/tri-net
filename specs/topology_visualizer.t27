@@ -220,46 +220,65 @@ module topology_visualizer {
 
     // Calculate circular layout
     fn calculate_circular_layout(nodes: [u32; MAX_NODES], node_count: u32) -> u32 {
+        var vnodes: [u32; MAX_NODES] = nodes; // value parameter (#399)
+        // A count above MAX_NODES is clamped to the array length (#410);
+        // the clamped count is the number of nodes placed and is returned.
+        var count: u32 = node_count;
+        if (count > MAX_NODES) {
+            count = MAX_NODES;
+        }
         let center_x: u32 = CANVAS_SIZE / 2;
         let center_y: u32 = CANVAS_SIZE / 2;
         let radius: u32 = CANVAS_SIZE / 3;
         
         let i: u32 = 0;
-        while (i < node_count) {
-            let angle: u32 = (i * 360) / node_count;
+        while (i < count) {
+            let angle: u32 = (i * 360) / count;
             
             // Calculate position on circle
             let x: u32 = center_x + ((radius * angle) / 360);
             let y: u32 = center_y + ((radius * angle) / 360);
             
             // Update node position
-            let node_id: u32 = get_viz_node_id(nodes[i]);
-            let status: u32 = get_node_visual_status(nodes[i]);
-            nodes[i] = create_visual_node(node_id, x, y, status);
+            let node_id: u32 = get_viz_node_id(vnodes[i]);
+            let status: u32 = get_node_visual_status(vnodes[i]);
+            vnodes[i] = create_visual_node(node_id, x, y, status);
             
             i = i + 1;
         }
         
-        return node_count;
+        return count;
     }
 
     // Calculate hierarchical layout
     fn calculate_hierarchical_layout(nodes: [u32; MAX_NODES], edges: [u32; MAX_EDGES],
                                    node_count: u32, edge_count: u32) -> u32 {
+        var vnodes: [u32; MAX_NODES] = nodes; // value parameter (#399)
+        // A count above MAX_NODES is clamped to the array length, and the
+        // clamped count is returned (#410).
+        var count: u32 = node_count;
+        if (count > MAX_NODES) {
+            count = MAX_NODES;
+        }
         let level_count: u32 = 4;
-        let nodes_per_level: u32 = node_count / level_count;
+        var nodes_per_level: u32 = count / level_count;
+        // Fewer nodes than levels (count 0..3) gives 0 nodes per level and a
+        // division by zero below; place one node per level instead (#410).
+        if (nodes_per_level == 0) {
+            nodes_per_level = 1;
+        }
         
         let i: u32 = 0;
         let current_level: u32 = 0;
         let nodes_in_level: u32 = 0;
         
-        while (i < node_count) {
+        while (i < count) {
             let y: u32 = (current_level * CANVAS_SIZE) / level_count;
             let x: u32 = ((nodes_in_level * CANVAS_SIZE) / nodes_per_level);
             
-            let node_id: u32 = get_viz_node_id(nodes[i]);
-            let status: u32 = get_node_visual_status(nodes[i]);
-            nodes[i] = create_visual_node(node_id, x, y, status);
+            let node_id: u32 = get_viz_node_id(vnodes[i]);
+            let status: u32 = get_node_visual_status(vnodes[i]);
+            vnodes[i] = create_visual_node(node_id, x, y, status);
             
             nodes_in_level = nodes_in_level + 1;
             if (nodes_in_level >= nodes_per_level) {
@@ -270,7 +289,7 @@ module topology_visualizer {
             i = i + 1;
         }
         
-        return node_count;
+        return count;
     }
 
     // Apply layout algorithm
@@ -431,5 +450,20 @@ module topology_visualizer {
         assert(get_viz_edge_dest(e) == 5, "dest");
         assert(get_viz_edge_quality(e) == 80, "quality");
         assert(get_viz_edge_type(e) == 1, "type");
+    }
+
+    test layouts_clamp_count_and_never_divide_by_zero {
+        // #410: counts above MAX_NODES are clamped to 32; hierarchical layout
+        // with fewer than four nodes does not divide by zero.
+        let nodes: [u32; 32] = [0; 32];
+        let edges: [u32; 64] = [0; 64];
+        assert(calculate_circular_layout(nodes, 32) == 32, "circular full array");
+        assert(calculate_circular_layout(nodes, 33) == 32, "circular 33 clamped");
+        assert(calculate_circular_layout(nodes, 0) == 0, "circular empty");
+        assert(calculate_hierarchical_layout(nodes, edges, 0, 0) == 0, "hierarchical empty");
+        assert(calculate_hierarchical_layout(nodes, edges, 1, 0) == 1, "hierarchical 1");
+        assert(calculate_hierarchical_layout(nodes, edges, 3, 0) == 3, "hierarchical 3");
+        assert(calculate_hierarchical_layout(nodes, edges, 4, 0) == 4, "hierarchical 4");
+        assert(calculate_hierarchical_layout(nodes, edges, 33, 0) == 32, "hierarchical 33 clamped");
     }
 }

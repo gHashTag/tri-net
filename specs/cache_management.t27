@@ -96,10 +96,15 @@ module cache_management {
     // Add entry to cache
     fn add_entry(cache: [u32; MAX_ENTRIES], current_size: u32, 
                  data_id: u32, size: u32) -> u32 {
+        // Work on local copies: parameters are values (#399), and the
+        // pinned Rust emitter does not make an assigned argument mutable.
+        var slots: [u32; MAX_ENTRIES] = cache;
+        var used: u32 = current_size;
+        
         // Check if already exists
-        let existing_index: u32 = find_entry(cache, data_id);
+        let existing_index: u32 = find_entry(slots, data_id);
         if (existing_index < MAX_ENTRIES) {
-            return current_size; // already cached
+            return used; // already cached
         }
         
         // Find empty slot
@@ -107,7 +112,7 @@ module cache_management {
         let i: u32 = 0;
         
         while (i < MAX_ENTRIES) {
-            if (get_data_id(cache[i]) == 0) {
+            if (get_data_id(slots[i]) == 0) {
                 empty_index = i;
                 break;
             }
@@ -116,25 +121,25 @@ module cache_management {
         
         // If no empty slot, need to evict
         if (empty_index == MAX_ENTRIES) {
-            empty_index = find_eviction_candidate(cache);
+            empty_index = find_eviction_candidate(slots);
             if (empty_index == MAX_ENTRIES) {
-                return current_size; // cache full, can't add
+                return used; // cache full, can't add
             }
             
             // Remove evicted entry size
-            let evicted_size: u32 = get_entry_size(cache[empty_index]);
-            current_size = current_size - evicted_size;
+            let evicted_size: u32 = get_entry_size(slots[empty_index]);
+            used = used - evicted_size;
         }
         
         // Check if enough space
-        if (current_size + size > MAX_CACHE_SIZE) {
-            return current_size; // not enough space
+        if (used + size > MAX_CACHE_SIZE) {
+            return used; // not enough space
         }
         
         // Add new entry
-        cache[empty_index] = create_cache_entry(data_id, 1, 0, size);
+        slots[empty_index] = create_cache_entry(data_id, 1, 0, size);
         
-        return current_size + size;
+        return used + size;
     }
 
     // Find eviction candidate (LRU with low access count)
@@ -170,11 +175,12 @@ module cache_management {
 
     // Remove entry from cache
     fn remove_entry(cache: [u32; MAX_ENTRIES], current_size: u32, data_id: u32) -> u32 {
-        let entry_index: u32 = find_entry(cache, data_id);
+        var slots: [u32; MAX_ENTRIES] = cache; // value parameter (#399)
+        let entry_index: u32 = find_entry(slots, data_id);
         
         if (entry_index < MAX_ENTRIES) {
-            let entry_size: u32 = get_entry_size(cache[entry_index]);
-            cache[entry_index] = 0; // clear entry
+            let entry_size: u32 = get_entry_size(slots[entry_index]);
+            slots[entry_index] = 0; // clear entry
             return current_size - entry_size;
         } else {
             return current_size;
@@ -183,12 +189,13 @@ module cache_management {
 
     // Access cache entry
     fn access_cache(cache: [u32; MAX_ENTRIES], data_id: u32) -> u32 {
-        let entry_index: u32 = find_entry(cache, data_id);
+        var slots: [u32; MAX_ENTRIES] = cache; // value parameter (#399)
+        let entry_index: u32 = find_entry(slots, data_id);
         
         if (entry_index < MAX_ENTRIES) {
             // Update access count and reset age
-            cache[entry_index] = update_access_count(cache[entry_index]);
-            cache[entry_index] = update_age(cache[entry_index], 0);
+            slots[entry_index] = update_access_count(slots[entry_index]);
+            slots[entry_index] = update_age(slots[entry_index], 0);
             return 1; // cache hit
         } else {
             return 0; // cache miss
@@ -197,14 +204,15 @@ module cache_management {
 
     // Age all cache entries
     fn age_cache(cache: [u32; MAX_ENTRIES]) {
+        var slots: [u32; MAX_ENTRIES] = cache; // value parameter (#399)
         let i: u32 = 0;
         
         while (i < MAX_ENTRIES) {
-            let entry: u32 = cache[i];
+            let entry: u32 = slots[i];
             let age: u32 = get_age(entry);
             
             if (age < 255) {
-                cache[i] = update_age(entry, age + 1);
+                slots[i] = update_age(entry, age + 1);
             }
             
             i = i + 1;

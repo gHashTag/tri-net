@@ -159,44 +159,60 @@ fn calculate_force_layout(nodes: [MAX_NODES]u32, edges: [MAX_EDGES]u32, node_cou
     }
     return placed_nodes;
 }
-fn calculate_circular_layout(nodes_arg: [MAX_NODES]u32, node_count: u32) u32 {
-    var nodes = nodes_arg;
+fn calculate_circular_layout(nodes: [MAX_NODES]u32, node_count: u32) u32 {
     const _cse1 = CANVAS_SIZE / 2;
+    var vnodes: [MAX_NODES]u32 = nodes;
+    _ = &vnodes;
+    var count: u32 = node_count;
+    _ = &count;
+    if (count > MAX_NODES) {
+        count = MAX_NODES;
+    }
     const center_x: u32 = CANVAS_SIZE / 2;
     const center_y: u32 = _cse1;
     const radius: u32 = CANVAS_SIZE / 3;
     var i: u32 = 0;
     _ = &i;
-    while (i < node_count) {
-        const angle: u32 = (i * 360) / node_count;
+    while (i < count) {
+        const angle: u32 = (i * 360) / count;
         const x: u32 = center_x + ((radius * angle) / 360);
         const y: u32 = center_y + ((radius * angle) / 360);
-        const node_id: u32 = get_viz_node_id(nodes[i]);
-        const status: u32 = get_node_visual_status(nodes[i]);
-        nodes[i] = create_visual_node(node_id, x, y, status);
+        const node_id: u32 = get_viz_node_id(vnodes[i]);
+        const status: u32 = get_node_visual_status(vnodes[i]);
+        vnodes[i] = create_visual_node(node_id, x, y, status);
         i = i + 1;
     }
-    return node_count;
+    return count;
 }
-fn calculate_hierarchical_layout(nodes_arg: [MAX_NODES]u32, edges: [MAX_EDGES]u32, node_count: u32, edge_count: u32) u32 {
-    var nodes = nodes_arg;
+fn calculate_hierarchical_layout(nodes: [MAX_NODES]u32, edges: [MAX_EDGES]u32, node_count: u32, edge_count: u32) u32 {
     _ = edges; // unused by the spec body
     _ = edge_count; // unused by the spec body
+    var vnodes: [MAX_NODES]u32 = nodes;
+    _ = &vnodes;
+    var count: u32 = node_count;
+    _ = &count;
+    if (count > MAX_NODES) {
+        count = MAX_NODES;
+    }
     const level_count: u32 = 4;
     _ = level_count; // dead after const-inlining
-    const nodes_per_level: u32 = node_count / 4;
+    var nodes_per_level: u32 = count / 4;
+    _ = &nodes_per_level;
+    if (nodes_per_level == 0) {
+        nodes_per_level = 1;
+    }
     var i: u32 = 0;
     _ = &i;
     var current_level: u32 = 0;
     _ = &current_level;
     var nodes_in_level: u32 = 0;
     _ = &nodes_in_level;
-    while (i < node_count) {
+    while (i < count) {
         const y: u32 = (current_level * CANVAS_SIZE) / 4;
         const x: u32 = (nodes_in_level * CANVAS_SIZE) / nodes_per_level;
-        const node_id: u32 = get_viz_node_id(nodes[i]);
-        const status: u32 = get_node_visual_status(nodes[i]);
-        nodes[i] = create_visual_node(node_id, x, y, status);
+        const node_id: u32 = get_viz_node_id(vnodes[i]);
+        const status: u32 = get_node_visual_status(vnodes[i]);
+        vnodes[i] = create_visual_node(node_id, x, y, status);
         nodes_in_level = nodes_in_level + 1;
         if (nodes_in_level >= nodes_per_level) {
             nodes_in_level = 0;
@@ -204,7 +220,7 @@ fn calculate_hierarchical_layout(nodes_arg: [MAX_NODES]u32, edges: [MAX_EDGES]u3
         }
         i = i + 1;
     }
-    return node_count;
+    return count;
 }
 fn apply_layout(nodes: [MAX_NODES]u32, edges: [MAX_EDGES]u32, node_count: u32, edge_count: u32, params: u32) u32 {
     const algorithm: u32 = get_layout_algorithm(params);
@@ -321,4 +337,16 @@ test "visual_edge_roundtrip" {
     if (!(get_viz_edge_dest(e) == 5)) @panic("dest");
     if (!(get_viz_edge_quality(e) == 80)) @panic("quality");
     if (!(get_viz_edge_type(e) == 1)) @panic("type");
+}
+test "layouts_clamp_count_and_never_divide_by_zero" {
+    const nodes: [32]u32 = .{ 0 } ** 32;
+    const edges: [64]u32 = .{ 0 } ** 64;
+    if (!(calculate_circular_layout(nodes, 32) == 32)) @panic("circular full array");
+    if (!(calculate_circular_layout(nodes, 33) == 32)) @panic("circular 33 clamped");
+    if (!(calculate_circular_layout(nodes, 0) == 0)) @panic("circular empty");
+    if (!(calculate_hierarchical_layout(nodes, edges, 0, 0) == 0)) @panic("hierarchical empty");
+    if (!(calculate_hierarchical_layout(nodes, edges, 1, 0) == 1)) @panic("hierarchical 1");
+    if (!(calculate_hierarchical_layout(nodes, edges, 3, 0) == 3)) @panic("hierarchical 3");
+    if (!(calculate_hierarchical_layout(nodes, edges, 4, 0) == 4)) @panic("hierarchical 4");
+    if (!(calculate_hierarchical_layout(nodes, edges, 33, 0) == 32)) @panic("hierarchical 33 clamped");
 }

@@ -355,7 +355,10 @@ module api_documenter {
         // The old call passed func_docs ([u32; MAX_FUNCTIONS]) where a
         // [u32; MAX_PARAMETERS] belongs -- a type mismatch the C backend's
         // nominal array structs surfaced. No parameter docs exist here.
-        let empty_params: [u32; MAX_PARAMETERS] = [0; MAX_PARAMETERS];
+        // The repeat count is a literal: the pinned Rust emitter copies a
+        // u32 constant count verbatim, and rustc requires usize (#399).
+        // The declared [u32; MAX_PARAMETERS] type still fixes the length.
+        let empty_params: [u32; MAX_PARAMETERS] = [0; 16];
         let doc_summary: u32 = generate_api_documentation(func_docs, func_count, empty_params, 0);
         let documented_funcs: u32 = (doc_summary >> 24) & 0xFF;
         let coverage: u32 = calculate_documentation_coverage(documented_funcs, func_count);

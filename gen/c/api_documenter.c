@@ -337,7 +337,7 @@ uint32_t validate_documentation(t27_arr_uint32_t_64 func_docs, uint32_t func_cou
 }
 
 uint32_t generate_documentation_report(t27_arr_uint32_t_64 func_docs, uint32_t func_count, t27_arr_uint32_t_64 xrefs, uint32_t xref_count) {
-    t27_arr_uint32_t_16 empty_params = { .v = { [0 ... (MAX_PARAMETERS) - 1] = 0 } };
+    t27_arr_uint32_t_16 empty_params = { .v = { [0 ... (16) - 1] = 0 } };
     uint32_t doc_summary = generate_api_documentation(func_docs, func_count, empty_params, 0);
     uint32_t documented_funcs = ((doc_summary >> 24) & 0xFF);
     uint32_t coverage = calculate_documentation_coverage(documented_funcs, func_count);

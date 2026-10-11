@@ -79,16 +79,17 @@ fn get_config_value(config: [MAX_PARAMS]u32, param_id: u32) u32 {
     }
     return 0;
 }
-fn set_config_value(config_arg: [MAX_PARAMS]u32, param_id: u32, new_value: u32) u32 {
-    var config = config_arg;
+fn set_config_value(config: [MAX_PARAMS]u32, param_id: u32, new_value: u32) u32 {
+    var cfg: [MAX_PARAMS]u32 = config;
+    _ = &cfg;
     var i: u32 = 0;
     _ = &i;
     while (i < MAX_PARAMS) {
-        const current_param_id: u32 = get_param_id(config[i]);
+        const current_param_id: u32 = get_param_id(cfg[i]);
         if (current_param_id == param_id) {
-            const scope: u32 = get_param_scope(config[i]);
+            const scope: u32 = get_param_scope(cfg[i]);
             const status: u32 = STATUS_PENDING;
-            config[i] = create_config_param(param_id, new_value, scope, status);
+            cfg[i] = create_config_param(param_id, new_value, scope, status);
             return 1;
         }
         i = i + 1;
@@ -123,17 +124,18 @@ fn discover_network_params(node_count: u32, interference_level: u32) u32 {
     set_config_value(config, PARAM_HELLO_INTERVAL, hello_interval);
     return 1;
 }
-fn apply_config(config_arg: [MAX_PARAMS]u32, param_id: u32) u32 {
-    var config = config_arg;
+fn apply_config(config: [MAX_PARAMS]u32, param_id: u32) u32 {
+    var cfg: [MAX_PARAMS]u32 = config;
+    _ = &cfg;
     var i: u32 = 0;
     _ = &i;
     while (i < MAX_PARAMS) {
-        const current_param_id: u32 = get_param_id(config[i]);
+        const current_param_id: u32 = get_param_id(cfg[i]);
         if (current_param_id == param_id) {
-            const value: u32 = get_param_value(config[i]);
-            const scope: u32 = get_param_scope(config[i]);
+            const value: u32 = get_param_value(cfg[i]);
+            const scope: u32 = get_param_scope(cfg[i]);
             const success: u32 = 1;
-            config[i] = create_config_param(param_id, value, scope, STATUS_APPLIED);
+            cfg[i] = create_config_param(param_id, value, scope, STATUS_APPLIED);
             return success;
         }
         i = i + 1;
@@ -160,19 +162,19 @@ fn apply_all_pending(config: [MAX_PARAMS]u32) u32 {
 fn validate_config(config: [MAX_PARAMS]u32, param_id: u32) u32 {
     const value: u32 = get_config_value(config, param_id);
     if (param_id == PARAM_TX_POWER) {
-        if ((value >= 0) and (value <= 100)) {
+        if (value <= 100) {
             return 1;
         }
     } else if (param_id == PARAM_CHANNEL) {
-        if ((value >= 0) and (value <= 11)) {
+        if (value <= 11) {
             return 1;
         }
     } else if (param_id == PARAM_DATA_RATE) {
-        if ((value >= 0) and (value <= 3)) {
+        if (value <= 3) {
             return 1;
         }
     } else if (param_id == PARAM_RETRY_LIMIT) {
-        if ((value >= 0) and (value <= 7)) {
+        if (value <= 7) {
             return 1;
         }
     } else if (param_id == PARAM_HELLO_INTERVAL) {
@@ -188,7 +190,7 @@ fn validate_config(config: [MAX_PARAMS]u32, param_id: u32) u32 {
             return 1;
         }
     } else if (param_id == PARAM_SECURITY_LEVEL) {
-        if ((value >= 0) and (value <= 3)) {
+        if (value <= 3) {
             return 1;
         }
     }
@@ -251,8 +253,9 @@ break;
     }
     return synced_count;
 }
-fn rollback_config(config_arg: [MAX_PARAMS]u32, backup_config: [MAX_PARAMS]u32) u32 {
-    var config = config_arg;
+fn rollback_config(config: [MAX_PARAMS]u32, backup_config: [MAX_PARAMS]u32) u32 {
+    var cfg: [MAX_PARAMS]u32 = config;
+    _ = &cfg;
     var rolled_back: u32 = 0;
     _ = &rolled_back;
     var i: u32 = 0;
@@ -264,9 +267,9 @@ fn rollback_config(config_arg: [MAX_PARAMS]u32, backup_config: [MAX_PARAMS]u32) 
         var j: u32 = 0;
         _ = &j;
         while (j < MAX_PARAMS) {
-            const local_param_id: u32 = get_param_id(config[j]);
+            const local_param_id: u32 = get_param_id(cfg[j]);
             if (local_param_id == backup_param_id) {
-                config[j] = create_config_param(backup_param_id, backup_value, backup_scope, STATUS_PENDING);
+                cfg[j] = create_config_param(backup_param_id, backup_value, backup_scope, STATUS_PENDING);
                 rolled_back = rolled_back + 1;
 break;
             }
@@ -349,7 +352,8 @@ test "default_table_values_survive" {
     if (!(get_param_value(default_config_at(0)) == 50)) @panic("tx power");
 }
 test "config_lookup_finds_param" {
-    const cfg: [16]u32 = .{ default_config_at(0), default_config_at(1), default_config_at(2), default_config_at(3), default_config_at(4), default_config_at(5), default_config_at(6), default_config_at(7), 0, 0, 0, 0, 0, 0, 0, 0 };
+    var cfg: [16]u32 = .{ default_config_at(0), default_config_at(1), default_config_at(2), default_config_at(3), default_config_at(4), default_config_at(5), default_config_at(6), default_config_at(7), 0, 0, 0, 0, 0, 0, 0, 0 };
+    _ = &cfg;
     if (!(get_config_value(cfg, PARAM_RETRY_LIMIT) == 3)) @panic("retry limit found");
     if (!(get_config_value(cfg, 99) == 0)) @panic("unknown param yields 0");
 }
