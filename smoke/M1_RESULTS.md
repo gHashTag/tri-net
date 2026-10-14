@@ -26,7 +26,7 @@ RC=0
 The X25519 handshake + ChaCha20-Poly1305 AEAD + replay rejection execute on the real dual-Cortex-A9 flying node. M1 is now **hw**. (The binary's own "PASS (-sim)" string is stale build-time text — this run *is* the hardware graduation.)
 
 ### On-device run (2026-07-04) — **hw** ✅ (board-1, second datapoint)
-Re-cut static `armv7-unknown-linux-musleabihf` binary, sha256 `a17e88e6…`, built with rustup-stable + `-C linker=rust-lld` (the Homebrew `rust` toolchain was replaced to unbreak cross-compile). Password on all three P201Mini units is `analog` (PlutoSDR default). Board-1 executed the same M1 smoke with RC=0 on the real dual-A9. Boards 2/3 were physically present and logged in but blocked from parallel execution by an identical-image IP/hostname collision — see [`../docs/SERIAL_NET_FIX.md`](../docs/SERIAL_NET_FIX.md) and `LOCAL_FLASH.md` §0.5/§1.4. Full per-board fact sheet: [`M1_BOARD1_2026-07-04.md`](M1_BOARD1_2026-07-04.md).
+Re-cut static `armv7-unknown-linux-musleabihf` binary, sha256 `a17e88e6…`, built with rustup-stable + `-C linker=rust-lld` (the Homebrew `rust` toolchain was replaced to unbreak cross-compile). Password on all three P201Mini units is the vendor default (PlutoSDR default), not published here; change it on each board. Board-1 executed the same M1 smoke with RC=0 on the real dual-A9. Boards 2/3 were physically present and logged in but blocked from parallel execution by an identical-image IP/hostname collision — see [`../docs/SERIAL_NET_FIX.md`](../docs/SERIAL_NET_FIX.md) and `LOCAL_FLASH.md` §0.5/§1.4. Full per-board fact sheet: [`M1_BOARD1_2026-07-04.md`](M1_BOARD1_2026-07-04.md).
 
 ### Host run (2026-07-01) — `-sim`
 ```
