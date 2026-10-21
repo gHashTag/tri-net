@@ -802,8 +802,8 @@ final class InternetCallAPI {
         request.setValue(proof.timestamp, forHTTPHeaderField: "X-TRINET-Timestamp")
         request.setValue(proof.nonce, forHTTPHeaderField: "X-TRINET-Nonce")
         request.setValue(proof.signature, forHTTPHeaderField: "X-TRINET-Signature")
-        if !configuration.accessToken.isEmpty {
-            request.setValue("Bearer \(configuration.accessToken)", forHTTPHeaderField: "Authorization")
+        if let authorization = configuration.authorizationHeader {
+            request.setValue(authorization, forHTTPHeaderField: "Authorization")
         }
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw InternetCallError.invalidResponse }
@@ -874,12 +874,19 @@ final class AccountDeviceController: ObservableObject {
         api = InternetCallAPI(configuration: configuration)
     }
 
+    /// Bumped by `update`; a result that arrives for an older generation
+    /// (for example from a server the user has since replaced) is dropped
+    /// before it can adopt an account or change any state (#415).
+    private var generation = 0
+
     func update(identity: DeviceIdentity, configuration: InternetCallConfiguration) {
+        generation += 1
         self.identity = identity
         self.configuration = configuration
         accountID = identity.userID
         nickname = identity.nickname
         api = InternetCallAPI(configuration: configuration)
+        isWorking = false
     }
 
     func sync() {
@@ -900,15 +907,18 @@ final class AccountDeviceController: ObservableObject {
         statusMessage = nil
         let identity = self.identity
         let api = self.api
+        let started = generation
         Task { @MainActor in
             do {
                 try await api.register(identity: identity,
                                        voipToken: UserDefaults.standard.string(forKey: "voipPushToken"))
                 let result = try await api.createLinkCode(identity: identity)
+                guard started == generation else { return }
                 generatedLinkCode = result.linkCode
                 linkCodeExpiresAt = Date(timeIntervalSince1970: TimeInterval(result.expiresAt))
                 statusMessage = "Use this single-use code on the new device within 10 minutes."
             } catch {
+                guard started == generation else { return }
                 statusMessage = error.localizedDescription
             }
             isWorking = false
@@ -929,15 +939,18 @@ final class AccountDeviceController: ObservableObject {
         statusMessage = nil
         let identity = self.identity
         let api = self.api
+        let started = generation
         Task { @MainActor in
             do {
                 try await api.register(identity: identity,
                                        voipToken: UserDefaults.standard.string(forKey: "voipPushToken"))
                 let snapshot = try await api.linkDevice(code: code, identity: identity)
+                guard started == generation else { return }
                 try apply(snapshot)
                 linkCodeInput = ""
                 statusMessage = "This device now belongs to @\(snapshot.nickname ?? "your account")."
             } catch {
+                guard started == generation else { return }
                 statusMessage = error.localizedDescription
             }
             isWorking = false
@@ -953,13 +966,16 @@ final class AccountDeviceController: ObservableObject {
         statusMessage = nil
         let identity = self.identity
         let api = self.api
+        let started = generation
         Task { @MainActor in
             do {
                 try await api.revokeDevice(device.deviceID, identity: identity)
                 let snapshot = try await api.account(identity: identity)
+                guard started == generation else { return }
                 try apply(snapshot)
                 statusMessage = "\(device.displayName) was revoked."
             } catch {
+                guard started == generation else { return }
                 statusMessage = error.localizedDescription
             }
             isWorking = false
@@ -970,11 +986,15 @@ final class AccountDeviceController: ObservableObject {
         isWorking = true
         let identity = self.identity
         let api = self.api
+        let started = generation
         Task { @MainActor in
             do {
-                try apply(try await operation(identity, api))
+                let snapshot = try await operation(identity, api)
+                guard started == generation else { return }
+                try apply(snapshot)
                 statusMessage = nil
             } catch {
+                guard started == generation else { return }
                 statusMessage = error.localizedDescription
             }
             isWorking = false

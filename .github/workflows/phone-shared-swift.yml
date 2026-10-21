@@ -1,0 +1,20 @@
+name: phone shared Swift
+on:
+  push:
+    branches: [main]
+    paths: ['phone/shared/**', '.github/workflows/phone-shared-swift.yml']
+  pull_request:
+    paths: ['phone/shared/**', '.github/workflows/phone-shared-swift.yml']
+
+jobs:
+  token-scope:
+    name: service token scope (load/save/Authorization)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile CallIdentity.swift with the regression test
+        run: |
+          swiftc -swift-version 5 phone/shared/CallIdentity.swift \
+            phone/shared/tests/token_scope/main.swift -o "$RUNNER_TEMP/token_scope"
+      - name: Run
+        run: '"$RUNNER_TEMP/token_scope"'

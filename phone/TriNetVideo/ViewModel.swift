@@ -1437,6 +1437,9 @@ class StreamViewModel: ObservableObject {
 
     func saveInternetSettings() {
         internetConfiguration.save()
+        // Reload: the saved token is scoped to its origin, so an address-only
+        // edit must not keep sending the previous server's token (#415).
+        internetConfiguration = InternetCallConfiguration.load()
         internet.update(identity: identity, configuration: internetConfiguration)
         directory.update(identity: identity, configuration: internetConfiguration)
         account.update(identity: identity, configuration: internetConfiguration)

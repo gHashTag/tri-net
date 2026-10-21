@@ -144,6 +144,32 @@ struct NicknameSearchResponse: Decodable {
     fileprivate let results: [InternetDirectoryContact]
 }
 
+extension InternetCallAPI {
+    /// Internet-only exact lookup for apps that embed the calling code
+    /// without the mesh directory (TriOS on macOS, #415): no Bonjour browse,
+    /// no LAN publish, no UDP signalling. Only contacts whose normalized
+    /// nickname equals the normalized query are returned.
+    func internetContacts(exactNickname query: String,
+                          identity: DeviceIdentity) async throws -> [DirectoryContact] {
+        let normalized = NicknamePolicy.normalize(query)
+        guard !normalized.isEmpty else { return [] }
+        return try await searchNicknames(normalized, identity: identity).results
+            .filter { NicknamePolicy.normalize($0.nickname) == normalized }
+            .map {
+                DirectoryContact(userID: $0.userID,
+                                 deviceID: $0.deviceID,
+                                 nickname: $0.nickname,
+                                 displayName: DeviceDisplayNamePolicy.safe($0.displayName ?? "",
+                                                                           fallback: "@\($0.nickname)"),
+                                 keyFingerprint: $0.keyFingerprint,
+                                 source: .internet,
+                                 online: $0.online,
+                                 meshAddress: nil,
+                                 meshPort: nil)
+            }
+    }
+}
+
 enum DirectorySource: String, Codable {
     case mesh = "LOCAL"
     case internet = "INTERNET"
