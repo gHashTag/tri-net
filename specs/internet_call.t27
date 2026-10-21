@@ -47,6 +47,14 @@ module InternetCall {
     const APNS_OUTBOX_RETRY_BASE_SECONDS: u32 = 2;
     const APNS_OUTBOX_RETRY_MAX_SECONDS: u32 = 300;
     const APNS_OUTBOX_RETRY_MAX_JITTER_SECONDS: u32 = 5;
+    // LiveKit room cleanup is a durable intent written in the same SQLite
+    // transaction that commits a terminal call state (#413). One DeleteRoom
+    // request per claim; a failure returns to storage with capped backoff.
+    const LIVEKIT_CLEANUP_RETRY_BASE_SECONDS: u32 = 2;
+    const LIVEKIT_CLEANUP_RETRY_MAX_SECONDS: u32 = 300;
+    const LIVEKIT_CLEANUP_RETRY_MAX_JITTER_SECONDS: u32 = 5;
+    const LIVEKIT_CLEANUP_CLAIM_LEASE_SECONDS: u32 = 60;
+    const LIVEKIT_CLEANUP_HTTP_ATTEMPTS_PER_CLAIM: u32 = 1;
 
     // A routable device must have stable opaque identifiers and a public key.
     // Display names and IP addresses are deliberately excluded from identity.
@@ -461,6 +469,108 @@ module InternetCall {
         return terminal_state_committed && call_is_terminal(status);
     }
 
+    // A terminal call with an assigned room gets a cleanup intent in the same
+    // transaction, whatever made it terminal: end, cancel, the last decline,
+    // ring expiry or device revocation (#413).
+    fn livekit_cleanup_should_enqueue(status: u8, room_assigned: bool) -> bool {
+        return room_assigned == true && call_is_terminal(status) == true;
+    }
+
+    // 2xx, or a Twirp not_found for a room that is already gone, completes
+    // the intent. Any other 404 is not proof that the room is gone.
+    fn livekit_cleanup_is_complete(http_status: u32, room_not_found: bool) -> bool {
+        if (http_status >= 200 && http_status < 300) {
+            return true;
+        }
+        return http_status == 404 && room_not_found == true;
+    }
+
+    // Transport failures, 429 and 5xx are retried with backoff. Any other
+    // status is a configuration problem: the intent stays durable but is
+    // blocked for this process generation.
+    fn livekit_cleanup_failure_is_transient(transport_failure: bool, http_status: u32) -> bool {
+        if (transport_failure == true) {
+            return true;
+        }
+        return http_status == 429 || http_status >= 500;
+    }
+
+    fn livekit_cleanup_bounded_jitter_seconds(jitter_seconds: u32) -> u32 {
+        if (jitter_seconds > LIVEKIT_CLEANUP_RETRY_MAX_JITTER_SECONDS) {
+            return LIVEKIT_CLEANUP_RETRY_MAX_JITTER_SECONDS;
+        }
+        return jitter_seconds;
+    }
+
+    fn livekit_cleanup_retry_delay_seconds(attempts_completed: u32, jitter_seconds: u32) -> u32 {
+        let jitter: u32 = livekit_cleanup_bounded_jitter_seconds(jitter_seconds);
+        if (attempts_completed <= 1) {
+            return LIVEKIT_CLEANUP_RETRY_BASE_SECONDS + jitter;
+        }
+        if (attempts_completed == 2) {
+            return 4 + jitter;
+        }
+        if (attempts_completed == 3) {
+            return 8 + jitter;
+        }
+        if (attempts_completed == 4) {
+            return 16 + jitter;
+        }
+        if (attempts_completed == 5) {
+            return 32 + jitter;
+        }
+        if (attempts_completed == 6) {
+            return 64 + jitter;
+        }
+        if (attempts_completed == 7) {
+            return 128 + jitter;
+        }
+        return LIVEKIT_CLEANUP_RETRY_MAX_SECONDS;
+    }
+
+    // A restarted process owns nothing from the previous generation and
+    // reclaims at once; the lease only recovers a stuck in-process worker.
+    fn livekit_cleanup_claim_is_recoverable(same_process_owner: bool, claimed_at: u32, now: u32) -> bool {
+        if (same_process_owner == false) {
+            return true;
+        }
+        if (now < claimed_at) {
+            return false;
+        }
+        return (now - claimed_at) >= LIVEKIT_CLEANUP_CLAIM_LEASE_SECONDS;
+    }
+
+    fn livekit_cleanup_block_is_recoverable(same_process_owner: bool) -> bool {
+        return same_process_owner == false;
+    }
+
+    // A revoked device can no longer authenticate, so the server converges
+    // every live call it takes part in for the remaining participant (#413).
+    fn revoked_device_participates(call_status: u8, device_is_caller: bool, device_is_answerer: bool, device_is_ringing_target: bool) -> bool {
+        if (call_status == CALL_ACTIVE) {
+            return device_is_caller == true || device_is_answerer == true;
+        }
+        if (call_status == CALL_RINGING) {
+            return device_is_caller == true || device_is_ringing_target == true;
+        }
+        return false;
+    }
+
+    // remaining_ringing_targets counts the targets still ringing after the
+    // revoked device was removed.
+    fn status_after_device_revocation(call_status: u8, device_is_caller: bool, device_is_answerer: bool, remaining_ringing_targets: u16) -> u8 {
+        if (call_status == CALL_ACTIVE && (device_is_caller == true || device_is_answerer == true)) {
+            return CALL_ENDED;
+        }
+        if (call_status == CALL_RINGING && device_is_caller == true) {
+            return CALL_CANCELLED;
+        }
+        if (call_status == CALL_RINGING) {
+            return status_after_decline(call_status, remaining_ringing_targets);
+        }
+        return call_status;
+    }
+
     fn terminal_response_is_allowed(terminal_state_committed: bool, cleanup_succeeded: bool) -> bool {
         if (cleanup_succeeded) {
             return terminal_state_committed;
@@ -751,6 +861,44 @@ module InternetCall {
         assert(terminal_response_is_allowed(false, true) == false, "cleanup cannot replace commit");
     }
 
+    test livekit_cleanup_is_durable_and_bounded {
+        assert(livekit_cleanup_should_enqueue(CALL_ENDED, true) == true, "ended room enqueued");
+        assert(livekit_cleanup_should_enqueue(CALL_DECLINED, true) == true, "declined room enqueued");
+        assert(livekit_cleanup_should_enqueue(CALL_MISSED, true) == true, "missed room enqueued");
+        assert(livekit_cleanup_should_enqueue(CALL_ACTIVE, true) == false, "active room kept");
+        assert(livekit_cleanup_should_enqueue(CALL_ENDED, false) == false, "no room no intent");
+        assert(livekit_cleanup_is_complete(200, false) == true, "deleted");
+        assert(livekit_cleanup_is_complete(404, true) == true, "already gone");
+        assert(livekit_cleanup_is_complete(404, false) == false, "bare 404 is not proof");
+        assert(livekit_cleanup_is_complete(503, false) == false, "unavailable");
+        assert(livekit_cleanup_failure_is_transient(true, 0) == true, "transport retried");
+        assert(livekit_cleanup_failure_is_transient(false, 503) == true, "5xx retried");
+        assert(livekit_cleanup_failure_is_transient(false, 429) == true, "429 retried");
+        assert(livekit_cleanup_failure_is_transient(false, 401) == false, "auth blocks");
+        assert(livekit_cleanup_retry_delay_seconds(1, 0) == 2, "first retry");
+        assert(livekit_cleanup_retry_delay_seconds(3, 0) == 8, "third retry");
+        assert(livekit_cleanup_retry_delay_seconds(1000, 99) == LIVEKIT_CLEANUP_RETRY_MAX_SECONDS, "capped");
+        assert(livekit_cleanup_claim_is_recoverable(false, 100, 100) == true, "restart reclaims");
+        assert(livekit_cleanup_claim_is_recoverable(true, 100, 120) == false, "lease held");
+        assert(livekit_cleanup_claim_is_recoverable(true, 100, 160) == true, "stuck worker recovered");
+        assert(livekit_cleanup_block_is_recoverable(true) == false, "no spin in process");
+        assert(livekit_cleanup_block_is_recoverable(false) == true, "restart retries once");
+    }
+
+    test device_revocation_ends_its_calls {
+        assert(revoked_device_participates(CALL_ACTIVE, false, true, false) == true, "answerer");
+        assert(revoked_device_participates(CALL_ACTIVE, true, false, false) == true, "caller");
+        assert(revoked_device_participates(CALL_ACTIVE, false, false, true) == false, "unanswered target of active call");
+        assert(revoked_device_participates(CALL_RINGING, false, false, true) == true, "ringing target");
+        assert(revoked_device_participates(CALL_ENDED, true, false, false) == false, "terminal untouched");
+        assert(status_after_device_revocation(CALL_ACTIVE, false, true, 0) == CALL_ENDED, "answerer revoked");
+        assert(status_after_device_revocation(CALL_ACTIVE, true, false, 0) == CALL_ENDED, "caller revoked");
+        assert(status_after_device_revocation(CALL_RINGING, true, false, 1) == CALL_CANCELLED, "caller revoked while ringing");
+        assert(status_after_device_revocation(CALL_RINGING, false, false, 1) == CALL_RINGING, "another target still rings");
+        assert(status_after_device_revocation(CALL_RINGING, false, false, 0) == CALL_DECLINED, "last target revoked");
+        assert(livekit_cleanup_should_enqueue(status_after_device_revocation(CALL_ACTIVE, false, true, 0), true) == true, "revocation revokes media");
+    }
+
     test create_retry_requires_identical_intent {
         assert(create_retry_matches(true, true, true) == true, "same request");
         assert(create_retry_matches(false, true, true) == false, "different callee");
@@ -834,6 +982,18 @@ module InternetCall {
     invariant livekit_cleanup_failure_never_rolls_back_terminal_state
         assert terminal_response_is_allowed(true, false) == true
 
+    invariant livekit_cleanup_retry_delay_is_bounded
+        assert livekit_cleanup_retry_delay_seconds(1000, LIVEKIT_CLEANUP_RETRY_MAX_JITTER_SECONDS) <= LIVEKIT_CLEANUP_RETRY_MAX_SECONDS
+
+    invariant livekit_cleanup_new_process_reclaims
+        assert livekit_cleanup_claim_is_recoverable(false, 100, 100) == true
+
+    invariant livekit_cleanup_one_request_per_claim
+        assert LIVEKIT_CLEANUP_HTTP_ATTEMPTS_PER_CLAIM == 1
+
+    invariant revoked_answerer_never_keeps_active_call
+        assert status_after_device_revocation(CALL_ACTIVE, false, true, 0) == CALL_ENDED
+
     invariant first_answer_wins_over_late_decline
         assert status_after_decline(CALL_ACTIVE, 0) == CALL_ACTIVE
 
@@ -861,9 +1021,10 @@ module InternetCall {
     invariant apns_voip_outbox_has_bounded_parallel_delivery
         assert APNS_VOIP_OUTBOX_WORKERS > 1 && APNS_VOIP_OUTBOX_WORKERS <= 16
 
+    // Stated at its boundaries: the parser has no `forall` clause and used to
+    // discard this invariant's body (19 tokens, t27c parse-complete).
     invariant voip_admission_never_exceeds_worker_capacity
-        forall pending_voip_events: u32
-        assert new_call_admission_is_allowed(0, 0, pending_voip_events, APNS_VOIP_OUTBOX_WORKERS + 1, true) == false
+        assert new_call_admission_is_allowed(0, 0, 0, APNS_VOIP_OUTBOX_WORKERS + 1, true) == false && new_call_admission_is_allowed(0, 0, APNS_VOIP_OUTBOX_WORKERS, 1, true) == false && new_call_admission_is_allowed(0, 0, APNS_VOIP_OUTBOX_WORKERS + 1, 0, true) == false && new_call_admission_is_allowed(0, 0, 0, APNS_VOIP_OUTBOX_WORKERS, true) == true
 
     invariant idempotent_call_retry_never_enqueues_another_voip_event
         assert voip_outbox_event_may_enqueue(CALL_RINGING, true, true, false) == false

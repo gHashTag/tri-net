@@ -22,3 +22,13 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo build --verbose
       - run: cargo test --verbose
+
+  # services/call-api is its own Cargo package (not in the root workspace), so
+  # the job above never built or tested it (#413).
+  call-api:
+    name: call-api tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.96.0
+      - run: cargo test --manifest-path services/call-api/Cargo.toml --locked

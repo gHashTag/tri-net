@@ -55,6 +55,8 @@ const APNS_OUTBOX_DIRECT_MESSAGE: &str = "direct_message";
 const APNS_OUTBOX_IDLE_POLL_MS: u64 = 250;
 const APNS_OUTBOX_ERROR_POLL_MS: u64 = 1_000;
 const LIVEKIT_TWIRP_ERROR_MAX_BYTES: usize = 1_024;
+const LIVEKIT_CLEANUP_IDLE_POLL_MS: u64 = 500;
+const LIVEKIT_CLEANUP_ERROR_POLL_MS: u64 = 1_000;
 
 #[derive(Clone)]
 struct AppState {
@@ -1423,6 +1425,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         apns_outbox_owner: Uuid::new_v4().to_string(),
     };
 
+    // Room cleanup is independent of APNs: every terminal call with a room
+    // gets a durable DeleteRoom intent (#413).
+    tokio::spawn(run_livekit_cleanup_worker(state.clone()));
+
     if state.configuration.apns.is_some() {
         for _ in 0..internet_call::APNS_VOIP_OUTBOX_WORKERS {
             tokio::spawn(run_apns_outbox_worker(
@@ -1653,7 +1659,21 @@ fn initialize_database(connection: &Connection) -> rusqlite::Result<()> {
              UNIQUE(event_kind, object_id, target_device_id)
          );
          CREATE INDEX IF NOT EXISTS apns_outbox_due
-             ON apns_outbox(next_attempt_at, claimed_at, created_at);",
+             ON apns_outbox(next_attempt_at, claimed_at, created_at);
+         CREATE TABLE IF NOT EXISTS livekit_cleanup_outbox (
+             room_id TEXT PRIMARY KEY,
+             call_id TEXT NOT NULL,
+             attempts INTEGER NOT NULL DEFAULT 0,
+             next_attempt_at INTEGER NOT NULL,
+             claimed_at INTEGER,
+             claim_owner TEXT,
+             blocked_owner TEXT,
+             last_status INTEGER,
+             last_error TEXT,
+             created_at INTEGER NOT NULL
+         );
+         CREATE INDEX IF NOT EXISTS livekit_cleanup_due
+             ON livekit_cleanup_outbox(next_attempt_at, created_at);",
     )?;
     ensure_column(connection, "apns_outbox", "claim_owner", "TEXT")?;
     ensure_column(connection, "apns_outbox", "blocked_owner", "TEXT")?;
@@ -2811,8 +2831,130 @@ async fn revoke_device(
          WHERE device_id = ?2 AND revoked_at IS NULL",
         params![now, target_device_id],
     )?;
+    converge_calls_after_device_revocation(&transaction, &target_device_id, now)?;
     transaction.commit()?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// `authenticate` checks membership under its own lock, so a revocation can
+/// commit before a handler opens its mutation transaction. Paths that admit a
+/// call or return a media session recheck the exact device, account and key
+/// inside their transaction (#413).
+fn require_device_still_active(
+    transaction: &rusqlite::Transaction<'_>,
+    auth: &AuthenticatedDevice,
+) -> Result<(), ApiError> {
+    let active = transaction.query_row(
+        "SELECT EXISTS(SELECT 1 FROM devices
+                       WHERE device_id = ?1 AND user_id = ?2
+                         AND signing_public_key = ?3 AND key_fingerprint = ?4
+                         AND revoked_at IS NULL)",
+        params![
+            auth.device_id,
+            auth.user_id,
+            auth.signing_public_key,
+            auth.key_fingerprint
+        ],
+        |row| row.get::<_, bool>(0),
+    )?;
+    if !active {
+        return Err(ApiError::forbidden("device membership is revoked"));
+    }
+    Ok(())
+}
+
+/// A revoked device can no longer authenticate, so every live call it takes
+/// part in is converged here, in the revocation transaction, and its room gets
+/// a durable cleanup intent (#413, `status_after_device_revocation`).
+fn converge_calls_after_device_revocation(
+    transaction: &rusqlite::Transaction<'_>,
+    device_id: &str,
+    now: i64,
+) -> Result<(), ApiError> {
+    let calls = {
+        let mut statement = transaction.prepare(
+            "SELECT c.call_id, c.room_id, c.status, c.caller_device_id, c.answered_device_id,
+                    EXISTS(SELECT 1 FROM call_targets t
+                           WHERE t.call_id = c.call_id AND t.device_id = ?1 AND t.state = ?2)
+             FROM calls c
+             WHERE c.status IN (?2, ?3)
+               AND (c.caller_device_id = ?1
+                    OR c.answered_device_id = ?1
+                    OR c.call_id IN (SELECT call_id FROM call_targets
+                                     WHERE device_id = ?1 AND state = ?2))",
+        )?;
+        let rows = statement.query_map(
+            params![
+                device_id,
+                internet_call::CALL_RINGING,
+                internet_call::CALL_ACTIVE
+            ],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, u8>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                    row.get::<_, bool>(5)?,
+                ))
+            },
+        )?;
+        let collected = rows.collect::<Result<Vec<_>, _>>()?;
+        collected
+    };
+    for (call_id, room_id, status, caller_device_id, answered_device_id, is_ringing_target) in calls
+    {
+        let is_caller = caller_device_id == device_id;
+        let is_answerer = answered_device_id.as_deref() == Some(device_id);
+        if !internet_call::revoked_device_participates(
+            status,
+            is_caller,
+            is_answerer,
+            is_ringing_target,
+        ) {
+            continue;
+        }
+        if is_ringing_target {
+            transaction.execute(
+                "UPDATE call_targets SET state = ?1 WHERE call_id = ?2 AND device_id = ?3",
+                params![internet_call::CALL_ENDED, call_id, device_id],
+            )?;
+        }
+        let remaining = transaction.query_row(
+            "SELECT COUNT(*) FROM call_targets WHERE call_id = ?1 AND state = ?2",
+            params![call_id, internet_call::CALL_RINGING],
+            |row| row.get::<_, u16>(0),
+        )?;
+        let next_status = internet_call::status_after_device_revocation(
+            status,
+            is_caller,
+            is_answerer,
+            remaining,
+        );
+        if next_status == status {
+            continue;
+        }
+        let updated = transaction.execute(
+            "UPDATE calls SET status = ?1, ended_at = ?2 WHERE call_id = ?3 AND status = ?4",
+            params![next_status, now, call_id, status],
+        )?;
+        if updated != 1 {
+            return Err(ApiError::conflict(
+                "call state changed during device revocation",
+            ));
+        }
+        transaction.execute(
+            "UPDATE call_targets SET state = ?1 WHERE call_id = ?2 AND state = ?3",
+            params![
+                internet_call::CALL_ENDED,
+                call_id,
+                internet_call::CALL_RINGING
+            ],
+        )?;
+        enqueue_livekit_cleanup(transaction, &room_id, &call_id, next_status, now)?;
+    }
+    Ok(())
 }
 
 fn load_account_snapshot(
@@ -3023,7 +3165,17 @@ async fn create_call(
 ) -> Result<Response, ApiError> {
     let request: CreateCallRequest = decode_json(&body)?;
     let auth = authenticate(&state, &headers, "POST", "/v1/calls", &body, None)?;
-    require_identity(&auth, &request.caller_user_id, &request.caller_device_id)?;
+    admit_call(&state, &auth, &request)
+}
+
+/// Call admission after `authenticate`. `authenticate` releases its lock
+/// before this runs, so the transaction below rechecks the device (#413).
+fn admit_call(
+    state: &AppState,
+    auth: &AuthenticatedDevice,
+    request: &CreateCallRequest,
+) -> Result<Response, ApiError> {
+    require_identity(auth, &request.caller_user_id, &request.caller_device_id)?;
     if !internet_call::call_media_request_is_valid(request.audio, request.video, auth.capabilities)
     {
         return Err(ApiError::bad_request(
@@ -3038,6 +3190,7 @@ async fn create_call(
 
     let mut database = lock_database(&state)?;
     let transaction = database.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    require_device_still_active(&transaction, &auth)?;
     let caller_name = transaction
         .query_row(
             "SELECT nickname FROM nicknames WHERE user_id = ?1",
@@ -3360,6 +3513,7 @@ async fn join_call(
     require_identity(&auth, &request.user_id, &request.device_id)?;
     let mut database = lock_database(&state)?;
     let transaction = database.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    require_device_still_active(&transaction, &auth)?;
     let call = transaction
         .query_row(
             "SELECT c.room_id, c.callee_user_id, t.device_id, c.status,
@@ -3543,6 +3697,7 @@ async fn decline_call(
             )?;
             record.status = next_status;
             record.ended_at = Some(now);
+            enqueue_livekit_cleanup(&transaction, &record.room_id, &call_id, next_status, now)?;
         }
         record.target_status = Some(internet_call::CALL_DECLINED);
     } else if !may_decline && record.status == internet_call::CALL_RINGING {
@@ -3659,13 +3814,17 @@ async fn end_call(
         }
     }
     let response = call_status_response(&call_id, &record, &auth);
-    let cleanup_room_id = record.room_id.clone();
-    let should_cleanup = internet_call::livekit_room_cleanup_should_start(record.status, true);
+    // Same transaction as the terminal state: the intent cannot be lost
+    // between commit and the DeleteRoom request (#413). An idempotent retry
+    // re-arms an intent that already completed; LiveKit answers not_found.
+    enqueue_livekit_cleanup(
+        &transaction,
+        &record.room_id,
+        &call_id,
+        record.status,
+        unix_time(),
+    )?;
     transaction.commit()?;
-    drop(database);
-    if should_cleanup {
-        schedule_livekit_room_cleanup(state.configuration.clone(), cleanup_room_id);
-    }
     Ok(Json(response))
 }
 
@@ -3727,13 +3886,8 @@ async fn cancel_call(
             params![internet_call::CALL_ENDED, call_id],
         )?;
     }
-    let cleanup_room_id = call.3.clone();
-    let should_cleanup = internet_call::livekit_room_cleanup_should_start(next_status, true);
+    enqueue_livekit_cleanup(&transaction, &call.3, &call_id, next_status, unix_time())?;
     transaction.commit()?;
-    drop(database);
-    if should_cleanup {
-        schedule_livekit_room_cleanup(state.configuration.clone(), cleanup_room_id);
-    }
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -3807,6 +3961,7 @@ fn refresh_expired_call(
     }
     record.status = next_status;
     record.ended_at = Some(now);
+    enqueue_livekit_cleanup(transaction, &record.room_id, call_id, next_status, now)?;
     Ok(())
 }
 
@@ -3836,6 +3991,18 @@ fn expire_ringing_call(
             call_id,
             internet_call::CALL_RINGING
         ],
+    )?;
+    let room_id = transaction.query_row(
+        "SELECT room_id FROM calls WHERE call_id = ?1",
+        params![call_id],
+        |row| row.get::<_, String>(0),
+    )?;
+    enqueue_livekit_cleanup(
+        transaction,
+        &room_id,
+        call_id,
+        internet_call::CALL_MISSED,
+        now,
     )?;
     Ok(())
 }
@@ -5440,62 +5607,363 @@ fn livekit_delete_room_endpoint(livekit_url: &str) -> Result<reqwest::Url, &'sta
     Ok(endpoint)
 }
 
-async fn delete_livekit_room(
+/// One DeleteRoom request and what it says about the cleanup intent (#413).
+struct LiveKitDeleteRoomAttempt {
+    /// HTTP status, or 0 when no response arrived.
+    http_status: u32,
+    transport_failure: bool,
+    /// A structured Twirp `not_found`: the room is already gone.
+    room_not_found: bool,
+    error: Option<&'static str>,
+}
+
+impl LiveKitDeleteRoomAttempt {
+    fn failed(error: &'static str, transport_failure: bool, http_status: u32) -> Self {
+        Self {
+            http_status,
+            transport_failure,
+            room_not_found: false,
+            error: Some(error),
+        }
+    }
+
+    fn is_complete(&self) -> bool {
+        internet_call::livekit_cleanup_is_complete(self.http_status, self.room_not_found)
+    }
+
+    fn is_transient(&self) -> bool {
+        internet_call::livekit_cleanup_failure_is_transient(
+            self.transport_failure,
+            self.http_status,
+        )
+    }
+}
+
+async fn attempt_livekit_room_delete(
     configuration: &Configuration,
     room_id: &str,
-) -> Result<(), &'static str> {
-    let endpoint = livekit_delete_room_endpoint(&configuration.livekit_url)?;
-    let token = livekit_room_service_token(configuration)
-        .map_err(|_| "could not sign LiveKit RoomService token")?;
-    let client = reqwest::Client::builder()
+) -> LiveKitDeleteRoomAttempt {
+    let endpoint = match livekit_delete_room_endpoint(&configuration.livekit_url) {
+        Ok(endpoint) => endpoint,
+        Err(error) => return LiveKitDeleteRoomAttempt::failed(error, false, 0),
+    };
+    let Ok(token) = livekit_room_service_token(configuration) else {
+        return LiveKitDeleteRoomAttempt::failed(
+            "could not sign LiveKit RoomService token",
+            false,
+            0,
+        );
+    };
+    let Ok(client) = reqwest::Client::builder()
         .timeout(Duration::from_secs(5))
         .build()
-        .map_err(|_| "could not initialize LiveKit RoomService client")?;
-    let response = client
+    else {
+        return LiveKitDeleteRoomAttempt::failed(
+            "could not initialize LiveKit RoomService client",
+            false,
+            0,
+        );
+    };
+    let response = match client
         .post(endpoint)
         .bearer_auth(token)
         .json(&LiveKitDeleteRoomRequest { room: room_id })
         .send()
         .await
-        .map_err(|_| "LiveKit DeleteRoom transport request failed")?;
+    {
+        Ok(response) => response,
+        Err(_) => {
+            return LiveKitDeleteRoomAttempt::failed(
+                "LiveKit DeleteRoom transport request failed",
+                true,
+                0,
+            )
+        }
+    };
     let status = response.status();
+    let http_status = u32::from(status.as_u16());
     if status.is_success() {
-        return Ok(());
+        return LiveKitDeleteRoomAttempt {
+            http_status,
+            transport_failure: false,
+            room_not_found: false,
+            error: None,
+        };
     }
     if status == reqwest::StatusCode::NOT_FOUND {
-        let body = read_bounded_livekit_error_body(response).await?;
-        let error = serde_json::from_slice::<LiveKitTwirpErrorResponse>(&body)
-            .map_err(|_| "LiveKit DeleteRoom returned an invalid Twirp error response")?;
+        let body = match read_bounded_livekit_error_body(response).await {
+            Ok(body) => body,
+            // A reset or timeout while streaming the 404 body is a transport
+            // failure and is retried; an oversized body is not.
+            Err(error) => {
+                return LiveKitDeleteRoomAttempt::failed(
+                    error.message(),
+                    error == LiveKitErrorBodyRead::Transport,
+                    http_status,
+                )
+            }
+        };
+        let Ok(error) = serde_json::from_slice::<LiveKitTwirpErrorResponse>(&body) else {
+            return LiveKitDeleteRoomAttempt::failed(
+                "LiveKit DeleteRoom returned an invalid Twirp error response",
+                false,
+                http_status,
+            );
+        };
         if error.code == "not_found" {
-            return Ok(());
+            return LiveKitDeleteRoomAttempt {
+                http_status,
+                transport_failure: false,
+                room_not_found: true,
+                error: None,
+            };
         }
     }
-    Err("LiveKit DeleteRoom returned a non-success status")
+    LiveKitDeleteRoomAttempt::failed(
+        "LiveKit DeleteRoom returned a non-success status",
+        false,
+        http_status,
+    )
+}
+
+#[cfg(test)]
+async fn delete_livekit_room(
+    configuration: &Configuration,
+    room_id: &str,
+) -> Result<(), &'static str> {
+    let attempt = attempt_livekit_room_delete(configuration, room_id).await;
+    if attempt.is_complete() {
+        return Ok(());
+    }
+    Err(attempt
+        .error
+        .unwrap_or("LiveKit DeleteRoom returned a non-success status"))
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum LiveKitErrorBodyRead {
+    Transport,
+    Oversized,
+}
+
+impl LiveKitErrorBodyRead {
+    fn message(self) -> &'static str {
+        match self {
+            Self::Transport => "could not read LiveKit Twirp error response",
+            Self::Oversized => "LiveKit Twirp error response exceeded the size limit",
+        }
+    }
 }
 
 async fn read_bounded_livekit_error_body(
     mut response: reqwest::Response,
-) -> Result<Vec<u8>, &'static str> {
+) -> Result<Vec<u8>, LiveKitErrorBodyRead> {
     let mut body = Vec::new();
     while let Some(chunk) = response
         .chunk()
         .await
-        .map_err(|_| "could not read LiveKit Twirp error response")?
+        .map_err(|_| LiveKitErrorBodyRead::Transport)?
     {
         if body.len().saturating_add(chunk.len()) > LIVEKIT_TWIRP_ERROR_MAX_BYTES {
-            return Err("LiveKit Twirp error response exceeded the size limit");
+            return Err(LiveKitErrorBodyRead::Oversized);
         }
         body.extend_from_slice(&chunk);
     }
     Ok(body)
 }
 
-fn schedule_livekit_room_cleanup(configuration: Arc<Configuration>, room_id: String) {
-    tokio::spawn(async move {
-        if let Err(error) = delete_livekit_room(&configuration, &room_id).await {
-            eprintln!("LiveKit cleanup failed after terminal call state was committed: {error}");
+/// Writes the durable DeleteRoom intent for a call that is terminal, inside
+/// the transaction that committed that state (#413). Idempotent per room.
+fn enqueue_livekit_cleanup(
+    transaction: &rusqlite::Transaction<'_>,
+    room_id: &str,
+    call_id: &str,
+    status: u8,
+    now: i64,
+) -> Result<(), ApiError> {
+    if !internet_call::livekit_cleanup_should_enqueue(status, !room_id.is_empty()) {
+        return Ok(());
+    }
+    transaction.execute(
+        "INSERT INTO livekit_cleanup_outbox
+             (room_id, call_id, attempts, next_attempt_at, created_at)
+         VALUES (?1, ?2, 0, ?3, ?3)
+         ON CONFLICT(room_id) DO NOTHING",
+        params![room_id, call_id, now],
+    )?;
+    Ok(())
+}
+
+struct LiveKitCleanupClaim {
+    room_id: String,
+    attempts: u32,
+}
+
+/// Claims one due intent for this process generation. A claim left by a
+/// previous generation is reclaimed at once; within one process only a stuck
+/// claim older than the lease is taken over.
+fn claim_livekit_cleanup(
+    database: &mut Connection,
+    claim_owner: &str,
+    now: i64,
+) -> Result<Option<LiveKitCleanupClaim>, ApiError> {
+    let lease_cutoff = now.saturating_sub(i64::from(
+        internet_call::LIVEKIT_CLEANUP_CLAIM_LEASE_SECONDS,
+    ));
+    let transaction = database.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let candidate = transaction
+        .query_row(
+            "SELECT room_id, attempts, claimed_at, claim_owner, blocked_owner
+             FROM livekit_cleanup_outbox
+             WHERE next_attempt_at <= ?1
+               AND (blocked_owner IS NULL OR blocked_owner != ?2)
+               AND (claimed_at IS NULL OR claim_owner IS NULL
+                    OR claim_owner != ?2 OR claimed_at <= ?3)
+             ORDER BY next_attempt_at, created_at
+             LIMIT 1",
+            params![now, claim_owner, lease_cutoff],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, Option<i64>>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                ))
+            },
+        )
+        .optional()?;
+    let Some((room_id, attempts, claimed_at, previous_owner, blocked_owner)) = candidate else {
+        transaction.commit()?;
+        return Ok(None);
+    };
+    if let Some(blocked_owner) = blocked_owner.as_deref() {
+        let same_process_owner = blocked_owner == claim_owner;
+        if !internet_call::livekit_cleanup_block_is_recoverable(same_process_owner) {
+            transaction.commit()?;
+            return Ok(None);
         }
-    });
+    }
+    if let Some(claimed_at) = claimed_at {
+        let same_process_owner = previous_owner.as_deref() == Some(claim_owner);
+        let recoverable = u32::try_from(claimed_at)
+            .ok()
+            .zip(u32::try_from(now).ok())
+            .is_some_and(|(claimed_at, now)| {
+                internet_call::livekit_cleanup_claim_is_recoverable(
+                    same_process_owner,
+                    claimed_at,
+                    now,
+                )
+            });
+        if !recoverable {
+            transaction.commit()?;
+            return Ok(None);
+        }
+    }
+    let claimed = transaction.execute(
+        "UPDATE livekit_cleanup_outbox
+         SET claimed_at = ?1, claim_owner = ?2, blocked_owner = NULL
+         WHERE room_id = ?3 AND next_attempt_at <= ?1",
+        params![now, claim_owner, room_id],
+    )?;
+    transaction.commit()?;
+    if claimed != 1 {
+        return Ok(None);
+    }
+    Ok(Some(LiveKitCleanupClaim {
+        room_id,
+        attempts: u32::try_from(attempts.max(0)).unwrap_or(u32::MAX),
+    }))
+}
+
+/// Stores the outcome of one DeleteRoom request for a claim this process
+/// holds: complete deletes the intent, transient failures back off, anything
+/// else is blocked for this process generation only.
+fn record_livekit_cleanup_outcome(
+    database: &Connection,
+    claim: &LiveKitCleanupClaim,
+    claim_owner: &str,
+    attempt: &LiveKitDeleteRoomAttempt,
+    now: i64,
+    jitter_seconds: u32,
+) -> Result<(), ApiError> {
+    if attempt.is_complete() {
+        database.execute(
+            "DELETE FROM livekit_cleanup_outbox WHERE room_id = ?1 AND claim_owner = ?2",
+            params![claim.room_id, claim_owner],
+        )?;
+        return Ok(());
+    }
+    let attempts = claim.attempts.saturating_add(1);
+    let last_status = i64::from(attempt.http_status);
+    let last_error = attempt
+        .error
+        .unwrap_or("LiveKit DeleteRoom did not complete");
+    if attempt.is_transient() {
+        let delay = internet_call::livekit_cleanup_retry_delay_seconds(attempts, jitter_seconds);
+        database.execute(
+            "UPDATE livekit_cleanup_outbox
+             SET attempts = ?1, next_attempt_at = ?2, claimed_at = NULL, claim_owner = NULL,
+                 last_status = ?3, last_error = ?4
+             WHERE room_id = ?5 AND claim_owner = ?6",
+            params![
+                attempts,
+                now.saturating_add(i64::from(delay)),
+                last_status,
+                last_error,
+                claim.room_id,
+                claim_owner
+            ],
+        )?;
+        return Ok(());
+    }
+    database.execute(
+        "UPDATE livekit_cleanup_outbox
+         SET attempts = ?1, blocked_owner = ?2, claimed_at = NULL, claim_owner = NULL,
+             last_status = ?3, last_error = ?4
+         WHERE room_id = ?5 AND claim_owner = ?2",
+        params![
+            attempts,
+            claim_owner,
+            last_status,
+            last_error,
+            claim.room_id
+        ],
+    )?;
+    Ok(())
+}
+
+async fn process_one_livekit_cleanup(state: &AppState) -> Result<bool, ApiError> {
+    // The process-generation owner shared with the APNs outbox.
+    let owner = state.apns_outbox_owner.as_str();
+    let claim = {
+        let mut database = lock_database(state)?;
+        claim_livekit_cleanup(&mut database, owner, unix_time())?
+    };
+    let Some(claim) = claim else {
+        return Ok(false);
+    };
+    let attempt = attempt_livekit_room_delete(&state.configuration, &claim.room_id).await;
+    let jitter = OsRng.next_u32() % (internet_call::LIVEKIT_CLEANUP_RETRY_MAX_JITTER_SECONDS + 1);
+    let database = lock_database(state)?;
+    record_livekit_cleanup_outcome(&database, &claim, owner, &attempt, unix_time(), jitter)?;
+    Ok(true)
+}
+
+async fn run_livekit_cleanup_worker(state: AppState) {
+    loop {
+        match process_one_livekit_cleanup(&state).await {
+            Ok(true) => tokio::task::yield_now().await,
+            Ok(false) => {
+                tokio::time::sleep(Duration::from_millis(LIVEKIT_CLEANUP_IDLE_POLL_MS)).await
+            }
+            Err(_) => {
+                eprintln!("LiveKit cleanup worker could not process an intent");
+                tokio::time::sleep(Duration::from_millis(LIVEKIT_CLEANUP_ERROR_POLL_MS)).await;
+            }
+        }
+    }
 }
 
 fn decode_json<T: DeserializeOwned>(body: &[u8]) -> Result<T, ApiError> {
@@ -5758,6 +6226,27 @@ mod tests {
     ) -> StatusCode {
         *capture.request.lock().unwrap() = Some((headers, body));
         StatusCode::OK
+    }
+
+    /// DeleteRoom stub for #413: `flaky_room` fails with 503 until the shared
+    /// counter has seen one request, `denied_room` always answers 401.
+    async fn simulate_flaky_livekit_delete_room(
+        State(requests): State<Arc<Mutex<Vec<String>>>>,
+        body: Bytes,
+    ) -> Response {
+        let request: Value = serde_json::from_slice(&body).unwrap();
+        let room = request["room"].as_str().unwrap().to_string();
+        let seen_before = {
+            let mut requests = requests.lock().unwrap();
+            let seen = requests.iter().filter(|value| **value == room).count();
+            requests.push(room.clone());
+            seen
+        };
+        match (room.as_str(), seen_before) {
+            ("flaky_room", 0) => StatusCode::SERVICE_UNAVAILABLE.into_response(),
+            ("denied_room", _) => StatusCode::UNAUTHORIZED.into_response(),
+            _ => (StatusCode::OK, Json(json!({}))).into_response(),
+        }
     }
 
     async fn simulate_livekit_delete_room_error(body: Bytes) -> Response {
@@ -8254,5 +8743,558 @@ mod tests {
         )
         .await;
         assert_eq!(status, StatusCode::CONFLICT);
+    }
+    async fn register_device_with_nickname(state: &AppState, device: &TestDevice, nickname: &str) {
+        let (status, _) = signed_post(
+            application(state.clone()),
+            "/v1/devices/register",
+            device.registration(),
+            device,
+        )
+        .await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        let (status, response) = signed_post(
+            application(state.clone()),
+            "/v1/directory/nicknames/claim",
+            json!({
+                "nickname": nickname,
+                "user_id": device.user_id,
+                "device_id": device.device_id
+            }),
+            device,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(response.unwrap()["claimed"], true);
+    }
+
+    async fn link_second_device(state: &AppState, primary: &TestDevice, secondary: &TestDevice) {
+        let (status, _) = signed_post(
+            application(state.clone()),
+            "/v1/devices/register",
+            secondary.registration(),
+            secondary,
+        )
+        .await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        let (status, response) = signed_post(
+            application(state.clone()),
+            "/v1/account/link-code",
+            json!({"user_id": primary.user_id, "device_id": primary.device_id}),
+            primary,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let link_code = response.unwrap()["link_code"].as_str().unwrap().to_string();
+        let (status, _) = signed_post(
+            application(state.clone()),
+            "/v1/account/link",
+            json!({
+                "user_id": secondary.user_id,
+                "device_id": secondary.device_id,
+                "link_code": link_code
+            }),
+            secondary,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+    }
+
+    fn cleanup_intents_for_call(state: &AppState, call_id: &str) -> i64 {
+        state
+            .database
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT COUNT(*) FROM livekit_cleanup_outbox WHERE call_id = ?1",
+                params![call_id],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn revoking_the_answering_device_ends_the_call_and_queues_room_cleanup() {
+        let state = test_state();
+        let caller = TestDevice::new("user_rv_caller", "device_rv_caller", "Caller");
+        let owner_phone = TestDevice::new("user_rv_owner", "device_rv_phone", "Owner iPhone");
+        let owner_mac = TestDevice::new("user_rv_temp", "device_rv_mac", "Owner Mac");
+        register_device_with_nickname(&state, &caller, "rv_caller").await;
+        register_device_with_nickname(&state, &owner_phone, "rv_owner").await;
+        link_second_device(&state, &owner_phone, &owner_mac).await;
+
+        let (status, response) = signed_post(
+            application(state.clone()),
+            "/v1/calls",
+            json!({
+                "client_call_id": "10000000-0000-4000-8000-000000000413",
+                "callee": "rv_owner",
+                "caller_user_id": caller.user_id,
+                "caller_device_id": caller.device_id,
+                "audio": true,
+                "video": false
+            }),
+            &caller,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let call_id = response.unwrap()["call_id"].as_str().unwrap().to_string();
+        let (status, _) = signed_post(
+            application(state.clone()),
+            &format!("/v1/calls/{call_id}/join"),
+            json!({"user_id": owner_phone.user_id, "device_id": owner_mac.device_id}),
+            &owner_mac,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(cleanup_intents_for_call(&state, &call_id), 0);
+
+        let (status, _) = signed_post(
+            application(state.clone()),
+            &format!("/v1/account/devices/{}/revoke", owner_mac.device_id),
+            json!({"user_id": owner_phone.user_id, "device_id": owner_phone.device_id}),
+            &owner_phone,
+        )
+        .await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        let (status, response) = signed_post(
+            application(state.clone()),
+            &format!("/v1/calls/{call_id}/status"),
+            json!({"user_id": caller.user_id, "device_id": caller.device_id}),
+            &caller,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(response.unwrap()["status"], "ended");
+        assert_eq!(cleanup_intents_for_call(&state, &call_id), 1);
+
+        // The revoked device can no longer act on the call.
+        let (status, _) = signed_post(
+            application(state.clone()),
+            &format!("/v1/calls/{call_id}/end"),
+            json!({"user_id": owner_phone.user_id, "device_id": owner_mac.device_id}),
+            &owner_mac,
+        )
+        .await;
+        assert_ne!(status, StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn revoking_the_calling_device_cancels_a_ringing_call() {
+        let state = test_state();
+        let alice_phone = TestDevice::new("user_rc_alice", "device_rc_phone", "Alice iPhone");
+        let alice_mac = TestDevice::new("user_rc_temp", "device_rc_mac", "Alice Mac");
+        let bob = TestDevice::new("user_rc_bob", "device_rc_bob", "Bob");
+        register_device_with_nickname(&state, &alice_phone, "rc_alice").await;
+        link_second_device(&state, &alice_phone, &alice_mac).await;
+        register_device_with_nickname(&state, &bob, "rc_bob").await;
+
+        let (status, response) = signed_post(
+            application(state.clone()),
+            "/v1/calls",
+            json!({
+                "client_call_id": "10000000-0000-4000-8000-000000000414",
+                "callee": "rc_bob",
+                "caller_user_id": alice_phone.user_id,
+                "caller_device_id": alice_mac.device_id,
+                "audio": true,
+                "video": false
+            }),
+            &alice_mac,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let call_id = response.unwrap()["call_id"].as_str().unwrap().to_string();
+
+        let (status, _) = signed_post(
+            application(state.clone()),
+            &format!("/v1/account/devices/{}/revoke", alice_mac.device_id),
+            json!({"user_id": alice_phone.user_id, "device_id": alice_phone.device_id}),
+            &alice_phone,
+        )
+        .await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        let (status, response) = signed_post(
+            application(state.clone()),
+            &format!("/v1/calls/{call_id}/status"),
+            json!({"user_id": bob.user_id, "device_id": bob.device_id}),
+            &bob,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let callee_status = response.unwrap();
+        assert_eq!(callee_status["status"], "cancelled");
+        assert_ne!(callee_status["target_status"], "ringing");
+        assert_eq!(cleanup_intents_for_call(&state, &call_id), 1);
+    }
+
+    #[tokio::test]
+    async fn livekit_cleanup_intent_retries_and_survives_a_restart() {
+        let requests = Arc::new(Mutex::new(Vec::<String>::new()));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server_application = Router::new()
+            .route(
+                "/twirp/livekit.RoomService/DeleteRoom",
+                post(simulate_flaky_livekit_delete_room),
+            )
+            .with_state(requests.clone());
+        let server = tokio::spawn(async move {
+            axum::serve(listener, server_application).await.unwrap();
+        });
+        let configuration = Configuration {
+            bind: "127.0.0.1:8080".parse().unwrap(),
+            livekit_url: format!("ws://{address}"),
+            livekit_api_key: "devkey".to_string(),
+            livekit_api_secret: "secret".to_string(),
+            service_access_token: None,
+            apns: None,
+        };
+        let mut database = Connection::open_in_memory().unwrap();
+        initialize_database(&database).unwrap();
+        let now = 1_000_000_i64;
+        for (room, call) in [("flaky_room", "call_flaky"), ("denied_room", "call_denied")] {
+            let transaction = database.transaction().unwrap();
+            enqueue_livekit_cleanup(&transaction, room, call, internet_call::CALL_ENDED, now)
+                .unwrap();
+            // Idempotent: a second terminal write for the same room adds nothing.
+            enqueue_livekit_cleanup(&transaction, room, call, internet_call::CALL_ENDED, now)
+                .unwrap();
+            transaction.commit().unwrap();
+        }
+        let active = database.transaction().unwrap();
+        enqueue_livekit_cleanup(
+            &active,
+            "active_room",
+            "call_active",
+            internet_call::CALL_ACTIVE,
+            now,
+        )
+        .unwrap();
+        active.commit().unwrap();
+        let count = |database: &Connection| {
+            database
+                .query_row("SELECT COUNT(*) FROM livekit_cleanup_outbox", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap()
+        };
+        assert_eq!(
+            count(&database),
+            2,
+            "only terminal calls are queued, once per room"
+        );
+
+        // Generation one: the first DeleteRoom for flaky_room fails with 503.
+        let mut claims = Vec::new();
+        while let Some(claim) = claim_livekit_cleanup(&mut database, "generation_one", now).unwrap()
+        {
+            claims.push(claim);
+        }
+        assert_eq!(claims.len(), 2);
+        for claim in &claims {
+            let attempt = attempt_livekit_room_delete(&configuration, &claim.room_id).await;
+            record_livekit_cleanup_outcome(&database, claim, "generation_one", &attempt, now, 0)
+                .unwrap();
+        }
+        let (attempts, next_attempt_at, last_status) = database
+            .query_row(
+                "SELECT attempts, next_attempt_at, last_status FROM livekit_cleanup_outbox
+                 WHERE room_id = 'flaky_room'",
+                [],
+                |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, i64>(1)?,
+                        row.get::<_, i64>(2)?,
+                    ))
+                },
+            )
+            .unwrap();
+        assert_eq!(attempts, 1);
+        assert_eq!(last_status, 503);
+        assert_eq!(
+            next_attempt_at,
+            now + i64::from(internet_call::livekit_cleanup_retry_delay_seconds(1, 0))
+        );
+        // 401 is a configuration failure: blocked for this generation, kept durable.
+        let blocked_owner = database
+            .query_row(
+                "SELECT blocked_owner FROM livekit_cleanup_outbox WHERE room_id = 'denied_room'",
+                [],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .unwrap();
+        assert_eq!(blocked_owner.as_deref(), Some("generation_one"));
+        assert!(claim_livekit_cleanup(&mut database, "generation_one", now)
+            .unwrap()
+            .is_none());
+
+        // Generation one claims the retry, then "crashes" before recording.
+        let later = next_attempt_at;
+        let held = claim_livekit_cleanup(&mut database, "generation_one", later)
+            .unwrap()
+            .unwrap();
+        assert_eq!(held.room_id, "flaky_room");
+        assert!(
+            claim_livekit_cleanup(&mut database, "generation_one", later)
+                .unwrap()
+                .is_none()
+        );
+
+        // A restarted process reclaims both intents at once.
+        let mut reclaimed = Vec::new();
+        while let Some(claim) =
+            claim_livekit_cleanup(&mut database, "generation_two", later).unwrap()
+        {
+            reclaimed.push(claim);
+        }
+        let mut rooms: Vec<&str> = reclaimed
+            .iter()
+            .map(|claim| claim.room_id.as_str())
+            .collect();
+        rooms.sort_unstable();
+        assert_eq!(rooms, ["denied_room", "flaky_room"]);
+        for claim in &reclaimed {
+            let attempt = attempt_livekit_room_delete(&configuration, &claim.room_id).await;
+            record_livekit_cleanup_outcome(&database, claim, "generation_two", &attempt, later, 0)
+                .unwrap();
+        }
+        // flaky_room is gone after its second request; denied_room stays durable.
+        let remaining: Vec<String> = database
+            .prepare("SELECT room_id FROM livekit_cleanup_outbox")
+            .unwrap()
+            .query_map([], |row| row.get::<_, String>(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(remaining, ["denied_room"]);
+        let sent = requests.lock().unwrap().clone();
+        assert_eq!(
+            sent.iter()
+                .filter(|room| room.as_str() == "flaky_room")
+                .count(),
+            2,
+            "one DeleteRoom request per claim"
+        );
+
+        server.abort();
+        let _ = server.await;
+    }
+    #[tokio::test]
+    async fn stale_authentication_cannot_admit_a_call_after_revocation() {
+        // Deterministic interleaving through the real admission path: the
+        // request authenticated while the device was active (the
+        // AuthenticatedDevice below is exactly what authenticate() returned
+        // for it), then a revocation committed, then admit_call() ran.
+        let state = test_state();
+        let owner_phone = TestDevice::new("user_st_owner", "device_st_phone", "Owner iPhone");
+        let owner_mac = TestDevice::new("user_st_temp", "device_st_mac", "Owner Mac");
+        let callee = TestDevice::new("user_st_callee", "device_st_callee", "Callee");
+        register_device_with_nickname(&state, &owner_phone, "st_owner").await;
+        link_second_device(&state, &owner_phone, &owner_mac).await;
+        register_device_with_nickname(&state, &callee, "st_callee").await;
+        let authenticated_before_revocation = AuthenticatedDevice {
+            user_id: owner_phone.user_id.clone(),
+            device_id: owner_mac.device_id.clone(),
+            display_name: owner_mac.display_name.clone(),
+            signing_public_key: owner_mac.public_key.clone(),
+            key_fingerprint: owner_mac.fingerprint.clone(),
+            capabilities: capability_bits(&[
+                "audio".to_string(),
+                "video".to_string(),
+                "mesh".to_string(),
+                "webrtc".to_string(),
+            ]),
+        };
+        let request = |client_call_id: &str| CreateCallRequest {
+            client_call_id: client_call_id.to_string(),
+            callee: "st_callee".to_string(),
+            caller_user_id: owner_phone.user_id.clone(),
+            caller_device_id: owner_mac.device_id.clone(),
+            audio: true,
+            video: false,
+        };
+        // Control: before the revocation the same value is admitted.
+        let admitted = admit_call(
+            &state,
+            &authenticated_before_revocation,
+            &request("10000000-0000-4000-8000-000000000415"),
+        )
+        .unwrap();
+        assert_eq!(admitted.status(), StatusCode::OK);
+        let calls_before = state
+            .database
+            .lock()
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM calls", [], |row| row.get::<_, i64>(0))
+            .unwrap();
+
+        let (status, _) = signed_post(
+            application(state.clone()),
+            &format!("/v1/account/devices/{}/revoke", owner_mac.device_id),
+            json!({"user_id": owner_phone.user_id, "device_id": owner_phone.device_id}),
+            &owner_phone,
+        )
+        .await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        let error = admit_call(
+            &state,
+            &authenticated_before_revocation,
+            &request("10000000-0000-4000-8000-000000000416"),
+        )
+        .unwrap_err();
+        assert_eq!(error.status, StatusCode::FORBIDDEN);
+        let calls_after = state
+            .database
+            .lock()
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM calls", [], |row| row.get::<_, i64>(0))
+            .unwrap();
+        assert_eq!(
+            calls_after, calls_before,
+            "no call row and no media session after revocation"
+        );
+
+        // The helper also refuses a key that does not match the device.
+        let other_key = TestDevice::new("x", "y", "z");
+        let mismatched = AuthenticatedDevice {
+            signing_public_key: other_key.public_key.clone(),
+            key_fingerprint: other_key.fingerprint.clone(),
+            user_id: owner_phone.user_id.clone(),
+            device_id: owner_phone.device_id.clone(),
+            display_name: owner_phone.display_name.clone(),
+            capabilities: internet_call::CAP_AUDIO | internet_call::CAP_WEBRTC,
+        };
+        let mut database = state.database.lock().unwrap();
+        let transaction = database.transaction().unwrap();
+        assert!(require_device_still_active(&transaction, &mismatched).is_err());
+    }
+
+    #[tokio::test]
+    async fn interrupted_not_found_body_is_a_retryable_transport_failure() {
+        // A raw server: 404 headers announcing 200 bytes, 9 bytes sent, close.
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            use std::io::{Read, Write};
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut buffer = [0_u8; 4096];
+            let _ = stream.read(&mut buffer);
+            let _ = stream.write_all(
+                b"HTTP/1.1 404 Not Found\r\ncontent-type: application/json\r\ncontent-length: 200\r\n\r\n{\"code\":",
+            );
+            let _ = stream.flush();
+        });
+        let configuration = Configuration {
+            bind: "127.0.0.1:8080".parse().unwrap(),
+            livekit_url: format!("ws://{address}"),
+            livekit_api_key: "devkey".to_string(),
+            livekit_api_secret: "secret".to_string(),
+            service_access_token: None,
+            apns: None,
+        };
+        let attempt = attempt_livekit_room_delete(&configuration, "interrupted_room").await;
+        server.join().unwrap();
+        assert_eq!(attempt.http_status, 404);
+        assert!(attempt.transport_failure);
+        assert!(!attempt.is_complete());
+        assert!(
+            attempt.is_transient(),
+            "an interrupted body is retried, not blocked"
+        );
+        assert_eq!(
+            attempt.error,
+            Some(LiveKitErrorBodyRead::Transport.message())
+        );
+    }
+
+    #[tokio::test]
+    async fn livekit_cleanup_intent_survives_closing_and_reopening_the_database_file() {
+        let requests = Arc::new(Mutex::new(Vec::<String>::new()));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server_application = Router::new()
+            .route(
+                "/twirp/livekit.RoomService/DeleteRoom",
+                post(simulate_flaky_livekit_delete_room),
+            )
+            .with_state(requests.clone());
+        let server = tokio::spawn(async move {
+            axum::serve(listener, server_application).await.unwrap();
+        });
+        let configuration = Configuration {
+            bind: "127.0.0.1:8080".parse().unwrap(),
+            livekit_url: format!("ws://{address}"),
+            livekit_api_key: "devkey".to_string(),
+            livekit_api_secret: "secret".to_string(),
+            service_access_token: None,
+            apns: None,
+        };
+        let path = std::env::temp_dir().join(format!("trinet-cleanup-{}.sqlite", Uuid::new_v4()));
+        let now = 2_000_000_i64;
+
+        // Process one: commit the intent, fail once with 503, claim the retry,
+        // then exit without recording an outcome.
+        {
+            let mut database = Connection::open(&path).unwrap();
+            initialize_database(&database).unwrap();
+            let transaction = database.transaction().unwrap();
+            enqueue_livekit_cleanup(
+                &transaction,
+                "flaky_room",
+                "call_file",
+                internet_call::CALL_CANCELLED,
+                now,
+            )
+            .unwrap();
+            transaction.commit().unwrap();
+            let claim = claim_livekit_cleanup(&mut database, "process_one", now)
+                .unwrap()
+                .unwrap();
+            let attempt = attempt_livekit_room_delete(&configuration, &claim.room_id).await;
+            record_livekit_cleanup_outcome(&database, &claim, "process_one", &attempt, now, 0)
+                .unwrap();
+            let retry_at =
+                now + i64::from(internet_call::livekit_cleanup_retry_delay_seconds(1, 0));
+            let held = claim_livekit_cleanup(&mut database, "process_one", retry_at)
+                .unwrap()
+                .unwrap();
+            assert_eq!(held.attempts, 1);
+        }
+
+        // Process two: a fresh connection to the same file reclaims and completes it.
+        let retry_at = now + i64::from(internet_call::livekit_cleanup_retry_delay_seconds(1, 0));
+        {
+            let mut database = Connection::open(&path).unwrap();
+            initialize_database(&database).unwrap();
+            let claim = claim_livekit_cleanup(&mut database, "process_two", retry_at)
+                .unwrap()
+                .expect("a restarted process reclaims the intent from the file");
+            assert_eq!(claim.room_id, "flaky_room");
+            assert_eq!(claim.attempts, 1, "attempt count survived the restart");
+            let attempt = attempt_livekit_room_delete(&configuration, &claim.room_id).await;
+            assert!(attempt.is_complete());
+            record_livekit_cleanup_outcome(&database, &claim, "process_two", &attempt, retry_at, 0)
+                .unwrap();
+        }
+
+        // Process three: nothing is left to clean up.
+        {
+            let database = Connection::open(&path).unwrap();
+            let remaining = database
+                .query_row("SELECT COUNT(*) FROM livekit_cleanup_outbox", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap();
+            assert_eq!(remaining, 0);
+        }
+        assert_eq!(requests.lock().unwrap().len(), 2);
+        let _ = std::fs::remove_file(&path);
+        server.abort();
+        let _ = server.await;
     }
 }

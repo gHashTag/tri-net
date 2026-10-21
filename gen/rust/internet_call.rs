@@ -73,6 +73,16 @@ pub const APNS_OUTBOX_RETRY_MAX_SECONDS: u32 = 300;
 
 pub const APNS_OUTBOX_RETRY_MAX_JITTER_SECONDS: u32 = 5;
 
+pub const LIVEKIT_CLEANUP_RETRY_BASE_SECONDS: u32 = 2;
+
+pub const LIVEKIT_CLEANUP_RETRY_MAX_SECONDS: u32 = 300;
+
+pub const LIVEKIT_CLEANUP_RETRY_MAX_JITTER_SECONDS: u32 = 5;
+
+pub const LIVEKIT_CLEANUP_CLAIM_LEASE_SECONDS: u32 = 60;
+
+pub const LIVEKIT_CLEANUP_HTTP_ATTEMPTS_PER_CLAIM: u32 = 1;
+
 pub fn device_is_valid(user_id: u64, device_id: u64, key_fingerprint: u64, capabilities: u8) -> bool {
     if (((user_id == 0) || (device_id == 0)) || (key_fingerprint == 0)) {
         return false;
@@ -395,6 +405,94 @@ pub fn livekit_room_cleanup_should_start(status: u8, terminal_state_committed: b
     return (terminal_state_committed && call_is_terminal(status));
 }
 
+pub fn livekit_cleanup_should_enqueue(status: u8, room_assigned: bool) -> bool {
+    return ((room_assigned == true) && (call_is_terminal(status) == true));
+}
+
+pub fn livekit_cleanup_is_complete(http_status: u32, room_not_found: bool) -> bool {
+    if ((http_status >= 200) && (http_status < 300)) {
+        return true;
+    }
+    return ((http_status == 404) && (room_not_found == true));
+}
+
+pub fn livekit_cleanup_failure_is_transient(transport_failure: bool, http_status: u32) -> bool {
+    if (transport_failure == true) {
+        return true;
+    }
+    return ((http_status == 429) || (http_status >= 500));
+}
+
+pub fn livekit_cleanup_bounded_jitter_seconds(jitter_seconds: u32) -> u32 {
+    if (jitter_seconds > LIVEKIT_CLEANUP_RETRY_MAX_JITTER_SECONDS) {
+        return LIVEKIT_CLEANUP_RETRY_MAX_JITTER_SECONDS;
+    }
+    return jitter_seconds;
+}
+
+pub fn livekit_cleanup_retry_delay_seconds(attempts_completed: u32, jitter_seconds: u32) -> u32 {
+    let jitter: u32 = livekit_cleanup_bounded_jitter_seconds(jitter_seconds);
+    if (attempts_completed <= 1) {
+        return (LIVEKIT_CLEANUP_RETRY_BASE_SECONDS + jitter);
+    }
+    if (attempts_completed == 2) {
+        return (4 + jitter);
+    }
+    if (attempts_completed == 3) {
+        return (8 + jitter);
+    }
+    if (attempts_completed == 4) {
+        return (16 + jitter);
+    }
+    if (attempts_completed == 5) {
+        return (32 + jitter);
+    }
+    if (attempts_completed == 6) {
+        return (64 + jitter);
+    }
+    if (attempts_completed == 7) {
+        return (128 + jitter);
+    }
+    return LIVEKIT_CLEANUP_RETRY_MAX_SECONDS;
+}
+
+pub fn livekit_cleanup_claim_is_recoverable(same_process_owner: bool, claimed_at: u32, now: u32) -> bool {
+    if (same_process_owner == false) {
+        return true;
+    }
+    if (now < claimed_at) {
+        return false;
+    }
+    return ((now - claimed_at) >= LIVEKIT_CLEANUP_CLAIM_LEASE_SECONDS);
+}
+
+pub fn livekit_cleanup_block_is_recoverable(same_process_owner: bool) -> bool {
+    return (same_process_owner == false);
+}
+
+pub fn revoked_device_participates(call_status: u8, device_is_caller: bool, device_is_answerer: bool, device_is_ringing_target: bool) -> bool {
+    if (call_status == CALL_ACTIVE) {
+        return ((device_is_caller == true) || (device_is_answerer == true));
+    }
+    if (call_status == CALL_RINGING) {
+        return ((device_is_caller == true) || (device_is_ringing_target == true));
+    }
+    return false;
+}
+
+pub fn status_after_device_revocation(call_status: u8, device_is_caller: bool, device_is_answerer: bool, remaining_ringing_targets: u16) -> u8 {
+    if ((call_status == CALL_ACTIVE) && ((device_is_caller == true) || (device_is_answerer == true))) {
+        return CALL_ENDED;
+    }
+    if ((call_status == CALL_RINGING) && (device_is_caller == true)) {
+        return CALL_CANCELLED;
+    }
+    if (call_status == CALL_RINGING) {
+        return status_after_decline(call_status, remaining_ringing_targets);
+    }
+    return call_status;
+}
+
 pub fn terminal_response_is_allowed(terminal_state_committed: bool, cleanup_succeeded: bool) -> bool {
     if cleanup_succeeded {
         return terminal_state_committed;
@@ -441,3 +539,4 @@ pub fn next_status(status: u8, accept: bool) -> u8 {
     }
     return status;
 }
+
